@@ -1,0 +1,38 @@
+{
+  "id": "PPY-0af7dbbf-2185-4f18-a4b5-3bcec43972e1",
+  "title": "5. Editor tier (L)",
+  "description": "Shipped story: ship-9890b5 (editor tier). Size L. Depends on stories 3 and 4.\n\nAs an editor, I want to approve, decline and override, so that readers steer but editors keep the final say, in public.\n\nAcceptance criteria:\n- Approve, decline, pin and hold on Proposals.\n- Override requires a public reason; both the community result and the override result stay visible.\n- Batch vote exclusion (for example accounts under 24h old), with undo and a public 'excluded N' note.\n- Mark an account spam or limited.\n- A 'needs a look' filter: vote spikes, new-account surges, community-vs-AI disagreement.\n- Only editors can use these actions; others are refused.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [
+    "size-L",
+    "shipped",
+    "ship-9890b5"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-c97ce497-d836-47e8-9e9d-5ec06ca0b118",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-409d962d-6070-4dfb-9384-38389296690b",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-22T15:31:31.051709Z",
+  "updated_at": "2026-10-22T15:32:08.648516Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "board-reposition"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

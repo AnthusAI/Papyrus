@@ -81,6 +81,37 @@ def plain_directory(context) -> None:
     context.projector = MarkusSiteProjector.from_static_directory(static_directory(Path(work.name), {}))
 
 
+@given("a standard site with only a name and no site URL")
+def no_site_url(context) -> None:
+    settings = {"site": {"name": "No Origin"}, "publicData": {}}
+    remember(context, ProjectedSite(settings=settings, content=Path(__file__).resolve().parents[1] / "fixtures" / "standard-site" / "flat" / "content"))
+
+
+def public_entries(context) -> dict[str, dict]:
+    return {entry["url"]: entry for entry in json.loads(context.site.text("_data/search-index.json"))}
+
+
+@then('the standard public entry "{url}" has the image "{image}"')
+def public_entry_image(context, url: str, image: str) -> None:
+    assert public_entries(context)[url].get("image") == image, public_entries(context)[url]
+
+
+@then('the standard public entry "{url}" has the publication "{name}"')
+def public_entry_publication(context, url: str, name: str) -> None:
+    assert public_entries(context)[url].get("publication") == name, public_entries(context)[url]
+
+
+@then("no standard public entry has an image")
+def no_public_image(context) -> None:
+    assert not [url for url, entry in public_entries(context).items() if "image" in entry]
+
+
+@then("every standard public entry has the image its page names in its Open Graph tag")
+def public_image_matches_open_graph(context) -> None:
+    for url, entry in public_entries(context).items():
+        assert f'<meta property="og:image" content="{entry["image"]}">' in context.site.text(url.lstrip("/")), url
+
+
 @then("the standard projector choice is the bare Markus projector")
 def bare_projector(context) -> None:
     assert type(context.projector) is MarkusSiteProjector

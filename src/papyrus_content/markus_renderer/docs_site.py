@@ -24,6 +24,7 @@ from urllib.parse import urlparse
 
 from .build import BuildResult, build_markus_site
 from .docs_markdown import convert_markdown_dialects
+from .consent import ConsentModeSettings
 from .shell import SiteChrome
 
 DIRECTORY_LINK_PATTERN = re.compile(r"\]\(((?!https?:|mailto:|#|/)[^)\s#]*/)(#[^)\s]*)?\)")
@@ -36,6 +37,8 @@ IMAGE_DIRECTORY_NAME = "images"
 PUBLISHED_ASSET_DIRECTORY_NAME = "assets"
 INDEX_PAGE_PATH = "index.md"
 DEFAULT_SITE_STYLESHEET = Path(__file__).with_name("docs_site.css")
+DEFAULT_PRIVACY_POLICY_URL = "https://anth.us/privacy/"
+COOKIE_SETTINGS_LINK = '<p class="site-cookie-settings"><a href="#" data-papyrus-consent-reopen hidden>Cookie settings</a></p>'
 
 
 @dataclass(frozen=True)
@@ -58,6 +61,11 @@ class DocsSiteConfig:
     """The site's public address ending in a slash; when set, the build also writes ``sitemap.xml`` and ``404.html``."""
     contact_url: str = ""
     """Where the family footer's "Contact us" link points; empty keeps the registry's ``contactUrl``."""
+    ga_measurement_id: str = ""
+    """Google Analytics 4 measurement id. Empty (the default) keeps analytics off; set, the pages load Consent Mode v2
+    (regional defaults, the first-party banner, a "Cookie settings" footer link) and the privacy-safe events."""
+    privacy_policy_url: str = DEFAULT_PRIVACY_POLICY_URL
+    """Where the consent banner's privacy link points; only used with ``ga_measurement_id``."""
 
 
 def source_documentation_pages(config: DocsSiteConfig) -> list[Path]:
@@ -500,9 +508,12 @@ def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
         render_masthead=render_site_banner,
         footer_html=(
             docs_site_family_footer(config)
+            + (COOKIE_SETTINGS_LINK if config.ga_measurement_id else "")
             + COLLAPSE_MENU_ON_NARROW_SCREENS_SCRIPT
             + RENDER_MERMAID_DIAGRAMS_SCRIPT
         ),
+        ga_measurement_id=config.ga_measurement_id or None,
+        consent_mode=ConsentModeSettings(privacy_policy_url=config.privacy_policy_url) if config.ga_measurement_id else None,
     )
 
 
@@ -585,6 +596,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--site-url", default="", help="Public address ending in a slash; enables sitemap.xml and 404.html.")
     parser.add_argument("--exclude", action="append", default=[], help="Glob of pages (relative to --docs) never to publish; repeatable.")
     parser.add_argument("--contact-url", default=None, type=https_address, help="Where the footer's Contact us link points (default: the Anthus registry's contact address).")
+    parser.add_argument("--ga-measurement-id", default="", help="Google Analytics 4 measurement id (G-XXXXXXXXXX); omit to keep analytics off.")
+    parser.add_argument("--privacy-url", default=DEFAULT_PRIVACY_POLICY_URL, type=https_address, help="Where the consent banner's privacy link points (default: the Anthus privacy policy).")
     parser.add_argument("--redirect-former-urls", action="store_true", help="Write redirects from former directory-style URLs.")
     arguments = parser.parse_args(argv)
     result = build_docs_site(
@@ -597,6 +610,8 @@ def main(argv: list[str] | None = None) -> int:
             redirect_former_directory_urls=arguments.redirect_former_urls,
             published_site_url=arguments.site_url,
             contact_url=arguments.contact_url or "",
+            ga_measurement_id=arguments.ga_measurement_id,
+            privacy_policy_url=arguments.privacy_url,
             excluded_page_patterns=tuple(arguments.exclude),
         ),
         arguments.out,

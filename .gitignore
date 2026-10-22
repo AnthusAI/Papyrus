@@ -48,6 +48,8 @@ dist-packages/
 cdk.out/
 infra/amplify-app-shell/node_modules/
 infra/amplify-app-shell/cdk.out/
+infra/scheduled-jobs/node_modules
+infra/scheduled-jobs/cdk.out/
 .pytest_cache/
 .venv/
 .ruff_cache/

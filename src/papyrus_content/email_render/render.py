@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
+from urllib.parse import urlsplit
 
 from papyrus_content.markus_renderer.build import render_fragment_text
 from papyrus_content.markus_renderer.convert import convert_text_in_process
@@ -25,6 +26,8 @@ class EmailFooter:
     manage_url: str
     unsubscribe_url: str
     postal_address: str | None
+    #: The list's archive page. When set, the footer links "All issues".
+    archive_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,43 +49,166 @@ def _body(markus: str, theme: EmailTheme, site_url: str) -> tuple[str, str]:
     return html, plain
 
 
+_LEGACY_DARK = """@media (prefers-color-scheme: dark) {
+  .em-bg { background-color: #111111 !important; }
+  .em-card { background-color: #1c1c1c !important; }
+  .em-card p, .em-card li, .em-card h1, .em-card h2, .em-card h3, .em-card h4, .em-card h5, .em-card h6, .em-card td, .em-card th { color: #eeeeee !important; }
+  .em-muted, .em-muted a { color: #bbbbbb !important; }
+  .em-card a { color: #9ec5ff !important; }
+  .em-card pre, .em-card .em-callout { background-color: #2a2a2a !important; color: #eeeeee !important; }
+}"""
+
+#: Dark tokens for a branded theme: ink page and panels, paper text. The bands and the button keep the brand colours.
+DARK_PAGE = "#1A1615"
+DARK_SURFACE = "#26211F"
+DARK_TEXT = "#F5F1EA"
+DARK_MUTED = "#CFC8BF"
+DARK_CODE = "#322B28"
+
+
+@dataclass(frozen=True)
+class FooterParts:
+    """What the footer says, for the footer band (the plain footer is built by the caller)."""
+
+    reason: str
+    links: tuple[tuple[str, str], ...]
+    address_lines: tuple[str, ...] = ()
+
+
+def _button_colors(theme: EmailTheme) -> tuple[str, str, str | None]:
+    fill = theme.button_fill or theme.accent
+    return fill, theme.button_text or readable_on(fill), theme.button_border
+
+
+def _branded_dark(theme: EmailTheme) -> str:
+    rules = [
+        f".em-bg {{ background-color: {DARK_PAGE} !important; }}",
+        f".em-card {{ background-color: {DARK_SURFACE} !important; }}",
+        ".em-card p, .em-card li, .em-card h1, .em-card h2, .em-card h3, .em-card h4, .em-card h5, .em-card h6, "
+        f".em-card td, .em-card th {{ color: {DARK_TEXT} !important; }}",
+        f".em-muted, .em-muted a {{ color: {DARK_MUTED} !important; }}",
+        f".em-card a {{ color: {DARK_TEXT} !important; text-decoration: underline !important; }}",
+        f".em-card pre, .em-card .em-callout {{ background-color: {DARK_CODE} !important; color: {DARK_TEXT} !important; }}",
+        f".em-card blockquote, .em-card .em-callout {{ border-left-color: {DARK_TEXT} !important; }}",
+    ]
+    if theme.header_band:
+        rules.append(f".em-hband {{ background-color: {theme.header_band} !important; }}")
+        rules.append(f".em-hband, .em-hband a, .em-hband div, .em-hband span {{ color: {theme.header_ink} !important; }}")
+    if theme.footer_band:
+        rules.append(f".em-fband {{ background-color: {theme.footer_band} !important; }}")
+        rules.append(
+            f".em-fband, .em-fband a, .em-fband p, .em-fband div, .em-fband span {{ color: {theme.footer_ink} !important; }}"
+        )
+    fill, ink, _ = _button_colors(theme)
+    rules.append(f".em-btn-cell {{ background-color: {fill} !important; }}")
+    rules.append(f".em-card a.em-btn {{ color: {ink} !important; text-decoration: none !important; }}")
+    return "@media (prefers-color-scheme: dark) {\n  " + "\n  ".join(rules) + "\n}"
+
+
 def _head(subject: str, theme: EmailTheme) -> str:
+    dark = _branded_dark(theme) if theme.is_branded else _LEGACY_DARK
+    root = "\n:root { color-scheme: light dark; supported-color-schemes: light dark; }" if theme.is_branded else ""
     return f"""<head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light dark" />
 <meta name="supported-color-schemes" content="light dark" />
 <title>{escape(subject)}</title>
-<style type="text/css">
+<style type="text/css">{root}
 @media only screen and (max-width: 620px) {{
   .em-container {{ width: 100% !important; }}
   .em-pad {{ padding-left: 16px !important; padding-right: 16px !important; }}
 }}
-@media (prefers-color-scheme: dark) {{
-  .em-bg {{ background-color: #111111 !important; }}
-  .em-card {{ background-color: #1c1c1c !important; }}
-  .em-card p, .em-card li, .em-card h1, .em-card h2, .em-card h3, .em-card h4, .em-card h5, .em-card h6, .em-card td, .em-card th {{ color: #eeeeee !important; }}
-  .em-muted, .em-muted a {{ color: #bbbbbb !important; }}
-  .em-card a {{ color: #9ec5ff !important; }}
-  .em-card pre, .em-card .em-callout {{ background-color: #2a2a2a !important; color: #eeeeee !important; }}
-}}
+{dark}
 </style>
 </head>"""
 
 
-def _shell(*, subject: str, preheader: str, theme: EmailTheme, site_url: str, site_name: str, content: str, footer: str) -> str:
-    logo = absolute_url(theme.logo_url or "", site_url, schemes=frozenset({"http", "https"}))
+def _wordmark(
+    theme: EmailTheme, home: str, site_name: str, *, size: int = 22, color: str | None = None, width: int | None = None
+) -> str:
+    """The brand mark: the wordmark image when set, else the site name as text. ``width`` draws the image smaller, same aspect."""
+    if theme.wordmark_image_url:
+        shown_width = width or theme.wordmark_width
+        shown_height = theme.wordmark_height if not width else max(1, round(width * theme.wordmark_height / theme.wordmark_width))
+        return (
+            f'<a href="{home}" style="text-decoration:none;"><img src="{escape(theme.wordmark_image_url)}" '
+            f'alt="{escape(theme.wordmark_text or site_name)}" width="{shown_width}" height="{shown_height}" '
+            f'style="display:block;border:0;outline:none;max-width:100%;height:auto;" /></a>'
+        )
+    return (
+        f'<a href="{home}" style="font-family:{theme.font_family};font-size:{size}px;font-weight:bold;'
+        f'color:{color or theme.accent};text-decoration:none;">{escape(site_name)}</a>'
+    )
+
+
+def _label_style(theme: EmailTheme, color: str, size: int = 11) -> str:
+    return (
+        f"font-family:{theme.mono};font-size:{size}px;font-weight:bold;letter-spacing:1.2px;text-transform:uppercase;"
+        f"color:{color};"
+    )
+
+
+def _header_rows(theme: EmailTheme, site_url: str, site_name: str, label: str) -> str:
+    """The row above the card: a band when the theme has one, else the plain brand line."""
     home = escape(site_url)
-    if logo:
+    if theme.header_band:
+        ink = theme.header_ink
+        label_html = (
+            f'<div style="{_label_style(theme, ink)}margin:12px 0 0 0;line-height:1.4;">{escape(label)}</div>' if label else ""
+        )
+        return (
+            f'<tr><td class="em-hband em-pad" bgcolor="{theme.header_band}" '
+            f'style="background-color:{theme.header_band};padding:26px 32px 20px 32px;color:{ink};">'
+            f"{_wordmark(theme, home, site_name, size=28, color=ink)}{label_html}</td></tr>"
+        )
+    logo = absolute_url(theme.logo_url or "", site_url, schemes=frozenset({"http", "https"}))
+    if theme.wordmark_image_url:
+        brand = _wordmark(theme, home, site_name)
+    elif logo:
         brand = (
             f'<a href="{home}" style="text-decoration:none;"><img src="{escape(logo)}" alt="{escape(site_name)}" '
             f'style="display:block;max-width:100%;max-height:60px;height:auto;border:0;" /></a>'
         )
     else:
-        brand = (
-            f'<a href="{home}" style="font-family:{theme.font_family};font-size:22px;font-weight:bold;'
-            f'color:{theme.accent};text-decoration:none;">{escape(site_name)}</a>'
+        brand = _wordmark(theme, home, site_name)
+    return f'<tr><td class="em-pad" style="padding:0 32px 16px 32px;">{brand}</td></tr>'
+
+
+def _footer_row(theme: EmailTheme, site_url: str, site_name: str, legacy: str, parts: FooterParts | None) -> str:
+    home = escape(site_url)
+    if theme.footer_band and parts is not None:
+        ink = theme.footer_ink
+        font = f"font-family:{theme.font_family};color:{ink};"
+        compact = bool(theme.footer_wordmark_width)  # the smaller footer: plain mono lines, as in a printed colophon
+        line = (
+            f"font-family:{theme.mono};font-size:11px;font-weight:normal;color:{ink};" if compact else _label_style(theme, ink, 12)
         )
+        links = f' <span style="{line}">&middot;</span> '.join(
+            f'<a href="{escape(url)}" style="color:{ink};text-decoration:underline;">{escape(label)}</a>'
+            for label, url in parts.links
+        )
+        address = "<br />".join(escape(line) for line in parts.address_lines)
+        address_style = line if compact else f"{_label_style(theme, ink, 11)}font-weight:normal;"
+        address_html = f'<p style="{address_style}margin:0;line-height:1.6;">{address}</p>' if address else ""
+        return (
+            f'<tr><td class="em-fband em-pad" bgcolor="{theme.footer_band}" '
+            f'style="background-color:{theme.footer_band};padding:22px 32px 26px 32px;{font}">'
+            f'<div style="margin:0 0 14px 0;">{_wordmark(theme, home, site_name, size=26, color=ink, width=theme.footer_wordmark_width)}</div>'
+            f'<p style="{line}margin:0 0 12px 0;line-height:{1.7 if compact else 1.8};">{links}</p>'
+            f'<p style="{font}font-size:13px;line-height:1.5;margin:0 0 10px 0;">{escape(parts.reason)}</p>'
+            f"{address_html}</td></tr>"
+        )
+    return (
+        f'<tr><td class="em-pad em-muted" style="padding:20px 32px 0 32px;font-family:{theme.font_family};'
+        f'font-size:13px;line-height:1.5;color:{theme.muted};">\n{legacy}\n</td></tr>'
+    )
+
+
+def _shell(
+    *, subject: str, preheader: str, theme: EmailTheme, site_url: str, site_name: str, content: str, footer: str,
+    label: str = "", parts: FooterParts | None = None,
+) -> str:
     pre = (
         f'<span style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;'
         f'overflow:hidden;mso-hide:all;visibility:hidden;color:{theme.background};">{escape(preheader)}'
@@ -97,13 +223,11 @@ def _shell(*, subject: str, preheader: str, theme: EmailTheme, site_url: str, si
 <tr><td align="center" style="padding:24px 12px;">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
 <table role="presentation" class="em-container" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;">
-<tr><td class="em-pad" style="padding:0 32px 16px 32px;">{brand}</td></tr>
+{_header_rows(theme, site_url, site_name, label)}
 <tr><td class="em-card em-pad" bgcolor="{theme.surface}" style="background-color:{theme.surface};padding:24px 32px 12px 32px;">
 {content}
 </td></tr>
-<tr><td class="em-pad em-muted" style="padding:20px 32px 0 32px;font-family:{theme.font_family};font-size:13px;line-height:1.5;color:{theme.muted};">
-{footer}
-</td></tr>
+{_footer_row(theme, site_url, site_name, footer, parts)}
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr>
@@ -114,6 +238,16 @@ def _shell(*, subject: str, preheader: str, theme: EmailTheme, site_url: str, si
 
 
 def _button(url: str, label: str, theme: EmailTheme) -> str:
+    if theme.button_fill or theme.button_border:
+        fill, fg, border = _button_colors(theme)
+        edge = f"border:1.5px solid {border};" if border else ""
+        return (
+            '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px 0;">'
+            f'<tr><td class="em-btn-cell" align="center" bgcolor="{fill}" style="background-color:{fill};{edge}">'
+            f'<a class="em-btn" href="{escape(url)}" style="display:inline-block;padding:11px 18px;font-family:{theme.font_family};'
+            f'font-size:15px;font-weight:bold;color:{fg};text-decoration:none;">{escape(label)}</a>'
+            "</td></tr></table>"
+        )
     fg = readable_on(theme.accent)
     return (
         '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 20px 0;">'
@@ -124,8 +258,25 @@ def _button(url: str, label: str, theme: EmailTheme) -> str:
     )
 
 
+def _site_label(theme: EmailTheme, site_url: str, site_name: str) -> str:
+    """The footer band's site link: the bare host (``shipped.anth.us``) in the smaller footer, else the site name."""
+    if theme.footer_wordmark_width:
+        return urlsplit(site_url).netloc or site_name
+    return site_name
+
+
 def _link_style(theme: EmailTheme) -> str:
     return f'style="color:{theme.muted};text-decoration:underline;"'
+
+
+def _plain_header(theme: EmailTheme, site_name: str, label: str) -> str:
+    """Plain-text counterpart of the header: the wordmark's alt text (or the site name) and the label."""
+    if not (theme.header_band or theme.wordmark_image_url):
+        return ""
+    lines = [theme.wordmark_text or site_name]
+    if theme.header_band and label:
+        lines.append(label.upper())
+    return "\n".join(lines) + "\n\n"
 
 
 def render_issue(
@@ -136,6 +287,7 @@ def render_issue(
     footer: EmailFooter,
     preheader: str = "",
     site_url: str,
+    list_name: str = "",
 ) -> RenderedEmail:
     address = (footer.postal_address or "").strip()
     if not address:
@@ -144,21 +296,37 @@ def render_issue(
     html_body, plain_body = _body(markus, theme, site_url)
     ls = _link_style(theme)
     address_html = "<br />".join(escape(line.strip()) for line in address.splitlines() if line.strip())
+    archive = (footer.archive_url or "").strip()
+    all_issues = f'<a href="{escape(archive)}" {ls}>All issues</a> &nbsp;|&nbsp; ' if archive else ""
     footer_html = (
         f'<p style="margin:0 0 10px 0;">{escape(footer.reason)}</p>'
-        f'<p style="margin:0 0 10px 0;"><a href="{escape(footer.manage_url)}" {ls}>Manage your subscription</a>'
+        f'<p style="margin:0 0 10px 0;">{all_issues}<a href="{escape(footer.manage_url)}" {ls}>Manage your subscription</a>'
         f' &nbsp;|&nbsp; <a href="{escape(footer.unsubscribe_url)}" {ls}>Unsubscribe</a></p>'
         f'<p style="margin:0 0 10px 0;"><a href="{escape(footer.site_url)}" {ls}>{escape(footer.site_name)}</a><br />'
         f"{address_html}</p>"
     )
+    address_lines = tuple(line.strip() for line in address.splitlines() if line.strip())
+    label = _one_line(list_name) or subject
+    parts = FooterParts(
+        reason=footer.reason,
+        links=(
+            (_site_label(theme, footer.site_url, footer.site_name), footer.site_url),
+            *((("All issues", archive),) if archive else ()),
+            ("Unsubscribe", footer.unsubscribe_url),
+            ("Email preferences", footer.manage_url),
+        ),
+        address_lines=address_lines,
+    )
     html = _shell(
         subject=subject, preheader=preheader, theme=theme, site_url=site_url,
-        site_name=footer.site_name, content=html_body, footer=footer_html,
+        site_name=footer.site_name, content=html_body, footer=footer_html, label=label, parts=parts,
     )
-    address_text = "\n".join(line.strip() for line in address.splitlines() if line.strip())
+    address_text = "\n".join(address_lines)
+    all_issues_text = f"All issues: {archive}\n" if archive else ""
     plain = (
-        f"{plain_body}\n\n--\n"
+        f"{_plain_header(theme, footer.site_name, label)}{plain_body}\n\n--\n"
         f"{text_mod.wrap(footer.reason)}\n\n"
+        f"{all_issues_text}"
         f"Manage your subscription: {footer.manage_url}\n"
         f"Unsubscribe: {footer.unsubscribe_url}\n\n"
         f"{footer.site_name} - {footer.site_url}\n{address_text}\n"
@@ -189,9 +357,10 @@ def render_transactional(
         f'<p style="margin:0 0 10px 0;">{escape(reason)}</p>'
         f'<p style="margin:0 0 10px 0;"><a href="{escape(site_url)}" {ls}>{escape(site_name)}</a></p>'
     )
+    parts = FooterParts(reason=reason, links=((_site_label(theme, site_url, site_name), site_url),))
     html = _shell(
         subject=subject, preheader=preheader, theme=theme, site_url=site_url,
-        site_name=site_name, content=html_body, footer=footer_html,
+        site_name=site_name, content=html_body, footer=footer_html, parts=parts,
     )
-    plain = f"{plain_body}\n\n--\n{text_mod.wrap(reason)}\n\n{site_name} - {site_url}\n"
+    plain = f"{_plain_header(theme, site_name, '')}{plain_body}\n\n--\n{text_mod.wrap(reason)}\n\n{site_name} - {site_url}\n"
     return RenderedEmail(subject=subject, html=html, text=plain)

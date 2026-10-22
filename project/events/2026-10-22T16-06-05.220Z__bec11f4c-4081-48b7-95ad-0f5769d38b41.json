@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "bec11f4c-4081-48b7-95ad-0f5769d38b41",
+  "issue_id": "PPY-d70c4561-f765-4b2e-90f8-55792b9af3d0",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T16:06:05.220Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "GA4 conversion events, location redaction and docs-builder analytics defaults",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

@@ -1,0 +1,107 @@
+Feature: Scheduled container jobs
+  A heavy, unattended job (the weekly knowledge run is the first) runs as a chain
+  of Fargate tasks from one container image, started by a weekly schedule through
+  a Step Functions state machine. The same construct serves any other pipeline.
+  The job has no NAT gateway, keeps its state in S3 and a DynamoDB ledger,
+  reaches the AWS APIs with a least-privilege role, and tells the owner by e-mail
+  when a run fails or a week is missed.
+  Executable by scripts/test-scheduled-job-synth.ts (npm run test:scheduled-job-synth).
+
+  Background:
+    Given the Shipped example site config with a knowledgeRun block
+    And the knowledge run stack is synthesized with an image tag
+
+  Scenario: the job network has no NAT gateway
+    Then the template has no NAT gateway and no Elastic IP
+    And the VPC has two public subnets and no private subnets
+    And the tasks run with a public IP address
+
+  Scenario: S3 and DynamoDB are reached through free gateway endpoints
+    Then the VPC has a gateway endpoint for S3 and a gateway endpoint for DynamoDB
+
+  Scenario: the task security group is egress-only
+    Then the security group allows all outbound traffic
+    And it has no ingress rules and there are no separate ingress resources
+
+  Scenario: every stage is a Fargate task with retries, backoff and a timeout
+    Then each of the ten stages is an "ecs:runTask.sync" task on Fargate
+    And each runs "papyrus knowledge cloud-run --stage <name>" in the container "job"
+    And each retries task failures and ECS service errors twice, 60 seconds apart, doubling, with full jitter
+    And each has a TimeoutSeconds of 7200 unless the config overrides that stage
+
+  Scenario: stages run strictly in order and projection is last
+    Then the stages are corpus-sync, topic-model, typed-extraction, publish-run, ai-review, publish-relations, snapshot, archive, wiki-sync, projection
+    And each stage continues only into the next one, and only wiki-sync continues into projection
+    And after projection the execution succeeds
+
+  Scenario: a failing stage ends the execution in a Fail state
+    Then each stage catches every error into its own Fail state
+    And no stage continues into the next one after a failure, so projection never runs
+
+  Scenario: the execution input drives the container environment
+    Given an execution input of {"publication": "shipped", "failStage": "snapshot"} with both keys optional
+    Then every task gets KNOWLEDGE_PUBLICATION from the input, defaulting to the configured publication
+    And KNOWLEDGE_EXECUTION_NAME and KNOWLEDGE_EXECUTION_START from the execution context
+    And KNOWLEDGE_FAIL_STAGE from the input, or an empty string
+
+  Scenario: the container is one ARM64 image sized from config
+    Then there is one task definition: Graviton ARM64, 4 vCPU, 16 GB, 40 GiB ephemeral storage
+    And the container is named "job", logs with awslogs, and takes the image tag from the "imageTag" context
+    And the static environment carries the state bucket, ledger table, lock table, site and role settings
+    And computed variables win over the free-form environment map
+
+  Scenario: the image repository is immutable and scanned
+    Then the ECR repository "papyrus-scheduled-jobs/knowledge-run" scans on push, has immutable tags and keeps the last 10 images
+
+  Scenario: the state bucket is private and expires old data
+    Then the state bucket is versioned, SSE-S3 encrypted, SSL-only, blocks public access and is retained
+    And it expires noncurrent versions after 90 days and the "runs/" prefix after 120 days
+
+  Scenario: the run ledger is an on-demand table
+    Then the ledger has partition key "publication", sort key "runKey", point-in-time recovery, TTL on "expiresAt" and is retained
+
+  Scenario: a failed run alarms to SNS
+    Then an alarm sums ExecutionsFailed, ExecutionsAborted and ExecutionsTimedOut over 5 minutes, filling gaps with zero
+    And it alarms at 1 or more, treats missing data as not breaching, and notifies the SNS topic
+
+  Scenario: a missed week alarms to SNS
+    Then an alarm on ExecutionsSucceeded sums over 8 daily periods and needs all 8 below 1
+    And missing data breaches, so a week with no execution alarms
+    And a new stack alarms (and notifies) until its first successful run, which is expected
+
+  Scenario: the alarm e-mail comes from SSM and is never inline
+    Then the e-mail subscription endpoint is a reference to an SSM String parameter named by config
+    And no e-mail address appears anywhere in the template
+
+  Scenario: a weekly schedule starts the state machine through a narrow role
+    Then the schedule is "cron(0 5 ? * MON *)" in UTC with no flexible window and input {"publication":"shipped"}
+    And its state and expression come from config
+    And its role may only do states:StartExecution on the state machine
+
+  Scenario: the task role is least privilege
+    Then every action on the task role is named, with no wildcard actions and no "*" resource
+    And the lock table is limited to GetItem, PutItem, UpdateItem and DeleteItem on its own ARN
+    And the OpenAI key is read from an SSM parameter, never Secrets Manager
+    And the template mentions Secrets Manager nowhere
+    And sts:AssumeRole is limited to the publication's authoring role
+    And the site bucket, distribution and key-value store are limited to the ARNs in config
+
+  Scenario: the shared lock table has its own stack
+    Then stack "papyrus-projection-lock" holds table "papyrus-projection-locks" keyed by "publication" with TTL "expiresAt", on demand and retained
+    And an SSM String parameter "/papyrus/projection-lock/table-name" holds the table name
+    And the job stack holds no lock table
+
+  Scenario: resources are tagged and the stacks are protected
+    Then resources carry Project=Papyrus and Publication=shipped
+    And the stack is named "papyrus-scheduled-job-knowledge-run-shipped"
+    And both stacks have termination protection and the job stack outputs RepositoryUri, StateMachineArn, StateBucketName, LedgerTableName, AlarmTopicArn, ClusterName and TaskDefinitionArn
+
+  Scenario: another pipeline reuses the construct
+    Given a pipeline of two stages with different sizes, retries and environment
+    When it is synthesized with the same construct
+    Then it has a task definition per distinct size, its own repository name and its own stage order
+
+  Scenario: invalid knowledgeRun config is rejected with the field name
+    Given a knowledgeRun block with an unknown key, a missing site bucket, a bad KVS ARN, a bad vCPU, too little memory, a bad schedule or an unknown stage timeout
+    Then validation fails naming the field, such as "knowledgeRun.siteBucket"
+    And a site without a knowledgeRun block, or without aws.accountId and aws.region, is rejected

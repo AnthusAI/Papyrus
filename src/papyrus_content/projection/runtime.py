@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .engine import ProjectionContext
+from .lease import lease_from_environment
 from .plugins import plugin_names_from_environment
 from .projector import MarkusSiteProjector, SiteProjector
 from ..renditions import S3RenditionStore
@@ -101,6 +102,7 @@ def context_from_environment(
         writer=S3PageWriter(bucket, s3_client, html_s_maxage_seconds(environment)),
         invalidate=invalidator.invalidate if invalidator else None,
         redirect_store=KeyValueStoreRedirects(kvs_arn, kvs_client) if kvs_arn else None,
+        lease=lease_from_environment(environment, bucket),
     )
 
 

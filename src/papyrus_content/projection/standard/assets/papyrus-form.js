@@ -18,7 +18,13 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }).then(function (response) {
-        if (response.ok) { form.reset(); say(form.dataset.success, false); }
+        if (response.ok) {
+          form.reset(); say(form.dataset.success, false);
+          // Only the server's success answer reports a conversion, and only for a form that names it.
+          if (form.dataset.analyticsEvent === "generate_lead" && window.papyrusAnalytics) {
+            window.papyrusAnalytics.track("generate_lead", { form_id: form.id || form.dataset.formId || "form" });
+          }
+        }
         else { say(form.dataset.failure, true); }
       }).catch(function () { say(form.dataset.failure, true); }).then(function () { button.disabled = false; });
     });

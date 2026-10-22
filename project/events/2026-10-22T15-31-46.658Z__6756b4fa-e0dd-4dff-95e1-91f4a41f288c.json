@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "event_id": "6756b4fa-e0dd-4dff-95e1-91f4a41f288c",
+  "issue_id": "PPY-97b12606-4117-47ab-92c4-43a1fe8240a6",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T15:31:46.658Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "8. Insight to concept promotion with lineage (M)",
+    "description": "Shipped story: ship-0be231 (promote an insight to a concept). Size M. Depends on stories 4 and 7.\n\nAs an editor, I want to promote an insight to a concept with its lineage recorded, so that the map shows where concepts came from.\n\nAcceptance criteria:\n- Promotion goes through a new-concept Proposal (story 4).\n- The concept records lineage: 'born DATE from story X, drew on clusters A, B'.\n- Lineage is publicly readable and included in the snapshot.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+    "labels": [
+      "size-M",
+      "shipped",
+      "ship-0be231"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "board-reposition"
+    }
+  }
+}

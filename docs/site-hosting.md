@@ -834,7 +834,7 @@ Publishing, saving a live item and unpublishing rewrite only the pages that depe
 - **Write order.** New or edited item: its page, the listing pages that changed (sitemap last), pages that went away (a trailing pagination page), redirects, then the item state. Unpublished item: the listing pages and sitemap first, then the item's pages are deleted, then its redirects. A renamed item (unpublish, change the slug, publish) leaves a redirect from its old address; a page that takes over a redirected address removes the redirect.
 - **Concurrency.** Pages are always rendered from the stored data, never from the request. After writing, the projection reads the published `(id, versionNumber)` set again; if another publish moved it, the pages that depend on the difference (and the item itself, if it was edited again) are rendered again, up to three rounds. The item state is written before that re-read, so the last state written belongs to the last pages written. Two editors saving the same item are still rejected by `expectedContentHash`.
 - **Failure.** A failed projection never fails the save: the response has `live: false`, and the function invokes itself once more asynchronously (`retryAttempts: 1`, on-failure destination: the dead letter queue). Every step is idempotent: the item state is written last, so a half-finished projection is redone from the old state.
-- **Reconcile.** `papyrus ops content project --reconcile [--dry-run] [--json]` compares the published data with the bucket: an item page whose `papyrus-version` is not the published `versionNumber` (or that is missing), the page and state of an item that is no longer published, a listing page whose `papyrus-inputs` is not what the data now yields, a page the projector owns that nothing expects (stale cleanup), and missing or different redirects. It repairs them (or, with `--dry-run`, only reports and exits 1 on drift); a large drift is repaired by `--all`. Theme and code changes are not drift; run `papyrus ops content project --all` after a backend deploy. `--item-pages` re-renders the item pages only.
+- **Reconcile.** `papyrus ops content project --reconcile [--dry-run] [--json]` compares the published data with the bucket: an item page whose `papyrus-version` is not the published `versionNumber` (or that is missing), the page and state of an item that is no longer published, a listing page whose `papyrus-inputs` is not what the data now yields, a page the projector owns that nothing expects (stale cleanup), and missing or different redirects. It repairs them (or, with `--dry-run`, only reports and exits 1 on drift); a large drift is repaired by `--all`. Theme and code changes are not drift; run `papyrus ops content project --all` after a backend deploy. `--item-pages` re-renders the item pages only. `--only <site-relative prefix>` limits the orphans it considers to that prefix. A reconcile never deletes a plugin's pages unless the plugin is known to be disabled, and a non-dry-run reconcile refuses when the plugin list (from `amplify_outputs.json` `custom.papyrusPlugins`, or `PAPYRUS_PLUGINS`) is unknown or differs from the deployed one; see "Reconcile and plugin pages" in [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md).
 - **Deletion guard.** `project --all` and `--reconcile` (and `papyrus knowledge snapshot --reproject`) refuse, before writing any page, to delete the pages of an item that stays published, or more than a tenth of the stored pages (and more than 20). This is what a site configuration that no longer places a section, such as an out-of-date `--static-dir` checkout, looks like. The error lists the pages per top-level path, the published items and the first 50 keys, and exits 2. Fix the configuration, or pass `--allow-deletions` when the deletions are intended. With `--static-dir` in a git checkout that has an upstream, the command warns on stderr when the checkout is behind. The backend's own publish and deploy-render paths have no guard, and `--dry-run` only reports.
 
 ### Publish to visible
@@ -935,6 +935,20 @@ A Pretext site is one Amplify `WEB_COMPUTE` app (Next.js), with no S3 site bucke
 - **Amplify domain APIs.** One hostname belongs to one Amplify app across accounts. Deleting an association deletes its distribution and certificate, and a new association gets new ones, so a delete-first cutover has real downtime and no undo. Associations can stick in `PENDING_VERIFICATION` for 30 minutes or more even with a correct validation record. Prefer not to use them for static sites at all (the `papyrus-edge-*` pattern above).
 - **Redirect and 404 rules are app config.** They reset if the app is recreated; keep them in the template (`reader.redirects`) for Amplify readers, and in the edge stack for the projection.
 
+### Projection lease (one projection at a time)
+
+Every projection that writes a site bucket (`project`, `project_all`, `project_listings`, `project_item_pages`, a non-dry-run `reconcile`, so also `papyrus ops content project`, `knowledge snapshot --reproject`, the deploy-time render and publish-time item projections) takes a lease first and gives it back in a `finally`. Dry-run reconciles, `--out` and `--from-dir` projections write nothing live and take none.
+
+- Table: `papyrus-projection-locks` (one per account, created by the cloud knowledge run stack). Partition key `publication` (string) is the site bucket name (`PAPYRUS_SITE_BUCKET` or `--bucket`). Attributes: `owner`, `acquiredAt` (ISO), `expiresAt` (epoch seconds, also the DynamoDB TTL attribute), `purpose`.
+- Discovery: env `PAPYRUS_PROJECTION_LOCK_TABLE`, else the SSM String parameter `/papyrus/projection-lock/table-name`. Neither found means no lease and projection runs as before. A parameter that exists but cannot be read (access denied) fails loudly.
+- Acquire is a conditional put (no item, or `expiresAt` in the past), so a crashed holder blocks nobody for more than the 30 minute TTL. Release and renew only touch an item the caller owns; long writes renew halfway through the TTL.
+- A held lease is retried with exponential backoff and jitter (1, 2, 4, 8, then 15 seconds) for `PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS` (default 120; the scheduled cloud run sets a longer wait). Then the projection raises `ProjectionLeaseHeld`. In the content-actions Lambda that becomes a failed projection task (Lambda retry, then the dead letter queue), and a publish-time projection schedules the same retry.
+- `PAPYRUS_PROJECTION_LEASE_PURPOSE` labels the holder (for example `cloud-run projection`).
+
+The error reads: `Projection lease for <bucket> is held by <owner> (<purpose>) until <time>; waited <n>s. Another projection of this publication is running. Retry when it finishes; if its holder crashed, the lease expires by itself. To clear it now: aws dynamodb delete-item --table-name <table> --key '{"publication":{"S":"<bucket>"}}'`.
+
+Inspect: `aws dynamodb get-item --table-name papyrus-projection-locks --key '{"publication":{"S":"<bucket>"}}'`. Clear a stuck lease only after confirming the holder is gone: the same command with `delete-item`.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it fails |
@@ -1004,6 +1018,31 @@ of `ConsentModeSettings` fields; `{}` takes every default.
   `reject_label`, `banner_region_label`, `privacy_policy_url`,
   `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped
   wording is a draft that the site owner must approve.
+
+### Events and address redaction (on whenever a measurement id is set)
+
+With `ga_measurement_id` set, every page also gets two small inline scripts. Nothing changes for a site without an id.
+
+- **Address redaction.** Before `gtag('config')` the page sets `page_location` and `page_referrer` to the address with
+  identity-bearing query parameters (`token`, `email`, `ss`, `user_id`, `handle` and similar names), any value that looks
+  like an e-mail address, a `ss1_` subject or a long opaque token, and the `#fragment` removed; the same patterns are replaced
+  in the path. Campaign parameters such as `utm_source` are kept.
+- **`window.papyrusAnalytics.track(name, params)`** sends only these events, with only these parameters, and drops any value
+  that looks like an identity. It can never set `user_id`.
+
+  | Event | Parameters | When |
+  | --- | --- | --- |
+  | `cta_click` | `cta_text`, `cta_location`, `link_url` (host and path only) | automatically, for a link marked `data-cta-location="<place>"` (`[a-z0-9_-]`, up to 40) and for any link to `anth.us/engage` (place = its `cta` query value); text is the link text or `data-cta-text` |
+  | `sign_up` | `method` | the newsletter plugin's confirmed page, once per tab session, only with its token |
+  | `generate_lead` | `form_id`, `lead_source`, `solution` | a form with `"conversionEvent": "generate_lead"`, only when its endpoint answers 2xx |
+  | `view_promotion`, `select_promotion` | `promotion_id`, `promotion_name`, `creative_name`, `location_id` | reserved for sponsor units; the engine fires neither |
+
+  A link inside an element with `data-promotion-id` never reports `cta_click`: a sponsor unit is a promotion, not a call to
+  action. Never report a conversion on submit; report it from the success answer. Contact calls to action should point at
+  `https://anth.us/engage/?solution=<Product>&cta=<location>`.
+- **Documentation sites.** `DocsSiteConfig.ga_measurement_id` (CLI `--ga-measurement-id`) turns all of this on for the docs
+  builder with the shipped consent defaults, a "Cookie settings" footer link, and a banner privacy link to
+  `privacy_policy_url` (CLI `--privacy-url`, default `https://anth.us/privacy/`).  Point `contact_url` at `https://anth.us/engage/?solution=<Product>&cta=<location>` and the footer's Contact us link reports `cta_click`. Empty keeps analytics off.
 
 ## `SITE_ENV` and `PAPYRUS_CONTENT_SOURCE` (staging for Pretext sites)
 

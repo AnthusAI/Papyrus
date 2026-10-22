@@ -252,6 +252,31 @@ class ContentActionsSiteTriggerTest(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["errors"][0]["code"], "staging-build-not-configured")
 
+    def held(self):
+        from papyrus_content.projection.lease import ProjectionLeaseHeld
+
+        return ProjectionLeaseHeld("site-bucket", "papyrus-projection-locks", {"owner": "cloud", "purpose": "cloud-run projection", "expiresAt": 1}, 120)
+
+    def test_a_held_projection_lease_fails_an_asynchronous_task_so_lambda_retries_it(self) -> None:
+        with mock.patch.object(content_actions_handler, "projection_context"), mock.patch.object(
+            content_actions_handler, "project_all", side_effect=self.held()
+        ):
+            with self.assertRaises(content_actions_handler.ProjectionTaskFailed) as raised:
+                content_actions_handler.run_projection_task({"task": "all"})
+        self.assertIn("Projection lease for site-bucket is held by cloud", str(raised.exception))
+
+    def test_a_held_projection_lease_at_publish_time_schedules_a_retry_instead_of_losing_the_projection(self) -> None:
+        with mock.patch.dict("os.environ", {"PAPYRUS_PUBLICATION_KIND": "s3-projection"}), mock.patch.object(
+            content_actions_handler, "projection_context"
+        ), mock.patch.object(content_actions_handler, "project", side_effect=self.held()), mock.patch.object(
+            content_actions_handler, "schedule_projection_task"
+        ) as schedule:
+            result = content_actions_handler.project_item_action(self.client, "item-1", unpublished=False)
+        self.assertFalse(result["projected"])
+        schedule.assert_called_once()
+        self.assertEqual(schedule.call_args.args[0]["task"], "item")
+        self.assertIn("ProjectionLeaseHeld", result["error"])
+
 
 if __name__ == "__main__":
     unittest.main()

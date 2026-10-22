@@ -22,12 +22,15 @@ idempotent.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
+from contextlib import contextmanager
 from urllib.parse import quote
 from dataclasses import dataclass, field
 from typing import Callable
 
+from .lease import ProjectionLease
 from .item_state import (
     ITEM_STATE_PREFIX,
     ItemState,
@@ -37,7 +40,7 @@ from .item_state import (
     write_item_state,
 )
 from .model import ItemSummary, ProjectionReport, SiteIndex, site_signature
-from .plugins import is_plugin_runtime_key
+from .plugins import PLUGIN_PAGE_PREFIXES, is_plugin_runtime_key
 from .projector import SiteProjector, normalized_redirect_source
 from .source import ProjectionSourceError, PublishedContentSource, replace_item
 from .writers import STATE_PREFIX, PageWriter, RedirectStore, StoredObject, body_etag, request_paths_for_key
@@ -92,6 +95,21 @@ class DeletionRefused(ValueError):
         return "\n".join(lines)
 
 
+class PluginPagesRefused(ValueError):
+    """A reconcile would delete pages a plugin projects, and the plugin is not known to be disabled; no page was written."""
+
+    def __init__(self, keys) -> None:
+        self.keys = tuple(sorted(keys))
+        shown = ", ".join(self.keys[:MESSAGE_KEY_LIMIT])
+        more = len(self.keys) - MESSAGE_KEY_LIMIT
+        super().__init__(
+            f"Refusing to delete {len(self.keys)} pages that a plugin projects; no page was written.\n"
+            f"Pages: {shown}" + (f" and {more} more" if more > 0 else "") + "\n"
+            "The plugin list this run used does not include the plugin that writes them. Run from the site directory so "
+            "amplify_outputs.json (custom.papyrusPlugins) is read, or set PAPYRUS_PLUGINS to the deployed list."
+        )
+
+
 @dataclass
 class ProjectionContext:
     source: PublishedContentSource
@@ -103,6 +121,21 @@ class ProjectionContext:
     maximum_rounds: int = MAXIMUM_ROUNDS
     defer_follow_up: bool = False
     deletion_guard: DeletionGuard | None = None
+    lease: ProjectionLease | None = None
+    disabled_plugins: frozenset[str] = frozenset()  # plugins known to be disabled for the site; only their pages may be reconciled away
+
+    @contextmanager
+    def leased(self):
+        """Hold the publication's projection lease, if it has one. Nested uses share one hold."""
+        if self.lease is None:
+            yield
+        else:
+            with self.lease.held():
+                yield
+
+    def renew_lease(self) -> None:
+        if self.lease is not None:
+            self.lease.renew()
 
     def __post_init__(self) -> None:
         types = tuple(getattr(self.projector, "projectable_types", ()))
@@ -111,6 +144,17 @@ class ProjectionContext:
         attach = getattr(self.projector, "attach_store", None)
         if attach is not None:
             attach(self.writer)
+
+
+def _leased(function):
+    """Run a public entry point under the context's projection lease (released on any exit, including errors)."""
+
+    @functools.wraps(function)
+    def wrapper(context: ProjectionContext, *args, **kwargs):
+        with context.leased():
+            return function(context, *args, **kwargs)
+
+    return wrapper
 
 
 def _page_order(keys) -> list[str]:
@@ -129,6 +173,7 @@ def _write_item_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], versions: dict[str, int | None]
 ) -> None:
     for key in _page_order(pages):
+        context.renew_lease()
         context.writer.put(key, pages[key], version=versions.get(key))
         report.written.append(key)
 
@@ -137,18 +182,21 @@ def _write_listing_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], inputs: dict[str, str]
 ) -> None:
     for key in _page_order(pages):
+        context.renew_lease()
         context.writer.put(key, pages[key], inputs=inputs.get(key))
         report.written.append(key)
 
 
 def _write_static(context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes]) -> None:
     for key in sorted(pages):
+        context.renew_lease()
         context.writer.put(key, pages[key])
         report.written.append(key)
 
 
 def _delete_pages(context: ProjectionContext, report: ProjectionReport, keys) -> None:
     for key in sorted(keys):
+        context.renew_lease()
         context.writer.delete(key)
         report.deleted.append(key)
 
@@ -335,6 +383,7 @@ def _sibling_states(context: ProjectionContext, item_id: str) -> list[tuple[str,
     return found
 
 
+@_leased
 def project(context: ProjectionContext, item_id: str, *, unpublished: bool = False) -> ProjectionReport:
     """Project one item and the pages that depend on it.
 
@@ -484,12 +533,14 @@ def _converge(
         report.errors.append("published items kept changing during projection; retry")
 
 
+@_leased
 def project_static(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     _write_static(context, report, context.projector.static_files())
     return _finish(context, report)
 
 
+@_leased
 def project_listings(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     site = context.source.site_index()
@@ -498,6 +549,7 @@ def project_listings(context: ProjectionContext) -> ProjectionReport:
     return _finish(context, report)
 
 
+@_leased
 def project_all(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     projector = context.projector
@@ -547,6 +599,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     return _finish(context, report)
 
 
+@_leased
 def project_item_pages(
     context: ProjectionContext, *, except_item_id: str | None = None, finish: bool = True
 ) -> ProjectionReport:
@@ -575,6 +628,7 @@ class ReconcileReport:
     removed_items: list[str] = field(default_factory=list)
     stale_listings: list[str] = field(default_factory=list)
     orphan_pages: list[str] = field(default_factory=list)
+    protected_pages: list[str] = field(default_factory=list)  # plugin pages nothing here expects; never deleted, never counted as drift
     redirects_repaired: int = 0
     redirects_unexpected: int = 0
     projected_everything: bool = False
@@ -604,6 +658,7 @@ class ReconcileReport:
             "removedItems": list(self.removed_items),
             "staleListings": list(self.stale_listings),
             "orphanPages": list(self.orphan_pages),
+            "protectedPluginPages": list(self.protected_pages),
             "redirectsRepaired": self.redirects_repaired,
             "redirectsUnexpected": self.redirects_unexpected,
             "projectedEverything": self.projected_everything,
@@ -624,7 +679,40 @@ def _stale_listing_keys(context: ProjectionContext, site: SiteIndex) -> list[str
     return sorted(key for key, digest in inputs.items() if heads[key] is None or heads[key].inputs != digest)
 
 
-def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> ReconcileReport:
+def reconcile(context: ProjectionContext, *, dry_run: bool = False, only: str | None = None) -> ReconcileReport:
+    """``only`` is a site-relative key prefix (``wiki/page/``); orphans outside it, under the site's base path, are not considered."""
+    if dry_run:
+        return _reconcile(context, dry_run=True, only=only)  # read-only: no lease
+    with context.leased():
+        return _reconcile(context, dry_run=False, only=only)
+
+
+def _only_prefix(projector, only: str | None) -> str | None:
+    if not only or not only.strip("/"):
+        return None
+    policy = getattr(projector, "policy", None)
+    prefix = only.lstrip("/")
+    return policy.key(prefix) if policy is not None else prefix
+
+
+def _plugin_page_keys(context: ProjectionContext, keys) -> list[str]:
+    """The keys among ``keys`` that sit under the page prefix of a plugin that is not known to be disabled."""
+    policy = getattr(context.projector, "policy", None)
+    protected = [
+        prefix
+        for plugin, prefixes in PLUGIN_PAGE_PREFIXES.items()
+        if plugin not in context.disabled_plugins
+        for prefix in prefixes
+    ]
+    found = []
+    for key in keys:
+        relative = policy.relative_key(key) if policy is not None else key
+        if relative is not None and relative.startswith(tuple(protected)):
+            found.append(key)
+    return found
+
+
+def _reconcile(context: ProjectionContext, *, dry_run: bool, only: str | None = None) -> ReconcileReport:
     """Find drift between the published data and the site store, and repair it.
 
     Drift is any item page whose ``papyrus-version`` is not the published version
@@ -676,6 +764,14 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
         for key in objects
         if not key.startswith(STATE_PREFIX) and not is_plugin_runtime_key(key) and projector.owns_page_key(key) and key not in expected
     )
+    prefix = _only_prefix(projector, only)
+    if prefix is not None:
+        report.orphan_pages = [key for key in report.orphan_pages if key.startswith(prefix)]
+    report.protected_pages = _plugin_page_keys(context, report.orphan_pages)
+    if report.protected_pages:
+        report.orphan_pages = [key for key in report.orphan_pages if key not in set(report.protected_pages)]
+        if not dry_run:
+            raise PluginPagesRefused(report.protected_pages)
     if not dry_run:
         _guard_reconcile(context, report, site, objects, expected)
 

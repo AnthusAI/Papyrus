@@ -62,6 +62,10 @@ class HeadBuilder:
             return None
         return self.environment.origin + (path_or_url if path_or_url.startswith("/") else "/" + path_or_url)
 
+    def og_image(self, image: str | None) -> str | None:
+        """The absolute og:image URL for a page image (or the site default), or None: the one resolution the head and the public data share."""
+        return self.absolute(image or self.settings.seo.default_image)
+
     def build(self, page: PageHead) -> str:
         settings, seo, identity = self.settings, self.settings.seo, self.settings.identity
         lines: list[str] = []
@@ -98,7 +102,7 @@ class HeadBuilder:
         # Pilobol.us's Open Graph block, in its order, so the two are comparable byte for byte.
         own_url = self.absolute(page.path)
         canonical = page.canonical or own_url
-        image = self.absolute(page.image or seo.default_image)
+        image = self.og_image(page.image)
         title = page.title or identity.name
         description = page.description or identity.description
         if description:

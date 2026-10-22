@@ -133,6 +133,33 @@ refuses(with_({ theme: { accent: "#fff", text: "#000" } }), /theme.background/);
 refuses(with_({ theme: { ...base.theme, accent: "red; background:url(x)" } }), /theme.accent/);
 refuses(with_({ theme: { ...base.theme, logoUrl: "http://x.test/logo.png" } }), /logoUrl must be an https URL/);
 refuses(with_({ theme: { ...base.theme, extra: "x" } }), /unknown settings: extra/);
+
+// Branding keys: accepted whole, validated like the other style values, and a plain theme gains nothing.
+const branded = {
+  ...base.theme, surface: "#FFFFFF", muted: "#5E5752", fontFamily: "Archivo, Arial, Helvetica, sans-serif",
+  headerBand: "#C6F432", headerText: "#1A1615", buttonFill: "#C6F432", buttonText: "#1A1615", buttonBorder: "#1A1615",
+  footerBand: "#C6F432", footerText: "#1A1615", labelFont: "'JetBrains Mono', 'Courier New', monospace",
+  wordmarkImageUrl: "https://shipped.anth.us/assets/email/shipped-wordmark-2x.png", wordmarkAlt: "Shipped",
+  wordmarkWidth: 168, wordmarkHeight: 40,
+};
+assert.deepEqual(resolveNewsletterConfig(with_({ theme: branded })).theme, branded);
+assert.deepEqual(resolveNewsletterConfig(base as never).theme, base.theme, "a plain theme stays plain");
+for (const key of ["headerBand", "headerText", "buttonFill", "buttonText", "buttonBorder", "footerBand", "footerText", "labelFont"]) {
+  refuses(with_({ theme: { ...branded, [key]: "red; background:url(x)" } }), new RegExp(`theme.${key}`));
+}
+refuses(with_({ theme: { ...branded, wordmarkImageUrl: "http://x.test/w.png" } }), /wordmarkImageUrl must be an absolute https URL/);
+refuses(with_({ theme: { ...branded, wordmarkImageUrl: "https://x.test/w.png\"onerror=x" } }), /wordmarkImageUrl must be an absolute https URL/);
+refuses(with_({ theme: { ...branded, wordmarkWidth: undefined } }), /wordmarkWidth is required with theme.wordmarkImageUrl/);
+refuses(with_({ theme: { ...branded, wordmarkHeight: 0 } }), /wordmarkHeight is required/);
+refuses(with_({ theme: { ...branded, wordmarkHeight: "40" } }), /wordmarkHeight is required/);
+refuses(with_({ theme: { ...base.theme, wordmarkWidth: 168 } }), /need theme.wordmarkImageUrl/);
+refuses(with_({ theme: { ...branded, wordmarkAlt: "two\nlines" } }), /wordmarkAlt/);
+assert.equal(resolveNewsletterConfig(with_({ theme: { ...branded, footerWordmarkWidth: 110 } })).theme.footerWordmarkWidth, 110);
+assert.equal(resolveNewsletterConfig(with_({ theme: { ...branded, footerWordmarkWidth: 400 } })).theme.footerWordmarkWidth, 400);
+for (const bad of [0, -5, 401, 110.5, "110", null]) {
+  refuses(with_({ theme: { ...branded, footerWordmarkWidth: bad } }), /footerWordmarkWidth must be a whole number of pixels from 1 to 400/);
+}
+refuses(with_({ theme: { ...base.theme, footerWordmarkWidth: 110 } }), /footerWordmarkWidth needs theme.wordmarkImageUrl/);
 refuses(with_({ webhook: "https://x.test" }), /unknown settings: webhook/);
 refuses(with_({ configurationSet: "bad name" }), /configurationSet/);
 refuses(with_({ lists: [] }), /lists must be a list of 1 to 20/);

@@ -33,6 +33,8 @@ a.papyrus-knowledge-chip:hover { border-color: var(--papyrus-knowledge-accent, c
 .papyrus-knowledge-count { font-weight: 700; font-variant-numeric: tabular-nums; }
 .papyrus-knowledge-neighbourhood { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--papyrus-knowledge-gap, 1.5rem); }
 .papyrus-knowledge-neighbourhood-heading { margin: 0 0 .5rem; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.papyrus-knowledge-beat-trend { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem var(--papyrus-knowledge-gap, 1.25rem); }
+.papyrus-knowledge-beat-entities { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; padding: 0; margin: 0; }
 .papyrus-knowledge-neighbourhood ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
 .papyrus-knowledge-neighbourhood li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
 .papyrus-knowledge-weightbar { flex: none; }

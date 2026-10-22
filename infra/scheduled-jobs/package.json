@@ -1,0 +1,22 @@
+{
+  "name": "papyrus-scheduled-jobs",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CDK app for Papyrus scheduled container jobs: a generic EventBridge Scheduler + Step Functions + ECS Fargate construct, the knowledge-run pipeline built on it, and the shared projection lease table.",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "synth": "./node_modules/.bin/cdk synth -c site=${SITE:?set SITE=<path-to-site.json>} -c imageTag=${IMAGE_TAG:-placeholder}",
+    "diff": "./node_modules/.bin/cdk diff -c site=${SITE:?set SITE=<path-to-site.json>} -c imageTag=${IMAGE_TAG:?set IMAGE_TAG=<ecr image tag>}",
+    "deploy": "./node_modules/.bin/cdk deploy -c site=${SITE:?set SITE=<path-to-site.json>} -c imageTag=${IMAGE_TAG:?set IMAGE_TAG=<ecr image tag>} --require-approval never"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.257.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "aws-cdk": "2.1146.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.0"
+  }
+}

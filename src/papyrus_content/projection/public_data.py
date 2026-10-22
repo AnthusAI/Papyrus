@@ -3,7 +3,7 @@
 They are listing-class pages: they depend on every published page, so the engine
 re-renders them exactly when their digest moves. The digest is the digest of the
 file's bytes, and the entries carry only front matter fields, so an edit that
-does not touch the title, summary, tags, date or address writes nothing.
+does not touch the title, summary, tags, date, image, publication or address writes nothing.
 
 Everything in them is already public in the page HTML. Nothing editorial goes in.
 """
@@ -61,6 +61,8 @@ class PublicEntry:
     summary: str
     tags: tuple[str, ...]
     date: str
+    image: str | None = None  # absolute og/cover image URL; None when the page has none or the site has no URL
+    publication: str = ""  # the site's publication name (the feeds' title); empty when unknown
 
 
 def clipped(text: str, limit: int) -> str:
@@ -82,9 +84,13 @@ def hidden_from_public_data(summary: ItemSummary) -> bool:
 
 
 def entry_for(
-    summary: ItemSummary, page_key: str, settings: PublicDataSettings, *, summary_text: str | None = None, date: str | None = None
+    summary: ItemSummary, page_key: str, settings: PublicDataSettings, *, summary_text: str | None = None, date: str | None = None,
+    image: str | None = None, publication: str = ""
 ) -> PublicEntry:
-    """``date`` is the entry's calendar date when the caller has already normalised it (front matter may write it out in words)."""
+    """``date`` is the entry's calendar date when the caller has already normalised it (front matter may write it out in words).
+
+    ``image`` is the already absolute og image URL and ``publication`` the site's name; the caller resolves both.
+    """
     front_matter = summary.front_matter
     if summary_text is None:
         summary_text = next((str(front_matter[name]) for name in SUMMARY_FIELD_NAMES if front_matter.get(name)), "")
@@ -94,6 +100,8 @@ def entry_for(
         summary=clipped(summary_text, settings.summary_characters),
         tags=tags_of(front_matter.get("tags")),
         date=date if date is not None else str(front_matter.get("date") or summary.published_at or "")[:10],
+        image=image or None,
+        publication=clipped(publication, 200),
     )
 
 
@@ -102,7 +110,12 @@ def newest_first(entries: Iterable[PublicEntry]) -> list[PublicEntry]:
 
 
 def _entry_record(entry: PublicEntry) -> dict:
-    return {"title": entry.title, "url": entry.url, "summary": entry.summary, "tags": list(entry.tags), "date": entry.date}
+    record = {"title": entry.title, "url": entry.url, "summary": entry.summary, "tags": list(entry.tags), "date": entry.date}
+    if entry.image:
+        record["image"] = entry.image  # omitted, never null, when there is none
+    if entry.publication:
+        record["publication"] = entry.publication
+    return record
 
 
 def _encoded(payload) -> bytes:

@@ -568,6 +568,61 @@ def test_search_and_latest_json_ride_along(flat):
     assert SEARCH_COMPONENT_KEY in flat.tree
 
 
+def _public_records(site, key="_data/search-index.json"):
+    return {entry["url"]: entry for entry in json.loads(site.text(key))}
+
+
+def test_public_data_entries_carry_an_absolute_image_and_the_publication_name(flat):
+    records = _public_records(flat)
+    assert records["/orchids.html"]["image"] == "https://almanac.example.org/assets/orchid.jpg"
+    assert all(record["publication"] == "Example Almanac" for record in records.values())
+    assert list(records["/orchids.html"]) == ["title", "url", "summary", "tags", "date", "image", "publication"]
+    latest = _public_records(flat, "_data/latest.json")
+    assert latest["/fungi.html"] == records["/fungi.html"]
+
+
+def test_public_data_image_is_the_one_the_open_graph_tag_names(flat):
+    for url, record in _public_records(flat).items():
+        page = flat.text(url.lstrip("/"))
+        assert f'<meta property="og:image" content="{record["image"]}">' in page, url
+
+
+def test_public_data_image_follows_the_site_origin():
+    site = ProjectedSite("flat", environ={"PAPYRUS_SITE_PUBLIC_URL": "https://staging.example.org"})
+    try:
+        records = _public_records(site)
+        assert records["/orchids.html"]["image"] == "https://staging.example.org/assets/orchid.jpg"
+        assert all(record["image"].startswith("https://staging.example.org/") for record in records.values())
+    finally:
+        site.cleanup()
+
+
+def test_public_data_omits_the_image_without_a_site_url_and_keeps_the_publication():
+    settings = {"site": {"name": "No Origin"}, "publicData": {}}
+    site = ProjectedSite(settings=settings, content=FIXTURES / "flat" / "content")
+    try:
+        records = _public_records(site)
+        assert records and all("image" not in record for record in records.values())
+        assert all(record["publication"] == "No Origin" for record in records.values())
+    finally:
+        site.cleanup()
+
+
+def test_public_data_publication_is_the_feeds_title_and_an_absolute_front_matter_image_is_kept():
+    from papyrus_content.projection.public_data import PublicDataSettings, entry_for, public_data_files
+    from papyrus_content.projection.model import ItemSummary
+
+    summary = ItemSummary(
+        item_id="i", type="article", section=None, slug="s", output_path="s.md", version_number=1,
+        title="S", page_title="S", front_matter={"date": "2026-01-02"}, aliases=(), published_at=None,
+    )
+    settings = PublicDataSettings()
+    bare = public_data_files([entry_for(summary, "s.html", settings)], settings)
+    assert json.loads(bare["_data/latest.json"]) == [{"title": "S", "url": "/s.html", "summary": "", "tags": [], "date": "2026-01-02"}]
+    full = entry_for(summary, "s.html", settings, image="https://cdn.example.net/a.png", publication="Feed Title")
+    assert json.loads(public_data_files([full], settings)["_data/latest.json"])[0]["image"] == "https://cdn.example.net/a.png"
+
+
 def test_entry_model_extends_the_public_entry(flat):
     projector = flat.projector
     site_index = flat.context.source.site_index() if hasattr(flat.context.source, "site_index") else None

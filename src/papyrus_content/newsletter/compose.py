@@ -59,6 +59,21 @@ def reason_sentence(list_name: str, site_name: str) -> str:
     return f"You get this because you subscribed to {list_name} on {site_name}."
 
 
+def archive_path(settings: Any, entry: Mapping[str, Any] | None) -> str | None:
+    """Where "All issues" points: the list's own ``archivePath``, else the first roundup list's, else nowhere."""
+    own = (entry or {}).get("archivePath")
+    if own:
+        return str(own)
+    return next((str(e["archivePath"]) for e in settings.lists if e.get("kind") == "roundup" and e.get("archivePath")), None)
+
+
+def archive_url(settings: Any, entry: Mapping[str, Any] | None) -> str | None:
+    path = archive_path(settings, entry)
+    if not path or not path.strip("/"):
+        return None
+    return f"{links.home_url(settings.site_origin, getattr(settings, 'base_path', ''))}{path.strip('/')}/"
+
+
 def render(
     settings: Any,
     list_name: str,
@@ -68,6 +83,7 @@ def render(
     manage_url: str = MANAGE_PLACEHOLDER,
     unsubscribe_url: str = UNSUBSCRIBE_PLACEHOLDER,
     subject_prefix: str = "",
+    entry: Mapping[str, Any] | None = None,
 ) -> RenderedEmail:
     """Render the issue. Raises ``PostalAddressMissing`` for a blank address."""
     site_url = links.home_url(settings.site_origin, getattr(settings, "base_path", ""))
@@ -78,6 +94,7 @@ def render(
         manage_url=manage_url,
         unsubscribe_url=unsubscribe_url,
         postal_address=postal_address,
+        archive_url=archive_url(settings, entry),
     )
     return render_issue(
         subject=subject_prefix + source.subject,
@@ -86,6 +103,7 @@ def render(
         footer=footer,
         preheader=source.preheader,
         site_url=site_url,
+        list_name=list_name,
     )
 
 
