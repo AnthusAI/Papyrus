@@ -19,7 +19,12 @@ READER_DATA_DIRECTORY = "_data/reader"
 ITEMS_FILE = f"{READER_DATA_DIRECTORY}/items.json"
 BOARD_FILE = f"{READER_DATA_DIRECTORY}/board.json"
 READERS_FILE = f"{READER_DATA_DIRECTORY}/readers.json"
-SNAPSHOT_FILES = (ITEMS_FILE, BOARD_FILE, READERS_FILE)
+SUBMISSIONS_FILE = f"{READER_DATA_DIRECTORY}/submissions.json"
+SNAPSHOT_FILES = (ITEMS_FILE, BOARD_FILE, READERS_FILE, SUBMISSIONS_FILE)
+SUBMISSIONS_LISTED = 200
+SUBMISSION_PENDING = "pending"
+SUBMISSION_PROMOTED = "promoted"
+VISIBLE_SUBMISSION_STATES = (SUBMISSION_PENDING, SUBMISSION_PROMOTED)
 RATING_VALUES = (1, 2, 3, 4, 5)
 TOP_READERS = 50
 SECONDS_PER_HOUR = 3600
@@ -131,6 +136,43 @@ class Snapshot:
     board: dict
     readers: dict
     karma: dict[str, int]
+    submissions: dict
+
+
+def visible_submissions(submissions: Iterable[Mapping]) -> list[Mapping]:
+    """Pending and promoted submissions, newest first; hidden ones (and any other state) are never public."""
+    visible = [submission for submission in submissions if submission.get("state") in VISIBLE_SUBMISSION_STATES]
+    return sorted(visible, key=lambda submission: (submission["createdAt"], submission["id"]), reverse=True)
+
+
+def submitters(submissions: Iterable[Mapping]) -> dict[str, str]:
+    """Subject key to the readerId who submitted it: the submission id, and the draft item's key once it is promoted."""
+    found: dict[str, str] = {}
+    for submission in visible_submissions(submissions):
+        found[submission["id"]] = submission["readerId"]
+        if submission.get("itemId"):
+            found[submission["itemId"]] = submission["readerId"]
+    return found
+
+
+def public_submission(submission: Mapping, handles: Mapping[str, str]) -> dict:
+    row = {
+        "id": submission["id"],
+        "url": submission["canonicalUrl"],
+        "domain": submission["domain"],
+        "title": submission["title"],
+        "kind": submission.get("kind"),
+        "readerId": submission["readerId"],
+        "handle": handles.get(submission["readerId"]),
+        "createdAt": submission["createdAt"],
+        "state": submission["state"],
+        "similar": list(submission.get("similar") or []),
+    }
+    if submission.get("note"):
+        row["note"] = submission["note"]
+    if submission.get("itemId"):
+        row["itemId"] = submission["itemId"]
+    return row
 
 
 def build_snapshot(
@@ -140,10 +182,19 @@ def build_snapshot(
     published_at: Mapping[str, str | None],
     now_seconds: float,
     settings: SnapshotSettings,
-    submitter_of: Callable[[str], str | None] = lambda subject: None,
+    submitter_of: Callable[[str], str | None] | None = None,
+    submissions: Iterable[Mapping] = (),
 ) -> Snapshot:
-    """``published_at`` holds exactly the published subjects (its values may be ``None``); votes on any other subject are ignored."""
+    """``published_at`` holds exactly the published subjects (its values may be ``None``); votes on any other subject are ignored.
+
+    Visible submissions (pending or promoted) are subjects too, published when they were submitted. ``submitter_of`` defaults to
+    the readers of those submissions, so upvotes and used-it reports on a submission (or on the item it became) earn its submitter karma.
+    """
     generated_at = iso(now_seconds)
+    submission_rows = visible_submissions(submissions)
+    published_at = {**{submission["id"]: submission["createdAt"] for submission in submission_rows}, **published_at}
+    if submitter_of is None:
+        submitter_of = submitters(submission_rows).get
     live_votes = [vote for vote in votes if vote["subjectKey"] in published_at]
     by_subject: dict[str, list[Mapping]] = defaultdict(list)
     for vote in live_votes:
@@ -203,6 +254,7 @@ def build_snapshot(
     ]
     top_readers = sorted(reader_rows, key=lambda row: (-row["karma"], row["handle"]))[:TOP_READERS]
 
+    handles = {profile["readerId"]: profile["handle"] for profile in profile_list if profile.get("handle")}
     ranking = settings.ranking
     return Snapshot(
         items={"generatedAt": generated_at, "items": items},
@@ -219,6 +271,10 @@ def build_snapshot(
         },
         readers={"generatedAt": generated_at, "readers": top_readers},
         karma=karma_values,
+        submissions={
+            "generatedAt": generated_at,
+            "submissions": [public_submission(submission, handles) for submission in submission_rows[:SUBMISSIONS_LISTED]],
+        },
     )
 
 

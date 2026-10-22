@@ -3,7 +3,8 @@ import { a } from "@aws-amplify/backend";
 /**
  * Staff and IAM only: no guest, API key or reader rule on any model. The reader-actions function writes the
  * tables directly with its own role, and editors may list them; admins may delete. `id` is the lookup key:
- * the siteSubject for a profile, the lowercase handle for a claim and `subjectKey#readerId#dimension` for a vote.
+ * the siteSubject for a profile, the lowercase handle for a claim, `subjectKey#readerId#dimension` for a vote and
+ * `sub-<sha256 of the canonical URL>` for a submission (so a canonical URL is one submission).
  */
 const staffOnly = (allow: any) => [allow.group("editor").to(["read"]), allow.group("admin").to(["read", "delete"])];
 
@@ -37,6 +38,26 @@ export function readerSteeringSchemaDefinitions() {
         voterRole: a.string().required(),
       })
       .disableOperations(["subscriptions"])
+      .authorization(staffOnly),
+    ReaderSubmission: a
+      .model({
+        id: a.id().required(),
+        canonicalUrl: a.string().required(),
+        domain: a.string().required(),
+        title: a.string().required(),
+        kind: a.string().required(),
+        note: a.string(),
+        readerId: a.string().required(),
+        state: a.string().required(),
+        similar: a.string().array(),
+        signals: a.json(),
+        extractionState: a.string().required(),
+        itemId: a.string(),
+        reviewedAt: a.datetime(),
+        createdAt: a.datetime().required(),
+      })
+      .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("domain").sortKeys(["createdAt"]).name("submissionsByDomain").queryField("listReaderSubmissionsByDomainAndCreatedAt")])
       .authorization(staffOnly),
   };
 }

@@ -29,7 +29,7 @@ const fixture = path.join(process.cwd(), "procedures", "newsroom", "tests", "rea
 const output = execFileSync(process.env.PAPYRUS_PYTHON ?? "python3", [fixture], { encoding: "utf8" });
 const { readerIds, files } = JSON.parse(output) as { readerIds: string[]; files: Record<string, string> };
 
-assert.deepEqual(Object.keys(files).sort(), ["_data/reader/board.json", "_data/reader/items.json", "_data/reader/readers.json"]);
+assert.deepEqual(Object.keys(files).sort(), ["_data/reader/board.json", "_data/reader/items.json", "_data/reader/readers.json", "_data/reader/submissions.json"]);
 for (const [name, body] of Object.entries(files)) {
   assert.deepEqual(identityLeaks(body, readerIds), [], `${name} identifies no one`);
   JSON.parse(body);
@@ -37,8 +37,11 @@ for (const [name, body] of Object.entries(files)) {
 const readers = (JSON.parse(files["_data/reader/readers.json"]) as { readers: Array<Record<string, unknown>> }).readers;
 assert.ok(readers.length > 0, "the fixture has a reader on the karma board");
 for (const row of readers) assert.deepEqual(Object.keys(row).sort(), ["handle", "karma", "readerId"], "only readerId, handle and karma are public");
+const submissions = (JSON.parse(files["_data/reader/submissions.json"]) as { submissions: Array<Record<string, unknown>> }).submissions;
+assert.equal(submissions.length, 1);
+assert.deepEqual(Object.keys(submissions[0]).sort(), ["createdAt", "domain", "handle", "id", "kind", "note", "readerId", "similar", "state", "title", "url"], "a submission is public as these fields only: no signals, extraction state, siteSubject or email");
 for (const body of Object.values(files)) {
-  assert.equal(body.includes("siteSubject") || body.includes("email") || body.includes("personId"), false, "profile fields other than readerId, handle and karma never reach the files");
+  assert.equal(body.includes("siteSubject") || body.includes("email") || body.includes("personId") || body.includes("signals") || body.includes("extractionState"), false, "profile fields other than readerId, handle and karma never reach the files");
 }
 
 console.log("reader snapshot privacy ok");

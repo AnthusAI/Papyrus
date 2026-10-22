@@ -10,6 +10,7 @@
  *   <div data-island="UsedIt" data-props='{"subject":"<item key>","usedIt":1}'></div>
  *   <div data-island="Rating" data-props='{"subject":"<item key>","dimensions":["real","useful"]}'></div>
  *   <div data-island="Freshness" data-props='{"generatedAt":"2026-10-21T10:00:00Z"}'></div>
+ *   <div data-island="Submit" data-props='{"kinds":["article","tool"]}'></div>   (the /submit/ page)
  *
  * The script registers its islands in window.papyrusIslands and also mounts any [data-island] of its own names, once, so
  * it works with or without the core islands runtime. Props prerender the last snapshot values; the page then fetches
@@ -424,7 +425,200 @@
     requestMe();
   }
 
-  var islands = { ReaderSignIn: mountSignIn, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
+  var DRAFT_KEY = "papyrus-reader-submit-draft";
+  var SIMILAR_HOURS = 48;
+
+  function storage() {
+    try { return window.localStorage; } catch (error) { return null; }
+  }
+
+  function readDraft() {
+    try {
+      var store = storage();
+      var parsed = store ? JSON.parse(store.getItem(DRAFT_KEY) || "null") : null;
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (error) { return null; }
+  }
+
+  function writeDraft(draft) {
+    try {
+      var store = storage();
+      if (!store) return;
+      if (draft) store.setItem(DRAFT_KEY, JSON.stringify(draft)); else store.removeItem(DRAFT_KEY);
+    } catch (error) {}
+  }
+
+  function guessCanonical(text) {
+    try {
+      var url = new URL(text.trim());
+      if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+      url.hash = "";
+      return url.href;
+    } catch (error) { return null; }
+  }
+
+  function loadSubmissions() {
+    return fetch(settings.base + "_data/reader/submissions.json", { credentials: "omit", cache: "no-cache" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (body) { return body && Array.isArray(body.submissions) ? body.submissions : []; })
+      .catch(function () { return []; });
+  }
+
+  function field(form, labelText, control, hintText) {
+    var wrapper = element("div", "papyrus-reader-field");
+    control.id = "papyrus-reader-" + control.name + "-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", labelText);
+    label.setAttribute("for", control.id);
+    wrapper.appendChild(label);
+    wrapper.appendChild(control);
+    if (hintText) wrapper.appendChild(element("span", "papyrus-reader-hint", hintText));
+    form.appendChild(wrapper);
+    return wrapper;
+  }
+
+  function mountSubmit(host, props) {
+    var kinds = Array.isArray(props.kinds) && props.kinds.length ? props.kinds : ["link"];
+    requestMe();
+    host.classList.add("papyrus-reader-submit");
+    var form = element("form", "papyrus-reader-submit-form");
+    form.noValidate = false;
+    var url = element("input", "papyrus-reader-input");
+    url.type = "url"; url.name = "url"; url.required = true; url.maxLength = 2048; url.autocomplete = "off"; url.placeholder = "https://";
+    var title = element("input", "papyrus-reader-input");
+    title.type = "text"; title.name = "title"; title.required = true; title.maxLength = 200; title.autocomplete = "off";
+    var note = element("textarea", "papyrus-reader-input");
+    note.name = "note"; note.maxLength = 500; note.rows = 3;
+    field(form, "Link", url);
+    field(form, "Title", title);
+    var kindInputs = [];
+    if (kinds.length > 1) {
+      var set = element("fieldset", "papyrus-reader-kinds");
+      set.appendChild(element("legend", "papyrus-reader-field-label", "Kind"));
+      kinds.forEach(function (kind, index) {
+        var label = element("label", "papyrus-reader-kind");
+        var radio = element("input");
+        radio.type = "radio"; radio.name = "kind"; radio.value = kind; radio.checked = index === 0;
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode(" " + kind));
+        set.appendChild(label);
+        kindInputs.push(radio);
+      });
+      form.appendChild(set);
+    }
+    field(form, "Note (optional)", note, "Up to 500 characters of plain text. Everyone can read it.");
+    var warning = element("p", "papyrus-reader-warning");
+    warning.setAttribute("role", "status");
+    warning.setAttribute("aria-live", "polite");
+    var draftNote = element("p", "papyrus-reader-hint", "Saved locally: a draft of this form is kept in this browser only, never sent anywhere, and cleared when you submit.");
+    var send = element("button", "papyrus-reader-button", "Submit link");
+    send.type = "submit";
+    var status = element("p", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    var result = element("div", "papyrus-reader-submit-result");
+    [warning, draftNote, send, status].forEach(function (node) { form.appendChild(node); });
+    host.appendChild(form);
+    host.appendChild(result);
+
+    function chosenKind() {
+      var picked = kindInputs.filter(function (radio) { return radio.checked; })[0];
+      return picked ? picked.value : kinds[0];
+    }
+
+    var draft = readDraft();
+    if (draft) {
+      url.value = String(draft.url || ""); title.value = String(draft.title || ""); note.value = String(draft.note || "");
+      kindInputs.forEach(function (radio) { radio.checked = radio.value === draft.kind; });
+      if (kindInputs.length && !kindInputs.some(function (radio) { return radio.checked; })) kindInputs[0].checked = true;
+    }
+    var saveTimer = null;
+    function saveDraft() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () {
+        writeDraft(url.value || title.value || note.value ? { url: url.value, title: title.value, note: note.value, kind: chosenKind() } : null);
+      }, 300);
+    }
+    [url, title, note].forEach(function (control) { control.addEventListener("input", saveDraft); });
+    kindInputs.forEach(function (radio) { radio.addEventListener("change", saveDraft); });
+
+    var known = [];
+    function showWarning() {
+      var canonical = guessCanonical(url.value);
+      warning.textContent = "";
+      if (!canonical) return;
+      var same = known.filter(function (row) { return row.url === canonical; })[0];
+      if (same) {
+        warning.textContent = "Warning: this link may already be submitted as \u201c" + same.title + "\u201d. You can still submit it; the site checks again.";
+        return;
+      }
+      var host_ = new URL(canonical).hostname;
+      var since = Date.now() - SIMILAR_HOURS * 3600 * 1000;
+      var recent = known.filter(function (row) { return row.domain === host_ && Date.parse(row.createdAt) >= since; });
+      if (recent.length) warning.textContent = "Heads up: " + plural(recent.length, "link", "links") + " from " + host_ + " " + (recent.length === 1 ? "was" : "were") + " submitted in the last " + SIMILAR_HOURS + " hours. Check that yours is not the same story.";
+    }
+    loadSubmissions().then(function (rows) { known = rows; showWarning(); });
+    url.addEventListener("input", showWarning);
+    url.addEventListener("change", showWarning);
+
+    var message = "";
+    var busy = false;
+    subscribe(function () {
+      var disabled = !enabled();
+      [url, title, note, send].concat(kindInputs).forEach(function (control) { control.disabled = disabled; });
+      send.setAttribute("aria-busy", busy ? "true" : "false");
+      status.textContent = message || controlStatus();
+    });
+
+    function showSuccess(body) {
+      result.textContent = "";
+      result.appendChild(element("p", "papyrus-reader-pending", "Pending \u2014 we\u2019re reading the link."));
+      result.appendChild(element("p", "papyrus-reader-hint", "Your submission is public now. Editors may promote it to a story."));
+      if (body.similar && body.similar.length) {
+        result.appendChild(element("p", "papyrus-reader-warning", "Similar recent links from the same site:"));
+        var list = element("ul", "papyrus-reader-similar");
+        body.similar.forEach(function (row) {
+          var item = element("li");
+          var link = element("a", "papyrus-reader-link", row.title);
+          link.href = row.url; link.rel = "noopener noreferrer nofollow";
+          item.appendChild(link);
+          list.appendChild(item);
+        });
+        result.appendChild(list);
+      }
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!enabled() || busy) return;
+      busy = true;
+      message = "";
+      result.textContent = "";
+      notify();
+      var body = { url: url.value, title: title.value, kind: chosenKind() };
+      if (note.value.trim()) body.note = note.value;
+      post("/submit", body).then(function (answer) {
+        busy = false;
+        if (answer.ok) {
+          clearTimeout(saveTimer);
+          writeDraft(null);
+          form.reset();
+          kindInputs.forEach(function (radio, index) { radio.checked = index === 0; });
+          showWarning();
+          showSuccess(answer.body);
+        } else if (answer.status === 409 && answer.body.error === "duplicate_submission") {
+          var existing = answer.body.existing;
+          message = existing ? "Already submitted as \u201c" + existing.title + "\u201d (" + existing.state + ")." : "That link was already submitted.";
+        } else if (answer.status === 422 && answer.body.error === "handle_required") {
+          message = "Choose a handle first, using the sign-in control, then submit again.";
+        } else {
+          message = failureText(answer);
+        }
+        notify();
+      }).catch(function () { busy = false; message = TEXT.failed; notify(); });
+    });
+  }
+
+  var islands = { ReaderSignIn: mountSignIn, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
   var started = false;
 
   function guarded(mount) {

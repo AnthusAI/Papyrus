@@ -337,13 +337,14 @@ def nobody_has_karma(context) -> None:
     assert public_file(context, "_data/reader/readers.json")["readers"] == []
 
 
-@then('the site store holds "{first}", "{second}" and "{third}"')
-def store_holds(context, first: str, second: str, third: str) -> None:
+@then('the site store holds the four reader files under "{base}"')
+def store_holds(context, base: str) -> None:
     keys = sorted(entry.key for entry in context.reader_site.list())
-    assert keys == sorted([first, second, third]), keys
+    expected = sorted(f"{base}/_data/reader/{name}.json" for name in ("items", "board", "readers", "submissions"))
+    assert keys == expected, keys
 
 
-@then("the edge was asked to purge those three files and nothing else")
+@then("the edge was asked to purge those four files and nothing else")
 def edge_purged(context) -> None:
     written = context.reader_report.written
     assert context.reader_purged == [written], (context.reader_purged, written)
@@ -356,3 +357,98 @@ def public_files_clean(context) -> None:
     reader_ids = [item["readerId"] for item in backend.table("profile").scan()["Items"]]
     files = {entry.key: context.reader_site.get(entry.key) for entry in context.reader_site.list()}
     assert files and scan_files(files, reader_ids) == {}, scan_files(files, reader_ids)
+
+
+SUBMISSION_URLS = {"first": "https://Example.com/post/1#intro", "second": "https://example.com/post/2", "third": "https://other.example/x"}
+
+
+def link(context, which: str) -> str:
+    return SUBMISSION_URLS.get(which, which)
+
+
+@when('"{name}" submits the {which} link titled "{title}"')
+def submits_link(context, name: str, which: str, title: str) -> None:
+    call(context, name, "submit", {"url": link(context, which), "title": title})
+
+
+@when('"{name}" submits the {which} link with the note "{note}" titled "{title}"')
+def submits_link_with_note(context, name: str, which: str, note: str, title: str) -> None:
+    call(context, name, "submit", {"url": link(context, which), "title": title, "note": note})
+
+
+@when('"{name}" submits {count:d} different links')
+def submits_many(context, name: str, count: int) -> None:
+    for number in range(count):
+        call(context, name, "submit", {"url": f"https://site{number}.example/post", "title": f"Post {number}"})
+
+
+def first_submission_subject(context) -> str:
+    answers = context.reader_answers[context.reader_first_submitter]
+    return next(answer["body"]["subject"] for answer in answers if answer["statusCode"] == 201)
+
+
+@when('"{name}" upvotes the first submission')
+def upvotes_first_submission(context, name: str) -> None:
+    subject = first_submission_subject(context)
+    call(context, name, "vote", {"subject": subject, "dimension": "up", "on": True})
+
+
+@given('"{name}" is the submitter of the first link')
+def first_submitter(context, name: str) -> None:
+    context.reader_first_submitter = name
+
+
+@then("there is {count:d} stored submission")
+def stored_submissions_one(context, count: int) -> None:
+    assert len(ensure_started(context).submissions()) == count
+
+
+@then("there are {count:d} stored submissions")
+def stored_submissions(context, count: int) -> None:
+    assert len(ensure_started(context).submissions()) == count
+
+
+@then('the answer to "{name}" says the submission is pending with extraction pending')
+def pending_answer(context, name: str) -> None:
+    body = last_answer(context, name)["body"]
+    assert (body["state"], body["extraction"]) == ("pending", "pending"), body
+
+
+@then('the refusal to "{name}" names the existing submission')
+def refusal_names_existing(context, name: str) -> None:
+    body = last_answer(context, name)["body"]
+    assert body["existing"]["subject"] == first_submission_subject(context), body
+
+
+@then('the answer to "{name}" warns about {count:d} similar link')
+def similar_warning(context, name: str, count: int) -> None:
+    assert len(last_answer(context, name)["body"]["similar"]) == count, last_answer(context, name)
+
+
+@then('the public file "{key}" lists {count:d} submission by "{handle}" as pending')
+def public_submissions(context, key: str, count: int, handle: str) -> None:
+    rows = public_file(context, key)["submissions"]
+    assert len(rows) == count and rows[0]["handle"] == handle and rows[0]["state"] == "pending", rows
+
+
+@then('"{handle}" is on the karma list with {karma:d}')
+def on_karma_list(context, handle: str, karma: int) -> None:
+    rows = public_file(context, "_data/reader/readers.json")["readers"]
+    assert [(row["handle"], row["karma"]) for row in rows] == [(handle, karma)], rows
+
+
+@then("the stored submission has humanus signals")
+def stored_signals(context) -> None:
+    (stored,) = ensure_started(context).submissions()
+    detectors = {signal["detector"] for signal in json.loads(stored["signals"])}
+    assert {"buy-now", "url-shortener"} <= detectors, detectors
+
+
+@when('"{name}" submits the link "{url}" titled "{title}"')
+def submits_given_link(context, name: str, url: str, title: str) -> None:
+    call(context, name, "submit", {"url": url, "title": title})
+
+
+@then('the public file "{key}" shows {count:d} upvote on the first submission')
+def public_upvotes_on_submission(context, key: str, count: int) -> None:
+    assert public_file(context, key)["items"][first_submission_subject(context)]["up"] == count

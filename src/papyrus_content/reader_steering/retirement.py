@@ -113,6 +113,12 @@ class ReaderTableNames:
     handle: str
     vote: str
     state: str
+    submission: str = ""
+
+    @property
+    def authored(self) -> tuple[str, ...]:
+        """Tables whose rows carry the author's ``readerId``: dropped with a deleted reader, re-keyed for a merged one."""
+        return tuple(name for name in (self.submission,) if name)
 
 
 @dataclass
@@ -159,17 +165,38 @@ def drop_votes(resource: Any, names: ReaderTableNames, votes: Iterable[Mapping])
             writer.delete_item(Key={"id": vote["id"]})
 
 
+def authored_rows(resource: Any, table_name: str, reader_id: str) -> list[dict]:
+    from boto3.dynamodb.conditions import Attr
+
+    return scan_matching(resource.Table(table_name), FilterExpression=Attr("readerId").eq(reader_id))
+
+
+def drop_authored(resource: Any, names: ReaderTableNames, reader_id: str) -> None:
+    for table_name in names.authored:
+        table = resource.Table(table_name)
+        for row in authored_rows(resource, table_name, reader_id):
+            table.delete_item(Key={"id": row["id"]})
+
+
+def rekey_authored(resource: Any, names: ReaderTableNames, reader_id: str, survivor_reader_id: str) -> None:
+    for table_name in names.authored:
+        table = resource.Table(table_name)
+        for row in authored_rows(resource, table_name, reader_id):
+            table.update_item(Key={"id": row["id"]}, UpdateExpression="SET readerId = :reader", ExpressionAttributeValues={":reader": survivor_reader_id})
+
+
 def vote_stamp(vote: Mapping) -> str:
     return str(vote.get("updatedAt") or vote.get("createdAt") or "")
 
 
 def apply_deleted(resource: Any, names: ReaderTableNames, subject: str) -> bool:
-    """Deletes the profile, handle claim, votes and ratings. The profile goes last, so a retry after a failure still finds it."""
+    """Deletes the profile, handle claim, votes, ratings and what the reader submitted. The profile goes last, so a retry after a failure still finds it."""
     profiles = resource.Table(names.profile)
     profile = profiles.get_item(Key={"id": subject}, ConsistentRead=True).get("Item")
     if not profile:
         return False
     drop_votes(resource, names, votes_of(resource, names, profile["readerId"]))
+    drop_authored(resource, names, profile["readerId"])
     if profile.get("handle"):
         resource.Table(names.handle).delete_item(Key={"id": profile["handle"]})
     profiles.delete_item(Key={"id": subject})
@@ -194,6 +221,7 @@ def apply_merged(resource: Any, names: ReaderTableNames, subject: str, survivor:
             if getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
             existing = profiles.get_item(Key={"id": survivor}, ConsistentRead=True).get("Item")
+    rekey_authored(resource, names, old["readerId"], existing["readerId"])
     votes = resource.Table(names.vote)
     for vote in votes_of(resource, names, old["readerId"]):
         target_id = f"{vote['subjectKey']}#{existing['readerId']}#{vote['dimension']}"
