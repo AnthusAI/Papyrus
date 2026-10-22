@@ -750,7 +750,7 @@ def test_retype_migrates_the_node_its_links_and_its_relations_and_is_idempotent(
     assert "model--tern-3 -> model-family--tern-3" in capsys.readouterr().out
     nodes = {row["nodeKey"]: row for row in client.rows["SemanticNode"].values()}
     new = nodes["model-family--tern-3"]
-    assert (new["status"], new["versionState"], new["displayName"], new["aliases"], new["nodeKind"]) == ("accepted", "current", old["displayName"], old["aliases"], "model-family")
+    assert (new["status"], new["versionState"], new["displayName"], new["aliases"], new["nodeKind"]) == ("accepted", "current", old["displayName"], old["aliases"], "model_family")
     marks = decode_review(new["changeReason"])
     assert marks.accepted_by.actor == "ai" and marks.retyped_by.to_dict() == {"actor": "ai", "name": "Reviewer", "on": today_utc()}
     superseded = client.rows["SemanticNode"][old["id"]]
@@ -855,3 +855,94 @@ def test_topic_config_writes_the_vectorizer_with_the_extra_stop_words(tmp_path, 
     assert configuration["bertopic_analysis"]["parameters"] == {"nr_topics": None, "min_topic_size": 5}
     with pytest.raises(ValueError, match="--out"):
         run(commands.knowledge_topic_config)
+
+
+# ------------------------------------------------------------------ kinds, aliases, concept kinds
+
+def node_row(key, kind, name, aliases=(), status="accepted"):
+    return {"id": f"{key}-v1", "lineageId": key, "versionNumber": 1, "versionState": "current", "nodeKey": key, "nodeKind": kind, "displayName": name, "aliases": list(aliases), "status": status}
+
+
+def test_a_kind_keeps_the_vocabulary_key_in_nodes_and_only_the_entity_key_uses_hyphens(client, tmp_path, monkeypatch):
+    path = tmp_path / "entities.json"
+    path.write_text(json.dumps({
+        "schema_version": 1, "vocabulary": {}, "backend": {}, "summary": {},
+        "items": [{"item_id": "item-alpha", "entities": [{"id": "e1", "kind": "model_family", "text": "Tern", "state": "proposed", "entity_key": None, "span": None, "score": 0.9}], "relations": []}],
+    }))
+    run(commands.knowledge_publish_run, "--entities", str(path), "--apply")
+    node = next(row for row in client.rows["SemanticNode"].values() if row["nodeKey"].startswith("model-family--"))
+    assert (node["nodeKey"], node["nodeKind"]) == ("model-family--tern", "model_family")
+    legacy = node_row("model-family--old", "model-family", "Old", status="generated")
+    client.rows["SemanticNode"][legacy["id"]] = legacy
+    from .publish_run import NodeIndex
+
+    assert NodeIndex(client.rows["SemanticNode"].values()).resolve("model_family", "old")["id"] == legacy["id"]
+
+
+def test_the_registry_writes_the_canonical_kind_and_maps_to_the_vocabulary_keys(client, tmp_path, capsys):
+    client.rows["SemanticNode"] = {row["id"]: row for row in [
+        node_row("model-family--tern", "model-family", "Tern"),
+        node_row("model--gemma-3", "model", "Gemma 3"),
+        node_row("benchmark--swe", "benchmark", "SWE"),
+    ]}
+    out = tmp_path / "registry.json"
+    run(commands.knowledge_entities_registry, "--out", str(out))
+    assert {entry["key"]: entry["kind"] for entry in json.loads(out.read_text())} == {"benchmark--swe": "benchmark", "model--gemma-3": "model", "model-family--tern": "model_family"}
+    assert client.rows["SemanticNode"]["model-family--tern-v1"]["nodeKind"] == "model-family"
+
+    vocabulary = tmp_path / "vocabulary.yml"
+    vocabulary.write_text("version: 1\nentity_kinds:\n  - {key: model, label: AI model}\n  - {key: model_family, label: family}\n")
+    run(commands.knowledge_entities_registry, "--out", str(out), "--vocabulary", str(vocabulary))
+    assert {entry["key"]: entry["kind"] for entry in json.loads(out.read_text())} == {"model--gemma-3": "model", "model-family--tern": "model_family"}
+    assert "benchmark--swe has kind 'benchmark', which the vocabulary does not have" in capsys.readouterr().err
+    vocabulary.write_text("version: 1\n")
+    with pytest.raises(ValueError, match="no entity_kinds"):
+        run(commands.knowledge_entities_registry, "--out", str(out), "--vocabulary", str(vocabulary))
+
+
+def test_alias_adds_a_name_records_the_actor_and_makes_a_rejected_duplicate_resolve_to_the_accepted_node(client, tmp_path, capsys):
+    from .publish_run import NodeIndex
+    from .registry import build_registry
+
+    client.rows["SemanticNode"] = {row["id"]: row for row in [
+        node_row("maker--mistral-ai", "maker", "Mistral AI"),
+        node_row("maker--mistral", "maker", "Mistral", status="rejected"),
+        node_row("maker--other", "maker", "Other Lab", ["Other"]),
+    ]}
+    run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "Mistral", "--actor", "ai", "--actor-name", "Reviewer", "--dry-run")
+    assert client.rows["SemanticNode"]["maker--mistral-ai-v1"]["aliases"] == []
+    run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "Mistral", "--actor", "ai", "--actor-name", "Reviewer")
+    node = client.rows["SemanticNode"]["maker--mistral-ai-v1"]
+    assert node["aliases"] == ["Mistral"]
+    assert decode_review(node["changeReason"]).aliased_by.to_dict() == {"actor": "ai", "name": "Reviewer", "on": today_utc()}
+    assert NodeIndex(client.list_records("SemanticNode")).resolve("maker", "mistral")["nodeKey"] == "maker--mistral-ai"
+    assert build_registry(client.list_records("SemanticNode"))[0][0]["aliases"] == ["Mistral AI", "Mistral"]
+    before = len(client.writes)
+    run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "mistral ", "--actor", "human")
+    assert len(client.writes) == before
+    with pytest.raises(ValueError, match="merge the two by hand"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "Other", "--actor", "ai")
+    with pytest.raises(ValueError, match="rejected"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral", "--add", "Mistral Inc", "--actor", "ai")
+    with pytest.raises(ValueError, match="requires --add"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--actor", "ai")
+    with pytest.raises(ValueError, match="requires --actor ai\\|human"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "X")
+    with pytest.raises(ValueError, match="email"):
+        run(commands.knowledge_entities_alias, "--key", "maker--mistral-ai", "--add", "a@b.example", "--actor", "ai")
+
+
+def test_concept_kinds_limit_the_concept_of_the_week_and_the_default_is_every_kind(client, tmp_path, monkeypatch):
+    run(commands.knowledge_publish_run, "--apply")
+    run(commands.knowledge_entities_describe, "--key", "task--voice-cloning", "--text", "Copying a voice.", "--actor", "ai")
+    run(commands.knowledge_entities_describe, "--key", "maker--some-lab", "--text", "A lab.", "--actor", "ai")
+
+    def concept(*flags):
+        return json.loads((snapshot_to(tmp_path, monkeypatch, *flags) / INDEX_FILE).read_text())["conceptOfTheWeek"]
+
+    assert concept()["key"] == "task--voice-cloning"
+    assert concept("--concept-kinds", "maker")["key"] == "maker--some-lab"
+    assert concept("--concept-kinds", "Task, model_family")["key"] == "task--voice-cloning"
+    assert concept("--concept-kinds", "model_family") is None
+    with pytest.raises(ValueError, match="--concept-kinds"):
+        run(commands.knowledge_snapshot, "--out", str(tmp_path / "site"), "--concept-kinds")

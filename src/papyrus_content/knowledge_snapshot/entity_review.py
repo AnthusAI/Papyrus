@@ -13,7 +13,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .actors import Actor, decode_review
-from .keys import contains_email, normalize_name, slug
+from .keys import contains_email, normalize_name, kind_key
 from .model import LINK_EXTRACTOR
 from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_item_mention, json_object
 
@@ -100,13 +100,13 @@ def rename_patches(node: Mapping[str, Any], new_name: str, others: Iterable[Mapp
         raise EntityReviewError("An entity name must not hold an email address.")
     if name == node.get("displayName"):
         return []
-    kind = slug(node.get("nodeKind") or "")
+    kind = kind_key(node.get("nodeKind") or "")
     for other in others:
         if (
             other.get("id") != node.get("id")
             and other.get("versionState", "current") == "current"
             and other.get("status") in (STATUS_ACCEPTED, "generated")
-            and slug(other.get("nodeKind") or "") == kind
+            and kind_key(other.get("nodeKind") or "") == kind
             and normalize_name(name) in {normalize_name(other.get("displayName") or ""), *(normalize_name(alias) for alias in other.get("aliases") or ())}
         ):
             raise EntityReviewError(f"{other['id']} already has the name {name!r}; merge the two by hand.")
@@ -115,6 +115,41 @@ def rename_patches(node: Mapping[str, Any], new_name: str, others: Iterable[Mapp
     if previous and normalize_name(previous) != normalize_name(name) and normalize_name(previous) not in {normalize_name(alias) for alias in aliases}:
         aliases.append(previous)
     return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "displayName": name, "aliases": aliases, "updatedAt": now}}]
+
+
+def alias_patches(node: Mapping[str, Any], alias: str, others: Iterable[Mapping[str, Any]], *, actor: Actor, now: str) -> list[dict]:
+    """Add ``alias`` to a node as ``actor``, so a name the extractor keeps proposing resolves to this node.
+
+    Nothing changes when the node already answers to the name. A name that another live node of the kind holds is
+    refused (merge those by hand); a rejected duplicate holding the name does not count, that is the case this is for.
+    """
+    name = " ".join(alias.split())
+    if not name:
+        raise EntityReviewError("An alias is needed.")
+    if contains_email(name):
+        raise EntityReviewError("An alias must not hold an email address.")
+    if node.get("status") == STATUS_REJECTED:
+        raise EntityReviewError(f"{node['nodeKey']} is rejected; add the alias to the accepted entity.")
+    wanted = normalize_name(name)
+    if wanted in {normalize_name(node.get("displayName") or ""), *(normalize_name(existing) for existing in node.get("aliases") or ())}:
+        return []
+    kind = kind_key(node.get("nodeKind") or "")
+    for other in others:
+        if (
+            other.get("id") != node.get("id")
+            and other.get("versionState", "current") == "current"
+            and other.get("status") in (STATUS_ACCEPTED, "generated")
+            and kind_key(other.get("nodeKind") or "") == kind
+            and wanted in {normalize_name(other.get("displayName") or ""), *(normalize_name(existing) for existing in other.get("aliases") or ())}
+        ):
+            raise EntityReviewError(f"{other['id']} already has the name {name!r}; merge the two by hand.")
+    marks = decode_review(node.get("changeReason")).replace(aliased_by=actor)
+    return [
+        {
+            "modelName": "SemanticNode",
+            "expected": {"id": node["id"], "aliases": [*(node.get("aliases") or ()), name], "changeReason": marks.encode(), "updatedAt": now},
+        }
+    ]
 
 
 def describe_patches(node: Mapping[str, Any], text: str, *, actor: Actor, now: str) -> list[dict]:

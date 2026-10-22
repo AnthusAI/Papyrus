@@ -194,10 +194,10 @@ papyrus knowledge publish-run --auth iam --amplify-outputs $OUT --corpus-key shi
 Front-matter entities of published items are entered by an AI research agent, so they are recorded as accepted by `ai`; `--actor-name` names that agent. Then write the registry of accepted entities for the extractor:
 
 ```bash
-papyrus knowledge entities registry --auth iam --amplify-outputs $OUT --out $RUN/registry.json
+papyrus knowledge entities registry --auth iam --amplify-outputs $OUT --out $RUN/registry.json --vocabulary $RUN/vocabulary.yml
 ```
 
-Each entry is `{key, kind, aliases}`, and `aliases` holds the node's display name and every alias it has, so name variants such as `Mistral` and `Mistral AI` resolve to the same entity when the node holds both (a `rename` keeps the old name as an alias). An alias that belongs to two entities is refused by the extractor, so the command leaves it out of all of them and prints a warning on stderr; read the warnings, and fix the entities if one of them is a duplicate.
+Each entry is `{key, kind, aliases}`, and `aliases` holds the node's display name and every alias it has, so name variants such as `Mistral` and `Mistral AI` resolve to the same entity when the node holds both (a `rename` keeps the old name as an alias). An alias that belongs to two entities is refused by the extractor, so the command leaves it out of all of them and prints a warning on stderr; read the warnings, and fix the entities if one of them is a duplicate. `--vocabulary` (the file of step 8; write it before this step) makes each `kind` the vocabulary's own key and leaves out, with a warning, an entity whose kind the vocabulary lacks; without it the kind is the underscore form (`model_family`) of whatever the node stores. Nodes are not rewritten. When the extractor keeps proposing a name you rejected as a duplicate (`Mistral` next to `Mistral AI`), make it an alias of the accepted entity and rebuild the registry: `papyrus knowledge entities alias --auth iam --amplify-outputs $OUT --key maker--mistral-ai --add Mistral --actor ai`.
 
 ### 8. Typed entities
 
@@ -262,6 +262,7 @@ papyrus knowledge entities accept   --auth iam --amplify-outputs $OUT --key mode
 papyrus knowledge entities reject   --auth iam --amplify-outputs $OUT --key platform--card --actor ai
 papyrus knowledge entities rename   --auth iam --amplify-outputs $OUT --key model--qwen3-tts --name "Qwen3-TTS" --actor ai
 papyrus knowledge entities describe --auth iam --amplify-outputs $OUT --key model--qwen3-tts --text "..." --actor ai   # facts stated in the site's items only
+papyrus knowledge entities alias    --auth iam --amplify-outputs $OUT --key maker--mistral-ai --add "Mistral" --actor ai   # a rejected duplicate name becomes an alias; re-run step 7's registry
 papyrus knowledge entities retype   --auth iam --amplify-outputs $OUT --key platform--swe-bench --kind benchmark --actor ai   # wrong kind: add --dry-run first
 
 papyrus knowledge clusters list     --auth iam --amplify-outputs $OUT --status all
@@ -288,11 +289,12 @@ MONDAY=$(python -c "import datetime as d;t=d.date.fromisoformat('$AS_OF');print(
 papyrus knowledge snapshot --auth iam --amplify-outputs $OUT \
   --site-bucket amplify-dkycd9pntgo6d-main-bran-sitebucket397a1860-072ufgwmonqo \
   --static-dir ~/Projects/Shipped-web/web --beats-config ~/Projects/Shipped-web/web/scoring.json \
-  --entity-href '/wiki/{slug}/' --as-of $MONDAY
+  --entity-href '/wiki/{slug}/' --as-of $MONDAY \
+  --concept-kinds task,technique,concept,model_family
 curl -s https://shipped.anth.us/_data/knowledge/index.json | python -m json.tool | head -40
 ```
 
-Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). The snapshot is deterministic for the same records and `--as-of`.
+`--concept-kinds` limits the concept of the week to those kinds (Shipped features a task, technique, concept or model family, not a platform or a licence); leave it out and every kind may be chosen. Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). The snapshot is deterministic for the same records and `--as-of`.
 
 ### 13. Wiki
 
@@ -354,6 +356,6 @@ The second weekly run, the same day as the first, from `origin/develop` of Papyr
 
 Found on this run:
 
-- `entities registry` writes the stored `nodeKind`, which is `model-family` for a node whose kind was slugged, while the vocabulary key is `model_family`; the extractor refuses the registry ("kind model-family outside the vocabulary"). The run mapped hyphens to underscores in the registry file by hand. The registry should map a node kind to the vocabulary key, or nodes should store the vocabulary key.
-- Several items state `Mistral`, `DeepSeek`, `Moonshot` or `Aleph Alpha` as the maker; those names were rejected as duplicates of the front-matter makers and are not aliases of them, so the extractor still proposes relations to the rejected node. Adding the variants as aliases of the accepted makers (`rename` keeps the old name) would remove this.
+- `entities registry` writes the stored `nodeKind`, which is `model-family` for a node whose kind was slugged, while the vocabulary key is `model_family`; the extractor refuses the registry ("kind model-family outside the vocabulary"). The run mapped hyphens to underscores in the registry file by hand. Fixed (PPY-9abb98): nodes now store the vocabulary key (`model_family`), the registry always writes that form and `--vocabulary FILE` maps to the vocabulary's own keys; nodes stored earlier with hyphens are matched as the same kind and are not rewritten.
+- Several items state `Mistral`, `DeepSeek`, `Moonshot` or `Aleph Alpha` as the maker; those names were rejected as duplicates of the front-matter makers and are not aliases of them, so the extractor still proposes relations to the rejected node. Fixed: `entities alias --key K --add NAME --actor ai` adds the variants as aliases of the accepted makers.
 - The previous-run id lives in `corpus/knowledge-run.json`; it now holds `e7631ce7...` (topic-modeling snapshot) and `31b0af6b...` (trends snapshot).

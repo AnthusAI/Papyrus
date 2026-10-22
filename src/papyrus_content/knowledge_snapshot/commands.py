@@ -42,12 +42,14 @@ from .entity_review import (
     REVIEW_STATUSES,
     EntityReviewError,
     accept_patches,
+    alias_patches,
     describe_patches,
     find_node,
     reject_patches,
     rename_patches,
 )
 from .entity_retype import retype_plan
+from .keys import kind_key
 from .loaders import (
     beats_from_categories,
     beats_from_config,
@@ -62,7 +64,7 @@ from .loaders import (
 )
 from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotOptions
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
-from .registry import build_registry
+from .registry import build_registry, read_vocabulary_kinds
 from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
 from .relation_review import (
     RELATION_STATES,
@@ -249,6 +251,15 @@ def knowledge_corpus_export(flags: list[str]) -> None:
     print(f"knowledge\tcorpus-export\t{counts['items']} items\t{counts['undated']} undated\t{counts['removed']} removed\t{out}")
 
 
+def _concept_kinds(value: Any) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    kinds = tuple(dict.fromkeys(kind_key(part) for part in str(value).split(",") if kind_key(part))) if value is not True else ()
+    if not kinds:
+        raise ValueError("--concept-kinds takes a comma separated list of kinds, such as task,technique,concept.")
+    return kinds
+
+
 def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
     unaccepted = normalize_string(options.get("unaccepted-clusters")) or UNACCEPTED_HIDE
     if unaccepted not in (UNACCEPTED_HIDE, UNACCEPTED_UNNAMED):
@@ -260,6 +271,7 @@ def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
         cluster_href_template=normalize_string(options.get("cluster-href")),
         unaccepted_clusters=unaccepted,
         maker_kind=normalize_string(options.get("maker-kind")) or "maker",
+        concept_kinds=_concept_kinds(options.get("concept-kinds")),
     )
 
 
@@ -491,6 +503,16 @@ def knowledge_entities_rename(flags: list[str]) -> None:
     _review(flags, "rename", build)
 
 
+def knowledge_entities_alias(flags: list[str]) -> None:
+    def build(options, node, client, rows, actor):
+        name = normalize_string(options.get("add"))
+        if not name:
+            raise EntityReviewError("knowledge entities alias requires --add <name>.")
+        return alias_patches(node, name, rows, actor=actor, now=utc_now())
+
+    _review(flags, "alias", build)
+
+
 def knowledge_entities_describe(flags: list[str]) -> None:
     def build(options, node, client, rows, actor):
         text = normalize_string(options.get("text"))
@@ -532,8 +554,10 @@ def knowledge_entities_registry(flags: list[str]) -> None:
     out = _path_option(options, "out")
     if out is None:
         raise ValueError("Pass --out FILE: the registry JSON for `biblicus extract typed-entities --registry`.")
+    vocabulary_file = _path_option(options, "vocabulary")
+    vocabulary = read_vocabulary_kinds(vocabulary_file) if vocabulary_file else None
     client = authoring_client(options)
-    registry, warnings = build_registry(client.list_records("SemanticNode"))
+    registry, warnings = build_registry(client.list_records("SemanticNode"), vocabulary)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(registry, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
     for warning in warnings:
@@ -671,6 +695,7 @@ KNOWLEDGE_COMMANDS = {
     "entities-reject": knowledge_entities_reject,
     "entities-rename": knowledge_entities_rename,
     "entities-describe": knowledge_entities_describe,
+    "entities-alias": knowledge_entities_alias,
     "entities-retype": knowledge_entities_retype,
     "entities-registry": knowledge_entities_registry,
     "topic-config": knowledge_topic_config,

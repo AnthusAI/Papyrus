@@ -25,7 +25,7 @@ from typing import Any
 from ..categories_steering import semantic_relation_record
 from .actors import Actor, decode_review
 from .entity_review import EntityReviewError
-from .keys import entity_key, slug
+from .keys import entity_key, kind_key
 from .publish_run import STATUS_REJECTED, json_object, new_node_row
 
 SUPERSEDED = "superseded"
@@ -72,12 +72,12 @@ def retype_plan(
     now: str,
 ) -> tuple[list[dict], list[dict], str]:
     """``(records, patches, new key)``: rows to create or bring up to date, and partial updates of existing rows."""
-    kind = slug(new_kind)
+    kind = kind_key(new_kind)
     if not kind:
         raise EntityReviewError("A kind is needed.")
     if node.get("status") == STATUS_REJECTED:
         raise EntityReviewError(f"{node['nodeKey']} is rejected; there is nothing to retype.")
-    if kind == slug(node.get("nodeKind") or ""):
+    if kind == kind_key(node.get("nodeKind") or ""):
         raise EntityReviewError(f"{node['nodeKey']} is already of kind {kind!r}.")
     name = " ".join(str(node.get("displayName") or "").split())
     key = entity_key(kind, name)
