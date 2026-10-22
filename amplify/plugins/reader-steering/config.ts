@@ -3,7 +3,9 @@ import type { PluginRequest } from "../types";
 export const READER_DIMENSION_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const RESERVED_DIMENSIONS = ["up", "used-it"];
 export const READER_HANDLE_NAME = /^[a-z0-9_-]{3,24}$/;
-export const MODERATION_MODES = ["off", "human"] as const;
+export const MODERATION_MODES = ["off", "human", "ai"] as const;
+export const AI_KEY_PARAMETER = /^\/papyrus\/[a-z0-9][a-z0-9-]{0,62}\/openai-api-key$/;
+export const AI_MODEL_NAME = /^[a-z0-9][a-z0-9.-]{0,63}$/;
 export const SUBMISSION_KIND_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]{1,512}$/;
 
@@ -55,12 +57,20 @@ export type ReaderSteeringConfig = {
     /**
      * `human`: new submissions and comments are public at once and wait in the Administration queue (the default for a pilot).
      * `off`: no queue; moderators can still hide, ban and undo. Turning human review off is the whole of "trust graduation".
+     * `ai`: a worker asks a model to allow or hide each new item and logs it as the AI moderator; a human decision always stands.
      */
     mode: (typeof MODERATION_MODES)[number];
     /** Hold new submissions and comments hidden until a moderator approves them. Needs a mode other than `off`. */
     preModeration: boolean;
     /** Reports one reader may file in a UTC day (a third of it for a new account). */
     reportsPerDay: number;
+    /** Present when `mode` is `ai`. */
+    ai?: {
+      /** The model that judges each new item. */
+      model: string;
+      /** The SSM SecureString that holds the API key: `/papyrus/<site>/openai-api-key`. The plugin only grants read access to it. */
+      apiKeyParameter: string;
+    };
   };
   comments: {
     /** Comments, replies and edits one reader may post in a clock hour (a third of it for new accounts). */
@@ -164,13 +174,23 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
   const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section"]);
-  const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay"]);
+  const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay", "ai"]);
   const mode = moderation.mode === undefined ? "human" : moderation.mode;
   if (!MODERATION_MODES.includes(mode as (typeof MODERATION_MODES)[number])) {
     throw new Error(`reader-steering plugin moderation.mode must be one of: ${MODERATION_MODES.join(", ")}`);
   }
   const preModeration = flag(moderation.preModeration, "moderation.preModeration");
   if (preModeration && mode === "off") throw new Error("reader-steering plugin moderation.preModeration needs a moderation.mode other than off");
+  const ai = object(moderation.ai, "moderation.ai", ["model", "apiKeyParameter"]);
+  if (mode !== "ai" && moderation.ai !== undefined) throw new Error("reader-steering plugin moderation.ai needs moderation.mode: ai");
+  if (mode === "ai") {
+    if (typeof ai.apiKeyParameter !== "string" || !AI_KEY_PARAMETER.test(ai.apiKeyParameter)) {
+      throw new Error("reader-steering plugin moderation.ai.apiKeyParameter must be the SSM SecureString name /papyrus/<site>/openai-api-key");
+    }
+    if (ai.model !== undefined && (typeof ai.model !== "string" || !AI_MODEL_NAME.test(ai.model))) {
+      throw new Error(`reader-steering plugin moderation.ai.model must be a model name matching ${AI_MODEL_NAME}`);
+    }
+  }
   const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
   const comments = object(raw.comments, "comments", ["perHour", "editWindowMinutes", "maximumLength", "maximumLinks"]);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
@@ -213,6 +233,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       mode: mode as (typeof MODERATION_MODES)[number],
       preModeration,
       reportsPerDay: integer(moderation.reportsPerDay, "moderation.reportsPerDay", 20, 1, 1000),
+      ...(mode === "ai" ? { ai: { model: (ai.model as string | undefined) ?? "gpt-6-luna", apiKeyParameter: ai.apiKeyParameter as string } } : {}),
     },
     comments: {
       perHour: integer(comments.perHour, "comments.perHour", 30, 1, 1000),

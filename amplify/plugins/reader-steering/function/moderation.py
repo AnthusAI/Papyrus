@@ -124,6 +124,9 @@ def content_plan(action: str, target_type: str, row: dict[str, Any]) -> Plan | O
         to_state = restored if state == "hidden" else state
         return Plan({"state": to_state, "moderation": MODERATION_APPROVED}, {"state": state, "moderation": moderation}, state, to_state, moderation, MODERATION_APPROVED)
     if action == HIDE:
+        if state == "hidden" and moderation == MODERATION_NEW:
+            # A held item (pre-moderation) the moderator turns down: it stays hidden and leaves the queue.
+            return Plan({"moderation": MODERATION_APPROVED}, {"state": state, "moderation": moderation}, state, state, moderation, MODERATION_APPROVED)
         if state == "hidden":
             return refused("already_hidden", "That item is already hidden.")
         return Plan({"state": "hidden", "moderation": MODERATION_APPROVED}, {"state": state, "moderation": moderation}, state, "hidden", moderation, MODERATION_APPROVED)

@@ -81,6 +81,7 @@ test("words for the receipt, the mode and a reader", () => {
   assert.match(receiptMessage(null), /did not answer/);
   assert.match(moderationModeText("off"), /Moderation is off/);
   assert.match(moderationModeText("human"), /wait here for a decision/);
+  assert.match(moderationModeText("ai"), /AI moderator reads each new/);
   assert.equal(shortReader(READER, "quiet-fox"), "quiet-fox (00000000)");
   assert.equal(shortReader(READER, null), "reader 00000000");
 });
