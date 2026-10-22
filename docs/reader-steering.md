@@ -106,7 +106,7 @@ therefore on the page about a minute later, not on the next vote.
 
 Why Scheduler and not an SQS delay queue: a queue would add a queue, an event source mapping and a handler branch in
 `content-actions` for SQS records, and a delay queue also caps at 15 minutes and has no per-window name to deduplicate on.
-Scheduler needs one role, no queue and no handler change: the target input is the same JSON the weekly rule sends. The schedule is named
+Scheduler needs one role, no queue and no handler change: the target input is the same JSON the scheduled rule sends. The schedule is named
 `papyrus-reader-snapshot-<window end>`, uses `ActionAfterCompletion: DELETE` (no leftovers) and no retries. If creating the
 schedule fails, the vote still succeeds and the window is reopened so the next write tries again. The plugin creates the
 role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` only), and gives `reader-actions` only
