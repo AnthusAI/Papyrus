@@ -3,7 +3,7 @@
   "title": "Read-only public wiki: accepted entities become editor-published pages",
   "description": "Expose the knowledge base as read-only entity (wiki) pages. Principle: an entity page is a published Item of type page in a wiki section. A sync job creates or updates a DRAFT Item for each accepted node; an editor publishes through the normal gate. The projector then provides listings, sitemap, search index, agent-readable twin and llms.txt for free. Counts, series and neighbours come from snapshot JSON (see the snapshot epic), not from the page.\n\nTies to the wiki lifecycle epic PPY-964472: no auto-written wiki pages without a human gate; stamps distinguish reviewed from draft; a stale page cannot look current. Public editing, history, discussion and contributor counts are out of scope.\n\nParent initiative: PPY-428252. Pilot: Shipped (ship-b35fa2, design story ship-4a59a1). Later option: a dedicated concept page kind reading a guest-readable published-concept model, only if the Item volume hurts.\n\nChildren: draft sync; reviewed-vs-draft stamp; suggest-an-edit; topic and beat pages.\nDefinition of Done: an accepted entity has a public page after an editor publishes it, with no page created or published without the editor.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,18 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "6b9bc636-dc56-4506-94cd-aacbf3aab40f",
+      "author": "home",
+      "text": "Closed: all child stories closed with evidence; live on https://shipped.anth.us.",
+      "created_at": "2026-10-22T10:40:59.856191Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:04.787518Z",
-  "updated_at": "2026-10-21T12:50:17.820276Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.899567Z",
+  "closed_at": "2026-10-22T10:40:59.899543Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

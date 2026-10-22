@@ -3,7 +3,7 @@
   "title": "Sync accepted entities into draft wiki page Items",
   "description": "As an editor, I want a draft page created for each accepted entity, so that I only review and publish rather than author each page.\n\nFront matter: entity id, kind, aliases, beat, related keys, optional pin and annotations. Body: the approved description in Markus (descriptions may be LLM-drafted but are published only after a human accepts; default model for language-model tasks is GPT-6 Luna unless stated otherwise). The node remains the system of record.\n\n```gherkin\nFeature: Entity page sync\n  Scenario: New accepted entity\n    Given an entity newly accepted by the desk\n    When the sync runs\n    Then a draft page Item exists for it and is not public\n\n  Scenario: Publish\n    When an editor publishes the draft\n    Then the page appears in the wiki listing, sitemap and search index\n\n  Scenario: Never auto-publish\n    Then the sync never sets a page to published\n\n  Scenario: Description changed\n    Given a published page whose entity description changed\n    Then the sync creates a pending revision for review rather than altering the live page\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Shipped wiki is live (2026-10-22): PR https://github.com/AnthusAI/Shipped-web/pull/34 merged (wiki section, wiki_page listing type, suggest-edit form, styling). 282 draft wiki_page items created by wiki sync (--no-topics), 282 published with --actor ai (Edited by AI on 2026-10-22), snapshot re-run with --as-of 2026-10-19 and full re-projection. Live checked: /wiki/ 200 (29 pages), /wiki/task-typed-decisions/ and /wiki/platform-hugging-face/ 200 with stamp, trend, neighbourhood, related, suggest form; sitemap 282 wiki urls plus listing; llms.txt lists them; every trending-strip link on / returns 200. OPEN BUG: the suggest-an-edit POST to the site's own public form endpoint returns 500 store-failed because amplify/data/schema.ts schemaExcludingGroups skips allow.resource(publicForms).to(['mutate']) when plugins are enabled (Shipped enables the newsletter plugin), so the function cannot create Message rows.",
       "created_at": "2026-10-22T08:07:02.220741Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e2d40124-fead-44bb-bcc6-cb1bbf518609",
+      "author": "home",
+      "text": "Closed. papyrus knowledge wiki sync creates drafts only, pending revisions for published pages (#540). Shipped: 282 drafts synced and published by AI (actor recorded). Verified live 2026-10-22 on https://shipped.anth.us (Papyrus 5.22.0, Shipped-web #29 #32 #34 #35 #36). https://shipped.anth.us/wiki/",
+      "created_at": "2026-10-22T10:40:59.096397Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:04.861270Z",
-  "updated_at": "2026-10-22T08:07:02.220768Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.139550Z",
+  "closed_at": "2026-10-22T10:40:59.139522Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

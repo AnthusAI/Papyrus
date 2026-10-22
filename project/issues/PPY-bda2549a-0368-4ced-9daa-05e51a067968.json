@@ -3,7 +3,7 @@
   "title": "Graph neighbourhood component",
   "description": "As a reader, I want to see what an entity is connected to, so that I can navigate by relation.\n\nColumns by relation type (for example made by, built on, measured by, replaces) with weight bars where weight is the number of items linking both ends. Reads the entity JSON from the snapshot. Relation types are publication data.\n\n```gherkin\nFeature: Graph neighbourhood\n  Scenario: Render columns\n    Given an entity with relations of two types\n    Then the component renders one column per type with entries ordered by weight\n\n  Scenario: Only desk-confirmed relations\n    Then relations not confirmed by the desk are not shown\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Branch feature/PPY-aaa702-knowledge-components, PR https://github.com/AnthusAI/Papyrus/pull/527. Verification: procedures/newsroom/tests/test_standard_frontend_knowledge.py (38 tests, one per scenario) and the standard front end, projection and Markus suites, 684 passed locally with anthus-markus 0.7.0. Docs: docs/knowledge-components.md.",
       "created_at": "2026-10-22T03:58:16.567434Z",
       "comment_type": "default"
+    },
+    {
+      "id": "0486fca1-3b0d-4eb6-a152-f54187113076",
+      "author": "home",
+      "text": "Closed. Graph neighbourhood: one column per relation type, entries by weight with bars and numbers; only accepted relations (#527, #541). Verified live 2026-10-22 on https://shipped.anth.us (Papyrus 5.22.0, Shipped-web #29 #32 #34 #35 #36). e.g. https://shipped.anth.us/wiki/task-typed-decisions/",
+      "created_at": "2026-10-22T10:40:58.813668Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.450422Z",
-  "updated_at": "2026-10-22T03:58:16.567463Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:58.857479Z",
+  "closed_at": "2026-10-22T10:40:58.857453Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

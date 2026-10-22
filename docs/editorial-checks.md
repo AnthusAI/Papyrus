@@ -45,3 +45,14 @@ with a reason. Publishing is never blocked: open findings only produce a warning
 Administration has an Editorial checks panel for policies (including the
 AI-writing tells starter pack, a "try it" box and drafted judgment questions),
 settings and recalibration.
+
+**From a file.** Operators and agents without a signed-in admin can load policies,
+including judgment (classifier) questions, from a Humanus `policy-pack-v1` file with
+`papyrus editorial policies add --file pack.json`, and write the site's policies back
+out with `papyrus editorial policies export --file pack.json`. `add` saves what the
+panel saves (new policies at version 1, changed ones at the next version, identical
+ones untouched), `--dry-run` shows the plan first, and each policy's source records
+the pack and actor. A judgment question is a `classifier` detector:
+`{"id": "...", "lane": "classifier", "scope": "document", "question": {"type": "noul",
+"instructions": "..."}, "violation": {"answer": "yes"}, "threshold": 0.7, "reviewAt": 0.4,
+"message": "..."}`. Details: [operator-cli.md](operator-cli.md#editorial-policies).

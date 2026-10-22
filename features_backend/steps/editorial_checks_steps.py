@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import random
 
-from behave import given, then, when
+from behave import given, step, then, when
 
 from humanus.contracts import validate_payload
 from papyrus_content import editorial_checks as editorial
@@ -40,6 +40,9 @@ class FakeEditorialStore:
         return build_context({'key': 'synthetic'}, scope, entries, mode='cloud',
                              missing_publication_doctrine=[] if self.missions else ['mission'],
                              missing_section_configuration=[section] if missing_section else [])
+
+    def publication_key(self):
+        return "synthetic"
 
     def get_item(self, item_id):
         return self.items.get(item_id)
@@ -477,3 +480,118 @@ def step_run_skipped(context):
 @then('the check fails with "{text}"')
 def step_check_fails(context, text):
     assert context.check_error is not None and text in str(context.check_error), context.check_error
+
+
+# --- papyrus editorial policies add / export ----------------------------------------
+
+
+def _run_policies(context, **options):
+    import argparse
+    import contextlib
+    import io
+
+    from papyrus_content.editorial_commands import editorial_policies_pack
+
+    args = argparse.Namespace(**{"dry_run": False, "publication": None, "actor": None, **options})
+    out = io.StringIO()
+    context.policies_error = None
+    context.store.writes = 0
+    try:
+        with contextlib.redirect_stdout(out):
+            editorial_policies_pack(context.store, args)
+    except ValueError as error:
+        context.policies_error = str(error)
+    context.policies_output = out.getvalue()
+
+
+@given("a site with no editorial policies")
+def step_no_policies(context):
+    context.store.policies.clear()
+
+
+@given('a policy-pack file with a classifier question')
+def step_classifier_pack(context):
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    context.pack_dir = Path(tempfile.mkdtemp())
+    context.pack_path = context.pack_dir / "pack.json"
+    shutil.copy("features_backend/fixtures/editorial-checks/classifier-pack.json", context.pack_path)
+
+
+@step("the pack's threshold is changed to {threshold:g}")
+def step_change_threshold(context, threshold):
+    pack = json.loads(context.pack_path.read_text())
+    pack["policies"][0]["detectors"][0]["threshold"] = threshold
+    context.pack_path.write_text(json.dumps(pack))
+
+
+@step("the pack's threshold is 7")
+def step_bad_threshold(context):
+    pack = json.loads(context.pack_path.read_text())
+    pack["policies"][0]["detectors"][0]["threshold"] = 7
+    context.pack_path.write_text(json.dumps(pack))
+
+
+@when("an operator adds the pack with papyrus editorial policies add")
+def step_add_pack(context):
+    _run_policies(context, action="add", file=str(context.pack_path), actor="ryan")
+
+
+@when("an operator dry-runs adding the pack")
+def step_dry_run_pack(context):
+    _run_policies(context, action="add", file=str(context.pack_path), dry_run=True)
+
+
+@when('an operator adds the pack for publication "{publication}"')
+def step_add_pack_publication(context, publication):
+    _run_policies(context, action="add", file=str(context.pack_path), publication=publication)
+
+
+@when("an operator exports the policies and the site loses them and adds the export")
+def step_export_round_trip(context):
+    exported = context.pack_dir / "export.yml"
+    _run_policies(context, action="export", file=str(exported), pack_id="site-policies", pack_version=None)
+    assert context.policies_error is None, context.policies_error
+    context.before = {key: json.loads(r["detectors"]) for key, r in context.store.policies.items()}
+    context.store.policies.clear()
+    _run_policies(context, action="add", file=str(exported))
+
+
+@then('policy "{key}" is stored as version {version:d} with source "{source}"')
+def step_stored_with_source(context, key, version, source):
+    record = context.store.policies[editorial.policy_record_id(key, "publication")]
+    assert record["version"] == version and record["source"] == source, record
+
+
+@then('policy "{key}" keeps its classifier question, "{answer}" violation, threshold {threshold:g}, review threshold {review:g} and message')
+def step_classifier_saved(context, key, answer, threshold, review):
+    detector = json.loads(context.store.policies[editorial.policy_record_id(key, "publication")]["detectors"])[0]
+    assert detector["lane"] == "classifier" and detector["scope"] == "document", detector
+    assert detector["question"]["type"] == "noul" and detector["question"]["instructions"].startswith("Does this document"), detector
+    assert detector["violation"] == {"answer": answer} and detector["threshold"] == threshold and detector["reviewAt"] == review, detector
+    assert detector["message"] == "States a claim without a source.", detector
+
+
+@then("the policy command wrote {count:d} policies")
+def step_wrote(context, count):
+    assert context.policies_error is None, context.policies_error
+    assert context.store.writes == count, (context.store.writes, context.policies_output)
+
+
+@then('the plan says "{text}"')
+def step_plan_says(context, text):
+    assert text.replace("\\t", "\t") in context.policies_output, context.policies_output
+
+
+@then('the policy command is refused with "{text}"')
+def step_refused(context, text):
+    assert context.policies_error and text in context.policies_error, context.policies_error
+    assert context.store.writes == 0
+
+
+@then("the site has the same detectors as before")
+def step_same_detectors(context):
+    after = {key: json.loads(r["detectors"]) for key, r in context.store.policies.items()}
+    assert after == context.before, (after, context.before)

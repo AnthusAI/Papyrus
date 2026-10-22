@@ -3,7 +3,7 @@
   "title": "Bind Data Parade into reference monitoring and the shared relevance Cyclotron",
   "description": "Add publication data-parade to the papyrus-monitoring router config (CONFIG#router, MONITOR#hn) with the new backend AppSync endpoint and corpus knowledge-corpus-data-parade. Router stays in dry-run. The Cyclotron side already declares binding data-parade and pending output data-parade-relevance on standing run 566df5dc (target config). Open: the Data Parade criteria and classifier (pending from Ryan); do not flip the router to live until the output has a classifier. Relates to PPY-3212f1 and PPY-2d77c8.",
   "type": "task",
-  "status": "in_progress",
+  "status": "blocked",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Bound 2026-10-21: router CONFIG#router now lists publicationId data-parade (site dataparade.anth.us, AppSync https endpoint of the new backend, corpus knowledge-corpus-data-parade). Mode stays dry-run. Cyclotron already declares binding data-parade with pending output data-parade-relevance. Open: the Data Parade classifier and criteria; do not flip the router to live before then.",
       "created_at": "2026-10-21T19:13:24.627096Z",
       "comment_type": "default"
+    },
+    {
+      "id": "a4ca9fb5-299b-4852-bec1-835020fbc4de",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Blocked on Ryan: the Data Parade relevance criteria and classifier are still not provided; the starter doctrine (mission v1, policy v1) has no classifier question, so the editorial check ran with 0 classifier detectors. The router binding exists in dry-run mode and must not flip to live until the output has a classifier.",
+      "created_at": "2026-10-22T10:45:28.610680Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T16:54:36.946102Z",
-  "updated_at": "2026-10-21T19:13:24.627130Z",
+  "updated_at": "2026-10-22T10:45:28.610719Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

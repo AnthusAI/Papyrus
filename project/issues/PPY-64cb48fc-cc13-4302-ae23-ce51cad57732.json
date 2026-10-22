@@ -3,7 +3,7 @@
   "title": "Live numbers for static sites: scheduled snapshots and client components",
   "description": "Static Papyrus sites publish pages, not live data, and nothing in a site runs on a schedule today. High-churn numbers (board ranks, vote counts, rising items) must be JSON that a small client component reads, refreshed by a scheduled job, with a visible \"updated N min ago\".\n\nParent initiative: PPY-77bb3b (milestone 6). Shares the snapshot mechanism with the public knowledge base initiative PPY-428252 (knowledge snapshot command). New scheduled compute or schedules need explicit human approval before creation.\n\nChildren: scheduled board snapshot job; client components and freshness label.\nDefinition of Done: a pilot site shows a ranked board, counts and a rising list from snapshot JSON that refreshes on a schedule.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,10 +22,17 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "77196904-e99d-46e2-8a85-4dcd7379e493",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Snapshot job (every snapshot.intervalHours, default 6), trailing-edge debounce (#520), items.json, board.json, readers.json and the Freshness island are released in 5.20.0 and live: https://shipped.anth.us/_data/reader/board.json 200 with generatedAt 2026-10-22T10:36:04Z and parameters (halfLifeHours 48, readerMinimum 5, risingWindowHours 6). Open children: e870bb (ranked board component) and 539af3 (per-week snapshot; build only when a site needs it). The 6-hour EventBridge schedule itself could not be confirmed here because the AWS SSO session has expired; generatedAt will show the next run.",
+      "created_at": "2026-10-22T10:45:06.239725Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.601336Z",
-  "updated_at": "2026-10-21T12:50:17.771910Z",
+  "updated_at": "2026-10-22T10:45:06.239749Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

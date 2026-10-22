@@ -3,7 +3,7 @@
   "title": "Public submit-a-link",
   "description": "Signed-in readers submit a link to a publication. Decision (2026-10-21): submissions are public immediately; moderation (epic below, optional) acts after the fact unless a publication turns pre-moderation on. Entity extraction runs asynchronously on a worker, never in the request.\n\nParent initiative: PPY-77bb3b (milestones 6 and 7). Depends on: reader accounts epic (sibling). Related: moderation epic (sibling), Biblicus typed-entity extractor blbs-81ec10 (extraction backend), existing reference intake (editor-only today). Pilot: Shipped.\n\nChildren: submit mutation and pending record; asynchronous extraction and entity confirm step; duplicate check, spam and abuse limits; submit form component.\nDefinition of Done: a signed-in reader on a pilot site can submit a link, sees it publicly as pending at once, and the extraction result arrives afterwards without blocking the submit.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -29,10 +29,17 @@
       "text": "Children delivered: submit, duplicate and limits, form, docs. Extraction (da545d) is left open on purpose: the submission carries extractionState pending as the hook; the worker step belongs to the knowledge-base lead.",
       "created_at": "2026-10-22T05:11:41.647583Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b0dfc791-f422-434b-851f-abfdbb909b55",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Submit mutation, duplicate and limits, form component (the Submit island) and docs are closed and released in 5.21.0 (#531). Remaining: da545d asynchronous extraction. Not yet enabled on Shipped (the /submit/ page is still the scaffold) and a real submission needs sign-in (ship-63b07d, Ryan).",
+      "created_at": "2026-10-22T10:44:57.831792Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.041834Z",
-  "updated_at": "2026-10-22T05:11:41.647614Z",
+  "updated_at": "2026-10-22T10:44:57.831837Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -3,7 +3,7 @@
   "title": "Reviewed-by-desk versus draft stamp on wiki pages",
   "description": "As a reader, I want to see whether a page was reviewed, so that a generated description can never look attested.\n\nImplements the stamp ideas of PPY-964472 for public pages: visible \"reviewed by the desk on DATE\" versus \"draft, not yet reviewed\"; superseded pages are marked; a non-LLM checker enforces the stamp.\n\n```gherkin\nFeature: Wiki page stamps\n  Scenario: Reviewed\n    Given a page published after human acceptance\n    Then it shows \"reviewed\" with the date\n\n  Scenario: Unreviewed generated text\n    Given a page whose text was generated and not accepted\n    Then it is not public\n\n  Scenario: Superseded\n    Given a page marked superseded\n    Then it shows the superseded notice and links to its replacement\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Shipped wiki is live (2026-10-22): PR https://github.com/AnthusAI/Shipped-web/pull/34 merged (wiki section, wiki_page listing type, suggest-edit form, styling). 282 draft wiki_page items created by wiki sync (--no-topics), 282 published with --actor ai (Edited by AI on 2026-10-22), snapshot re-run with --as-of 2026-10-19 and full re-projection. Live checked: /wiki/ 200 (29 pages), /wiki/task-typed-decisions/ and /wiki/platform-hugging-face/ 200 with stamp, trend, neighbourhood, related, suggest form; sitemap 282 wiki urls plus listing; llms.txt lists them; every trending-strip link on / returns 200. OPEN BUG: the suggest-an-edit POST to the site's own public form endpoint returns 500 store-failed because amplify/data/schema.ts schemaExcludingGroups skips allow.resource(publicForms).to(['mutate']) when plugins are enabled (Shipped enables the newsletter plugin), so the function cannot create Message rows.",
       "created_at": "2026-10-22T08:07:02.274402Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8b6335c2-9cf1-44f5-921e-37e55729b5d9",
+      "author": "home",
+      "text": "Closed. Stamps per Ryan: 'Edited by AI on DATE' / 'Reviewed by NAME on DATE'; superseded notice; publish refuses an unstamped wiki_page (#540). Verified live 2026-10-22 on https://shipped.anth.us (Papyrus 5.22.0, Shipped-web #29 #32 #34 #35 #36).",
+      "created_at": "2026-10-22T10:40:59.190637Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:04.934744Z",
-  "updated_at": "2026-10-22T08:07:02.274440Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.234820Z",
+  "closed_at": "2026-10-22T10:40:59.234790Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

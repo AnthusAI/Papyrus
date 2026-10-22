@@ -3,7 +3,7 @@
   "title": "Data Parade hosted newsroom and article front end",
   "description": "Approved by Ryan 2026-10-21. A hosted Papyrus newsroom for Data Parade (focus: technology for shifting privacy and security left) plus a public front-end stub at dataparade.anth.us that carries only articles (and maybe posts). Domain lives in infra/site.json and may move to a dataparade.io host later. Repo DataParade-io/DataParade-newsroom (private). Hosting in papyrus-production 712236451410, Amplify app d35q7zv4zad2we (dataparade-cms), stack amplify-app-shell-dataparade-cms, standard app shell, Papyrus 5.12.0. Styled from the dataparade.io landing site tokens, fonts and logo (newsroom via Kanbus refined-newsprint token overrides; front end via web/css/site-theme.css). Data Parade is a pending output of the shared relevance Cyclotron (PPY-3212f1, PPY-2d77c8). Out of scope: plugging the stub into the main dataparade.io app; changing that app.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -34,10 +34,29 @@
         "model": "claude-opus-5-5",
         "name": "DataParade.anth.us implementation"
       }
+    },
+    {
+      "id": "888371c9-3f93-404e-b971-7e6883d1a706",
+      "author": "home",
+      "text": "2026-10-22: starter publication doctrine saved at Ryan's request (papyrus sections doctrine set, dry run first): item-editorial-doctrine-mission-v1 (3 paragraphs, opening with Ryan's sentence) and item-editorial-doctrine-policy-v1 (6 paragraphs: show the work, say what was not tested, deterministic where it counts, ground claims in the system, failures are material, plain language), drawn from dataparade.io and the five posts. Editorial check on the-diagram-is-a-projection: rules ran (108 detectors), classifier ran with 0 detectors (no policy has a classifier question yet), section skipped (no section configuration).",
+      "created_at": "2026-10-22T10:30:43.594328Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
+    },
+    {
+      "id": "f3ebc7e3-0e19-4106-b889-a165ed1bade9",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Mostly done. Live: https://dataparade.anth.us/ 200, /posts/ 200, https://dataparade.io/posts/ 200 and /posts/_data/latest.json 200. Eight child tasks closed. Doctrine (mission and policy) saved 2026-10-22. Remaining: cad5f6 (binding into monitoring and the shared relevance Cyclotron), blocked on Ryan.",
+      "created_at": "2026-10-22T10:45:27.615420Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T16:54:14.133658Z",
-  "updated_at": "2026-10-21T22:27:13.340234Z",
+  "updated_at": "2026-10-22T10:45:27.615450Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

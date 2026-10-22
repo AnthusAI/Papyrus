@@ -3,7 +3,7 @@
   "title": "Reader sign-in with Google, scoped to one publication",
   "description": "As a reader, I want to sign in with my Google account on a publication, so that I can vote, submit and comment under my own name.\n\nNotes: per-publication accounts (a reader of one publication is not automatically known to another); reader role has no access to staff models; guests keep read access to published content. Builds on PPY-58f107 (publication BFF with Prospectus accounts).\n\n```gherkin\nFeature: Reader sign-in\n  Scenario: A guest signs in\n    Given a publication with reader accounts enabled\n    When a guest chooses \"Sign in\" and completes Google sign-in\n    Then the guest becomes a signed-in reader of that publication only\n    And the reader cannot read or write staff-only records\n\n  Scenario: Reader accounts disabled\n    Given a publication with reader accounts disabled\n    Then no sign-in control is rendered and no reader mutation is accepted\n\n  Scenario: Password sign-up is not offered\n    Then no password-based account can be created\n```",
   "type": "story",
-  "status": "open",
+  "status": "blocked",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Reconciliation 2026-10-22. Partly done. Exists on develop: the sign-in link to /api/auth/prospectus/sign-in (Prospectus accounts, Google only, no password sign-up); the readerSubject accessor and fail-closed reader routes, 401 signed out and 503 when no siteSubject (Papyrus #512); the sign-in callback storing the pairwise siteSubject, tested by scripts/test-reader-sign-in-flow.ts, and the session route no longer returning person ids (#518); the ReaderSignIn island (#516); retired-subject handling (#522, #524). Prospectus #81 returns siteSubject. Remains: release the plugin and enable it on a real publication (Shipped), then verify a live guest-to-reader sign-in there. Kept open for that.",
       "created_at": "2026-10-22T04:02:21.457834Z",
       "comment_type": "default"
+    },
+    {
+      "id": "8f32f5d5-2c60-4998-880a-79d8e0572dde",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Built and deployed, waiting on Ryan. Code: PRs #512, #516, #518 (5.20.0), enabled on Shipped by Shipped-web #39. Live on https://shipped.anth.us (10:34Z): home renders the ReaderSignIn, Vote (30), UsedIt (30) and Freshness islands; the papyrus-reader v1 script under /_plugins/ 200; /_data/reader/items.json, board.json and readers.json 200 (generatedAt 2026-10-22T10:36:04Z, empty because nobody has voted); /api/auth/prospectus/sign-in answers 303 to the Cognito Google authorize URL. Shipped-web PR #39 deploy run 39761870423 completed success. The remaining step is a real Google sign-in, which fails until Ryan adds the origin https://papyrus-shipped-cms.auth.us-east-1.amazoncognito.com and redirect .../oauth2/idpresponse to the Google OAuth client (Shipped task ship-63b07d). Close this story once a reader completes sign-in on Shipped and the Person ID scan stays clean.",
+      "created_at": "2026-10-22T10:44:56.844948Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:26.900346Z",
-  "updated_at": "2026-10-22T04:02:21.457868Z",
+  "updated_at": "2026-10-22T10:44:56.844995Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

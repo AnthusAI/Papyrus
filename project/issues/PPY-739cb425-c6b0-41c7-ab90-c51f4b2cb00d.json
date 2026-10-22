@@ -3,7 +3,7 @@
   "title": "Comments as a steering signal",
   "description": "Decision (2026-10-21): comments are wanted and solicited. Comment text is a steering signal for Cyclotrons and AI: it feeds Cyclotron feedback and priming as a text rationale next to the vote or decision it explains.\n\nParent initiative: PPY-77bb3b (milestones 5 and 7). Depends on reader accounts; subject to the moderation epic (siblings). Related: Cyclotron priming work PPY-7227ac; Cyclotron relevance epic PPY-b0396f.\n\nChildren: public comments; prompting for a rationale at vote time; comment text into Cyclotron feedback.\nDefinition of Done: signed-in readers post comments that are shown publicly under the moderation mode, and comment text reaches Cyclotron feedback with attribution.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,18 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "3629c772-8f1f-4e4e-ba79-e19528424d8c",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). All four children closed. Released in 5.21.0: PR #533 (reader comments as a steering signal; comment text flows to Cyclotron feedback, rationale asked on vote and rating). Docs live: https://p.apyr.us/comments-as-steering.md 200 text/markdown. Not yet enabled on Shipped (ship-d02e82).",
+      "created_at": "2026-10-22T10:45:00.294185Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.166625Z",
-  "updated_at": "2026-10-21T12:50:17.722262Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:45:00.351809Z",
+  "closed_at": "2026-10-22T10:45:00.351780Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

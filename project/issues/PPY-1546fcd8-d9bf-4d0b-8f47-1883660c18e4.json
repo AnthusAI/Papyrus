@@ -3,16 +3,24 @@
   "title": "Reader accounts: signed-in readers per publication",
   "description": "Signed-in readers for a publication, so that votes, submissions and comments can be attributed. Guests still read everything. Optional per publication; editors-only remains the default for every existing site.\n\nContext: today only staff sign in (Google). No reader identity exists. Prospectus accounts integration is in progress for another consumer (PPY-58f107); reuse it, do not fork it. Standing rule: Google sign-in only; never create password users.\n\nParent initiative: PPY-77bb3b (milestone 2). Pilot: Shipped (ship-b35fa2).\n\nChildren: Google reader sign-in; public handle and profile.\nDefinition of Done: a guest can sign in as a reader on a pilot site, pick a handle, and sign out; staff permissions are unchanged.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "85290667-76ac-4968-a19d-ce451dca2572",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Identity, API, handles and islands released in 5.20.0 (#512, #516, #518); app-shell cms.siteOrigin in 5.18.0 (#499). Prospectus siteSubject is live (ship-9e358f closed). Live on https://shipped.anth.us (10:34Z): home renders the ReaderSignIn, Vote (30), UsedIt (30) and Freshness islands; the papyrus-reader v1 script under /_plugins/ 200; /_data/reader/items.json, board.json and readers.json 200 (generatedAt 2026-10-22T10:36:04Z, empty because nobody has voted); /api/auth/prospectus/sign-in answers 303 to the Cognito Google authorize URL. Shipped-web PR #39 deploy run 39761870423 completed success. Remaining story 445274 is blocked on Ryan (Google redirect URIs, ship-63b07d).",
+      "created_at": "2026-10-22T10:44:55.396745Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:26.830225Z",
-  "updated_at": "2026-10-21T12:49:26.830252Z",
+  "updated_at": "2026-10-22T10:44:55.396779Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

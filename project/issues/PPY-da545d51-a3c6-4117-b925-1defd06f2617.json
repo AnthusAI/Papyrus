@@ -17,10 +17,17 @@
       "text": "Hook only, by design: a submission stores extractionState 'pending'; the worker step that fills entities in is not built here (knowledge-base lead). Left open.",
       "created_at": "2026-10-22T04:18:01.169222Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5b3acdf4-9307-4c79-8db2-1cd4f6e28ea5",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Still open. Biblicus typed-entity extractor merged to develop (Biblicus PR #106, blbs-81ec10) and was run by hand on Shipped's corpus on 2026-10-22 (GLiNER2 at 0.7, 2544 mentions, 292 relations). No automatic worker on submission exists yet; that needs the Biblicus cloud job runner (blbs-9668cf, backlog, needs Ryan's approval for cloud resources).",
+      "created_at": "2026-10-22T10:44:58.307934Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.182013Z",
-  "updated_at": "2026-10-22T04:18:01.169254Z",
+  "updated_at": "2026-10-22T10:44:58.307958Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

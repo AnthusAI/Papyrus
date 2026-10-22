@@ -10,9 +10,17 @@
   "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "66487dac-b984-4b38-bd1a-bb7ae072d2f6",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Still an open exploration. The live snapshot publishes both scores separately plus a default blend (ranking.editorWeight 0.5, 48-hour half-life) as a configurable parameter, not a decision. Waits for real votes.",
+      "created_at": "2026-10-22T10:45:07.703841Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.461390Z",
-  "updated_at": "2026-10-21T12:49:28.461415Z",
+  "updated_at": "2026-10-22T10:45:07.703872Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

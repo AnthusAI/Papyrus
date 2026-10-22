@@ -3,7 +3,7 @@
   "title": "Topic and beat pages from accepted categories and subtopics",
   "description": "As a reader, I want a page per beat (root topic) and subtopic, so that I can browse by subject.\n\nA page Item in a topics section for each accepted beat or subtopic (same sync as entity pages), plus the existing published category tree. Beats are accepted root categories (roughly 8 to 12); the index lists beats and accepted entities. Subtopics are shown only for beats with enough items (default 30). Subtopics come from Biblicus child-topic discovery through steering proposals.\n\n```gherkin\nFeature: Topic pages\n  Scenario: Beat page\n    Given an accepted root category\n    Then a draft topic page exists and, once published, lists the beat's items\n\n  Scenario: Small beats\n    Given a beat with fewer items than the subtopic minimum\n    Then no subtopic list is shown\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Branch feature/PPY-495ec8-public-wiki, PR https://github.com/AnthusAI/Papyrus/pull/540 (CI python/ts/smoke green). Verified by procedures/newsroom/tests/test_knowledge_wiki.py (30+ tests, one per Gherkin scenario, plus projector listing/sitemap/llms/twin), src/papyrus_content/wiki_stamp_test.py, scripts/test-public-forms.ts, and the existing standard front end suites. Docs: docs/public-wiki.md. Not run against production.",
       "created_at": "2026-10-22T05:25:08.858614Z",
       "comment_type": "default"
+    },
+    {
+      "id": "161d63b8-2938-4166-a65d-dc48849ccdb6",
+      "author": "home",
+      "text": "Closed. Topic/beat page sync with subtopic minimum (#540) and knowledge-beat block (#549). Shipped keeps its authored beat pages (sync run with --no-topics to avoid URL collision) enriched with real trend, top entities and clusters: https://shipped.anth.us/topics/decision-models/ and /topics/open-tts/. No subtopics shown: no child-topic discovery has been run for Shipped yet.",
+      "created_at": "2026-10-22T10:40:59.380559Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.090949Z",
-  "updated_at": "2026-10-22T05:25:08.858639Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.424492Z",
+  "closed_at": "2026-10-22T10:40:59.424457Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

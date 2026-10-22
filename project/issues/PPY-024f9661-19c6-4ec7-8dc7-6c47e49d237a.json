@@ -3,7 +3,7 @@
   "title": "M3 Automation and insight: recurring drafts that need approval, publish-triggered alerts, delivery and engagement events",
   "description": "Outcome: recurring and event-driven newsletters with guardrails, and editors can see how issues perform.\n\nScope:\n- Recurring cadence per newsletter (The Docket: every Friday): a recurring schedule assembles a draft from the period's published items a configurable time ahead and notifies admins. It never sends unattended: no admin approval, no issue.\n- Triggered alerts on a publish event (Distinctive Mark precedential alerts by topic), connected to the publication's own Cyclotron and section classifiers. Admin-chosen policy per alert type; a republish, edit or reprojection never triggers a send.\n- Events: SES delivery, bounce, complaint, open and click events to S3 (raw) with per-issue aggregates in DynamoDB; a custom click-tracking domain per site instead of awstrack.me; opens labelled as unreliable (Apple Mail Privacy Protection).\n- Newsroom view of issue performance and list health; the site privacy policy covers tracking.\n\nDone when: a Friday draft appears without anyone starting it and sends only after approval; publishing a precedential ruling produces an alert for subscribers to that topic exactly once; per-issue delivery, click and complaint figures are visible in the newsroom.",
   "type": "epic",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ec67d538-98e3-40cf-8f79-77ec71c23ea8",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). M3 in progress: publish-triggered alerts (#543) released in 5.21.0 and docs (93b135) closed at https://p.apyr.us/newsletters.md 200; the Distinctive Mark offer (237074) is in progress. Not yet exercised with a real send.",
+      "created_at": "2026-10-22T10:45:12.595745Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-20T22:12:56.570895Z",
-  "updated_at": "2026-10-20T22:13:05.696179Z",
+  "updated_at": "2026-10-22T10:45:12.595776Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

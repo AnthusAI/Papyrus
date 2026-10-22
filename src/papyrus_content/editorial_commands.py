@@ -5,6 +5,8 @@
     papyrus editorial check --draft FILE [--section KEY] [--pack FILE] [--output FILE]
     papyrus editorial suggest --draft FILE (--finding-id ID | --select TEXT) [--note TEXT] [--section KEY] [--pack FILE]
     papyrus editorial policies list | import-starter NAME | ensure-defaults
+    papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]
+    papyrus editorial policies export --file PACK [--pack-id ID] [--pack-version V]
     papyrus editorial check-version --item VERSION_ID
     papyrus editorial check-drafts [--limit N] [--dry-run]
 
@@ -23,6 +25,7 @@ from typing import Any
 
 import humanus
 
+from . import editorial_policy_pack as policy_pack
 from .editorial_checks import (
     PUBLICATION_SCOPE,
     GraphQLEditorialStore,
@@ -187,6 +190,25 @@ def editorial_suggest(flags: list[str]) -> None:
         raise ValueError(str(error)) from error
 
 
+def editorial_policies_pack(store, args: argparse.Namespace) -> None:
+    if args.publication and store.publication_key() != args.publication:
+        raise ValueError(f"This site's publication is not {args.publication}; nothing was changed.")
+    path = Path(args.file).resolve()
+    if args.action == "export":
+        pack, left_out = policy_pack.export_pack(store, pack_id=args.pack_id, pack_version=args.pack_version)
+        policy_pack.write_pack(path, pack)
+        print(f"Exported {len(pack['policies'])} policies to {path}" + (f" ({left_out} desk policies left out: a pack has no desk scope)" if left_out else ""))
+        return
+    payload = policy_pack.load_pack_payload(path)
+    steps = policy_pack.plan_policies(store, payload, actor=args.actor or policy_pack.DEFAULT_ACTOR)
+    for step in steps:
+        print(policy_pack.describe_step(step, done=not args.dry_run))
+    if not args.dry_run:
+        policy_pack.apply_plan(store, steps)
+    changed = sum(step["action"] != "unchanged" for step in steps)
+    print(f"{'Dry run: ' if args.dry_run else ''}{changed} of {len(steps)} policies {'would change' if args.dry_run else 'changed'}")
+
+
 def editorial_policies(flags: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="papyrus editorial policies", description="List or add the site's editorial policies.")
     subcommands = parser.add_subparsers(dest="action", required=True)
@@ -195,9 +217,21 @@ def editorial_policies(flags: list[str]) -> None:
     starter = subcommands.add_parser("import-starter", help="Add a Humanus starter pack's policies that the site does not have yet.")
     starter.add_argument("name", help="ai-writing-tells, plain-language or asd-ste100")
     subcommands.add_parser("ensure-defaults", help="Import the default starter packs once (what a deploy does).")
+    add = subcommands.add_parser("add", help="Create or version policies (with classifier questions) from a policy-pack-v1 file.")
+    add.add_argument("--file", required=True, help="Humanus policy-pack-v1 file (JSON or YAML).")
+    add.add_argument("--dry-run", action="store_true", help="Print the plan; write nothing.")
+    add.add_argument("--publication", default=None, help="Refuse unless the site's publication key is this.")
+    add.add_argument("--actor", default=None, help=f"Who ran this, recorded in each policy's source (default {policy_pack.DEFAULT_ACTOR}).")
+    export = subcommands.add_parser("export", help="Write the site's publication policies as a policy-pack-v1 file.")
+    export.add_argument("--file", required=True, help="Output file (.json, .yml or .yaml).")
+    export.add_argument("--pack-id", default="site-policies")
+    export.add_argument("--pack-version", default=None, help="Default: the highest policy version.")
+    export.add_argument("--publication", default=None, help="Refuse unless the site's publication key is this.")
     args = parser.parse_args(flags)
     store = GraphQLEditorialStore()
-    if args.action == "list":
+    if args.action in ("add", "export"):
+        editorial_policies_pack(store, args)
+    elif args.action == "list":
         rows = sorted(store.list_policies(), key=lambda row: (row["scope"], row["policyKey"]))
         if args.json:
             _emit([{key: row.get(key) for key in ("policyKey", "scope", "severity", "enabled", "source", "version")} for row in rows], None)
