@@ -86,6 +86,7 @@ def render(
         footer=footer,
         preheader=source.preheader,
         site_url=site_url,
+        list_name=list_name,
     )
 
 

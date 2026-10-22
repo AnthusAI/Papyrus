@@ -24,7 +24,29 @@ export type NewsletterTheme = {
   muted?: string;
   fontFamily?: string;
   logoUrl?: string;
+  /** Branding, all optional: a plain theme keeps the plain layout. Colours are CSS values; the border is 1.5px when set. */
+  headerBand?: string;
+  headerText?: string;
+  buttonFill?: string;
+  buttonText?: string;
+  buttonBorder?: string;
+  footerBand?: string;
+  footerText?: string;
+  /** An absolute https image, drawn with alt text and explicit pixel size (web fonts do not load in email). */
+  wordmarkImageUrl?: string;
+  wordmarkAlt?: string;
+  wordmarkWidth?: number;
+  wordmarkHeight?: number;
+  labelFont?: string;
 };
+
+const THEME_STYLE_KEYS = [
+  "surface", "muted", "fontFamily", "headerBand", "headerText", "buttonFill", "buttonText", "buttonBorder", "footerBand",
+  "footerText", "labelFont",
+] as const;
+const THEME_KEYS = [
+  "accent", "text", "background", ...THEME_STYLE_KEYS, "logoUrl", "wordmarkImageUrl", "wordmarkAlt", "wordmarkWidth", "wordmarkHeight",
+];
 
 export type NewsletterRule = { sections?: string[]; tags?: string[]; types?: string[] };
 
@@ -152,22 +174,41 @@ function itemUrlStyle(raw: unknown): ItemUrlStyle {
 }
 
 function resolveTheme(raw: unknown): NewsletterTheme {
-  const theme = record(raw, "theme", ["accent", "text", "background", "surface", "muted", "fontFamily", "logoUrl"]);
+  const theme = record(raw, "theme", THEME_KEYS);
   const resolved: NewsletterTheme = {
     accent: text(theme.accent, "theme.accent", 80),
     text: text(theme.text, "theme.text", 80),
     background: text(theme.background, "theme.background", 80),
   };
-  for (const key of ["surface", "muted", "fontFamily"] as const) {
+  for (const key of THEME_STYLE_KEYS) {
     if (theme[key] !== undefined) resolved[key] = text(theme[key], `theme.${key}`, 200);
   }
   for (const [key, value] of Object.entries(resolved)) {
-    if (UNSAFE_CSS.test(value)) fail(`theme.${key} contains characters that are not allowed in a style value`);
+    if (typeof value === "string" && UNSAFE_CSS.test(value)) fail(`theme.${key} contains characters that are not allowed in a style value`);
   }
   if (theme.logoUrl !== undefined) {
     const logoUrl = text(theme.logoUrl, "theme.logoUrl", 500);
     if (!/^https:\/\//.test(logoUrl)) fail("theme.logoUrl must be an https URL");
     resolved.logoUrl = logoUrl;
+  }
+  if (theme.wordmarkImageUrl !== undefined) {
+    const url = text(theme.wordmarkImageUrl, "theme.wordmarkImageUrl", 500);
+    if (!/^https:\/\/[^\s"'<>\\`]+$/.test(url)) fail("theme.wordmarkImageUrl must be an absolute https URL");
+    resolved.wordmarkImageUrl = url;
+    for (const key of ["wordmarkWidth", "wordmarkHeight"] as const) {
+      const value = theme[key];
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 2000) {
+        fail(`theme.${key} is required with theme.wordmarkImageUrl and must be a whole number of pixels from 1 to 2000`);
+      }
+      resolved[key] = value;
+    }
+  } else if (theme.wordmarkWidth !== undefined || theme.wordmarkHeight !== undefined) {
+    fail("theme.wordmarkWidth and theme.wordmarkHeight need theme.wordmarkImageUrl");
+  }
+  if (theme.wordmarkAlt !== undefined) {
+    const alt = text(theme.wordmarkAlt, "theme.wordmarkAlt", 200);
+    if (/[\u0000-\u001f\u007f]/.test(alt)) fail("theme.wordmarkAlt must not contain control characters");
+    resolved.wordmarkAlt = alt;
   }
   return resolved;
 }
