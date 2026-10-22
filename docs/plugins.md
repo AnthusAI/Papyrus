@@ -15,7 +15,7 @@ Each plugin lives in `amplify/plugins/<name>/` and ships a manifest,
 | Field | Meaning |
 |---|---|
 | `name`, `contract` | The plugin name and its public contract version (a whole number). |
-| `models`, `mutations` | What it adds to the schema. A test pins the schema to these lists. |
+| `models`, `queries`, `mutations` | What it adds to the schema (`queries` is optional). A test pins the schema to these lists. |
 | `guest.mutations` | The only operations an anonymous visitor may call. Everything else stays closed to guests. |
 | `newsroomPanels` | Panels it adds to the newsroom (`id`, `label`). |
 | `staticAssets` | Files the projector writes into the site bucket, such as `_plugins/papyrus-signup@1.js`. |
@@ -160,4 +160,4 @@ pins the registry, the settings, the web ACL and the manifest-to-schema match.
 
 `reader-steering` (reader identity, votes, ratings and live numbers) is documented in [reader-steering.md](reader-steering.md).
 
-`newsletter` (double opt-in subscriptions and the confirmation email, with sending to follow) is documented in [newsletter.md](newsletter.md). It adds no GraphQL model or operation: a retained DynamoDB table with a customer-managed key, a generated SSM key, one Python function that only the CMS compute role may invoke, the CMS routes `app/api/newsletter/*` and the `<papyrus-newsletter>` component.
+`newsletter` (double opt-in subscriptions and the confirmation email, roundup issues, admin approval and paced sending) is documented in [newsletter.md](newsletter.md). It adds no GraphQL model, but eight newsroom operations (`newsletterIssues`, `newsletterIssue`, `newsletterPreview`, `newsletterApproveIssue`, `newsletterCancelIssue`, `newsletterStopIssue`, `newsletterTestSend`, `newsletterCreateDraft`; the manifest lists them under `queries` and `mutations`) handled by a thin Amplify function that forwards to the plugin's own Python function. It also adds a retained DynamoDB table with a customer-managed key, a generated SSM key, a send queue with a dead letter queue and a worker, EventBridge Scheduler schedules, one Python function that only the CMS compute role and that forwarder may invoke, the CMS routes `app/api/newsletter/*` and the `<papyrus-newsletter>` component.

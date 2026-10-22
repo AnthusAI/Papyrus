@@ -1,6 +1,6 @@
 # Newsletter
 
-Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Unsubscribe, preferences, issues, alerts and sending are Not built yet.
+Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Roundup issues, admin approval and paced sending are Built (PPY-3ae3b9) but not yet enabled on any site. Unsubscribe, preferences, alerts and the newsroom panel are Not built yet.
 
 ## What exists
 
@@ -30,14 +30,14 @@ Email addresses are personal data. Treat them like subscriber records.
 ## What does not happen today
 
 - The signup plugin and the public form endpoint above send no email. Only the `newsletter` plugin (below) mails a confirmation.
-- There is no unsubscribe link, no preferences page, no issue composer and no sending of issues.
+- Only the `newsletter` plugin sends issues (see "Issues, approval and sending"). Nothing in the signup plugin or the public form endpoint does.
 
 ## Not built yet
 
 Initiative PPY-31455f plans sending. Its milestones, with what is built:
 
 - M1 (PPY-08dbd8): Amazon SES per site, double opt-in (built, see below), one-click unsubscribe.
-- M2 (PPY-19a098): issues composed, approved by an editor and sent once.
+- M2 (PPY-19a098): issues composed, approved by an admin and sent once (built, see below).
 - M3 (PPY-024f96): automation and alerts.
 - M4 (PPY-df1d54): hardening.
 
@@ -144,3 +144,128 @@ One DynamoDB table (not a GraphQL model; subscriber data never appears in the co
 ### Known gaps
 
 Not built: unsubscribe, preferences, erasure, suppression from SES events, the event topic subscription and bounce alarms, issues, sending, alerts and the newsroom panel (stories b5a699 and later). The `unsubscribed` status is already handled as "start a fresh double opt-in" on a new signup. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
+
+
+## Issues, approval and sending
+
+Status: Built (PPY-3ae3b9). The newsroom panel that drives it is a later story; until then the operations below are the interface.
+
+A roundup issue is an `Item` of the list's `issueType` (default `newsletter_issue`), so editors write it in the ordinary newsroom editor (open it at `/newsroom/articles/<itemId>`; the article list does not show other types yet). The newsletter table holds its send state in `ISSUE#` rows. When the send finishes, the Item is published through `content-actions` (`publishItem`), so the standard front end gives it a page, a Markdown twin and an `llms.txt` entry, and lists it on the archive page.
+
+### Issue lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft: schedule assembles the week, or a manual draft
+    draft --> scheduled: admin approves for a time
+    scheduled --> scheduled: admin approves again (new time)
+    scheduled --> draft: admin cancels
+    scheduled --> draft: start-send finds the item edited
+    scheduled --> blocked: no postal address, or site paused
+    blocked --> scheduled: cause fixed, admin approves again
+    scheduled --> sending: start-send passes every check
+    sending --> sent: every queued address is accounted for
+    sending --> stopped: admin stops it, or the site is paused
+    sent --> [*]: roundup Item published to the archive
+```
+
+`awaiting_approval` (alerts) and `cancelled` exist as statuses for the alert story. A `blocked` issue is fixed at its cause (configure the address, resume the site) and approved again.
+
+### Archive: what a site puts in projection.json
+
+The projector decides a page by section, and which Item types it projects by `listings.types`. A site archives its roundup with exactly this, where `roundup` is the last segment of the list's `archivePath` (`/roundup/`) and `newsletter_issue` is its `issueType`:
+
+```json
+{
+  "urls": {
+    "style": "directory",
+    "sections": {
+      "roundup": { "base": "roundup", "label": "Roundup", "description": "Every weekly issue.", "feed": false }
+    }
+  },
+  "listings": { "types": ["article", "newsletter_issue"] }
+}
+```
+
+Core change (PPY-3ae3b9): until now only `article` and `page` Items were projected whatever the settings; the projector now also projects every type in `listings.types` (`StandardMarkusProjector.projectable_types`, `PublishedContentSource.extra_types`). Sites that do not list a type project nothing for it, as before. `feed: false` keeps issues out of the site feed. The plugin setting `itemUrlStyle` (`html`, `directory` or `clean`, default `html`) must equal `urls.style`: roundup drafts link to published items with it. `archivePath` is one path segment because it is also the Item section and the `urls.sections` key.
+
+Item `type` is a free string in the Item model and in `saveItemDraft`; the newsroom article editor's Type menu offers only `article` and `page` and its list loads only those types, so an issue is opened by id. Epic PPY-cf5e4c (publication-defined shapes) names "newsletter issue" as a shape; `newsletter_issue` is that string.
+
+### Drafting the roundup
+
+Each roundup list gets an EventBridge Scheduler schedule (`CfnSchedule`) from `schedule.draft` in `schedule.timezone`, which invokes `newsletter` with `{"task":"assemble-roundup","listId":...}`. The task:
+
+- takes the published, non-issue Items published after the last sent issue of that list (else the last seven days);
+- writes a draft Item titled `<list name>: <date range in the schedule's time zone>` in section `<archive segment>`, slug the local date, whose Markus body is an intro placeholder line followed by the items grouped by section (linked title, then the front matter description, summary, dek or standfirst);
+- writes the `ISSUE#<issueId>` row (`draft`, kind `roundup`, `itemId`, subject = title);
+- is idempotent per list and ISO week through `ROUNDUP#<listId>` / `PERIOD#<yyyy-ww>` (a conditional put; a claim whose issue row was never written is finished on retry);
+- writes nothing when the window has no items (it logs `roundup_empty`).
+
+No LLM is involved. Section headings are the Item section names, capitalised; links use `<siteOrigin>/<section>/<slug>` in the site's URL style.
+
+### Operations (for the newsroom panel)
+
+Eight Amplify custom operations, all `input: AWSJSON` in and `AWSJSON` out. AppSync admits the groups below; the function checks the identity claims again. They enter through a thin function (`papyrus-newsletter-ops`) that forwards the verified claims and the input to `newsletter`. The recipient of a test send is the caller's own `email` claim, never the input.
+
+| Operation | Kind | Groups | Input | Output |
+|---|---|---|---|---|
+| `newsletterIssues` | query | editor, admin | `{listId?, status?, limit?}` (limit 1 to 200, default 50) | `{ok, issues: [Issue]}` newest first |
+| `newsletterIssue` | query | editor, admin | `{issueId}` | `{ok, issue: Issue + contentHash?, editedSinceApproval?}` |
+| `newsletterPreview` | query | editor, admin | `{issueId}` | `{ok, subject, html, text, bytes, postalAddress, contentHash}` (footer links are `#preview`) |
+| `newsletterApproveIssue` | mutation | admin | `{issueId, sendAt}` ISO 8601 | `{ok, issue, adjusted, warnings: []}` |
+| `newsletterCancelIssue` | mutation | admin | `{issueId}` | `{ok, issue}` |
+| `newsletterStopIssue` | mutation | admin | `{issueId}` | `{ok, issue}` |
+| `newsletterTestSend` | mutation | editor, admin | `{issueId}` | `{ok}` |
+| `newsletterCreateDraft` | mutation | editor, admin | `{listId}` (a roundup list) | `{ok, status: "created", issueId, itemId, items}` |
+
+`Issue` is `{issueId, listId, listName, kind, itemId, subject, status, sendAt, approvedBy, approvedAt, sentAt, counts: {queued, sent, failed, suppressed, skipped, delivered, bounced, complained}, note, archiveUrl, createdAt, updatedAt}`; absent fields are omitted. `sendAt` is stored in UTC. A failure is `{ok: false, error, message}` with `error` one of `forbidden`, `not_found`, `invalid_state`, `item_missing`, `render_failed`, `bad_request`, `no_address`, `postal_address_missing`, `unavailable`.
+
+Approval renders the Item's current Markus body (a body that does not render is refused), stores `contentHash` (sha256 of the subject, a blank line and the body) and creates the one-time schedule `papyrus-nl-<siteId>-<issue8>` at `sendAt` (UTC, `ActionAfterCompletion: DELETE`, flexible window off). A `sendAt` in the past or under two minutes ahead becomes now plus two minutes (`adjusted: true`). Approving again updates the same schedule. `warnings` says so when the postal address is not configured yet. Cancelling deletes the schedule and returns the issue to `draft`.
+
+### Sending
+
+`start-send` (fired by the schedule) re-validates, in this order, and does nothing else if any check fails:
+
+1. The status is `scheduled`.
+2. The content hash is unchanged. If not, the issue goes back to `draft` with the note "edited after approval; approve again" and nothing is sent.
+3. The postal address resolves (below). If not: `blocked`, note "postal address missing".
+4. The site is not paused. If it is: `blocked`, note "site paused".
+
+Then it renders the issue once (the reason sentence, the postal address and a manage and an unsubscribe link placeholder), stores the HTML and text on `ISSUE#<id>` / `RENDER`, sets `sending` and `counts.queued`, and sends every subscriber id from the list's `byList` index to the SQS queue in messages of up to 50 (`{issueId, hids}`).
+
+The worker (`papyrus-newsletter-send-<siteId>`, SQS batch size 1, reserved concurrency 1, timeout 180 s, queue visibility timeout six times that, three receives then the dead letter queue) handles a message like this:
+
+- the issue is reloaded; if it is no longer `sending` (stopped, blocked) the message is dropped, and the site being paused stops the issue;
+- for each subscriber id: `suppressed` if suppressed, `skipped` if the profile is not confirmed or the membership is not subscribed (both are written to the ledger and counted once);
+- otherwise the ledger row `ISSUE#<id>` / `SEND#<hid>` is created with `attribute_not_exists` **before** SES is called. A failed condition means it was handled: a row still `claimed` (a worker died after claiming) is counted `failed` with error `interrupted` and never mailed;
+- SESv2 `send_email` with Simple content, `List-Unsubscribe: <unsubscribe URL>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, the configuration set and the tags `site`, `list`, `issue`, `sub` (= the subscriber id); a throttled call sleeps 1, 2 and 4 seconds and tries again; any other error is recorded as `failed` with its code;
+- the row becomes `sent` (with the SES message id) or `failed`, and `counts` is incremented, in one transaction;
+- calls are spaced to the account's `MaxSendRate` (from `sesv2 get_account`, cached five minutes, never below one a second);
+- when too little time remains, the unprocessed ids go back to the queue as a new message;
+- when `sent + failed + suppressed + skipped` reaches `queued` the issue becomes `sent` through a conditional update, so exactly one invocation completes it. A roundup is then published (the archive); if that fails the issue stays `sent` and its `note` says to publish the Item from the newsroom.
+
+SES custom headers need a boto3 whose SESv2 model has `Simple.Headers`; the function bundles `boto3>=1.35.8` and a test fails if the installed one lacks it.
+
+### Test send
+
+`newsletterTestSend` mails one copy to the signed-in editor's own address: subject prefixed `[Test]`, the real footer with non-working `#test` links, no unsubscribe headers, no ledger row, and only the tags `site` and `kind=test`. It still needs the postal address.
+
+### Postal address
+
+Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-address` first, else `/papyrus/email/postal-address`, cached five minutes. The functions may read exactly those two parameters. Neither, or a blank value, blocks issue sends and approval says so in `warnings`. The value is never stored in the repository, logged or put in a test. Tests use a placeholder.
+
+### Operator notes
+
+- Environment (all set by the plugin): `FUNCTION_ARN`, `SCHEDULER_ROLE_ARN`, `QUEUE_URL`, `CONTENT_ACTIONS_FUNCTION`, `PAPYRUS_GRAPHQL_ENDPOINT`, `ITEM_URL_STYLE`, plus those of the double opt-in. `LISTS_JSON` also carries a roundup's `issueType`, `archivePath` and `timezone`.
+- IAM: `newsletter` may create, update and delete schedules named `papyrus-nl-<siteId>-*`, pass the one scheduler role, send to the queue, read the two postal parameters, invoke `content-actions`, and call four AppSync fields (`Query.getItem`, `Query.listPublishedItems`, `Mutation.createItem`, `Mutation.updateItem`). The worker may read and write the table, receive from and send to the queue, invoke `content-actions`, read the key parameter, send through the site identity and configuration set, and call `sesv2:GetAccount` (no resource-level form exists). The AppSync function may only invoke `newsletter`.
+- To stop a send in progress, an admin calls `newsletterStopIssue`: workers drop the remaining messages and the counts stay as they were.
+- A message in the dead letter queue (`papyrus-newsletter-send-<siteId>-dlq`) is a batch that failed three times (a missing render, SES unreachable). The ledger makes it safe to redrive: addresses already handled are skipped.
+- A `blocked` issue needs its cause fixed (create the postal address parameter, resume the site) and an admin to approve it again; approval accepts `blocked`.
+
+### Known gaps
+
+- Reserved concurrency 1 on an SQS-fed function can make Lambda poll while the function is busy; those throttled receives count toward the three before the dead letter queue. Watch the dead letter queue on the first large send; a larger `maxReceiveCount` or chaining messages (each message enqueues the next) removes the risk.
+- The window is read by scanning the published item summaries (as the projector does); a very large site may want an index by publish time.
+- Link paths assume a section's `base` equals its name. A section declared with another `base` would be linked wrongly in a draft (the editor fixes the link).
+- The article list in the newsroom does not show issue types; the panel links to the editor by item id.
+- Alerts, bounce and complaint event handling, the pause alarms and unsubscribe are other stories; `compliance.py` holds stand-ins for the four calls they export until they merge.

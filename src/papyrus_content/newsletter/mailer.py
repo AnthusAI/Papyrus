@@ -42,3 +42,22 @@ class Mailer:
             EmailTags=[{"Name": "site", "Value": self.site_id}, {"Name": "kind", "Value": "confirm"}],
         )
         return str(response.get("MessageId", ""))
+
+    def send_issue(
+        self, *, to: str, subject: str, html: str, text: str, headers: dict[str, str], tags: dict[str, str]
+    ) -> str:
+        """One copy of an issue. ``headers`` carry List-Unsubscribe; ``tags`` map SES events back to the issue and subscriber."""
+        simple: dict[str, Any] = {
+            "Subject": {"Data": subject, "Charset": "UTF-8"},
+            "Body": {"Html": {"Data": html, "Charset": "UTF-8"}, "Text": {"Data": text, "Charset": "UTF-8"}},
+        }
+        if headers:
+            simple["Headers"] = [{"Name": name, "Value": value} for name, value in headers.items()]
+        response = self.client.send_email(
+            FromEmailAddress=self.sender,
+            Destination={"ToAddresses": [to]},
+            Content={"Simple": simple},
+            ConfigurationSetName=self.configuration_set,
+            EmailTags=[{"Name": name, "Value": value} for name, value in tags.items()],
+        )
+        return str(response.get("MessageId", ""))

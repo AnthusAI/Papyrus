@@ -12,7 +12,15 @@ import {
   newsletterPlugin,
   overrideNewsletterCodeForTests,
 } from "../amplify/plugins/newsletter/papyrus.plugin";
-import { newsletterSchemaDefinitions } from "../amplify/plugins/newsletter/schema";
+import { NEWSLETTER_MUTATIONS, NEWSLETTER_OPERATION_GROUPS, NEWSLETTER_QUERIES, newsletterSchemaDefinitions } from "../amplify/plugins/newsletter/schema";
+import {
+  SEND_MAX_RECEIVE_COUNT,
+  WORKER_TIMEOUT_SECONDS,
+  newsletterFunctionName,
+  newsletterSendQueueName,
+  newsletterWorkerName,
+  postalAddressParameterArns,
+} from "../amplify/plugins/newsletter/sending";
 import { SECURE_STRING_PARAMETER_HANDLER_SOURCE } from "../amplify/plugins/newsletter/secure-string-parameter";
 import { KNOWN_PLUGINS, resolvePlugins } from "../amplify/plugins/registry";
 import { wirePlugins } from "../amplify/plugins/wire";
@@ -41,24 +49,51 @@ const with_ = (changes: Record<string, unknown>) => ({ ...base, ...changes });
 const refuses = (request: Record<string, unknown>, pattern: RegExp, message?: string) =>
   assert.throws(() => resolveNewsletterConfig(request as never), pattern, message);
 
-// The manifest, the registry and the schema agree; the plugin opens nothing to guests and adds nothing to the content API.
+// The manifest, the registry and the schema agree; the plugin opens nothing to guests and adds no model to the content API.
 assert.equal(KNOWN_PLUGINS.newsletter, newsletterPlugin);
 assert.deepEqual(newsletterManifest.guest.mutations, [], "no guest access");
 assert.deepEqual(newsletterManifest.models, []);
-assert.deepEqual(newsletterManifest.mutations, []);
-assert.deepEqual(Object.keys(newsletterSchemaDefinitions()), [], "the plugin defines no models or operations");
-assert.deepEqual(newsletterPlugin.schemaDefinitions(), {});
-assert.deepEqual(newsletterPlugin.functions(), {});
+const operations = [...NEWSLETTER_QUERIES, ...NEWSLETTER_MUTATIONS].sort();
+assert.deepEqual(operations, [
+  "newsletterApproveIssue", "newsletterCancelIssue", "newsletterCreateDraft", "newsletterIssue", "newsletterIssues",
+  "newsletterPreview", "newsletterStopIssue", "newsletterTestSend",
+]);
+assert.deepEqual([...(newsletterManifest.queries ?? []), ...newsletterManifest.mutations].sort(), operations);
+assert.deepEqual(Object.keys(newsletterSchemaDefinitions()).sort(), operations, "the plugin defines operations and no model");
+assert.deepEqual(Object.keys(newsletterPlugin.schemaDefinitions()).sort(), operations);
+assert.deepEqual(Object.keys(newsletterPlugin.functions()), ["newsletterOps"]);
 assert.deepEqual(newsletterManifest.staticAssets, ["_plugins/papyrus-newsletter@1.js"]);
 const withPlugin = schemaWithPlugins(newsletterPlugin.schemaDefinitions()).transform().schema;
 const withoutPlugins = schemaWithPlugins({}).transform().schema;
-assert.equal(withPlugin, withoutPlugins, "the GraphQL schema is the same with the plugin");
+assert.notEqual(withPlugin, withoutPlugins);
+for (const name of operations) {
+  const groups = NEWSLETTER_OPERATION_GROUPS[name];
+  assert.ok(groups, `${name} has a group rule`);
+  const line = withPlugin.split("\n").find((entry) => entry.includes(`${name}(`));
+  assert.ok(line, `${name} is in the schema`);
+  assert.match(line, /input: AWSJSON/);
+  assert.match(line, /: AWSJSON/);
+  assert.match(line, /@function\(/, `${name} is handled by the operations function`);
+  for (const group of groups) assert.match(line, new RegExp(`"${group}"`), `${name} admits ${group}`);
+  assert.ok(!/@aws_(api_key|iam)/.test(line) && !line.includes("@aws_cognito_user_pools(cognito_groups: [\"user"), `${name} is closed to guests`);
+}
+for (const name of ["newsletterApproveIssue", "newsletterCancelIssue", "newsletterStopIssue"]) {
+  assert.deepEqual(NEWSLETTER_OPERATION_GROUPS[name], ["admin"], `${name} is admin only`);
+  const line = withPlugin.split("\n").find((entry) => entry.includes(`${name}(`)) ?? "";
+  assert.ok(!line.includes('"editor"'), `${name} does not admit editors`);
+}
+for (const name of ["newsletterIssues", "newsletterIssue", "newsletterPreview", "newsletterTestSend", "newsletterCreateDraft"]) {
+  assert.deepEqual(NEWSLETTER_OPERATION_GROUPS[name], ["editor", "admin"]);
+}
+assert.deepEqual(withoutPlugins.includes("newsletter"), false);
 
 // Config: defaults and derived names.
 const config = resolvePlugins([base])[0].config as NewsletterConfig;
 assert.equal(config.configurationSet, "papyrus-example");
 assert.equal(config.eventTopicName, "papyrus-newsletter-events-example");
 assert.equal(config.instantAlerts, false);
+assert.equal(config.itemUrlStyle, "html");
+assert.equal(resolveNewsletterConfig(with_({ itemUrlStyle: "directory" })).itemUrlStyle, "directory");
 assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "newsletter_issue");
 assert.deepEqual(config.lists[1].kind === "alert" && config.lists[1].approval, "admin");
 assert.equal(resolveNewsletterConfig(with_({ configurationSet: "custom-set", eventTopicName: "custom-topic" })).configurationSet, "custom-set");
@@ -98,6 +133,8 @@ refuses(with_({ lists: [{ ...base.lists[0], schedule: { draft: "0 13 * * FRI", t
 refuses(with_({ lists: [{ ...base.lists[0], schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "Mars/Olympus" } }] }), /IANA time zone/);
 refuses(with_({ lists: [{ ...base.lists[0], schedule: undefined }] }), /schedule must be an object/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: "roundup" }] }), /archivePath/);
+refuses(with_({ lists: [{ ...base.lists[0], archivePath: "/news/roundup/" }] }), /archivePath/, "one path segment: it is also the item section");
+refuses(with_({ itemUrlStyle: "flat" }), /itemUrlStyle must be one of html, directory, clean/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: undefined }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], issueType: "Not Valid" }] }), /issueType/);
 refuses(with_({ lists: [{ ...base.lists[0], rule: {} }] }), /unknown settings: rule/);
@@ -121,7 +158,7 @@ assert.deepEqual(published, {
   contract: 1,
   fromName: "Example News",
   lists: [
-    { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup" },
+    { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup", issueType: "newsletter_issue", archivePath: "/roundup/" },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert" },
   ],
   theme: base.theme,
@@ -134,11 +171,20 @@ assert.equal(pluginSettings({ custom: { papyrusPlugins: { newsletter: published 
 // The function environment.
 const environment = newsletterEnvironment(config, "table-name", "/papyrus/example/newsletter-key");
 assert.deepEqual(Object.keys(environment).sort(), [
-  "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID", "SITE_ORIGIN", "TABLE_NAME", "THEME_JSON",
+  "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID", "SITE_ORIGIN",
+  "TABLE_NAME", "THEME_JSON",
 ]);
 assert.equal(environment.SITE_ORIGIN, "https://news.example.com");
-assert.deepEqual(JSON.parse(environment.LISTS_JSON), published.lists);
-assert.ok(!environment.LISTS_JSON.includes("cron("), "schedules stay out of the environment until a story needs them");
+assert.equal(environment.ITEM_URL_STYLE, "html");
+assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
+  {
+    id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
+    issueType: "newsletter_issue", archivePath: "/roundup/", timezone: "America/New_York",
+  },
+  { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert" },
+]);
+assert.ok(!environment.LISTS_JSON.includes("cron("), "schedules stay out of the environment");
+assert.ok(!environment.LISTS_JSON.includes("Security"), "alert rules stay out of the environment");
 
 // A site without plugins touches nothing.
 wirePlugins(new Proxy({}, { get: () => assert.fail("a site without plugins must not touch the backend") }), [], undefined as never);
@@ -150,7 +196,12 @@ function synthesize(settings: NewsletterConfig = config) {
   const awsEnvironment = { account, region: "us-east-1" };
   const outputs: unknown[] = [];
   const stacks: Stack[] = [];
+  const dataStack = new Stack(app, "Data", { env: awsEnvironment });
+  const operations = new Function(dataStack, "NewsletterOps", {
+    runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x"),
+  });
   const backend = {
+    newsletterOps: { resources: { lambda: operations } },
     data: { resources: { tables: {}, graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
     createStack: (name: string) => {
       const stack = new Stack(app, name, { env: awsEnvironment });
@@ -159,14 +210,14 @@ function synthesize(settings: NewsletterConfig = config) {
     },
     addOutput: (value: unknown) => outputs.push(value),
   };
-  const contentActions = new Function(new Stack(app, "Data", { env: awsEnvironment }), "ContentActions", {
+  const contentActions = new Function(dataStack, "ContentActions", {
     runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x"),
   });
   wirePlugins(backend, [{ plugin: newsletterPlugin, config: settings }], contentActions);
-  return { template: Template.fromStack(stacks[0]), outputs, stacks, contentActions };
+  return { template: Template.fromStack(stacks[0]), operationsTemplate: Template.fromStack(dataStack), outputs, stacks, contentActions };
 }
 
-const { template, outputs, stacks, contentActions } = synthesize();
+const { template, operationsTemplate, outputs, stacks, contentActions } = synthesize();
 assert.deepEqual(stacks.map((stack) => stack.node.id), ["newsletter"], "one stack for the plugin");
 template.resourceCountIs("AWS::DynamoDB::Table", 1);
 template.hasResource("AWS::DynamoDB::Table", {
@@ -191,51 +242,144 @@ template.hasResourceProperties("Custom::SecureStringParameter", { ParameterName:
 template.hasResource("Custom::SecureStringParameter", { DeletionPolicy: "Retain" });
 assert.ok(!JSON.stringify(template.toJSON()).match(/secretsmanager/i), "no Secrets Manager secret");
 
-const functions = Object.values(template.findResources("AWS::Lambda::Function")) as Array<{
-  Properties: { Handler: string; Timeout: number; MemorySize: number; Architectures: string[]; Environment?: { Variables: Record<string, unknown> } };
-}>;
+type FunctionResource = {
+  Properties: {
+    FunctionName?: string; Handler: string; Timeout: number; MemorySize: number; Architectures: string[];
+    ReservedConcurrentExecutions?: number; Environment?: { Variables: Record<string, unknown> };
+  };
+};
+const functions = Object.values(template.findResources("AWS::Lambda::Function")) as FunctionResource[];
 const newsletter = functions.filter((entry) => entry.Properties.Handler === "papyrus_content.newsletter.handler.handler");
 assert.equal(newsletter.length, 1, "one newsletter function");
-assert.equal(newsletter[0].Properties.Timeout, 30);
+assert.equal(newsletter[0].Properties.FunctionName, newsletterFunctionName("example"));
+assert.equal(newsletter[0].Properties.Timeout, 120);
 assert.equal(newsletter[0].Properties.MemorySize, 512);
 assert.deepEqual(newsletter[0].Properties.Architectures, ["arm64"]);
 const variables = newsletter[0].Properties.Environment?.Variables ?? {};
-for (const name of ["TABLE_NAME", "KEY_PARAMETER", "SITE_ID", "SITE_ORIGIN", "SENDING_DOMAIN", "FROM_ADDRESS", "FROM_NAME", "CONFIGURATION_SET", "LISTS_JSON", "THEME_JSON"]) {
+for (const name of [
+  "TABLE_NAME", "KEY_PARAMETER", "SITE_ID", "SITE_ORIGIN", "SENDING_DOMAIN", "FROM_ADDRESS", "FROM_NAME", "CONFIGURATION_SET", "LISTS_JSON", "THEME_JSON",
+  "ITEM_URL_STYLE", "FUNCTION_ARN", "SCHEDULER_ROLE_ARN", "QUEUE_URL", "CONTENT_ACTIONS_FUNCTION", "PAPYRUS_GRAPHQL_ENDPOINT",
+]) {
   assert.ok(name in variables, `${name} is set`);
 }
 assert.equal(variables.KEY_PARAMETER, "/papyrus/example/newsletter-key");
 assert.equal(variables.CONFIGURATION_SET, "papyrus-example");
+assert.equal(variables.PAPYRUS_GRAPHQL_ENDPOINT, "https://x.test/graphql");
+assert.match(JSON.stringify(variables.FUNCTION_ARN), /:function:papyrus-newsletter-example/, "the schedules target the function by its fixed name");
 
 // Only the CMS compute role may invoke it.
 const permissions = Object.values(template.findResources("AWS::Lambda::Permission")) as Array<{ Properties: { Principal: string; Action: string } }>;
 assert.deepEqual(permissions.map((entry) => [entry.Properties.Principal, entry.Properties.Action]), [[computeRoleArn, "lambda:InvokeFunction"]]);
 
-// IAM: table and key, the one parameter, SES on this identity and configuration set from this address only.
+// The send queue: a dead letter queue after three receives, and a visibility timeout of six times the worker timeout.
+template.resourceCountIs("AWS::SQS::Queue", 2);
+template.hasResourceProperties("AWS::SQS::Queue", {
+  QueueName: newsletterSendQueueName("example"),
+  VisibilityTimeout: WORKER_TIMEOUT_SECONDS * 6,
+  RedrivePolicy: { maxReceiveCount: SEND_MAX_RECEIVE_COUNT, deadLetterTargetArn: Match.anyValue() },
+  SqsManagedSseEnabled: true,
+});
+template.hasResourceProperties("AWS::SQS::Queue", { QueueName: `${newsletterSendQueueName("example")}-dlq`, MessageRetentionPeriod: 14 * 24 * 60 * 60 });
+assert.equal(SEND_MAX_RECEIVE_COUNT, 3);
+
+// The worker: its own function on the same package, one message at a time, concurrency 1, fed by the queue.
+const worker = functions.filter((entry) => entry.Properties.Handler === "papyrus_content.newsletter.worker.handler");
+assert.equal(worker.length, 1, "one send worker");
+assert.equal(worker[0].Properties.FunctionName, newsletterWorkerName("example"));
+assert.equal(worker[0].Properties.ReservedConcurrentExecutions, 1);
+assert.equal(worker[0].Properties.Timeout, WORKER_TIMEOUT_SECONDS);
+assert.ok(WORKER_TIMEOUT_SECONDS * 6 >= worker[0].Properties.Timeout * 6, "visibility timeout is at least six times the function timeout");
+for (const name of ["TABLE_NAME", "KEY_PARAMETER", "QUEUE_URL", "CONTENT_ACTIONS_FUNCTION", "SITE_ID", "LISTS_JSON"]) {
+  assert.ok(name in (worker[0].Properties.Environment?.Variables ?? {}), `the worker has ${name}`);
+}
+template.resourceCountIs("AWS::Lambda::EventSourceMapping", 1);
+template.hasResourceProperties("AWS::Lambda::EventSourceMapping", { BatchSize: 1 });
+
+// One scheduler role and one draft schedule per roundup list, in the list's time zone, naming the task.
+template.resourceCountIs("AWS::Scheduler::Schedule", 1);
+template.hasResourceProperties("AWS::Scheduler::Schedule", {
+  ScheduleExpression: "cron(0 13 ? * FRI *)",
+  ScheduleExpressionTimezone: "America/New_York",
+  FlexibleTimeWindow: { Mode: "OFF" },
+  Target: Match.objectLike({ Input: JSON.stringify({ task: "assemble-roundup", listId: "weekly" }), Arn: Match.anyValue(), RoleArn: Match.anyValue() }),
+});
+template.hasResourceProperties("AWS::IAM::Role", {
+  AssumeRolePolicyDocument: { Statement: [Match.objectLike({ Principal: { Service: "scheduler.amazonaws.com" } })] },
+});
+
+// IAM, statement by statement.
+type Statement = { Action: string | string[]; Resource: unknown; Condition?: unknown; Effect: string };
 const statements = Object.values(template.findResources("AWS::IAM::Policy")).flatMap(
-  (policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown; Condition?: unknown; Effect: string }> } } }).Properties.PolicyDocument.Statement,
+  (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
 );
-const ses = statements.filter((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ses:")));
-assert.equal(ses.length, 1);
-assert.deepEqual(ses[0].Action, ["ses:SendEmail", "ses:SendRawEmail"]);
-assert.deepEqual(ses[0].Condition, { StringEquals: { "ses:FromAddress": "newsletter@example.com" } });
-const sesResources = JSON.stringify(ses[0].Resource);
-assert.match(sesResources, new RegExp(`:ses:us-east-1:${account}:identity/example.com`));
-assert.match(sesResources, new RegExp(`:ses:us-east-1:${account}:configuration-set/papyrus-example`));
-const ssm = statements.filter((statement) => ([] as string[]).concat(statement.Action).includes("ssm:GetParameter") && !([] as string[]).concat(statement.Action).includes("ssm:PutParameter"));
-assert.equal(ssm.length, 1);
-assert.match(JSON.stringify(ssm[0].Resource), /parameter\/papyrus\/example\/newsletter-key/);
+const actionsOf = (statement: Statement) => ([] as string[]).concat(statement.Action);
+const ses = statements.filter((statement) => actionsOf(statement).some((action) => action.startsWith("ses:")));
+assert.equal(ses.length, 2, "the function and the worker may send; nothing else uses SES");
+for (const statement of ses) {
+  assert.deepEqual(statement.Action, ["ses:SendEmail", "ses:SendRawEmail"]);
+  assert.deepEqual(statement.Condition, { StringEquals: { "ses:FromAddress": "newsletter@example.com" } });
+  const resources = JSON.stringify(statement.Resource);
+  assert.match(resources, new RegExp(`:ses:us-east-1:${account}:identity/example.com`));
+  assert.match(resources, new RegExp(`:ses:us-east-1:${account}:configuration-set/papyrus-example`));
+}
+const ssm = statements.filter((statement) => actionsOf(statement).includes("ssm:GetParameter") && !actionsOf(statement).includes("ssm:PutParameter"));
+const ssmResources = ssm.map((statement) => JSON.stringify(statement.Resource));
+assert.equal(ssm.length, 3, "key (function), postal address (function), key (worker)");
+assert.equal(ssmResources.filter((entry) => entry.includes("parameter/papyrus/example/newsletter-key")).length, 2);
+const postal = ssm.find((statement) => JSON.stringify(statement.Resource).includes("postal-address"));
+assert.ok(postal);
+const postalResources = (postal.Resource as unknown[]).map((entry) => JSON.stringify(entry));
+assert.equal(postalResources.length, 2, "exactly the two postal address parameters");
+assert.ok(postalResources.some((entry) => entry.endsWith(`:ssm:us-east-1:${account}:parameter/papyrus/example/email/postal-address"]]}`)));
+assert.ok(postalResources.some((entry) => entry.endsWith(`:ssm:us-east-1:${account}:parameter/papyrus/email/postal-address"]]}`)));
+assert.deepEqual(postalAddressParameterArns(new Stack(new App(), "X", { env: { account, region: "us-east-1" } }), "example").length, 2);
+const scheduler = statements.find((statement) => actionsOf(statement).some((action) => action.startsWith("scheduler:")));
+assert.ok(scheduler);
+assert.deepEqual(scheduler.Action, ["scheduler:CreateSchedule", "scheduler:UpdateSchedule", "scheduler:DeleteSchedule"]);
+assert.ok(JSON.stringify(scheduler.Resource).endsWith(`:scheduler:us-east-1:${account}:schedule/default/papyrus-nl-example-*"]]}`));
+const passRole = statements.find((statement) => actionsOf(statement).includes("iam:PassRole"));
+assert.ok(passRole);
+assert.deepEqual(passRole.Condition, { StringEquals: { "iam:PassedToService": "scheduler.amazonaws.com" } });
+assert.doesNotMatch(JSON.stringify(passRole.Resource), /\*/, "PassRole names the one scheduler role");
+const appsync = statements.find((statement) => actionsOf(statement).includes("appsync:GraphQL"));
+assert.ok(appsync);
+assert.deepEqual(
+  (appsync.Resource as unknown[]).map((entry) => JSON.stringify(entry).split("/types/")[1].replace(/"\]\]\}$/, "")).sort(),
+  ["Mutation/fields/createItem", "Mutation/fields/updateItem", "Query/fields/getItem", "Query/fields/listPublishedItems"],
+  "four content API fields and no others",
+);
 assert.ok(
-  statements.some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("kms:Decrypt")) && JSON.stringify(statement.Resource).includes("Key")),
+  statements.some((statement) => actionsOf(statement).includes("sqs:SendMessage")),
+  "the function and the worker can queue",
+);
+assert.ok(statements.some((statement) => actionsOf(statement).includes("sqs:ReceiveMessage")), "the worker consumes the queue");
+const getAccount = statements.filter((statement) => actionsOf(statement).includes("sesv2:GetAccount"));
+assert.equal(getAccount.length, 1);
+assert.deepEqual(getAccount[0].Action, "sesv2:GetAccount");
+assert.ok(
+  statements.some((statement) => actionsOf(statement).some((action) => action.startsWith("kms:Decrypt")) && JSON.stringify(statement.Resource).includes("Key")),
   "the function can decrypt the table key",
 );
 const wildcards = statements.filter((statement) => statement.Resource === "*");
-assert.equal(wildcards.length, 0, "no statement on all resources");
+assert.deepEqual(wildcards.map((statement) => statement.Action), ["sesv2:GetAccount"], "the only statement on all resources is the SES send rate read");
+const invokes = statements.filter((statement) => actionsOf(statement).includes("lambda:InvokeFunction"));
+assert.ok(invokes.length >= 3, "the scheduler role, and the function and worker invoking content-actions");
 
-// Not yet built: no queue, schedule, alarm, topic subscription or send worker.
-for (const type of ["AWS::SQS::Queue", "AWS::Scheduler::Schedule", "AWS::CloudWatch::Alarm", "AWS::SNS::Subscription", "AWS::Events::Rule"]) {
-  template.resourceCountIs(type, 0);
-}
-assert.equal(functions.filter((entry) => entry.Properties.Handler?.includes("send")).length, 0);
+// The AppSync operations function may invoke the newsletter function and nothing else.
+const operationsStatements = Object.values(operationsTemplate.findResources("AWS::IAM::Policy")).flatMap(
+  (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
+);
+assert.equal(operationsStatements.length, 1);
+assert.deepEqual(operationsStatements[0].Action, "lambda:InvokeFunction");
+assert.ok(JSON.stringify(operationsStatements[0].Resource).endsWith(`:lambda:us-east-1:${account}:function:papyrus-newsletter-example"]]}`));
+const operationsEnvironment = Object.values(operationsTemplate.findResources("AWS::Lambda::Function")).map(
+  (entry) => (entry as FunctionResource).Properties.Environment?.Variables ?? {},
+);
+assert.ok(operationsEnvironment.some((value) => value.NEWSLETTER_FUNCTION_NAME === "papyrus-newsletter-example"));
+
+// A site with only alert lists schedules nothing.
+const alertsOnly = resolveNewsletterConfig(with_({ lists: [base.lists[1]] }));
+synthesize(alertsOnly).template.resourceCountIs("AWS::Scheduler::Schedule", 0);
 
 // The CMS routes find the function from the outputs.
 const output = outputs.map((value) => (value as { custom: Record<string, { actionsFunction?: unknown }> }).custom.newsletter).filter(Boolean);
