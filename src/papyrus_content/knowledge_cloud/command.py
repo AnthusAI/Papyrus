@@ -12,6 +12,14 @@ from .stages import Run, run_shell, run_stage
 from .state import StateStore
 
 
+def latest_successful_commit(jobs: list[dict], app_id: str, branch: str) -> str:
+    """The commit of the successful job that ended last: what the live site was built from, whatever order the jobs are listed in."""
+    done = [job for job in jobs if job.get("status") == "SUCCEED" and job.get("commitId") and job.get("endTime")]
+    if not done:
+        raise ValueError(f"No successful Amplify deploy of {branch} found for app {app_id}.")
+    return max(done, key=lambda job: job["endTime"])["commitId"]
+
+
 class AwsServices:
     """What the AI review reaches outside the container for: the OpenAI key (SSM SecureString) and the backend client."""
 
@@ -31,12 +39,16 @@ class AwsServices:
         return dict((configuration.get("Environment") or {}).get("Variables") or {})
 
     def deployed_commit(self, app_id: str, branch: str) -> str:
-        """The commit of the app's latest successful deploy of the branch."""
-        jobs = self._amplify.list_jobs(appId=app_id, branchName=branch, maxResults=50)["jobSummaries"]
-        for job in jobs:
-            if job.get("status") == "SUCCEED" and job.get("commitId"):
-                return job["commitId"]
-        raise ValueError(f"No successful Amplify deploy of {branch} found for app {app_id}.")
+        """The commit of the app's most recent successful deploy of the branch."""
+        jobs: list[dict] = []
+        token = None
+        while True:
+            page = self._amplify.list_jobs(appId=app_id, branchName=branch, maxResults=50, **({"nextToken": token} if token else {}))
+            jobs += page["jobSummaries"]
+            token = page.get("nextToken")
+            if not token or len(jobs) >= 200:
+                break
+        return latest_successful_commit(jobs, app_id, branch)
 
     def record_client(self, options: dict):
         from ..knowledge_snapshot.commands import authoring_client
