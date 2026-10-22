@@ -669,10 +669,10 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     provenance = {**monitor.binding, "sourceId": item.source_id, "sourceItemUrl": item.source_item_url,
                   "fingerprint": item.fingerprint, "observedAt": disc["observedAt"], "revision": int(disc["revision"]),
                   "machineDecision": chosen}
-    extra = None
-    if config.get("decisions") != "direct":
-        extra = lambda reference: lab_decision_records(client, publication, decision, config, reference, disc)
-    return ReferenceIntake(client, monitor, auth_mode="iam")(item, provenance, extra)
+    intake = ReferenceIntake(client, monitor, auth_mode="iam")
+    if config.get("decisions") == "direct":
+        return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
+    return intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc))
 
 
 # --- the run ----------------------------------------------------------------------------------------
