@@ -30,7 +30,7 @@ from reader_fixtures import TABLE_NAMES, ReaderBackend, ScriptedRetirementPoll, 
 from reader_privacy import identity_leaks  # noqa: E402
 
 ALICE, BOB, CAROL = subject_for("alice"), subject_for("bob"), subject_for("carol")
-NAMES = ReaderTableNames(profile=TABLE_NAMES["profile"], handle=TABLE_NAMES["handle"], vote=TABLE_NAMES["vote"], state=TABLE_NAMES["rate"])
+NAMES = ReaderTableNames(profile=TABLE_NAMES["profile"], handle=TABLE_NAMES["handle"], vote=TABLE_NAMES["vote"], state=TABLE_NAMES["rate"], submission=TABLE_NAMES["submission"])
 
 
 def deleted(subject: str) -> RetiredSubject:

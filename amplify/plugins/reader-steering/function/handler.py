@@ -12,6 +12,7 @@ development or test (docs/reader-steering.md).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -21,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Callable, Protocol
+from urllib.parse import urlsplit, urlunsplit
 
 SITE_SUBJECT = re.compile(r"ss1_[A-Za-z0-9_-]{43}")
 INTERIM_SUBJECT = re.compile(r"ssdev_[A-Za-z0-9_-]{43}")
@@ -42,8 +44,26 @@ ACTION_ME = "me"
 ACTION_HANDLE = "handle"
 ACTION_VOTE = "vote"
 ACTION_RATING = "rating"
+ACTION_SUBMIT = "submit"
 RATE_BUCKET_REACTIONS = "react"
 RATE_BUCKET_HANDLE = "handle"
+RATE_BUCKET_SUBMIT = "submit"
+DAY_SECONDS = 24 * HOUR_SECONDS
+SUBMISSION_ID_PREFIX = "sub-"
+SUBMISSION_ID = re.compile(r"sub-[0-9a-f]{24}")
+SUBMISSION_DOMAIN_INDEX = "submissionsByDomain"
+SUBMISSION_PENDING = "pending"
+SUBMISSION_PROMOTED = "promoted"
+SUBMISSION_HIDDEN = "hidden"
+VISIBLE_SUBMISSION_STATES = (SUBMISSION_PENDING, SUBMISSION_PROMOTED)
+EXTRACTION_PENDING = "pending"
+SUBMISSION_PAYLOAD_KEYS = frozenset({"url", "title", "kind", "note"})
+MAXIMUM_URL_LENGTH = 2048
+MAXIMUM_TITLE_LENGTH = 200
+MAXIMUM_NOTE_LENGTH = 500
+MAXIMUM_SIMILAR = 5
+EMAIL_ADDRESS = re.compile(r"[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]*[A-Za-z][A-Za-z0-9-]*\.)+[A-Za-z]{2,}")
+CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 SNAPSHOT_TASK = {"projectionTask": {"task": "reader-snapshot"}}
 SNAPSHOT_SCHEDULE_PREFIX = "papyrus-reader-snapshot-"
 RESERVED_HANDLES = frozenset(
@@ -62,6 +82,9 @@ class ReaderSettings:
     reserved_handles: frozenset[str] = frozenset()
     allow_interim_subjects: bool = False
     snapshot_debounce_seconds: int = 60
+    submissions_per_day: int = 10
+    similar_hours: int = 48
+    submission_kinds: tuple[str, ...] = ("link",)
 
 
 def settings_from_environment(environment: dict[str, str] | None = None) -> ReaderSettings:
@@ -77,6 +100,9 @@ def settings_from_environment(environment: dict[str, str] | None = None) -> Read
         reserved_handles=frozenset(raw.get("reservedHandles") or ()),
         allow_interim_subjects=bool(raw.get("allowInterimSubjects", False)),
         snapshot_debounce_seconds=int(raw.get("snapshotDebounceSeconds", defaults.snapshot_debounce_seconds)),
+        submissions_per_day=int((raw.get("submissions") or {}).get("perDay", defaults.submissions_per_day)),
+        similar_hours=int((raw.get("submissions") or {}).get("similarHours", defaults.similar_hours)),
+        submission_kinds=tuple((raw.get("submissions") or {}).get("kinds") or defaults.submission_kinds),
     )
 
 
@@ -94,6 +120,12 @@ class ReaderStore(Protocol):
     def delete_vote(self, vote_id: str) -> None: ...
 
     def is_published(self, subject_key: str) -> bool: ...
+
+    def get_submission(self, submission_id: str) -> dict[str, Any] | None: ...
+
+    def create_submission(self, submission: dict[str, Any]) -> bool: ...
+
+    def recent_submissions_by_domain(self, domain: str, since_iso: str) -> list[dict[str, Any]]: ...
 
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool: ...
 
@@ -138,13 +170,50 @@ def action_limit(profile: dict[str, Any], settings: ReaderSettings, now_seconds:
 
 
 def within_rate_limit(
-    store: ReaderStore, profile: dict[str, Any], bucket: str, limit: int, now_seconds: float
+    store: ReaderStore, profile: dict[str, Any], bucket: str, limit: int, now_seconds: float, window_seconds: int = HOUR_SECONDS
 ) -> dict[str, Any] | None:
-    window_start = int(now_seconds // HOUR_SECONDS) * HOUR_SECONDS
-    window_end = window_start + HOUR_SECONDS
+    window_start = int(now_seconds // window_seconds) * window_seconds
+    window_end = window_start + window_seconds
     if store.count_action(profile["readerId"], bucket, window_start, limit, window_end + HOUR_SECONDS):
         return None
     return refusal(429, "rate_limited", "Too many actions. Try again later.", retryAfter=max(1, int(window_end - now_seconds)))
+
+
+def new_account_limit(profile: dict[str, Any], settings: ReaderSettings, now_seconds: float, full_limit: int) -> int:
+    """The limit for an action: a third (``new_account_divisor``) of it while the profile is younger than ``new_account_hours``."""
+    age_hours = (now_seconds - seconds_of(profile["createdAt"])) / HOUR_SECONDS
+    return max(1, full_limit // settings.new_account_divisor) if age_hours < settings.new_account_hours else full_limit
+
+
+class InvalidUrl(ValueError):
+    pass
+
+
+def canonical_source_url(value: Any) -> str:
+    """The canonical form of a source URL. Identical to ``papyrus_content.reference_intake.canonical_source_url`` (a test pins them together)."""
+    if not isinstance(value, str) or len(value) > 4096 or any(ord(c) <= 32 for c in value):
+        raise InvalidUrl("source_uri must be an HTTP(S) URL without whitespace.")
+    try:
+        parts = urlsplit(value)
+        if parts.scheme.lower() not in {"https", "http"} or not parts.hostname or parts.username or parts.password:
+            raise ValueError()
+        host = parts.hostname.encode("idna").decode("ascii").lower()
+        if ":" in host:
+            host = f"[{host}]"
+        port = parts.port
+        if port is not None and port != {"http": 80, "https": 443}[parts.scheme.lower()]:
+            host += f":{port}"
+        return urlunsplit((parts.scheme.lower(), host, parts.path or "/", parts.query, ""))
+    except (ValueError, UnicodeError) as error:
+        raise InvalidUrl("source_uri must be a valid HTTP(S) URL without credentials.") from error
+
+
+def submission_id_for(canonical_url: str) -> str:
+    return SUBMISSION_ID_PREFIX + hashlib.sha256(canonical_url.encode("utf-8")).hexdigest()[:24]
+
+
+def domain_of(canonical_url: str) -> str:
+    return (urlsplit(canonical_url).hostname or "").lower()
 
 
 def ensure_profile(store: ReaderStore, site_subject: str, now_seconds: float) -> dict[str, Any]:
@@ -242,7 +311,7 @@ def react(
     limited = within_rate_limit(store, profile, RATE_BUCKET_REACTIONS, action_limit(profile, settings, now_seconds), now_seconds)
     if limited:
         return limited
-    if not store.is_published(subject):
+    if not subject_is_open(store, subject):
         return refusal(404, "unknown_subject", "That item is not published.")
     stored_id = vote_id(subject, profile["readerId"], dimension)
     if value is None:
@@ -261,6 +330,122 @@ def react(
         )
     schedule_snapshot()
     return reply(200, {"subject": subject, "dimension": dimension, "value": value})
+
+
+def subject_is_open(store: ReaderStore, subject: str) -> bool:
+    """A published item, or a submission that is visible (pending or promoted); hidden submissions cannot be voted on."""
+    if SUBMISSION_ID.fullmatch(subject):
+        submission = store.get_submission(subject)
+        return submission is not None and submission.get("state") in VISIBLE_SUBMISSION_STATES
+    return store.is_published(subject)
+
+
+def clean_text(value: Any, label: str, maximum: int, *, required: bool) -> tuple[str | None, dict[str, Any] | None]:
+    if value is None or value == "":
+        if required:
+            return None, refusal(422, f"invalid_{label}", f"Send a {label}.")
+        return None, None
+    if not isinstance(value, str) or CONTROL_CHARACTERS.search(value):
+        return None, refusal(422, f"invalid_{label}", f"The {label} must be plain text.")
+    if EMAIL_ADDRESS.search(value):
+        return None, refusal(422, f"invalid_{label}", f"Public text cannot contain an email address. Remove it from the {label}.")
+    text = " ".join(value.split()) if label == "title" else value.strip()
+    if not text and required:
+        return None, refusal(422, f"invalid_{label}", f"Send a {label}.")
+    if len(text) > maximum:
+        return None, refusal(422, f"invalid_{label}", f"The {label} is at most {maximum} characters.")
+    return text or None, None
+
+
+def public_submission(submission: dict[str, Any]) -> dict[str, Any]:
+    promoted = submission.get("state") == SUBMISSION_PROMOTED and submission.get("itemId")
+    return {"subject": submission["itemId"] if promoted else submission["id"], "url": submission["canonicalUrl"], "title": submission["title"], "state": submission["state"]}
+
+
+def duplicate(existing: dict[str, Any]) -> dict[str, Any]:
+    if existing.get("state") not in VISIBLE_SUBMISSION_STATES:
+        return refusal(409, "duplicate_submission", "That link was already submitted.")
+    return refusal(409, "duplicate_submission", "That link was already submitted.", existing=public_submission(existing))
+
+
+def submit_action(
+    store: ReaderStore,
+    profile: dict[str, Any],
+    payload: dict[str, Any],
+    settings: ReaderSettings,
+    now_seconds: float,
+    schedule_snapshot: Callable[[], None],
+) -> dict[str, Any]:
+    if profile.get("state") == STATE_LIMITED:
+        return refusal(403, "reader_limited", "This reader cannot submit right now.")
+    if not profile.get("handle"):
+        return refusal(422, "handle_required", "Choose a handle before submitting a link.")
+    if set(payload) - SUBMISSION_PAYLOAD_KEYS:
+        return refusal(422, "invalid_submission", "Send only url, title, kind and note.")
+    raw_url = payload.get("url")
+    if not isinstance(raw_url, str) or not raw_url.strip() or len(raw_url) > MAXIMUM_URL_LENGTH:
+        return refusal(422, "invalid_url", "Send the link as an http or https address.")
+    try:
+        canonical = canonical_source_url(raw_url.strip())
+    except InvalidUrl:
+        return refusal(422, "invalid_url", "Send the link as an http or https address.")
+    if len(canonical) > MAXIMUM_URL_LENGTH or EMAIL_ADDRESS.search(canonical):
+        return refusal(422, "invalid_url", "Send the link as an http or https address without an email address in it.")
+    title, problem = clean_text(payload.get("title"), "title", MAXIMUM_TITLE_LENGTH, required=True)
+    if problem:
+        return problem
+    note, problem = clean_text(payload.get("note"), "note", MAXIMUM_NOTE_LENGTH, required=False)
+    if problem:
+        return problem
+    kind = payload.get("kind", settings.submission_kinds[0])
+    if not isinstance(kind, str) or kind not in settings.submission_kinds:
+        return refusal(422, "invalid_kind", "That kind is not available.")
+    limit = new_account_limit(profile, settings, now_seconds, settings.submissions_per_day)
+    limited = within_rate_limit(store, profile, RATE_BUCKET_SUBMIT, limit, now_seconds, DAY_SECONDS)
+    if limited:
+        return limited
+    submission_id = submission_id_for(canonical)
+    existing = store.get_submission(submission_id)
+    if existing is not None:
+        return duplicate(existing)
+    domain = domain_of(canonical)
+    since = iso(now_seconds - settings.similar_hours * HOUR_SECONDS)
+    similar_rows = [
+        row
+        for row in store.recent_submissions_by_domain(domain, since)
+        if row.get("state") in VISIBLE_SUBMISSION_STATES and row["id"] != submission_id
+    ]
+    similar_rows.sort(key=lambda row: row["createdAt"], reverse=True)
+    similar_rows = similar_rows[:MAXIMUM_SIMILAR]
+    submission = {
+        "id": submission_id,
+        "canonicalUrl": canonical,
+        "domain": domain,
+        "title": title,
+        "kind": kind,
+        "readerId": profile["readerId"],
+        "state": SUBMISSION_PENDING,
+        "similar": [row["id"] for row in similar_rows],
+        "extractionState": EXTRACTION_PENDING,
+        "createdAt": iso(now_seconds),
+    }
+    if note:
+        submission["note"] = note
+    if not store.create_submission(submission):
+        return duplicate(store.get_submission(submission_id) or submission)
+    schedule_snapshot()
+    return reply(
+        201,
+        {
+            "subject": submission_id,
+            "url": canonical,
+            "title": title,
+            "kind": kind,
+            "state": SUBMISSION_PENDING,
+            "extraction": EXTRACTION_PENDING,
+            "similar": [{"subject": row["id"], "url": row["canonicalUrl"], "title": row["title"]} for row in similar_rows],
+        },
+    )
 
 
 def vote_action(store, profile, payload, settings, is_staff, now_seconds, schedule_snapshot):
@@ -307,6 +492,8 @@ def handle_event(
         return vote_action(store, profile, payload, settings, event["isStaff"], now_seconds, schedule_snapshot)
     if action == ACTION_RATING:
         return rating_action(store, profile, payload, settings, event["isStaff"], now_seconds, schedule_snapshot)
+    if action == ACTION_SUBMIT:
+        return submit_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
     return refusal(400, "unknown_action", "Unknown action.")
 
 
@@ -327,9 +514,26 @@ def is_conditional_failure(error: Exception) -> bool:
 class DynamoReaderStore:
     """The Amplify model tables written directly: items carry ``__typename``, ``createdAt`` and ``updatedAt`` so staff can list them."""
 
-    def __init__(self, *, resource: Any, profile_table: str, handle_table: str, vote_table: str, published_item_table: str, rate_table: str) -> None:
+    def __init__(
+        self,
+        *,
+        resource: Any,
+        profile_table: str,
+        handle_table: str,
+        vote_table: str,
+        published_item_table: str,
+        rate_table: str,
+        submission_table: str = "",
+    ) -> None:
         self._resource = resource
-        self._names = {"profile": profile_table, "handle": handle_table, "vote": vote_table, "published": published_item_table, "rate": rate_table}
+        self._names = {
+            "profile": profile_table,
+            "handle": handle_table,
+            "vote": vote_table,
+            "published": published_item_table,
+            "rate": rate_table,
+            "submission": submission_table,
+        }
 
     def _table(self, key: str) -> Any:
         return self._resource.Table(self._names[key])
@@ -419,6 +623,35 @@ class DynamoReaderStore:
     def is_published(self, subject_key: str) -> bool:
         item = self._table("published").get_item(Key={"id": PUBLISHED_ID_PREFIX + subject_key}, ProjectionExpression="#s", ExpressionAttributeNames={"#s": "status"}).get("Item")
         return bool(item) and item.get("status") == "published"
+
+    def get_submission(self, submission_id: str) -> dict[str, Any] | None:
+        item = self._table("submission").get_item(Key={"id": submission_id}, ConsistentRead=True).get("Item")
+        return plain(item) if item else None
+
+    def create_submission(self, submission: dict[str, Any]) -> bool:
+        item = {**submission, "__typename": "ReaderSubmission", "updatedAt": submission["createdAt"]}
+        try:
+            self._table("submission").put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
+
+    def recent_submissions_by_domain(self, domain: str, since_iso: str) -> list[dict[str, Any]]:
+        from boto3.dynamodb.conditions import Key
+
+        rows: list[dict[str, Any]] = []
+        kwargs: dict[str, Any] = {
+            "IndexName": SUBMISSION_DOMAIN_INDEX,
+            "KeyConditionExpression": Key("domain").eq(domain) & Key("createdAt").gte(since_iso),
+        }
+        while True:
+            page = self._table("submission").query(**kwargs)
+            rows.extend(plain(item) for item in page.get("Items", []))
+            if "LastEvaluatedKey" not in page:
+                return rows
+            kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool:
         try:
@@ -531,6 +764,7 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         vote_table=environment["PAPYRUS_READER_VOTE_TABLE"],
         published_item_table=environment["PAPYRUS_READER_PUBLISHED_ITEM_TABLE"],
         rate_table=environment["PAPYRUS_READER_RATE_TABLE"],
+        submission_table=environment.get("PAPYRUS_READER_SUBMISSION_TABLE", ""),
     )
 
 

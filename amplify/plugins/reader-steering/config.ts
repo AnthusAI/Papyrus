@@ -3,6 +3,7 @@ import type { PluginRequest } from "../types";
 export const READER_DIMENSION_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const RESERVED_DIMENSIONS = ["up", "used-it"];
 export const READER_HANDLE_NAME = /^[a-z0-9_-]{3,24}$/;
+export const SUBMISSION_KIND_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]{1,512}$/;
 
 export type ReaderSteeringConfig = {
@@ -37,6 +38,14 @@ export type ReaderSteeringConfig = {
     /** A hype gap needs at least this many ratings on every dimension involved. */
     hypeMinimum: number;
   };
+  submissions: {
+    /** Submissions one reader may make in a UTC day. Accounts younger than `limits.newAccountHours` get `perDay / limits.newAccountDivisor`. */
+    perDay: number;
+    /** Another submission from the same domain inside this many hours is returned as a `similar` warning. */
+    similarHours: number;
+    /** The kinds a reader may pick (a radio on the form). A single kind hides the radio. */
+    kinds: string[];
+  };
   /**
    * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
    * Absent means no hype gap is published. Shipped sets plus = notable, novel and minus = real, useful.
@@ -54,7 +63,7 @@ export type ReaderSteeringConfig = {
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -122,6 +131,8 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const karma = object(raw.karma, "karma", ["upvoteWeight", "usedItWeight"]);
   const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
+  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds"]);
+  const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
   const retirementPoll = flag(raw.retirementPoll, "retirementPoll");
   if (retirementPoll && !flag(snapshot.schedule, "snapshot.schedule")) {
@@ -150,6 +161,11 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       schedule: flag(snapshot.schedule, "snapshot.schedule"),
       intervalHours: integer(snapshot.intervalHours, "snapshot.intervalHours", 6, 1, 24),
       hypeMinimum: integer(snapshot.hypeMinimum, "snapshot.hypeMinimum", 5, 1, 10000),
+    },
+    submissions: {
+      perDay: integer(submissions.perDay, "submissions.perDay", 10, 1, 1000),
+      similarHours: integer(submissions.similarHours, "submissions.similarHours", 48, 1, 24 * 30),
+      kinds: kinds.length > 0 ? kinds : ["link"],
     },
     retirementPoll,
     ...(hypeGap ? { hypeGap } : {}),

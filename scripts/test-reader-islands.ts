@@ -30,6 +30,7 @@ type Fake = {
   writes: Array<{ path: string; body: Record<string, unknown> }>;
   meRequests: string[];
   snapshotRequests: number;
+  submissions: Array<Record<string, unknown>>;
   writeAnswer: (path: string, body: Record<string, unknown>) => { status: number; body: Record<string, unknown> };
   holdSnapshot: Promise<void> | null;
 };
@@ -58,6 +59,7 @@ function fake(changes: Partial<Fake> = {}): Fake {
     writes: [],
     meRequests: [],
     snapshotRequests: 0,
+    submissions: [],
     writeAnswer: (path, body) => ({ status: 200, body: path === "/api/reader/handle" ? { handle: String(body.handle).toLowerCase() } : { subject: body.subject, dimension: body.dimension } }),
     holdSnapshot: null,
     ...changes,
@@ -77,6 +79,7 @@ async function open(context: BrowserContext, state: Fake, options: { clock?: boo
       if (state.holdSnapshot) await state.holdSnapshot;
       return state.snapshot ? json(200, state.snapshot) : json(404, {});
     }
+    if (url.pathname === "/_data/reader/submissions.json") return json(200, { generatedAt: new Date().toISOString(), submissions: state.submissions });
     if (url.pathname === "/api/reader/me") {
       state.meRequests.push(url.search);
       return json(state.me.status, state.me.body);
@@ -320,5 +323,126 @@ test("with the core islands runtime on the page each island still mounts exactly
   assert.equal(await page.locator("#vote button").count(), 1);
   assert.equal(await page.locator("#rating button").count(), 10);
   assert.equal(await page.locator("#signin .papyrus-reader-handle").count(), 1);
+  await context.close();
+});
+
+const SUBMIT_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Submit</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<header><div id="signin" data-island="ReaderSignIn"></div></header>
+<main><h1>Submit a link</h1><div id="submit" data-island="Submit" data-props='{"kinds":["article","tool"]}'><p class="papyrus-island-summary">Sign in to submit a link.</p></div></main></body></html>`;
+
+const submitAnswer = (path: string, body: Record<string, unknown>) =>
+  path === "/api/reader/submit"
+    ? { status: 201, body: { subject: "sub-abc", url: body.url, title: body.title, kind: body.kind, state: "pending", extraction: "pending", similar: [] } }
+    : { status: 200, body: {} };
+
+async function fillSubmit(page: Page, url: string, title: string, note = "") {
+  await page.getByLabel("Link").fill(url);
+  await page.getByLabel("Title").fill(title);
+  if (note) await page.getByLabel("Note (optional)").fill(note);
+}
+
+test("submit: while sign-in is not open the form is disabled and says so", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ me: unavailable }), { page: SUBMIT_PAGE });
+  await page.locator("#submit").getByText("Reader sign-in is not open yet").waitFor();
+  for (const control of await page.locator("#submit input, #submit textarea, #submit button").all()) assert.equal(await control.isDisabled(), true);
+  assert.equal(await page.locator("#submit .papyrus-island-summary").count(), 0);
+  await context.close();
+});
+
+test("submit: a signed-out visitor sees why the form is off", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ me: { status: 401, body: { error: "signed_out" } } }), { page: SUBMIT_PAGE });
+  await page.locator("#submit").getByText("Sign in to vote and rate").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Submit link" }).isDisabled(), true);
+  await context.close();
+});
+
+test("submit: the form posts the link, the title, the kind and the note, then says the link is pending and clears the saved draft", async () => {
+  const context = await browser.newContext();
+  const state = fake({ writeAnswer: (path, body) => path === "/api/reader/submit" ? { status: 201, body: { subject: "sub-abc", url: body.url, title: body.title, kind: body.kind, state: "pending", extraction: "pending", similar: [{ subject: "sub-old", url: "https://example.com/older", title: "<b>Older</b> post" }] } } : { status: 200, body: {} } });
+  const page = await open(context, state, { page: SUBMIT_PAGE });
+  await page.getByRole("button", { name: "Submit link" }).waitFor();
+  await page.getByLabel("Link").waitFor({ state: "visible" });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/post#top", "A small tool", "Worked well for me");
+  await page.getByLabel("tool").check();
+  await page.getByRole("button", { name: "Submit link" }).click();
+  await page.locator("#submit").getByText("Pending \u2014 we\u2019re reading the link.").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/submit", body: { url: "https://example.com/post#top", title: "A small tool", kind: "tool", note: "Worked well for me" } }]);
+  await page.locator("#submit .papyrus-reader-similar a").getByText("<b>Older</b> post").waitFor();
+  assert.equal(await page.locator("#submit .papyrus-reader-similar b").count(), 0, "titles are text, never markup");
+  assert.equal(await page.getByLabel("Link").inputValue(), "");
+  assert.equal(await page.evaluate(() => window.localStorage.getItem("papyrus-reader-submit-draft")), null);
+  await context.close();
+});
+
+test("submit: a draft is saved locally, says so, and comes back after a reload", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake(), { page: SUBMIT_PAGE });
+  await page.locator("#submit").getByText(/Saved locally/).waitFor();
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/draft", "Half written", "Not done");
+  await page.waitForFunction(() => window.localStorage.getItem("papyrus-reader-submit-draft") !== null);
+  assert.deepEqual(JSON.parse((await page.evaluate(() => window.localStorage.getItem("papyrus-reader-submit-draft"))) as string), { url: "https://example.com/draft", title: "Half written", note: "Not done", kind: "article" });
+  await page.reload();
+  await page.waitForFunction(() => (document.querySelector("#submit input") as HTMLInputElement | null)?.value === "https://example.com/draft");
+  assert.equal(await page.getByLabel("Title").inputValue(), "Half written");
+  assert.equal(await page.getByLabel("Note (optional)").inputValue(), "Not done");
+  await context.close();
+});
+
+test("submit: storage that throws leaves the form working", async () => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", { get() { throw new Error("blocked"); } });
+  });
+  const state = fake({ writeAnswer: submitAnswer });
+  const page = await open(context, state, { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/x", "Works without storage");
+  await page.getByRole("button", { name: "Submit link" }).click();
+  await page.locator("#submit").getByText(/^Pending/).waitFor();
+  await context.close();
+});
+
+test("submit: a link that is already listed, or a recent one from the same site, shows a warning before submitting", async () => {
+  const context = await browser.newContext();
+  const recent = new Date(Date.now() - 3600_000).toISOString();
+  const state = fake({ submissions: [{ id: "sub-1", url: "https://example.com/listed", domain: "example.com", title: "Listed already", createdAt: recent }, { id: "sub-2", url: "https://news.example/old", domain: "news.example", title: "Old", createdAt: new Date(Date.now() - 72 * 3600_000).toISOString() }] });
+  const page = await open(context, state, { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await page.getByLabel("Link").fill("HTTPS://Example.com:443/listed#section");
+  await page.locator("#submit .papyrus-reader-warning").getByText(/may already be submitted as .Listed already./).waitFor();
+  await page.getByLabel("Link").fill("https://example.com/another");
+  await page.locator("#submit .papyrus-reader-warning").getByText(/1 link from example.com was submitted in the last 48 hours/).waitFor();
+  await page.getByLabel("Link").fill("https://news.example/new");
+  assert.equal(await page.locator("#submit .papyrus-reader-warning").textContent(), "", "a link older than 48 hours is not a warning");
+  assert.equal(state.writes.length, 0, "a warning never blocks or posts");
+  await context.close();
+});
+
+test("submit: the server's duplicate, rate limit and handle answers are shown in words", async () => {
+  const context = await browser.newContext();
+  const answers: Array<{ status: number; body: Record<string, unknown> }> = [
+    { status: 409, body: { error: "duplicate_submission", message: "That link was already submitted.", existing: { subject: "sub-1", url: "https://example.com/x", title: "The first one", state: "pending" } } },
+    { status: 429, body: { error: "rate_limited", message: "Too many actions.", retryAfter: 7200 } },
+    { status: 422, body: { error: "handle_required", message: "Choose a handle before submitting a link." } },
+    { status: 422, body: { error: "invalid_url", message: "Send the link as an http or https address." } },
+  ];
+  const page = await open(context, fake({ writeAnswer: () => answers.shift()! }), { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/x", "Try");
+  const send = page.getByRole("button", { name: "Submit link" });
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText(/Already submitted as .The first one. \(pending\)/).waitFor();
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText("Too many actions. Try again in about 120 minutes.").waitFor();
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText(/Choose a handle first/).waitFor();
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText("Send the link as an http or https address.").waitFor();
+  assert.equal(await page.getByLabel("Link").inputValue(), "https://example.com/x", "a refused submission keeps what was typed");
   await context.close();
 });

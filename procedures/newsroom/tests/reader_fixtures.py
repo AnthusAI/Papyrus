@@ -23,6 +23,7 @@ from papyrus_content.reader_steering.task import (
     PROFILE_TABLE_ENV,
     SETTINGS_ENV,
     STATE_TABLE_ENV,
+    SUBMISSION_TABLE_ENV,
     VOTE_TABLE_ENV,
     run_reader_snapshot,
 )
@@ -42,6 +43,7 @@ TABLE_NAMES = {
     "vote": "ReaderVote-test",
     "published": "PublishedItem-test",
     "rate": "RateWindows-test",
+    "submission": "ReaderSubmission-test",
 }
 
 
@@ -72,9 +74,9 @@ class ScriptedRetirementPoll:
 
 
 class ReaderBackend:
-    def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_enabled=True) -> None:
+    def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_enabled=True, **settings) -> None:
         self.settings = reader_handler.ReaderSettings(
-            dimensions=tuple(dimensions), actions_per_hour=actions_per_hour, allow_interim_subjects=allow_interim
+            dimensions=tuple(dimensions), actions_per_hour=actions_per_hour, allow_interim_subjects=allow_interim, **settings
         )
         self.snapshot_target = reader_handler.SnapshotTarget(SNAPSHOT_FUNCTION_ARN, SCHEDULER_ROLE_ARN) if snapshot_enabled else None
         self.now = START_SECONDS
@@ -86,11 +88,25 @@ class ReaderBackend:
         self.scheduler_client = boto3.client("scheduler", region_name="us-east-1")
         for key, table_name in TABLE_NAMES.items():
             attribute = "pk" if key == "rate" else "id"
+            definitions = [{"AttributeName": attribute, "AttributeType": "S"}]
+            indexes = {}
+            if key == "submission":
+                definitions += [{"AttributeName": "domain", "AttributeType": "S"}, {"AttributeName": "createdAt", "AttributeType": "S"}]
+                indexes = {
+                    "GlobalSecondaryIndexes": [
+                        {
+                            "IndexName": reader_handler.SUBMISSION_DOMAIN_INDEX,
+                            "KeySchema": [{"AttributeName": "domain", "KeyType": "HASH"}, {"AttributeName": "createdAt", "KeyType": "RANGE"}],
+                            "Projection": {"ProjectionType": "ALL"},
+                        }
+                    ]
+                }
             self.resource.create_table(
                 TableName=table_name,
                 KeySchema=[{"AttributeName": attribute, "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": attribute, "AttributeType": "S"}],
+                AttributeDefinitions=definitions,
                 BillingMode="PAY_PER_REQUEST",
+                **indexes,
             )
         self.store = reader_handler.DynamoReaderStore(
             resource=self.resource,
@@ -99,6 +115,7 @@ class ReaderBackend:
             vote_table=TABLE_NAMES["vote"],
             published_item_table=TABLE_NAMES["published"],
             rate_table=TABLE_NAMES["rate"],
+            submission_table=TABLE_NAMES["submission"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -129,6 +146,9 @@ class ReaderBackend:
     def votes(self) -> list[dict]:
         return self.table("vote").scan()["Items"]
 
+    def submissions(self) -> list[dict]:
+        return self.table("submission").scan()["Items"]
+
 
 def iso_at(seconds: float) -> str:
     return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -147,10 +167,11 @@ def run_snapshot(
     invalidate: Any = None,
     published: tuple[str, ...] = PUBLISHED_SUBJECTS,
     dimensions: tuple[str, ...] = ("real", "useful"),
-    submitter_of: Any = lambda subject: None,
+    submitter_of: Any = None,
     retirement_poll: Any = None,
     poll_retirements: bool = False,
     hype_gap: dict | None = None,
+    review_signals: Any = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -165,6 +186,7 @@ def run_snapshot(
         PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
         HANDLE_TABLE_ENV: TABLE_NAMES["handle"],
         STATE_TABLE_ENV: TABLE_NAMES["rate"],
+        SUBMISSION_TABLE_ENV: TABLE_NAMES["submission"],
     }
     return run_reader_snapshot(
         context,
@@ -173,6 +195,7 @@ def run_snapshot(
         resource=backend.resource,
         now_seconds=now,
         submitter_of=submitter_of,
+        review_signals=review_signals,
         retirement_poll=retirement_poll,
         poll_retirements=poll_retirements,
     )

@@ -13,6 +13,7 @@ from papyrus_content.reader_steering.snapshot import (  # noqa: E402
     BOARD_FILE,
     ITEMS_FILE,
     READERS_FILE,
+    SUBMISSIONS_FILE,
     KarmaWeights,
     SnapshotSettings,
     build_snapshot,
@@ -35,6 +36,13 @@ def main() -> None:
         for reader_id in READER_IDS
         for dimension in ("up", "real")
     ]
+    submissions = [
+        {
+            "id": "sub-" + "a" * 24, "canonicalUrl": "https://example.com/post", "domain": "example.com", "title": "A small tool", "kind": "link",
+            "note": "Worked well", "readerId": READER_IDS[0], "state": "pending", "similar": [], "createdAt": "2026-10-21T09:00:00Z",
+            "signals": '[{"detector":"buy-now"}]', "extractionState": "pending", "siteSubject": SITE_SUBJECT, "email": "reader@example.test",
+        }
+    ]
     result = build_snapshot(
         votes,
         profiles,
@@ -42,8 +50,9 @@ def main() -> None:
         now_seconds=NOW,
         settings=SnapshotSettings(dimensions=("real",), karma=KarmaWeights()),
         submitter_of=lambda subject: READER_IDS[0],
+        submissions=submissions,
     )
-    files = {ITEMS_FILE: result.items, BOARD_FILE: result.board, READERS_FILE: result.readers}
+    files = {ITEMS_FILE: result.items, BOARD_FILE: result.board, READERS_FILE: result.readers, SUBMISSIONS_FILE: result.submissions}
     print(json.dumps({"readerIds": READER_IDS, "files": {name: encoded(payload).decode("utf-8") for name, payload in files.items()}}))
 
 

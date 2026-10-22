@@ -21,7 +21,7 @@ export const READER_POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARA
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
-  models: ["ReaderProfile", "ReaderHandle", "ReaderVote"],
+  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission"],
   mutations: [],
   guest: { mutations: [] },
   newsroomPanels: [],
@@ -33,6 +33,7 @@ export function readerActionsSettings(config: ReaderSteeringConfig, allowInterim
   return {
     dimensions: config.dimensions,
     limits: config.limits,
+    submissions: config.submissions,
     reservedHandles: config.reservedHandles,
     allowInterimSubjects,
     snapshotDebounceSeconds: 60,
@@ -43,6 +44,7 @@ export function readerActionsSettings(config: ReaderSteeringConfig, allowInterim
 export function readerSnapshotSettings(config: ReaderSteeringConfig) {
   return {
     dimensions: config.dimensions,
+    submissions: config.submissions,
     karma: config.karma,
     ranking: config.ranking,
     hypeMinimum: config.snapshot.hypeMinimum,
@@ -101,6 +103,7 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       ["PAPYRUS_READER_PROFILE_TABLE", "ReaderProfile"],
       ["PAPYRUS_READER_HANDLE_TABLE", "ReaderHandle"],
       ["PAPYRUS_READER_VOTE_TABLE", "ReaderVote"],
+      ["PAPYRUS_READER_SUBMISSION_TABLE", "ReaderSubmission"],
     ] as const) {
       tables[model].grantReadWriteData(lambda);
       lambda.addEnvironment(variable, tables[model].tableName);
@@ -110,6 +113,8 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     lambda.addEnvironment("PAPYRUS_READER_PUBLISHED_ITEM_TABLE", tables.PublishedItem.tableName);
     tables.ReaderVote.grantReadData(contentActions);
     tables.ReaderProfile.grantReadWriteData(contentActions);
+    // The snapshot reads submissions, and the review step writes their signals and moderation state.
+    tables.ReaderSubmission.grantReadWriteData(contentActions);
 
     lambda.addEnvironment("PAPYRUS_READER_SETTINGS", JSON.stringify(readerActionsSettings(config, interimSubjectsAllowedAtSynth())));
     if (config.reservedConcurrency !== undefined) {

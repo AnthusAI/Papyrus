@@ -3,17 +3,25 @@
   "title": "Duplicate check, spam and abuse limits for submissions",
   "description": "As the publication desk, I want duplicates caught and abuse limited, so that public-immediate submissions do not flood the board.\n\n```gherkin\nFeature: Submission limits\n  Scenario: Exact duplicate\n    Given a submission with the same canonical URL already exists\n    When a reader submits it again\n    Then the reader is shown the existing item instead of creating a second\n\n  Scenario: Same domain warning\n    Given the same domain was submitted recently\n    When a reader submits another URL on it\n    Then a warning shows the recent item, and the reader may continue\n\n  Scenario: Rate limit\n    Given a reader exceeds the configured submissions per period\n    Then further submissions are rejected until the period passes\n\n  Scenario: New account limit\n    Given an account younger than the configured minimum age\n    Then it is held to a lower submission limit\n```\n\nRate limits and account-age thresholds are per-publication configuration. Edge protection (WAF) follows the existing plugin contract.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8d579fd8-bb82-46f9-908a-9ecbf10a4f09",
+      "author": "home",
+      "text": "Built: exact canonical-URL 409, same-domain 48h similar warning, 10/day (a third for new accounts), Humanus rule signals in the worker.",
+      "created_at": "2026-10-22T04:18:00.906183Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:27.253316Z",
-  "updated_at": "2026-10-21T12:49:27.253342Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T04:18:00.970738Z",
+  "closed_at": "2026-10-22T04:18:00.970710Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

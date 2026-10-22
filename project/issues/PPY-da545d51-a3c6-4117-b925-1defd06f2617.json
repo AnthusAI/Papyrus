@@ -10,9 +10,17 @@
   "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a99ac0a9-a151-46eb-b1f5-435d4d3a5e53",
+      "author": "home",
+      "text": "Hook only, by design: a submission stores extractionState 'pending'; the worker step that fills entities in is not built here (knowledge-base lead). Left open.",
+      "created_at": "2026-10-22T04:18:01.169222Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:27.182013Z",
-  "updated_at": "2026-10-21T12:49:27.182041Z",
+  "updated_at": "2026-10-22T04:18:01.169254Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
