@@ -29,7 +29,7 @@ async function main() {
   for (const features of [{ ...on, steering: false }, undefined]) {
     const html = render(features, noop);
     assert.match(html, /<button type="button" disabled=""[^>]*>Test a rule change · Not available yet<\/button>/);
-    assert.match(html, /can&#x27;t be tested on this service yet/);
+    assert.match(html, /cannot be tested on this service yet/);
     assert.doesNotMatch(html, /<button type="button">Test a rule change/);
   }
 
