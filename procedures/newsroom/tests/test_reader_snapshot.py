@@ -248,6 +248,23 @@ class SnapshotTests(unittest.TestCase):
         self.assertTrue(first.endswith(b"\n"))
         self.assertEqual(list(json.loads(first)), sorted(json.loads(first)))
 
+    def test_raters_counts_distinct_readers_with_any_rating_not_upvotes_or_editors(self) -> None:
+        votes = [
+            vote("a", "r1", "real", 4), vote("a", "r1", "useful", 3), vote("a", "r2", "useful", 5),
+            vote("a", "r3", "up"), vote("a", "r4", "used-it"), vote("a", "e1", "real", 5, role="editor"),
+            vote("a", "r5", "other", 4), vote("b", "r1", "real", 2),
+        ]
+        items = snapshot(votes).items["items"]
+        self.assertEqual(items["a"]["raters"], 2, "r1 counted once; the upvoter, used-it, editor and unknown dimension are not raters")
+        self.assertEqual(items["a"]["up"], 1)
+        self.assertEqual(items["b"]["raters"], 1)
+
+    def test_the_board_publishes_the_display_minimum_from_the_hype_minimum(self) -> None:
+        default = snapshot([vote("a", "r1", "real", 4)]).board["parameters"]
+        self.assertEqual(default["displayMinimum"], 5)
+        configured = snapshot([vote("a", "r1", "real", 4)], ranking=RankingParameters(hype_minimum=8)).board["parameters"]
+        self.assertEqual(configured["displayMinimum"], 8)
+
 
 class UrlPolicyTests(unittest.TestCase):
     def test_snapshot_keys_follow_the_base_path(self) -> None:

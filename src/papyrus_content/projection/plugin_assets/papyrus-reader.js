@@ -39,7 +39,8 @@
     notRated: "Not rated"
   };
 
-  var state = { identity: "loading", me: null, snapshot: null, adjustments: {}, handleMessage: "" };
+  var DEFAULT_DISPLAY_MINIMUM = 5;
+  var state = { identity: "loading", me: null, snapshot: null, parameters: null, adjustments: {}, handleMessage: "" };
   var subjects = {};
   var subscribers = [];
   var loadingMe = null;
@@ -108,7 +109,28 @@
     });
   }
 
+  // The reader-count floor for showing a mean: board.json parameters (displayMinimum, else hypeMinimum, else readerMinimum), else 5.
+  function displayMinimum() {
+    var parameters = state.parameters || {};
+    var names = ["displayMinimum", "hypeMinimum", "readerMinimum"];
+    for (var index = 0; index < names.length; index += 1) {
+      var value = Number(parameters[names[index]]);
+      if (parameters[names[index]] != null && isFinite(value) && value >= 1) return value;
+    }
+    return DEFAULT_DISPLAY_MINIMUM;
+  }
+
+  function loadParameters() {
+    return fetch(settings.base + "_data/reader/board.json", { credentials: "omit", cache: "no-cache" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (board) {
+        if (board && board.parameters && typeof board.parameters === "object") { state.parameters = board.parameters; notify(); }
+      })
+      .catch(function () {});
+  }
+
   function loadSnapshot() {
+    loadParameters();
     return fetch(settings.base + "_data/reader/items.json", { credentials: "omit", cache: "no-cache" })
       .then(function (response) { return response.ok ? response.json() : null; })
       .then(function (snapshot) {
@@ -263,6 +285,31 @@
     return stats && stats.n ? Number(stats.mean).toFixed(1) + " from " + plural(stats.n, "rating", "ratings") : "no ratings yet";
   }
 
+  // Reader stats: below the floor the mean is withheld ("n=3, too few"), never shown with a count that small.
+  function readerTooFew(stats) {
+    return !!(stats && stats.n && stats.n < displayMinimum());
+  }
+
+  function readerText(stats) {
+    return readerTooFew(stats) ? "n=" + stats.n + ", too few" : statsText(stats);
+  }
+
+  // Five segments: filled ones are solid, empty ones outlined; withheld (too few) is all empty and dimmed.
+  function meter() {
+    var node = element("span", "papyrus-reader-meter");
+    node.setAttribute("aria-hidden", "true");
+    for (var index = 0; index < 5; index += 1) node.appendChild(element("span", "papyrus-reader-meter-segment"));
+    return node;
+  }
+
+  function fillMeter(node, stats) {
+    var filled = stats && stats.n && !readerTooFew(stats) ? Math.round(Number(stats.mean)) : 0;
+    node.classList.toggle("papyrus-reader-meter-withheld", readerTooFew(stats));
+    Array.prototype.forEach.call(node.children, function (segment, index) {
+      segment.classList.toggle("papyrus-reader-meter-filled", index < filled);
+    });
+  }
+
   function whyForm(subject, dimension) {
     var form = element("form", "papyrus-reader-why");
     form.hidden = true;
@@ -320,16 +367,20 @@
       });
       var own = element("span", "papyrus-reader-own");
       var readers = element("span", "papyrus-reader-stats");
+      var readerMeter = meter();
       var editor = element("span", "papyrus-reader-stats");
       group.insertBefore(label, group.firstChild);
       group.appendChild(own);
+      group.appendChild(readerMeter);
       group.appendChild(readers);
       group.appendChild(editor);
       host.appendChild(group);
       var why = whyForm(subject, dimension);
       host.appendChild(why.form);
-      return { dimension: dimension, buttons: buttons, own: own, readers: readers, editor: editor, busy: false, why: why, askWhy: false };
+      return { dimension: dimension, buttons: buttons, own: own, readers: readers, meter: readerMeter, editor: editor, busy: false, why: why, askWhy: false };
     });
+    var raters = element("p", "papyrus-reader-raters");
+    host.appendChild(raters);
     var status = element("p", "papyrus-reader-status");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
@@ -338,6 +389,8 @@
     subscribe(function () {
       var item = snapshotItem(subject);
       var prerendered = props.ratings || {};
+      var ratersCount = state.snapshot ? (item && item.raters) : props.raters;
+      raters.textContent = typeof ratersCount === "number" ? ratersCount + " rated it" : "";
       rows.forEach(function (row) {
         var published = state.snapshot ? item && item.ratings && item.ratings[row.dimension] : prerendered[row.dimension];
         var value = mine(subject, row.dimension);
@@ -350,7 +403,8 @@
         if (!value) row.askWhy = false;
         row.why.form.hidden = !(row.askWhy && value && enabled());
         row.why.refresh();
-        row.readers.textContent = "Readers: " + statsText(published && published.reader);
+        row.readers.textContent = "Readers: " + readerText(published && published.reader);
+        fillMeter(row.meter, published && published.reader);
         row.editor.textContent = published && published.editor && published.editor.n ? "Editor: " + statsText(published.editor) : "";
       });
       status.textContent = message || controlStatus();

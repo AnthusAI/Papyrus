@@ -99,6 +99,20 @@ def ratings_by_role(votes: Iterable[Mapping], dimensions: Collection[str]) -> di
     return grouped
 
 
+def distinct_raters(votes: Iterable[Mapping], dimensions: Collection[str]) -> int:
+    """Distinct readers (editors excluded) who left a valid rating on any dimension; upvotes and used-it do not count."""
+    return len(
+        {
+            vote["readerId"]
+            for vote in votes
+            if vote.get("voterRole") == ROLE_READER
+            and vote["dimension"] in dimensions
+            and isinstance(vote["value"], int)
+            and 1 <= vote["value"] <= 5
+        }
+    )
+
+
 def karma_by_reader(
     votes: Iterable[Mapping], submitter_of: Callable[[str], str | None], weights: KarmaWeights
 ) -> dict[str, float]:
@@ -319,6 +333,7 @@ def build_snapshot(
             "up": len(upvotes),
             "usedIt": sum(1 for vote in subject_votes if vote["dimension"] == USED_IT),
             "comments": comment_counts.get(subject, 0),
+            "raters": distinct_raters(subject_votes, settings.dimensions),
             "ratings": stats,
             "editor": None if editor_composite is None else rounded(editor_composite),
             "reader": None if reader_composite is None else rounded(reader_composite),
@@ -364,6 +379,7 @@ def build_snapshot(
                 "halfLifeHours": ranking.half_life_hours,
                 "risingWindowHours": ranking.rising_window_hours,
                 "readerMinimum": ranking.reader_minimum,
+                "displayMinimum": ranking.hype_minimum,
                 "editorWeight": ranking.editor_weight,
             },
             "front": front,
