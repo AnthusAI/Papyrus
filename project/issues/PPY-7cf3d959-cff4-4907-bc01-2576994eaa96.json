@@ -3,7 +3,7 @@
   "title": "Trending list and entity kinds filter",
   "description": "As a reader, I want a list of trending entities by kind, so that I can see what is moving.\n\n```gherkin\nFeature: Trending list\n  Scenario: Ordered by change\n    Given computed trends\n    Then the list orders entities by change with counts shown, excluding entities marked new\n\n  Scenario: Filter by kind\n    When a kind is chosen\n    Then only entities of that kind are listed\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Data part landed in PR #528 (index.json trending order and kinds). Verification as on PPY-9abb98. The reader-facing list component is a separate task.",
       "created_at": "2026-10-22T04:13:49.940650Z",
       "comment_type": "default"
+    },
+    {
+      "id": "41b4da30-514d-4ebd-8660-ddda75932b6d",
+      "author": "home",
+      "text": "Closed. index.json trending ordering (#528/#547) and knowledge-trending-list with kind filter (#527/#549). Verified live 2026-10-22 on https://shipped.anth.us (Papyrus 5.22.0, Shipped-web #29 #32 #34 #35 #36). Live on the home page rail 'Trending topics'.",
+      "created_at": "2026-10-22T10:40:58.534041Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.734667Z",
-  "updated_at": "2026-10-22T04:13:49.940692Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:58.578007Z",
+  "closed_at": "2026-10-22T10:40:58.577979Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

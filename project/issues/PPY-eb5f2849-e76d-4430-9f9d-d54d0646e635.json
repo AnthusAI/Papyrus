@@ -3,7 +3,7 @@
   "title": "Weekly entity counts and the change percentage definition",
   "description": "As a reader, I want trend figures I can trust, so that \"up 40%\" means something stated.\n\n```gherkin\nFeature: Entity trend counting\n  Scenario: Weekly series\n    Given confirmed entity links with item publish dates\n    When trends are computed\n    Then each entity has a count per ISO week for the last 8 and 26 weeks\n\n  Scenario: Change figure\n    Given 12 items in the last 4 weeks and 6 in the prior 4\n    Then the change is reported as +100 percent with counts 12 and 6\n\n  Scenario: Small base\n    Given fewer than 5 items in the prior 4 weeks\n    Then no percent is reported\n\n  Scenario: Short history\n    Given an entity first linked 2 weeks ago\n    Then it is marked new\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -31,11 +31,18 @@
       "text": "Follow-up PR #547 (branch fix/PPY-eb5f28-trend-history-rule): percent null under 8 weeks of history in the snapshot, trending by displayable percent, entities retype/registry, topic-config. CI python/ts/smoke green.",
       "created_at": "2026-10-22T07:40:39.826855Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e4e62f61-fc14-40cd-b538-89c3961014c6",
+      "author": "home",
+      "text": "Closed. Weekly ISO-week counts over confirmed links, change = last 4 vs prior 4 weeks, no percent when prior < 5 or history < 8 weeks, new under 4 weeks (#528, #547). Tests cover the 12 vs 6 = +100% scenario. Verified live 2026-10-22 on https://shipped.anth.us (Papyrus 5.22.0, Shipped-web #29 #32 #34 #35 #36).",
+      "created_at": "2026-10-22T10:40:58.440705Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.663015Z",
-  "updated_at": "2026-10-22T07:40:39.826887Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:58.483980Z",
+  "closed_at": "2026-10-22T10:40:58.483944Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

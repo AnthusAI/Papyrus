@@ -3,7 +3,7 @@
   "title": "Entity trends by weekly counting",
   "description": "Per-entity weekly series and change figures, computed by counting confirmed entity links per ISO week. No topic model is needed. Feeds sparklines, the trending list and trend charts.\n\nDefinition (written into the page): change is items in the last 4 weeks versus the prior 4 weeks, shown with absolute counts; the percent is dropped when the prior period is under 5 items; \"new\" when under 4 weeks of history. Depends on typed-entity extraction (Biblicus blbs-81ec10) producing confirmed entity links. Parent initiative: PPY-428252.",
   "type": "epic",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,18 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "3564498e-c2f5-469d-a234-72c66b2c3bc5",
+      "author": "home",
+      "text": "Closed: all child stories closed with evidence; live on https://shipped.anth.us.",
+      "created_at": "2026-10-22T10:40:59.666613Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.591310Z",
-  "updated_at": "2026-10-21T12:50:17.922534Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.711320Z",
+  "closed_at": "2026-10-22T10:40:59.711291Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",
