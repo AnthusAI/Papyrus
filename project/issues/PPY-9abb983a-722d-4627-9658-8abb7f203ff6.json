@@ -31,10 +31,17 @@
       "text": "PR #541 merged to develop (CI green): actor recording (acceptedBy, description.editedBy), knowledge clusters/relations review, Biblicus run files (--identity/--trends/--entities), base path, operator lane (--auth iam, --amplify-outputs). Shipped dry run (IAM): 119 nodes, 192 front-matter links, 71 published items.",
       "created_at": "2026-10-22T05:28:51.414361Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b5806ab7-4a18-43ed-9f86-2dac3747c904",
+      "author": "home",
+      "text": "First Shipped knowledge run 2026-10-22 (PR https://github.com/AnthusAI/Papyrus/pull/546, branch feature/PPY-9abb98-knowledge-corpus-export). Added papyrus knowledge corpus export (Biblicus keeps only UUID ids and only for files inside the corpus root, so the export writes biblicus.id = deterministic UUID to <corpus>/raw/papyrus and biblicus reindex ingests; publish-run maps the UUIDs back to item ids) and --auth/--amplify-outputs on the wiki commands. Run: 71 published items, BERTopic (min_cluster_size 5, min_samples 3, umap n_neighbors 10, random_state 42) gave 4 clusters (21/20/20/9) and 1 outlier; topic-trends weekly 26 as-of 2026-10-22; topic-identity first run (4 new). Typed entities (GLiNER2, registry of 119 front-matter entities): 2544 mentions, 292 relations. Review as AI editor (--actor ai): 282 entities accepted (119 front matter + 163 extractor), 277 rejected, 719 left generated; 55 relations accepted, 30 rejected, 5 left proposed; 4 clusters accepted and named; 10 descriptions. Snapshot --as-of 2026-10-19 live at https://shipped.anth.us/_data/knowledge/index.json (282 entities, 2 beats, 44 trending). Previous run id for the next topic-identity --previous is in corpus/knowledge-run.json of the work folder /private/tmp/kb-work/shipped-run-2026-10-22: 10af8d000683aa5c118b29b438a56d66eb245372bdc37004c60b437d7b2dfc7f. Wiki sync dry run only: 282 entity pages + 2 beat pages. Details: docs/knowledge-workstation-run.md First run section.",
+      "created_at": "2026-10-22T06:52:33.606157Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.234524Z",
-  "updated_at": "2026-10-22T05:28:51.414387Z",
+  "updated_at": "2026-10-22T06:52:33.606190Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

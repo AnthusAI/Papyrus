@@ -191,6 +191,17 @@ def test_sync_never_publishes_and_a_second_run_changes_nothing(client, capsys):
     assert len(client.write_calls()) == before and "unchanged" not in out.split("plan")[0] and "entity:unchanged\t2" in out
 
 
+def test_the_wiki_commands_take_the_operator_lane_and_say_which_backend(client, tmp_path, monkeypatch, capsys):
+    outputs = tmp_path / "amplify_outputs.json"
+    outputs.write_text('{"data": {"url": "https://example123.appsync-api.us-east-1.amazonaws.com/graphql"}}', encoding="utf-8")
+    monkeypatch.delenv("PAPYRUS_GRAPHQL_AUTH", raising=False)
+    monkeypatch.delenv("PAPYRUS_GRAPHQL_ENDPOINT", raising=False)
+    run(wiki_commands.knowledge_wiki_sync, "--auth", "iam", "--amplify-outputs", str(outputs))
+    assert "knowledge\tauth\tiam\texample123.appsync-api.us-east-1.amazonaws.com" in capsys.readouterr().err
+    monkeypatch.delenv("PAPYRUS_GRAPHQL_AUTH")
+    monkeypatch.delenv("PAPYRUS_GRAPHQL_ENDPOINT")
+
+
 def test_a_generated_or_rejected_entity_gets_no_page_and_a_removed_one_is_reported(client, capsys):
     sync(client, "--apply")
     assert set(pages(client)) == {ACME_SLUG, SPOOL_SLUG}

@@ -21,8 +21,9 @@ from ..env import graphql_endpoint
 from ..graphql_authoring import create_authoring_client
 from ..ids import knowledge_corpus_id
 from ..options import normalize_string, parse_options
-from ..project_commands import _context_for
+from ..project_commands import _context_for, _projection_environment
 from ..projection.engine import project_all
+from ..projection.runtime import load_projector
 from ..projection.writers import LocalDirectoryWriter, request_paths_for_key
 from ..reader_steering.snapshot import encoded
 from ..reader_steering.task import snapshot_key
@@ -69,7 +70,8 @@ from .relation_review import (
     reject_relation_patches,
     review_state,
 )
-from .run_input import load_run
+from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, write_export
+from .run_input import load_run, translate_item_ids
 from .weeks import current_monday, parse_day
 
 AUTH_LANES = ("user", "iam")
@@ -201,6 +203,8 @@ def knowledge_publish_run(flags: list[str]) -> None:
     agent_name = clean_name(options.get("actor-name"))
     client = authoring_client(options)
     items = published_items(client.list_published_item_summaries(), _no_url)
+    if run is not None:
+        run = translate_item_ids(run, {biblicus_item_id(item.item_id): item.item_id for item in items})
     node_rows = current_nodes(client.list_records("SemanticNode"))
     accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
     mention_rows = [row for row in relations_of_nodes(client, accepted) if is_item_mention(row)]
@@ -224,6 +228,22 @@ def knowledge_publish_run(flags: list[str]) -> None:
         apply_record_changes(client, changes)
         if not options.get("json"):
             print(f"knowledge\tpublish-run\tapplied\t{sum(1 for change in changes if change['action'] != 'noop')}")
+
+
+def knowledge_corpus_export(flags: list[str]) -> None:
+    options = parse_options(flags)
+    out = _path_option(options, "out")
+    if out is None:
+        raise ValueError("Pass --out DIR: the folder that receives <item id>.md, normally <corpus>/raw/papyrus.")
+    types = tuple(part.strip() for part in (normalize_string(options.get("types")) or ",".join(DEFAULT_TYPES)).split(",") if part.strip())
+    client = authoring_client(options)
+    projector = load_projector(_projection_environment(options))
+    items = export_items(client.list_records("PublishedItem"), url_resolver(projector), types)
+    counts = write_export(items, out)
+    if options.get("json"):
+        print(json.dumps({"out": str(out), "types": list(types), **counts}, indent=2, sort_keys=True))
+        return
+    print(f"knowledge\tcorpus-export\t{counts['items']} items\t{counts['undated']} undated\t{counts['removed']} removed\t{out}")
 
 
 def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
@@ -585,6 +605,7 @@ def knowledge_relations_reject(flags: list[str]) -> None:
 
 
 KNOWLEDGE_COMMANDS = {
+    "corpus-export": knowledge_corpus_export,
     "publish-run": knowledge_publish_run,
     "snapshot": knowledge_snapshot,
     "entities-list": knowledge_entities_list,
