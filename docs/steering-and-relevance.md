@@ -30,7 +30,7 @@ A relevance Cyclotron suggests include or exclude for each pending Reference, an
 
 ```bash
 papyrus references decide-relevance            # dry run: lists pending references, no model call
-papyrus references decide-relevance --apply    # decide, send editor reviews, record status, save the store
+papyrus references decide-relevance --apply --doctrine <path>    # decide, send editor reviews, record status, save the store
 ```
 
 What it does:
@@ -49,7 +49,7 @@ A second Cyclotron suggests which Section a Reference belongs in: one fit classi
 
 ```bash
 papyrus references decide-site-sections            # dry run
-papyrus references decide-site-sections --apply
+papyrus references decide-site-sections --apply --doctrine <path>
 ```
 
 Its results are suggestions only; it never changes a Reference's curation status. It is shadow-only and Beta, like the relevance Cyclotron. Details: "Site cyclotron" in [cyclotron-priming.md](cyclotron-priming.md); per-tenant behavior in [multi-tenancy.md](multi-tenancy.md).

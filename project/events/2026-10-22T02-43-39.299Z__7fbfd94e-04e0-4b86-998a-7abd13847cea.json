@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7fbfd94e-04e0-4b86-998a-7abd13847cea",
+  "issue_id": "PPY-4005dea7-4fd4-44b6-aac3-1241649df0ca",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:43:39.299Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Newsroom newsletter panel: counts, lists, issues, approval, test send, delivery history",
+    "description": "Administration panel backed by newsletter custom queries and mutations with group checks: subscriber counts, issues and actions (approve for a time, cancel, stop, test send to own address), delivery, bounce and complaint history, pause and resume, admin erasure and CSV export.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
+    "labels": []
+  }
+}

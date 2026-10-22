@@ -557,6 +557,7 @@ After a publish refreshes the reader, `content-actions` invalidates the paths th
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Amplify backend secrets (SSM) | human, `papyrus site google-secrets set` |
 | Revalidate secret | SSM SecureString `/papyrus/<siteId>/revalidate-secret` | the app-shell stack, generated |
 | Prospectus session sealing secret | SSM SecureString `/papyrus/<siteId>/prospectus-session-sealing` | the app-shell stack, generated |
+| Reader poll secret (public-reader sites that set `cms.readerRetirementPoll`) | SSM SecureString `/papyrus/<siteId>/reader-poll-secret` | the app-shell stack, generated |
 
 Sites not on the template must set `PAPYRUS_REVALIDATE_SECRET_PARAMETER` on the
 branch and grant their compute role and `content-actions` role the read themselves.
@@ -582,7 +583,14 @@ The Prospectus accounts sign-in (`cms.prospectusAccountsApiStageArn`) seals its
 cookies with `/papyrus/<siteId>/prospectus-session-sealing`, passed to the runtime as
 `PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER` (`lib/prospectus-session.ts` reads it
 with decryption and caches it per container for five minutes). Rotating or replacing
-it signs everyone out. Rotate either secret without echoing it:
+it signs everyone out.
+
+A public-reader site that polls Prospectus for retired reader subjects sets `cms.readerRetirementPoll: true` (it needs
+`cms.prospectusAccountsApiStageArn`). The stack then also generates `/papyrus/<siteId>/reader-poll-secret`, gives the
+compute role `ssm:GetParameter` on it and passes its name as `PAPYRUS_READER_POLL_SECRET_PARAMETER`. The CMS route
+`GET /api/reader/retired` answers only a caller that sends that secret in `x-papyrus-reader-poll-secret` (see
+[reader-steering.md](reader-steering.md#schedule-and-the-prospectus-retirement-poll)); it answers 503 when the parameter is
+not configured. Rotate either secret without echoing it:
 
 ```bash
 aws ssm put-parameter --region us-east-1 --name "/papyrus/<siteId>/revalidate-secret" \

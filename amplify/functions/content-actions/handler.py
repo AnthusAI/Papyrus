@@ -9,6 +9,7 @@ from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
 from papyrus_content.projection.engine import project, project_all, project_item_pages
+from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
 from papyrus_content.projection.runtime import (
     DEAD_LETTER_QUEUE_ENV,
     context_from_environment,
@@ -187,6 +188,8 @@ def run_projection_task(task: dict) -> dict:
         report = project_all(projection_context(client))
     elif task.get("task") == "deploy-render":
         return run_deploy_render_task(client)
+    elif task.get("task") == READER_SNAPSHOT_TASK:
+        return run_reader_snapshot(projection_context(client), client, poll_retirements=task.get("retirementPoll") is True).to_dict()
     elif task.get("task") == "invalidate":
         invalidate = projection_context(client).invalidate
         if invalidate is None:

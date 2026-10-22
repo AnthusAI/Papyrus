@@ -37,6 +37,7 @@ from .item_state import (
     write_item_state,
 )
 from .model import ItemSummary, ProjectionReport, SiteIndex, site_signature
+from .plugins import is_plugin_runtime_key
 from .projector import SiteProjector, normalized_redirect_source
 from .source import ProjectionSourceError, PublishedContentSource, replace_item
 from .writers import STATE_PREFIX, PageWriter, RedirectStore, StoredObject, body_etag, request_paths_for_key
@@ -56,6 +57,11 @@ class ProjectionContext:
     keep_state: bool = True
     maximum_rounds: int = MAXIMUM_ROUNDS
     defer_follow_up: bool = False
+
+    def __post_init__(self) -> None:
+        attach = getattr(self.projector, "attach_store", None)
+        if attach is not None:
+            attach(self.writer)
 
 
 def _page_order(keys) -> list[str]:
@@ -614,7 +620,9 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
 
     expected = set(expected_item_keys) | set(projector.listing_inputs(site))
     report.orphan_pages = sorted(
-        key for key in objects if not key.startswith(STATE_PREFIX) and projector.owns_page_key(key) and key not in expected
+        key
+        for key in objects
+        if not key.startswith(STATE_PREFIX) and not is_plugin_runtime_key(key) and projector.owns_page_key(key) and key not in expected
     )
     if not dry_run and report.orphan_pages:
         cleanup = ProjectionReport()

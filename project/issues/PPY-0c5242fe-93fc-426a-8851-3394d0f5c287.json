@@ -16,17 +16,21 @@
       "author": "unknown",
       "text": "Status 2026-10-19 16:40Z: p.apyr.us tenant data adopted 2026-10-19. Remaining on this story is the p.apyr.us 1.19.1 bump (PR 42) and the live checks in the read.p.apyr.us verification task.",
       "created_at": "2026-10-19T16:48:04.988946Z",
-      "comment_type": "default",
-      "data": {},
-      "agent": null
+      "comment_type": "default"
+    },
+    {
+      "id": "8bbe04ae-0d00-44dc-acd1-a568e530f79d",
+      "author": "home",
+      "text": "Related: PPY-922416 S1 (p.apyr.us single classifier cutover) and S2/S3 cover the lab-as-single-classifier site wiring for p.apyr.us, threat-intelligence and anth-us.",
+      "created_at": "2026-10-22T01:56:50.427857Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-17T18:00:55.803522Z",
-  "updated_at": "2026-10-19T16:48:04.989083Z",
+  "updated_at": "2026-10-22T01:56:50.427908Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {},
-  "agent": null,
   "agent_assignment": null
 }

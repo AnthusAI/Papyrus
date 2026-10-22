@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3cf5e1a2-ca8c-4bc7-8414-c2a57e8259b8",
+  "issue_id": "PPY-7d7209e5-61e6-4f7d-a63e-f892aa731b47",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:31.412Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier S1: p.apyr.us single classifier cutover",
+    "description": "Remove the relevanceCyclotron block and old store pointer; verify one real editor end to end after C1/P1/P2.\nAcceptance: block and pointer removed; one real editor verified end to end.\n\nSize: S\nDependencies: Cyclotron C1, P1, P2 (related PPY-0c5242)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

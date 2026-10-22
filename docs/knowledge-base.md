@@ -37,6 +37,10 @@ papyrus signals concept-report --corpus-key <corpus key> --report-type trending 
 
 Options: `--report-type all|popularity|trending|pagerank` (default `all`), `--trend-window-days` (default 30), `--limit` (default 25), `--node-kinds` (default `entity`), `--max-nodes-per-reference`, `--run-id` and `--input` (a fixture file). The report creates no article and no edition item. The command is in `src/papyrus_newsroom/cli.py` and is reached through `papyrus signals`.
 
+## Knowledge snapshot (Beta)
+
+`papyrus knowledge snapshot` writes the public, read-only entities, weekly trends and named topic clusters of a site as JSON under `_data/knowledge/`, from the published items, the accepted entities and the clusters a workstation run produced. See [knowledge-snapshot.md](knowledge-snapshot.md).
+
 ## Biblicus (Live)
 
 [Biblicus](https://github.com/AnthusAI/Biblicus) is the corpus and analysis engine behind topic modeling and graph extraction. Papyrus calls it only through one process boundary, `src/papyrus_content/biblicus_runner.py`, which runs the `biblicus` command and parses its JSON. Corpora live under the directory named by `BIBLICUS_WORKDIR`. To start a publication from a pile of files, see [new-publication-from-corpus.md](new-publication-from-corpus.md). Version notes: [biblicus-1-14-upgrade.md](biblicus-1-14-upgrade.md).
@@ -47,4 +51,4 @@ These are planned under initiative PPY-428252:
 
 - A public, read-only wiki (epic PPY-495ec8).
 - Public topic pages and public trends (epics PPY-a45fd1 and PPY-964472).
-- Entity trends (epic PPY-0331f5). The report above ranks concepts for editors; it is not an entity trend feature for readers.
+- Entity trends for readers (epic PPY-0331f5): the data is the knowledge snapshot above; the reader-facing pages are still to come. The report above ranks concepts for editors.

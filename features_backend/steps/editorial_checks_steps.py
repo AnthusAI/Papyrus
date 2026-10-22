@@ -17,15 +17,35 @@ class FakeEditorialStore:
         self.settings: dict | None = None
         self.feedback: list[dict] = []
         self.writes = 0
+        self.unconfigured_section = False   # the story's section matches no NewsroomSection record
+        self.missions = 1               # current publication mission records (the doctrine the judgment lane reads)
+        self.items: dict[str, dict] = {}
+        self.check_runs: list[dict] = []
 
     def list_policies(self):
         return [dict(record) for record in self.policies.values()]
 
     def get_editorial_context(self, section):
+        """The contract the GraphQL store gets from getEditorialContext with optional publication doctrine."""
         from papyrus_content.editorial_context import build_context
-        return build_context({'key': 'synthetic'}, {'sectionId': section},
-                             [{'scope': 'publication', 'kind': 'policy', 'text': 'Synthetic private guidance',
-                               'source': {'id': 'synthetic-policy'}}], mode='cloud')
+        if self.missions > 1:
+            raise ValueError(f"Publication mission: expected exactly one current record, found {self.missions}.")
+        entries = [{'scope': 'publication', 'kind': 'policy', 'text': 'Synthetic private guidance',
+                    'source': {'id': 'synthetic-policy'}}]
+        if self.missions == 1:
+            entries.insert(0, {'scope': 'publication', 'kind': 'mission', 'text': 'Synthetic mission',
+                               'source': {'id': 'synthetic-mission'}})
+        missing_section = bool(section) and self.unconfigured_section
+        scope = {'sectionId': None, 'requestedSection': section} if missing_section else {'sectionId': section}
+        return build_context({'key': 'synthetic'}, scope, entries, mode='cloud',
+                             missing_publication_doctrine=[] if self.missions else ['mission'],
+                             missing_section_configuration=[section] if missing_section else [])
+
+    def get_item(self, item_id):
+        return self.items.get(item_id)
+
+    def put_check_run(self, record):
+        self.check_runs.append(record)
 
     def get_settings(self):
         return self.settings
@@ -123,7 +143,7 @@ def step_check(context, body, section):
     context.check_error = None
     try:
         context.check_result = editorial.handle("checkEditorial", {"body": body, "format": "markus", "section": section}, context.services)
-    except editorial.EditorialChecksDisabled as error:
+    except (editorial.EditorialChecksDisabled, ValueError) as error:
         context.check_error = error
 
 
@@ -392,3 +412,68 @@ def step_event_shape(context, place):
 @then('the function routes to "{field}"')
 def step_routes(context, field):
     assert context.routed_field == field, context.routed_field
+
+
+@given("the publication has no current mission")
+def step_no_mission(context):
+    context.store.missions = 0
+
+
+@given("the publication has one current mission")
+def step_one_mission(context):
+    context.store.missions = 1
+
+
+@given("the publication has {count:d} current missions")
+def step_many_missions(context, count):
+    context.store.missions = count
+
+
+@given("the section has no NewsroomSection record")
+def step_no_section_record(context):
+    context.store.unconfigured_section = True
+
+
+@then('the section is recorded as skipped because there is "{text}"')
+def step_section_skipped(context, text):
+    lane = context.check_result["lanes"]["section"]
+    assert lane["status"] == "skipped" and lane["reason"] == f"no section configuration for engineering" and text in lane["reason"], lane
+
+
+@then("the stored check run records the section lane as skipped")
+def step_run_section_skipped(context):
+    assert len(context.store.check_runs) == 1, context.store.check_runs
+    lane = context.store.check_runs[0]["lanes"]["section"]
+    assert lane["status"] == "skipped" and "no section configuration for engineering" in lane["reason"], lane
+
+
+@then("Humanus was asked to run without the classifier")
+def step_no_classifier(context):
+    lanes = context.services.last_check_request["options"]["lanes"]
+    assert lanes["rules"] is True and lanes["classifier"] is False, lanes
+
+
+@then("the classifier lane is skipped because the publication has no mission")
+def step_classifier_skipped(context):
+    lane = context.check_result["lanes"]["classifier"]
+    assert lane["status"] == "skipped" and "mission" in lane["reason"], lane
+
+
+@when('the saved version of a story with "{body}" is checked')
+def step_check_version(context, body):
+    context.store.items["story-v1"] = {"id": "story-v1", "lineageId": "story", "versionNumber": 1,
+                                        "section": "engineering", "bodyMarkus": body}
+    context.services = _services(context)
+    context.version_result = editorial.handle("checkItemVersion", {"itemId": "story-v1"}, context.services)
+
+
+@then("the stored check run records the classifier lane as skipped")
+def step_run_skipped(context):
+    assert len(context.store.check_runs) == 1, context.store.check_runs
+    lane = context.store.check_runs[0]["lanes"]["classifier"]
+    assert lane["status"] == "skipped" and "mission" in lane["reason"], lane
+
+
+@then('the check fails with "{text}"')
+def step_check_fails(context, text):
+    assert context.check_error is not None and text in str(context.check_error), context.check_error

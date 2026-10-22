@@ -36,8 +36,8 @@ async function main() {
   const html = renderToStaticMarkup(createElement(ReferenceCyclotronPriming, {
     labels, requests: [waiting, applied, failed], onRequestPriming: () => undefined,
   }));
-  for (const text of ["Web page address", "Reference URL", "Include or exclude", ">include</option>",
-    ">exclude</option>", "Why (optional)", "Add reference", "Adding",
+  for (const text of ["Web page address", "Reference URL", "role=\"radiogroup\"", ">include</button>",
+    ">exclude</button>", "<textarea", "Why?", "Add reference", "Adding",
     "Added", "Couldn&#x27;t add: The page could not be read."]) {
     assert.ok(html.includes(text), `form shows: ${text}`);
   }

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "85731220-a9cd-464b-a1ff-ed3c14ab039d",
+  "issue_id": "PPY-e987f2e0-7ad7-4b1d-a1f6-112319d57767",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:55:09.007Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Router writes relevance_decision_is for lab decisions (P3)",
+    "description": "Monitoring router delivery path (deliver_reference, record_delivery) writes a relevance_decision_is relation per delivered lab decision in the same persist batch as the Reference + provenance Message, superseding any current relation. Gherkin: Feature: Router-delivered references show the lab suggestion. Scenario: a lab include decision is delivered. Given a monitored item the lab labels include. When the router delivers it. Then the Reference has one current relevance_decision_is relation with the lab output id, label, confidence, and provenance. Re-delivery of the same decision writes nothing; a changed decision supersedes the old relation. Out of scope: procedureTriggers, TRIGGER# rows, runner invoke.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "cyclotron-lab"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5"
+    }
+  }
+}

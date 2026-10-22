@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0b1009a7-2c82-423e-871e-2706fe103559",
+  "title": "p.apyr.us documentation: submit a link",
+  "description": "Final story of the epic. Document public submissions, the confirm step and abuse limits on p.apyr.us.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T04:02:29.823796Z",
+  "updated_at": "2026-10-22T04:02:29.823840Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

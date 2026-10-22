@@ -13,6 +13,10 @@ export type EditorialOptions = {
   storyLineageId?: string | null;
   assignmentId?: string | null;
   maxCharacters?: number | null;
+  /** A publication without a current mission or policy record yields missingPublicationDoctrine instead of an error, and a
+   * section value that matches no NewsroomSection yields missingSectionConfiguration instead of an error.
+   * Only the editorial check asks for this (its rule lane needs neither); more than one current record is still an error. */
+  optionalPublicationDoctrine?: boolean | null;
   readAttachment: (attachment: EditorialRecord) => Promise<string>;
 };
 
@@ -38,6 +42,47 @@ async function get(client: EditorialClient, model: string, id: string) {
   return row;
 }
 
+const slugOf = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const localPart = (id: string) => id.split("#").at(-1) ?? id;
+
+async function allSections(client: EditorialClient) {
+  const rows: EditorialRecord[] = [];
+  let nextToken: string | null | undefined;
+  do {
+    const response = checked(await client.models.NewsroomSection.list({ limit: 100, nextToken }), "read NewsroomSection list");
+    rows.push(...(response.data as EditorialRecord[] ?? []));
+    nextToken = response.nextToken;
+  } while (nextToken);
+  return rows;
+}
+
+/** An item stores its section as an id, a slug or a name; find the NewsroomSection of this publication it means.
+ * Order: id (as given, then tenant-scoped), then slug (the id's local part), then name (title or short title).
+ * Returns null when nothing matches; two sections matching at the same step is an error. */
+async function findSection(client: EditorialClient, value: string, tenantId?: string) {
+  const direct = checked(await client.models.NewsroomSection.get({ id: value }), "read NewsroomSection").data as EditorialRecord | null;
+  if (direct) return direct;
+  if (tenantId) {
+    const scoped = checked(await client.models.NewsroomSection.get({ id: tenantScopedValue(tenantId, value) }), "read NewsroomSection").data as EditorialRecord | null;
+    if (scoped) return scoped;
+  }
+  const all = tenantId
+    ? await pages(client, "NewsroomSection", "listNewsroomSectionsByTenantAndSortOrder", { tenantId })
+    : (await allSections(client)).filter(row => !row.tenantId);
+  const wanted = slugOf(value);
+  const steps: ((row: EditorialRecord) => boolean)[] = [
+    row => slugOf(localPart(String(row.id ?? ""))) === wanted,
+    row => [row.title, row.shortTitle].some(name => typeof name === "string" && name.trim().toLowerCase() === value.trim().toLowerCase()),
+    row => [row.title, row.shortTitle].some(name => typeof name === "string" && slugOf(name) === wanted),
+  ];
+  for (const step of steps) {
+    const matches = all.filter(step);
+    if (matches.length > 1) throw new Error(`Section "${value}" is ambiguous: ${matches.map(row => row.id).join(", ")}.`);
+    if (matches.length === 1) return matches[0];
+  }
+  return null;
+}
+
 function tenant(row: EditorialRecord, tenantId?: string) {
   if ((row.tenantId || null) !== (tenantId || null)) throw new Error("Editorial record tenant does not match the configured authoring scope.");
 }
@@ -55,7 +100,7 @@ function entry(scope: string, kind: string, text: string, record: EditorialRecor
   } };
 }
 
-export function buildEditorialContext(publication: EditorialRecord, scope: EditorialRecord, entries: EditorialRecord[], warnings: string[], maxCharacters = 0) {
+export function buildEditorialContext(publication: EditorialRecord, scope: EditorialRecord, entries: EditorialRecord[], warnings: string[], maxCharacters = 0, missingPublicationDoctrine: string[] = [], missingSectionConfiguration: string[] = []) {
   const lines = [`Editorial context: ${publication.key}`, "Source: cloud",
     "Precedence: publication > section > assignment. Surface conflicts; narrower instructions do not silently override publication policy.",
     "Private operating guidance; not evidence or reader-facing copy."];
@@ -65,7 +110,9 @@ export function buildEditorialContext(publication: EditorialRecord, scope: Edito
   if (!Number.isInteger(maxCharacters) || maxCharacters < 0) throw new Error("Editorial context budget must be nonnegative.");
   if (maxCharacters && totalCharacters > maxCharacters) throw new Error(`Editorial context budget ${maxCharacters} cannot hold ${totalCharacters} required characters; policy was not truncated.`);
   const payload = { schemaVersion: 1, rendererVersion: "editorial-context/v1", publication, scope, sourceMode: "cloud",
-    precedence: ["publication", "section", "assignment"], entries, sources: entries.map(value => value.source), warnings, text, totalCharacters };
+    precedence: ["publication", "section", "assignment"], entries, sources: entries.map(value => value.source), warnings, text, totalCharacters,
+    ...(missingPublicationDoctrine.length ? { missingPublicationDoctrine } : {}),
+    ...(missingSectionConfiguration.length ? { missingSectionConfiguration } : {}) };
   return { ...payload, contextHash: digest(JSON.stringify(canonical(payload))), resolvedAt: new Date().toISOString() };
 }
 
@@ -83,7 +130,10 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     corpusId: corpora[0].id, tenantId: options.tenantId ?? null, endpoint: options.endpoint };
   const entries: EditorialRecord[] = [];
   const warnings: string[] = [];
+  const missingPublicationDoctrine: string[] = [];
   let sectionId = options.sectionId || null;
+  let requestedSection: string | null = null;
+  const missingSectionConfiguration: string[] = [];
   let storyLineageId = options.storyLineageId || null;
   const assignmentId = options.assignmentId || null;
   let assignment: EditorialRecord | undefined;
@@ -110,6 +160,7 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     const rows = await pages(client, "Item", options.tenantId ? "itemByTenantSlug" : "itemBySlug",
       options.tenantId ? { tenantSlug: tenantScopedValue(options.tenantId, slug) } : { slug });
     const current = rows.filter(row => row.type === "doctrine" && row.status === "private" && row.versionState === "current");
+    if (current.length === 0 && options.optionalPublicationDoctrine) { missingPublicationDoctrine.push(kind); continue; }
     if (current.length !== 1) throw new Error(`Publication ${kind}: expected exactly one current record, found ${current.length}.`);
     const record = current[0];
     tenant(record, options.tenantId);
@@ -118,12 +169,18 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     entries.push(entry("publication", kind, text, record));
   }
   if (sectionId) {
-    const section = await get(client, "NewsroomSection", sectionId);
+    const section = await findSection(client, sectionId, options.tenantId);
+    if (!section && !options.optionalPublicationDoctrine) throw new Error(`NewsroomSection not found: ${sectionId}`);
+    if (!section) { missingSectionConfiguration.push(sectionId); requestedSection = sectionId; sectionId = null; }
+    else {
     tenant(section, options.tenantId);
+    if (section.id !== sectionId) requestedSection = sectionId;
+    sectionId = section.id;
     for (const [kind, key] of [["mission", "editorialMission"], ["policy", "editorialPolicy"], ["guidance", "assignmentGuidance"], ["kill criteria", "killCriteria"]]) {
       const text = String(section[key] || "").trim();
       if (text) entries.push(entry("section", kind, text, section));
       else if (kind === "mission" || kind === "policy") warnings.push(`Section ${section.id} intentionally has an empty ${kind} slot; publication doctrine still applies.`);
+    }
     }
   }
   if (assignment) {
@@ -147,7 +204,9 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
       warnings.push("No assignment brief attachment exists; the Assignment summary is supplied as its brief.");
     }
   }
-  return buildEditorialContext(publication, { sectionId, storyLineageId, assignmentId }, entries, warnings, options.maxCharacters ?? 0);
+  // requestedSection: the value the caller asked for when it was not the section's id (a slug or name, or nothing matched).
+  const scope = { sectionId, storyLineageId, assignmentId, ...(requestedSection ? { requestedSection } : {}) };
+  return buildEditorialContext(publication, scope, entries, warnings, options.maxCharacters ?? 0, missingPublicationDoctrine, missingSectionConfiguration);
 }
 
 export function assignmentDoctrine(pack: Awaited<ReturnType<typeof resolveEditorialContext>>) {

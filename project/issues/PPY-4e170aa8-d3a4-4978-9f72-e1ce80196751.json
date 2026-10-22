@@ -3,17 +3,25 @@
   "title": "Scheduled board snapshot job writing public JSON",
   "description": "As a publication builder, I want a scheduled job that writes the board as JSON, so that a static site can show ranks and counts without live queries.\n\nSnapshot (per week and current): top N items, rank, per-dimension means, n, upvote counts, editor means, derived values, rising (votes in the last 6 hours), new, verdict log. Public-safe by construction: counts and ids only, never private text. Cadence configurable (for example every 5 to 15 minutes). A guest-surface test pins the JSON shape and checks it contains no private fields. Requires an EventBridge-style schedule and a function: needs explicit approval before any AWS resource is created.\n\n```gherkin\nFeature: Board snapshot\n  Scenario: Snapshot written\n    Given items with votes and ratings\n    When the snapshot job runs\n    Then a board JSON file is written to the site's data path with ranks, means, n and counts\n\n  Scenario: Public-safe\n    Then the JSON contains no email addresses, reader ids or private message text\n\n  Scenario: Cadence\n    Given a configured cadence\n    Then the job runs on that schedule and records the time of the last run\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0753ce8a-ca18-4f5b-b8bc-8db9022b4983",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Done for v1: the scheduled and debounced snapshot task writes _data/reader/items.json, board.json (front, rising) and readers.json with ranks, per-dimension means, n and histograms, upvote counts, editor means and the hype gap; public-safe, guarded by the privacy scan; 6-hourly EventBridge rule and trailing-edge debounce via EventBridge Scheduler; every file carries generatedAt (Papyrus #516, #520, #521). The per-week snapshot, 'new' list and verdict log were not built; split off to the new story under PPY-64cb48.",
+      "created_at": "2026-10-22T04:02:22.422006Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.675358Z",
-  "updated_at": "2026-10-21T12:49:28.675393Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T04:02:22.550236Z",
+  "closed_at": "2026-10-22T04:02:22.550203Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

@@ -3,16 +3,24 @@
   "title": "Wire the concept directives to the knowledge index in static builds",
   "description": "As a publication builder, I want recent-concepts, concept-list and concept-count to render real data in static sites, so that wiki directives are not empty placeholders.\n\n```gherkin\nFeature: Concept directives in static builds\n  Scenario: Render from the index\n    Given a knowledge index JSON file\n    When a page uses concept-count\n    Then the number of accepted entities is rendered in the page\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-4939307b-9fd0-4380-872f-6bd0d2222974",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1c886a86-ca16-4312-844c-3dd8747f0ba2",
+      "author": "home",
+      "text": "Branch feature/PPY-aaa702-knowledge-components, PR https://github.com/AnthusAI/Papyrus/pull/527. Verification: procedures/newsroom/tests/test_standard_frontend_knowledge.py (38 tests, one per scenario) and the standard front end, projection and Markus suites, 684 passed locally with anthus-markus 0.7.0. Docs: docs/knowledge-components.md.",
+      "created_at": "2026-10-22T03:58:16.679358Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:50:05.521179Z",
-  "updated_at": "2026-10-21T12:50:05.521212Z",
+  "updated_at": "2026-10-22T03:58:16.679385Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -13,7 +13,11 @@ function client(data = structuredClone(fixture)): EditorialClient {
       itemByTenantSlug: async ({ tenantSlug }) => ({ data: data.records.Item[tenantSlug.split("#").at(-1)] ?? [] }),
       listItemsByLineageAndVersion: async ({ lineageId }) => ({ data: lineageId === "story" ? data.stories : [] }),
     },
-    NewsroomSection: { get: async ({ id }) => ({ data: data.records.NewsroomSection[id] ?? null }) },
+    NewsroomSection: {
+      get: async ({ id }) => ({ data: data.records.NewsroomSection[id] ?? null }),
+      list: async () => ({ data: Object.values(data.records.NewsroomSection) as EditorialRecord[] }),
+      listNewsroomSectionsByTenantAndSortOrder: async ({ tenantId }) => ({ data: (Object.values(data.records.NewsroomSection) as EditorialRecord[]).filter(row => row.tenantId === tenantId) }),
+    },
     Assignment: { get: async ({ id }) => ({ data: data.records.Assignment[id] ?? null }) },
     ModelAttachment: { listModelAttachmentsByOwnerRoleAndSortKey: async () => ({ data: data.attachments }) },
   } };
@@ -65,6 +69,40 @@ async function main() {
   };
   assert.equal((await resolveEditorialContext(paged, options)).contextHash, pack.contextHash);
   assert.equal(reads, 4);
+  // PPY-2c4b56: the editorial check asks for optional publication doctrine; nobody else does.
+  const noMission = structuredClone(fixture); noMission.records.Item['editorial-doctrine-mission'] = [];
+  await assert.rejects(resolveEditorialContext(client(noMission), options), /Publication mission: expected exactly one current record, found 0/);
+  const skipped = await resolveEditorialContext(client(noMission), { ...options, optionalPublicationDoctrine: true });
+  assert.deepEqual(skipped.missingPublicationDoctrine, ["mission"]);
+  assert.ok(!skipped.entries.some(value => value.scope === "publication" && value.kind === "mission"));
+  const optional = await resolveEditorialContext(client(), { ...options, optionalPublicationDoctrine: true });
+  assert.equal("missingPublicationDoctrine" in optional, false);
+  assert.equal(optional.contextHash, pack.contextHash);
+  await rejects(d => { d.records.Item['editorial-doctrine-mission'].push(d.records.Item['editorial-doctrine-mission'].at(-1)); }, /found 2/, { optionalPublicationDoctrine: true });
+  // PPY-2c4b56: an item stores its section as an id, a slug or a name; resolve by id, then slug, then name, within the publication.
+  const sectioned = structuredClone(fixture);
+  sectioned.records.NewsroomSection['example#arts'] = { id: 'example#arts', tenantId: 'example', title: 'Arts & Culture', shortTitle: 'Arts', updatedAt: '2026-10-18', editorialMission: 'Cover the arts', editorialPolicy: 'Credit the artists' };
+  sectioned.records.NewsroomSection['other#arts'] = { ...sectioned.records.NewsroomSection['example#arts'], id: 'other#arts', tenantId: 'other', editorialMission: 'Not ours' };
+  for (const row of [...Object.values(sectioned.records.Item).flat(), ...sectioned.stories] as EditorialRecord[]) row.tenantId = 'example';
+  const bare = { publicationKey: 'example', endpoint: options.endpoint, tenantId: 'example', readAttachment: options.readAttachment };
+  const section = (value: string, extra: Partial<EditorialOptions> = {}) => resolveEditorialContext(client(sectioned), { ...bare, sectionId: value, ...extra });
+  const byId = await section('example#arts');
+  assert.equal(byId.scope.sectionId, 'example#arts'); assert.equal('requestedSection' in byId.scope, false);
+  assert.ok(byId.text.includes('Cover the arts'));
+  for (const value of ['arts', 'Arts', 'Arts & Culture', 'arts-culture']) {
+    const found = await section(value);
+    assert.equal(found.scope.sectionId, 'example#arts', value);
+    assert.equal(found.scope.requestedSection, value);
+    assert.ok(found.text.includes('Cover the arts') && !found.text.includes('Not ours'));
+  }
+  const missing = await section('Newsroom How-To', { optionalPublicationDoctrine: true });
+  assert.deepEqual(missing.missingSectionConfiguration, ['Newsroom How-To']);
+  assert.equal(missing.scope.sectionId, null); assert.equal(missing.scope.requestedSection, 'Newsroom How-To');
+  assert.ok(missing.entries.every(value => value.scope !== 'section'));
+  await assert.rejects(section('Newsroom How-To'), /NewsroomSection not found: Newsroom How-To/);
+  const twin = structuredClone(sectioned); twin.records.NewsroomSection['example#a1'] = { ...twin.records.NewsroomSection['example#arts'], id: 'example#a1', title: 'Culture Desk' };
+  twin.records.NewsroomSection['example#a2'] = { ...twin.records.NewsroomSection['example#arts'], id: 'example#a2', title: 'Culture Desk' };
+  await assert.rejects(resolveEditorialContext(client(twin), { ...bare, sectionId: 'Culture Desk' }), /ambiguous/);
   const fallback = structuredClone(fixture); fallback.attachments = [];
   const brief = await resolveEditorialContext(client(fallback), options);
   assert.ok(brief.warnings.some(warning => warning.includes('summary')));

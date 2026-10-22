@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "878cde40-a885-4b7a-baa0-1e1907519f46",
+  "issue_id": "PPY-d415c047-2888-4c65-bf26-f5fe9965ef88",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:43:40.136Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Publish-triggered alerts per list rule, deduplicated per item per list",
+    "description": "Hook on the publish path (newsroom and CLI) when PublishResult.changed: async invoke newsletter item-published. Rules by section, tag or type; dedupe per lineage per list; approval gate per list, instant sends only when the site enables them. Never fails a publish.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
+    "labels": []
+  }
+}

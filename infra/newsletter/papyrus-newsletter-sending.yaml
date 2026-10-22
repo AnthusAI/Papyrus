@@ -1,0 +1,182 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus newsletter sending (PPY-874ad4): the per-site Amazon SES sending identity
+  (Easy DKIM, custom MAIL FROM, DMARC), its configuration set, and the SNS topic and
+  CloudWatch destination that carry delivery events. One stack per site.
+
+Parameters:
+  SiteId:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9-]*$"
+    Description: Lower-case site id, used in resource names (for example shipped).
+  SendingDomain:
+    Type: String
+    Description: Domain the site sends from (for example shipped.anth.us).
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route 53 hosted zone that serves SendingDomain.
+  MailFromSubdomain:
+    Type: String
+    Default: bounce
+    Description: Label under SendingDomain used as the custom MAIL FROM domain.
+  DmarcPolicy:
+    Type: String
+    Default: quarantine
+    AllowedValues: [none, quarantine, reject]
+    Description: DMARC policy published at _dmarc.<SendingDomain>.
+  CreateDmarcRecord:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set false when the domain already publishes its own DMARC record.
+
+Conditions:
+  CreateDmarc: !Equals [!Ref CreateDmarcRecord, "true"]
+
+Resources:
+  ConfigurationSet:
+    Type: AWS::SES::ConfigurationSet
+    Properties:
+      Name: !Sub papyrus-${SiteId}
+      ReputationOptions:
+        ReputationMetricsEnabled: true
+      SendingOptions:
+        SendingEnabled: true
+      SuppressionOptions:
+        SuppressedReasons: [BOUNCE, COMPLAINT]
+
+  EmailIdentity:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: !Ref SendingDomain
+      DkimSigningAttributes:
+        NextSigningKeyLength: RSA_2048_BIT
+      MailFromAttributes:
+        MailFromDomain: !Sub ${MailFromSubdomain}.${SendingDomain}
+        BehaviorOnMxFailure: USE_DEFAULT_VALUE
+      ConfigurationSetAttributes:
+        ConfigurationSetName: !Ref ConfigurationSet
+
+  DkimRecord1:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt EmailIdentity.DkimDNSTokenName1
+      Type: CNAME
+      TTL: "1800"
+      ResourceRecords: [!GetAtt EmailIdentity.DkimDNSTokenValue1]
+
+  DkimRecord2:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt EmailIdentity.DkimDNSTokenName2
+      Type: CNAME
+      TTL: "1800"
+      ResourceRecords: [!GetAtt EmailIdentity.DkimDNSTokenValue2]
+
+  DkimRecord3:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt EmailIdentity.DkimDNSTokenName3
+      Type: CNAME
+      TTL: "1800"
+      ResourceRecords: [!GetAtt EmailIdentity.DkimDNSTokenValue3]
+
+  MailFromMxRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub ${MailFromSubdomain}.${SendingDomain}
+      Type: MX
+      TTL: "1800"
+      ResourceRecords:
+        - !Sub 10 feedback-smtp.${AWS::Region}.amazonses.com
+
+  MailFromSpfRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub ${MailFromSubdomain}.${SendingDomain}
+      Type: TXT
+      TTL: "1800"
+      ResourceRecords:
+        - '"v=spf1 include:amazonses.com ~all"'
+
+  DmarcRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: CreateDmarc
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub _dmarc.${SendingDomain}
+      Type: TXT
+      TTL: "1800"
+      ResourceRecords:
+        - !Sub '"v=DMARC1; p=${DmarcPolicy}; adkim=r; aspf=r"'
+
+  EventTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub papyrus-newsletter-events-${SiteId}
+
+  EventTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref EventTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowSesPublish
+            Effect: Allow
+            Principal:
+              Service: ses.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref EventTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  SnsEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    DependsOn: EventTopicPolicy
+    Properties:
+      ConfigurationSetName: !Ref ConfigurationSet
+      EventDestination:
+        Name: sns-events
+        Enabled: true
+        MatchingEventTypes:
+          - SEND
+          - DELIVERY
+          - BOUNCE
+          - COMPLAINT
+          - REJECT
+          - RENDERING_FAILURE
+          - DELIVERY_DELAY
+        SnsDestination:
+          TopicARN: !Ref EventTopic
+
+  CloudWatchEventDestination:
+    Type: AWS::SES::ConfigurationSetEventDestination
+    Properties:
+      ConfigurationSetName: !Ref ConfigurationSet
+      EventDestination:
+        Name: cloudwatch-metrics
+        Enabled: true
+        MatchingEventTypes: [SEND, BOUNCE, COMPLAINT]
+        CloudWatchDestination:
+          DimensionConfigurations:
+            - DimensionName: ses:configuration-set
+              DimensionValueSource: MESSAGE_TAG
+              DefaultDimensionValue: !Sub papyrus-${SiteId}
+
+Outputs:
+  IdentityName:
+    Description: SES email identity (the sending domain).
+    Value: !Ref EmailIdentity
+  ConfigurationSetName:
+    Description: SES configuration set to send with.
+    Value: !Ref ConfigurationSet
+  EventTopicArn:
+    Description: SNS topic that receives SES delivery events.
+    Value: !Ref EventTopic

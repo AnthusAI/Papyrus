@@ -1,3 +1,4 @@
+import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import type { Construct } from "constructs";
 
 /** How a site asks for a plugin in `papyrus.config.ts`: `plugins: ["signup"]` or `plugins: [{ name: "signup", forms: ["news"] }]`. */
@@ -22,6 +23,8 @@ export type PluginWiringContext = {
   createStack: (name: string) => Construct;
   graphqlApiId: string;
   graphqlEndpoint: string;
+  /** The site's `content-actions` function: it runs the projection tasks a plugin may add (for example `reader-snapshot`). */
+  contentActionsLambda: LambdaFunction;
 };
 
 export type PapyrusPlugin<Config, Functions = unknown> = {

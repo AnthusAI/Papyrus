@@ -33,6 +33,8 @@ class Records:
 
     def get_record(self, kind, key): return copy.deepcopy(self.records.get(kind, {}).get(key))
 
+    def safe_list_records(self, kind): return copy.deepcopy(list(self.records.get(kind, {}).values()))
+
 
 class EditorialContextTests(unittest.TestCase):
     def resolve(self, **kwargs):
@@ -98,10 +100,64 @@ class EditorialContextTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'section'):
             self.resolve(section_id='absent')
 
+    def sectioned(self):
+        client = Records()
+        client.records['NewsroomSection']['example#arts'] = dict(
+            id='example#arts', title='Arts & Culture', shortTitle='Arts', updatedAt='2026-10-18',
+            editorialMission='Cover the arts', editorialPolicy='Credit the artists')
+        return client
+
+    def test_section_resolves_by_id_then_slug_then_name(self):
+        by_id = resolve_editorial_context(self.sectioned(), endpoint='https://example.invalid', section_id='example#arts')
+        self.assertEqual(by_id['scope']['sectionId'], 'example#arts')
+        self.assertNotIn('requestedSection', by_id['scope'])
+        for value in ('arts', 'Arts', 'Arts & Culture', 'arts-culture'):
+            pack = resolve_editorial_context(self.sectioned(), endpoint='https://example.invalid', section_id=value)
+            self.assertEqual(pack['scope']['sectionId'], 'example#arts', value)
+            self.assertEqual(pack['scope']['requestedSection'], value)
+            self.assertIn('Cover the arts', pack['text'])
+
+    def test_unmatched_section_is_a_skip_only_when_optional(self):
+        pack = resolve_editorial_context(self.sectioned(), endpoint='https://example.invalid', section_id='Newsroom How-To',
+                                         optional_publication_doctrine=True)
+        self.assertEqual(pack['missingSectionConfiguration'], ['Newsroom How-To'])
+        self.assertIsNone(pack['scope']['sectionId'])
+        self.assertEqual(pack['scope']['requestedSection'], 'Newsroom How-To')
+        self.assertTrue(all(entry['scope'] != 'section' for entry in pack['entries']))
+        with self.assertRaisesRegex(ValueError, 'section not found'):
+            resolve_editorial_context(self.sectioned(), endpoint='https://example.invalid', section_id='Newsroom How-To')
+
+    def test_two_sections_with_the_same_name_are_ambiguous(self):
+        client = self.sectioned()
+        for key in ('a1', 'a2'):
+            client.records['NewsroomSection'][f'example#{key}'] = dict(id=f'example#{key}', title='Culture Desk')
+        with self.assertRaisesRegex(ValueError, 'ambiguous'):
+            resolve_editorial_context(client, endpoint='https://example.invalid', section_id='Culture Desk')
+
     def test_ambiguous_current_versions_fail(self):
         client = Records(); client.records['Item']['editorial-doctrine-policy'].append(dict(client.records['Item']['editorial-doctrine-policy'][-1], id='other-current'))
         with self.assertRaisesRegex(ValueError, 'current'):
             resolve_editorial_context(client, endpoint='https://example.invalid')
+
+    def test_optional_doctrine_reports_a_missing_mission_instead_of_failing(self):
+        # PPY-2c4b56: the editorial check asks for optional doctrine; nobody else does.
+        client = Records(); client.records['Item']['editorial-doctrine-mission'] = []
+        with self.assertRaisesRegex(ValueError, 'Publication mission: expected exactly one current record, found 0'):
+            resolve_editorial_context(client, endpoint='https://example.invalid')
+        pack = resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+        self.assertEqual(pack['missingPublicationDoctrine'], ['mission'])
+        self.assertEqual([(entry['scope'], entry['kind']) for entry in pack['entries']], [('publication', 'policy')])
+
+    def test_optional_doctrine_with_one_current_mission_is_unchanged(self):
+        default = self.resolve()
+        optional = self.resolve(optional_publication_doctrine=True)
+        self.assertNotIn('missingPublicationDoctrine', optional)
+        self.assertEqual(optional['contextHash'], default['contextHash'])
+
+    def test_optional_doctrine_still_rejects_ambiguous_missions(self):
+        client = Records(); client.records['Item']['editorial-doctrine-mission'].append(dict(client.records['Item']['editorial-doctrine-mission'][0], id='mission-other'))
+        with self.assertRaisesRegex(ValueError, 'found 2'):
+            resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
 
     def test_publication_comes_from_the_hosted_canonical_corpus(self):
         pack = resolve_editorial_context(Records(), endpoint='https://example.invalid/graphql')

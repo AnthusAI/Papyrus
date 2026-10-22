@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1bb3838d-0759-43af-ae96-e4d10503bc87",
+  "issue_id": "PPY-08391120-6312-4378-9f92-56905be98a1f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:53:51.841Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Guard decide-relevance --apply without an explicit doctrine",
+    "description": "papyrus references decide-relevance --apply defaults --doctrine to corpora/papyrus-publication-doctrine.yml (Threat Intelligence's doctrine), so a sweep for another site silently seeds that site's new cyclotron store with TI's mission (happened to p.apyr.us). Require an explicit --doctrine with --apply; dry run prints the doctrine it would use; guard every other command that seeds from the default.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

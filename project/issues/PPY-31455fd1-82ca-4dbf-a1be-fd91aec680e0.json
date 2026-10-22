@@ -22,10 +22,17 @@
       "text": "Distinctive Mark (AnthusAI/Distinctive-web, Kanbus project dist) is the first client: its signup forms, subscribe page and newsletter settings (web/site-config.json newsletter block) wait on M1; its issues f4e5f5 (connect signups) and 51f1c1 (The Docket weekly email) map to M1 and M2.",
       "created_at": "2026-10-20T22:13:05.875419Z",
       "comment_type": "default"
+    },
+    {
+      "id": "aa07dd5b-893d-41f8-a76a-c5c30b78592b",
+      "author": "home",
+      "text": "Ryan 2026-10-21: build sending now, all of the standard stuff: double opt-in, approved weekly roundup, on-demand alerts when items are published. Shipped (shipped.anth.us) is enabled first, Distinctive Mark second. Design: a newsletter plugin (amplify/plugins/newsletter) with a KMS-encrypted plugin table for subscribers (not an Amplify model), a per-site CloudFormation sending stack (infra/newsletter), CMS Next routes under /api/newsletter/* (already routed at every edge), a Python renderer (src/papyrus_content/email_render), roundup issues as Items of a configured type (published on send, so the archive gets a page, Markus twin and llms.txt), and alerts hooked on the publish event (not procedure runs), deduplicated per item lineage per list. Postal address is a required plugin setting that blocks issue and alert sends while unset. Stories: 874ad4, 4158a2, 949d68, b5a699, 64f38a (M1); 7643d1, 3ae3b9, 4005de (M2); d415c0, 237074, 93b135 (M3).",
+      "created_at": "2026-10-22T02:43:50.634947Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-20T22:12:56.359962Z",
-  "updated_at": "2026-10-20T22:13:05.875433Z",
+  "updated_at": "2026-10-22T02:43:50.634979Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

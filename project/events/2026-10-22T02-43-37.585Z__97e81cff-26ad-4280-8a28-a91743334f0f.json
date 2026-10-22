@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "97e81cff-26ad-4280-8a28-a91743334f0f",
+  "issue_id": "PPY-7643d160-7541-4326-9005-3a9964ecf10c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:43:37.585Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Email renderer: Markus to responsive email HTML and plain text, per-site theme, compliance footer",
+    "description": "src/papyrus_content/email_render: table-based HTML with inlined styles plus text part, theme tokens from plugin config, footer with why-you-get-this, manage and unsubscribe links and the postal address (issues refuse to render while it is unset). No tracking.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
+    "labels": []
+  }
+}

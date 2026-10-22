@@ -38,7 +38,8 @@ export type EditorialSegment = {
   text?: string;
 };
 
-export type LaneStatus = { status: "ran" | "disabled" | "unavailable" | "failed" | "partial"; reason?: string; detectors?: number };
+/** "skipped": Papyrus did not ask for judgments because the publication has no mission or policy for them to apply. */
+export type LaneStatus = { status: "ran" | "disabled" | "unavailable" | "failed" | "partial" | "skipped"; reason?: string; detectors?: number };
 
 export type EditorialCheckResult = {
   schemaVersion: 1;
@@ -49,7 +50,8 @@ export type EditorialCheckResult = {
   protected: { kind: string; start: number; end: number }[];
   findings: EditorialFinding[];
   coverage: unknown[];
-  lanes: { rules: LaneStatus; classifier: LaneStatus };
+  /** lanes.section is "skipped" when the story's section has no NewsroomSection record to take a mission and policy from. */
+  lanes: { rules: LaneStatus; classifier: LaneStatus; section?: LaneStatus };
   usage?: Record<string, number>;
 };
 
@@ -164,8 +166,10 @@ export function describeProbability(finding: EditorialFinding): string | null {
 
 export function laneNotice(result: EditorialCheckResult): string | null {
   const classifier = result.lanes.classifier;
+  if (classifier.status === "skipped") return `Mission-based checks skipped: ${classifier.reason ?? "this publication has no mission yet"}.`;
   if (classifier.status === "partial") return `Some sentences were not judged: ${classifier.reason ?? "the check ran out of time"}.`;
   if (classifier.status === "failed") return `The judgment checks failed: ${classifier.reason ?? "unknown error"}. Rule checks still ran.`;
   if (classifier.status === "unavailable" && (classifier.detectors ?? 0) === 0 && classifier.reason) return `Judgment checks are not configured: ${classifier.reason}.`;
+  if (result.lanes.section?.status === "skipped") return `Section-based checks skipped: ${result.lanes.section.reason ?? "no section configuration"}.`;
   return null;
 }

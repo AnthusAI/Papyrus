@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6de6c26b-9fe4-4e13-8bbb-d80cb815c8d9",
+  "issue_id": "PPY-17da0d21-26f7-4950-b6d8-72a35c6edb02",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:12.935Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier P3: Router writes relevance_decision_is",
+    "description": "Monitoring router records each delivered lab decision as a relevance_decision_is relation (reuse relevance_decision_records; cyclotronId/classifierId = lab output; provenance account/run/binding); supersede the existing current relation (current_relevance_decision raises on two). Suggestion row + Agree/Overrule show for router-delivered refs.\nAcceptance: router-delivered refs get a relation with provenance; a prior current relation is superseded (never two current); Suggestion row and Agree/Overrule render for router-delivered refs.\n\nSize: M\nDependencies: none (related PPY-4ac3d0, PPY-106510)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

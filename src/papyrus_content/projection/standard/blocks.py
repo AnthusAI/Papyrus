@@ -27,7 +27,7 @@ from .markdown import FRONT_MATTER
 DIRECTIVE = re.compile(r"^::(band|column|island|button|include)(?:\{(.*)\})?[ \t]*$")
 RAW_OPEN = re.compile(r"^::raw[ \t]*$")
 RAW_CLOSE = re.compile(r"^::endraw[ \t]*$")
-ATTRIBUTE = re.compile(r'([\w-]+)="([^"]*)"')
+ATTRIBUTE = re.compile(r'([\w-]+)=(?:"([^"]*)"|([^\s"}]+))')
 TOKEN = re.compile(r"(\\)?\{\{(\w+)\}\}")
 FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})(.*)$")
 CONTAINER_OPEN = re.compile(r"^:::[\w-]+")
@@ -114,7 +114,7 @@ def _directives(text: str):
         if match is None:
             yield line, None, {}, depth > 0
         else:
-            yield line, match.group(1), dict(ATTRIBUTE.findall(match.group(2) or "")), depth > 0
+            yield line, match.group(1), {name: quoted or bare for name, quoted, bare in ATTRIBUTE.findall(match.group(2) or "")}, depth > 0
     if raw:
         raise ValueError("::raw without a closing ::endraw")
 
@@ -317,17 +317,22 @@ def _band_html(band: dict) -> str:
     )
 
 
+def _knowledge_block(attributes: dict) -> bool:
+    return attributes.get("kind") == "block" and attributes.get("name", "").startswith("knowledge-")
+
+
 def twin(text: str, values: Mapping[str, str], source: str) -> str:
     """The Markdown twin's source: tokens replaced and every page block kept as written (an island carries its ``summary``).
 
     Only ``::include`` and ``::raw`` regions are left out: they place generated or hand-written markup that has no
-    source text to read."""
+    source text to read. The knowledge blocks (``::include{kind="block" name="knowledge-..."}``) are the exception: they
+    stay as written, because the line says what the page shows and where the data lives."""
     text = substitute(text, values, source)
     if not uses_blocks(text):
         return text
     front = FRONT_MATTER.match(text)
     head, body = (text[: front.end()], text[front.end():]) if front else ("", text)
-    out = [line for line, name, _attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw")]
+    out = [line for line, name, attributes, _inside in _directives(body) if name not in ("include", "raw", "rawline", "endraw") or (name == "include" and _knowledge_block(attributes))]
     return head + re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip() + "\n"
 
 

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0c22f900-f0b2-438c-b03d-38a34db28028",
+  "issue_id": "PPY-0b1009a7-2c82-423e-871e-2706fe103559",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T04:02:29.823Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us documentation: submit a link",
+    "description": "Final story of the epic. Document public submissions, the confirm step and abuse limits on p.apyr.us.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
+    "labels": []
+  }
+}

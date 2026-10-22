@@ -88,6 +88,10 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   topics.add_argument("topics_command")
   concepts = subparsers.add_parser("concepts", help="Semantic relation concepts")
   concepts.add_argument("concepts_command")
+  subparsers.add_parser("publish-run", help="Import a workstation run (clusters, entities, front-matter entities); dry run unless --apply")
+  subparsers.add_parser("snapshot", help="Write the public knowledge JSON (_data/knowledge/) for a site")
+  entities = subparsers.add_parser("entities", help="Review entities: list, accept, reject, rename, describe")
+  entities.add_argument("entities_command")
   return parser
 
 

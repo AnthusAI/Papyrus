@@ -9,6 +9,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [sources-and-monitoring.md](sources-and-monitoring.md): the Hacker News Monitor (Beta), email, Slack, research dispatch, source-site enrichers.
 - [editor-agents.md](editor-agents.md): editor, reporter, copywriter and researcher procedures, editorial checks, story versions.
 - [knowledge-base.md](knowledge-base.md): concepts wiki, taxonomy, graph, context packs, the trending report (Beta), Biblicus.
+- [knowledge-snapshot.md](knowledge-snapshot.md): the public knowledge JSON of a site (`papyrus knowledge snapshot`, `publish-run`, entity review).
 - [newsletter.md](newsletter.md): signup capture (Live); sending is not built.
 
 ## Start here

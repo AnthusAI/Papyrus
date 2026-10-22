@@ -1,0 +1,20 @@
+{
+  "id": "PPY-b5a69959-ed2a-43f4-9157-8eb15c458068",
+  "title": "Unsubscribe, preferences, re-subscribe, erasure and suppression",
+  "description": "RFC 8058 one-click unsubscribe endpoint plus footer link page, preference centre (lists, re-subscribe, unsubscribe all, delete my data), SNS event consumer that suppresses hard bounces and complaints and records delivery events, per-site bounce/complaint alarms that pause the site configuration set. Done when the SES mailbox simulator bounce and complaint are suppressed and a one-click POST unsubscribes.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T02:43:36.758531Z",
+  "updated_at": "2026-10-22T02:43:36.758562Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

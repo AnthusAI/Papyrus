@@ -1,0 +1,28 @@
+{
+  "id": "PPY-0a49c875-de05-4bdc-8103-a39a180d4488",
+  "title": "p.apyr.us documentation: reader accounts",
+  "description": "Final story of the epic. Document reader sign-in and handles on p.apyr.us (see PPY-ddd434 for conventions).\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+  "type": "story",
+  "status": "closed",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c4b0e16c-5300-4d27-9831-564b6efa9001",
+      "author": "home",
+      "text": "Done: sign-in, the handle picker and the privacy rules are documented at https://p.apyr.us/reader-votes-and-ratings.html (Papyrus-web #24, #25, #28).",
+      "created_at": "2026-10-22T04:03:18.855339Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-22T04:02:29.689620Z",
+  "updated_at": "2026-10-22T04:03:18.957793Z",
+  "closed_at": "2026-10-22T04:03:18.957756Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

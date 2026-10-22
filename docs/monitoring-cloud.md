@@ -31,6 +31,17 @@ A publication the router delivers to needs its AppSync grants in the router role
 three sites; Distinctive Mark's are in the managed policy `RouterDistinctiveIntakePolicy`, and further
 sites should follow that pattern (a role's inline policies are limited to 10,240 characters).
 
+**Lab decisions in the References tab.** When the router delivers a Cyclotron lab decision it also writes a
+`relevance_decision_is` relation for the Reference, in the same persist batch as the Reference and its provenance
+Message, so the Suggestion row, Agree/Overrule and status read it like a sweep decision. `metadata.cyclotronId` and
+`classifierId` name the lab output (`<publication>-relevance`); `metadata.provenance` records account, run, binding
+revision, decision id, fingerprint and version. Any current decision relation for the Reference is superseded; the
+relation id derives from the decision id, so re-delivering the same decision writes nothing. Cost per item: one
+`listSemanticRelationsBySubjectState` query, a get each for the label's SemanticNode and the relation, a create for the
+relation (plus the node the first time, and one get and update per superseded relation); no Cyclotron call. The grants
+are in the managed policy `RouterDecisionRelationPolicy` (cyclotron-decided sites only), which must be deployed with
+the stack before this code runs against a site, or delivery fails on the first write. `direct` monitors write none.
+
 ## What it does, and does not do
 
 The **collector** collects, dedupes, checkpoints and records receipts. It holds no

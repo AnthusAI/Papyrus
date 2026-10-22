@@ -1,0 +1,20 @@
+{
+  "id": "PPY-4005dea7-4fd4-44b6-aac3-1241649df0ca",
+  "title": "Newsroom newsletter panel: counts, lists, issues, approval, test send, delivery history",
+  "description": "Administration panel backed by newsletter custom queries and mutations with group checks: subscriber counts, issues and actions (approve for a time, cancel, stop, test send to own address), delivery, bounce and complaint history, pause and resume, admin erasure and CSV export.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T02:43:39.299501Z",
+  "updated_at": "2026-10-22T02:43:39.299530Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

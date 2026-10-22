@@ -1,0 +1,28 @@
+{
+  "id": "PPY-e8db82ba-0b5c-4b0f-b539-f649b90dc1f6",
+  "title": "Reader islands: sign-in, vote, rating, used-it, freshness",
+  "description": "As a reader, I want small accessible controls on the page so that I can sign in, vote and rate.\n\nFeature: Islands\n  Scenario: Reader sign-in is not open yet\n    Given the API answers 503 reader_identity_unavailable\n    Then the controls show 'Reader sign-in is not open yet' and are disabled\n  Scenario: Keyboard\n    Then vote and rating are buttons with aria-pressed and text states",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "2bc0ad88-f004-4396-a4b5-dfd3640ba165",
+      "author": "home",
+      "text": "Part 2 PR: https://github.com/AnthusAI/Papyrus/pull/516 (branch feat/reader-steering-snapshot). Verified: test_reader_snapshot.py, features_backend/reader-steering.feature, scripts/test-reader-islands.ts, test-reader-snapshot-privacy.ts, test-reader-steering-plugin.ts. p.apyr.us page: AnthusAI/Papyrus-web#28 (unmerged, a merge deploys). Off in production until Prospectus returns siteSubject.",
+      "created_at": "2026-10-22T02:14:48.572224Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-22T01:15:45.967921Z",
+  "updated_at": "2026-10-22T02:14:49.122037Z",
+  "closed_at": "2026-10-22T02:14:49.121996Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

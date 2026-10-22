@@ -10,9 +10,17 @@
   "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "57a5f90e-ef7c-4986-80c2-51c008e385b1",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Partly done. Exists on develop: the sign-in link to /api/auth/prospectus/sign-in (Prospectus accounts, Google only, no password sign-up); the readerSubject accessor and fail-closed reader routes, 401 signed out and 503 when no siteSubject (Papyrus #512); the sign-in callback storing the pairwise siteSubject, tested by scripts/test-reader-sign-in-flow.ts, and the session route no longer returning person ids (#518); the ReaderSignIn island (#516); retired-subject handling (#522, #524). Prospectus #81 returns siteSubject. Remains: release the plugin and enable it on a real publication (Shipped), then verify a live guest-to-reader sign-in there. Kept open for that.",
+      "created_at": "2026-10-22T04:02:21.457834Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:26.900346Z",
-  "updated_at": "2026-10-21T12:49:26.900375Z",
+  "updated_at": "2026-10-22T04:02:21.457868Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
