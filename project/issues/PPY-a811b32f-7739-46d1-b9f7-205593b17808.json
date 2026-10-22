@@ -3,17 +3,25 @@
   "title": "Reader handle and profile (reader-steering)",
   "description": "As a signed-in reader, I want to pick a unique public handle once so that my votes are attributed to a name, not an identity.\n\nFeature: Reader handle\n  Scenario: First handle\n    Given a signed-in reader with no handle\n    When they set the handle 'quiet-fox'\n    Then /api/reader/me returns the handle and a random readerId\n  Scenario: Taken handle\n    Given another reader holds 'Quiet-Fox'\n    When this reader sets 'quiet-fox'\n    Then the answer is 409\n  Scenario: Reserved handle\n    When a reader sets 'admin'\n    Then the answer is 422",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fe008e15-179b-42c6-9cef-d75ee2a08573",
+      "author": "home",
+      "text": "Part 1 PR: https://github.com/AnthusAI/Papyrus/pull/512 (branch feat/reader-steering-foundation). Verified: scripts/test-reader-subject.ts, test-reader-api.ts, test-reader-steering-plugin.ts, test-plugins.ts; procedures/newsroom/tests/test_reader_actions.py (moto DynamoDB); features_backend/reader-steering.feature. Off in production until Prospectus returns siteSubject.",
+      "created_at": "2026-10-22T01:53:22.053589Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T01:15:43.207555Z",
-  "updated_at": "2026-10-22T01:15:43.207589Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T01:53:22.626757Z",
+  "closed_at": "2026-10-22T01:53:22.626716Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
