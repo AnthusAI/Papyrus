@@ -952,10 +952,11 @@ def test_an_article_twin_is_the_facts_and_the_markus_source_without_front_matter
     assert "---" not in twin and "title:" not in twin
 
 
-def test_image_directives_become_markdown_images():
+def test_image_directives_stay_as_written_in_the_twin():
     from papyrus_content.projection.standard.markdown import body_of
 
-    assert body_of('---\ntitle: x\n---\nText\n\n::image{src="/a.png" alt="An A"}\n') == "Text\n\n![An A](/a.png)"
+    source = 'Text\n\n::image{src="/a.png" alt="An A" layout="full" caption="Cap"}'
+    assert body_of(f"---\ntitle: x\n---\n{source}\n") == source
 
 
 def test_listing_twins_are_link_lists_to_the_markdown_urls(flat):

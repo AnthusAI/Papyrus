@@ -121,4 +121,5 @@ class ReferenceIntake:
         }}
         self.persist([run, *reference_attachment_records(source, reference, context), message, relation])
         return {"referenceId": reference["id"], "referenceLineageId": reference["lineageId"],
-                "referenceVersion": reference.get("versionNumber") or 1, "provenanceMessageId": event_id}
+                "referenceVersion": reference.get("versionNumber") or 1, "provenanceMessageId": event_id,
+                "referenceReused": bool(matches)}

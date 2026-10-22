@@ -31,12 +31,13 @@ SECTIONS_COMMANDS = {
   "prune-attachments": "prune-attachments",
   "purge-planning": "purge-planning",
 }
-PROCEDURES_COMMANDS = ("seed-required", "execute-tactus", "policy")
+PROCEDURES_COMMANDS = ("seed-required", "register", "execute-tactus", "policy")
 OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages")
 CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages"}
 
 # Usage lines for commands whose flags are worth showing in group help.
 COMMAND_USAGE = {
+  ("procedures", "register"): "--file PATH.tac --key PROCEDURE_KEY [--root DIR] [--title TEXT] [--description TEXT] [--dry-run] [--json]",
   ("stories", "create"): "--title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment] [--dry-run]",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]",
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",

@@ -21,7 +21,7 @@ A Markus site publishes the same content in forms that software can read without
 
 ## Markdown twins
 
-Every published page has a `.md` twin next to it: `x.html` has `x.md`, `x/index.html` has `x/index.md`, and the home page has `index.md`. An article twin holds the title, summary, authors, dates and canonical URL, then the Markus source without front matter. A listing, archive, tag or home twin is a Markdown list of links to the other twins. HTML pages advertise their twin with `<link rel="alternate" type="text/markdown">`.
+Every published page has a `.md` twin next to it: `x.html` has `x.md`, `x/index.html` has `x/index.md`, and the home page has `index.md`. An article twin holds the title, summary, authors, dates and canonical URL, then the Markus source without front matter, every directive as written (`::image` with all its attributes, page blocks, and an island with its `summary` text). The twin is Markus; the `.md` extension and `text/markdown` type stay because Markus is a Markdown superset. An authored page (a `pages` entry with `source`) has the same kind of twin, is listed in `llms.txt` and `llms-full.txt`, and has the page actions. On a directory-style site `/x.md` is served from `x/index.md`. A listing, archive, tag or home twin is a Markdown list of links to the other twins. HTML pages advertise their twin with `<link rel="alternate" type="text/markdown">`.
 
 Which pages get no twin:
 

@@ -94,6 +94,9 @@ def _map_procedures(command: str, flags: list[str]) -> int:
     if command == "seed-required":
         _delegate_content("newsroom", "seed-required-procedures", flags)
         return 0
+    if command == "register":
+        _delegate_content("newsroom", "register-procedure", flags)
+        return 0
     if command == "execute-tactus":
         return _delegate_newsroom(["execute-tactus", *flags])
     if command == "policy":

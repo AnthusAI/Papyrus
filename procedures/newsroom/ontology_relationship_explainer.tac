@@ -8,7 +8,7 @@ local json = require("tactus.io.json")
 
 ontology_relationship_explainer = Agent {
     provider = "openai",
-    model = "gpt-5.4-mini",
+    model = "gpt-6-luna",
     system_prompt = [[
 You explain ontology relationships for Papyrus.
 
@@ -78,7 +78,7 @@ Required JSON shape for relation_explanation:
   "ambiguity": ["short caveat"],
   "confidence": 0.0,
   "candidateAssociations": [{"predicate":"related_to", "targetConceptId":"semantic-node-id", "confidence":0.0, "rationale":"short reason"}],
-  "model": "gpt-5.4-mini"
+  "model": "gpt-6-luna"
 }
 
 Context JSON:
@@ -108,7 +108,7 @@ Context JSON:
         explanation.ambiguity = normalize_table(explanation.ambiguity)
         explanation.candidateAssociations = normalize_table(explanation.candidateAssociations)
         explanation.confidence = normalize_number(explanation.confidence, 0.0)
-        explanation.model = tostring(explanation.model or "gpt-5.4-mini")
+        explanation.model = tostring(explanation.model or "gpt-6-luna")
         return {
             relation_explanation = explanation
         }
@@ -122,7 +122,7 @@ Feature: Ontology relationship explanation
   Scenario: Relationship explainer returns a contextual meaning object
     Given the procedure has started
     And the input context_json is {"relation":{"id":"semantic-relation-1","predicate":"mentions"},"subject":{"record":{"title":"Reference"}},"object":{"record":{"displayName":"Concept"}}}
-    And the agent "ontology_relationship_explainer" returns data {"relation_explanation":{"meaning":"Reference mentions Concept in context.","evidence":[],"ambiguity":[],"confidence":0.9,"candidateAssociations":[],"model":"gpt-5.4-mini"}}
+    And the agent "ontology_relationship_explainer" returns data {"relation_explanation":{"meaning":"Reference mentions Concept in context.","evidence":[],"ambiguity":[],"confidence":0.9,"candidateAssociations":[],"model":"gpt-6-luna"}}
     When the procedure runs
     Then the procedure should complete successfully
     And the output relation_explanation should exist

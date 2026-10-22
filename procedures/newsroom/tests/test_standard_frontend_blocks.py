@@ -194,12 +194,14 @@ def test_values_are_part_of_the_shared_fingerprint():
     assert fingerprint({"price": "$5"}) != fingerprint({"price": "$6"})
 
 
-def test_the_markdown_twin_drops_markers_turns_buttons_into_links_and_omits_islands(blocked):
+def test_the_markdown_twin_keeps_the_page_blocks_as_written(blocked):
     twin = blocked.text("index.md")
-    assert "::" not in twin and "papyrus-island" not in twin and "Chart" not in twin
-    assert "# Price $5" in twin and "[Start](/start/) · [Source](https://example.org/)" in twin and "Second band." in twin
-    assert "Open source" not in twin
-    assert "::" not in blocked.text("llms-full.txt")
+    assert '::band{id="top" tone="card" size="hero" eyebrow="Open source" columns="home"}' in twin
+    assert '::column{panel="card"}' in twin and '::band{tone="muted"}' in twin and '::band{size="bare"}' in twin
+    assert '::button{href="/start/" label="Start" size="lg"}' in twin
+    assert '::button{href="https://example.org/" label="Source" variant="secondary"}' in twin
+    assert "papyrus-island" not in twin and "# Price $5" in twin and "{{price}}" not in twin   # tokens are still replaced
+    assert '::island{name="Chart" height="20rem" kind="bar" note="it\'s <b>"}' in twin
 
 
 # ------------------------------------------------------------------ islands
@@ -548,6 +550,39 @@ def test_islands_and_buttons_work_inside_a_markus_container():
         site.cleanup()
 
 
-def test_the_markdown_twin_of_a_page_with_blocks_in_containers_has_links_and_no_islands():
+def test_the_markdown_twin_of_a_page_with_blocks_in_containers_keeps_them():
     text = blocks.twin(CARDS, {}, "cards.md")
-    assert "[A](/a/) · [B](/b/)" in text and "island" not in text.split("```")[0]
+    assert '::button{href="/a/" label="A"}' in text and '::button{href="/b/" label="B" variant="secondary"}' in text
+    assert text.count('::island{name="Chart"') == 2 and "```lua" in text
+
+
+def test_twin_leaves_out_includes_and_raw_regions():
+    text = '::band\nBefore.\n\n::include{kind="showcase"}\n\n::raw\n<div>x</div>\n::endraw\n\nAfter.\n'
+    assert blocks.twin(text, {}, "p.md") == "::band\nBefore.\n\nAfter.\n"
+
+
+# ------------------------------------------------------------------ island text fallback
+
+def test_an_island_summary_is_the_mount_points_text_and_not_a_prop():
+    html_text = blocks.render('::band\n::island{name="Chart" kind="bar" summary="A bar <chart> of accuracy."}\n', "f.md", lambda text: text)
+    assert '<div class="papyrus-island" data-island="Chart" data-props=\'{"kind":"bar"}\'><p class="papyrus-island-summary">A bar &lt;chart&gt; of accuracy.</p></div>' in html_text
+
+
+def test_an_island_without_a_summary_stays_empty():
+    assert "data-props='{}'></div>" in blocks.render('::band\n::island{name="Chart"}\n', "f.md", lambda text: text)
+
+
+def test_the_island_summary_works_inside_a_container_and_in_the_twin():
+    text = '::band\n:::card{title="One"}\n::island{name="Chart" summary="Accuracy by model."}\n:::\n'
+    assert '<p class="papyrus-island-summary">Accuracy by model.</p>' in blocks.render(text, "f.md", lambda md: md)
+    assert 'summary="Accuracy by model."' in blocks.twin(text, {}, "f.md")
+
+
+def test_prerendered_html_replaces_the_text_fallback_and_a_mount_without_an_entry_keeps_it():
+    def mount(name):
+        return blocks.render(f'::band\n::island{{name="{name}" summary="Fallback text."}}\n', "f.md", lambda text: text)
+
+    filled = blocks.fill_islands(mount("Chart"), {"Chart": [({}, "<svg>chart</svg>")]})
+    assert "<svg>chart</svg></div>" in filled and "Fallback text." not in filled
+    kept = blocks.fill_islands(mount("Other"), {"Chart": [({}, "<svg>chart</svg>")]})
+    assert "Fallback text." in kept and "<svg>" not in kept

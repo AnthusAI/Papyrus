@@ -17,6 +17,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     try {
       mount(element, props);
+      // The text fallback (summary="...") is for readers without JavaScript; the mounted island replaces it.
+      var fallback = element.querySelector(":scope > .papyrus-island-summary");
+      if (fallback) fallback.remove();
     } catch (error) {
       console.warn("Papyrus island " + name + " failed", error);
     }

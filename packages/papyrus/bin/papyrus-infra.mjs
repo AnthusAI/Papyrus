@@ -53,7 +53,7 @@ if (command === "compile-edge-function") {
   const { compileRedirectFunctionSource, readEdgeConfig } = await import("../amplify/publication/redirect-rules.js");
   const functionSource = fs.readFileSync(new URL("../amplify/publication/redirect-and-index.js", import.meta.url), "utf8");
   const config = readEdgeConfig(staticDir);
-  const compiled = compileRedirectFunctionSource(functionSource, config.rules, { negotiateMarkdown: config.negotiateMarkdown });
+  const compiled = compileRedirectFunctionSource(functionSource, config.rules, { negotiateMarkdown: config.negotiateMarkdown, directoryTwins: config.directoryTwins });
   const out = opt("out");
   if (out) fs.writeFileSync(path.resolve(out), compiled);
   else process.stdout.write(compiled);

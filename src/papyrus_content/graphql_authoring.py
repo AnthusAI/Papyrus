@@ -518,6 +518,12 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "fields": SEMANTIC_RELATION_FIELDS,
         "partitionType": "ID",
     },
+    "procedureVersionsByProcedure": {
+        "field": "listProcedureVersionsByProcedureAndVersion",
+        "partitionKey": "procedureId",
+        "fields": PROCEDURE_VERSION_FIELDS,
+        "partitionType": "ID",
+    },
     "modelAttachmentsByOwnerRoleAndSortKey": {
         "field": "listModelAttachmentsByOwnerRoleAndSortKey",
         "partitionKey": "ownerId",

@@ -12,7 +12,7 @@ Toolset "papyrus" {
 
 newsroom_editor = Agent {
     provider = "openai",
-    model = "gpt-5.4-mini",
+    model = "gpt-6-luna",
     system_prompt = [[
 You are the Papyrus newsroom editor agent.
 
