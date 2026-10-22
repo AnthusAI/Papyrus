@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "63e5b445-f8d3-4b8d-89dc-cb6a5969fa12",
+  "issue_id": "PPY-40143037-aba4-4154-a635-cfe2d6e35ab1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T05:00:48.077Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "TTAB monitor References carry a source address that returns 404",
+    "description": "The TTAB monitor's canonical PDF address (ttab-document/legal-proceeding/<n>/decision/<doc>.pdf) returns 404; the double-slash form the Reading Room site links and the TTABVUE address download. References created by the monitor store the canonical address as sourceUri, so their source link in the newsroom is broken. Triggers already pass {documentUrl} (#509). Fix: make the downloadable form the canonical URL, or store it as the Reference's source address, without breaking alias matching.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-f0624a9d-ccee-49ef-9b1f-add8e19777f9",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "Distinctive Mark implementation"
+    }
+  }
+}

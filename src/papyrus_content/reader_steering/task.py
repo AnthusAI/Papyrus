@@ -24,9 +24,10 @@ from .retirement import (
     RetirementReport,
     run_retirement_poll,
 )
-from .review import ReviewReport, review_submissions
+from .review import ReviewReport, review_comments, review_submissions
 from .signals import submission_signals
 from .snapshot import (
+    COMMENTS_DIRECTORY,
     BOARD_FILE,
     iso as snapshot_iso,
     ITEMS_FILE,
@@ -34,6 +35,7 @@ from .snapshot import (
     SUBMISSIONS_FILE,
     SnapshotSettings,
     build_snapshot,
+    comments_key,
     encoded,
     settings_from_mapping,
 )
@@ -43,6 +45,7 @@ PROFILE_TABLE_ENV = "PAPYRUS_READER_PROFILE_TABLE"
 VOTE_TABLE_ENV = "PAPYRUS_READER_VOTE_TABLE"
 HANDLE_TABLE_ENV = "PAPYRUS_READER_HANDLE_TABLE"
 SUBMISSION_TABLE_ENV = "PAPYRUS_READER_SUBMISSION_TABLE"
+COMMENT_TABLE_ENV = "PAPYRUS_READER_COMMENT_TABLE"
 STATE_TABLE_ENV = "PAPYRUS_READER_RATE_TABLE"
 POLL_URL_ENV = "PAPYRUS_READER_POLL_URL"
 POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER"
@@ -60,6 +63,7 @@ class ReaderSnapshotReport:
     subjects: int
     readers: int
     karma_updated: int
+    comment_files: int
     purged: list[str]
     purge_error: str | None
     retirement_poll: RetirementReport
@@ -72,6 +76,7 @@ class ReaderSnapshotReport:
             "subjects": self.subjects,
             "readers": self.readers,
             "karmaUpdated": self.karma_updated,
+            "commentFiles": self.comment_files,
             "purged": self.purged,
             "purgeError": self.purge_error,
             "retirementPoll": self.retirement_poll.to_dict(),
@@ -151,6 +156,37 @@ def write_karma(resource: Any, table_name: str, profiles: list[dict], karma: Map
     return updated
 
 
+def without_generated_at(payload: Mapping) -> dict:
+    return {key: value for key, value in payload.items() if key != "generatedAt"}
+
+
+def write_comment_files(context: Any, files: Mapping[str, dict], generated_at: str) -> list[str]:
+    """Writes the comment file of each subject whose comments changed, and empties the file of a subject that has none any more.
+
+    Only changed files are written (and so purged on the edge): the freshness stamp alone is not a change.
+    A file is emptied rather than deleted, so a page that asks for it still gets valid JSON.
+    """
+    prefix = snapshot_key(context.projector, COMMENTS_DIRECTORY) + "/"
+    existing = {entry.key for entry in context.writer.list(prefix)}
+    current: dict[str, dict] = {}
+    for subject, payload in files.items():
+        key = comments_key(subject)
+        if key is not None:
+            current[snapshot_key(context.projector, key)] = payload
+    for key in sorted(existing - set(current)):
+        previous = json.loads(context.writer.get(key) or b"{}")
+        if previous.get("comments"):
+            current[key] = {"generatedAt": generated_at, "subject": previous.get("subject"), "comments": []}
+    written: list[str] = []
+    for key in sorted(current):
+        old = context.writer.get(key)
+        if old is not None and without_generated_at(json.loads(old)) == without_generated_at(current[key]):
+            continue
+        context.writer.put(key, encoded(current[key]))
+        written.append(key)
+    return written
+
+
 def run_reader_snapshot(
     context: Any,
     client: Any,
@@ -162,6 +198,7 @@ def run_reader_snapshot(
     poll_retirements: bool = False,
     submitter_of: Callable[[str], str | None] | None = None,
     review_signals: Callable[..., list[dict]] | None = None,
+    comment_signals: Callable[[str], list[dict]] | None = None,
 ) -> ReaderSnapshotReport:
     environment = os.environ if environment is None else environment
     settings = snapshot_settings_from_environment(environment)
@@ -182,6 +219,7 @@ def run_reader_snapshot(
                     vote=environment[VOTE_TABLE_ENV],
                     state=environment[STATE_TABLE_ENV],
                     submission=environment.get(SUBMISSION_TABLE_ENV, ""),
+                    comment=environment.get(COMMENT_TABLE_ENV, ""),
                 ),
             )
         except Exception as error:  # noqa: BLE001 - a poll that cannot start must not stop the numbers
@@ -190,20 +228,24 @@ def run_reader_snapshot(
     profiles = [plain_row(row) for row in scan_table(resource, environment[PROFILE_TABLE_ENV])]
     submissions = [plain_row(row) for row in scan_table(resource, environment[SUBMISSION_TABLE_ENV])] if environment.get(SUBMISSION_TABLE_ENV) else []
     now = time.time() if now_seconds is None else now_seconds
+    comments = [plain_row(row) for row in scan_table(resource, environment[COMMENT_TABLE_ENV])] if environment.get(COMMENT_TABLE_ENV) else []
     review = ReviewReport()
-    if submissions:
-        try:
+    try:
+        if submissions:
             review.submissions = review_submissions(resource, environment[SUBMISSION_TABLE_ENV], submissions, now_iso=snapshot_iso(now), signals=review_signals or submission_signals)
-        except Exception as error:  # noqa: BLE001 - signals are advice; a failure must not stop the numbers
-            review.error = type(error).__name__
+        if comments:
+            review.comments = review_comments(resource, environment[COMMENT_TABLE_ENV], comments, now_iso=snapshot_iso(now), **({"signals": comment_signals} if comment_signals else {}))
+    except Exception as error:  # noqa: BLE001 - signals are advice; a failure must not stop the numbers
+        review.error = type(error).__name__
     snapshot = build_snapshot(
         votes,
         profiles,
-        published_at=published_times(client, {vote["subjectKey"] for vote in votes}),
+        published_at=published_times(client, {vote["subjectKey"] for vote in votes} | {comment["subjectKey"] for comment in comments}),
         now_seconds=now,
         settings=settings,
         submitter_of=submitter_of,
         submissions=submissions,
+        comments=comments,
     )
     keys: list[str] = []
     files = [(ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers)]
@@ -213,6 +255,8 @@ def run_reader_snapshot(
         key = snapshot_key(context.projector, site_key)
         context.writer.put(key, encoded(payload))
         keys.append(key)
+    comment_keys = write_comment_files(context, snapshot.comments, snapshot.items["generatedAt"])
+    keys.extend(comment_keys)
     karma_updated = write_karma(resource, environment[PROFILE_TABLE_ENV], profiles, snapshot.karma)
     purged: list[str] = []
     purge_error: str | None = None
@@ -226,6 +270,7 @@ def run_reader_snapshot(
         subjects=len(snapshot.items["items"]),
         readers=len(snapshot.readers["readers"]),
         karma_updated=karma_updated,
+        comment_files=len(comment_keys),
         purged=purged,
         purge_error=purge_error,
         retirement_poll=retirement,

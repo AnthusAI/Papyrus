@@ -2,7 +2,7 @@
 
 Readers sign in, pick a handle, upvote, mark "I used it", rate the items of a publication and submit links. Editors and
 readers steer ranking together. The `reader-steering` plugin (initiative PPY-77bb3b) builds the reader identity, the reader
-API, votes and ratings, public link submissions (see [Submissions](#submissions)), the snapshot that puts live numbers on
+API, votes and ratings, public link submissions (see [Submissions](#submissions)), comments as a steering signal (see [Comments](#comments)), moderation after the fact (see [Moderation](#moderation)), the snapshot that puts live numbers on
 static pages and the page components that show them.
 
 **Production switch.** Everything here is built and tested but stays off in production until Prospectus returns a
@@ -28,7 +28,7 @@ export default defineSite({
 });
 ```
 
-Enabling it is a backend deploy: four models, the `reader-actions` function, a rate-window table and, when
+Enabling it is a backend deploy: seven models, one staff mutation, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
 `computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
@@ -54,6 +54,14 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `submissions.perDay` | 10 | Submissions one reader may make in a UTC day. A profile younger than `limits.newAccountHours` gets `perDay / limits.newAccountDivisor` (3 by default). |
 | `submissions.similarHours` | 48 | Another submission from the same domain inside this window is returned as a `similar` warning. |
 | `submissions.kinds` | `["link"]` | The kinds a reader may pick on the form (lowercase names). One kind hides the radio. |
+| `comments.perHour` | 30 | Comments, replies and edits one reader may make in a clock hour (a third of it for a profile younger than `limits.newAccountHours`). |
+| `comments.editWindowMinutes` | 10 | The author may edit a comment this long after posting it. `0` turns editing off. |
+| `comments.maximumLength` | 2000 | Characters in a comment. |
+| `comments.maximumLinks` | 3 | Links (`http://`, `https://` or `www.`) in a comment. |
+| `submissions.itemType`, `submissions.section` | `brief`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
+| `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. See [Moderation](#moderation). |
+| `moderation.preModeration` | `false` | Hold new submissions and comments hidden until a moderator approves them. Needs a mode other than `off`. |
+| `moderation.reportsPerDay` | 20 | Reports one reader may file in a UTC day (a third for a new account). |
 | `retirementPoll` | `false` | Poll Prospectus for retired reader subjects in each scheduled run. Needs `snapshot.schedule: true`, and `cms.readerRetirementPoll: true` in the site's app-shell `site.json` (see [the retirement poll](#the-prospectus-retirement-poll)). |
 
 The deployed backend publishes `custom.readerSteering.actionsFunction` (the function name the CMS routes invoke) and
@@ -72,7 +80,7 @@ The deployed backend publishes `custom.readerSteering.actionsFunction` (the func
   reader's chosen handle, so not even the siteSubject is public.
 - Public text (a submission's title and note, its URL) cannot contain an email address: the function answers `422` and the
   reader is asked to remove it. A reader's text is shown only with their handle and `readerId`.
-- No model has a guest, API key or custom rule. Editors may list the four models and admins may delete; the function
+- No model has a guest, API key or custom rule. Editors may list the seven models and admins may delete; the function
   writes the tables with its own role.
 - The privacy scan test renders the snapshot and the projected pages of a fixture site with votes and profiles and fails
   if any person id pattern, `ss1_` or `ssdev_` value or email address appears.
@@ -83,7 +91,7 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 
 1. reads the sealed Prospectus session (`401 signed_out` without one) and asks `readerSubject` (`503 reader_identity_unavailable` when it is `null`);
 2. for writes, checks that `Origin` equals `PAPYRUS_SITE_ORIGIN` (`403 origin_mismatch`; a missing Origin fails too);
-3. for writes, checks the content type is `application/json` (`415`) and the body is at most 4096 bytes (`413`; 8192 for a submission);
+3. for writes, checks the content type is `application/json` (`415`) and the body is at most 4096 bytes (`413`; 8192 for a submission, 12288 for a comment or an edit);
 4. invokes the `reader-actions` function with `{publication, siteSubject, isStaff, action, payload}`. `isStaff` is true when the
    `cognito:groups` claim of the session's access token holds `editor` or `admin`; the browser never sends it.
 
@@ -93,6 +101,10 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 | `POST /api/reader/handle` | `{handle}` | Sets the handle once: 3 to 24 characters of `[a-z0-9_-]`, case-insensitive (stored lowercase). `409 handle_taken`, `409 handle_already_set`, `422 reserved_handle`, `422 invalid_handle`. |
 | `POST /api/reader/vote` | `{subject, dimension: "up" \| "used-it", on: boolean}` | `on: true` stores the vote (idempotent), `on: false` removes it. |
 | `POST /api/reader/rating` | `{subject, dimension, value: 1..5 \| null}` | A new value replaces the old one; `null` removes it. |
+| `POST /api/reader/report` | `{target, reason}` | `200 {reported: true}` for a visible submission or comment; one report per reader and target; `404 unknown_target`. See [Moderation](#moderation). |
+| `POST /api/reader/comment` | `{subject, body, parent?, ratingContext?}` | `201 {id, subject, parent, body, createdAt, ratingContext}`. See [Comments](#comments). |
+| `POST /api/reader/comment/edit` | `{id, body}` | `200 {id, body, editedAt}`; `403 edit_window_closed`; `404` for a comment that is not the caller's. |
+| `POST /api/reader/comment/delete` | `{id}` | `200 {id, state: "deleted"}`; idempotent. |
 | `POST /api/reader/submit` | `{url, title, kind?, note?}` | `201 {subject, url, title, kind, state: "pending", extraction: "pending", similar: [{subject, url, title}]}`. `409 duplicate_submission` with `existing: {subject, url, title, state}`. See [Submissions](#submissions). |
 
 The subject is the lineage id of a published item, or the id of a visible submission (`sub-` plus 24 hex characters). The
@@ -128,15 +140,18 @@ role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` 
 | `ReaderProfile` | the siteSubject | `siteSubject`, `readerId` (UUID, public), `handle`, `state` (`active`, `limited`, `banned`), `karma` (materialised by the snapshot), `createdAt` |
 | `ReaderHandle` | the lowercase handle | `readerId`. A claim written together with the profile's handle in one transaction, which is what makes a handle unique. |
 | `ReaderSubmission` | `sub-` + the first 24 hex characters of the SHA-256 of the canonical URL | `canonicalUrl`, `domain`, `title`, `kind`, `note`, `readerId`, `state` (`pending`, `promoted`, `hidden`), `similar` (submission ids), `signals` (JSON string), `extractionState`, `itemId`, `reviewedAt`, `createdAt`. A secondary index `submissionsByDomain` (`domain`, `createdAt`) finds recent items from one site. |
+| `ReaderComment` | `cmt-` + 32 hex characters | `subjectKey`, `readerId`, `body` (empty once deleted), `parentId`, `ratingContext` (JSON string `{dimension, value}`), `state` (`visible`, `hidden`, `deleted`), `signals`, `reviewedAt`, `editedAt`, `deletedAt`, `createdAt` |
+| `ReaderReport` | `rep-` + 24 hex characters of the SHA-256 of `readerId#target` | `targetType`, `target`, `reporterReaderId`, `reason`, `state` (`open`, `closed`), `closedAt`, `createdAt`. An index `reportsByTarget`. |
+| `ModerationAction` | `mod-` + 32 hex characters | `by` (`human`, `ai`), `actorSub` (the staff member's Cognito subject, or `ai`), `action`, `targetType` (`submission`, `comment`, `reader`), `target`, `reason`, `fromState`, `toState`, `fromModeration`, `toModeration`, `undoOf`, `undoneBy`, `at`. An index `actionsByTarget`. |
 | `ReaderVote` | `subjectKey#readerId#dimension` | `subjectKey`, `readerId`, `dimension`, `value` (1 for `up` and `used-it`, 1 to 5 for ratings), `voterRole` (`editor` or `reader`), `createdAt`, `updatedAt` |
 
-A revote overwrites and keeps `createdAt`; an unvote deletes. `ModerationAction` belongs to the moderation work; the profile `state`
-is where it lands.
+A revote overwrites and keeps `createdAt`; an unvote deletes. `ReaderProfile.state` is what a ban or limit changes; it has an index on `readerId` (`profilesByReader`), because moderators name readers by their public id.
+Submissions and comments also carry `moderation` (`new` or `approved`) and `reportCount`.
 
 ## The snapshot
 
 `reader-snapshot` is a projection task of the `content-actions` function. It reads every vote and profile with the
-function's own role, the publication time of each voted item through the authoring client, and writes four files into
+function's own role, the publication time of each voted item through the authoring client, and writes four files, and one file for each item or submission that has comments, into
 the site bucket under the projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/reader/items.json`).
 The page-reconcile step knows these files belong to the task and never reports them as orphans. It then purges exactly the four
 paths on the edge distribution when the backend knows one (`PAPYRUS_EDGE_DISTRIBUTION_ID`; never a wildcard) and
@@ -200,6 +215,8 @@ Only items that are still published appear. The files are cached like pages (`s-
 a number can lag by the cache lifetime.
 
 `_data/reader/submissions.json` lists the newest 200 visible submissions (see [Submissions](#submissions)).
+`_data/reader/comments/<subject>.json` holds the visible comments of one subject (see [Comments](#comments)), and `items.json`
+carries a `comments` count for every subject (zero when there are none; a subject with comments and no votes still gets an entry).
 
 ### Karma
 
@@ -311,6 +328,117 @@ on a submission use the existing vote route with `subject` set to its id, and ap
 
 A deleted reader's submissions are deleted by the retirement poll and a merged reader's move to the surviving profile.
 
+## Comments
+
+Signed-in readers with a handle comment on published items and on visible submissions: `POST /api/reader/comment`.
+
+**Storage choice.** A plugin model, `ReaderComment`, not a `Message` with `messageKind: reader_comment`. The `Message` model
+is the newsroom's append-only inbox: editors can create and read but not update, and its rows are realtime-subscribed
+and indexed for the newsroom feed. Comments need edits (the author's ten minutes), deletes that leave a stub and a state that
+moderation changes, and reader text should not flood the editors' feed. The snapshot already is the only public read path, so a
+staff-only table loses nothing.
+
+**Rules.** Plain text, at most `comments.maximumLength` characters (counted as characters, not bytes), at most
+`comments.maximumLinks` links, no control characters other than newlines and tabs, and no email address (`422`). Text is stored
+as typed and shown by the island as text, so markup never runs; links are not made clickable. A reader needs a handle and must
+not be `limited` or `banned`. The subject must be a published item or a visible submission (`404 unknown_subject`).
+`comments.perHour` comments, replies and edits an hour, a third of that for a new account (`429`).
+
+**Threads.** One level: `parent` must be a visible top-level comment on the same subject (`422 invalid_parent` otherwise, which
+includes a reply to a reply, to a deleted comment and to another item's comment).
+
+**Edit and delete.** The author edits for `comments.editWindowMinutes` (`403 edit_window_closed` after); an edit asks for a new
+review of the text. A delete by the author clears the text and keeps the row as a stub (`state: "deleted"`). Someone else's
+comment, or a comment moderation has hidden, looks missing (`404`).
+
+**Rationale at rating time.** `ratingContext` is `{dimension, value}` and must equal the caller's own current vote on that
+subject and dimension (`up` or `used-it` with value 1, or a rating dimension with 1 to 5); otherwise `422
+rating_context_mismatch`, so a comment cannot claim a rating nobody gave. A reply carries none. The `Rating` island shows "Why?
+(optional, public)" under a dimension right after the reader rates it and posts the answer as a comment with that context. The
+context is never in the public file, because that would pair a reader with their rating.
+
+**Public files.** `_data/reader/comments/<subject>.json` (only subjects that are safe as a file name):
+
+```json
+{
+  "generatedAt": "2026-10-22T10:00:00Z",
+  "subject": "item-one",
+  "comments": [
+    { "id": "cmt-...", "readerId": "<uuid>", "handle": "quiet-fox", "body": "Worth reading.", "createdAt": "2026-10-22T09:00:00.000Z", "parent": null, "edited": false },
+    { "id": "cmt-...", "stub": true, "parent": null, "createdAt": "2026-10-22T09:05:00.000Z" }
+  ]
+}
+```
+
+Oldest first. Only visible comments appear, plus a stub (no author, no text) for a deleted or hidden top-level comment that
+still has visible replies, so the thread stays readable. A comment that is hidden or deleted and has no replies leaves no trace.
+A file is rewritten and purged on the edge only when its content changes (the freshness stamp alone is not a change), and when a
+subject has no comments left its file is emptied, not deleted, so a page that asks for it still gets valid JSON.
+
+**Signals.** The `reader-snapshot` run adds Humanus rule signals to new and edited comments, like submissions (stored as a JSON
+string; advice for moderators, never an automatic hide).
+
+### Steering: the feedback export
+
+Comment text is a steering signal. Cyclotron has no generic reader-feedback input (its inputs are the relevance sweeps and the
+priming examples, see [cyclotron-priming.md](cyclotron-priming.md)), so reader comments leave through an export that the loop pulls
+when it is ready; nothing in a reader request calls Cyclotron.
+
+```bash
+papyrus reader feedback export --since 2026-10-22T00:00:00Z --out reader-feedback.jsonl
+```
+
+It needs an editor session (`papyrus login`) or the authoring role, since the model is staff-only. One JSON object per line, for
+every comment whose `updatedAt` is after `--since` (all of them without it), oldest update first:
+
+```json
+{"schema":"papyrus.reader-feedback/v1","source":"reader","status":"active","commentId":"cmt-...","readerId":"<uuid>","subject":"item-one","subjectKind":"item","parentId":null,"rating":{"dimension":"real","value":4},"rationale":"The benchmarks held up.","createdAt":"...","updatedAt":"..."}
+```
+
+`rating` is `null` for a comment that explains no vote. `subjectKind` is `submission` for a submission id. A comment that was hidden
+or deleted comes out as `"status": "retracted"` with no `rationale` or `rating`, so a consumer that ingested the earlier line can
+drop it. Attribution is the public `readerId` only, and `source: "reader"` keeps these records apart from editor signals, which come from
+editor votes and the curation reviews. The consumer keeps the greatest `updatedAt` it has seen as the next `--since`.
+
+## Moderation
+
+Submissions and comments are public the moment they are written. Moderation acts after the fact, unless a publication turns on
+pre-moderation. Staff (editors and admins) moderate in Administration, Moderation; readers can report.
+
+**Modes (`moderation.mode`).** `human` (the default for a pilot) puts every new submission and comment in a queue and leaves it
+public; `off` has no queue. Moving a site from `human` to `off` is "trust graduation": a configuration change and a backend deploy,
+nothing else. With `moderation.preModeration: true` new submissions and comments start `hidden` ("held": the reader is told `state:
+"held"` and the island says "Held for review") and become public when a moderator approves them.
+
+**Reports.** `POST /api/reader/report {target, reason}` (the target is a submission id or a comment id; `reason` is plain text, at most
+500 characters; `moderation.reportsPerDay` a day, a third for a new account, repeats count). A report is stored once per reader and
+target, raises the target's `reportCount` and puts it back in the queue (`moderation: "new"`) even if it was approved before. A
+moderator's decision closes the open reports of the target. The `Comments` island has a Report button on other readers' comments, and
+the `Report` island (`data-props='{"target": "<id>"}'`) goes beside a listed submission.
+
+**Actions.** Staff call the AppSync mutation `moderateReader(action, targetType, target, reason, undoOf)`, open to the `editor` and
+`admin` groups only (the function checks the groups again). It answers a receipt `{status: "ok" | "refused", id, error, message}`; it never throws.
+`target` is a submission id, a comment id or, for a reader, the public `readerId` (staff never see a siteSubject).
+
+| Action | Applies to | Effect |
+|---|---|---|
+| `approve` | submission, comment | Marks it reviewed (`moderation: approved`). A held item becomes public. Only while it is `new`. |
+| `hide` | submission, comment | `state: hidden`, reviewed. It leaves the next snapshot and its votes stop counting. |
+| `unhide` | submission, comment | Back to `pending`/`visible` (or `promoted` if it was promoted). |
+| `promote` | pending submission | Writes a draft `Item` (version 1, stage `idea`, type and section from `submissions.itemType`/`section`, the reader's note as the deck, `metadata` with the source URL, kind, submission id and `readerId`) and sets the submission `promoted` with its `itemId`. The editor works and publishes the draft as usual; upvotes and used-it reports on the item then earn the submitter karma. Not undoable. |
+| `ban` / `limit` / `unban` | reader | `ReaderProfile.state` to `banned` (every write answers `403 reader_banned`; the reader can still read their own state), `limited` (no votes, ratings, submissions or comments; `403 reader_limited`), or `active` again. Content a reader already wrote stays until a moderator hides it. |
+| `undo` | any of the above except `promote` | Restores the state the action replaced and marks the original `undoneBy`. |
+
+Each action is one `ModerationAction` row written in the same DynamoDB transaction as the change it records, conditioned on the
+state the moderator saw: if someone else changed the item first, the answer is `refused / target_changed` and nothing is written.
+An action can be undone once, and only while the item is still in the state the action left it (`target_changed` otherwise).
+`reason` is optional plain text. Reports about the item are closed when a moderator approves, hides or promotes it.
+
+**The panel.** Administration, Moderation (shown when the reader-steering plugin is on) has three views: the queue (new and reported
+items, newest first, with the automatic signals, the reports and Approve, Hide, Promote to a draft, Ban reader and Limit reader), Hidden
+(Show again) and Recent actions (Undo). It reads the staff-readable models through AppSync and calls `moderateReader`; reader text is
+rendered as text and links only if they are `http` or `https`. The plugin manifest declares it as a `newsroomPanels` entry.
+
 ## The page components
 
 Static assets shipped to the site bucket when the plugin is enabled: `_plugins/papyrus-reader@1.js` and
@@ -323,8 +451,9 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 | `ReaderSignIn` | none | Header control. Signed out: a "Sign in" link to `/api/auth/prospectus/sign-in?returnTo=<path>`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
 | `UsedIt` | `subject`, `usedIt` | "I used it" toggle with a count. |
-| `Rating` | `subject`, `dimensions`, optional `ratings` | One to five per dimension, the reader's own value (optimistic), the reader and editor numbers. Selecting the current value clears it. |
+| `Rating` | `subject`, `dimensions`, optional `ratings` | One to five per dimension, the reader's own value (optimistic), the reader and editor numbers. Selecting the current value clears it. After a rating it asks "Why? (optional, public)" and posts the answer as a comment that carries the rating. |
 | `Freshness` | optional `generatedAt` | "Updated N min ago". |
+| `Comments` | `subject`, optional `count`, `editMinutes`, `maximumLength` | The comments of one item or submission: a threaded list (handles and text only, a stub reads "This comment was removed."), a form and, for top-level comments, Reply. The author's own comments show Edit (inside the edit window) and Delete. Fetches `<base>_data/reader/comments/<subject>.json`, refetches it every 60 seconds while visible, and shows the reader's own new, edited and deleted comments at once until a newer file arrives. A reply or edit being typed survives a refresh. |
 | `Submit` | optional `kinds` | The `/submit/` form: link, title, kind radio (when there are several kinds) and note. It warns, without blocking, when the link is already in `submissions.json` or the site has a recent submission, saves a draft in `localStorage` and says so ("Saved locally ..."), clears the draft on success and then shows "Pending — we're reading the link." and any `similar` links. |
 
 `subject` is the lineage id of the published item. Props prerender the last snapshot values; each page then fetches
@@ -347,6 +476,12 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/reader-submissions.feature`: submit, the canonical URL
   parity with reference intake, dedupe, similar, validation, the daily limit, votes and karma, the snapshot file, the review signals
   (with real Humanus rules) and retirement of submissions, against moto.
+- `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/reader-moderation.feature`: reports, every transition, the stale-view guard,
+  undo, bans on every write route, promotion, pre-moderation, moderation off, and that hidden content leaves the files; `scripts/test-reader-moderation-panel.ts`:
+  the queue, hidden list, log and the escaped rendering of the panel.
+- `procedures/newsroom/tests/test_reader_comments.py`, `test_reader_feedback_export.py` and `features_backend/reader-comments.feature`: comments, threading, the
+  edit window, delete stubs, rating context, limits, the snapshot files (only changed files written, stale ones emptied), signals,
+  retirement and the feedback export, against moto.
 - `scripts/test-reader-write-routes.ts`: the checks every text-carrying route shares (503, 401, 403, 415, 413, 429, pass-through).
 - `scripts/test-reader-islands.ts`: the islands in a real browser against a fake API.
 

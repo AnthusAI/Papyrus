@@ -4,7 +4,7 @@ import { PROSPECTUS_SESSION_COOKIE, sealProspectusCookie } from "../lib/prospect
 import { READER_BODY_BYTES_BY_ACTION, READER_MAXIMUM_BODY_BYTES, handleReaderRequest, type ReaderAction, type ReaderActionEvent, type ReaderActionResult } from "../lib/reader-api";
 
 /**
- * The routes that carry reader text (submit now; comment, report and the moderation reads join in later changes) share
+ * The routes that carry reader text (submit, comment, edit, delete and report) share
  * the fail-closed checks of the vote route: 503 without a siteSubject, 401 signed out, 403 for a foreign Origin,
  * 415, 413 above the action's body limit, 429 with Retry-After and pass-through of the function's answers.
  */
@@ -17,6 +17,10 @@ const environment = { PAPYRUS_SITE_ORIGIN: siteOrigin, SITE_ENV: "production" };
 
 const bodies: Partial<Record<ReaderAction, Record<string, unknown>>> = {
   submit: { url: "https://example.com/post", title: "A small tool", note: "Worked well." },
+  comment: { subject: "item-one", body: "Worth reading.", ratingContext: { dimension: "real", value: 4 } },
+  "comment-edit": { id: "cmt-00000000000000000000000000000001", body: "Better words." },
+  "comment-delete": { id: "cmt-00000000000000000000000000000001" },
+  report: { target: "cmt-00000000000000000000000000000001", reason: "Looks like an advert." },
 };
 
 function cookieFor(session: Record<string, unknown> | null): Record<string, string> {
@@ -147,5 +151,7 @@ async function json(response: Response) {
   }
 
   assert.ok(READER_BODY_BYTES_BY_ACTION.submit! > READER_MAXIMUM_BODY_BYTES, "a submission carries more text than a vote");
+  assert.ok(READER_BODY_BYTES_BY_ACTION.comment! >= 4 * 2000 + 512, "a comment of 2,000 four-byte characters fits");
+  assert.equal(READER_BODY_BYTES_BY_ACTION["comment-delete"], undefined, "a delete is as small as a vote");
   console.log("reader write routes ok");
 })();

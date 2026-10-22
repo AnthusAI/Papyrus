@@ -114,11 +114,12 @@ class ReaderTableNames:
     vote: str
     state: str
     submission: str = ""
+    comment: str = ""
 
     @property
     def authored(self) -> tuple[str, ...]:
         """Tables whose rows carry the author's ``readerId``: dropped with a deleted reader, re-keyed for a merged one."""
-        return tuple(name for name in (self.submission,) if name)
+        return tuple(name for name in (self.submission, self.comment) if name)
 
 
 @dataclass

@@ -41,11 +41,12 @@ def publication(context, first: str, second: str) -> None:
     context.reader_published = []
     context.reader_names = []
     context.reader_hype_gap = None
+    context.reader_options = {}
 
 
 def ensure_started(context) -> ReaderBackend:
     if context.reader_backend is None:
-        backend = ReaderBackend(dimensions=context.reader_dimensions, actions_per_hour=context.reader_allowance)
+        backend = ReaderBackend(dimensions=context.reader_dimensions, actions_per_hour=context.reader_allowance, **context.reader_options)
         backend.__enter__()
         context.reader_backend = backend
         context.add_cleanup(close_backend, context)
@@ -452,3 +453,228 @@ def submits_given_link(context, name: str, url: str, title: str) -> None:
 @then('the public file "{key}" shows {count:d} upvote on the first submission')
 def public_upvotes_on_submission(context, key: str, count: int) -> None:
     assert public_file(context, key)["items"][first_submission_subject(context)]["up"] == count
+
+
+def last_comment_id(context, name: str) -> str:
+    answers = context.reader_answers[name]
+    return next(answer["body"]["id"] for answer in reversed(answers) if answer["statusCode"] == 201 and str(answer["body"].get("id", "")).startswith("cmt-"))
+
+
+@when('"{name}" comments "{body}" on "{subject}"')
+def comments_on(context, name: str, body: str, subject: str) -> None:
+    call(context, name, "comment", {"subject": subject, "body": body})
+
+
+@when('"{name}" comments "{body}" on "{subject}" explaining "{dimension}" {value:d}')
+def comments_explaining(context, name: str, body: str, subject: str, dimension: str, value: int) -> None:
+    call(context, name, "comment", {"subject": subject, "body": body, "ratingContext": {"dimension": dimension, "value": value}})
+
+
+@when('"{name}" replies "{body}" to the last comment of "{author}"')
+def replies_to(context, name: str, body: str, author: str) -> None:
+    call(context, name, "comment", {"subject": "item-one", "body": body, "parent": last_comment_id(context, author)})
+
+
+@when('"{name}" edits the last comment to "{body}"')
+def edits_last_comment(context, name: str, body: str) -> None:
+    call(context, name, "comment-edit", {"id": last_comment_id(context, name), "body": body})
+
+
+@when("{minutes:d} minutes pass")
+def minutes_pass(context, minutes: int) -> None:
+    ensure_started(context).now += minutes * 60
+
+
+@when('"{name}" deletes her last comment')
+def deletes_last_comment(context, name: str) -> None:
+    call(context, name, "comment-delete", {"id": last_comment_id(context, name)})
+
+
+@when('"{name}" posts {count:d} comments on "{subject}"')
+def posts_many_comments(context, name: str, count: int, subject: str) -> None:
+    for number in range(count):
+        call(context, name, "comment", {"subject": subject, "body": f"Comment {number}"})
+
+
+def comment_entries(context, subject: str) -> list[dict]:
+    return public_file(context, f"_data/reader/comments/{subject}.json")["comments"]
+
+
+@then('the comment file of "{subject}" lists "{body}" by "{handle}"')
+def comment_file_lists(context, subject: str, body: str, handle: str) -> None:
+    entries = comment_entries(context, subject)
+    assert any(entry.get("body") == body and entry.get("handle") == handle for entry in entries), entries
+
+
+@then('the comment file of "{subject}" marks "{body}" as edited')
+def comment_file_edited(context, subject: str, body: str) -> None:
+    assert any(entry.get("body") == body and entry["edited"] for entry in comment_entries(context, subject))
+
+
+@then('the comment file of "{subject}" nests "{reply}" under "{top}"')
+def comment_file_nests(context, subject: str, reply: str, top: str) -> None:
+    entries = comment_entries(context, subject)
+    parent = next(entry for entry in entries if entry.get("body") == top)
+    assert any(entry.get("body") == reply and entry["parent"] == parent["id"] for entry in entries), entries
+
+
+@then('the comment file of "{subject}" shows a removed comment with the reply "{reply}" under it')
+def comment_file_stub(context, subject: str, reply: str) -> None:
+    entries = comment_entries(context, subject)
+    stub = next(entry for entry in entries if entry.get("stub"))
+    assert "body" not in stub and "readerId" not in stub, stub
+    assert any(entry.get("body") == reply and entry["parent"] == stub["id"] for entry in entries), entries
+
+
+@then('the comment file of "{subject}" is empty')
+def comment_file_empty(context, subject: str) -> None:
+    body = context.reader_site.get(f"_data/reader/comments/{subject}.json")
+    assert body is None or json.loads(body)["comments"] == [], body
+
+
+@then('the public file "{key}" shows {count:d} comment on "{subject}"')
+def public_comment_count(context, key: str, count: int, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["comments"] == count
+
+
+def exported(context) -> list[dict]:
+    from papyrus_content.reader_steering.feedback_export import feedback_records
+
+    return list(feedback_records(ensure_started(context).comments()))
+
+
+@then('the reader feedback export holds a rationale "{text}" for "{dimension}" {value:d} by "{name}"')
+def export_holds_rationale(context, text: str, dimension: str, value: int, name: str) -> None:
+    reader_id = ensure_started(context).call(subject_for(name), "me")["body"]["readerId"]
+    records = [record for record in exported(context) if record.get("rationale") == text]
+    assert len(records) == 1, records
+    record = records[0]
+    assert (record["source"], record["status"], record["readerId"], record["rating"]) == ("reader", "active", reader_id, {"dimension": dimension, "value": value}), record
+
+
+@then('the reader feedback export retracts the last comment of "{name}"')
+def export_retracts(context, name: str) -> None:
+    comment_id = last_comment_id(context, name)
+    record = next(record for record in exported(context) if record["commentId"] == comment_id)
+    assert record["status"] == "retracted" and "rationale" not in record, record
+
+
+@given("pre-moderation is on")
+def pre_moderation_on(context) -> None:
+    context.reader_options["pre_moderation"] = True
+
+
+@given("moderation is off")
+def moderation_off(context) -> None:
+    context.reader_options["moderation_mode"] = "off"
+
+
+def staff_call(context, action: str, target_type: str, target: str, **extra) -> dict:
+    receipt = ensure_started(context).staff_call(action, target_type, target, **extra)
+    context.reader_receipt = receipt
+    context.reader_receipts = [*getattr(context, "reader_receipts", []), receipt]
+    ensure_started(context).now += 1
+    return receipt
+
+
+@when("a moderator {action} the first submission")
+def moderator_acts_on_first_submission(context, action: str) -> None:
+    verbs = {"approves": "approve", "hides": "hide", "shows again": "unhide", "promotes": "promote"}
+    staff_call(context, verbs[action], "submission", first_submission_subject(context))
+
+
+@when('a moderator {action} the last comment of "{name}"')
+def moderator_acts_on_comment(context, action: str, name: str) -> None:
+    verbs = {"approves": "approve", "hides": "hide", "shows again": "unhide"}
+    staff_call(context, verbs[action], "comment", last_comment_id(context, name))
+
+
+@when('a moderator {action} "{name}"')
+def moderator_acts_on_reader(context, action: str, name: str) -> None:
+    verbs = {"bans": "ban", "limits": "limit", "unbans": "unban"}
+    reader_id = ensure_started(context).call(subject_for(name), "me")["body"]["readerId"]
+    staff_call(context, verbs[action], "reader", reader_id)
+
+
+@when("a moderator undoes the last action")
+def moderator_undoes(context) -> None:
+    last = context.reader_receipts[-1]
+    action = ensure_started(context).store.get_action(last["id"])
+    staff_call(context, "undo", action["targetType"], action["target"], undo_of=last["id"])
+
+
+@when("someone who is not an editor tries to hide the first submission")
+def non_staff_hides(context) -> None:
+    staff_call(context, "hide", "submission", first_submission_subject(context), groups=("reader",))
+
+
+@when('"{name}" reports the last comment of "{author}" saying "{reason}"')
+def reports_comment(context, name: str, author: str, reason: str) -> None:
+    call(context, name, "report", {"target": last_comment_id(context, author), "reason": reason})
+
+
+@then("the moderator is told it is done")
+def moderator_told_done(context) -> None:
+    assert context.reader_receipt["status"] == "ok", context.reader_receipt
+
+
+@then('the moderator is refused with "{error}"')
+def moderator_refused(context, error: str) -> None:
+    assert (context.reader_receipt["status"], context.reader_receipt["error"]) == ("refused", error), context.reader_receipt
+
+
+@then('the first submission has state "{state}"')
+def first_submission_state(context, state: str) -> None:
+    stored = ensure_started(context).table("submission").get_item(Key={"id": first_submission_subject(context)})["Item"]
+    assert stored["state"] == state, stored
+
+
+@then("the first submission is in the review queue")
+def first_submission_queued(context) -> None:
+    stored = ensure_started(context).table("submission").get_item(Key={"id": first_submission_subject(context)})["Item"]
+    assert stored["moderation"] == "new", stored
+
+
+@then("the first submission is not in the review queue")
+def first_submission_not_queued(context) -> None:
+    stored = ensure_started(context).table("submission").get_item(Key={"id": first_submission_subject(context)})["Item"]
+    assert stored["moderation"] == "approved", stored
+
+
+@then('the last comment of "{name}" is in the review queue with {count:d} report')
+def comment_queued_with_reports(context, name: str, count: int) -> None:
+    stored = ensure_started(context).table("comment").get_item(Key={"id": last_comment_id(context, name)})["Item"]
+    assert (stored["moderation"], int(stored.get("reportCount", 0))) == ("new", count), stored
+
+
+@then('the public file "{key}" lists no submissions')
+def public_no_submissions(context, key: str) -> None:
+    assert public_file(context, key)["submissions"] == []
+
+
+@then("the moderation log holds {count:d} entries, the last marked by a human")
+def moderation_log(context, count: int) -> None:
+    log = ensure_started(context).actions()
+    assert len(log) == count and log[-1]["by"] == "human", log
+
+
+@then("a draft item was created from the first submission")
+def draft_item_created(context) -> None:
+    (item,) = ensure_started(context).items()
+    stored = ensure_started(context).table("submission").get_item(Key={"id": first_submission_subject(context)})["Item"]
+    assert (item["versionState"], item["stage"], stored["itemId"]) == ("draft", "idea", item["lineageId"]), (item, stored)
+
+
+@then('"{name}" cannot {what}')
+def banned_cannot(context, name: str, what: str) -> None:
+    backend = ensure_started(context)
+    payloads = {
+        "vote": ("vote", {"subject": "item-one", "dimension": "up", "on": True}),
+        "comment": ("comment", {"subject": "item-one", "body": "Hello"}),
+        "submit": ("submit", {"url": "https://example.com/new", "title": "New"}),
+        "report": ("report", {"target": first_submission_subject(context), "reason": "x"}),
+    }
+    action, payload = payloads[what]
+    answer = backend.call(subject_for(name), action, payload)
+    assert answer["statusCode"] == 403, answer
+    context.reader_answers.setdefault(name, []).append(answer)
