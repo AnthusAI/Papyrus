@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "event_id": "85fb5433-b420-48bd-adf0-4895ef3896c0",
+  "issue_id": "PPY-ebcd1cdf-6bc2-4766-a4c5-adec302be033",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T17:31:17.459Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reconcile lists plugin-produced pages as orphans and cannot be scoped to a path prefix",
+    "description": "Found on the Shipped knowledge refresh of 2026-10-22 (Shipped-web main 78a19b6, papyrus-newsroom 5.27.0). `papyrus ops content project --reconcile --dry-run --json` lists 54 orphan pages. Only 46 of them are real orphans (stale wiki pagination, pages 7 to 29, each index.html and index.md, left behind when the wiki shrank). The other 8 must not be removed:\n\n- 6 newsletter pages: newsletter/confirm, confirmed, expired, preferences, unsubscribe and unsubscribed (index.html each). The newsletter plugin writes them at deploy time, not the projector, so reconcile does not know about them. All six are live (HTTP 200) and the sign-up flow needs them. Applying reconcile would delete them.\n- 2 vapor files: vapor/index.html and vapor/index.md. The section was retired in Shipped-web #55; /vapor/ now 301s. Harmless, but it shows reconcile has no way to be limited.\n\nEvidence: the run-state folder of the Shipped refresh (runs/2026-10-22b/reconcile-dry.json, key orphanPages), listed in full below. Dry run command: papyrus ops content project --reconcile --dry-run --json --bucket <site bucket> --static-dir <fresh Shipped-web origin/main worktree>.\n\nProblems:\n1. Reconcile lists pages produced by plugins and by the deploy (the newsletter pages) as orphans.\n2. Reconcile cannot be scoped, so stale pagination cannot be removed on its own.\n\nAcceptance:\n- Plugin- and deploy-produced paths are never reported as orphans and never deleted by reconcile.\n- `papyrus ops content project --reconcile --only <prefix>` limits the dry run and the repair to paths under that prefix (for example `--only wiki/page/`).\n- Gherkin specs cover both: a feature where plugin-produced newsletter pages are not listed as orphans, and one where `--only wiki/page/` lists and removes only stale pagination files.\n- The projector REFUSES a reconcile (non-zero exit, clear message naming the paths) when it would delete any path a plugin or deploy step owns. This guards every site, not only Shipped.\n\nNote for Shipped: once the fix ships, a reconcile scoped with `--only wiki/page/` (and `--only vapor/`) may remove the 46 pagination files and the 2 vapor files. Until then do not apply an unscoped reconcile on Shipped.\n\nAll 54 paths from the dry run:\n- newsletter/confirm/index.html\n- newsletter/confirmed/index.html\n- newsletter/expired/index.html\n- newsletter/preferences/index.html\n- newsletter/unsubscribe/index.html\n- newsletter/unsubscribed/index.html\n- vapor/index.html\n- vapor/index.md\n- wiki/page/10/index.html\n- wiki/page/10/index.md\n- wiki/page/11/index.html\n- wiki/page/11/index.md\n- wiki/page/12/index.html\n- wiki/page/12/index.md\n- wiki/page/13/index.html\n- wiki/page/13/index.md\n- wiki/page/14/index.html\n- wiki/page/14/index.md\n- wiki/page/15/index.html\n- wiki/page/15/index.md\n- wiki/page/16/index.html\n- wiki/page/16/index.md\n- wiki/page/17/index.html\n- wiki/page/17/index.md\n- wiki/page/18/index.html\n- wiki/page/18/index.md\n- wiki/page/19/index.html\n- wiki/page/19/index.md\n- wiki/page/20/index.html\n- wiki/page/20/index.md\n- wiki/page/21/index.html\n- wiki/page/21/index.md\n- wiki/page/22/index.html\n- wiki/page/22/index.md\n- wiki/page/23/index.html\n- wiki/page/23/index.md\n- wiki/page/24/index.html\n- wiki/page/24/index.md\n- wiki/page/25/index.html\n- wiki/page/25/index.md\n- wiki/page/26/index.html\n- wiki/page/26/index.md\n- wiki/page/27/index.html\n- wiki/page/27/index.md\n- wiki/page/28/index.html\n- wiki/page/28/index.md\n- wiki/page/29/index.html\n- wiki/page/29/index.md\n- wiki/page/7/index.html\n- wiki/page/7/index.md\n- wiki/page/8/index.html\n- wiki/page/8/index.md\n- wiki/page/9/index.html\n- wiki/page/9/index.md",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "size-S"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Shipped refresh agent"
+    }
+  }
+}
