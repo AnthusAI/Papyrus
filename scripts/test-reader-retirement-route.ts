@@ -57,7 +57,7 @@ const authorized = { [READER_POLL_SECRET_HEADER]: pollSecret };
     resetReaderPollSecretCache();
   }
 
-  for (const headers of [{}, { [READER_POLL_SECRET_HEADER]: "wrong" }, { [READER_POLL_SECRET_HEADER]: pollSecret + "x" }, { authorization: `Bearer ${pollSecret}` }]) {
+  for (const headers of [{} as Record<string, string>, { [READER_POLL_SECRET_HEADER]: "wrong" }, { [READER_POLL_SECRET_HEADER]: pollSecret + "x" }, { authorization: `Bearer ${pollSecret}` }]) {
     const { options, requests } = harness();
     const answer = await handleReaderRetiredSubjects(request("/api/reader/retired", headers), options);
     assert.equal(answer.status, 401, JSON.stringify(headers));
