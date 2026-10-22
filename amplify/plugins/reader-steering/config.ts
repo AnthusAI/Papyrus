@@ -12,7 +12,7 @@ export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/
 export type ReaderSteeringConfig = {
   /** The IAM role of the CMS app's server runtime (the `CmsComputeRoleArn` output of the app-shell stack): the only caller of reader-actions. */
   computeRoleArn: string;
-  /** Rating dimensions of the publication, such as `real` and `useful`. `up` and `used-it` are always available. */
+  /** Rating dimensions of the publication, named by the site (lowercase). `up` and `used-it` are always available. */
   dimensions: string[];
   limits: {
     /** Votes and ratings one reader may make in a clock hour. */
@@ -94,7 +94,7 @@ export type ReaderSteeringConfig = {
   };
   /**
    * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
-   * Absent means no hype gap is published. Shipped sets plus = notable, novel and minus = real, useful.
+   * Absent means no hype gap is published. The site names the dimensions in each group.
    */
   hypeGap?: { plus: string[]; minus: string[] };
   /**

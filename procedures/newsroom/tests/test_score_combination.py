@@ -35,7 +35,9 @@ except ImportError:  # numpy comes with the cyclotron group; without it only the
 
 NOW = 1_800_000_000.0
 HOUR = 3600
-DIMENSIONS = ("real", "useful")
+# Fixture dimensions: the plugin takes them from publication data, so nothing here depends on a publication's names.
+DIMENSIONS = ("alpha", "beta")
+FIRST, SECOND = DIMENSIONS
 SHRINKAGE = RankingParameters(combination="shrinkage", new_account_weight=1 / 3, rising_minimum_account_hours=24.0)
 BLEND = RankingParameters()
 
@@ -100,7 +102,7 @@ class ShrinkageFunctionTests(unittest.TestCase):
 
 class SettingsTests(unittest.TestCase):
     def test_blend_is_the_default_and_keeps_every_site_unchanged(self) -> None:
-        parameters = settings_from_mapping({"dimensions": ["real"], "ranking": {}}).ranking
+        parameters = settings_from_mapping({"dimensions": list(DIMENSIONS), "ranking": {}}).ranking
         self.assertEqual((parameters.combination, parameters.new_account_weight, parameters.rising_minimum_account_hours), ("blend", 1.0, 0.0))
 
     def test_shrinkage_turns_on_the_adopted_defaults(self) -> None:
@@ -123,7 +125,7 @@ class SettingsTests(unittest.TestCase):
 class SnapshotAccountAgeTests(unittest.TestCase):
     def test_new_account_ratings_count_a_third_in_the_mean_and_in_n(self) -> None:
         profiles = [profile("old", 100), profile("new", 5)]
-        votes = [vote("a", "old", "real", 5), vote("a", "new", "real", 1), vote("a", "e", "real", 3, role="editor")]
+        votes = [vote("a", "old", FIRST, 5), vote("a", "new", FIRST, 1), vote("a", "e", FIRST, 3, role="editor")]
         row = build(votes, profiles).board["front"][0]
         weighted_mean = (5 + 1 / 3) / (4 / 3)
         share = (4 / 3) / (20 + 4 / 3)
@@ -131,23 +133,23 @@ class SnapshotAccountAgeTests(unittest.TestCase):
         self.assertAlmostEqual(row["score"], expected, places=3)
         self.assertEqual(row["readerN"], ranking.rounded(4 / 3))
         # the displayed statistics stay plain counts of what readers did
-        stats = build(votes, profiles).items["items"]["a"]["ratings"]["real"]["reader"]
+        stats = build(votes, profiles).items["items"]["a"]["ratings"][FIRST]["reader"]
         self.assertEqual((stats["n"], stats["mean"]), (2, 3.0))
 
     def test_age_is_taken_when_the_vote_was_cast(self) -> None:
         # a profile 30 hours old at NOW that rated 29 hours ago was 1 hour old then: still discounted
-        votes = [vote("a", "sock", "real", 1, at_hours_ago=29), vote("a", "e", "real", 3, role="editor")]
+        votes = [vote("a", "sock", FIRST, 1, at_hours_ago=29), vote("a", "e", FIRST, 3, role="editor")]
         discounted = build(votes, [profile("sock", 30)]).board["front"][0]
         self.assertEqual(discounted["readerN"], ranking.rounded(1 / 3))
-        full = build([vote("a", "sock", "real", 1, at_hours_ago=1), votes[1]], [profile("sock", 30)]).board["front"][0]
+        full = build([vote("a", "sock", FIRST, 1, at_hours_ago=1), votes[1]], [profile("sock", 30)]).board["front"][0]
         self.assertEqual(full["readerN"], 1)
 
     def test_a_vote_with_no_profile_row_counts_in_full(self) -> None:
-        row = build([vote("a", "ghost", "real", 4), vote("a", "e", "real", 3, role="editor")], []).board["front"][0]
+        row = build([vote("a", "ghost", FIRST, 4), vote("a", "e", FIRST, 3, role="editor")], []).board["front"][0]
         self.assertEqual(row["readerN"], 1)
 
     def test_blend_ignores_account_age_unless_a_weight_is_configured(self) -> None:
-        votes = [vote("a", "n%d" % number, "real", 5) for number in range(5)] + [vote("a", "e", "real", 3, role="editor")]
+        votes = [vote("a", "n%d" % number, FIRST, 5) for number in range(5)] + [vote("a", "e", FIRST, 3, role="editor")]
         profiles = [profile("n%d" % number, 1) for number in range(5)]
         plain = build(votes, profiles, BLEND).board["front"][0]
         self.assertEqual((plain["readerN"], plain["score"]), (5, ranking.rounded(4.0 * ranking.decay(10, 48))))
@@ -176,12 +178,12 @@ class SnapshotAccountAgeTests(unittest.TestCase):
         self.assertGreaterEqual(build(honest, profiles).items["items"]["a"]["usedItReporters"], 3)
 
     def test_the_board_publishes_the_active_parameters(self) -> None:
-        parameters = build([vote("a", "x", "real", 3)], []).board["parameters"]
+        parameters = build([vote("a", "x", FIRST, 3)], []).board["parameters"]
         self.assertEqual(parameters["combination"], "shrinkage")
         self.assertEqual((parameters["shrinkageK"], parameters["readerShareCap"]), (20.0, 0.4))
         self.assertAlmostEqual(parameters["newAccountWeight"], 1 / 3)
         self.assertEqual((parameters["newAccountHours"], parameters["risingMinimumAccountHours"]), (24.0, 24.0))
-        self.assertEqual(build([vote("a", "x", "real", 3)], [], BLEND).board["parameters"]["combination"], "blend")
+        self.assertEqual(build([vote("a", "x", FIRST, 3)], [], BLEND).board["parameters"]["combination"], "blend")
 
 
 class SnapshotTableTests(unittest.TestCase):
@@ -192,7 +194,7 @@ class SnapshotTableTests(unittest.TestCase):
     def run_task(self, backend, ranking_settings):
         with tempfile.TemporaryDirectory() as directory:
             store = LocalDirectoryWriter(Path(directory))
-            run_snapshot(backend, store, ranking=ranking_settings)
+            run_snapshot(backend, store, ranking=ranking_settings, dimensions=DIMENSIONS)
             return (
                 json.loads(store.get("_data/reader/items.json")),
                 json.loads(store.get("_data/reader/board.json")),
@@ -204,14 +206,14 @@ class SnapshotTableTests(unittest.TestCase):
         backend.call(editor, "me", staff=True)
         backend.age_everyone()
         backend.call(young, "me")
-        backend.call(editor, "rating", {"subject": "item-one", "dimension": "real", "value": 3}, staff=True)
+        backend.call(editor, "rating", {"subject": "item-one", "dimension": FIRST, "value": 3}, staff=True)
         for reader, value in ((old, 5), (young, 1)):
             backend.call(reader, "vote", {"subject": "item-one", "dimension": "up", "on": True})
             backend.call(reader, "vote", {"subject": "item-one", "dimension": "used-it", "on": True})
-            backend.call(reader, "rating", {"subject": "item-one", "dimension": "real", "value": value})
+            backend.call(reader, "rating", {"subject": "item-one", "dimension": FIRST, "value": value})
 
     def test_a_day_old_profile_counts_a_third_and_is_filtered_from_rising_and_the_reporters(self) -> None:
-        with ReaderBackend() as backend:
+        with ReaderBackend(dimensions=DIMENSIONS) as backend:
             self.populate(backend)
             items, board = self.run_task(backend, self.SHRINKAGE_SETTINGS)
         item = items["items"]["item-one"]
@@ -225,7 +227,7 @@ class SnapshotTableTests(unittest.TestCase):
         self.assertEqual(board["parameters"]["combination"], "shrinkage")
 
     def test_the_default_ranking_settings_leave_the_snapshot_as_it_was(self) -> None:
-        with ReaderBackend() as backend:
+        with ReaderBackend(dimensions=DIMENSIONS) as backend:
             self.populate(backend)
             items, board = self.run_task(backend, {})
         self.assertEqual(items["items"]["item-one"]["usedItReporters"], 2)
@@ -251,11 +253,11 @@ class SimulationReproductionTests(unittest.TestCase):
                 return original(s, key)
             out = np.empty(sim.N)
             for index in range(sim.N):
-                counts = np.broadcast_to(s["nw"][index], 4)  # the cold-start state keeps one count per item
-                means = [float(s["sw"][index][d] / counts[d]) if counts[d] > 0 else None for d in range(4)]
+                counts = np.broadcast_to(s["nw"][index], len(sim.DIMS))  # the cold-start state keeps one count per item
+                means = [float(s["sw"][index][d] / counts[d]) if counts[d] > 0 else None for d in range(len(sim.DIMS))]
                 editor = [float(value) for value in sim.EDITOR[index]]
                 if key == "A":
-                    value = ranking.front_score(sum(editor) / 4, ranking.composite(means), float(counts.max()), 0.0, blend)
+                    value = ranking.front_score(sum(editor) / len(editor), ranking.composite(means), float(counts.max()), 0.0, blend)
                 else:
                     value = ranking.shrinkage_front_score(editor, means, [float(c) for c in counts], 0.0, shrinkage)
                 out[index] = value
