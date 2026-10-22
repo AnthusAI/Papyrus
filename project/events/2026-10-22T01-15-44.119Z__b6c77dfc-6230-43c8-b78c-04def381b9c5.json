@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b6c77dfc-6230-43c8-b78c-04def381b9c5",
+  "issue_id": "PPY-c7dd8b95-cd4e-4e15-a453-edfb84220167",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:15:44.119Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Votes and ratings in the reader-actions Lambda",
+    "description": "As a signed-in reader, I want to upvote, mark used-it and rate items on publication dimensions so that readers steer ranking.\n\nFeature: Votes and ratings\n  Scenario: Upvote is idempotent\n    Given a reader who upvoted an item\n    When they upvote it again\n    Then there is still one vote\n  Scenario: Revote overwrites, unvote deletes\n  Scenario: Only published items can be voted on\n  Scenario: Rate limit\n    Given 120 actions in the last hour\n    When the reader acts again\n    Then the answer is 429 with retryAfter",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+    "labels": []
+  }
+}

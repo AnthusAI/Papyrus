@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e8db82ba-0b5c-4b0f-b539-f649b90dc1f6",
+  "title": "Reader islands: sign-in, vote, rating, used-it, freshness",
+  "description": "As a reader, I want small accessible controls on the page so that I can sign in, vote and rate.\n\nFeature: Islands\n  Scenario: Reader sign-in is not open yet\n    Given the API answers 503 reader_identity_unavailable\n    Then the controls show 'Reader sign-in is not open yet' and are disabled\n  Scenario: Keyboard\n    Then vote and rating are buttons with aria-pressed and text states",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T01:15:45.967921Z",
+  "updated_at": "2026-10-22T01:15:45.967953Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

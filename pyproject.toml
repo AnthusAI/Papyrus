@@ -61,6 +61,7 @@ pytest = "^8.4.2"
 behave = "^1.2.6"
 requests = "^2.32.3"
 kanbus = ">=0.18.3"
+moto = {version = ">=5,<6", extras = ["dynamodb"]}
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

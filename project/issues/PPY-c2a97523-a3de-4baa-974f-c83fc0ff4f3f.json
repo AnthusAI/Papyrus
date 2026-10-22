@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c2a97523-a3de-4baa-974f-c83fc0ff4f3f",
+  "title": "Reader identity: readerSubject accessor and reader API skeleton",
+  "description": "As a publication, I want reader requests keyed only on a per-site pairwise siteSubject so that no global person id ever reaches reader data.\n\nFeature: Reader identity fails closed\n  Scenario: No siteSubject in production\n    Given a signed-in reader whose session has no siteSubject\n    When they call any /api/reader route\n    Then the answer is 503 reader_identity_unavailable\n  Scenario: Signed out\n    Given no session\n    When they call GET /api/reader/me\n    Then the answer is 401\n  Scenario: Wrong origin\n    Given a signed-in reader with a siteSubject\n    When a POST arrives with a foreign Origin\n    Then the answer is 403\n\nDefinition of Done: lib/reader-subject.ts, app/api/reader/* routes, reader-steering plugin skeleton (models, config, reader-actions Lambda, wire), tests, docs/reader-steering.md.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T01:15:42.232490Z",
+  "updated_at": "2026-10-22T01:15:42.233010Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

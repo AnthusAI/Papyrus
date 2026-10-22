@@ -15,6 +15,7 @@ export function wirePlugins(backend: any, plugins: ResolvedPlugin[], contentActi
     createStack: (name: string) => backend.createStack(name),
     graphqlApiId: graphqlApi.apiId as string,
     graphqlEndpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
+    contentActionsLambda,
   };
   for (const { plugin, config } of plugins) plugin.wire(backend, config, context);
   contentActionsLambda.addEnvironment(PLUGINS_ENVIRONMENT_VARIABLE, plugins.map(({ plugin }) => plugin.manifest.name).join(","));
