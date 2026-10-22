@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 from datetime import date, timedelta
 
@@ -473,3 +474,17 @@ def test_only_clusters_of_the_latest_run_are_published():
     )
     clusters = build_files(data, OPTIONS)[CLUSTERS_FILE]
     assert [row["uid"] for row in clusters["clusters"]] == ["current"] and clusters["runId"] == "run-2"
+
+
+def test_the_snapshot_reports_the_vocabulary_form_of_a_kind_even_for_a_node_stored_with_hyphens():
+    family = node("model-family", "Tern", accepted_by=AI)
+    data = KnowledgeData(items=(item("a", 0),), nodes=(family,), links=(link("a", family),))
+    index = build_files(data, OPTIONS)[INDEX_FILE]
+    assert [row["kind"] for row in index["entities"]] == ["model_family"]
+    assert [row["key"] for row in index["kinds"]] == ["model_family"]
+
+
+def test_concept_kinds_restrict_the_concept_of_the_week_to_those_kinds():
+    data, *_ = two_tasks()
+    assert build_files(data, dataclasses.replace(OPTIONS, concept_kinds=("maker",)))[INDEX_FILE]["conceptOfTheWeek"] is None
+    assert build_files(data, dataclasses.replace(OPTIONS, concept_kinds=("task", "maker")))[INDEX_FILE]["conceptOfTheWeek"]["key"] == "task--voice-cloning"

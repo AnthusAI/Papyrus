@@ -110,5 +110,6 @@ class SnapshotOptions:
     cluster_href_template: str | None = None
     unaccepted_clusters: str = UNACCEPTED_HIDE
     maker_kind: str = "maker"
+    concept_kinds: tuple[str, ...] | None = None
     neighbour_limit: int = 12
     related_limit: int = 12
