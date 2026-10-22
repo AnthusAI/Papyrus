@@ -280,8 +280,11 @@ class PublicFilesTests(unittest.TestCase):
             index = self.read(writer, "_data/proposals/index.json")
             self.assertEqual([entry["id"] for entry in index["proposals"]], [second, first])
             self.assertEqual(sum(1 for key in report.written if "/proposals/" in key or key.startswith("_data/proposals/")), 3)
+            before = {entry.key: writer.get(entry.key) for entry in writer.list() if "/proposals/" in "/" + entry.key}
             backend.now += 3600
             again = self.snapshot(backend, writer)
+            after = {entry.key: writer.get(entry.key) for entry in writer.list() if "/proposals/" in "/" + entry.key}
+            self.assertEqual(after, before, "an unchanged snapshot leaves every proposal file byte for byte as it was, old generatedAt included")
             self.assertEqual([key for key in again.written if key.startswith("_data/proposals/")], [], "only the freshness stamp changed")
             move(backend, first, "in_steering")
             changed = self.snapshot(backend, writer)
