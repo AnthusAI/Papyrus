@@ -7,6 +7,7 @@ import os
 import re
 from html.parser import HTMLParser
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -576,7 +577,7 @@ def test_public_data_entries_carry_an_absolute_image_and_the_publication_name(fl
     records = _public_records(flat)
     assert records["/orchids.html"]["image"] == "https://almanac.example.org/assets/orchid.jpg"
     assert all(record["publication"] == "Example Almanac" for record in records.values())
-    assert list(records["/orchids.html"]) == ["title", "url", "summary", "tags", "date", "image", "publication"]
+    assert list(records["/orchids.html"]) == ["title", "url", "summary", "tags", "date", "image", "publication", "authors"]
     latest = _public_records(flat, "_data/latest.json")
     assert latest["/fungi.html"] == records["/fungi.html"]
 
@@ -629,7 +630,7 @@ def test_entry_model_extends_the_public_entry(flat):
     assert site_index is not None
     entries = {entry.slug: entry for entry in projector._entries(site_index)}
     moss = entries["moss"]
-    assert moss.authors == ("Ada Fern", "Bo Reed") and moss.updated == "2026-01-19" and moss.type == "article"
+    assert [author.name for author in moss.authors] == ["Ada Fern", "Bo Reed"] and moss.updated == "2026-01-19" and moss.type == "article"
     assert entries["ferns"].updated == "2026-02-01" and entries["algae"].feed_eligible is False
     assert entries["cycads"].noindex and not entries["cycads"].listed
     assert entries["about"].type == "page" and not entries["about"].listed and entries["about"].url == "/about.html"
@@ -1181,3 +1182,113 @@ def test_the_page_actions_script_loads_only_on_pages_that_render_actions(flat):
     for key, body in flat.tree.items():
         if key.endswith(".html"):
             assert (b"papyrus-page-actions-v1.js" in body) == (key in with_actions), key
+
+
+# ------------------------------------------------------------------ authors written as a string, a list or {name, url} objects
+
+AUTHOR_GOLDEN_KEYS = ["atom.xml", "feed.xml", "by-objects.md", "by-objects.html", "by-list.md", "by-string.md", "_data/latest.json"]
+
+
+@pytest.fixture(scope="module")
+def authored():
+    site = ProjectedSite("authors")
+    yield site
+    site.cleanup()
+
+
+def _atom_authors(site, slug):
+    from xml.etree import ElementTree
+
+    ns = {"a": "http://www.w3.org/2005/Atom"}
+    root = ElementTree.fromstring(site.tree["atom.xml"])
+    for entry in root.findall("a:entry", ns):
+        if entry.findtext("a:id", namespaces=ns).endswith(f"/{slug}.html"):
+            return [(author.findtext("a:name", namespaces=ns), author.findtext("a:uri", namespaces=ns)) for author in entry.findall("a:author", ns)]
+    raise AssertionError(slug)
+
+
+def test_atom_authors_are_names_with_an_absolute_uri_when_there_is_a_url(authored):
+    assert _atom_authors(authored, "by-string") == [("Ann Lee", None), ("Bo Reed", None)]
+    assert _atom_authors(authored, "by-list") == [("Cy Marsh", None), ("Di Wood", None)]
+    assert _atom_authors(authored, "by-objects") == [
+        ("Ryan Porter", "https://authors.example.org/ryan"),
+        ("Derek Norrbom", "https://www.linkedin.com/in/dereknorrbom/"),
+        ("Eve Stone", None),
+    ]
+    assert _atom_authors(authored, "anonymous") == []
+    assert b"{'name'" not in authored.tree["atom.xml"] and b"{&apos;name" not in authored.tree["atom.xml"]
+
+
+def test_rss_carries_dc_creator_names_for_every_form(authored):
+    from xml.etree import ElementTree
+
+    dc = "{http://purl.org/dc/elements/1.1/}creator"
+    root = ElementTree.fromstring(authored.tree["feed.xml"])
+    creators = {item.findtext("link").rsplit("/", 1)[1]: [c.text for c in item.findall(dc)] for item in root.iter("item")}
+    assert creators == {
+        "by-string.html": ["Ann Lee", "Bo Reed"],
+        "by-list.html": ["Cy Marsh", "Di Wood"],
+        "by-objects.html": ["Ryan Porter", "Derek Norrbom", "Eve Stone"],
+        "anonymous.html": [],
+    }
+    assert validate_rss(authored.tree["feed.xml"]) == []
+
+
+def test_rss_declares_the_dc_namespace_only_when_an_item_has_authors(authored):
+    site_index = authored.context.source.site_index()
+    entries = {entry.slug: entry for entry in authored.projector._entries(site_index)}
+    projector = authored.projector
+    without = rss_bytes([entries["anonymous"]], projector.standard, projector.environment)
+    assert b"xmlns:dc" not in without and b"dc:creator" not in without
+    assert b"xmlns:dc=" in rss_bytes([entries["by-list"]], projector.standard, projector.environment)
+
+
+def test_markdown_twin_by_line_shows_names_and_links_only_where_there_is_a_url(authored):
+    assert "By Ann Lee, Bo Reed · Published 2026-03-01" in authored.text("by-string.md")
+    assert "By Cy Marsh, Di Wood · Published 2026-03-02" in authored.text("by-list.md")
+    twin = authored.text("by-objects.md")
+    assert "By [Ryan Porter](https://authors.example.org/ryan), [Derek Norrbom](https://www.linkedin.com/in/dereknorrbom/), Eve Stone · Published 2026-03-03" in twin
+    assert "{'name'" not in twin
+    assert "\nBy " not in authored.text("anonymous.md")
+
+
+def test_json_ld_authors_are_people_with_urls_when_known(authored):
+    import json as json_module
+    import re as re_module
+
+    ld = json_module.loads(re_module.search(r'<script type="application/ld\+json">(.*?)</script>', authored.text("by-objects.html"), re_module.S).group(1))
+    assert ld["author"] == [
+        {"@type": "Person", "name": "Ryan Porter", "url": "https://authors.example.org/ryan"},
+        {"@type": "Person", "name": "Derek Norrbom", "url": "https://www.linkedin.com/in/dereknorrbom/"},
+        {"@type": "Person", "name": "Eve Stone"},
+    ]
+    string_ld = json_module.loads(re_module.search(r'<script type="application/ld\+json">(.*?)</script>', authored.text("by-string.html"), re_module.S).group(1))
+    assert string_ld["author"] == [{"@type": "Person", "name": "Ann Lee"}, {"@type": "Person", "name": "Bo Reed"}]
+    assert "{'name'" not in authored.text("by-objects.html")
+
+
+def test_the_html_byline_links_an_author_with_a_url_and_escapes_names():
+    from papyrus_content.authors import Author
+    from papyrus_content.projection.standard.components import byline
+
+    entry = SimpleNamespace(authors=(Author("Ryan <R>", "/ryan"), Author("Eve Stone")), date="")
+    assert byline(entry) == '<p class="markus-byline"><span class="markus-byline-authors"><a href="/ryan">Ryan &lt;R&gt;</a>, Eve Stone</span></p>'
+
+
+def test_public_data_lists_author_names_for_every_form_and_omits_the_key_without_authors(authored):
+    for key in ("_data/latest.json", "_data/search-index.json"):
+        records = {record["url"]: record for record in json.loads(authored.text(key))}
+        assert records["/by-string.html"]["authors"] == ["Ann Lee", "Bo Reed"]
+        assert records["/by-list.html"]["authors"] == ["Cy Marsh", "Di Wood"]
+        assert records["/by-objects.html"]["authors"] == ["Ryan Porter", "Derek Norrbom", "Eve Stone"]
+        assert "authors" not in records["/anonymous.html"]
+
+
+def test_golden_author_pages(authored):
+    expected_dir = FIXTURES / "authors" / "expected"
+    for key in AUTHOR_GOLDEN_KEYS:
+        target = expected_dir / key
+        if os.environ.get("UPDATE_GOLDEN"):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(authored.tree[key])
+        assert authored.tree[key] == target.read_bytes(), f"authors/{key} differs from its golden (UPDATE_GOLDEN=1 regenerates)"
