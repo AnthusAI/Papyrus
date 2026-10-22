@@ -202,18 +202,23 @@ template.hasResourceProperties("AWS::CloudWatch::Alarm", {
     Match.objectLike({ MetricStat: Match.objectLike({ Metric: Match.objectLike({ MetricName: "ExecutionsTimedOut" }) }) }),
   ]),
 });
+// Missed week: CloudWatch cannot look back 8 days, so a daily watchdog publishes the days since the last success.
 template.hasResourceProperties("AWS::CloudWatch::Alarm", {
-  MetricName: "ExecutionsSucceeded",
-  Namespace: "AWS/States",
-  Statistic: "Sum",
+  MetricName: "DaysSinceLastSuccess",
+  Namespace: "Papyrus/ScheduledJob",
+  Dimensions: [{ Name: "Job", Value: "knowledge-run" }, { Name: "Publication", Value: "shipped" }],
+  Statistic: "Maximum",
   Period: 86400,
-  EvaluationPeriods: 8,
-  DatapointsToAlarm: 8,
-  Threshold: 1,
-  ComparisonOperator: "LessThanThreshold",
+  EvaluationPeriods: 1,
+  Threshold: 8,
+  ComparisonOperator: "GreaterThanOrEqualToThreshold",
   TreatMissingData: "breaching",
   AlarmActions: [{ Ref: Match.stringLikeRegexp("^JobAlarmTopic") }],
 });
+template.hasResourceProperties("AWS::Lambda::Function", { Runtime: "python3.12", Architectures: ["arm64"], Environment: { Variables: Match.objectLike({ JOB: "knowledge-run", PUBLICATION: "shipped" }) } });
+template.hasResourceProperties("AWS::Events::Rule", { ScheduleExpression: "cron(17 12 * * ? *)" });
+const watchdogStatements = policyStatements(template, "JobMissedWeekWatchdogServiceRoleDefaultPolicy");
+assert.deepEqual(watchdogStatements.map((statement: any) => statement.Action).sort(), ["cloudwatch:PutMetricData", "states:ListExecutions"]);
 
 // Schedule and its role.
 template.hasResourceProperties("AWS::Scheduler::Schedule", {

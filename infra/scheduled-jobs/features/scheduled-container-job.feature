@@ -65,8 +65,9 @@ Feature: Scheduled container jobs
     And it alarms at 1 or more, treats missing data as not breaching, and notifies the SNS topic
 
   Scenario: a missed week alarms to SNS
-    Then an alarm on ExecutionsSucceeded sums over 8 daily periods and needs all 8 below 1
-    And missing data breaches, so a week with no execution alarms
+    Then a daily watchdog Lambda publishes the days since the last successful execution, because CloudWatch cannot evaluate 8 days in one alarm
+    And an alarm fires at 8 or more days and notifies the SNS topic
+    And missing data breaches, so a dead watchdog or a week with no execution alarms
     And a new stack alarms (and notifies) until its first successful run, which is expected
 
   Scenario: the alarm e-mail comes from SSM and is never inline

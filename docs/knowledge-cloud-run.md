@@ -71,7 +71,7 @@ The projection also takes the [projection lease](site-hosting.md#projection-leas
 Alarms (SNS topic `papyrus-scheduled-job-knowledge-run-<publication>`, email subscription from the SSM parameter `/papyrus/<publication>/knowledge-run/alarm-email`; the address is never in the repository):
 
 - Execution failed, aborted or timed out: any of them in a 5-minute window.
-- Missed week: no successful execution in 8 days.
+- Missed week: no successful execution in 8 days. CloudWatch cannot evaluate an alarm over more than 7 days, so a small daily Lambda (12:17 UTC) publishes the days since the last success as a metric and the alarm fires at 8 or more. If that Lambda stops, the alarm fires too.
 
 A new subscription must be confirmed once from the mailbox. A stack that has never run alarms for a missed week until its first success.
 
