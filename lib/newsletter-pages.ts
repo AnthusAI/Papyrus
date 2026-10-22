@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 /**
  * The small server-rendered pages of the newsletter plugin (confirm prompt, confirmed, expired).
- * Plain HTML, no scripts, themed from the plugin's public settings. Every dynamic value is escaped, the token never
- * reaches a link, and the pages are never cached or indexed.
+ * Plain HTML, no scripts. They are drawn inside the site's own chrome (the projected newsletter shell: the site's head,
+ * stylesheets, header and footer) and fall back to a self-contained page themed from the plugin's public settings. Every
+ * dynamic value is escaped, the token never reaches a link, and the pages are never cached or indexed.
  */
 export type NewsletterPageTheme = { accent: string; text: string; background: string; surface: string; muted: string; fontFamily: string };
 
@@ -62,61 +63,151 @@ function renderForm(form: FormSpec): string {
   const boxes = (form.checkboxes ?? [])
     .map(
       (box, index) =>
-        `<p class="box"><input type="checkbox" id="c${index}" name="${escapeHtml(box.name)}" value="${escapeHtml(box.value)}"${box.checked ? " checked" : ""}> <label for="c${index}">${escapeHtml(box.label)}</label></p>`,
+        `<p class="markus-newsletter-list"><input type="checkbox" id="c${index}" name="${escapeHtml(box.name)}" value="${escapeHtml(box.value)}"${box.checked ? " checked" : ""}> <label for="c${index}">${escapeHtml(box.label)}</label></p>`,
     )
     .join("");
   const buttons = form.buttons
     .map(
       (button) =>
-        `<button type="submit"${button.name ? ` name="${escapeHtml(button.name)}" value="${escapeHtml(button.value ?? "")}"` : ""}${button.secondary ? ' class="secondary"' : ""}>${escapeHtml(button.label)}</button>`,
+        `<button type="submit" class="markus-button"${button.secondary ? ' data-variant="secondary"' : ""}${button.name ? ` name="${escapeHtml(button.name)}" value="${escapeHtml(button.value ?? "")}"` : ""}>${escapeHtml(button.label)}</button>`,
     )
     .join(" ");
-  return `<form method="post" action="${escapeHtml(form.action)}">${hidden}${boxes}<p class="actions">${buttons}</p></form>`;
+  return `<form class="markus-newsletter-form" method="post" action="${escapeHtml(form.action)}">${hidden}${boxes}<p class="markus-actions">${buttons}</p></form>`;
 }
 
-export function renderPage(page: PageContent): string {
-  const { theme } = page;
+/**
+ * The content of a page, in the standard front end's own classes (`markus-document`, `markus-button`, `markus-actions`), so
+ * inside the site's chrome it takes the site's typography, colours, buttons and focus rings from the site's stylesheets.
+ */
+export function renderBody(page: PageContent): string {
   const lists = (page.lists ?? []).slice(0, MAXIMUM_LISTS_SHOWN);
   const links = (page.links ?? []).map((link) => `<p><a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a></p>`).join("\n");
+  return `<div class="markus-document markus-newsletter-page" data-newsletter-page>
+<h1>${escapeHtml(page.heading)}</h1>
+${page.notice ? `<p class="markus-newsletter-notice" role="status">${escapeHtml(page.notice)}</p>` : ""}
+${page.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n")}
+${lists.length > 0 ? `<ul>${lists.map((name) => `<li>${escapeHtml(name)}</li>`).join("")}</ul>` : ""}
+${(page.forms ?? []).map(renderForm).join("\n")}
+${links}
+</div>`;
+}
+
+/** The self-contained page, for a site whose chrome shell cannot be fetched. Themed from the plugin's settings. */
+export function renderPage(page: PageContent): string {
+  const { theme } = page;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
 <title>${escapeHtml(page.heading)} - ${escapeHtml(page.siteName)}</title>
 <style>
 body{margin:0;background:${theme.background};color:${theme.text};font-family:${theme.fontFamily};line-height:1.5}
 main{max-width:34rem;margin:0 auto;padding:3rem 1.25rem}
 .site{color:${theme.muted};font-size:.95rem;margin:0 0 1.5rem}
 h1{font-size:1.6rem;line-height:1.2;margin:0 0 1rem}
-.notice{background:${theme.surface};border-left:4px solid ${theme.accent};padding:.5rem .75rem;font-weight:bold}
+.markus-newsletter-notice{background:${theme.surface};border-left:4px solid ${theme.accent};padding:.5rem .75rem;font-weight:bold}
 ul{background:${theme.surface};margin:1rem 0;padding:.75rem 1.25rem 1rem 2rem}
-.box{margin:.6rem 0}
+.markus-newsletter-list{margin:.6rem 0}
 input[type=checkbox]{width:1.1rem;height:1.1rem;vertical-align:middle}
-.actions{margin:1.25rem 0}
-button{background:${theme.accent};color:#fff;border:2px solid ${theme.accent};font:inherit;font-weight:bold;padding:.7rem 1.4rem;cursor:pointer;border-radius:4px;margin:0 .5rem .5rem 0}
-button.secondary{background:${theme.background};color:${theme.accent}}
-button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid ${theme.text};outline-offset:2px}
+.markus-actions{margin:1.25rem 0}
+.markus-button{background:${theme.accent};color:#fff;border:2px solid ${theme.accent};font:inherit;font-weight:bold;padding:.7rem 1.4rem;cursor:pointer;border-radius:4px;margin:0 .5rem .5rem 0}
+.markus-button[data-variant=secondary]{background:${theme.background};color:${theme.accent}}
+.markus-button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid ${theme.text};outline-offset:2px}
 a{color:${theme.accent}}
 </style></head><body><main>
 <p class="site">${escapeHtml(page.siteName)}</p>
-<h1>${escapeHtml(page.heading)}</h1>
-${page.notice ? `<p class="notice" role="status">${escapeHtml(page.notice)}</p>` : ""}
-${page.paragraphs.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("\n")}
-${lists.length > 0 ? `<ul>${lists.map((name) => `<li>${escapeHtml(name)}</li>`).join("")}</ul>` : ""}
-${(page.forms ?? []).map(renderForm).join("\n")}
-${links}
+${renderBody(page)}
 </main></body></html>`;
+}
+
+/** Where the standard projector writes the chrome shell when the newsletter plugin is enabled. */
+export const SHELL_PATH = "/_plugins/newsletter-shell/index.html";
+export const SHELL_MARKER = "<!--papyrus:newsletter-content-->";
+export const SHELL_TTL_MS = 5 * 60 * 1000;
+const SHELL_FAILURE_TTL_MS = 30 * 1000;
+const SHELL_MAXIMUM_CHARACTERS = 512 * 1024;
+const SHELL_TIMEOUT_MS = 3000;
+
+export type ShellFetcher = (url: string) => Promise<{ status: number; contentType: string; text: string }>;
+
+export interface ShellOptions {
+  fetchShell?: ShellFetcher;
+  /** Milliseconds; for tests. */
+  now?: () => number;
+}
+
+async function fetchOverHttp(url: string): Promise<{ status: number; contentType: string; text: string }> {
+  const response = await fetch(url, { headers: { accept: "text/html" }, redirect: "manual", signal: AbortSignal.timeout(SHELL_TIMEOUT_MS) });
+  return { status: response.status, contentType: response.headers.get("content-type") ?? "", text: await response.text() };
+}
+
+/**
+ * The shell as a template: the site's own page (full head, header, footer) with one content marker. Scripts are removed
+ * (these pages run none, and their content security policy forbids them), and the canonical and og:url links, which name
+ * the shell, are removed. Null when the page is not a usable shell.
+ */
+export function prepareShell(html: string): string | null {
+  if (html.length > SHELL_MAXIMUM_CHARACTERS || html.split(SHELL_MARKER).length !== 2) return null;
+  return html
+    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<link\b[^>]*\brel=["']canonical["'][^>]*>\s*/gi, "")
+    .replace(/<meta\b[^>]*\bproperty=["']og:url["'][^>]*>\s*/gi, "");
+}
+
+type ShellEntry = { template: string | null; at: number };
+const shells = new Map<string, ShellEntry>();
+const fetching = new Map<string, Promise<string | null>>();
+
+export function clearShellCache(): void {
+  shells.clear();
+  fetching.clear();
+}
+
+/**
+ * The prepared shell of the site at `origin`, cached in memory for five minutes. A failed fetch keeps serving the last good
+ * shell, or answers null (the caller falls back to the self-contained page), and is not retried for 30 seconds.
+ */
+export async function loadShell(origin: string, options: ShellOptions = {}): Promise<string | null> {
+  const now = (options.now ?? Date.now)();
+  const cached = shells.get(origin);
+  if (cached && now - cached.at < (cached.template ? SHELL_TTL_MS : SHELL_FAILURE_TTL_MS)) return cached.template;
+  const running = fetching.get(origin);
+  if (running) return running;
+  const attempt = (async () => {
+    let template: string | null = null;
+    try {
+      const response = await (options.fetchShell ?? fetchOverHttp)(new URL(SHELL_PATH, origin).toString());
+      if (response.status === 200 && /html/i.test(response.contentType)) template = prepareShell(response.text);
+    } catch {
+      template = null;
+    }
+    // A failure keeps the last good shell; the retry clock restarts either way.
+    const kept = template ?? cached?.template ?? null;
+    shells.set(origin, { template: kept, at: now });
+    return kept;
+  })().finally(() => fetching.delete(origin));
+  fetching.set(origin, attempt);
+  return attempt;
+}
+
+/** The page inside the site's chrome: the shell's title replaced and its marker replaced by the page content. */
+export function renderShellPage(template: string, page: PageContent): string {
+  const title = `${escapeHtml(page.heading)} - ${escapeHtml(page.siteName)}`;
+  return template.replace(/<title>[\s\S]*?<\/title>/i, () => `<title>${title}</title>`).replace(SHELL_MARKER, () => renderBody(page));
 }
 
 export const PAGE_HEADERS = {
   "content-type": "text/html; charset=utf-8",
   "cache-control": "no-store",
-  "referrer-policy": "no-referrer",
+  "referrer-policy": "same-origin",
   "x-content-type-options": "nosniff",
-  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+  "x-robots-tag": "noindex",
+  "content-security-policy":
+    "default-src 'none'; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: https:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
 } as const;
 
-export function pageResponse(page: PageContent, status = 200): NextResponse {
-  return new NextResponse(renderPage(page), { status, headers: PAGE_HEADERS });
+/** `shell` is the prepared shell of the site (see `loadShell`); without one the self-contained page is sent. */
+export function pageResponse(page: PageContent, status = 200, shell: string | null = null): NextResponse {
+  return new NextResponse(shell ? renderShellPage(shell, page) : renderPage(page), { status, headers: PAGE_HEADERS });
 }
 
 export const CONFIRM_PATH = "/api/newsletter/confirm";
@@ -152,6 +243,15 @@ export function expiredPage(base: Base): PageContent {
       "This confirmation link has expired or was already used. If you already confirmed, you are all set.",
       "If you did not finish signing up, go back to the site and sign up again to get a new link.",
     ],
+    links: [home(base)],
+  };
+}
+
+export function crossSitePage(base: Base): PageContent {
+  return {
+    ...base,
+    heading: "That did not go through",
+    paragraphs: ["This form was not sent from this site, so nothing was changed. Open the link in your email again and use the button on the page."],
     links: [home(base)],
   };
 }

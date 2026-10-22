@@ -92,3 +92,9 @@
 .papyrus-wiki-footer { margin: 2rem 0 0; padding-top: 1rem; border-top: 1px solid var(--papyrus-rule, currentColor); font-size: .9375rem; }
 .papyrus-wiki-footer p { margin: 0 0 .5rem; }
 .papyrus-wiki-suggest > summary { cursor: pointer; font-weight: 600; }
+/* The newsletter plugin's server-rendered pages (confirm, preferences, unsubscribe) sit in the site's chrome and use its type, links and buttons. */
+:where(button).markus-button { font: inherit; font-weight: 600; cursor: pointer; }
+.markus-newsletter-form { max-width: 36rem; margin: 1.5rem 0; }
+.markus-newsletter-list { display: flex; gap: .6rem; align-items: flex-start; margin: .6rem 0; padding: .6rem .8rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: var(--papyrus-radius, .5rem); }
+.markus-newsletter-list input { flex: none; width: 1.1rem; height: 1.1rem; margin-top: .2rem; accent-color: var(--papyrus-button-bg, currentColor); }
+.markus-newsletter-notice { padding: .5rem .75rem; border-left: 4px solid var(--papyrus-button-bg, currentColor); background: var(--papyrus-band-muted-bg, transparent); font-weight: 600; }

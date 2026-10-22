@@ -5,10 +5,12 @@ import {
   PREFERENCES_PATH,
   confirmPromptPage,
   confirmedPage,
+  crossSitePage,
   deleteConfirmPage,
   deletedPage,
   expiredPage,
   invalidManagePage,
+  loadShell,
   pageResponse,
   pageTheme,
   preferencesHref,
@@ -18,6 +20,7 @@ import {
   unsubscribedPage,
   type PageContent,
   type PreferenceList,
+  type ShellFetcher,
 } from "./newsletter-pages";
 import { PROSPECTUS_SESSION_COOKIE, loadProspectusSessionSealingSecret } from "./prospectus-session";
 import { signedInProspectusSession } from "./prospectus-sign-in-routes";
@@ -46,6 +49,10 @@ export interface NewsletterApiOptions {
   outputs?: Record<string, unknown> | null;
   loadSealingSecret?: () => Promise<string | null>;
   nowInSeconds?: number;
+  /** Fetches the site's chrome shell; the global fetch when absent. */
+  fetchShell?: ShellFetcher;
+  /** Milliseconds, for the shell cache; Date.now when absent. */
+  now?: () => number;
 }
 
 const NO_STORE = { "cache-control": "no-store" };
@@ -152,6 +159,26 @@ function siteOriginOrResponse(request: NextRequest, environment: Record<string, 
   }
 }
 
+/**
+ * Whether a state-changing request came from the site's own pages: its `Origin` is the public site origin or, when the browser
+ * sent none, its `Referer` is on it. `Origin: null` (what a browser sends when the page said `Referrer-Policy: no-referrer`,
+ * and what a sandboxed or cross-origin redirect chain produces) is never accepted.
+ */
+export function isSameSiteRequest(headers: Pick<Headers, "get">, siteOrigin: string): boolean {
+  const origin = headers.get("origin");
+  if (origin !== null) return origin === siteOrigin;
+  const referer = headers.get("referer");
+  if (!referer) return false;
+  try {
+    return new URL(referer).origin === siteOrigin;
+  } catch {
+    return false;
+  }
+}
+
+/** The edge turns an origin answer of 403 or 404 into the site's 404 page, so user-facing failures here answer 400. */
+const CROSS_SITE = { status: 400 } as const;
+
 /** POST /api/newsletter/subscribe */
 export async function handleNewsletterSubscribe(request: NextRequest, options: NewsletterApiOptions = {}): Promise<NextResponse> {
   const environment = options.environment ?? process.env;
@@ -159,7 +186,7 @@ export async function handleNewsletterSubscribe(request: NextRequest, options: N
   if (!plugin) return notFoundJson();
   const site = siteOriginOrResponse(request, environment);
   if ("response" in site) return site.response;
-  if (request.headers.get("origin") !== site.origin) return failure(403, "origin_mismatch", "This request did not come from this site.");
+  if (!isSameSiteRequest(request.headers, site.origin)) return failure(CROSS_SITE.status, "origin_mismatch", "This request did not come from this site.");
   const body = await readBody(request, NEWSLETTER_SUBSCRIBE_MAXIMUM_BODY_BYTES, ["application/json"]);
   if ("response" in body) return body.response;
   let payload: Record<string, unknown>;
@@ -201,6 +228,19 @@ function pageBase(plugin: Enabled): Pick<PageContent, "siteName" | "theme"> {
   return { siteName: typeof fromName === "string" && fromName ? fromName : "this site", theme: pageTheme(plugin.settings.theme) };
 }
 
+/** Sends a page inside the site's chrome shell, or as the self-contained page when the shell is not available. */
+function replier(request: NextRequest, options: NewsletterApiOptions, environment: Record<string, string | undefined>) {
+  return async (page: PageContent, status = 200): Promise<NextResponse> => {
+    let shell: string | null = null;
+    try {
+      shell = await loadShell(publicSiteOrigin(request, environment), { fetchShell: options.fetchShell, now: options.now });
+    } catch {
+      shell = null;
+    }
+    return pageResponse(page, status, shell);
+  };
+}
+
 function configuredListNames(plugin: Enabled, ids: string[]): string[] {
   const known = Array.isArray(plugin.settings.lists) ? (plugin.settings.lists as Array<{ id?: unknown; name?: unknown }>) : [];
   return ids.flatMap((id) => {
@@ -215,25 +255,26 @@ export async function handleNewsletterConfirmPage(request: NextRequest, options:
   const plugin = enabledPlugin(options, environment);
   if (!plugin) return notFoundPage();
   const base = pageBase(plugin);
+  const reply = replier(request, options, environment);
   const params = request.nextUrl.searchParams;
   if (params.get("done") === "1") {
     const manage = params.get("m") ?? "";
-    return pageResponse(
+    return reply(
       confirmedPage(base, configuredListNames(plugin, listIds(params.get("l") ?? "")), NEWSLETTER_TOKEN.test(manage) ? preferencesHref(manage) : undefined),
     );
   }
   const token = params.get("t") ?? "";
-  if (!NEWSLETTER_TOKEN.test(token)) return pageResponse(expiredPage(base), 410);
-  if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
+  if (!NEWSLETTER_TOKEN.test(token)) return reply(expiredPage(base), 410);
+  if (!plugin.functionName) return reply(unavailablePage(base), 503);
   try {
     const result = await (options.invoke ?? invokeNewsletterLambda)(plugin.functionName, { action: "confirm_page_state", token });
-    if (result.body.status !== "ready") return pageResponse(expiredPage(base), 410);
+    if (result.body.status !== "ready") return reply(expiredPage(base), 410);
     const lists = Array.isArray(result.body.lists) ? (result.body.lists as Array<{ name?: unknown }>) : [];
     const names = lists.flatMap((entry) => (typeof entry.name === "string" ? [entry.name] : []));
-    return pageResponse(confirmPromptPage(base, names, token));
+    return reply(confirmPromptPage(base, names, token));
   } catch (error) {
     console.error(`Newsletter confirm page failed (${error instanceof Error ? error.name : "error"}).`);
-    return pageResponse(unavailablePage(base), 502);
+    return reply(unavailablePage(base), 502);
   }
 }
 
@@ -243,14 +284,15 @@ export async function handleNewsletterConfirmPost(request: NextRequest, options:
   const plugin = enabledPlugin(options, environment);
   if (!plugin) return notFoundPage();
   const base = pageBase(plugin);
+  const reply = replier(request, options, environment);
   const site = siteOriginOrResponse(request, environment);
   if ("response" in site) return site.response;
-  if (request.headers.get("origin") !== site.origin) return failure(403, "origin_mismatch", "This request did not come from this site.");
+  if (!isSameSiteRequest(request.headers, site.origin)) return reply(crossSitePage(base), CROSS_SITE.status);
   const body = await readBody(request, NEWSLETTER_CONFIRM_MAXIMUM_BODY_BYTES, ["application/x-www-form-urlencoded"]);
   if ("response" in body) return body.response;
   const token = new URLSearchParams(body.text).get("t") ?? "";
-  if (!NEWSLETTER_TOKEN.test(token)) return pageResponse(expiredPage(base), 410);
-  if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
+  if (!NEWSLETTER_TOKEN.test(token)) return reply(expiredPage(base), 410);
+  if (!plugin.functionName) return reply(unavailablePage(base), 503);
   try {
     const result = await (options.invoke ?? invokeNewsletterLambda)(plugin.functionName, {
       action: "confirm",
@@ -258,7 +300,7 @@ export async function handleNewsletterConfirmPost(request: NextRequest, options:
       ip: clientAddress(request.headers),
       userAgent: limited(request.headers.get("user-agent"), NEWSLETTER_USER_AGENT_CHARACTERS),
     });
-    if (result.body.status !== "confirmed") return pageResponse(expiredPage(base), 410);
+    if (result.body.status !== "confirmed") return reply(expiredPage(base), 410);
     const lists = Array.isArray(result.body.lists) ? (result.body.lists as Array<{ id?: unknown }>) : [];
     const ids = lists.flatMap((entry) => (typeof entry.id === "string" && LIST_ID.test(entry.id) ? [entry.id] : []));
     const manage = typeof result.body.manageToken === "string" && NEWSLETTER_TOKEN.test(result.body.manageToken) ? result.body.manageToken : "";
@@ -270,7 +312,7 @@ export async function handleNewsletterConfirmPost(request: NextRequest, options:
     return NextResponse.redirect(target, { status: 303, headers: { ...NO_STORE, "referrer-policy": "no-referrer" } });
   } catch (error) {
     console.error(`Newsletter confirm failed (${error instanceof Error ? error.name : "error"}).`);
-    return pageResponse(unavailablePage(base), 502);
+    return reply(unavailablePage(base), 502);
   }
 }
 
@@ -301,13 +343,14 @@ export async function handleNewsletterUnsubscribe(request: NextRequest, options:
   const plugin = enabledPlugin(options, environment);
   if (!plugin) return notFoundPage();
   const base = pageBase(plugin);
+  const reply = replier(request, options, environment);
   const query = request.nextUrl.searchParams;
   if (request.method === "GET") {
     const token = manageTokenFrom(query.get("t"));
-    if (!token) return pageResponse(invalidManagePage(base), 400);
+    if (!token) return reply(invalidManagePage(base), 400);
     const listId = listParameter(query.get("l"));
     const listName = listId ? configuredListNames(plugin, [listId])[0] ?? null : null;
-    return pageResponse(unsubscribePromptPage(base, token, listName ? listId : null, listName));
+    return reply(unsubscribePromptPage(base, token, listName ? listId : null, listName));
   }
   const body = await readBody(request, NEWSLETTER_CONFIRM_MAXIMUM_BODY_BYTES, null);
   if ("response" in body) return body.response;
@@ -317,19 +360,19 @@ export async function handleNewsletterUnsubscribe(request: NextRequest, options:
   if (!oneClick && !fromPage) return textResponse("Send List-Unsubscribe=One-Click.", 400);
   const token = manageTokenFrom(query.get("t"), form.get("t"));
   const listId = listParameter(query.get("l") ?? form.get("l"));
-  const rejected = () => (fromPage ? pageResponse(invalidManagePage(base), 400) : textResponse("Invalid link.", 400));
+  const rejected = () => (fromPage ? reply(invalidManagePage(base), 400) : textResponse("Invalid link.", 400));
   if (!token) return rejected();
-  if (!plugin.functionName) return fromPage ? pageResponse(unavailablePage(base), 503) : textResponse("Unavailable.", 503);
+  if (!plugin.functionName) return fromPage ? reply(unavailablePage(base), 503) : textResponse("Unavailable.", 503);
   try {
     const result = await call(options, plugin.functionName, { action: "unsubscribe", token, ...(listId ? { list: listId } : {}) });
     if (result.body.status !== "unsubscribed") return rejected();
     if (!fromPage) return textResponse("Unsubscribed.", 200);
     const lists = Array.isArray(result.body.lists) ? (result.body.lists as Array<{ name?: unknown }>) : [];
     const names = lists.flatMap((entry) => (typeof entry.name === "string" ? [entry.name] : []));
-    return pageResponse(unsubscribedPage(base, names, token));
+    return reply(unsubscribedPage(base, names, token));
   } catch (error) {
     console.error(`Newsletter unsubscribe failed (${error instanceof Error ? error.name : "error"}).`);
-    return fromPage ? pageResponse(unavailablePage(base), 502) : textResponse("Try again later.", 502);
+    return fromPage ? reply(unavailablePage(base), 502) : textResponse("Try again later.", 502);
   }
 }
 
@@ -341,33 +384,34 @@ export async function handleNewsletterPreferences(request: NextRequest, options:
   const plugin = enabledPlugin(options, environment);
   if (!plugin) return notFoundPage();
   const base = pageBase(plugin);
+  const reply = replier(request, options, environment);
   if (request.method === "GET") {
     const token = manageTokenFrom(request.nextUrl.searchParams.get("t"));
-    if (!token) return pageResponse(invalidManagePage(base), 400);
-    if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
+    if (!token) return reply(invalidManagePage(base), 400);
+    if (!plugin.functionName) return reply(unavailablePage(base), 503);
     try {
       const result = await call(options, plugin.functionName, { action: "preferences_state", token });
-      if (result.body.status !== "ready") return pageResponse(invalidManagePage(base), 400);
+      if (result.body.status !== "ready") return reply(invalidManagePage(base), 400);
       const lists = (Array.isArray(result.body.lists) ? result.body.lists : []) as PreferenceList[];
       const email = typeof result.body.email === "string" ? result.body.email : "";
       const notice = PREFERENCE_NOTICES[request.nextUrl.searchParams.get("msg") ?? ""];
-      return pageResponse(preferencesPage(base, { token, email, notice, lists: lists.map(({ id, name, description, subscribed }) => ({ id, name, description, subscribed })) }));
+      return reply(preferencesPage(base, { token, email, notice, lists: lists.map(({ id, name, description, subscribed }) => ({ id, name, description, subscribed })) }));
     } catch (error) {
       console.error(`Newsletter preferences failed (${error instanceof Error ? error.name : "error"}).`);
-      return pageResponse(unavailablePage(base), 502);
+      return reply(unavailablePage(base), 502);
     }
   }
   const site = siteOriginOrResponse(request, environment);
   if ("response" in site) return site.response;
-  if (request.headers.get("origin") !== site.origin) return failure(403, "origin_mismatch", "This request did not come from this site.");
+  if (!isSameSiteRequest(request.headers, site.origin)) return reply(crossSitePage(base), CROSS_SITE.status);
   const body = await readBody(request, NEWSLETTER_CONFIRM_MAXIMUM_BODY_BYTES, ["application/x-www-form-urlencoded"]);
   if ("response" in body) return body.response;
   const form = new URLSearchParams(body.text);
   const token = manageTokenFrom(form.get("t"));
-  if (!token) return pageResponse(invalidManagePage(base), 400);
-  if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
+  if (!token) return reply(invalidManagePage(base), 400);
+  if (!plugin.functionName) return reply(unavailablePage(base), 503);
   const action = form.get("action");
-  if (action === "delete" && form.get("confirm") !== "1") return pageResponse(deleteConfirmPage(base, token));
+  if (action === "delete" && form.get("confirm") !== "1") return reply(deleteConfirmPage(base, token));
   const operation =
     action === "save"
       ? { action: "update_preferences", token, lists: form.getAll("l").slice(0, MAXIMUM_LISTS).filter((id) => LIST_ID.test(id)) }
@@ -380,12 +424,12 @@ export async function handleNewsletterPreferences(request: NextRequest, options:
   try {
     const result = await call(options, plugin.functionName, operation);
     const status = result.body.status;
-    if (status === "deleted") return pageResponse(deletedPage(base));
-    if (status !== "saved" && status !== "unsubscribed") return pageResponse(invalidManagePage(base), 400);
+    if (status === "deleted") return reply(deletedPage(base));
+    if (status !== "saved" && status !== "unsubscribed") return reply(invalidManagePage(base), 400);
     const target = publicSiteUrl(`${PREFERENCES_PATH}?t=${encodeURIComponent(token)}&msg=${status}`, request, environment);
     return NextResponse.redirect(target, { status: 303, headers: { ...NO_STORE, "referrer-policy": "no-referrer" } });
   } catch (error) {
     console.error(`Newsletter preferences save failed (${error instanceof Error ? error.name : "error"}).`);
-    return pageResponse(unavailablePage(base), 502);
+    return reply(unavailablePage(base), 502);
   }
 }
