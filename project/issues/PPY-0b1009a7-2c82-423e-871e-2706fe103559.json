@@ -3,17 +3,25 @@
   "title": "p.apyr.us documentation: submit a link",
   "description": "Final story of the epic. Document public submissions, the confirm step and abuse limits on p.apyr.us.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-5b8cdc17-ac08-4dd9-ae0a-052b5029b69d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ac83638c-b4e8-4162-a69c-34d2263a58a2",
+      "author": "home",
+      "text": "Built and live on p.apyr.us (Papyrus-web PR 35): https://p.apyr.us/reader-submissions-and-moderation.html and https://p.apyr.us/comments-as-steering.html. Both say built, turns on per site, no live claim.",
+      "created_at": "2026-10-22T05:11:41.260887Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T04:02:29.823796Z",
-  "updated_at": "2026-10-22T04:02:29.823840Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T05:11:41.325622Z",
+  "closed_at": "2026-10-22T05:11:41.325585Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
