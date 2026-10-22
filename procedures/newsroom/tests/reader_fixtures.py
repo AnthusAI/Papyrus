@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import importlib.util
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -56,8 +55,6 @@ class ReaderBackend:
         self._mock = mock_aws()
 
     def __enter__(self) -> "ReaderBackend":
-        for name, value in {"AWS_ACCESS_KEY_ID": "testing", "AWS_SECRET_ACCESS_KEY": "testing", "AWS_DEFAULT_REGION": "us-east-1"}.items():
-            os.environ.setdefault(name, value)
         self._mock.start()
         self.resource = boto3.resource("dynamodb", region_name="us-east-1")
         for key, table_name in TABLE_NAMES.items():
