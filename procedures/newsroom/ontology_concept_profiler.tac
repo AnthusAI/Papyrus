@@ -7,7 +7,7 @@ local json = require("tactus.io.json")
 
 ontology_concept_profiler = Agent {
     provider = "openai",
-    model = "gpt-5.4-mini",
+    model = "gpt-6-luna",
     system_prompt = [[
 You synthesize Papyrus ontology concept profiles.
 
@@ -81,7 +81,7 @@ Required JSON shape for concept_profile:
   "likelyDuplicates": [{"conceptId":"semantic-node-id", "predicate":"same_as", "confidence":0.0, "rationale":"short reason"}],
   "recommendedRelations": [{"predicate":"related_to", "targetConceptId":"semantic-node-id", "confidence":0.0, "rationale":"short reason"}],
   "confidence": 0.0,
-  "model": "gpt-5.4-mini"
+  "model": "gpt-6-luna"
 }
 
 Context JSON:
@@ -114,7 +114,7 @@ Context JSON:
         profile.likelyDuplicates = normalize_table(profile.likelyDuplicates)
         profile.recommendedRelations = normalize_table(profile.recommendedRelations)
         profile.confidence = normalize_number(profile.confidence, 0.0)
-        profile.model = tostring(profile.model or "gpt-5.4-mini")
+        profile.model = tostring(profile.model or "gpt-6-luna")
         return {
             concept_profile = profile
         }
@@ -128,7 +128,7 @@ Feature: Ontology concept profiling
   Scenario: Concept profiler returns a contextual profile object
     Given the procedure has started
     And the input context_json is {"concept":{"id":"semantic-node-1","displayName":"Concept"},"relationExplanations":[]}
-    And the agent "ontology_concept_profiler" returns data {"concept_profile":{"meaning":"Concept is profiled from supplied ontology context.","contextualVariants":[],"aliases":[],"disambiguators":[],"exemplarSources":[],"likelyDuplicates":[],"recommendedRelations":[],"confidence":0.9,"model":"gpt-5.4-mini"}}
+    And the agent "ontology_concept_profiler" returns data {"concept_profile":{"meaning":"Concept is profiled from supplied ontology context.","contextualVariants":[],"aliases":[],"disambiguators":[],"exemplarSources":[],"likelyDuplicates":[],"recommendedRelations":[],"confidence":0.9,"model":"gpt-6-luna"}}
     When the procedure runs
     Then the procedure should complete successfully
     And the output concept_profile should exist

@@ -10,7 +10,7 @@ Toolset "papyrus" {
 
 newsroom_researcher = Agent {
     provider = "openai",
-    model = "gpt-5.4-mini",
+    model = "gpt-6-luna",
     system_prompt = [[
 You are the Papyrus newsroom researcher agent.
 

@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Papyrus procedure runner (PPY-a2b94e): one container Lambda, with Tactus installed, that runs a
+  newsroom's published Tactus procedure for one request and records the ProcedureRun in that newsroom.
+  The monitoring router starts it asynchronously for a publication's procedureTriggers (PPY-9a79b5).
+  See docs/procedure-runner.md.
+
+Parameters:
+  ImageUri:
+    Type: String
+    Description: The runner image, by digest (printed by infra/procedures/build_image.sh).
+  DistinctiveApiId:
+    Type: String
+    Default: xcobakwl4jagvhdq54qc55flii
+    Description: AppSync API id of the Distinctive Mark backend, whose procedures this runner may run.
+  MonitoringTableName:
+    Type: String
+    Description: The monitoring table, where the runner records each triggered run's outcome on its TRIGGER# row.
+  ReservedConcurrency:
+    Type: Number
+    Default: 2
+    Description: At most this many procedures run at once. 0 leaves it unreserved.
+
+Conditions:
+  ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
+
+Resources:
+  RunnerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/papyrus-procedure-runner
+      RetentionInDays: 30
+
+  RunnerDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  RunnerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: papyrus-procedure-runner
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Logs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${RunnerLogGroup.Arn}:*"
+              - Sid: FailedInvocations
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt RunnerDeadLetterQueue.Arn
+              - Sid: PublicationOpenAiKeys
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/shared/*/OPENAI_API_KEY"
+                  - !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/amplify/*/*/OPENAI_API_KEY"
+              - Sid: TriggerOutcomes
+                Effect: Allow
+                Action: dynamodb:UpdateItem
+                Resource: !Sub "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}"
+                Condition:
+                  ForAllValues:StringLike:
+                    dynamodb:LeadingKeys: ["MONITOR#*"]
+              - Sid: PublicationNewsrooms
+                Effect: Allow
+                Action: appsync:GraphQL
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/*"
+
+  RunnerFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: RunnerLogGroup
+    Properties:
+      FunctionName: papyrus-procedure-runner
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ImageUri
+      Architectures: [arm64]
+      MemorySize: 3008
+      Timeout: 900
+      EphemeralStorage:
+        Size: 2048
+      ReservedConcurrentExecutions: !If [ReserveConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
+      Role: !GetAtt RunnerRole.Arn
+      DeadLetterConfig:
+        TargetArn: !GetAtt RunnerDeadLetterQueue.Arn
+      Environment:
+        Variables:
+          TRIGGER_TABLE_NAME: !Ref MonitoringTableName
+
+  RunnerInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref RunnerFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 3600
+
+Outputs:
+  RunnerFunctionName:
+    Value: !Ref RunnerFunction
+  RunnerFunctionArn:
+    Value: !GetAtt RunnerFunction.Arn
