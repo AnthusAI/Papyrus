@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "event_id": "b866a96f-410e-4021-beb7-fba2e813b30a",
+  "issue_id": "PPY-9f276894-3237-405d-8d51-920e25171b04",
+  "event_type": "state_transition",
+  "occurred_at": "2026-10-22T05:11:41.460Z",
+  "actor_id": "home",
+  "payload": {
+    "from_status": "open",
+    "to_status": "closed"
+  }
+}
