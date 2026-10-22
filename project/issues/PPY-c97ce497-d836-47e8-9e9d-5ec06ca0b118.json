@@ -3,7 +3,7 @@
   "title": "3. Votes on any subject type (L)",
   "description": "Shipped story: ship-15b04c (voting on any subject). Size L.\n\nAs a signed-in reader, I want to vote on any subject, so that readers steer the map.\n\nAcceptance criteria:\n- Subject types: items, submissions, stories, proposals, concepts.\n- Downvotes are supported, plus flags: wrong, belongs-under, better-name, each requiring a reason.\n- Any signed-in reader can vote; there is no karma gate.\n- Votes are keyed by the pairwise siteSubject, never by the Person ID.\n- The adopted shrinkage and new-account weighting are kept unchanged (existing scoring specs stay green).\n- Votes on a subject type that does not exist, or by a signed-out reader, are rejected.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -14,10 +14,18 @@
     "ship-15b04c"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "49e6a05e-1e13-4705-926b-dca3a9d10eb8",
+      "author": "home",
+      "text": "Landed on develop: part 1 data and handler PR #611 (5c8fe39), part 2 snapshot PR #613 (b9c381b), part 3 islands PR #614 (f4f9471b9398d58226a63137ded48dcd707efc56). Not promoted to main.",
+      "created_at": "2026-10-22T22:19:44.569656Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T15:31:20.755225Z",
-  "updated_at": "2026-10-22T15:31:20.755311Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T22:19:44.610871Z",
+  "closed_at": "2026-10-22T22:19:44.610830Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5",
