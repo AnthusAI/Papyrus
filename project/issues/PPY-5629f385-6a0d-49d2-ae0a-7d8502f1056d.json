@@ -17,10 +17,17 @@
       "text": "Branch feature/PPY-495ec8-public-wiki, PR https://github.com/AnthusAI/Papyrus/pull/540 (CI python/ts/smoke green). Verified by procedures/newsroom/tests/test_knowledge_wiki.py (30+ tests, one per Gherkin scenario, plus projector listing/sitemap/llms/twin), src/papyrus_content/wiki_stamp_test.py, scripts/test-public-forms.ts, and the existing standard front end suites. Docs: docs/public-wiki.md. Not run against production.",
       "created_at": "2026-10-22T05:25:08.629456Z",
       "comment_type": "default"
+    },
+    {
+      "id": "744098f0-c0c7-4c14-936e-9df82608f8e8",
+      "author": "home",
+      "text": "Shipped wiki is live (2026-10-22): PR https://github.com/AnthusAI/Shipped-web/pull/34 merged (wiki section, wiki_page listing type, suggest-edit form, styling). 282 draft wiki_page items created by wiki sync (--no-topics), 282 published with --actor ai (Edited by AI on 2026-10-22), snapshot re-run with --as-of 2026-10-19 and full re-projection. Live checked: /wiki/ 200 (29 pages), /wiki/task-typed-decisions/ and /wiki/platform-hugging-face/ 200 with stamp, trend, neighbourhood, related, suggest form; sitemap 282 wiki urls plus listing; llms.txt lists them; every trending-strip link on / returns 200. OPEN BUG: the suggest-an-edit POST to the site's own public form endpoint returns 500 store-failed because amplify/data/schema.ts schemaExcludingGroups skips allow.resource(publicForms).to(['mutate']) when plugins are enabled (Shipped enables the newsletter plugin), so the function cannot create Message rows.",
+      "created_at": "2026-10-22T08:07:02.220741Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:04.861270Z",
-  "updated_at": "2026-10-22T05:25:35.839159Z",
+  "updated_at": "2026-10-22T08:07:02.220768Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
