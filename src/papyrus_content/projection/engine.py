@@ -60,7 +60,7 @@ MESSAGE_KEY_LIMIT = 50
 
 
 class DeletionRefused(ValueError):
-    """A projection planned deletions the guard does not allow; nothing was written."""
+    """A projection planned deletions the guard does not allow; no page was written."""
 
     def __init__(self, keys, dropped_items, stored_pages: int) -> None:
         self.keys = tuple(sorted(keys))
@@ -74,7 +74,7 @@ class DeletionRefused(ValueError):
             head = key.split("/", 1)[0] + "/" if "/" in key else "(top level)"
             groups[head] = groups.get(head, 0) + 1
         lines = [
-            f"Refusing to delete {len(self.keys)} of {self.stored_pages} stored pages; nothing was written.",
+            f"Refusing to delete {len(self.keys)} of {self.stored_pages} stored pages; no page was written.",
             "By first path segment: " + ", ".join(f"{head} {count}" for head, count in sorted(groups.items())),
         ]
         if self.dropped_items:
@@ -154,7 +154,7 @@ def _delete_pages(context: ProjectionContext, report: ProjectionReport, keys) ->
 
 
 def _guard_deletions(context: ProjectionContext, keys, dropped_items) -> None:
-    """Refuse, before anything is written, deletions that look like a wrong site configuration rather than an edit."""
+    """Refuse, before any page is written, deletions that look like a wrong site configuration rather than an edit."""
     guard = context.deletion_guard
     keys = set(keys)
     dropped = sorted(set(dropped_items))
