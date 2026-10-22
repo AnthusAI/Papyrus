@@ -299,7 +299,22 @@ curl -s https://shipped.anth.us/_data/knowledge/index.json | python -m json.tool
 
 `--concept-kinds` limits the concept of the week to those kinds (Shipped features a task, technique, concept or model family, not a platform or a licence); leave it out and every kind may be chosen. Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). `--reproject` warns when the `--static-dir` checkout is behind its upstream and refuses to delete the pages of published items unless you pass `--allow-deletions`. The snapshot is deterministic for the same records and `--as-of`.
 
-### 13. Wiki
+### 13. Archive the week
+
+Take this step on every run, after the snapshot. Cluster identity (which clusters are new, continued, merged or split against the last run) cannot be rebuilt later, so the week is archived while the run is current. Use the same destination and options as step 12, and the same `--as-of`.
+
+```bash
+papyrus knowledge archive --auth iam --amplify-outputs $OUT \
+  --site-bucket amplify-dkycd9pntgo6d-main-bran-sitebucket397a1860-072ufgwmonqo \
+  --static-dir ~/Projects/Shipped-web/web --beats-config ~/Projects/Shipped-web/web/scoring.json \
+  --entity-href '/wiki/{slug}/' --as-of $MONDAY \
+  --concept-kinds task,technique,concept,model_family
+curl -s https://shipped.anth.us/_data/knowledge/history/index.json | python -m json.tool | head -30
+```
+
+It writes `_data/knowledge/history/<MONDAY>.json` and refreshes `history/index.json`; it never deletes a file and never re-projects pages. Running it again for the same run changes nothing. An entry is immutable: a different run of the same week is refused unless you add `--replace`, which replaces that week only. It refuses when no cluster run is published or when the latest run is dated outside the week of `--as-of`. The format is in [knowledge-snapshot.md](knowledge-snapshot.md#archive).
+
+### 14. Wiki
 
 ```bash
 papyrus knowledge wiki sync --auth iam --amplify-outputs $OUT --beats-config ~/Projects/Shipped-web/web/scoring.json           # dry run: lists the pages it would create or change

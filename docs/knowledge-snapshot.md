@@ -13,6 +13,7 @@ Everything heavy runs on a workstation. Papyrus stores only small rows and write
 3. `papyrus knowledge publish-run --identity FILE --trends FILE --entities FILE` imports the run into the backend. It is a dry run until you add `--apply`.
 4. Someone reviews with `papyrus knowledge entities ...`, `papyrus knowledge clusters ...` and `papyrus knowledge relations ...`. For now an AI agent does this; later people will. Every review command says who: `--actor ai|human`.
 5. `papyrus knowledge snapshot` reads the backend and writes `_data/knowledge/`.
+6. `papyrus knowledge archive` stores the week's snapshot with its cluster identity under `_data/knowledge/history/` (see [Archive](#archive)).
 
 ## Who accepted it
 
@@ -115,6 +116,31 @@ Files are written through the same writers as the projector, under the site's `u
 ### Beats
 
 A beat is a site topic. There is no beat unless you choose a source: `--beats-config` takes a `topics` mapping like a site's `web/scoring.json` (`{key: {label, path}}`; an item belongs to the beat whose key is one of its front-matter `tags`); `--beats-category-set` takes the accepted root categories of a category set (an item belongs to a beat when it is a member of the accepted cluster the category came from, or carries the category key or name as a tag). `topicCount` is the number of beats.
+
+## Archive
+
+```bash
+papyrus knowledge archive --site-bucket <bucket> --static-dir DIR --as-of YYYY-MM-DD    # the snapshot options; also --out DIR and --records FILE
+papyrus knowledge archive ... --replace                                                  # replace this week's entry on purpose
+```
+
+Cluster identity is only known at the moment of a run, so each week is archived once, as published data beside the snapshot (the same site store, under the same `urls.basePath`). Status: Beta. Code: `archive.py`. Story PPY-eb29ea.
+
+Files, `schemaVersion` 1:
+
+- `_data/knowledge/history/<asOf>.json`, one per ISO week (`asOf` is the Monday, the same default as `snapshot`): `schemaVersion`, `asOf`, `runId`, `runAsOf` (the date of the cluster run), `archivedAt` (UTC, when the entry was taken), `counts` (`entities`, `topics`, `clusters`), `clusters` and `snapshot`.
+- `clusters`: every accepted or proposed cluster of the latest run (rejected ones are left out), sorted by `uid`: `uid`, `name` (only when accepted), `itemCount`, `topTerms` and `identity`, one of `{status: "new"}`, `{status: "continued", predecessor: uid}`, `{status: "merged", sources: [uid, ...]}` or `{status: "split", source: uid}`. A continued cluster keeps its `uid`, so its predecessor is its own `uid` unless the run names another. The step refuses a cluster whose event it cannot describe (a merge with no source, a split with more than one).
+- `snapshot`: the files `snapshot` writes for this week, as `{index, clusters, entities: {<entity key>: file}}`, built with the same options.
+- `_data/knowledge/history/index.json`: `schemaVersion` and `entries` (oldest first): `asOf`, `file`, `runId`, `runAsOf`, `archivedAt`, `counts` and `identity` (the number of clusters `new`, `continued`, `merged` and `split`). Read it to find the weeks, then read the entries you need. A missing or stale index is rebuilt from the entry files on the next run.
+
+Rules:
+
+- **Idempotent.** The same run archived again for the same week keeps the stored entry and writes nothing.
+- **Immutable.** An entry of a week is not rewritten by a different run of that week: the step refuses and says so, unless you pass `--replace`, which replaces that one week.
+- **Safe.** The step never deletes a file. `snapshot` removes only orphaned `entities/` files, and the projection treats `_data/knowledge/` as runtime data it never reconciles, so the archive survives both. An entry or an index that is not valid JSON is never overwritten.
+- **Projection guard.** The step does not re-project pages, so the [deletion guard of `--reproject`](#snapshot) is not involved; it rejects `--reproject`.
+- **Right week.** The latest cluster run must be dated in the week of `--as-of`; a stale run is refused so it is not filed under a later week. There is no backfill of cluster history; trend counts come from item dates and need none.
+- The edge cache is purged for the files that changed, as `snapshot` does with `PAPYRUS_EDGE_DISTRIBUTION_ID`.
 
 ## File shapes (`schemaVersion` 1)
 
