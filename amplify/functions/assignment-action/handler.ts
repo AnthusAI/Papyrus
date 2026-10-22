@@ -316,7 +316,7 @@ async function listAssignmentsForObject(event: Parameters<Schema["listAssignment
   return contexts;
 }
 
-async function editorialContext(client: DataClient, scope: { publicationKey?: string; sectionId?: string | null; storyLineageId?: string | null; assignmentId?: string | null; maxCharacters?: number | null }) {
+async function editorialContext(client: DataClient, scope: { publicationKey?: string; sectionId?: string | null; storyLineageId?: string | null; assignmentId?: string | null; maxCharacters?: number | null; optionalPublicationDoctrine?: boolean | null }) {
   if (!editorialEndpoint) throw new Error("Editorial context requires the configured backend endpoint.");
   return resolveEditorialContext(client as unknown as EditorialClient, {
     ...scope, endpoint: editorialEndpoint, tenantId: tenantIdFromEnvironment(), readAttachment: readEditorialAttachment,

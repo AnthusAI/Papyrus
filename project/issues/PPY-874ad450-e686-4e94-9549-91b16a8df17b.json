@@ -3,17 +3,25 @@
   "title": "Per-site SES sending stack: domain identity, Easy DKIM, MAIL FROM, SPF, DMARC, configuration set and event topic",
   "description": "infra/newsletter/papyrus-newsletter-sending.yaml, one stack per site (papyrus-newsletter-sending-<siteId>). Route 53 records in our zones. Configuration set papyrus-<siteId> with SNS and CloudWatch event destinations. First deployed for Shipped (shipped.anth.us, zone Z04979341DPRV5BDQNZMG). Done when the identity is verified, DKIM and MAIL FROM show SUCCESS, and dig shows SPF and DMARC.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "92a84492-2fb9-4bfa-a5db-75a7350df32c",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/525 merged to develop. Stack papyrus-newsletter-sending-shipped (papyrus-production, us-east-1) deployed: SiteId=shipped, SendingDomain=shipped.anth.us, zone Z04979341DPRV5BDQNZMG. SES identity VerifiedForSendingStatus True, DKIM SUCCESS, MAIL FROM SUCCESS. DNS: _dmarc TXT p=quarantine, bounce TXT spf, bounce MX feedback-smtp.us-east-1.amazonses.com all resolve.",
+      "created_at": "2026-10-22T03:21:58.339716Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:34.219746Z",
-  "updated_at": "2026-10-22T02:43:34.219782Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T03:21:58.377556Z",
+  "closed_at": "2026-10-22T03:21:58.377506Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

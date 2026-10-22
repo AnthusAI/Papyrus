@@ -931,6 +931,7 @@ const schema = a.schema({
       storyLineageId: a.id(),
       assignmentId: a.id(),
       maxCharacters: a.integer(),
+      optionalPublicationDoctrine: a.boolean(),
     })
     .returns(a.json().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])

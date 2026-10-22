@@ -103,6 +103,26 @@ class EditorialContextTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'current'):
             resolve_editorial_context(client, endpoint='https://example.invalid')
 
+    def test_optional_doctrine_reports_a_missing_mission_instead_of_failing(self):
+        # PPY-2c4b56: the editorial check asks for optional doctrine; nobody else does.
+        client = Records(); client.records['Item']['editorial-doctrine-mission'] = []
+        with self.assertRaisesRegex(ValueError, 'Publication mission: expected exactly one current record, found 0'):
+            resolve_editorial_context(client, endpoint='https://example.invalid')
+        pack = resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+        self.assertEqual(pack['missingPublicationDoctrine'], ['mission'])
+        self.assertEqual([(entry['scope'], entry['kind']) for entry in pack['entries']], [('publication', 'policy')])
+
+    def test_optional_doctrine_with_one_current_mission_is_unchanged(self):
+        default = self.resolve()
+        optional = self.resolve(optional_publication_doctrine=True)
+        self.assertNotIn('missingPublicationDoctrine', optional)
+        self.assertEqual(optional['contextHash'], default['contextHash'])
+
+    def test_optional_doctrine_still_rejects_ambiguous_missions(self):
+        client = Records(); client.records['Item']['editorial-doctrine-mission'].append(dict(client.records['Item']['editorial-doctrine-mission'][0], id='mission-other'))
+        with self.assertRaisesRegex(ValueError, 'found 2'):
+            resolve_editorial_context(client, endpoint='https://example.invalid', optional_publication_doctrine=True)
+
     def test_publication_comes_from_the_hosted_canonical_corpus(self):
         pack = resolve_editorial_context(Records(), endpoint='https://example.invalid/graphql')
         self.assertEqual(pack['publication']['key'], 'example')

@@ -65,6 +65,16 @@ async function main() {
   };
   assert.equal((await resolveEditorialContext(paged, options)).contextHash, pack.contextHash);
   assert.equal(reads, 4);
+  // PPY-2c4b56: the editorial check asks for optional publication doctrine; nobody else does.
+  const noMission = structuredClone(fixture); noMission.records.Item['editorial-doctrine-mission'] = [];
+  await assert.rejects(resolveEditorialContext(client(noMission), options), /Publication mission: expected exactly one current record, found 0/);
+  const skipped = await resolveEditorialContext(client(noMission), { ...options, optionalPublicationDoctrine: true });
+  assert.deepEqual(skipped.missingPublicationDoctrine, ["mission"]);
+  assert.ok(!skipped.entries.some(value => value.scope === "publication" && value.kind === "mission"));
+  const optional = await resolveEditorialContext(client(), { ...options, optionalPublicationDoctrine: true });
+  assert.equal("missingPublicationDoctrine" in optional, false);
+  assert.equal(optional.contextHash, pack.contextHash);
+  await rejects(d => { d.records.Item['editorial-doctrine-mission'].push(d.records.Item['editorial-doctrine-mission'].at(-1)); }, /found 2/, { optionalPublicationDoctrine: true });
   const fallback = structuredClone(fixture); fallback.attachments = [];
   const brief = await resolveEditorialContext(client(fallback), options);
   assert.ok(brief.warnings.some(warning => warning.includes('summary')));

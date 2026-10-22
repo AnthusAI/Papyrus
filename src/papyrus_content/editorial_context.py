@@ -45,7 +45,8 @@ def _entry(scope: str, kind: str, text: str, record: dict, **source: Any) -> dic
 
 
 def build_context(publication: dict, scope: dict, entries: list[dict], *, mode: str,
-                  warnings: list[str] | None = None, max_characters: int = 0) -> dict:
+                  warnings: list[str] | None = None, max_characters: int = 0,
+                  missing_publication_doctrine: list[str] | None = None) -> dict:
     warnings = list(warnings or [])
     lines = [f"Editorial context: {publication['key']}", f'Source: {mode}',
              'Precedence: publication > section > assignment. Surface conflicts; narrower instructions do not silently override publication policy.',
@@ -61,6 +62,8 @@ def build_context(publication: dict, scope: dict, entries: list[dict], *, mode: 
                'scope': scope, 'sourceMode': mode, 'precedence': PRECEDENCE,
                'entries': entries, 'sources': [entry['source'] for entry in entries],
                'warnings': warnings, 'text': text, 'totalCharacters': len(text)}
+    if missing_publication_doctrine:
+        payload['missingPublicationDoctrine'] = list(missing_publication_doctrine)
     payload['contextHash'] = _digest(payload)
     payload['resolvedAt'] = datetime.now(timezone.utc).isoformat()
     return payload
@@ -85,12 +88,16 @@ def hosted_publication(client, requested_key: str | None = None) -> dict:
 
 def resolve_editorial_context(client, *, endpoint: str, publication_key: str | None = None,
                               section_id: str | None = None, story_lineage_id: str | None = None,
-                              assignment_id: str | None = None, max_characters: int = 0) -> dict:
+                              assignment_id: str | None = None, max_characters: int = 0,
+                              optional_publication_doctrine: bool = False) -> dict:
+    """``optional_publication_doctrine``: no current mission or policy record is reported in ``missingPublicationDoctrine``
+    instead of failing (the editorial check's rule lane needs no doctrine); more than one is still an error."""
     if not endpoint:
         raise ValueError('An endpoint is required for hosted editorial context.')
     publication = hosted_publication(client, publication_key)
     entries = []
     warnings = []
+    missing = []
     assignment = None
     if assignment_id:
         assignment = client.get_record('Assignment', assignment_id)
@@ -117,6 +124,9 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
     for kind, definition in DOCTRINE_DEFINITION_BY_KIND.items():
         rows = client.list_by_index('itemBySlug', definition['slug'])
         rows = [row for row in rows if row.get('type') == 'doctrine' and row.get('status') == 'private']
+        if optional_publication_doctrine and not any(row.get('versionState') == 'current' for row in rows):
+            missing.append(kind)
+            continue
         record = current_record(rows, f'Publication {kind}')
         _check_tenant(client, record)
         text = _body(record)
@@ -155,7 +165,8 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
             warnings.append('No assignment brief attachment exists; the Assignment summary is supplied as its brief.')
     return build_context({**publication, 'endpoint': endpoint},
                          {'sectionId': section_id, 'storyLineageId': story_lineage_id, 'assignmentId': assignment_id},
-                         entries, mode='cloud', warnings=warnings, max_characters=max_characters)
+                         entries, mode='cloud', warnings=warnings, max_characters=max_characters,
+                         missing_publication_doctrine=missing)
 
 
 def _section_entries(entries: list, warnings: list, section: dict) -> None:

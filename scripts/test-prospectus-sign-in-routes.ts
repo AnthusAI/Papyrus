@@ -267,7 +267,9 @@ async function signInRouteTests() {
   assert.equal(sessionRead.headers.get("cache-control"), "no-store");
   const sessionBody = await sessionRead.json();
   assert.equal(sessionBody.signedIn, true);
-  assert.equal(sessionBody.person.id, "person-1");
+  assert.deepEqual(Object.keys(sessionBody).sort(), ["cyclotronLabAccess", "publishingAccounts", "selectedAccountId", "signedIn"], "the browser gets only what the UI reads");
+  assert.equal(JSON.stringify(sessionBody).includes("person-1"), false, "no person id reaches the browser");
+  assert.equal(JSON.stringify(sessionBody).includes("createdAt"), false, "no person record reaches the browser");
   assert.equal(sessionBody.cyclotronLabAccess, true, "Cyclotron Lab access comes from an active cyclotron product on one of the person's accounts");
   assert.equal(requests.at(-1)?.humanAccessToken, "access-jwt");
   assert.deepEqual(sessionBody.publishingAccounts, [

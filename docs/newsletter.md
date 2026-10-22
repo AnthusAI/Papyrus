@@ -1,6 +1,6 @@
 # Newsletter
 
-Status: signup capture is Live. Sending is Not built yet.
+Status: signup capture is Live. Sending infrastructure is Live for Shipped. Sending itself is Not built yet.
 
 ## What exists
 
@@ -52,3 +52,11 @@ Initiative PPY-31455f plans sending. Its milestones, none of them built:
 - Everything that is not Markus output (subject, preheader, footer fields) is escaped. The subject is collapsed to one line.
 - Keep issues under 100 KB of HTML: Gmail clips at 102 KB. A test renders a long sample to guard the markup overhead.
 - Preview: `poetry run python -m papyrus_content.email_render out.html` writes `out.html` and `out.txt` for a sample issue.
+
+## Sending stack
+
+Status: Live for Shipped (PPY-874ad4).
+
+Each site that will send newsletters gets its own CloudFormation stack, `papyrus-newsletter-sending-<siteId>`, from `infra/newsletter/papyrus-newsletter-sending.yaml`. It creates the SES identity for the sending domain with Easy DKIM and a custom MAIL FROM domain, the DNS records for them and for DMARC, a configuration set `papyrus-<siteId>` without open or click tracking, and an SNS topic `papyrus-newsletter-events-<siteId>` that carries delivery events. The stack for Shipped sends from `shipped.anth.us`; its identity, DKIM and MAIL FROM checks all pass.
+
+The stack does not send mail and does not lift the SES sandbox. Parameters, the deploy command, verification checks and teardown are in `infra/newsletter/README.md`.

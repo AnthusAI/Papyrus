@@ -118,3 +118,30 @@ Feature: Editorial checks
     When the function prepares its provider keys
     Then "TYPESAFE_API_KEY" is the value stored in SSM
     And "OPENAI_API_KEY" is not set, so rewrite suggestions report that they are not configured
+
+  # PPY-2c4b56: a publication without a mission still gets its rule-based copy checks.
+  Scenario: No current mission: rule checks run, judgment checks are skipped
+    Given the publication has no current mission
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When an editor checks "This game-changing release." in section "engineering"
+    Then the findings are for policies "no-hype"
+    And Humanus was asked to run without the classifier
+    And the classifier lane is skipped because the publication has no mission
+
+  Scenario: The skip is stored with the checked version
+    Given the publication has no current mission
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When the saved version of a story with "This game-changing release." is checked
+    Then the stored check run records the classifier lane as skipped
+
+  Scenario: One current mission: judgment checks run as before
+    Given the publication has one current mission
+    And the editorial check settings turn the classifier on with a 12 second deadline
+    When an editor checks "This game-changing release." in section "engineering"
+    Then Humanus was asked to run the classifier with a 12 second deadline
+    And the classifier lane status is reported
+
+  Scenario: Two current missions are still an error
+    Given the publication has 2 current missions
+    When an editor checks "This game-changing release." in section "engineering"
+    Then the check fails with "expected exactly one current record, found 2"

@@ -13,6 +13,9 @@ export type EditorialOptions = {
   storyLineageId?: string | null;
   assignmentId?: string | null;
   maxCharacters?: number | null;
+  /** A publication without a current mission or policy record yields missingPublicationDoctrine instead of an error.
+   * Only the editorial check asks for this (its rule lane needs no doctrine); more than one current record is still an error. */
+  optionalPublicationDoctrine?: boolean | null;
   readAttachment: (attachment: EditorialRecord) => Promise<string>;
 };
 
@@ -55,7 +58,7 @@ function entry(scope: string, kind: string, text: string, record: EditorialRecor
   } };
 }
 
-export function buildEditorialContext(publication: EditorialRecord, scope: EditorialRecord, entries: EditorialRecord[], warnings: string[], maxCharacters = 0) {
+export function buildEditorialContext(publication: EditorialRecord, scope: EditorialRecord, entries: EditorialRecord[], warnings: string[], maxCharacters = 0, missingPublicationDoctrine: string[] = []) {
   const lines = [`Editorial context: ${publication.key}`, "Source: cloud",
     "Precedence: publication > section > assignment. Surface conflicts; narrower instructions do not silently override publication policy.",
     "Private operating guidance; not evidence or reader-facing copy."];
@@ -65,7 +68,8 @@ export function buildEditorialContext(publication: EditorialRecord, scope: Edito
   if (!Number.isInteger(maxCharacters) || maxCharacters < 0) throw new Error("Editorial context budget must be nonnegative.");
   if (maxCharacters && totalCharacters > maxCharacters) throw new Error(`Editorial context budget ${maxCharacters} cannot hold ${totalCharacters} required characters; policy was not truncated.`);
   const payload = { schemaVersion: 1, rendererVersion: "editorial-context/v1", publication, scope, sourceMode: "cloud",
-    precedence: ["publication", "section", "assignment"], entries, sources: entries.map(value => value.source), warnings, text, totalCharacters };
+    precedence: ["publication", "section", "assignment"], entries, sources: entries.map(value => value.source), warnings, text, totalCharacters,
+    ...(missingPublicationDoctrine.length ? { missingPublicationDoctrine } : {}) };
   return { ...payload, contextHash: digest(JSON.stringify(canonical(payload))), resolvedAt: new Date().toISOString() };
 }
 
@@ -83,6 +87,7 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     corpusId: corpora[0].id, tenantId: options.tenantId ?? null, endpoint: options.endpoint };
   const entries: EditorialRecord[] = [];
   const warnings: string[] = [];
+  const missingPublicationDoctrine: string[] = [];
   let sectionId = options.sectionId || null;
   let storyLineageId = options.storyLineageId || null;
   const assignmentId = options.assignmentId || null;
@@ -110,6 +115,7 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
     const rows = await pages(client, "Item", options.tenantId ? "itemByTenantSlug" : "itemBySlug",
       options.tenantId ? { tenantSlug: tenantScopedValue(options.tenantId, slug) } : { slug });
     const current = rows.filter(row => row.type === "doctrine" && row.status === "private" && row.versionState === "current");
+    if (current.length === 0 && options.optionalPublicationDoctrine) { missingPublicationDoctrine.push(kind); continue; }
     if (current.length !== 1) throw new Error(`Publication ${kind}: expected exactly one current record, found ${current.length}.`);
     const record = current[0];
     tenant(record, options.tenantId);
@@ -147,7 +153,7 @@ export async function resolveEditorialContext(client: EditorialClient, options: 
       warnings.push("No assignment brief attachment exists; the Assignment summary is supplied as its brief.");
     }
   }
-  return buildEditorialContext(publication, { sectionId, storyLineageId, assignmentId }, entries, warnings, options.maxCharacters ?? 0);
+  return buildEditorialContext(publication, { sectionId, storyLineageId, assignmentId }, entries, warnings, options.maxCharacters ?? 0, missingPublicationDoctrine);
 }
 
 export function assignmentDoctrine(pack: Awaited<ReturnType<typeof resolveEditorialContext>>) {
