@@ -10,9 +10,17 @@
   "parent": "PPY-0b2cbbcc-2c57-4748-9738-eccb8fb31fae",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2048ff2a-c987-48f8-8cf4-6a11b89a8c2f",
+      "author": "home",
+      "text": "Score combination exploration done; awaiting Ryan's decision (left open). No production change. Recommendation: Bayesian shrinkage per dimension, k=20, reader share capped at 0.4, ratings from profiles under 24h at weight 1/3, drop readerMinimum. Simulated on the 70 real Shipped items (editor composite sd 0.28): vs current blend the 5th-rating rank jump falls from 7.3 to 1.2; socks to put a mid-table item in the top 5 rise from 13 to 28 (96 at 1/3 weight); cost: slower to follow genuine reader disagreement (gap closure 0.36 vs 0.44 at 30 raters). Wilson on upvotes for Front rejected (ignores editors, split-half Spearman 0.17, overhyped item ranks 1 of 70). Rising and the 3-report Shipped stamp fall to 3 sock accounts whatever the formula; count only profiles older than 24h. Write-up and sim: Papyrus docs/score-combination.md (PR https://github.com/AnthusAI/Papyrus/pull/561); Shipped summary PR https://github.com/AnthusAI/Shipped-web/pull/42.",
+      "created_at": "2026-10-22T11:26:36.487191Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.530634Z",
-  "updated_at": "2026-10-21T12:49:28.530664Z",
+  "updated_at": "2026-10-22T11:26:36.487217Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
