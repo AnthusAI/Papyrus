@@ -2159,20 +2159,9 @@ export function baseModelNames(excludedGroups: readonly OptionalModelGroup[] = [
 
 const baseDefinitions = buildBaseDefinitions(true);
 
-export const schema = a.schema(baseDefinitions).authorization((allow) => [
-  allow.resource(assignmentAction).to(["query", "mutate"]),
-  allow.resource(categoryAction),
-  allow.resource(contentActions),
-  allow.resource(manageUserRole),
-  allow.resource(modelAttachmentUpload),
-  allow.resource(newsroomSummary),
-  allow.resource(procedureAction),
-  allow.resource(publicForms).to(["mutate"]),
-]);
-
-/** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */
-export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
-  return a.schema({ ...baseDefinitions, ...pluginDefinitions } as typeof baseDefinitions).authorization((allow) => [
+/** Schema-level function grants shared by every deployed schema, with or without plugins, so none can drop one. */
+function functionGrants(allow: any) {
+  return [
     allow.resource(assignmentAction).to(["query", "mutate"]),
     allow.resource(categoryAction),
     allow.resource(contentActions),
@@ -2180,23 +2169,21 @@ export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
     allow.resource(modelAttachmentUpload),
     allow.resource(newsroomSummary),
     allow.resource(procedureAction),
-  ]);
+    allow.resource(publicForms).to(["mutate"]),
+  ];
+}
+
+export const schema = a.schema(baseDefinitions).authorization(functionGrants);
+
+/** The deployed schema of a site that enables plugins: the base definitions plus what each plugin contributes (docs/plugins.md). */
+export function schemaWithPlugins(pluginDefinitions: Record<string, any>) {
+  return a.schema({ ...baseDefinitions, ...pluginDefinitions } as typeof baseDefinitions).authorization(functionGrants);
 }
 
 /** The schema of a site that leaves optional model groups out of its first deploy. */
 export function schemaExcludingGroups(excludedGroups: readonly OptionalModelGroup[], pluginDefinitions: Record<string, any> = {}) {
   const definitions = buildBaseDefinitions(!excludedGroups.includes("editions")) as unknown as typeof baseDefinitions;
-  const hasPlugins = Object.keys(pluginDefinitions).length > 0;
-  return a.schema({ ...definitions, ...pluginDefinitions } as typeof baseDefinitions).authorization((allow) => [
-    allow.resource(assignmentAction).to(["query", "mutate"]),
-    allow.resource(categoryAction),
-    allow.resource(contentActions),
-    allow.resource(manageUserRole),
-    allow.resource(modelAttachmentUpload),
-    allow.resource(newsroomSummary),
-    allow.resource(procedureAction),
-    ...(hasPlugins ? [] : [allow.resource(publicForms).to(["mutate"])]),
-  ]);
+  return a.schema({ ...definitions, ...pluginDefinitions } as typeof baseDefinitions).authorization(functionGrants);
 }
 
 export type Schema = ClientSchema<typeof schema>;
