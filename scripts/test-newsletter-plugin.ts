@@ -63,7 +63,7 @@ assert.deepEqual([...(newsletterManifest.queries ?? []), ...newsletterManifest.m
 assert.deepEqual(Object.keys(newsletterSchemaDefinitions()).sort(), operations, "the plugin defines operations and no model");
 assert.deepEqual(Object.keys(newsletterPlugin.schemaDefinitions()).sort(), operations);
 assert.deepEqual(Object.keys(newsletterPlugin.functions()), ["newsletterOps"]);
-assert.deepEqual(newsletterManifest.staticAssets, ["_plugins/papyrus-newsletter@1.js"]);
+assert.deepEqual(newsletterManifest.staticAssets, ["_plugins/papyrus-newsletter@1.js", "_plugins/papyrus-newsletter-pages@1.js"]);
 const withPlugin = schemaWithPlugins(newsletterPlugin.schemaDefinitions()).transform().schema;
 const withoutPlugins = schemaWithPlugins({}).transform().schema;
 assert.notEqual(withPlugin, withoutPlugins);
@@ -101,6 +101,10 @@ assert.equal(config.configurationSet, "papyrus-example");
 assert.equal(config.eventTopicName, "papyrus-newsletter-events-example");
 assert.equal(config.instantAlerts, false);
 assert.equal(config.itemUrlStyle, "html");
+assert.equal(config.basePath, "", "a site at the root has no base path");
+assert.equal(resolveNewsletterConfig(with_({ basePath: "/posts" })).basePath, "posts");
+assert.equal(resolveNewsletterConfig(with_({ basePath: "posts/" })).basePath, "posts");
+assert.equal(resolveNewsletterConfig(with_({ basePath: "/" })).basePath, "");
 assert.equal(resolveNewsletterConfig(with_({ itemUrlStyle: "directory" })).itemUrlStyle, "directory");
 assert.equal(config.lists[0].kind === "roundup" && config.lists[0].issueType, "newsletter_issue");
 assert.deepEqual(config.lists[1].kind === "alert" && config.lists[1].approval, "admin");
@@ -142,6 +146,10 @@ refuses(with_({ lists: [{ ...base.lists[0], schedule: { draft: "cron(0 13 ? * FR
 refuses(with_({ lists: [{ ...base.lists[0], schedule: undefined }] }), /schedule must be an object/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: "roundup" }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: "/news/roundup/" }] }), /archivePath/, "one path segment: it is also the item section");
+refuses(with_({ basePath: "/Posts here" }), /basePath must be the site's urls.basePath/);
+refuses(with_({ basePath: "/a/../b" }), /basePath/);
+refuses(with_({ basePath: "https://x.test/posts" }), /basePath/);
+refuses(with_({ basePath: 7 }), /basePath/);
 refuses(with_({ itemUrlStyle: "flat" }), /itemUrlStyle must be one of html, directory, clean/);
 refuses(with_({ lists: [{ ...base.lists[0], archivePath: undefined }] }), /archivePath/);
 refuses(with_({ lists: [{ ...base.lists[0], issueType: "Not Valid" }] }), /issueType/);
@@ -165,6 +173,7 @@ const published = newsletterPlugin.publicSettings(config);
 assert.deepEqual(published, {
   contract: 1,
   fromName: "Example News",
+  basePath: "",
   lists: [
     { id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup", issueType: "newsletter_issue", archivePath: "/roundup/" },
     { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert" },
@@ -179,10 +188,12 @@ assert.equal(pluginSettings({ custom: { papyrusPlugins: { newsletter: published 
 // The function environment.
 const environment = newsletterEnvironment(config, "table-name", "/papyrus/example/newsletter-key");
 assert.deepEqual(Object.keys(environment).sort(), [
-  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "INSTANT_ALERTS", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID",
+  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "INSTANT_ALERTS", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_BASE_PATH", "SITE_ID",
   "SITE_ORIGIN", "TABLE_NAME", "THEME_JSON",
 ]);
 assert.equal(environment.SITE_ORIGIN, "https://news.example.com");
+assert.equal(environment.SITE_BASE_PATH, "");
+assert.equal(newsletterEnvironment(resolveNewsletterConfig(with_({ basePath: "/posts" })), "t", "k").SITE_BASE_PATH, "posts");
 assert.equal(environment.ITEM_URL_STYLE, "html");
 assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
   {
@@ -270,7 +281,7 @@ const variables = newsletter[0].Properties.Environment?.Variables ?? {};
 assert.equal(variables.ALARM_NAMES, "papyrus-newsletter-example-bounce-rate,papyrus-newsletter-example-complaint-rate");
 for (const name of [
   "TABLE_NAME", "KEY_PARAMETER", "SITE_ID", "SITE_ORIGIN", "SENDING_DOMAIN", "FROM_ADDRESS", "FROM_NAME", "CONFIGURATION_SET", "LISTS_JSON", "THEME_JSON",
-  "ITEM_URL_STYLE", "FUNCTION_ARN", "SCHEDULER_ROLE_ARN", "QUEUE_URL", "CONTENT_ACTIONS_FUNCTION", "PAPYRUS_GRAPHQL_ENDPOINT",
+  "ITEM_URL_STYLE", "SITE_BASE_PATH", "FUNCTION_ARN", "SCHEDULER_ROLE_ARN", "QUEUE_URL", "CONTENT_ACTIONS_FUNCTION", "PAPYRUS_GRAPHQL_ENDPOINT",
 ]) {
   assert.ok(name in variables, `${name} is set`);
 }

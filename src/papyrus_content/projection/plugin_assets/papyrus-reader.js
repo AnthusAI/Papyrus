@@ -36,8 +36,21 @@
     unavailable: "Reader sign-in is not open yet",
     signedOut: "Sign in to vote and rate",
     failed: "Something went wrong. Try again later.",
-    notRated: "Not rated"
+    notRated: "Not rated",
+    signInDeclined: "Sign-in was cancelled.",
+    signInFailed: "Sign-in did not complete. Try again."
   };
+
+  /* A failed sign-in comes back to the page it started from with ?sign_in_error=<code> (never an /api page): say so once, then tidy the address. */
+  var signInProblem = "";
+  try {
+    var problems = new URLSearchParams(location.search);
+    if (problems.has("sign_in_error")) {
+      signInProblem = problems.get("sign_in_error") === "sign_in_declined" ? TEXT.signInDeclined : TEXT.signInFailed;
+      problems.delete("sign_in_error");
+      history.replaceState(null, "", location.pathname + (problems.toString() ? "?" + problems.toString() : "") + location.hash);
+    }
+  } catch (error) { signInProblem = ""; }
 
   var DEFAULT_DISPLAY_MINIMUM = 5;
   var state = { identity: "loading", me: null, snapshot: null, parameters: null, adjustments: {}, handleMessage: "" };
@@ -507,9 +520,20 @@
       } else if (next === "error") {
         host.appendChild(element("span", "papyrus-reader-status", TEXT.failed));
       } else if (next === "signed-out") {
-        var link = element("a", "papyrus-reader-link", "Sign in");
-        link.href = settings.signIn + "?returnTo=" + encodeURIComponent(location.pathname + location.search);
-        host.appendChild(link);
+        /* A form button, not a link: the endpoint is for machines (it answers 303 to Google), and people are never sent to an /api URL. */
+        var signInForm = element("form");
+        signInForm.method = "post";
+        signInForm.action = settings.signIn;
+        var returnTo = element("input");
+        returnTo.type = "hidden";
+        returnTo.name = "returnTo";
+        returnTo.value = location.pathname + location.search;
+        var signInButton = element("button", "papyrus-reader-button", "Sign in");
+        signInButton.type = "submit";
+        signInForm.appendChild(returnTo);
+        signInForm.appendChild(signInButton);
+        host.appendChild(signInForm);
+        if (signInProblem) host.appendChild(element("span", "papyrus-reader-status", signInProblem));
       } else if (next === "handle") {
         handleForm(host);
       } else {

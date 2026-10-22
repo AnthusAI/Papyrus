@@ -49,8 +49,10 @@ export type NewsletterList = RoundupList | AlertList;
 export type NewsletterConfig = {
   /** The site id: names the key parameter, the configuration set and the event topic. Must match the sending stack's SiteId. */
   siteId: string;
-  /** The site's public https origin: confirmation links point at `<siteOrigin>/api/newsletter/confirm`. */
+  /** The site's public https origin. The plugin's pages are at `<siteOrigin><basePath>/newsletter/...`. */
   siteOrigin: string;
+  /** The site's `urls.basePath` from projection.json, as a path without slashes at either end ("" for a site at the root, "posts" for dataparade.io/posts). */
+  basePath: string;
   /** The IAM role of the CMS app's server runtime (the `CmsComputeRoleArn` output of the app-shell stack): the only caller of the function. */
   computeRoleArn: string;
   sendingDomain: string;
@@ -69,7 +71,7 @@ export type NewsletterConfig = {
 };
 
 const KNOWN_KEYS = new Set([
-  "name", "siteId", "siteOrigin", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "instantAlerts", "theme", "lists",
+  "name", "siteId", "siteOrigin", "basePath", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "instantAlerts", "theme", "lists",
   "configurationSet", "eventTopicName", "itemUrlStyle",
 ]);
 const LIST_KEYS = {
@@ -124,6 +126,16 @@ function origin(raw: unknown): string {
     parsed = undefined;
   }
   if (!parsed || parsed.protocol !== "https:" || parsed.origin !== value) fail("siteOrigin must be an https origin such as https://example.com with no path");
+  return value;
+}
+
+/** `urls.basePath` as projection.json writes it ("/posts" or "posts"): lowercase path segments, no dots, at most 3 deep. */
+const BASE_PATH = /^[a-z0-9][a-z0-9_-]*(\/[a-z0-9][a-z0-9_-]*){0,2}$/;
+
+function basePath(raw: unknown): string {
+  if (raw === undefined) return "";
+  const value = typeof raw === "string" ? raw.replace(/^\/+|\/+$/g, "") : null;
+  if (value === null || (value !== "" && !BASE_PATH.test(value))) fail('basePath must be the site\'s urls.basePath, a lowercase path such as "/posts"');
   return value;
 }
 
@@ -226,6 +238,7 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
   return {
     siteId,
     siteOrigin: origin(raw.siteOrigin),
+    basePath: basePath(raw.basePath),
     computeRoleArn,
     sendingDomain,
     fromAddress,
