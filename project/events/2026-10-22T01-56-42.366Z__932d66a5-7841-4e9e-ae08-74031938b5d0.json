@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "932d66a5-7841-4e9e-ae08-74031938b5d0",
+  "issue_id": "PPY-6e3dc6a4-3cc0-4554-8d65-53ea112a7480",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:42.366Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier S4: pilobol-us lab classifier",
+    "description": "Lab classifier from Pilobol.us/inclusion_rubric.md plus binding; then the upstream URL.\nAcceptance: classifier and binding exist and are approved; upstream URL set afterwards.\n\nSize: M\nDependencies: lab criteria sign-off\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ef3dd277-50eb-4651-9474-7773b1208ee1",
+  "issue_id": "PPY-34d9180e-10ef-45bd-ade6-8633727aea29",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:46.135Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier S5: data-parade lab classifier",
+    "description": "Blocked on its classifier.\nAcceptance: unblocked and wired once the classifier exists.\n\nSize: S\nDependencies: blocked on Data Parade's classifier (related PPY-cad5f6)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

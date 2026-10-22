@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3bffd0e9-f79d-46d3-a0eb-3dfd9dbf7372",
+  "title": "Lab classifier P5: Review to lab feedback",
+  "description": "Send editor review of lab decisions to the lab as feedback through the C3 op.\nAcceptance: editor review reaches the lab via feedback; revoked membership stops it (C3).\n\nSize: M\nDependencies: Cyclotron C3 (verified-editor feedback op)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T01:56:24.079967Z",
+  "updated_at": "2026-10-22T01:56:24.080045Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

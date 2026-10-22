@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e0de1a5f-a315-4c27-bb0b-f5d3212698b9",
+  "issue_id": "PPY-b11c9211-6f38-4a06-ae78-7a28e137cd1e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:38.549Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier S3: anth-us lab wiring",
+    "description": "As S2, plus add the missing `aws` block in site.json.\nAcceptance: as S2; site.json has the aws block.\n\nSize: M\nDependencies: Prospectus R1 (filed by the Prospectus session)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ebf8d09e-3ee5-44bf-acef-7ffb9ecb9929",
+  "issue_id": "PPY-99e70c46-e971-4bcb-a9bc-2e714feed2bf",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:09.100Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier P2: Paste a URL through the lab",
+    "description": "Replace ReferenceCyclotronPriming in ReferenceAddEntry with the PrimingPanel transform route. Keep Ryan's UI rules: rating = buttons, explanation = full textarea below.\nAcceptance: BDD URL -> preview -> label -> accept; no priming-request payload written.\n\nSize: M\nDependencies: P1, Cyclotron C1; related PPY-71277c (UI rules), PPY-02e694\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}
