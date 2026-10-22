@@ -24,10 +24,22 @@
       "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Partly done, see earlier reconciliation comment: Vote, UsedIt, Rating and Freshness islands are live on Shipped (Freshness renders on Front and Rising). Remaining: the ranked board component reading board.json.",
       "created_at": "2026-10-22T10:45:07.220492Z",
       "comment_type": "default"
+    },
+    {
+      "id": "27a1d91c-fb5c-476b-b893-81407c4d6252",
+      "author": "home",
+      "text": "Board island, in the PR from branch feat/board-island: adds the RankedList island (front, rising and new lists from board.json plus a new subjects.json) as an ordered list with rank, title link, section or domain, the figure in words, 'Updated N min ago' and a 60 s poll. Remaining here: a sortable table form of the board, and the 5-segment meter that is grey below the minimum-n threshold.",
+      "created_at": "2026-10-22T11:29:09.105362Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet-5.5",
+        "name": "papyrus-anthus"
+      }
     }
   ],
   "created_at": "2026-10-21T12:49:28.749659Z",
-  "updated_at": "2026-10-22T10:45:07.220523Z",
+  "updated_at": "2026-10-22T11:29:09.105389Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

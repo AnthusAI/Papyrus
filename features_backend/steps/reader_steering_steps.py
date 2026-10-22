@@ -338,14 +338,14 @@ def nobody_has_karma(context) -> None:
     assert public_file(context, "_data/reader/readers.json")["readers"] == []
 
 
-@then('the site store holds the four reader files under "{base}"')
+@then('the site store holds the five reader files under "{base}"')
 def store_holds(context, base: str) -> None:
     keys = sorted(entry.key for entry in context.reader_site.list())
-    expected = sorted(f"{base}/_data/reader/{name}.json" for name in ("items", "board", "readers", "submissions"))
+    expected = sorted(f"{base}/_data/reader/{name}.json" for name in ("items", "board", "readers", "subjects", "submissions"))
     assert keys == expected, keys
 
 
-@then("the edge was asked to purge those four files and nothing else")
+@then("the edge was asked to purge those five files and nothing else")
 def edge_purged(context) -> None:
     written = context.reader_report.written
     assert context.reader_purged == [written], (context.reader_purged, written)

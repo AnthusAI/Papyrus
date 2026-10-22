@@ -135,8 +135,8 @@ Feature: Reader steering for a signed-in reader
   Scenario: The files follow the site's base path and the edge is purged for exactly those files
     When "alice" upvotes "item-one"
     And the snapshot runs under the base path "posts"
-    Then the site store holds the four reader files under "posts"
-    And the edge was asked to purge those four files and nothing else
+    Then the site store holds the five reader files under "posts"
+    And the edge was asked to purge those five files and nothing else
 
   Scenario: The public files never identify a reader
     When "alice" picks the handle "quiet-fox"

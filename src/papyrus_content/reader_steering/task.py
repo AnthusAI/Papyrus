@@ -15,6 +15,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ..projection.source import summary_from_row
 from ..publishing import published_item_id_for
 from .retirement import (
     DisabledRetirementPoll,
@@ -32,6 +33,7 @@ from .snapshot import (
     iso as snapshot_iso,
     ITEMS_FILE,
     READERS_FILE,
+    SUBJECTS_FILE,
     SUBMISSIONS_FILE,
     SnapshotSettings,
     build_snapshot,
@@ -131,6 +133,36 @@ def published_times(client: Any, subjects: set[str]) -> dict[str, str | None]:
         if row is not None and row.get("status") == "published":
             published[subject] = row.get("publishedAt")
     return published
+
+
+def published_entries(client: Any, projector: Any) -> list[dict]:
+    """The page facts of each published item that has a page: ``{subject, title, url, section, date, publishedAt}``.
+
+    ``subject`` is the lineage id, the key votes use. The URL is the one the projector places the page at; an item without a page
+    (a link-only section) is left out. Nothing here is private: every field is already on the public page.
+    """
+    policy = getattr(projector, "policy", None)
+    entries: list[dict] = []
+    for row in client.list_published_item_summaries():
+        if row.get("status") != "published":
+            continue
+        summary = summary_from_row(row)
+        keys = projector.item_page_paths(summary)
+        if not keys:
+            continue
+        title = str(summary.front_matter.get("title") or summary.page_title or summary.title or summary.slug).strip()
+        published_at = row.get("publishedAt")
+        entries.append(
+            {
+                "subject": row.get("itemLineageId") or summary.item_id,
+                "title": title,
+                "url": policy.url_for_key(keys[0]) if policy is not None else "/" + keys[0],
+                "section": summary.section,
+                "date": published_at[:10] if published_at else None,
+                "publishedAt": published_at,
+            }
+        )
+    return entries
 
 
 def snapshot_key(projector: Any, site_key: str) -> str:
@@ -246,9 +278,10 @@ def run_reader_snapshot(
         submitter_of=submitter_of,
         submissions=submissions,
         comments=comments,
+        published_items=published_entries(client, context.projector),
     )
     keys: list[str] = []
-    files = [(ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers)]
+    files = [(ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers), (SUBJECTS_FILE, snapshot.subjects)]
     if environment.get(SUBMISSION_TABLE_ENV):
         files.append((SUBMISSIONS_FILE, snapshot.submissions))
     for site_key, payload in files:

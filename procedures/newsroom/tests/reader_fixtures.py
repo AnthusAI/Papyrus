@@ -221,14 +221,24 @@ def run_snapshot(
     hype_gap: dict | None = None,
     review_signals: Any = None,
     comment_signals: Any = None,
+    section_of: dict | None = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
+    section_of = section_of or {}
     now = backend.now + 60
+    policy = url_policy(base_path)
+    rows = [
+        {"id": published_item_id_for(subject), "sourceItemId": subject, "itemLineageId": subject, "type": "article", "status": "published", "slug": subject, "section": section_of.get(subject),
+         "title": f"Title of {subject}", "publishedAt": iso_at(now - (5 + index) * 3600), "metadata": "{}"}
+        for index, subject in enumerate(published)
+    ]
     client = SimpleNamespace(
-        get_record=lambda model, record_id: {"status": "published", "publishedAt": iso_at(now - 5 * 3600)} if model == "PublishedItem" and record_id in published_ids else None
+        get_record=lambda model, record_id: {"status": "published", "publishedAt": iso_at(now - 5 * 3600)} if model == "PublishedItem" and record_id in published_ids else None,
+        list_published_item_summaries=lambda: rows,
     )
-    context = SimpleNamespace(projector=SimpleNamespace(policy=url_policy(base_path)), writer=writer, invalidate=invalidate)
+    projector = SimpleNamespace(policy=policy, item_page_paths=lambda summary: (policy.item_key(None, summary.slug),))
+    context = SimpleNamespace(projector=projector, writer=writer, invalidate=invalidate)
     environment = {
         SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5, "retirementPoll": retirement_poll is not None, **({"hypeGap": hype_gap} if hype_gap else {})}),
         VOTE_TABLE_ENV: TABLE_NAMES["vote"],

@@ -1,7 +1,7 @@
 {
   "id": "PPY-539af355-7243-4507-a368-1128d429693d",
   "title": "Board snapshot: per-week snapshot, New list and verdict log",
-  "description": "Remainder of PPY-4e170a. The shipped snapshot (Papyrus #516, #520) writes items.json, board.json (front and rising) and readers.json. Still missing from the original story: a per-week snapshot alongside the current one, a 'new' list, and a verdict log. Do this only when a site needs it.\n\n```gherkin\nFeature: Board snapshot extras\n  Scenario: Weekly board\n    Given votes across two weeks\n    Then a board file exists per week as well as the current one\n\n  Scenario: New list\n    Then board.json lists the newest published items regardless of votes\n```",
+  "description": "Remainder of PPY-4e170a. The shipped snapshot writes items.json, board.json (front, rising and new), subjects.json and readers.json. The New list is done (board island PR). Still missing, only when a site needs it: a per-week snapshot alongside the current one, and a verdict log.\n\n```gherkin\nFeature: Board snapshot extras\n  Scenario: Weekly board\n    Given votes across two weeks\n    Then a board file exists per week as well as the current one\n```",
   "type": "story",
   "status": "open",
   "priority": 3,
@@ -10,10 +10,28 @@
   "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "50d0648e-3bc6-43f7-9236-7393e80b3021",
+      "author": "home",
+      "text": "The New list is done in the board island PR (branch feat/board-island): board.json now carries 'new', the 50 newest published items and pending submissions interleaved by time, flagged kind item or submission, and subjects.json gives title, url, section and date. Remaining here, only when a site needs it: the per-week snapshot and the verdict log.",
+      "created_at": "2026-10-22T11:29:09.158579Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet-5.5",
+        "name": "papyrus-anthus"
+      }
+    }
+  ],
   "created_at": "2026-10-22T04:02:22.304049Z",
-  "updated_at": "2026-10-22T04:02:22.304088Z",
+  "updated_at": "2026-10-22T11:29:09.216494Z",
   "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet-5.5",
+    "name": "papyrus-anthus"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
