@@ -24,10 +24,17 @@
       "text": "Guard implemented with specs (red then green): decide-relevance --apply and decide-site-sections --apply need --doctrine; sections import-doctrine needs --config; dry runs print doctrine path and first mission line. Docs note added incl. relevance-sweep retirement (Ryan, 2026-10-22). Running full local CI next.",
       "created_at": "2026-10-22T01:55:56.436972Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7c7d463a-22ae-4e19-881d-09d41c769817",
+      "author": "home",
+      "text": "Pushed fix/guard-relevance-doctrine, PR https://github.com/AnthusAI/Papyrus/pull/515 (to develop, not merged). Local CI: only the known 4 SigV4 and 2 operator-cli failures.",
+      "created_at": "2026-10-22T02:03:54.983766Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T01:53:51.841755Z",
-  "updated_at": "2026-10-22T01:55:56.437003Z",
+  "updated_at": "2026-10-22T02:03:54.987328Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
