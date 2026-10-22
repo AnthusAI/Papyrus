@@ -28,7 +28,7 @@ export default defineSite({
 });
 ```
 
-Enabling it is a backend deploy: eight models, one staff mutation, the `reader-actions` function, a rate-window table and, when
+Enabling it is a backend deploy: nine models, three staff mutations, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
 `computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
@@ -590,6 +590,94 @@ items, newest first, with the automatic signals, the reports and Approve, Hide, 
 (Show again) and Recent actions (Undo). It reads the staff-readable models through AppSync and calls `moderateReader`; reader text is
 rendered as text and links only if they are `http` or `https`. The plugin manifest declares it as a `newsroomPanels` entry.
 
+## Proposals
+
+A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge, a
+split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides. It is part of the
+`reader-steering` plugin (a `Proposal` model, the `fileProposal` and `transitionProposal` mutations on `reader-actions`, and
+`papyrus proposals` on the CLI). The record and its rules are one stdlib module,
+`amplify/plugins/reader-steering/function/proposals.py`; the public files come from
+`src/papyrus_content/reader_steering/proposals.py`.
+
+**The record (`Proposal`, id `prop-` + 32 hex characters).** Staff-readable only, like the other reader models.
+
+| Field | Meaning |
+|---|---|
+| `kind` | `story_draft`, `new_concept`, `rename`, `merge`, `split`, `new_column`, `element_symbol` |
+| `title`, `summary`, `body` | Title (200 characters), an optional one-line summary (300) and the body as Markus, kept byte for byte (50,000) |
+| `targets` | JSON list of `{type, id}` with a type of `concept`, `entity`, `column`, `story` or `cluster`. A `rename`, `split` or `element_symbol` names exactly one, a `merge` two to ten, the rest none to ten |
+| `evidence` | Optional JSON `{signals, source}`: how many signals back the proposal and where they came from |
+| `proposer` | `ai`, or a reader's siteSubject. Stored, never published, and never a Person ID. `fileProposal` files AI proposals only; a reader route is not built |
+| `state` | `draft`, `in_steering`, `editor_review`, `approved`, `declined`, `overridden_by_editor` |
+| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject and is never published |
+| `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Written once, never overwritten |
+
+**Transitions.** Anything not listed is refused (`transition_not_allowed`); approved, declined and overridden are final.
+
+| From | To |
+|---|---|
+| `draft` | `in_steering`, `declined` |
+| `in_steering` | `editor_review` |
+| `editor_review` | `approved`, `declined`, `overridden_by_editor` |
+
+`overridden_by_editor` needs a public `reason` (`reason_required`) and a `result` of `approved` or `declined`, the editor's decision against
+the community's view (`result_required`); no other transition takes a result. Every reason is public text of at most 500 characters. Both
+mutations are open to the `editor` and `admin` groups only (the function checks the groups again) and answer a receipt `{status, id, error,
+message}` that never throws. A move is conditioned on the state the caller saw: if someone else moved the proposal first the answer is
+`refused / target_changed` and nothing is written. The full editor tier (PPY-0af7db) adds what it needs beyond these.
+
+**The files.** The snapshot reads every proposal and writes `_data/proposals/index.json` and one `_data/proposals/<id>.json` under the
+projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/proposals/index.json`). Every state is published, so a site can
+show drafts, what is in steering and what an editor decided. Only changed files are written and purged; the freshness stamp alone is not a
+change. The page reconcile never reports them as orphans.
+
+```json
+{
+  "generatedAt": "2026-10-22T10:00:00Z",
+  "proposals": [
+    {
+      "id": "prop-0123...", "kind": "merge", "group": "map_changes", "title": "Merge two clusters", "summary": "One line.",
+      "state": "overridden_by_editor", "label": "Overridden by editor · Proposed by AI", "proposedBy": "AI",
+      "targets": [{"type": "concept", "id": "a"}, {"type": "concept", "id": "b"}],
+      "evidence": {"signals": 12, "source": "arXiv"},
+      "createdAt": "2026-10-21T10:00:00Z", "updatedAt": "2026-10-22T09:00:00Z",
+      "votes": {"up": 42, "down": 3, "net": 39}, "comments": 5,
+      "communityResult": {"up": 42, "down": 3, "net": 39, "at": "2026-10-22T08:00:00Z"},
+      "decision": {"state": "overridden_by_editor", "result": "declined", "by": "Editor", "reason": "Coordinated votes from new accounts.", "at": "2026-10-22T09:00:00Z"}
+    }
+  ]
+}
+```
+
+`_data/proposals/<id>.json` is `{generatedAt, proposal}` where `proposal` is the entry above plus `body` (the Markus as filed) and `history`
+(`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (story drafts), `concepts` (new
+concepts) or `map_changes` (everything else), the tabs a site shows. `label` is `<State> · Proposed by AI` (`Reader` for a reader proposer).
+`communityResult` is `null` before editor review, live until the snapshot has fixed it, then frozen; `decision` is `null` until an editor
+decides. Sort orders (Top, New, Controversial) are the site's to compute from `votes` and `createdAt`. No file holds a siteSubject, a
+Cognito subject or an email.
+
+**Votes.** Votes on a proposal are keyed `{type: "proposal", id}`; the vote model (PPY-c97ce4) is the only place votes are cast or counted.
+`VoteCounts` in `proposals.py` reads `up`, `down`, `net` and `comments` for the proposal from the subjects snapshot
+(`_data/reader/items.json`, subject `proposal:<id>` from `proposal_subject_key`) and treats missing counts as zero (`net` defaults to up
+minus down), so proposals publish before votes on them do. `up` and `down` are whole numbers; `net` is weighted (a new account counts a third), so it can
+be fractional and is published unrounded; a site rounds it to one decimal for display. To take votes on proposals a publication lists `"proposal"` in its
+`subjects.types`, and the page casts them with `POST /api/reader/vote {subject: {type: "proposal", id}, value: 1 | -1 | null}`.
+
+**The CLI.** Signed in as an editor or admin (`papyrus login`):
+
+```bash
+papyrus proposals create --kind merge --title "Merge the agent clusters" --body-file draft.md \
+  --target concept:agents --target concept:agentic-systems --signals 12 --source arXiv
+papyrus proposals list [--state in_steering] [--json]
+papyrus proposals show prop-... [--json]
+papyrus proposals transition prop-... --to in_steering
+papyrus proposals transition prop-... --to overridden_by_editor --result declined --reason "Coordinated votes."
+papyrus proposals publish        # runs the reader snapshot, which writes _data/proposals/
+```
+
+A refusal prints `error: message` and exits 2. `create` files a draft; it is public after the next snapshot, which every `publish` and
+every scheduled run starts.
+
 ## The page components
 
 Static assets shipped to the site bucket when the plugin is enabled: `_plugins/papyrus-reader@1.js` and
@@ -636,6 +724,9 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_comments.py`, `test_reader_feedback_export.py` and `features_backend/reader-comments.feature`: comments, threading, the
   edit window, delete stubs, rating context, limits, the snapshot files (only changed files written, stale ones emptied), signals,
   retirement and the feedback export, against moto.
+- `procedures/newsroom/tests/test_proposals.py`, `test_proposals_cli.py` and `features_backend/proposals.feature`: filing and validation, every transition, the override rules,
+  the stale-view guard, the staff check, the public files (labels, no private fields, the frozen community result, changed files only, base path), the vote
+  adapter and the CLI; the Markus body is checked against a golden fragment rendered with the locked Markus 0.7.0.
 - `scripts/test-reader-write-routes.ts`: the checks every text-carrying route shares (503, 401, 403, 415, 413, 429, pass-through).
 - `scripts/test-reader-islands.ts`: the islands in a real browser against a fake API.
 

@@ -162,11 +162,11 @@ for (const bad of [
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
 assert.deepEqual(
   Object.keys(definitions).sort(),
-  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt"].sort(),
-  "the schema defines exactly the manifest's models and mutations, plus the receipt type",
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt", "ProposalReceipt"].sort(),
+  "the schema defines exactly the manifest's models and mutations, plus the receipt types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"]);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal"]);
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -205,7 +205,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
-    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Proposal", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
   const outputs: unknown[] = [];
   const backend = {
@@ -281,7 +281,7 @@ const debounceTemplates = synthesize(shipped).stacks.map((stack) => Template.fro
 const schedulerRoles = debounceTemplates.flatMap((candidate) => Object.values(candidate.findResources("AWS::IAM::Role"))).filter((role) =>
   JSON.stringify((role as { Properties: { AssumeRolePolicyDocument: unknown } }).Properties.AssumeRolePolicyDocument).includes("scheduler.amazonaws.com"));
 assert.equal(schedulerRoles.length, 1, "one role for the Scheduler to assume");
-const debounceStatements = debounceTemplates.flatMap((candidate) => Object.values(candidate.findResources("AWS::IAM::Policy"))).flatMap(
+const debounceStatements = debounceTemplates.flatMap((candidate) => [...Object.values(candidate.findResources("AWS::IAM::Policy")), ...Object.values(candidate.findResources("AWS::IAM::ManagedPolicy"))]).flatMap(
   (policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement,
 );
 const createSchedule = debounceStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("scheduler:CreateSchedule"));
@@ -383,4 +383,13 @@ assert.match(mutation, /@function/);
 assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
 assert.match(mutation, /groups: \["editor"\]/);
 assert.match(mutation, /groups: \["admin"\]/);
+for (const name of ["fileProposal", "transitionProposal"]) {
+  const start = transformed.indexOf(`${name}(`);
+  assert.ok(start > 0, `${name} is in the deployed schema`);
+  const proposalMutation = transformed.slice(start, start + 400).split("\n\n")[0];
+  assert.match(proposalMutation, /@function/);
+  assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(proposalMutation), false, `${name} is open to groups only: ${proposalMutation}`);
+  assert.match(proposalMutation, /groups: \["editor"\]/);
+  assert.match(proposalMutation, /groups: \["admin"\]/);
+}
 console.log("reader steering schema ok");

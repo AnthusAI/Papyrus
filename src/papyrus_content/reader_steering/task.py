@@ -25,6 +25,7 @@ from .retirement import (
     RetirementReport,
     run_retirement_poll,
 )
+from .proposals import FROZEN_STATES, VoteCounts, build_proposal_files
 from .review import ReviewReport, review_comments, review_submissions
 from .signals import submission_signals
 from .snapshot import (
@@ -52,6 +53,7 @@ SUBMISSION_TABLE_ENV = "PAPYRUS_READER_SUBMISSION_TABLE"
 COMMENT_TABLE_ENV = "PAPYRUS_READER_COMMENT_TABLE"
 FLAG_TABLE_ENV = "PAPYRUS_READER_FLAG_TABLE"
 STATE_TABLE_ENV = "PAPYRUS_READER_RATE_TABLE"
+PROPOSAL_TABLE_ENV = "PAPYRUS_READER_PROPOSAL_TABLE"
 POLL_URL_ENV = "PAPYRUS_READER_POLL_URL"
 POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER"
 TASK_NAME = "reader-snapshot"
@@ -69,6 +71,7 @@ class ReaderSnapshotReport:
     readers: int
     karma_updated: int
     comment_files: int
+    proposals: int
     purged: list[str]
     purge_error: str | None
     retirement_poll: RetirementReport
@@ -82,6 +85,7 @@ class ReaderSnapshotReport:
             "readers": self.readers,
             "karmaUpdated": self.karma_updated,
             "commentFiles": self.comment_files,
+            "proposals": self.proposals,
             "purged": self.purged,
             "purgeError": self.purge_error,
             "retirementPoll": self.retirement_poll.to_dict(),
@@ -222,6 +226,43 @@ def write_comment_files(context: Any, files: Mapping[str, dict], generated_at: s
     return written
 
 
+def freeze_community_results(resource: Any, table_name: str, rows: list[dict], counts: VoteCounts, now_iso: str) -> int:
+    """Records the votes a proposal had when the snapshot first saw it in editor review or later, once; it is never overwritten."""
+    table = resource.Table(table_name)
+    frozen = 0
+    for row in rows:
+        if row.get("state") not in FROZEN_STATES or row.get("communityResult"):
+            continue
+        result = {**counts.votes(row["id"]), "at": now_iso}
+        try:
+            table.update_item(
+                Key={"id": row["id"]},
+                UpdateExpression="SET communityResult = :result",
+                ConditionExpression="attribute_not_exists(communityResult)",
+                ExpressionAttributeValues={":result": json.dumps(result)},
+            )
+        except Exception as error:  # noqa: BLE001 - another run froze it first, which is fine
+            if getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+            continue
+        row["communityResult"] = json.dumps(result)
+        frozen += 1
+    return frozen
+
+
+def write_proposal_files(context: Any, files: Mapping[str, dict]) -> list[str]:
+    """Writes the proposal files that changed (the freshness stamp alone is not a change), so only they are purged on the edge."""
+    written: list[str] = []
+    for site_key in sorted(files):
+        key = snapshot_key(context.projector, site_key)
+        old = context.writer.get(key)
+        if old is not None and without_generated_at(json.loads(old)) == without_generated_at(files[site_key]):
+            continue
+        context.writer.put(key, encoded(files[site_key]))
+        written.append(key)
+    return written
+
+
 def run_reader_snapshot(
     context: Any,
     client: Any,
@@ -299,6 +340,13 @@ def run_reader_snapshot(
         keys.append(key)
     comment_keys = write_comment_files(context, snapshot.comments, snapshot.items["generatedAt"])
     keys.extend(comment_keys)
+    proposal_rows = [plain_row(row) for row in scan_table(resource, environment[PROPOSAL_TABLE_ENV])] if environment.get(PROPOSAL_TABLE_ENV) else []
+    proposal_keys: list[str] = []
+    if proposal_rows:
+        counts = VoteCounts.from_items_file(snapshot.items)
+        freeze_community_results(resource, environment[PROPOSAL_TABLE_ENV], proposal_rows, counts, snapshot.items["generatedAt"])
+        proposal_keys = write_proposal_files(context, build_proposal_files(proposal_rows, counts, snapshot.items["generatedAt"]))
+        keys.extend(proposal_keys)
     karma_updated = write_karma(resource, environment[PROFILE_TABLE_ENV], profiles, snapshot.karma)
     purged: list[str] = []
     purge_error: str | None = None
@@ -313,6 +361,7 @@ def run_reader_snapshot(
         readers=len(snapshot.readers["readers"]),
         karma_updated=karma_updated,
         comment_files=len(comment_keys),
+        proposals=len(proposal_rows),
         purged=purged,
         purge_error=purge_error,
         retirement_poll=retirement,

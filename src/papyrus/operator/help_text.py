@@ -21,6 +21,7 @@ Operator groups:
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
   reader        Reader steering exports (reader feedback export)
+  proposals     File, decide and publish map proposals (proposals create|list|show|transition|publish)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)

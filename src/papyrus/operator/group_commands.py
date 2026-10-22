@@ -33,7 +33,7 @@ SECTIONS_COMMANDS = {
 }
 PROCEDURES_COMMANDS = ("seed-required", "register", "execute-tactus", "policy")
 OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages")
-CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages", "reader": "reader"}
+CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages", "reader": "reader", "proposals": "proposals"}
 
 # Usage lines for commands whose flags are worth showing in group help.
 COMMAND_USAGE = {
@@ -44,6 +44,11 @@ COMMAND_USAGE = {
   ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",
   ("messages", "handle"): "--message-id ID [--note TEXT] [--author-label NAME] [--dry-run]",
   ("reader", "feedback"): "export [--since ISO_TIME] [--out FILE]",
+  ("proposals", "create"): "--kind KIND --title TEXT (--body TEXT | --body-file FILE) [--summary LINE] [--target TYPE:ID ...] [--signals N --source TEXT] [--json]",
+  ("proposals", "list"): "[--state STATE] [--json]",
+  ("proposals", "show"): "PROPOSAL_ID [--json]",
+  ("proposals", "transition"): "PROPOSAL_ID --to STATE [--reason TEXT] [--result approved|declined] [--json]",
+  ("proposals", "publish"): "[--json]  (runs the reader snapshot, which writes _data/proposals/)",
   ("publication", "init"): "--key KEY --name NAME",
   ("site", "google-secrets"): "set|check [--site PATH] [--profile NAME] [--account ID] [--region R] [--app-id ID] [--branch NAME] [--client-id ID] [--secret-stdin]",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",
@@ -87,7 +92,7 @@ def generic_group_help(group: str) -> str | None:
   for name in names:
     usage = COMMAND_USAGE.get((group, name))
     lines.append(f"  {name}" + (f"  {usage}" if usage else ""))
-  if group != "site":
+  if group not in {"site", "proposals"}:
     lines.append("")
     lines.append("Mutating commands write by default; pass --dry-run to preview.")
   return "\n".join(lines)
