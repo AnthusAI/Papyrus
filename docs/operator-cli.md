@@ -131,6 +131,20 @@ page heights, section splits, or image variant scores.
 
 Every command group prints its own subcommands for `papyrus <group>` and `papyrus <group> --help`.
 
+## Editorial policies
+
+`papyrus editorial policies list | import-starter NAME | ensure-defaults | add | export` manages the site's `EditorialPolicy` records (what the newsroom's Editorial checks panel edits). They read and write the site's AppSync API with the same auth as the other operator commands, for example `PAPYRUS_GRAPHQL_AUTH=iam` with the site's `PAPYRUS_GRAPHQL_ENDPOINT` and an AWS profile whose role may write `EditorialPolicy`.
+
+`papyrus editorial policies add --file PACK [--dry-run] [--publication KEY] [--actor NAME]`
+
+- `PACK` is a Humanus `policy-pack-v1` file (JSON or YAML), validated before anything is read from the site. Every policy in it becomes a `publication`-scope policy, with its rule and classifier (judgment) detectors exactly as the file gives them: scope, `question`, `violation`, `threshold`, `reviewAt` and `message` (the text shown on each finding).
+- A policy the site lacks is created as version 1. A policy whose title, guidance, severity, enabled flag, detectors, examples or rewrite guidance differ is saved as the stored version plus one, as the panel does. An identical policy is left alone, so re-running a file changes nothing. The pack's own `version` fields are not stored; `tags` have no field and are dropped.
+- `--dry-run` prints one line per policy (`would create`, `would update ... version 2 -> 3`, `unchanged`) and writes nothing.
+- `--publication KEY` refuses the run unless the site's canonical publication has that key.
+- Each written policy's `source` is `operator-cli:<packId>:<actor>` (the actor defaults to `papyrus-cli`), which the panel shows in the policy list.
+
+`papyrus editorial policies export --file PACK [--pack-id ID] [--pack-version V]` writes the site's `publication` policies as a pack (`.yml`/`.yaml` for YAML, otherwise JSON) that `add` loads back unchanged. Desk-scope policies are left out and counted, since a pack has no scope.
+
 ## Site commands
 
 `papyrus site <command>` runs from a site repository (the one with `infra/site.json`), not from the Papyrus checkout.

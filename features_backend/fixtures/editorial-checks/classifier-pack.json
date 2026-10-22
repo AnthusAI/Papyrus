@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "packId": "fixture-judgment",
+  "version": "1",
+  "policies": [
+    {
+      "id": "plain-claims",
+      "version": 1,
+      "title": "Claims are backed",
+      "guidance": "A claim of fact names its source or evidence.",
+      "severity": "warn",
+      "detectors": [
+        {
+          "id": "unsupported-claim",
+          "lane": "classifier",
+          "scope": "document",
+          "question": {
+            "type": "noul",
+            "instructions": "Does this document state a factual claim without naming its source or evidence?",
+            "criteria": { "true": "A factual claim has no source.", "false": "Every factual claim names its source." }
+          },
+          "violation": { "answer": "yes" },
+          "threshold": 0.7,
+          "reviewAt": 0.4,
+          "message": "States a claim without a source."
+        }
+      ],
+      "examples": { "violates": ["Studies show it works."], "complies": ["A 2025 trial of 400 patients showed it works."] }
+    },
+    {
+      "id": "no-hype",
+      "version": 1,
+      "title": "No hype",
+      "guidance": "Avoid hype words.",
+      "severity": "info",
+      "detectors": [{ "id": "hype-phrase", "lane": "rules", "kind": "phrase", "phrases": ["game-changing"] }]
+    }
+  ]
+}
