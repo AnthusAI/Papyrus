@@ -220,10 +220,21 @@ def compose_pack(records: list[dict[str, Any]], section: str | None, settings: d
 # --- operations -------------------------------------------------------------------
 
 
+def skipped_judgments(missing_doctrine: list[str]) -> dict[str, Any]:
+    """The classifier lane's status when the publication has no mission (or policy) for its judgments to apply."""
+    return {"status": "skipped", "reason": f"this publication has no {' or '.join(missing_doctrine)} yet"}
+
+
 def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
-    from .editorial_model_context import editing_pack
+    from .editorial_model_context import editing_pack_and_context
     settings = running_settings(services.store)
-    pack = editing_pack(services.store, arguments.get("section"), settings)
+    pack, context = editing_pack_and_context(services.store, arguments.get("section"), settings)
+    # Judgments apply the mission and policy; rule checks do not need them, so they still run (PPY-2c4b56).
+    missing_doctrine = context.get("missingPublicationDoctrine") or []
+    lanes = dict(settings["lanes"])
+    skip_judgments = bool(missing_doctrine) and bool(lanes.get("classifier"))
+    if skip_judgments:
+        lanes["classifier"] = False
     examples = [
         {"policyId": f["policyId"], "detectorId": f["detectorId"], "text": f["text"], "violates": f["decision"] != "dismissed"}
         for f in services.store.list_feedback()
@@ -241,10 +252,13 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
         "schemaVersion": 1,
         "content": {"format": arguments.get("format") or "markus", "text": arguments["body"]},
         "pack": pack,
-        "options": {"lanes": settings["lanes"], "classifier": classifier},
+        "options": {"lanes": lanes, "classifier": classifier},
     }
     services.last_check_request = request
-    return humanus.check(request, **services.humanus_kwargs("decision_model"))
+    result = humanus.check(request, **services.humanus_kwargs("decision_model"))
+    if skip_judgments:
+        result["lanes"]["classifier"] = skipped_judgments(missing_doctrine)
+    return result
 
 
 def suggest_rewrite(arguments: dict[str, Any], services: Services) -> dict[str, Any]:
@@ -511,8 +525,9 @@ class GraphQLEditorialStore:
                 or not str(rows[0].get('id', '')).startswith('knowledge-corpus-')):
             raise ValueError('Exactly one verified publication is required for editorial context')
         publication = rows[0]['id'].removeprefix('knowledge-corpus-')
+        # Optional doctrine: a publication without a mission still gets its rule checks (PPY-2c4b56).
         result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
-          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId)
+          getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, optionalPublicationDoctrine: true)
         }''', {'publicationKey': publication, 'sectionId': section})['getEditorialContext']
         pack = checked_context(_awsjson_document(result), publication=publication, section=section)
         if (pack['publication'].get('tenantId') or None) != (tenant_id_from_environment() or None):

@@ -99,6 +99,11 @@ def classification_model(model, client, steering, sections=()):
 
 
 def editing_pack(store, section, settings):
+    return editing_pack_and_context(store, section, settings)[0]
+
+
+def editing_pack_and_context(store, section, settings):
+    """The pack Humanus checks with, and the context it was built from (which says what publication doctrine is missing)."""
     from .editorial_checks import compose_pack
     context = checked_context(store.get_editorial_context(section), section=section,
                               mode=getattr(store, 'context_mode', 'cloud'))
@@ -111,4 +116,4 @@ def editing_pack(store, section, settings):
                 question = detector['question']
                 question['instructions'] = (context['text'] + '\nApply this private operating guidance to the target only.\n'
                                             + question['instructions'])
-    return pack
+    return pack, context
