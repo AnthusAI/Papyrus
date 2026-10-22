@@ -53,6 +53,7 @@ SEMANTIC_PREDICATES: dict[str, dict[str, str]] = {
     "related_to": {"label": "related to", "group": "generic", "inverse_label": "related from"},
     "broader_than": {"label": "broader than", "group": "ontology", "inverse_label": "narrower concept"},
     "narrower_than": {"label": "narrower than", "group": "ontology", "inverse_label": "broader concept"},
+    "member_of": {"label": "member of", "group": "ontology", "inverse_label": "members"},
     "supports": {"label": "supports", "group": "evidence", "inverse_label": "supported by"},
     "contradicts": {"label": "contradicts", "group": "evidence", "inverse_label": "contradicted by"},
 }
