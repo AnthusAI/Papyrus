@@ -6,6 +6,7 @@ import html
 import json
 from dataclasses import dataclass, field
 
+from ...authors import absolute_author_url, normalize_authors
 from .config import StandardSettings
 from .environment import SiteEnvironment
 
@@ -36,7 +37,7 @@ class PageHead:
     canonical: str | None = None   # explicit canonical (absolute); default is the page's own address
     published: str = ""            # ISO date
     modified: str = ""
-    authors: tuple[str, ...] = ()
+    authors: tuple = ()   # strings or ``Author`` objects; read through ``normalize_authors``
     tags: tuple[str, ...] = ()
     noindex: bool = False
     json_ld_type: str | None = None   # "Article", "NewsArticle", ... or None for no JSON-LD
@@ -153,6 +154,13 @@ class HeadBuilder:
             lines.append(page.extra)
         return "\n" + "\n".join(lines)
 
+    def _person(self, author) -> dict:
+        person = {"@type": "Person", "name": author.name}
+        url = absolute_author_url(author.url, self.environment.origin)
+        if url:
+            person["url"] = url
+        return person
+
     def _article_json_ld(self, page: PageHead, url: str | None, image: str | None, description: str, title: str) -> dict:
         data: dict = {"@context": "https://schema.org", "@type": page.json_ld_type, "headline": page.headline or title}
         if description:
@@ -162,7 +170,7 @@ class HeadBuilder:
         if page.modified:
             data["dateModified"] = page.modified
         if page.authors:
-            data["author"] = [{"@type": "Person", "name": name} for name in page.authors]
+            data["author"] = [self._person(author) for author in normalize_authors(page.authors)]
         data["publisher"] = {"@type": "Organization", "name": self.settings.seo.publisher_name}
         if url:
             data["mainEntityOfPage"] = url

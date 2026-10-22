@@ -223,6 +223,7 @@ class ConsentBannerTests(unittest.TestCase):
     def test_reopen_function_and_footer_link_hook_are_wired(self) -> None:
         self.assertIn("window.papyrusOpenConsentChoices=c.openChoices", self.banner)
         self.assertIn("[data-papyrus-consent-reopen]", self.banner)
+        self.assertIn('a[href="#cookie-settings"]', self.banner)
         self.assertIn("e.preventDefault()", self.banner)
 
     def test_banner_does_not_trap_focus(self) -> None:

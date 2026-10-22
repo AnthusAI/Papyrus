@@ -38,3 +38,7 @@ Feature: Privacy-safe Google Analytics events
     Given a documentation site built with the measurement id "G-ABC123DEF4"
     Then its pages carry the consent banner, the cookie settings link and a privacy link
     And a documentation site built without one carries none of them
+
+  Scenario: A footer link to #cookie-settings reopens the consent choices
+    Given a page built with a measurement id and consent mode
+    Then the consent script reopens the choices from links to "#cookie-settings"

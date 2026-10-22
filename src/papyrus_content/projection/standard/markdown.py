@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import re
 
+from ...authors import absolute_author_url, normalize_authors
+
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
 LLMS_KEY = "llms.txt"
 LLMS_FULL_KEY = "llms-full.txt"
@@ -62,14 +64,23 @@ def _link(origin: str | None, path: str) -> str:
     return (origin or "") + path
 
 
-def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = ()) -> str:
+def byline_markdown(authors, origin: str | None = None) -> str:
+    """Author names, each a Markdown link to the author's url when there is one (made absolute with the site origin)."""
+    names = []
+    for author in normalize_authors(authors):
+        url = absolute_author_url(author.url, origin)
+        names.append(f"[{author.name}]({url})" if url else author.name)
+    return ", ".join(names)
+
+
+def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = (), origin: str | None = None) -> str:
     body = body_of(source_text)
     lines = []
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
     if entry.authors:
-        facts.append("By " + ", ".join(entry.authors))
+        facts.append("By " + byline_markdown(entry.authors, origin))
     if entry.date:
         facts.append(f"Published {entry.date}")
     if entry.updated and entry.updated != entry.date:

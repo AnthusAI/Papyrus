@@ -57,3 +57,11 @@ Feature: Every week's knowledge snapshot is archived with cluster identity
     When the week of "2026-10-19" is archived
     Then the archive step refuses because there is no cluster run
     And the archive store is empty
+
+  Scenario: The papyrus command line registers the archive command
+    The operator runs the archive step as "papyrus knowledge archive", with the same
+    destination and options as "papyrus knowledge snapshot", and finds it in the
+    knowledge help. A cloud run that installs Papyrus from PyPI has no other way in.
+    When the operator runs "papyrus knowledge archive --out site --as-of 2026-10-19 --replace" on the command line
+    Then the knowledge archive command receives "--out site --as-of 2026-10-19 --replace"
+    And the knowledge help lists the archive command

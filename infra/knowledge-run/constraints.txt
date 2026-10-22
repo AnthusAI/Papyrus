@@ -1,0 +1,9 @@
+bertopic==0.17.4
+gliner2==2.1.0
+hdbscan==0.8.44
+numpy==2.5.4
+scikit-learn==1.9.1
+sentence-transformers==6.2.0
+torch==2.14.1
+transformers==5.20.2
+umap-learn==0.5.12

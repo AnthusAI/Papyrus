@@ -727,7 +727,14 @@ def knowledge_relations_reject(flags: list[str]) -> None:
     _review_relation(flags, "reject", lambda row, actor: reject_relation_patches(row, actor, now=utc_now()))
 
 
+def knowledge_cloud_run(flags: list[str]) -> None:
+    from ..knowledge_cloud.command import knowledge_cloud_run as run
+
+    run(flags)
+
+
 KNOWLEDGE_COMMANDS = {
+    "cloud-run": knowledge_cloud_run,
     "corpus-export": knowledge_corpus_export,
     "publish-run": knowledge_publish_run,
     "snapshot": knowledge_snapshot,

@@ -26,6 +26,7 @@ ALLOWED_PATH_PATTERNS = tuple(
     re.compile(pattern)
     for pattern in (
         r"^corpora/",
+        r"^src/papyrus_content/data/corpora/",  # the shipped copy of the corpora/ defaults
         r"^publications/",
         r"^config/",
         r"^docs/",

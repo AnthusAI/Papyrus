@@ -14,6 +14,7 @@ corpora/*
 !corpora/papyrus-steering.yml
 !corpora/papyrus-analysis-profiles.yml
 !corpora/papyrus-semantic-concepts.yml
+!corpora/papyrus-semantic-relation-types.yml
 !corpora/papyrus-lexical-steering.yml
 !corpora/papyrus-newsroom-sections.yml
 !corpora/papyrus-public-topics.yml

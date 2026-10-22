@@ -81,6 +81,12 @@ or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, Sept
 `section`, `feed_eligible` (not `feed: false`, in a feeding section, has a page), `noindex` (`noindex: true`,
 `robots: noindex` or `draft: true`), `listed`, and the raw `data` for hooks.
 
+`authors` (or `author`) may be a string (`Ann Lee, Bo Reed`), a list of strings, or a list of `{name, url}` objects
+(`url` optional). One shared reader (`papyrus_content.authors.normalize_authors`) turns each into authors, so every output
+shows the name: Atom `<author><name>` plus `<uri>` (made absolute with the site origin), RSS `<dc:creator>`, the Markdown
+twin's By line (a Markdown link where there is a url), the HTML byline (a link where there is a url), the JSON-LD
+`author` (a `Person` with `url`), and `authors` in the public data files (names only).
+
 ## URL policy
 
 `urls.style` decides the shape of every page: `html` writes `x.html`, `directory` writes `x/index.html`, `clean` writes

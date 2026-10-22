@@ -3,7 +3,7 @@
 They are listing-class pages: they depend on every published page, so the engine
 re-renders them exactly when their digest moves. The digest is the digest of the
 file's bytes, and the entries carry only front matter fields, so an edit that
-does not touch the title, summary, tags, date, image, publication or address writes nothing.
+does not touch the title, summary, tags, date, image, publication, authors or address writes nothing.
 
 Everything in them is already public in the page HTML. Nothing editorial goes in.
 """
@@ -16,6 +16,7 @@ from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..authors import author_names
 from .model import ItemSummary
 from .writers import request_paths_for_key
 
@@ -63,6 +64,7 @@ class PublicEntry:
     date: str
     image: str | None = None  # absolute og/cover image URL; None when the page has none or the site has no URL
     publication: str = ""  # the site's publication name (the feeds' title); empty when unknown
+    authors: tuple[str, ...] = ()  # author names from front matter ``authors``/``author``; empty when there are none
 
 
 def clipped(text: str, limit: int) -> str:
@@ -102,6 +104,7 @@ def entry_for(
         date=date if date is not None else str(front_matter.get("date") or summary.published_at or "")[:10],
         image=image or None,
         publication=clipped(publication, 200),
+        authors=author_names(front_matter.get("authors", front_matter.get("author"))),
     )
 
 
@@ -115,6 +118,8 @@ def _entry_record(entry: PublicEntry) -> dict:
         record["image"] = entry.image  # omitted, never null, when there is none
     if entry.publication:
         record["publication"] = entry.publication
+    if entry.authors:
+        record["authors"] = list(entry.authors)  # names only; omitted, never empty, when there are none
     return record
 
 

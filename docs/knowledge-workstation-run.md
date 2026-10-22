@@ -2,6 +2,8 @@
 
 The weekly run that turns a site's published items into the [knowledge snapshot](knowledge-snapshot.md) and, later, the [public wiki](public-wiki.md). Everything heavy runs on a workstation; the site backend only receives small rows. Status: Beta. Initiative PPY-428252, story PPY-9abb98.
 
+The same run also exists as an unattended weekly job in AWS: see [knowledge-cloud-run.md](knowledge-cloud-run.md). Use the commands below for a one-off run, a fix-up or a publication that has no cloud job yet.
+
 Shipped (`https://shipped.anth.us`) is the worked example. Replace the Shipped ids with your own site's; every command that talks to a backend names it on purpose with `--auth iam --amplify-outputs FILE`, and prints the AppSync host on stderr before it does anything.
 
 ## What you need
