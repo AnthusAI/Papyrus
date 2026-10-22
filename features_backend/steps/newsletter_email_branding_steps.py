@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from behave import given, then, when
@@ -73,6 +74,17 @@ def footer_with_wordmark(context, width: int, height: int, alt: str) -> None:
     theme(context, footerBand=LIME, footerText=INK, **wordmark_fields(alt, width, height))
 
 
+@given(
+    'a branded theme with a lime header band and a lime footer band and a footer wordmark {small:d} pixels wide '
+    'on a wordmark image {width:d} by {height:d} with alt text "{alt}"'
+)
+def small_footer_wordmark(context, small: int, width: int, height: int, alt: str) -> None:
+    theme(
+        context, headerBand=LIME, headerText=INK, footerBand=LIME, footerText=INK, footerWordmarkWidth=small,
+        **wordmark_fields(alt, width, height),
+    )
+
+
 @given("a branded theme with lime buttons, ink button text and an ink button border")
 def branded_buttons(context) -> None:
     theme(context, buttonFill=LIME, buttonText=INK, buttonBorder=INK)
@@ -97,6 +109,19 @@ def render_alert(context, name: str) -> None:
 @when('a roundup email is rendered for the list "{name}"')
 def render_roundup(context, name: str) -> None:
     issue(context, name)
+
+
+@when('a roundup email is rendered for a list whose archive is "{url}"')
+def render_with_archive(context, url: str) -> None:
+    context.mail = render_issue(
+        subject="Liquid AI releases a model", markus=BODY, theme=context.theme, footer=replace(FOOTER, archive_url=url),
+        site_url=SITE, list_name="The Shipped roundup",
+    )
+
+
+@when("a roundup email is rendered for a list with no archive")
+def render_without_archive(context) -> None:
+    issue(context, "The Shipped roundup")
 
 
 @when("the confirmation email is rendered")
@@ -225,3 +250,49 @@ def dark_bands(context) -> None:
 @then("building the theme fails")
 def refused(context) -> None:
     assert context.refused is True
+
+
+def footer_links(context) -> list[tuple[str, str, str]]:
+    """(url, label, style) of each link in the footer band."""
+    return re.findall(r'<a href="([^"]*)" style="([^"]*)">([^<]+)</a>', band(context.mail.html, "em-fband"))
+
+
+@then("the header image is {width:d} by {height:d}")
+def header_size(context, width: int, height: int) -> None:
+    assert f'width="{width}" height="{height}"' in band(context.mail.html, "em-hband")
+
+
+@then('the footer image has alt text "{alt}" and is {width:d} by {height:d}')
+def footer_size(context, alt: str, width: int, height: int) -> None:
+    assert f'alt="{alt}" width="{width}" height="{height}"' in band(context.mail.html, "em-fband")
+
+
+@then('the footer links read the site host, "{a}", "{b}" and "{c}", all underlined')
+def footer_labels_host(context, a: str, b: str, c: str) -> None:
+    check_footer_labels(context, ["example.com", a, b, c])
+
+
+@then('the footer links read the site host, "{a}" and "{b}", all underlined')
+def footer_labels_host_two(context, a: str, b: str) -> None:
+    check_footer_labels(context, ["example.com", a, b])
+
+
+def check_footer_labels(context, expected: list[str]) -> None:
+    found = footer_links(context)
+    assert [label for _, _, label in found] == expected, found
+    assert all("text-decoration:underline" in style for _, style, _ in found), found
+
+
+@then('"{label}" links to "{url}"')
+def link_target(context, label: str, url: str) -> None:
+    assert {l: u for u, _, l in footer_links(context)}[label] == url
+
+
+@then('the plain-text part links "{label}" with the full address')
+def plain_link(context, label: str) -> None:
+    assert re.search(rf"^{label}: https://\S+$", context.mail.text, re.M), context.mail.text
+
+
+@then('the footer has no "{label}" link')
+def no_link(context, label: str) -> None:
+    assert label not in context.mail.html and label not in context.mail.text

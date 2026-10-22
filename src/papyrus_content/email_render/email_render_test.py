@@ -206,6 +206,28 @@ def test_default_theme_renders_exactly_as_before():
     assert "em-hband" not in mail.html and "em-fband" not in mail.html and "em-btn" not in conf.html
 
 
+BRANDED_BEFORE_FOOTER_CHANGE = {  # a branded theme with neither footerWordmarkWidth nor archive_url, taken from develop at 11cc76e2
+    "html": "1be71076a6d37c500eae46cbbf0466b80aa1457af75f3aae94d1713ac7e5035c", "text": "180fef046f30f3fc01cf601b1737d0aaf12fbc80da6ee45bee4bf6625d095ab5", "conf_html": "512bbc064bf3b86c62f9eed28f7c4f4fa50bd84c08e14a56d5dc0933df70804b", "conf_text": "011b2cd2a008cfaa4bcd55f312d8cbfa8200f71b68fd275f50e9af01ab3fe2e9",
+}
+
+
+def test_branded_theme_without_the_new_footer_fields_renders_exactly_as_before():
+    import hashlib
+
+    def digest(value: str) -> str:
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    mail = issue(theme=BRAND, list_name="The Shipped roundup")
+    conf = render_transactional(
+        subject="Confirm", markus="Please confirm.", theme=BRAND, site_name="Example Times", site_url=SITE,
+        preheader="p", action_url=f"{SITE}/c?t=1", action_label="Confirm subscription",
+    )
+    assert digest(mail.html) == BRANDED_BEFORE_FOOTER_CHANGE["html"]
+    assert digest(mail.text) == BRANDED_BEFORE_FOOTER_CHANGE["text"]
+    assert digest(conf.html) == BRANDED_BEFORE_FOOTER_CHANGE["conf_html"]
+    assert digest(conf.text) == BRANDED_BEFORE_FOOTER_CHANGE["conf_text"]
+
+
 def test_theme_from_config_reads_the_branding_fields():
     t = BRAND
     assert (t.header_band, t.header_text, t.footer_band, t.footer_text) == ("#C6F432", "#1A1615", "#C6F432", "#1A1615")
@@ -307,3 +329,76 @@ def test_a_wordmark_alone_replaces_the_brand_line():
     html = issue(theme=t).html
     assert "em-hband" not in html and "em-fband" not in html
     assert 'src="https://example.com/assets/wordmark-2x.png"' in html
+
+
+SMALL = theme_from_config({**BRAND_CONFIG, "footerWordmarkWidth": 110}, "Example Times")
+ARCHIVE = f"{SITE}/roundup/"
+
+
+def archive_footer(**kw) -> EmailFooter:
+    base = footer()
+    return EmailFooter(**{**base.__dict__, "site_url": "https://shipped.example.com/", "archive_url": ARCHIVE, **kw})
+
+
+def band_of(html: str) -> str:
+    return html[html.index('class="em-fband'):]
+
+
+def test_footer_wordmark_is_smaller_with_the_same_image_alt_and_aspect():
+    html = issue(theme=SMALL).html
+    header = html[html.index('class="em-hband'):html.index('class="em-card')]
+    footer_band = band_of(html)
+    assert 'width="168" height="40"' in header
+    img = next(a for t, a in tags(footer_band) if t == "img")
+    assert img["src"] == "https://example.com/assets/wordmark-2x.png" and img["alt"] == "Example Times"
+    assert (img["width"], img["height"]) == ("110", "26")
+
+
+def test_footer_wordmark_width_is_validated():
+    for bad in (0, -1, 401, 110.5, "110", True):
+        with pytest.raises(ValueError):
+            theme_from_config({**BRAND_CONFIG, "footerWordmarkWidth": bad}, "S")
+    assert theme_from_config({**BRAND_CONFIG, "footerWordmarkWidth": 400}, "S").footer_wordmark_width == 400
+
+
+def test_footer_names_the_host_and_links_all_issues_with_every_link_underlined():
+    mail = issue(theme=SMALL, footer=archive_footer(), list_name="L")
+    band = band_of(mail.html)
+    labels = re.findall(r'<a href="([^"]*)" style="color:#1A1615;text-decoration:underline;">([^<]*)</a>', band)
+    assert [label for _, label in labels][-4:] == ["shipped.example.com", "All issues", "Unsubscribe", "Email preferences"]
+    assert dict((label, url) for url, label in labels)["All issues"] == ARCHIVE
+    assert dict((label, url) for url, label in labels)["shipped.example.com"] == "https://shipped.example.com/"
+    assert mail.text.count(f"All issues: {ARCHIVE}\n") == 1
+    assert "Unsubscribe: " in mail.text and "Manage your subscription: " in mail.text
+
+
+def test_no_archive_means_no_all_issues_link():
+    mail = issue(theme=SMALL, footer=archive_footer(archive_url=None))
+    assert "All issues" not in mail.html and "All issues" not in mail.text
+    assert "shipped.example.com" in band_of(mail.html)
+
+
+def test_all_issues_link_in_the_plain_footer_too():
+    mail = issue(theme=THEME, footer=archive_footer())
+    assert f'<a href="{ARCHIVE}"' in mail.html and "All issues: " in mail.text and "em-fband" not in mail.html
+
+
+def test_transactional_keeps_only_the_site_link():
+    mail = render_transactional(
+        subject="Confirm", markus="Please confirm.", theme=SMALL, site_name="Example Times", site_url="https://shipped.example.com/",
+    )
+    band = band_of(mail.html)
+    assert re.findall(r"<a [^>]*>([^<]*)</a>", band) == ["shipped.example.com"]
+    assert "Unsubscribe" not in mail.html and "All issues" not in mail.html
+
+
+def test_all_issues_alone_keeps_the_site_name_and_the_uppercase_labels():
+    band = band_of(issue(theme=BRAND, footer=archive_footer()).html)
+    assert ">Example &amp; Co</a>" in band and ">All issues</a>" in band
+    assert "text-transform:uppercase" in band and "shipped.example.com</a>" not in band
+
+
+def test_the_smaller_footer_uses_plain_mono_lines():
+    band = band_of(issue(theme=SMALL, footer=archive_footer()).html)
+    assert "text-transform:uppercase" not in band
+    assert "font-size:11px;font-weight:normal" in band
