@@ -991,6 +991,7 @@ def test_a_model_is_its_own_kind_labelled_model_and_is_related_to_its_family_onl
     assert neighbours("model-family--tern") == [("member_of", "model--tern-3")]
     assert neighbours("model--lone-1") == []
 
+
 def test_reproject_builds_its_context_with_the_deletion_guard_unless_allowed(client, tmp_path, monkeypatch):
     from papyrus_content import project_commands
     from papyrus_content.projection.engine import DeletionGuard
