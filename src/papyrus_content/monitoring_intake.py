@@ -38,7 +38,9 @@ class ReferenceIntake:
         return (f" Machine decision: {decision.get('system')} labelled {decision.get('output')} "
                 f"{decision.get('label')} (decision {decision.get('decisionId')}, version {decision.get('version')}).")
 
-    def __call__(self, item: SourceItem, provenance: dict) -> dict:
+    def __call__(self, item: SourceItem, provenance: dict, extra_records=None) -> dict:
+        """`extra_records(reference)` may return more records for the same persist batch (the router's lab
+        decision relation), so they land with the Reference and its provenance Message or not at all."""
         for key, value in self.monitor.binding.items():
             if provenance.get(key) != value:
                 raise ValueError("Discovery provenance does not match the verified Monitor binding")
@@ -119,7 +121,8 @@ class ReferenceIntake:
             "status": "imported", "generatedAt": provenance["observedAt"], "importedAt": provenance["observedAt"],
             "itemCount": 1, "referenceCount": 1, "relationCount": 1, "warningCount": 0,
         }}
-        self.persist([run, *reference_attachment_records(source, reference, context), message, relation])
+        extras = list(extra_records(reference)) if extra_records else []
+        self.persist([run, *reference_attachment_records(source, reference, context), message, relation, *extras])
         return {"referenceId": reference["id"], "referenceLineageId": reference["lineageId"],
                 "referenceVersion": reference.get("versionNumber") or 1, "provenanceMessageId": event_id,
                 "referenceReused": bool(matches)}
