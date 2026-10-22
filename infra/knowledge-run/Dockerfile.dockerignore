@@ -1,0 +1,11 @@
+*
+!pyproject.toml
+!README.md
+!LICENSE*
+!src
+!corpora
+!infra/knowledge-run/constraints.txt
+!infra/knowledge-run/bake_models.py
+**/__pycache__
+**/*.pyc
+**/node_modules

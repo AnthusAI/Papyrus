@@ -65,8 +65,9 @@ Feature: Scheduled container jobs
     And it alarms at 1 or more, treats missing data as not breaching, and notifies the SNS topic
 
   Scenario: a missed week alarms to SNS
-    Then an alarm on ExecutionsSucceeded sums over 8 daily periods and needs all 8 below 1
-    And missing data breaches, so a week with no execution alarms
+    Then a daily watchdog Lambda publishes the days since the last successful execution, because CloudWatch cannot evaluate 8 days in one alarm
+    And an alarm fires at 8 or more days and notifies the SNS topic
+    And missing data breaches, so a dead watchdog or a week with no execution alarms
     And a new stack alarms (and notifies) until its first successful run, which is expected
 
   Scenario: the alarm e-mail comes from SSM and is never inline
@@ -83,8 +84,12 @@ Feature: Scheduled container jobs
     And the lock table is limited to GetItem, PutItem, UpdateItem and DeleteItem on its own ARN
     And the OpenAI key is read from an SSM parameter, never Secrets Manager
     And the template mentions Secrets Manager nowhere
-    And sts:AssumeRole is limited to the publication's authoring role
+    And appsync:GraphQL is limited to the Query and Mutation fields of the publication's API
     And the site bucket, distribution and key-value store are limited to the ARNs in config
+
+  Scenario: the projection stages know the site's plugins
+    Then the container environment carries PAPYRUS_PLUGINS from the site config
+    And the task role may read the configuration of the site's content-actions Lambda and nothing else of Lambda
 
   Scenario: the shared lock table has its own stack
     Then stack "papyrus-projection-lock" holds table "papyrus-projection-locks" keyed by "publication" with TTL "expiresAt", on demand and retained
