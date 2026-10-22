@@ -16,7 +16,9 @@ aws ecr describe-repositories --region "$REGION" --repository-names "$REPOSITORY
        --image-scanning-configuration scanOnPush=true --image-tag-mutability IMMUTABLE >/dev/null
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
 
-docker buildx build --platform linux/arm64 --provenance=false \
+PROVENANCE_FLAG=()
+docker buildx build --help 2>/dev/null | grep -q -- "--provenance" && PROVENANCE_FLAG=(--provenance=false)
+docker buildx build --platform linux/arm64 "${PROVENANCE_FLAG[@]}" \
   -f "$ROOT_DIR/infra/procedures/Dockerfile" -t "$REGISTRY/$REPOSITORY:$TAG" --push "$ROOT_DIR" >&2
 
 DIGEST="$(aws ecr describe-images --region "$REGION" --repository-name "$REPOSITORY" --image-ids imageTag="$TAG" \

@@ -18,8 +18,10 @@ Parameters:
     Description: The monitoring table, where the runner records each triggered run's outcome on its TRIGGER# row.
   ReservedConcurrency:
     Type: Number
-    Default: 2
-    Description: At most this many procedures run at once. 0 leaves it unreserved.
+    Default: 0
+    Description: >-
+      At most this many procedures run at once. 0 (the default) leaves it unreserved, for accounts whose
+      Lambda concurrency quota is too low to reserve any (papyrus-production).
 
 Conditions:
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
