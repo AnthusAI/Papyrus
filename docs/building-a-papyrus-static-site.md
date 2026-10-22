@@ -520,6 +520,26 @@ Expect a delay: on 2026-10-21 GitHub delivered push webhooks 8 to 20 minutes lat
 A job that has not started after a merge is usually that delay, not a missing trigger. Amplify ignores the late push when
 a manual job has already built the same commit, so starting a build by hand right after a merge hides the automatic one.
 
+## Reconcile and plugin pages
+
+`papyrus ops content project --reconcile` deletes the pages the projector owns and nothing expects. A plugin's pages (the
+newsletter plugin's `newsletter/<name>/index.html`) are planned only when the projector is told the plugin is enabled, so a run
+that is not told would see them as orphans. Three rules prevent that:
+
+- **The plugin list comes from the site.** The CLI uses the list the deployed backend uses: the keys of `custom.papyrusPlugins`
+  in `amplify_outputs.json` (found through `PAPYRUS_SITE_ROOT`, the working directory or `--amplify-outputs PATH`). An explicit
+  `PAPYRUS_PLUGINS` environment variable (comma separated, as on the content-actions function) takes precedence.
+- **A reconcile that is not a dry run refuses** with a non-zero exit and a message, before it reads any content, when the list
+  is unknown (no readable `amplify_outputs.json`) or when a `PAPYRUS_PLUGINS` override differs from the deployed list. A dry run
+  and `--out` runs are not refused.
+- **Plugin pages are never deleted unless the plugin is known to be disabled.** A reconcile never deletes a key under a known
+  plugin's page prefix (`PLUGIN_PAGE_PREFIXES` in `projection/plugins.py`), and `--allow-deletions` does not change that. The
+  plugin counts as disabled only when the verified deployed list lacks it. Otherwise the reconcile refuses with a message that
+  names the paths (exit 2), and a dry run lists them as `protectedPluginPages`, not as orphans or drift.
+
+`--only <prefix>` limits the orphans a reconcile considers to keys under a site-relative prefix, such as `--only wiki/page/`;
+the site's `urls.basePath` is added for you. It does not limit the repair of stale items or listings.
+
 ## Page actions
 
 Article pages (entries of a listed type that have a Markdown twin) get a small actions group, on by default, above the
