@@ -109,10 +109,25 @@ poetry run behave features_backend --tags=@requires-cyclotron
 
 ### Run the sweep
 
+> **Retirement.** The relevance sweep is being retired in favour of the central
+> lab (Ryan's decision, 2026-10-22). Do not build new work on it.
+
 ```bash
-poetry run papyrus references decide-relevance            # dry run: lists pending references, no model call
-poetry run papyrus references decide-relevance --apply    # decide, send reviews, record status, save the store
+poetry run papyrus references decide-relevance                              # dry run: lists pending references, no model call
+poetry run papyrus references decide-relevance --apply --doctrine <path>    # decide, send reviews, record status, save the store
 ```
+
+> **Always name the doctrine with `--apply`.** `--doctrine` defaults to
+> `corpora/papyrus-publication-doctrine.yml`, which in this repository is the
+> Threat Intelligence doctrine. A sweep for any other site that fell back to it
+> would seed that site's new cyclotron store with Threat Intelligence's mission
+> (this happened to p.apyr.us). So `--apply` refuses to run without an explicit
+> `--doctrine <path>` and exits non-zero before any GraphQL write or model call.
+> The dry run keeps the default but prints which doctrine file it would use and
+> that file's first mission line (`references decide-relevance doctrine default
+> <path> <line>`), so check it names your site before you apply. The same guard
+> covers `references decide-site-sections --apply`, and `sections import-doctrine`
+> requires an explicit `--config <path>`.
 
 Run it after research intake (`assignments research-intake-now --apply`) and on
 a schedule. Each run:
@@ -665,9 +680,12 @@ claim, the store restored from and saved to the private bucket, the same
 many classifiers answer) and the same `approvedProofPath` gate verdict.
 
 ```bash
-poetry run papyrus references decide-site-sections            # dry run: lists pending references, no model call
-poetry run papyrus references decide-site-sections --apply    # decide, teach, record agreement, save the store
+poetry run papyrus references decide-site-sections                              # dry run: lists pending references, no model call
+poetry run papyrus references decide-site-sections --apply --doctrine <path>    # decide, teach, record agreement, save the store
 ```
+
+`--apply` needs an explicit `--doctrine <path>` for the same reason as the
+relevance sweep (see "Run the sweep"); the dry run prints the doctrine it would use.
 
 `--sections-file` defaults to `corpora/<publication>-newsroom-sections.yml`, the
 publication named by the `--config` file (`papyrus-steering.yml` gives
