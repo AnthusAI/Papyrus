@@ -120,6 +120,7 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
   publicSettings: (config) => ({
     contract: readerSteeringManifest.contract,
     dimensions: config.dimensions,
+    subjects: { types: config.subjects.types },
     moderation: { mode: config.moderation.mode },
   }),
   wire(backend, config, context: PluginWiringContext) {

@@ -46,3 +46,15 @@ Feature: Voting and flagging on any subject type from the page
     Given a signed-in reader who opened the flag form
     When the server refuses the reason
     Then the form stays open and the refusal is shown in words
+
+  Scenario: The page can tell which vote subject types are enabled
+    Given a page whose reader config lists the vote subject types "item" and "proposal"
+    Then window.papyrusReader.voteSubjects is "item" and "proposal"
+    And window.papyrusReader.proposalVoting is true
+    When the config lists no vote subject types
+    Then voteSubjects defaults to "item" and "submission" and proposalVoting is false
+
+  Scenario: A subject type that is not enabled is switched off in words
+    Given a page whose reader config lists only "item"
+    Then a Vote island and a Flag island for the proposal "prop-1" are disabled
+    And they say "Voting on this is not open yet"

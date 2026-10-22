@@ -20,7 +20,9 @@
  * The script registers its islands in window.papyrusIslands and also mounts any [data-island] of its own names, once, so
  * it works with or without the core islands runtime. Props prerender the last snapshot values; the page then fetches
  * <base>_data/reader/items.json, refetches it every 60 seconds while the tab is visible, and asks /api/reader/me
- * for the reader's own votes. Site settings: window.papyrusReader = { base: "/", api: "/api/reader", signIn: "...", signOut: "..." }.
+ * for the reader's own votes. Site settings: window.papyrusReader = { base: "/", api: "/api/reader", signIn: "...", signOut: "...",
+ * voteSubjects: ["item", "proposal"] }. voteSubjects lists the enabled vote subject types (the backend's subjects.types; default
+ * item and submission); the script also sets window.papyrusReader.proposalVoting = voteSubjects.includes("proposal").
  *
  * Every state is words as well as styling, buttons carry aria-pressed, and while the API answers 503
  * reader_identity_unavailable every control is disabled and says "Reader sign-in is not open yet".
@@ -32,6 +34,12 @@
     { base: "/", api: "/api/reader", signIn: "/api/auth/prospectus/sign-in", signOut: "/api/auth/prospectus/sign-out", pollSeconds: 60 },
     window.papyrusReader || {}
   );
+  // The subject types the publication lets readers vote on (custom.papyrusPlugins["reader-steering"].subjects.types in
+  // amplify_outputs.json; the site copies it into window.papyrusReader.voteSubjects). Without it: items and submissions.
+  var voteSubjects = Array.isArray(settings.voteSubjects) ? settings.voteSubjects.filter(function (type) { return typeof type === "string"; }) : ["item", "submission"];
+  settings.voteSubjects = voteSubjects;
+  settings.proposalVoting = voteSubjects.indexOf("proposal") !== -1;
+  window.papyrusReader = Object.assign(window.papyrusReader || {}, { voteSubjects: voteSubjects, proposalVoting: settings.proposalVoting });
   var SUBJECTS_PER_REQUEST = 50;
   var TEXT = {
     loading: "Checking sign-in",
@@ -40,7 +48,8 @@
     failed: "Something went wrong. Try again later.",
     notRated: "Not rated",
     signInDeclined: "Sign-in was cancelled.",
-    signInFailed: "Sign-in did not complete. Try again."
+    signInFailed: "Sign-in did not complete. Try again.",
+    typeOff: "Voting on this is not open yet"
   };
 
   /* A failed sign-in comes back to the page it started from with ?sign_in_error=<code> (never an /api page): say so once, then tidy the address. */
@@ -186,6 +195,10 @@
     return Math.max(0, base + (adjustment ? adjustment.delta : 0));
   }
 
+  function typeEnabled(type) {
+    return voteSubjects.indexOf(type) !== -1;
+  }
+
   function controlStatus() {
     if (state.identity === "loading") return TEXT.loading;
     if (state.identity === "unavailable") return TEXT.unavailable;
@@ -316,14 +329,14 @@
       down.setAttribute("aria-pressed", mineNow === -1 ? "true" : "false");
       up.textContent = mineNow === 1 ? "\u25B2 Voted up" : "\u25B3 Vote up";
       down.textContent = mineNow === -1 ? "\u25BC Voted down" : "\u25BD Vote down";
-      up.disabled = down.disabled = !enabled();
+      up.disabled = down.disabled = !enabled() || !typeEnabled(type);
       up.setAttribute("aria-busy", busy ? "true" : "false");
       down.setAttribute("aria-busy", busy ? "true" : "false");
       count.textContent = plural(counts.up, "vote up", "votes up") + ", " + plural(counts.down, "vote down", "votes down");
-      status.textContent = message || controlStatus();
+      status.textContent = message || controlStatus() || (typeEnabled(type) ? "" : TEXT.typeOff);
     });
     function cast(clicked) {
-      if (!enabled() || busy) return;
+      if (!enabled() || !typeEnabled(type) || busy) return;
       busy = true;
       message = "";
       var previous = mine(key, "up");
@@ -415,9 +428,9 @@
     [open, form, status].forEach(function (node) { host.appendChild(node); });
     var message = "";
     subscribe(function () {
-      open.disabled = !enabled();
-      send.disabled = !enabled();
-      status.textContent = message || controlStatus();
+      open.disabled = !enabled() || !typeEnabled(type);
+      send.disabled = open.disabled;
+      status.textContent = message || controlStatus() || (typeEnabled(type) ? "" : TEXT.typeOff);
     });
     function showKind() {
       targetRow.hidden = kind.value !== "belongs_under";

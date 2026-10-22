@@ -135,6 +135,17 @@ class ReaderStateTests(unittest.TestCase):
             state = b.call(ALICE, "me", {"subjects": ["proposal:prop-1", {"type": "item", "id": "item-one"}, {"type": "story", "id": "none"}]})["body"]
             self.assertEqual(state["votes"], {"proposal:prop-1": {"up": -1}, "item-one": {"up": 1}})
 
+    def test_me_answers_a_flat_subject_votes_map_for_the_requested_subjects_only(self) -> None:
+        with backend() as b:
+            vote(b, ALICE, PROPOSAL, -1)
+            vote(b, ALICE, {"type": "item", "id": "item-one"}, 1)
+            vote(b, ALICE, STORY, 1)
+            vote(b, BOB, {"type": "concept", "id": "c1"}, 1)
+            body = b.call(ALICE, "me", {"subjects": ["proposal:prop-1", "item-one", "concept:c1", "item-two"]})["body"]
+            self.assertEqual(body["subjectVotes"], {"proposal:prop-1": -1, "item-one": 1})
+            self.assertEqual(b.call(ALICE, "me", {"subjects": []})["body"]["subjectVotes"], {})
+            self.assertNotIn(ALICE, json.dumps(body))
+
     def test_me_refuses_a_subject_of_a_disabled_type(self) -> None:
         with backend(("item",)) as b:
             answer = b.call(ALICE, "me", {"subjects": [PROPOSAL]})

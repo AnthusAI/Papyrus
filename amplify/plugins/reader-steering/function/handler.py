@@ -383,7 +383,9 @@ def my_state(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any
     for stored_id, value in found.items():
         subject, dimension = wanted[stored_id]
         votes.setdefault(subject, {})[dimension] = value
-    return reply(200, {**public_profile(profile), "votes": votes})
+    # The reader's own up (1) or down (-1) vote per requested subject, by subject key (the key format of items.json).
+    subject_votes = {subject: held["up"] for subject, held in votes.items() if held.get("up") in (1, -1)}
+    return reply(200, {**public_profile(profile), "votes": votes, "subjectVotes": subject_votes})
 
 
 def set_handle(

@@ -857,6 +857,7 @@ test("ranked list: it polls every minute while the page is visible and keeps the
 
 // Votes on any subject type, and the Flag control.
 const TYPED_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Typed</title>
+<script>window.papyrusReader = { voteSubjects: ["item", "proposal"] };</script>
 <link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
 <header><div id="signin" data-island="ReaderSignIn"></div></header>
 <main><div id="pvote" data-island="Vote" data-props='{"type":"proposal","id":"prop-1","up":2,"down":1}'></div>
@@ -972,5 +973,32 @@ test("a refused flag keeps the form and says what went wrong", async () => {
   await flag.getByRole("button", { name: "Send flag" }).click();
   await flag.locator(".papyrus-reader-status").getByText("Give a reason in plain text of at most 500 characters.").waitFor();
   assert.equal(await flag.locator("form").isVisible(), true);
+  await context.close();
+});
+
+test("the script exposes the enabled vote subject types and the proposalVoting convenience", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake(), { page: TYPED_PAGE });
+  await page.locator("#pvote button").first().waitFor();
+  assert.deepEqual(await page.evaluate(() => (window as any).papyrusReader.voteSubjects), ["item", "proposal"]);
+  assert.equal(await page.evaluate(() => (window as any).papyrusReader.proposalVoting), true);
+  await context.close();
+  const other = await browser.newContext();
+  const plain = await open(other, fake());
+  await plain.locator("#vote button").first().waitFor();
+  assert.deepEqual(await plain.evaluate(() => (window as any).papyrusReader.voteSubjects), ["item", "submission"], "the default is items and submissions");
+  assert.equal(await plain.evaluate(() => (window as any).papyrusReader.proposalVoting), false);
+  await other.close();
+});
+
+test("a typed Vote and Flag for a type the publication has not enabled are off and say so", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ snapshot: typedSnapshot() }), {
+    page: TYPED_PAGE.replace('voteSubjects: ["item", "proposal"]', 'voteSubjects: ["item"]'),
+  });
+  await page.locator("#pvote .papyrus-reader-status").getByText("Voting on this is not open yet").waitFor();
+  await page.locator("#pflag .papyrus-reader-status").getByText("Voting on this is not open yet").waitFor();
+  for (const button of await page.locator("#pvote button, #pflag button").all()) assert.equal(await button.isDisabled(), true);
+  assert.equal(await page.evaluate(() => (window as any).papyrusReader.proposalVoting), false);
   await context.close();
 });

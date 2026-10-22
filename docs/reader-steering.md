@@ -176,8 +176,10 @@ stay on items and submissions.
 flag per subject and kind: flagging again replaces the reason. Flags are stored in `ReaderFlag`, not with votes, and reach the
 snapshot as counts only.
 
-**Reader state.** `GET /api/reader/me?subjects=...` takes subject keys (`proposal:prop-1`) and answers
-`votes: {subjectKey: {up: 1 | -1}}`.
+**Reader state.** `GET /api/reader/me?subjects=...` takes at most 50 subject keys (`proposal:prop-1`; `item-one` for an item)
+and answers, for those subjects only and for the signed-in reader only, `votes: {subjectKey: {up: 1 | -1, ...}}` (unchanged)
+and the flat `subjectVotes: {subjectKey: 1 | -1}`: the reader's own vote, in the key format of `items.json`. A subject the
+reader has not voted on is absent. There is no way to list every vote of a reader: ask for the subjects on the page.
 
 **Identity.** Rows hold the opaque `readerId` only. The pairwise `ss1_...` site subject is the profile key and never goes into a
 vote, a flag, a response or a snapshot file; the Person ID never reaches this plugin.
@@ -609,6 +611,13 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 | `RankedList` | `list` (`front`, `rising` or `new`), optional `limit` (10), `section`, `empty` | A ranked list from `board.json` and `subjects.json`: a real `<ol>` whose rows have the rank as text, the title link, the section (a submission: its domain, and the word "Pending" while it is pending, linking to its source with `rel="nofollow noopener noreferrer ugc"`) and the figure in words ("3 upvotes in 6 h", "Score 2.96", "5 min ago"). `section` keeps only that section's items before `limit` applies. An empty list shows `empty` as ordinary text; a failed load says it could not load and is never shown as empty. Under the list, "Updated N min ago" from `generatedAt`. Refetches both files every 60 seconds while visible and keeps the rows it has when a refetch fails. |
 | `Comments` | `subject`, optional `count`, `editMinutes`, `maximumLength` | The comments of one item or submission: a threaded list (handles and text only, a stub reads "This comment was removed."), a form and, for top-level comments, Reply. The author's own comments show Edit (inside the edit window) and Delete. Fetches `<base>_data/reader/comments/<subject>.json`, refetches it every 60 seconds while visible, and shows the reader's own new, edited and deleted comments at once until a newer file arrives. A reply or edit being typed survives a refresh. |
 | `Submit` | optional `kinds` | The `/submit/` form: link, title, kind radio (when there are several kinds) and note. It warns, without blocking, when the link is already in `submissions.json` or the site has a recent submission, saves a draft in `localStorage` and says so ("Saved locally ..."), clears the draft on success and then shows "Pending — we're reading the link." and any `similar` links. |
+
+**Which types can be voted on.** The deployed backend publishes the enabled types as `subjects.types` under
+`custom.papyrusPlugins["reader-steering"]` in `amplify_outputs.json`. The site copies them into the page config:
+`window.papyrusReader = { voteSubjects: ["item", "proposal"] }` (default `["item", "submission"]`). The script then sets two
+fields on `window.papyrusReader` that the page can key on: `voteSubjects` (the list) and `proposalVoting`
+(`voteSubjects.includes("proposal")`). A typed `Vote` or `Flag` island whose type is not in `voteSubjects` is disabled and says
+"Voting on this is not open yet".
 
 `subject` is the lineage id of the published item. Props prerender the last snapshot values; each page then fetches
 `<base>_data/reader/items.json`, refetches it every 60 seconds while the tab is visible, and asks `/api/reader/me` once for every
