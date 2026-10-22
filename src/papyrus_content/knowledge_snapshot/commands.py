@@ -1,4 +1,4 @@
-"""CLI entries: ``papyrus knowledge publish-run | snapshot | entities ... | clusters ... | relations ...``.
+"""CLI entries: ``papyrus knowledge publish-run | snapshot | archive | entities ... | clusters ... | relations ...``.
 
 Every command that reads or writes the CMS takes ``--auth user|iam`` and ``--amplify-outputs FILE`` (or the
 ``PAPYRUS_GRAPHQL_AUTH`` and ``PAPYRUS_GRAPHQL_ENDPOINT`` variables), says on stderr which lane and endpoint it uses,
@@ -29,6 +29,7 @@ from ..reader_steering.snapshot import encoded
 from ..reader_steering.task import snapshot_key
 from ..records import apply_record_changes, build_record_change_from_current
 from .actors import Actor, actor_from_options, clean_name
+from .archive import ArchiveError, archive_entry, build_entry
 from .builder import CLUSTERS_FILE, ENTITY_DIRECTORY, INDEX_FILE, build_files
 from .cluster_review import (
     ClusterReviewError,
@@ -345,31 +346,34 @@ class _OfflineContext:
         self.projector = None
 
 
-def knowledge_snapshot(flags: list[str]) -> None:
-    options = parse_options(flags)
+def _snapshot_inputs(options: dict[str, Any]) -> tuple[Any, KnowledgeData, SnapshotOptions]:
+    """The destination, the records and the options that `snapshot` and `archive` share."""
     snapshot_options = _snapshot_options(options)
     records_file = normalize_string(options.get("records"))
     if records_file:
         if not options.get("out") or options.get("reproject") or options.get("site-bucket"):
             raise ValueError("--records builds offline: pass --out DIR, and not --site-bucket or --reproject.")
-        context: Any = _OfflineContext(options["out"])
-        data = load_records_file(records_file)
-        client = None
-    else:
-        if not options.get("out") and not options.get("site-bucket"):
-            raise ValueError("Pass --out DIR (a local directory) or --site-bucket NAME (the site store).")
-        if options.get("out") and options.get("site-bucket"):
-            raise ValueError("Pass --out or --site-bucket, not both.")
-        client = authoring_client(options)
-        if options.get("site-bucket"):
-            options["bucket"] = options["site-bucket"]
-        context = _context_for(client, options)
-        data = load_knowledge_data(client, context.projector, options)
-        snapshot_options = dataclasses.replace(
-            snapshot_options,
-            entity_href_template=based_template(context.projector, snapshot_options.entity_href_template),
-            cluster_href_template=based_template(context.projector, snapshot_options.cluster_href_template),
-        )
+        return _OfflineContext(options["out"]), load_records_file(records_file), snapshot_options
+    if not options.get("out") and not options.get("site-bucket"):
+        raise ValueError("Pass --out DIR (a local directory) or --site-bucket NAME (the site store).")
+    if options.get("out") and options.get("site-bucket"):
+        raise ValueError("Pass --out or --site-bucket, not both.")
+    client = authoring_client(options)
+    if options.get("site-bucket"):
+        options["bucket"] = options["site-bucket"]
+    context = _context_for(client, options)
+    data = load_knowledge_data(client, context.projector, options)
+    snapshot_options = dataclasses.replace(
+        snapshot_options,
+        entity_href_template=based_template(context.projector, snapshot_options.entity_href_template),
+        cluster_href_template=based_template(context.projector, snapshot_options.cluster_href_template),
+    )
+    return context, data, snapshot_options
+
+
+def knowledge_snapshot(flags: list[str]) -> None:
+    options = parse_options(flags)
+    context, data, snapshot_options = _snapshot_inputs(options)
     files = build_files(data, snapshot_options)
     outcome = write_files(context, files, projector=context.projector)
     entities = sum(1 for key in files if key.startswith(ENTITY_DIRECTORY + "/"))
@@ -404,6 +408,41 @@ def knowledge_snapshot(flags: list[str]) -> None:
             print(f"error: {error}")
         if not report.ok:
             raise SystemExit(1)
+
+
+def knowledge_archive(flags: list[str]) -> None:
+    """Archive this week's snapshot with the cluster identity of the latest run (see ``archive.py``)."""
+    options = parse_options(flags)
+    if options.get("reproject"):
+        raise ValueError("archive never re-projects pages; run `papyrus knowledge snapshot --reproject` for that.")
+    context, data, snapshot_options = _snapshot_inputs(options)
+    files = build_files(data, snapshot_options)
+    try:
+        entry = build_entry(files, data, snapshot_options.as_of, utc_now())
+        outcome = archive_entry(context, entry, replace=bool(options.get("replace")))
+    except ArchiveError as error:
+        print(f"knowledge\tarchive\trefused\t{error}", file=sys.stderr)
+        raise SystemExit(1) from error
+    result = {
+        "asOf": entry["asOf"],
+        "runId": entry["runId"],
+        "outcome": outcome["outcome"],
+        "counts": entry["counts"],
+        "written": len(outcome["written"]),
+        "purged": len(outcome["purged"]),
+        "purgeError": outcome["purgeError"],
+    }
+    if options.get("json"):
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+    counts = entry["counts"]
+    print(
+        f"knowledge\tarchive\t{result['outcome']}\tasOf {result['asOf']}\trun {result['runId']}\t"
+        f"{counts['entities']} entities\t{counts['topics']} topics\t{counts['clusters']} clusters"
+    )
+    print(f"knowledge\tarchive\t{result['written']} written\t{result['purged']} purged")
+    if result["purgeError"]:
+        print(f"knowledge\tarchive\twarning\tedge purge failed: {result['purgeError']}")
 
 
 def _entity_row(row: dict) -> str:
@@ -690,6 +729,7 @@ KNOWLEDGE_COMMANDS = {
     "corpus-export": knowledge_corpus_export,
     "publish-run": knowledge_publish_run,
     "snapshot": knowledge_snapshot,
+    "archive": knowledge_archive,
     "entities-list": knowledge_entities_list,
     "entities-accept": knowledge_entities_accept,
     "entities-reject": knowledge_entities_reject,

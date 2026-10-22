@@ -138,4 +138,5 @@ def cluster_from_proposal(proposal: Mapping[str, Any], category_names: Mapping[t
         run_as_of=metadata.get("runAsOf"),
         category_key=proposal.get("categoryKey"),
         accepted_by=actor_from_dict(metadata.get("acceptedBy")) if accepted else None,
+        predecessor_uids=tuple(str(uid) for uid in metadata.get("predecessorUids") or ()),
     )

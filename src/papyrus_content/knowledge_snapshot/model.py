@@ -83,6 +83,7 @@ class Cluster:
     run_as_of: str | None = None
     category_key: str | None = None
     accepted_by: Actor | None = None
+    predecessor_uids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

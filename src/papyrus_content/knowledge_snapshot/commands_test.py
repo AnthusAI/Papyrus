@@ -1002,3 +1002,134 @@ def test_reproject_builds_its_context_with_the_deletion_guard_unless_allowed(cli
     unguarded = project_commands._context_for(client, {"out": str(tmp_path), "allow-deletions": True})
     assert guarded.deletion_guard == DeletionGuard()
     assert unguarded.deletion_guard is None
+
+
+# ------------------------------------------------------------------ weekly archive
+
+HISTORY = "_data/knowledge/history"
+
+
+def archive_to(tmp_path, monkeypatch, *flags):
+    monkeypatch.setattr(commands, "_context_for", lambda _client, options: snapshot_context(Path(options["out"])))
+    out = tmp_path / "site"
+    run(commands.knowledge_archive, "--out", str(out), "--as-of", "2026-10-19", *flags)
+    return out
+
+
+def published_run(client, tmp_path, *, run_id="run-2026-10-19", edit=None):
+    run_dir = write_run_directory(tmp_path / f"run-{run_id}", run_id=run_id)
+    if edit:
+        identity = json.loads((run_dir / "identity.json").read_text())
+        edit(identity)
+        (run_dir / "identity.json").write_text(json.dumps(identity))
+    run(commands.knowledge_publish_run, *run_flags(run_dir), *CLUSTER_FLAGS)
+    return run_dir
+
+
+def test_archive_stores_the_week_with_cluster_identity_counts_and_the_run(client, tmp_path, monkeypatch, capsys):
+    published_run(client, tmp_path)
+    out = archive_to(tmp_path, monkeypatch)
+    entry = json.loads((out / f"{HISTORY}/2026-10-19.json").read_text())
+    assert (entry["asOf"], entry["runId"], entry["runAsOf"]) == ("2026-10-19", "run-2026-10-19", "2026-10-19")
+    assert entry["archivedAt"].endswith("Z")
+    assert {row["uid"]: row["identity"] for row in entry["clusters"]} == {
+        "tc-1": {"status": "new"},
+        "tc-2": {"status": "continued", "predecessor": "tc-2"},
+    }
+    assert entry["counts"] == {"entities": 3, "topics": 0, "clusters": 2}
+    assert entry["snapshot"]["index"]["entityCount"] == 3
+    assert sorted(entry["snapshot"]["entities"]) == ["maker--some-lab", "task--code-completion", "task--voice-cloning"]
+    index = json.loads((out / f"{HISTORY}/index.json").read_text())
+    assert [(row["asOf"], row["file"], row["identity"]) for row in index["entries"]] == [
+        ("2026-10-19", "2026-10-19.json", {"new": 1, "continued": 1, "merged": 0, "split": 0})
+    ]
+    assert "created" in capsys.readouterr().out
+
+
+def test_archive_records_merged_and_split_sources(client, tmp_path, monkeypatch):
+    def edit(identity):
+        identity["clusters"][0].update(event="merged", predecessor_uids=["old-b", "old-a"])
+        identity["clusters"][1].update(event="split", predecessor_uids=["old-c"])
+
+    published_run(client, tmp_path, edit=edit)
+    out = archive_to(tmp_path, monkeypatch)
+    entry = json.loads((out / f"{HISTORY}/2026-10-19.json").read_text())
+    assert {row["uid"]: row["identity"] for row in entry["clusters"]} == {
+        "tc-1": {"status": "merged", "sources": ["old-a", "old-b"]},
+        "tc-2": {"status": "split", "source": "old-c"},
+    }
+
+
+def test_archiving_the_same_run_again_changes_nothing(client, tmp_path, monkeypatch, capsys):
+    published_run(client, tmp_path)
+    out = archive_to(tmp_path, monkeypatch)
+    first = {path.name: path.read_bytes() for path in (out / HISTORY).iterdir()}
+    capsys.readouterr()
+    archive_to(tmp_path, monkeypatch)
+    assert {path.name: path.read_bytes() for path in (out / HISTORY).iterdir()} == first
+    assert len(first) == 2
+    printed = capsys.readouterr().out
+    assert "kept" in printed and "0 written" in printed
+
+
+def test_another_run_of_the_same_week_is_refused_unless_replace_and_other_weeks_stay(client, tmp_path, monkeypatch, capsys):
+    published_run(client, tmp_path)
+    out = archive_to(tmp_path, monkeypatch)
+    earlier = out / f"{HISTORY}/2026-10-12.json"
+    earlier.write_text(json.dumps({"asOf": "2026-10-12", "runId": "run-old", "runAsOf": "2026-10-12", "archivedAt": "2026-10-12T06:00:00Z",
+                                   "counts": {"entities": 1, "topics": 0, "clusters": 1}, "clusters": [{"uid": "x", "identity": {"status": "new"}}]}))
+    kept = (out / f"{HISTORY}/2026-10-19.json").read_bytes()
+    published_run(client, tmp_path, run_id="run-2026-10-19b")
+    capsys.readouterr()
+    with pytest.raises(SystemExit):
+        archive_to(tmp_path, monkeypatch)
+    assert "immutable" in capsys.readouterr().err
+    assert (out / f"{HISTORY}/2026-10-19.json").read_bytes() == kept
+
+    archive_to(tmp_path, monkeypatch, "--replace")
+    assert json.loads((out / f"{HISTORY}/2026-10-19.json").read_text())["runId"] == "run-2026-10-19b"
+    assert earlier.exists()
+    index = json.loads((out / f"{HISTORY}/index.json").read_text())
+    assert [(row["asOf"], row["runId"]) for row in index["entries"]] == [("2026-10-12", "run-old"), ("2026-10-19", "run-2026-10-19b")]
+
+
+def test_two_consecutive_weeks_read_back_and_compare(client, tmp_path, monkeypatch):
+    published_run(client, tmp_path)
+    out = archive_to(tmp_path, monkeypatch)
+    next_week = write_run_directory(tmp_path / "run-next", run_id="run-2026-10-26")
+    trends = json.loads((next_week / "trends.json").read_text())
+    trends["weekly_bins"]["as_of"] = "2026-10-26"
+    (next_week / "trends.json").write_text(json.dumps(trends))
+    run(commands.knowledge_publish_run, *run_flags(next_week), *CLUSTER_FLAGS)
+    run(commands.knowledge_archive, "--out", str(out), "--as-of", "2026-10-26")
+    index = json.loads((out / f"{HISTORY}/index.json").read_text())
+    assert [row["asOf"] for row in index["entries"]] == ["2026-10-19", "2026-10-26"]
+    first, second = (json.loads((out / f"{HISTORY}/{row['file']}").read_text()) for row in index["entries"])
+    assert (first["runId"], second["runId"]) == ("run-2026-10-19", "run-2026-10-26")
+    assert {row["uid"] for row in first["clusters"]} == {row["uid"] for row in second["clusters"]}
+
+
+def test_a_snapshot_run_never_deletes_the_archive(client, tmp_path, monkeypatch):
+    published_run(client, tmp_path)
+    out = archive_to(tmp_path, monkeypatch)
+    before = {path.name: path.read_bytes() for path in (out / HISTORY).iterdir()}
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19")
+    assert {path.name: path.read_bytes() for path in (out / HISTORY).iterdir()} == before
+
+
+def test_archive_refuses_without_a_cluster_run_or_with_a_run_of_another_week(client, tmp_path, monkeypatch, capsys):
+    run(commands.knowledge_publish_run, "--apply")
+    with pytest.raises(SystemExit):
+        archive_to(tmp_path, monkeypatch)
+    assert "No cluster run" in capsys.readouterr().err
+    assert not (tmp_path / "site" / HISTORY).exists()
+    published_run(client, tmp_path)
+    monkeypatch.setattr(commands, "_context_for", lambda _client, options: snapshot_context(Path(options["out"])))
+    with pytest.raises(SystemExit):
+        run(commands.knowledge_archive, "--out", str(tmp_path / "site"), "--as-of", "2026-10-26")
+    assert "outside the week" in capsys.readouterr().err
+
+
+def test_archive_never_reprojects(client, tmp_path):
+    with pytest.raises(ValueError, match="never re-projects"):
+        run(commands.knowledge_archive, "--out", str(tmp_path), "--reproject")
