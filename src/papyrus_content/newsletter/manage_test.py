@@ -73,27 +73,45 @@ def event_rows(aws: Harness) -> list[dict[str, Any]]:
 # -- links -------------------------------------------------------------------------------------------------------------
 
 
-def test_manage_links(aws: Harness) -> None:
+def test_manage_links_are_clean_pages_and_the_one_click_url_is_separate(aws: Harness) -> None:
     hid = aws.hid()
     urls = links.manage_urls(hid, keys=aws.keys, site_origin=ORIGIN + "/")
-    assert set(urls) == {"manage_url", "unsubscribe_url"}
+    assert set(urls) == {"manage_url", "unsubscribe_url", "one_click_url"}
     manage = urlparse(urls["manage_url"])
-    assert f"{manage.scheme}://{manage.netloc}{manage.path}" == f"{ORIGIN}/api/newsletter/preferences"
-    token = parse_qs(manage.query)["t"][0]
+    assert f"{manage.scheme}://{manage.netloc}{manage.path}" == f"{ORIGIN}/newsletter/preferences/"
+    token = parse_qs(manage.query)["token"][0]
     assert tokens.verify(aws.keys.token, token, "manage", aws.now).hid == hid
-    assert urls["unsubscribe_url"] == f"{ORIGIN}/api/newsletter/unsubscribe?t={token}"
+    assert urls["unsubscribe_url"] == f"{ORIGIN}/newsletter/unsubscribe/?token={token}"
+    assert urls["one_click_url"] == f"{ORIGIN}/api/newsletter/unsubscribe?t={token}"
+    for people in (urls["manage_url"], urls["unsubscribe_url"]):
+        assert "/api/" not in people
     per_list = links.manage_urls(hid, "alerts-a", keys=aws.keys, site_origin=ORIGIN)
-    assert per_list["unsubscribe_url"].endswith(f"?t={token}&l=alerts-a")
+    assert per_list["unsubscribe_url"] == f"{ORIGIN}/newsletter/unsubscribe/?token={token}&list=alerts-a"
+    assert per_list["one_click_url"] == f"{ORIGIN}/api/newsletter/unsubscribe?t={token}&l=alerts-a"
     assert links.make_manage_token(hid, aws.keys) == token
 
 
-def test_the_environment_supplies_keys_and_origin(aws: Harness, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_every_link_lives_under_the_base_path_except_the_machine_url(aws: Harness) -> None:
+    hid = aws.hid()
+    for base in ("/posts", "posts", "/posts/"):
+        urls = links.manage_urls(hid, "alerts-a", keys=aws.keys, site_origin=ORIGIN, base_path=base)
+        assert urls["manage_url"].startswith(f"{ORIGIN}/posts/newsletter/preferences/?token=v1.")
+        assert urls["unsubscribe_url"].startswith(f"{ORIGIN}/posts/newsletter/unsubscribe/?token=v1.") and urls["unsubscribe_url"].endswith("&list=alerts-a")
+        assert urls["one_click_url"].startswith(f"{ORIGIN}/api/newsletter/unsubscribe?t=v1."), "the API stays at the host root"
+    assert links.page_url(ORIGIN, "", "confirm", "token=x") == f"{ORIGIN}/newsletter/confirm/?token=x"
+    assert links.page_url(ORIGIN + "/", "/a/b", "confirm") == f"{ORIGIN}/a/b/newsletter/confirm/"
+    assert links.home_url(ORIGIN, "/posts") == f"{ORIGIN}/posts/" and links.home_url(ORIGIN) == f"{ORIGIN}/"
+
+
+def test_the_environment_supplies_keys_origin_and_base_path(aws: Harness, monkeypatch: pytest.MonkeyPatch) -> None:
     from papyrus_content.newsletter import keys as keys_module
 
     monkeypatch.setitem(keys_module._cache, "/p/key", aws.keys)
     monkeypatch.setenv("KEY_PARAMETER", "/p/key")
     monkeypatch.setenv("SITE_ORIGIN", ORIGIN)
-    assert links.manage_urls(aws.hid())["manage_url"].startswith(f"{ORIGIN}/api/newsletter/preferences?t=v1.")
+    assert links.manage_urls(aws.hid())["manage_url"].startswith(f"{ORIGIN}/newsletter/preferences/?token=v1.")
+    monkeypatch.setenv("SITE_BASE_PATH", "posts")
+    assert links.manage_urls(aws.hid())["manage_url"].startswith(f"{ORIGIN}/posts/newsletter/preferences/?token=v1.")
 
 
 # -- preferences -------------------------------------------------------------------------------------------------------

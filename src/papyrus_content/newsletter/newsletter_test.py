@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -117,7 +118,7 @@ class Harness:
 
     def last_token(self) -> str:
         text = self.ses.sent[-1]["Content"]["Simple"]["Body"]["Text"]["Data"]
-        return re.search(r"/api/newsletter/confirm\?t=([A-Za-z0-9_.-]+)", text).group(1)  # type: ignore[union-attr]
+        return re.search(r"/newsletter/confirm/\?token=([A-Za-z0-9_.-]+)", text).group(1)  # type: ignore[union-attr]
 
     def confirm(self, token: str | None = None) -> dict[str, Any]:
         return self.service.dispatch(
@@ -309,6 +310,15 @@ def test_sender_formatting() -> None:
 # -- subscribe and confirm ---------------------------------------------------------------------------------------------
 
 
+def test_the_confirmation_button_follows_the_base_path(aws: Harness) -> None:
+    aws.service.settings = dataclasses.replace(aws.service.settings, base_path="posts")
+    aws.subscribe()
+    text = aws.ses.sent[-1]["Content"]["Simple"]["Body"]["Text"]["Data"]
+    assert f"{ORIGIN}/posts/newsletter/confirm/?token=v1." in text and "/api/" not in text
+    assert f'href="{ORIGIN}/posts/"' in aws.ses.sent[-1]["Content"]["Simple"]["Body"]["Html"]["Data"], "the way back is the site home under the base path"
+    assert aws.confirm()["statusCode"] == 200, "the token from the clean URL confirms"
+
+
 def test_a_new_address_gets_one_confirmation_and_a_pending_record(aws: Harness) -> None:
     assert aws.subscribe(siteSubject="ss1_" + "A" * 43) == {"statusCode": 202, "body": {"status": "check_email"}}
     assert len(aws.ses.sent) == 1
@@ -324,7 +334,8 @@ def test_a_new_address_gets_one_confirmation_and_a_pending_record(aws: Harness) 
     body = sent["Content"]["Simple"]["Body"]
     assert "Confirm subscription" in body["Html"]["Data"] and "Confirm subscription" in body["Text"]["Data"]
     assert "Weekly roundup" in body["Text"]["Data"] and "72 hours" in body["Text"]["Data"]
-    assert f"{ORIGIN}/api/newsletter/confirm?t=v1." in body["Text"]["Data"]
+    assert f"{ORIGIN}/newsletter/confirm/?token=v1." in body["Text"]["Data"]
+    assert "/api/" not in body["Text"]["Data"] and "/api/" not in body["Html"]["Data"], "people are never sent to an /api URL"
     assert "Alerts" not in body["Text"]["Data"]
 
     profile = aws.profile()

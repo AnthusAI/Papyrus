@@ -65,6 +65,7 @@ class Settings:
     theme: Mapping[str, Any]
     instant_alerts: bool = False  # the site allows alert lists with approval "none" to send without an admin
     item_url_style: str = "html"  # how the site's item pages are addressed (projection.json urls.style), for links in roundup drafts
+    base_path: str = ""  # projection.json urls.basePath without slashes: the plugin's pages live under it ("" is the root)
     alarm_names: tuple[str, ...] = ()
 
     @classmethod
@@ -80,6 +81,7 @@ class Settings:
             theme=json.loads(environment["THEME_JSON"]),
             instant_alerts=environment.get("INSTANT_ALERTS", "false") == "true",
             item_url_style=environment.get("ITEM_URL_STYLE", "html"),
+            base_path=environment.get("SITE_BASE_PATH", ""),
             alarm_names=tuple(name for name in environment.get("ALARM_NAMES", "").split(",") if name),
         )
 
@@ -283,6 +285,7 @@ class Newsletter:
             named = [self.settings.list_named(list_id) for list_id in list_ids]
             rendered = build_confirmation(
                 site_origin=self.settings.site_origin,
+                base_path=self.settings.base_path,
                 site_name=self.settings.from_name,
                 theme_config=self.settings.theme,
                 lists=[entry for entry in named if entry is not None],

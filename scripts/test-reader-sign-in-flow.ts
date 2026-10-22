@@ -161,8 +161,10 @@ async function readerMe(sessionCookie: string): Promise<{ status: number; error?
   const unavailable = await signIn({
     "POST /v1/identities/google/resolve": new ProspectusAccountsError(503, "service_unavailable", "Site subjects are not configured."),
   });
-  assert.equal(unavailable.response.status, 503);
-  assert.deepEqual(Object.keys((await unavailable.response.json()) as object).sort(), ["error", "message"]);
+  assert.equal(unavailable.response.status, 303, "the browser goes back to the site, not to an /api error");
+  const back = new URL(unavailable.response.headers.get("location")!);
+  assert.equal(back.pathname, "/");
+  assert.equal(back.searchParams.get("sign_in_error"), "service_unavailable");
   assert.equal(unavailable.sessionCookie, "", "no session is created");
 
   console.log("reader sign-in flow ok");

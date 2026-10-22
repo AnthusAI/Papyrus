@@ -223,11 +223,11 @@ class Sender:
             return "handled"
         urls = service.compliance.manage_urls(hid, list_id)
         html, text = personalise(rendered["html"], rendered["text"], manage_url=urls["manage_url"], unsubscribe_url=urls["unsubscribe_url"])
-        return self._deliver(issue_id, hid, list_id, profile["email"], rendered["subject"], html, text, urls["unsubscribe_url"])
+        return self._deliver(issue_id, hid, list_id, profile["email"], rendered["subject"], html, text, urls["one_click_url"])
 
-    def _deliver(self, issue_id: str, hid: str, list_id: str, address: str, subject: str, html: str, text: str, unsubscribe_url: str) -> str:
+    def _deliver(self, issue_id: str, hid: str, list_id: str, address: str, subject: str, html: str, text: str, one_click_url: str) -> str:
         service, issues = self.service, self.service.issues
-        headers = {"List-Unsubscribe": f"<{unsubscribe_url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
+        headers = {"List-Unsubscribe": f"<{one_click_url}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"}
         tags = {"site": service.settings.site_id, "list": list_id, "issue": issue_id, "sub": hid}
         error = "unknown"
         for attempt in range(len(THROTTLE_PAUSES) + 1):

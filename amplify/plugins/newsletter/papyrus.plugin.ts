@@ -38,7 +38,7 @@ export const newsletterManifest: PluginManifest = {
   mutations: NEWSLETTER_MUTATIONS,
   guest: { mutations: [] },
   newsroomPanels: [],
-  staticAssets: ["_plugins/papyrus-newsletter@1.js"],
+  staticAssets: ["_plugins/papyrus-newsletter@1.js", "_plugins/papyrus-newsletter-pages@1.js"],
 };
 
 let codeForTests: Code | undefined;
@@ -80,6 +80,7 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
     KEY_PARAMETER: keyParameter,
     SITE_ID: config.siteId,
     SITE_ORIGIN: config.siteOrigin,
+    SITE_BASE_PATH: config.basePath,
     SENDING_DOMAIN: config.sendingDomain,
     FROM_ADDRESS: config.fromAddress,
     FROM_NAME: config.fromName,
@@ -111,6 +112,8 @@ export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, { newsletterOps: 
   publicSettings: (config) => ({
     contract: newsletterManifest.contract,
     fromName: config.fromName,
+    // The CMS routes redirect people to the plugin's pages under the site's base path.
+    basePath: config.basePath,
     lists: config.lists.map((list) => ({
       id: list.id,
       name: list.name,

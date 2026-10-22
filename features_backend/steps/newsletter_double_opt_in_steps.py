@@ -43,7 +43,7 @@ def emailed_tokens(context) -> list[str]:
     found = []
     for message in context.harness.ses.sent:
         text = message["Content"]["Simple"]["Body"]["Text"]["Data"]
-        found.append(re.search(r"/api/newsletter/confirm\?t=([A-Za-z0-9_.-]+)", text).group(1))
+        found.append(re.search(r"/newsletter/confirm/\?token=([A-Za-z0-9_.-]+)", text).group(1))
     return found
 
 

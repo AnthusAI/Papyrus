@@ -7,9 +7,9 @@ from typing import Any, Mapping, Sequence
 
 from papyrus_content.email_render import RenderedEmail, render_transactional, theme_from_config
 
+from . import links
 from .tokens import CONFIRM_TOKEN_LIFETIME_SECONDS
 
-CONFIRM_PATH = "/api/newsletter/confirm"
 BUTTON_LABEL = "Confirm subscription"
 _MARKUS_SPECIAL = re.compile(r"([\\`*_\[\]<>#|~])")
 
@@ -19,13 +19,15 @@ def markus_text(value: str) -> str:
     return _MARKUS_SPECIAL.sub(r"\\\1", " ".join(value.split()))
 
 
-def confirm_url(site_origin: str, token: str) -> str:
-    return f"{site_origin.rstrip('/')}{CONFIRM_PATH}?t={token}"
+def confirm_url(site_origin: str, token: str, base_path: str = "") -> str:
+    """The clean page the button opens (``<origin><base>/newsletter/confirm/?token=...``); it posts to the machine endpoint itself."""
+    return links.page_url(site_origin, base_path, "confirm", f"token={token}")
 
 
 def build_confirmation(
     *,
     site_origin: str,
+    base_path: str = "",
     site_name: str,
     theme_config: Mapping[str, Any],
     lists: Sequence[Mapping[str, str]],
@@ -46,8 +48,8 @@ def build_confirmation(
         markus="\n".join(lines),
         theme=theme_from_config(theme_config, site_name),
         site_name=site_name,
-        site_url=site_origin.rstrip("/") + "/",
+        site_url=links.home_url(site_origin, base_path),
         preheader=f"Confirm to start receiving email from {site_name}.",
-        action_url=confirm_url(site_origin, token),
+        action_url=confirm_url(site_origin, token, base_path),
         action_label=BUTTON_LABEL,
     )

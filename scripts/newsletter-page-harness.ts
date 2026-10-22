@@ -4,21 +4,20 @@ import type { AddressInfo } from "node:net";
 import { extname, join, normalize, resolve } from "node:path";
 import { NextRequest } from "next/server";
 import {
-  handleNewsletterConfirmPage,
-  handleNewsletterConfirmPost,
+  handleNewsletterConfirm,
   handleNewsletterPreferences,
+  handleNewsletterState,
   handleNewsletterUnsubscribe,
   type NewsletterApiOptions,
   type NewsletterEvent,
   type NewsletterResult,
 } from "../lib/newsletter-api";
-import { clearShellCache } from "../lib/newsletter-pages";
 
 /**
- * A stand-in for the CMS app and its CloudFront edge, for browser tests of the newsletter pages: the real route handlers on
- * a loopback http server, a stub newsletter function behind them, and the site's static files (the shell and the CSS) served
- * from a directory. Like the real edge, an answer of 403 or 404 from a newsletter route becomes the site's 404 page, so
- * a hidden failure shows up as "Page not found". It needs no AWS.
+ * A stand-in for the CMS app and its CloudFront edge, for browser tests of the newsletter pages: the real route handlers under
+ * /api/newsletter/ on a loopback http server, a stub newsletter function behind them, and the site's static files (the projected
+ * pages under /newsletter/, the CSS) served from a directory. Like the real edge, an answer of 403 or 404 from a newsletter route
+ * becomes the site's 404 page, so a hidden failure shows up as "Page not found". It needs no AWS.
  */
 export const MANAGE_TOKEN = "v1.manage.token";
 export const CONFIRM_TOKEN = "v1.confirm.token";
@@ -84,7 +83,7 @@ async function readRequestBody(request: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** `directory` holds the site's files: `_plugins/newsletter-shell/index.html`, `css/…`. `extra` maps more url paths to files. */
+/** `directory` holds the site's files: `newsletter/<page>/index.html`, `css/…`. `extra` maps more url paths to files. */
 export async function startHarness(directory: string, extra: Record<string, string> = {}, siteName = "Fixture Site"): Promise<Harness> {
   const backend: Backend = { calls: [], subscribed: new Set(), confirmed: false, deleted: false };
   const requests: Harness["requests"] = [];
@@ -132,16 +131,19 @@ export async function startHarness(directory: string, extra: Record<string, stri
         const headers = new Headers();
         for (const [name, value] of Object.entries(incoming.headers)) if (value !== undefined && !["content-length", "host", "connection", "transfer-encoding"].includes(name)) headers.set(name, Array.isArray(value) ? value.join(", ") : value);
         const request = new NextRequest(url, { method, headers, ...(body === undefined ? {} : { body }) });
-        const handler = url.pathname.endsWith("/confirm")
-          ? method === "GET" ? handleNewsletterConfirmPage : handleNewsletterConfirmPost
-          : url.pathname.endsWith("/preferences") ? handleNewsletterPreferences : url.pathname.endsWith("/unsubscribe") ? handleNewsletterUnsubscribe : null;
+        const handler =
+          url.pathname === "/api/newsletter/confirm" ? handleNewsletterConfirm
+          : url.pathname === "/api/newsletter/preferences" ? handleNewsletterPreferences
+          : url.pathname === "/api/newsletter/unsubscribe" ? handleNewsletterUnsubscribe
+          : url.pathname === "/api/newsletter/state" ? handleNewsletterState
+          : null;
         if (!handler) return notFound();
         const answer = await handler(request, options());
         // The real edge swaps an origin answer of 403 or 404 for the site's 404 page.
         if (answer.status === 403 || answer.status === 404) return notFound();
         const text = await answer.text();
         const responseHeaders: Record<string, string> = {};
-        answer.headers.forEach((value, name) => (responseHeaders[name] = value));
+        answer.headers.forEach((value: string, name: string) => (responseHeaders[name] = value));
         record(answer.status);
         outgoing.writeHead(answer.status, responseHeaders);
         return outgoing.end(text);
@@ -156,7 +158,6 @@ export async function startHarness(directory: string, extra: Record<string, stri
   });
   await new Promise<void>((done) => server.listen(0, done));
   origin = `http://localhost:${(server.address() as AddressInfo).port}`;
-  clearShellCache();
   return {
     origin,
     backend,

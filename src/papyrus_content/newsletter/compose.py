@@ -8,6 +8,8 @@ from typing import Any, Mapping
 
 from papyrus_content.email_render import EmailFooter, RenderedEmail, render_issue, theme_from_config
 
+from . import links
+
 #: Stand-ins for the two per-recipient links. The issue is rendered once with these and each message substitutes its own.
 MANAGE_PLACEHOLDER = "https://links.newsletter.invalid/manage"
 UNSUBSCRIBE_PLACEHOLDER = "https://links.newsletter.invalid/unsubscribe"
@@ -68,7 +70,7 @@ def render(
     subject_prefix: str = "",
 ) -> RenderedEmail:
     """Render the issue. Raises ``PostalAddressMissing`` for a blank address."""
-    site_url = settings.site_origin.rstrip("/") + "/"
+    site_url = links.home_url(settings.site_origin, getattr(settings, "base_path", ""))
     footer = EmailFooter(
         site_name=settings.from_name,
         site_url=site_url,

@@ -7,3 +7,7 @@ export const runtime = "nodejs";
 export function GET(request: NextRequest) {
   return handleProspectusSignInStart(request);
 }
+
+export function POST(request: NextRequest) {
+  return handleProspectusSignInStart(request);
+}

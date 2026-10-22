@@ -12,7 +12,7 @@ from .environment import SiteEnvironment
 from .head import PageHead
 from .hooks import HookSite
 
-KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_shell")
+KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_page")
 
 
 @dataclass(frozen=True)
