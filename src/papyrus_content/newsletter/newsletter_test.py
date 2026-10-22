@@ -33,9 +33,29 @@ AT = "@"
 
 
 class FakeSes:
+    class exceptions:  # noqa: N801 - mirrors boto3's client.exceptions
+        class NotFoundException(Exception):
+            pass
+
     def __init__(self) -> None:
         self.sent: list[dict[str, Any]] = []
         self.fail = False
+        self.sending: list[bool] = []
+        self.unsuppressed: list[str] = []
+        self.on_suppression_list: set[str] = set()
+
+    def put_configuration_set_sending_options(self, **kwargs: Any) -> dict[str, Any]:
+        assert kwargs["ConfigurationSetName"] == "papyrus-example"
+        self.sending.append(kwargs["SendingEnabled"])
+        return {}
+
+    def delete_suppressed_destination(self, **kwargs: Any) -> dict[str, Any]:
+        address = kwargs["EmailAddress"]
+        if address not in self.on_suppression_list:
+            raise self.exceptions.NotFoundException()
+        self.on_suppression_list.discard(address)
+        self.unsuppressed.append(address)
+        return {}
 
     def send_email(self, **kwargs: Any) -> dict[str, str]:
         if self.fail:
@@ -131,9 +151,15 @@ def running_harness() -> Iterator[Harness]:
                     {"AttributeName": "pk", "AttributeType": "S"},
                     {"AttributeName": "sk", "AttributeType": "S"},
                     {"AttributeName": "gsiList", "AttributeType": "S"},
+                    {"AttributeName": "gsiHid", "AttributeType": "S"},
                 ],
                 KeySchema=[{"AttributeName": "pk", "KeyType": "HASH"}, {"AttributeName": "sk", "KeyType": "RANGE"}],
                 GlobalSecondaryIndexes=[
+                    {
+                        "IndexName": "byHid",
+                        "KeySchema": [{"AttributeName": "gsiHid", "KeyType": "HASH"}],
+                        "Projection": {"ProjectionType": "KEYS_ONLY"},
+                    },
                     {
                         "IndexName": "byList",
                         "KeySchema": [{"AttributeName": "gsiList", "KeyType": "HASH"}, {"AttributeName": "sk", "KeyType": "RANGE"}],
@@ -290,7 +316,11 @@ def test_a_new_address_gets_one_confirmation_and_a_pending_record(aws: Harness) 
     assert sent["FromEmailAddress"] == '"Example \\"News\\"" <newsletter@example.com>'
     assert sent["Destination"] == {"ToAddresses": [READER]}
     assert sent["ConfigurationSetName"] == "papyrus-example"
-    assert sent["EmailTags"] == [{"Name": "site", "Value": "example"}, {"Name": "kind", "Value": "confirm"}]
+    assert sent["EmailTags"] == [
+        {"Name": "site", "Value": "example"},
+        {"Name": "kind", "Value": "confirm"},
+        {"Name": "sub", "Value": aws.hid()},
+    ]
     body = sent["Content"]["Simple"]["Body"]
     assert "Confirm subscription" in body["Html"]["Data"] and "Confirm subscription" in body["Text"]["Data"]
     assert "Weekly roundup" in body["Text"]["Data"] and "72 hours" in body["Text"]["Data"]
@@ -604,5 +634,5 @@ def test_a_concurrent_change_is_a_conflict_not_a_lost_update(aws: Harness) -> No
 
 
 def test_unknown_actions_are_refused(aws: Harness) -> None:
-    for event in [{}, {"action": "nope"}, {"action": 5}, {"action": "unsubscribe"}, {"action": "__init__"}]:
+    for event in [{}, {"action": "nope"}, {"action": 5}, {"action": "send_everything"}, {"action": "__init__"}]:
         assert aws.service.dispatch(event) == {"statusCode": 400, "body": {"status": "error", "error": "unknown_action"}}

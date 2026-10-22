@@ -28,6 +28,7 @@ from urllib.parse import urlsplit, urlunsplit
 _FUNCTION_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 if _FUNCTION_DIRECTORY not in sys.path:  # a Lambda already has its code directory on the path; a test loading this file by path does not
     sys.path.insert(0, _FUNCTION_DIRECTORY)
+import ai_moderation  # noqa: E402
 import moderation as moderation_rules  # noqa: E402
 
 SITE_SUBJECT = re.compile(r"ss1_[A-Za-z0-9_-]{43}")
@@ -56,7 +57,10 @@ ACTION_REPORT = "report"
 RATE_BUCKET_REPORT = "report"
 REPORT_ID_PREFIX = "rep-"
 MAXIMUM_REPORT_REASON = 500
-MODERATION_MODES = ("off", "human")
+MODERATION_MODES = ("off", "human", "ai")
+AI_WORKER = "ai-review"
+AI_TASK = {"worker": AI_WORKER}
+AI_DEADLINE_MARGIN_SECONDS = 12
 ACTION_COMMENT_EDIT = "comment-edit"
 ACTION_COMMENT_DELETE = "comment-delete"
 RATE_BUCKET_COMMENT = "comment"
@@ -121,6 +125,8 @@ class ReaderSettings:
     reports_per_day: int = 20
     promote_item_type: str = "brief"
     promote_section: str = "unsectioned"
+    ai_model: str = ai_moderation.DEFAULT_MODEL
+    ai_key_parameter: str = ""
 
 
 def settings_from_environment(environment: dict[str, str] | None = None) -> ReaderSettings:
@@ -146,6 +152,8 @@ def settings_from_environment(environment: dict[str, str] | None = None) -> Read
         moderation_mode=str((raw.get("moderation") or {}).get("mode", defaults.moderation_mode)),
         pre_moderation=bool((raw.get("moderation") or {}).get("preModeration", defaults.pre_moderation)),
         reports_per_day=int((raw.get("moderation") or {}).get("reportsPerDay", defaults.reports_per_day)),
+        ai_model=str(((raw.get("moderation") or {}).get("ai") or {}).get("model", defaults.ai_model)),
+        ai_key_parameter=str(((raw.get("moderation") or {}).get("ai") or {}).get("apiKeyParameter", defaults.ai_key_parameter)),
         promote_item_type=str((raw.get("submissions") or {}).get("itemType", defaults.promote_item_type)),
         promote_section=str((raw.get("submissions") or {}).get("section", defaults.promote_section)),
     )
@@ -187,6 +195,10 @@ class ReaderStore(Protocol):
     def transact_moderation(self, action: dict[str, Any], target_type: str, target_key: str, plan: Any, *, undoes: str | None = None) -> str: ...
 
     def close_reports(self, target: str, now_iso: str) -> int: ...
+
+    def new_content(self) -> list[tuple[str, dict[str, Any]]]: ...
+
+    def human_acted_on(self) -> set[str]: ...
 
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool: ...
 
@@ -1100,6 +1112,32 @@ class DynamoReaderStore:
                 return closed
             kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
+    def _scan(self, table_key: str, **arguments: Any) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        while True:
+            page = self._table(table_key).scan(**arguments)
+            rows.extend(plain(item) for item in page.get("Items", []))
+            if "LastEvaluatedKey" not in page:
+                return rows
+            arguments["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+    def new_content(self) -> list[tuple[str, dict[str, Any]]]:
+        """Submissions and comments waiting for a decision (``moderation: new``). A scan: the queue of a pilot is small."""
+        from boto3.dynamodb.conditions import Attr
+
+        waiting = Attr("moderation").eq(moderation_rules.MODERATION_NEW)
+        return [
+            *((moderation_rules.TARGET_SUBMISSION, row) for row in self._scan("submission", FilterExpression=waiting)),
+            *((moderation_rules.TARGET_COMMENT, row) for row in self._scan("comment", FilterExpression=waiting)),
+        ]
+
+    def human_acted_on(self) -> set[str]:
+        """Targets a person has decided on; the model never judges those again."""
+        from boto3.dynamodb.conditions import Attr
+
+        rows = self._scan("action", FilterExpression=Attr("by").eq(moderation_rules.BY_HUMAN))
+        return {row["target"] for row in rows}
+
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool:
         try:
             self._table("rate").update_item(
@@ -1172,7 +1210,7 @@ def snapshot_scheduler(
                 Target={
                     "Arn": target.function_arn,
                     "RoleArn": target.role_arn,
-                    "Input": json.dumps(SNAPSHOT_TASK),
+                    "Input": target.task_json,
                     "RetryPolicy": {"MaximumRetryAttempts": 0},
                 },
             )
@@ -1191,6 +1229,11 @@ def snapshot_scheduler(
 class SnapshotTarget:
     function_arn: str
     role_arn: str
+    task_json: str = json.dumps(SNAPSHOT_TASK)
+
+    def for_ai_review(self, own_function_arn: str) -> "SnapshotTarget":
+        """In AI mode the debounced run is the AI worker (this function), which asks for the snapshot when it has decided."""
+        return SnapshotTarget(own_function_arn, self.role_arn, json.dumps(AI_TASK))
 
 
 def snapshot_target_from_environment(environment: dict[str, str] | None = None) -> SnapshotTarget | None:
@@ -1217,6 +1260,54 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         action_table=environment.get("PAPYRUS_READER_ACTION_TABLE", ""),
         item_table=environment.get("PAPYRUS_READER_ITEM_TABLE", ""),
     )
+
+
+def read_api_key(settings: ReaderSettings, ssm_client: Any) -> str:
+    """The model's API key from its SSM SecureString (never Secrets Manager). The caller keeps it out of logs and results."""
+    name = settings.ai_key_parameter
+    if not ai_moderation.PARAMETER_NAME.fullmatch(name):
+        raise ValueError("moderation.ai.apiKeyParameter is not a /papyrus/<site>/openai-api-key name")
+    value = ssm_client.get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"].strip()
+    if not value:
+        raise ValueError("the API key parameter is empty")
+    return value
+
+
+def run_ai_worker(
+    *,
+    store: Any,
+    settings: ReaderSettings,
+    now: Callable[[], float],
+    deadline: float,
+    read_key: Callable[[], str],
+    model_factory: Callable[[str, str], Any],
+    invoke_snapshot: Callable[[], None],
+) -> dict[str, Any]:
+    """The scheduled AI review: judge new items, then ask for a snapshot so decisions reach the public files.
+
+    Anything that goes wrong is reported by error class name. The snapshot is requested whatever happens, so votes still show.
+    """
+    if settings.moderation_mode != "ai":
+        return {"ok": False, "error": "ai_moderation_off"}
+    result: dict[str, Any]
+    try:
+        model = model_factory(read_key(), settings.ai_model)
+        report = ai_moderation.run_ai_moderation(
+            store,
+            model,
+            now=now,
+            settings=moderation_rules.ModerationSettings(item_type=settings.promote_item_type, section=settings.promote_section),
+            deadline=deadline,
+            iso=iso,
+        )
+        result = {"ok": True, **report.to_dict()}
+    except Exception as error:  # noqa: BLE001 - never put the message in the result: it could echo a key or reader text
+        result = {"ok": False, "error": type(error).__name__}
+    try:
+        invoke_snapshot()
+    except Exception as error:  # noqa: BLE001
+        result["snapshotError"] = type(error).__name__
+    return result
 
 
 def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float) -> dict[str, Any]:
@@ -1253,5 +1344,20 @@ def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     now_seconds = time.time()
     if "arguments" in event and "info" in event:
         return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds)
-    scheduler = snapshot_scheduler(store, settings, now_seconds, snapshot_target_from_environment(), boto3.client("scheduler"))
+    target = snapshot_target_from_environment()
+    if settings.moderation_mode == "ai" and target is not None and _context is not None:
+        if event.get("worker") == AI_WORKER:
+            remaining = _context.get_remaining_time_in_millis() / 1000 - AI_DEADLINE_MARGIN_SECONDS
+            lambda_client = boto3.client("lambda")
+            return run_ai_worker(
+                store=store,
+                settings=settings,
+                now=time.time,
+                deadline=time.time() + max(remaining, 5),
+                read_key=lambda: read_api_key(settings, boto3.client("ssm")),
+                model_factory=lambda key, model: ai_moderation.OpenAIModerationModel(key, model=model),
+                invoke_snapshot=lambda: lambda_client.invoke(FunctionName=target.function_arn, InvocationType="Event", Payload=json.dumps(SNAPSHOT_TASK).encode("utf-8")),
+            )
+        target = target.for_ai_review(_context.invoked_function_arn)
+    scheduler = snapshot_scheduler(store, settings, now_seconds, target, boto3.client("scheduler"))
     return handle_event(event, store=store, settings=settings, now_seconds=now_seconds, schedule_snapshot=scheduler)

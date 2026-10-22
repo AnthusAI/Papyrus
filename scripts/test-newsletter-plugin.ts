@@ -171,8 +171,8 @@ assert.equal(pluginSettings({ custom: { papyrusPlugins: { newsletter: published 
 // The function environment.
 const environment = newsletterEnvironment(config, "table-name", "/papyrus/example/newsletter-key");
 assert.deepEqual(Object.keys(environment).sort(), [
-  "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID", "SITE_ORIGIN",
-  "TABLE_NAME", "THEME_JSON",
+  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID",
+  "SITE_ORIGIN", "TABLE_NAME", "THEME_JSON",
 ]);
 assert.equal(environment.SITE_ORIGIN, "https://news.example.com");
 assert.equal(environment.ITEM_URL_STYLE, "html");
@@ -227,12 +227,13 @@ template.hasResource("AWS::DynamoDB::Table", {
     TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
     SSESpecification: { SSEEnabled: true, SSEType: "KMS", KMSMasterKeyId: Match.anyValue() },
     PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: false },
-    GlobalSecondaryIndexes: [
+    GlobalSecondaryIndexes: Match.arrayWith([
       Match.objectLike({
         IndexName: "byList",
         KeySchema: [{ AttributeName: "gsiList", KeyType: "HASH" }, { AttributeName: "sk", KeyType: "RANGE" }],
       }),
-    ],
+      Match.objectLike({ IndexName: "byHid", KeySchema: [{ AttributeName: "gsiHid", KeyType: "HASH" }], Projection: { ProjectionType: "KEYS_ONLY" } }),
+    ]),
   },
   DeletionPolicy: "Retain",
   UpdateReplacePolicy: "Retain",
@@ -256,6 +257,7 @@ assert.equal(newsletter[0].Properties.Timeout, 120);
 assert.equal(newsletter[0].Properties.MemorySize, 512);
 assert.deepEqual(newsletter[0].Properties.Architectures, ["arm64"]);
 const variables = newsletter[0].Properties.Environment?.Variables ?? {};
+assert.equal(variables.ALARM_NAMES, "papyrus-newsletter-example-bounce-rate,papyrus-newsletter-example-complaint-rate");
 for (const name of [
   "TABLE_NAME", "KEY_PARAMETER", "SITE_ID", "SITE_ORIGIN", "SENDING_DOMAIN", "FROM_ADDRESS", "FROM_NAME", "CONFIGURATION_SET", "LISTS_JSON", "THEME_JSON",
   "ITEM_URL_STYLE", "FUNCTION_ARN", "SCHEDULER_ROLE_ARN", "QUEUE_URL", "CONTENT_ACTIONS_FUNCTION", "PAPYRUS_GRAPHQL_ENDPOINT",
@@ -267,9 +269,49 @@ assert.equal(variables.CONFIGURATION_SET, "papyrus-example");
 assert.equal(variables.PAPYRUS_GRAPHQL_ENDPOINT, "https://x.test/graphql");
 assert.match(JSON.stringify(variables.FUNCTION_ARN), /:function:papyrus-newsletter-example/, "the schedules target the function by its fixed name");
 
-// Only the CMS compute role may invoke it.
-const permissions = Object.values(template.findResources("AWS::Lambda::Permission")) as Array<{ Properties: { Principal: string; Action: string } }>;
-assert.deepEqual(permissions.map((entry) => [entry.Properties.Principal, entry.Properties.Action]), [[computeRoleArn, "lambda:InvokeFunction"]]);
+// Only the CMS compute role may invoke it directly; SNS (the SES event topic and the alarm topic) may invoke it from those topics only.
+const permissions = Object.values(template.findResources("AWS::Lambda::Permission")) as Array<{ Properties: { Principal: string; Action: string; SourceArn?: unknown } }>;
+const direct = permissions.filter((entry) => entry.Properties.Principal !== "sns.amazonaws.com");
+assert.deepEqual(direct.map((entry) => [entry.Properties.Principal, entry.Properties.Action]), [[computeRoleArn, "lambda:InvokeFunction"]]);
+const fromSns = permissions.filter((entry) => entry.Properties.Principal === "sns.amazonaws.com");
+assert.equal(fromSns.length, 2, "two topics may invoke it");
+assert.ok(fromSns.every((entry) => entry.Properties.Action === "lambda:InvokeFunction" && entry.Properties.SourceArn !== undefined));
+assert.ok(fromSns.some((entry) => JSON.stringify(entry.Properties.SourceArn).includes("papyrus-newsletter-events-example")), "the SES event topic, by literal name");
+assert.ok(fromSns.some((entry) => JSON.stringify(entry.Properties.SourceArn).includes("AlarmTopic")), "the alarm topic");
+
+// The subscriptions and the alarms.
+template.resourceCountIs("AWS::SNS::Subscription", 2);
+const subscriptions = Object.values(template.findResources("AWS::SNS::Subscription")) as Array<{ Properties: { Protocol: string; TopicArn: unknown } }>;
+assert.ok(subscriptions.every((entry) => entry.Properties.Protocol === "lambda"));
+assert.ok(subscriptions.some((entry) => JSON.stringify(entry.Properties.TopicArn).includes(":sns:us-east-1:123456789012:papyrus-newsletter-events-example")), "subscribed to the sending stack's topic");
+template.hasResourceProperties("AWS::SNS::Topic", { TopicName: "papyrus-newsletter-alarms-example" });
+template.resourceCountIs("AWS::CloudWatch::Alarm", 2);
+for (const [name, metricName, threshold] of [
+  ["papyrus-newsletter-example-bounce-rate", "Bounce", 0.04],
+  ["papyrus-newsletter-example-complaint-rate", "Complaint", 0.0008],
+] as const) {
+  template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+    AlarmName: name,
+    Threshold: threshold,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    TreatMissingData: "notBreaching",
+    AlarmActions: [Match.anyValue()],
+    Metrics: Match.arrayWith([
+      Match.objectLike({ Expression: "IF(sent >= 50, FILL(events, 0) / sent, 0)", ReturnData: true }),
+      Match.objectLike({ Id: "sent", MetricStat: Match.objectLike({ Metric: Match.objectLike({ MetricName: "Send" }) }) }),
+      Match.objectLike({
+        Id: "events",
+        MetricStat: Match.objectLike({
+          Period: 86400,
+          Stat: "Sum",
+          Metric: Match.objectLike({ Namespace: "AWS/SES", MetricName: metricName, Dimensions: [{ Name: "ses:configuration-set", Value: "papyrus-example" }] }),
+        }),
+      }),
+    ]),
+  });
+}
+assert.ok(JSON.stringify(template.findResources("AWS::CloudWatch::Alarm")).includes("AlarmTopic"), "alarms notify the alarm topic");
 
 // The send queue: a dead letter queue after three receives, and a visibility timeout of six times the worker timeout.
 template.resourceCountIs("AWS::SQS::Queue", 2);
@@ -313,8 +355,8 @@ const statements = Object.values(template.findResources("AWS::IAM::Policy")).fla
   (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
 );
 const actionsOf = (statement: Statement) => ([] as string[]).concat(statement.Action);
-const ses = statements.filter((statement) => actionsOf(statement).some((action) => action.startsWith("ses:")));
-assert.equal(ses.length, 2, "the function and the worker may send; nothing else uses SES");
+const ses = statements.filter((statement) => actionsOf(statement).includes("ses:SendEmail"));
+assert.equal(ses.length, 2, "the function and the worker may send");
 for (const statement of ses) {
   assert.deepEqual(statement.Action, ["ses:SendEmail", "ses:SendRawEmail"]);
   assert.deepEqual(statement.Condition, { StringEquals: { "ses:FromAddress": "newsletter@example.com" } });
@@ -361,7 +403,15 @@ assert.ok(
   "the function can decrypt the table key",
 );
 const wildcards = statements.filter((statement) => statement.Resource === "*");
-assert.deepEqual(wildcards.map((statement) => statement.Action), ["sesv2:GetAccount"], "the only statement on all resources is the SES send rate read");
+assert.deepEqual(
+  wildcards.map((statement) => statement.Action).sort(),
+  ["ses:DeleteSuppressedDestination", "sesv2:GetAccount"],
+  "the two actions IAM cannot scope to a resource: lifting a suppression and reading the send rate",
+);
+const sending = statements.filter((statement) => actionsOf(statement).includes("ses:PutConfigurationSetSendingOptions"));
+assert.equal(sending.length, 1);
+assert.match(JSON.stringify(sending[0].Resource), /configuration-set\/papyrus-example/, "pausing is limited to the site's own configuration set");
+assert.ok(!JSON.stringify(sending[0].Resource).includes("identity"));
 const invokes = statements.filter((statement) => actionsOf(statement).includes("lambda:InvokeFunction"));
 assert.ok(invokes.length >= 3, "the scheduler role, and the function and worker invoking content-actions");
 

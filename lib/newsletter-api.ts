@@ -2,13 +2,22 @@ import { isIP } from "node:net";
 import { NextResponse, type NextRequest } from "next/server";
 import { readAmplifyOutputsFile } from "./amplify-outputs-path";
 import {
+  PREFERENCES_PATH,
   confirmPromptPage,
   confirmedPage,
+  deleteConfirmPage,
+  deletedPage,
   expiredPage,
+  invalidManagePage,
   pageResponse,
   pageTheme,
+  preferencesHref,
+  preferencesPage,
   unavailablePage,
+  unsubscribePromptPage,
+  unsubscribedPage,
   type PageContent,
+  type PreferenceList,
 } from "./newsletter-pages";
 import { PROSPECTUS_SESSION_COOKIE, loadProspectusSessionSealingSecret } from "./prospectus-session";
 import { signedInProspectusSession } from "./prospectus-sign-in-routes";
@@ -23,7 +32,7 @@ export const NEWSLETTER_TOKEN = /^[A-Za-z0-9._-]{1,2048}$/;
 const MAXIMUM_LISTS = 20;
 const LIST_ID = /^[a-z][a-z0-9-]{0,39}$/;
 
-export type NewsletterEvent = { action: "subscribe" | "confirm" | "confirm_page_state" } & Record<string, unknown>;
+export type NewsletterEvent = { action: string } & Record<string, unknown>;
 export interface NewsletterResult {
   statusCode: number;
   body: Record<string, unknown>;
@@ -98,9 +107,9 @@ export function clientAddress(headers: Pick<Headers, "get">): string {
   return isIP(forwarded) ? forwarded : "unknown";
 }
 
-async function readBody(request: NextRequest, maximum: number, contentTypes: string[]): Promise<{ text: string } | { response: NextResponse }> {
+async function readBody(request: NextRequest, maximum: number, contentTypes: string[] | null): Promise<{ text: string } | { response: NextResponse }> {
   const contentType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-  if (!contentTypes.includes(contentType)) return { response: failure(415, "unsupported_media_type", `Send ${contentTypes.join(" or ")}.`) };
+  if (contentTypes !== null && !contentTypes.includes(contentType)) return { response: failure(415, "unsupported_media_type", `Send ${(contentTypes ?? []).join(" or ")}.`) };
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declared) && declared > maximum) return { response: failure(413, "payload_too_large", "The request body is too large.") };
   const text = await request.text();
@@ -207,7 +216,12 @@ export async function handleNewsletterConfirmPage(request: NextRequest, options:
   if (!plugin) return notFoundPage();
   const base = pageBase(plugin);
   const params = request.nextUrl.searchParams;
-  if (params.get("done") === "1") return pageResponse(confirmedPage(base, configuredListNames(plugin, listIds(params.get("l") ?? ""))));
+  if (params.get("done") === "1") {
+    const manage = params.get("m") ?? "";
+    return pageResponse(
+      confirmedPage(base, configuredListNames(plugin, listIds(params.get("l") ?? "")), NEWSLETTER_TOKEN.test(manage) ? preferencesHref(manage) : undefined),
+    );
+  }
   const token = params.get("t") ?? "";
   if (!NEWSLETTER_TOKEN.test(token)) return pageResponse(expiredPage(base), 410);
   if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
@@ -247,10 +261,131 @@ export async function handleNewsletterConfirmPost(request: NextRequest, options:
     if (result.body.status !== "confirmed") return pageResponse(expiredPage(base), 410);
     const lists = Array.isArray(result.body.lists) ? (result.body.lists as Array<{ id?: unknown }>) : [];
     const ids = lists.flatMap((entry) => (typeof entry.id === "string" && LIST_ID.test(entry.id) ? [entry.id] : []));
-    const target = publicSiteUrl(`/api/newsletter/confirm?done=1&l=${encodeURIComponent(ids.join(","))}`, request, environment);
+    const manage = typeof result.body.manageToken === "string" && NEWSLETTER_TOKEN.test(result.body.manageToken) ? result.body.manageToken : "";
+    const target = publicSiteUrl(
+      `/api/newsletter/confirm?done=1&l=${encodeURIComponent(ids.join(","))}${manage ? `&m=${encodeURIComponent(manage)}` : ""}`,
+      request,
+      environment,
+    );
     return NextResponse.redirect(target, { status: 303, headers: { ...NO_STORE, "referrer-policy": "no-referrer" } });
   } catch (error) {
     console.error(`Newsletter confirm failed (${error instanceof Error ? error.name : "error"}).`);
+    return pageResponse(unavailablePage(base), 502);
+  }
+}
+
+function call(options: NewsletterApiOptions, functionName: string, event: NewsletterEvent): Promise<NewsletterResult> {
+  return (options.invoke ?? invokeNewsletterLambda)(functionName, event);
+}
+
+function textResponse(body: string, status: number): NextResponse {
+  return new NextResponse(body, { status, headers: { ...NO_STORE, "content-type": "text/plain; charset=utf-8" } });
+}
+
+function manageTokenFrom(...values: Array<string | null>): string {
+  const found = values.find((value) => value !== null && value !== "") ?? "";
+  return NEWSLETTER_TOKEN.test(found) ? found : "";
+}
+
+function listParameter(value: string | null): string {
+  return value !== null && LIST_ID.test(value) ? value : "";
+}
+
+/**
+ * /api/newsletter/unsubscribe. GET shows a page with a button and changes nothing. POST unsubscribes and is idempotent.
+ * RFC 8058 one-click: mail providers POST `List-Unsubscribe=One-Click` to the link in the message from their own
+ * servers, with no Origin, so this route has no same-origin check. A POST must carry that marker or `page=1` from our own page.
+ */
+export async function handleNewsletterUnsubscribe(request: NextRequest, options: NewsletterApiOptions = {}): Promise<NextResponse> {
+  const environment = options.environment ?? process.env;
+  const plugin = enabledPlugin(options, environment);
+  if (!plugin) return notFoundPage();
+  const base = pageBase(plugin);
+  const query = request.nextUrl.searchParams;
+  if (request.method === "GET") {
+    const token = manageTokenFrom(query.get("t"));
+    if (!token) return pageResponse(invalidManagePage(base), 400);
+    const listId = listParameter(query.get("l"));
+    const listName = listId ? configuredListNames(plugin, [listId])[0] ?? null : null;
+    return pageResponse(unsubscribePromptPage(base, token, listName ? listId : null, listName));
+  }
+  const body = await readBody(request, NEWSLETTER_CONFIRM_MAXIMUM_BODY_BYTES, null);
+  if ("response" in body) return body.response;
+  const form = new URLSearchParams(body.text);
+  const oneClick = form.get("List-Unsubscribe") === "One-Click";
+  const fromPage = form.get("page") === "1";
+  if (!oneClick && !fromPage) return textResponse("Send List-Unsubscribe=One-Click.", 400);
+  const token = manageTokenFrom(query.get("t"), form.get("t"));
+  const listId = listParameter(query.get("l") ?? form.get("l"));
+  const rejected = () => (fromPage ? pageResponse(invalidManagePage(base), 400) : textResponse("Invalid link.", 400));
+  if (!token) return rejected();
+  if (!plugin.functionName) return fromPage ? pageResponse(unavailablePage(base), 503) : textResponse("Unavailable.", 503);
+  try {
+    const result = await call(options, plugin.functionName, { action: "unsubscribe", token, ...(listId ? { list: listId } : {}) });
+    if (result.body.status !== "unsubscribed") return rejected();
+    if (!fromPage) return textResponse("Unsubscribed.", 200);
+    const lists = Array.isArray(result.body.lists) ? (result.body.lists as Array<{ name?: unknown }>) : [];
+    const names = lists.flatMap((entry) => (typeof entry.name === "string" ? [entry.name] : []));
+    return pageResponse(unsubscribedPage(base, names, token));
+  } catch (error) {
+    console.error(`Newsletter unsubscribe failed (${error instanceof Error ? error.name : "error"}).`);
+    return fromPage ? pageResponse(unavailablePage(base), 502) : textResponse("Try again later.", 502);
+  }
+}
+
+const PREFERENCE_NOTICES: Record<string, string> = { saved: "Your preferences are saved.", unsubscribed: "You are unsubscribed from everything." };
+
+/** /api/newsletter/preferences: GET shows the lists; POST (same-origin form) saves, unsubscribes from everything, or deletes after a confirm step. */
+export async function handleNewsletterPreferences(request: NextRequest, options: NewsletterApiOptions = {}): Promise<NextResponse> {
+  const environment = options.environment ?? process.env;
+  const plugin = enabledPlugin(options, environment);
+  if (!plugin) return notFoundPage();
+  const base = pageBase(plugin);
+  if (request.method === "GET") {
+    const token = manageTokenFrom(request.nextUrl.searchParams.get("t"));
+    if (!token) return pageResponse(invalidManagePage(base), 400);
+    if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
+    try {
+      const result = await call(options, plugin.functionName, { action: "preferences_state", token });
+      if (result.body.status !== "ready") return pageResponse(invalidManagePage(base), 400);
+      const lists = (Array.isArray(result.body.lists) ? result.body.lists : []) as PreferenceList[];
+      const email = typeof result.body.email === "string" ? result.body.email : "";
+      const notice = PREFERENCE_NOTICES[request.nextUrl.searchParams.get("msg") ?? ""];
+      return pageResponse(preferencesPage(base, { token, email, notice, lists: lists.map(({ id, name, description, subscribed }) => ({ id, name, description, subscribed })) }));
+    } catch (error) {
+      console.error(`Newsletter preferences failed (${error instanceof Error ? error.name : "error"}).`);
+      return pageResponse(unavailablePage(base), 502);
+    }
+  }
+  const site = siteOriginOrResponse(request, environment);
+  if ("response" in site) return site.response;
+  if (request.headers.get("origin") !== site.origin) return failure(403, "origin_mismatch", "This request did not come from this site.");
+  const body = await readBody(request, NEWSLETTER_CONFIRM_MAXIMUM_BODY_BYTES, ["application/x-www-form-urlencoded"]);
+  if ("response" in body) return body.response;
+  const form = new URLSearchParams(body.text);
+  const token = manageTokenFrom(form.get("t"));
+  if (!token) return pageResponse(invalidManagePage(base), 400);
+  if (!plugin.functionName) return pageResponse(unavailablePage(base), 503);
+  const action = form.get("action");
+  if (action === "delete" && form.get("confirm") !== "1") return pageResponse(deleteConfirmPage(base, token));
+  const operation =
+    action === "save"
+      ? { action: "update_preferences", token, lists: form.getAll("l").slice(0, MAXIMUM_LISTS).filter((id) => LIST_ID.test(id)) }
+      : action === "unsubscribe_all"
+        ? { action: "unsubscribe", token }
+        : action === "delete"
+          ? { action: "delete_subscriber", token }
+          : null;
+  if (!operation) return failure(400, "invalid_action", "Choose save, unsubscribe from everything, or delete.");
+  try {
+    const result = await call(options, plugin.functionName, operation);
+    const status = result.body.status;
+    if (status === "deleted") return pageResponse(deletedPage(base));
+    if (status !== "saved" && status !== "unsubscribed") return pageResponse(invalidManagePage(base), 400);
+    const target = publicSiteUrl(`${PREFERENCES_PATH}?t=${encodeURIComponent(token)}&msg=${status}`, request, environment);
+    return NextResponse.redirect(target, { status: 303, headers: { ...NO_STORE, "referrer-policy": "no-referrer" } });
+  } catch (error) {
+    console.error(`Newsletter preferences save failed (${error instanceof Error ? error.name : "error"}).`);
     return pageResponse(unavailablePage(base), 502);
   }
 }

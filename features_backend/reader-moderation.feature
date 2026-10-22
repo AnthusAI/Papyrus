@@ -90,3 +90,18 @@ Feature: Moderation of reader submissions and comments
     When "alice" picks the handle "quiet-fox"
     And "alice" submits the first link titled "A small tool"
     Then the first submission is not in the review queue
+
+  Scenario: An AI model moderates new content and a human has the last word
+    Given moderation is by an AI model that hides anything mentioning "pills"
+    When "alice" picks the handle "quiet-fox"
+    And "alice" submits the first link titled "A small tool"
+    And "alice" comments "Worth reading." on "item-two"
+    And "alice" comments "Buy my pills" on "item-one"
+    And the AI moderator reviews the new content
+    Then the AI moderator allowed 2 and hid 1
+    And the model was never shown a reader's identity
+    And the first submission is not in the review queue
+    And the moderation log shows the AI moderator hid the last comment of "alice" because it mentions "pills"
+    When a moderator shows again the last comment of "alice"
+    And the AI moderator reviews the new content
+    Then the AI moderator allowed 0 and hid 0

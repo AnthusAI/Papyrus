@@ -26,6 +26,8 @@ from typing import Any, Callable, Mapping
 
 from . import addresses, rate, tokens
 from .confirmation import build_confirmation
+from .events import handle_sns
+from .manage import MANAGE_ACTIONS
 from .keys import Keys, load_keys
 from .mailer import Mailer
 from .store import Conflict, Store, append_history, iso, membership_row, profile_key
@@ -61,6 +63,7 @@ class Settings:
     lists: tuple[Mapping[str, str], ...]
     theme: Mapping[str, Any]
     item_url_style: str = "html"  # how the site's item pages are addressed (projection.json urls.style), for links in roundup drafts
+    alarm_names: tuple[str, ...] = ()
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str]) -> "Settings":
@@ -74,6 +77,7 @@ class Settings:
             lists=tuple(json.loads(environment["LISTS_JSON"])),
             theme=json.loads(environment["THEME_JSON"]),
             item_url_style=environment.get("ITEM_URL_STYLE", "html"),
+            alarm_names=tuple(name for name in environment.get("ALARM_NAMES", "").split(",") if name),
         )
 
     def list_named(self, list_id: str) -> Mapping[str, str] | None:
@@ -117,7 +121,11 @@ class Newsletter:
     # -- dispatch -----------------------------------------------------------------------------------------------
 
     def dispatch(self, event: Mapping[str, Any]) -> Response:
+        if "Records" in event:  # SNS: SES events and alarm state changes
+            return handle_sns(self, event)
         action = event.get("action") or event.get("task")  # a scheduler task names itself with "task"
+        if isinstance(action, str) and action in MANAGE_ACTIONS:
+            return MANAGE_ACTIONS[action](self, event)
         method = ACTIONS.get(action) if isinstance(action, str) else None
         if method is None:
             return respond(400, status="error", error="unknown_action")
@@ -275,7 +283,7 @@ class Newsletter:
                 lists=[entry for entry in named if entry is not None],
                 token=token,
             )
-            self.mailer.send_confirmation(to=address, subject=rendered.subject, html=rendered.html, text=rendered.text)
+            self.mailer.send_confirmation(to=address, subject=rendered.subject, html=rendered.html, text=rendered.text, hid=hid)
         except Exception as error:  # noqa: BLE001 - see docstring
             print(json.dumps({"event": "confirmation_send_failed", "error": type(error).__name__}))
             rate.log_metric(self.settings.site_id, "ConfirmationSendFailed")

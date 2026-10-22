@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import START_SECONDS, ReaderBackend, ScriptedRetirementPoll, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import START_SECONDS, ReaderBackend, reader_handler, ScriptedRetirementPoll, run_snapshot, subject_for  # noqa: E402
 from reader_privacy import scan_files  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering.retirement import RetiredPage, RetiredSubject  # noqa: E402
@@ -678,3 +678,60 @@ def banned_cannot(context, name: str, what: str) -> None:
     answer = backend.call(subject_for(name), action, payload)
     assert answer["statusCode"] == 403, answer
     context.reader_answers.setdefault(name, []).append(answer)
+
+
+@given('moderation is by an AI model that hides anything mentioning "{word}"')
+def moderation_by_ai(context, word: str) -> None:
+    context.reader_options["moderation_mode"] = "ai"
+    context.reader_options["ai_key_parameter"] = "/papyrus/test/openai-api-key"
+    context.reader_ai_word = word
+
+
+@when("the AI moderator reviews the new content")
+def ai_reviews(context) -> None:
+    import sys as _sys
+
+    backend = ensure_started(context)
+    ai_module = _sys.modules["ai_moderation"]
+    word = context.reader_ai_word
+    seen: list[dict] = []
+
+    class ScriptedModel:
+        def judge(self, item: dict):
+            seen.append(item)
+            if word in json.dumps(item):
+                return ai_module.Verdict("hide", f"Mentions {word}.")
+            return ai_module.Verdict("allow", "Looks fine.")
+
+    context.reader_ai_seen = seen
+    context.reader_ai_result = reader_handler.run_ai_worker(
+        store=backend.store,
+        settings=backend.settings,
+        now=lambda: backend.now,
+        deadline=backend.now + 1000,
+        read_key=lambda: "sk-test-never-used",
+        model_factory=lambda key, name: ScriptedModel(),
+        invoke_snapshot=lambda: None,
+    )
+    backend.now += 1
+
+
+@then("the AI moderator allowed {allowed:d} and hid {hidden:d}")
+def ai_counts(context, allowed: int, hidden: int) -> None:
+    result = context.reader_ai_result
+    assert (result["allowed"], result["hidden"]) == (allowed, hidden), result
+
+
+@then('the moderation log shows the AI moderator hid the last comment of "{name}" because it mentions "{word}"')
+def ai_log(context, name: str, word: str) -> None:
+    entry = next(entry for entry in ensure_started(context).actions() if entry["target"] == last_comment_id(context, name))
+    assert (entry["by"], entry["action"], entry["reason"]) == ("ai", "hide", f"AI: Mentions {word}."), entry
+
+
+@then("the model was never shown a reader's identity")
+def ai_saw_no_identity(context) -> None:
+    backend = ensure_started(context)
+    text = json.dumps(context.reader_ai_seen)
+    reader_ids = [item["readerId"] for item in backend.table("profile").scan()["Items"]]
+    handles = [item.get("handle") for item in backend.table("profile").scan()["Items"] if item.get("handle")]
+    assert not any(secret in text for secret in [*reader_ids, *handles, *[subject_for(name) for name in ("alice", "bob")]]), text

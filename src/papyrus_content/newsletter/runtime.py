@@ -61,7 +61,7 @@ def build_issue_service(
         settings=settings,
         store=store,
         mailer=mailer,
-        compliance=Compliance(store=store, keys=keys, site_origin=settings.site_origin, clock=clock),
+        compliance=Compliance(store=store, keys=keys, site_origin=settings.site_origin),
         postal=PostalAddress(settings.site_id, clock=clock),
         scheduler=IssueScheduler(function_arn=environment.get("FUNCTION_ARN", ""), role_arn=environment.get("SCHEDULER_ROLE_ARN", "")),
         queue=SendQueue(environment.get("QUEUE_URL", "")),

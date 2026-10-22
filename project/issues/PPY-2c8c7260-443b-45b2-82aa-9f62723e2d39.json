@@ -3,17 +3,25 @@
   "title": "Test moderation end to end, then graduate: switch human moderation off when AI is trusted",
   "description": "As a publication admin, I want evidence that AI moderation agrees with human moderators before I turn human moderation off, so that the switch is justified.\n\nPlan: run AI and humans in parallel (AI in shadow or assisting mode) on the pilot, measure agreement, then disable human review. Report: agreement rate, overrides per week, false hides, escalation rate. Turning off is a setting change that stays reversible. Hard rule: bans and legal removals always keep a human path.\n\n```gherkin\nFeature: Moderation graduation\n  Scenario: Agreement report\n    Given AI and human decisions on the same items\n    When I run the agreement report\n    Then it shows agreement rate, overrides, false hides and escalation rate for the period\n\n  Scenario: Switch off\n    Given the agreement meets the configured threshold for the configured period\n    When an admin sets human moderation to off\n    Then the queue stops receiving routine items\n    And overrides and bans remain available to moderators\n\n  Scenario: End-to-end test\n    Then an automated test covers submit, queue, approve, hide, ban and mode changes\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "eb69a483-2160-4007-8d46-4f119b1bffb4",
+      "author": "home",
+      "text": "Human mode is built and tested end to end (moto, BDD, panel tests). Trust graduation is the configuration switch moderation.mode human to off (or to ai); there is no other code path.",
+      "created_at": "2026-10-22T04:52:49.078219Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:27.743379Z",
-  "updated_at": "2026-10-21T12:49:27.743404Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T04:52:49.125083Z",
+  "closed_at": "2026-10-22T04:52:49.125049Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

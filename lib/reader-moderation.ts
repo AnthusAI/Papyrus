@@ -211,6 +211,7 @@ export function receiptMessage(receipt: Receipt | null | undefined): string {
 export function moderationModeText(mode: unknown): string {
   if (mode === "off") return "Moderation is off for this site: nothing waits in a queue. You can still hide content and ban readers.";
   if (mode === "human") return "New submissions and comments are public at once and wait here for a decision, unless this site holds them until approved.";
+  if (mode === "ai") return "An AI moderator reads each new submission and comment and allows or hides it, with a reason in the log. Its decisions are public. You can undo any of them, and what you decide it never judges again.";
   return "Moderation is on.";
 }
 

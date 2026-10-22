@@ -1,6 +1,6 @@
 # Newsletter
 
-Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Roundup issues, admin approval and paced sending are Built (PPY-3ae3b9) but not yet enabled on any site. Unsubscribe, preferences, alerts and the newsroom panel are Not built yet.
+Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Unsubscribe, preferences, erasure, bounce and complaint suppression and the pause alarms are Built too (PPY-b5a699), as are roundup issues, admin approval and paced sending (PPY-3ae3b9). Alerts and the newsroom panel are Not built yet.
 
 ## What exists
 
@@ -141,9 +141,41 @@ One DynamoDB table (not a GraphQL model; subscriber data never appears in the co
 
 `v1.<base64url(json)>.<base64url(hmac-sha256)>`, the HMAC over `v1.<base64url(json)>` with the token key, compared in constant time. The JSON holds `h` (hid), `p` purpose (`confirm` or `manage`), optionally `l` (list ids), `n` (nonce) and `e` (expiry, epoch seconds). Confirm tokens carry `n` and `e` (72 hours) and are single use. Manage tokens (for the unsubscribe and preferences stories) have no expiry and die with the subscriber record.
 
+### Unsubscribe, preferences and erasure (PPY-b5a699)
+
+Status: Built, not yet enabled on a site.
+
+- **Links.** `papyrus_content.newsletter.links` exports `make_manage_token(hid)` and `manage_urls(hid, list_id=None)` for the sender. `manage_urls` returns `{"manage_url": <origin>/api/newsletter/preferences?t=<token>, "unsubscribe_url": <origin>/api/newsletter/unsubscribe?t=<token>[&l=<listId>]}`. Both read `KEY_PARAMETER` and `SITE_ORIGIN` from the environment (or take `keys=` and `site_origin=`). No address ever travels in a link. Confirming a subscription returns a manage token, and the confirmed page links to the preferences page with it.
+- **`POST /api/newsletter/unsubscribe?t=&l=`** accepts RFC 8058 one-click: a POST from a mail provider's servers with the body `List-Unsubscribe=One-Click`. It has no same-origin check, accepts any content type, answers `200` with `Unsubscribed.` and is idempotent (a repeat, or a token whose subscriber was erased, still answers 200; an invalid token is 400). A POST needs that marker or `page=1` from our own page. `GET` shows a themed page with a POST button and changes nothing; the POST from that page answers a page that says "You are unsubscribed" and links to preferences.
+- **`/api/newsletter/preferences`.** `GET ?t=` lists every list with a tick for the ones the subscriber has, with the address masked (`r***@example.com`). The same-origin form `POST` has three buttons: save (the ticked set becomes the subscription), unsubscribe from everything, and delete my data, which first shows a confirm page. Ticking a list again re-subscribes with no new opt-in, because the manage token proves control of the inbox. If the address was suppressed for a bounce or complaint, a deliberate re-subscribe removes the `SUPP#` row and the address from the SES account suppression list (`DeleteSuppressedDestination`); a manual suppression is never lifted this way.
+- **Function actions** (added to the dispatch table): `preferences_state`, `update_preferences`, `unsubscribe` (token, optional list; none means all), `delete_subscriber` (token), `admin_erase` (email, for the newsroom panel) and `resume_sending`. The last two do no authorization themselves: only the CMS compute role can invoke the function, and the public routes never send them. The newsroom story must check the admin group before calling them.
+- **Erasure** removes `PROFILE`, every `LIST#` row, the `SUPP#` row and every send-ledger row of the subscriber. Ledger rows are found through the sparse GSI `byHid` (partition key `gsiHid`, keys only): the sender must write `gsiHid = <hid>` on every `ISSUE#<id>` / `SEND#<hid>` row (`records.LEDGER_HID_ATTRIBUTE`). That costs one attribute per row and no second write, where a profile list of issue ids would cost an update per send. Rate counters (2 hours) and the event log (90 days, below) expire by TTL.
+- **Suppression.** `suppression.is_suppressed(hid)` is for the sender, as is `pause.is_paused()`. The confirmation email carries the `sub` tag too, so a permanent bounce of a confirmation also suppresses.
+
+### SES events and the pause
+
+The plugin stack subscribes the function to the sending stack's SNS topic (`papyrus-newsletter-events-<siteId>`, by literal name; the sending stack must exist first). Events map back to a subscriber with the message tags `sub` (subscriber id), `issue` and `list`; an event with no valid `sub`, from another site, or of another type (Send, Open, ...) is ignored.
+
+| Event | Effect |
+|---|---|
+| Bounce, Permanent | `SUPP#` row (`bounce`), unsubscribe from every list, history entry; with an `issue` tag the ledger row becomes `bounced` and `counts.bounced` goes up |
+| Bounce, other types | counted only (`counts.softBounced`); nothing else changes |
+| Complaint | `SUPP#` row (`complaint`), unsubscribe from every list; ledger `complained`, `counts.complained` |
+| Delivery | ledger `delivered`, `counts.delivered` (never overwrites a bounce or complaint) |
+| Reject, Rendering Failure | ledger `failed`, `counts.failed` |
+
+Ledger and counter updates are conditional and happen once per change, so duplicate notifications count once and a missing ledger row or issue is a no-op. Every handled event also writes a row `EVENTS` / `<iso>#<messageId>#<type>` with only the subscriber id, type, issue, list and bounce type, which expires after 90 days; the newsroom history will read these.
+
+Two CloudWatch alarms (`papyrus-newsletter-<siteId>-bounce-rate`, `-complaint-rate`) evaluate `IF(sent >= 50, FILL(events, 0) / sent, 0)` over a 24 hour period on the metrics `Send` and `Bounce` or `Complaint` (namespace `AWS/SES`, dimension `ses:configuration-set` = the configuration set, written by the sending stack's CloudWatch destination). Thresholds are 4% bounces and 0.08% complaints; missing data does not alarm. They notify the SNS topic `papyrus-newsletter-alarms-<siteId>`, which invokes the function. On ALARM the function turns the configuration set's sending off (`PutConfigurationSetSendingOptions`, IAM limited to that set) and writes `STATE` / `SITE` `{paused: true, reason, pausedAt}`; `resume_sending` turns both back. The metric names follow the SES documentation for CloudWatch event destinations and were not checked against a live account.
+
+### Live check with the mailbox simulator
+
+`python -m papyrus_content.newsletter simulate --site-id <id> --from-address <address on the sending domain> --from-name <name> --outcome success|bounce|complaint --hid <32 hex subscriber id> [--issue <id>] [--list <id>]` sends one tagged test message through the site's configuration set to the matching Amazon SES mailbox simulator address, so no inbox is involved. `--dry-run` prints the request. Run it with credentials that may send from the identity, then look for the `EVENTS` row, the `SUPP#` row and the ledger update.
+
 ### Known gaps
 
-Not built: unsubscribe, preferences, erasure, suppression from SES events, the event topic subscription and bounce alarms, issues, sending, alerts and the newsroom panel (stories b5a699 and later). The `unsubscribed` status is already handled as "start a fresh double opt-in" on a new signup. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
+Not built: alerts and the newsroom panel (their stories). The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasure finds them. Events carry the subscriber id, a pseudonym, so the 90 day event log is not erased with the subscriber; it expires. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
+
 
 
 ## Issues, approval and sending
@@ -268,4 +300,4 @@ Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-ad
 - The window is read by scanning the published item summaries (as the projector does); a very large site may want an index by publish time.
 - Link paths assume a section's `base` equals its name. A section declared with another `base` would be linked wrongly in a draft (the editor fixes the link).
 - The article list in the newsroom does not show issue types; the panel links to the editor by item id.
-- Alerts, bounce and complaint event handling, the pause alarms and unsubscribe are other stories; `compliance.py` holds stand-ins for the four calls they export until they merge.
+- Alerts are another story. `compliance.py` binds the unsubscribe story's `links`, `suppression` and `pause` calls to the sender's store and keys.

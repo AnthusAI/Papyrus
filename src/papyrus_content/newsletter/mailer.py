@@ -28,7 +28,7 @@ class Mailer:
         self.configuration_set = configuration_set
         self.site_id = site_id
 
-    def send_confirmation(self, *, to: str, subject: str, html: str, text: str) -> str:
+    def send_confirmation(self, *, to: str, subject: str, html: str, text: str, hid: str = "") -> str:
         response = self.client.send_email(
             FromEmailAddress=self.sender,
             Destination={"ToAddresses": [to]},
@@ -39,7 +39,8 @@ class Mailer:
                 }
             },
             ConfigurationSetName=self.configuration_set,
-            EmailTags=[{"Name": "site", "Value": self.site_id}, {"Name": "kind", "Value": "confirm"}],
+            EmailTags=[{"Name": "site", "Value": self.site_id}, {"Name": "kind", "Value": "confirm"}]
+            + ([{"Name": "sub", "Value": hid}] if hid else []),
         )
         return str(response.get("MessageId", ""))
 
@@ -61,3 +62,15 @@ class Mailer:
             EmailTags=[{"Name": name, "Value": value} for name, value in tags.items()],
         )
         return str(response.get("MessageId", ""))
+
+    def set_sending_enabled(self, enabled: bool) -> None:
+        """Turn sending on or off for this site's configuration set only."""
+        self.client.put_configuration_set_sending_options(ConfigurationSetName=self.configuration_set, SendingEnabled=enabled)
+
+    def delete_suppressed_destination(self, address: str) -> bool:
+        """Remove an address from the SES account suppression list. False when it was not on it."""
+        try:
+            self.client.delete_suppressed_destination(EmailAddress=address)
+        except self.client.exceptions.NotFoundException:
+            return False
+        return True

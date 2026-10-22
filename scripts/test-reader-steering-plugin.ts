@@ -47,6 +47,11 @@ assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: [
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { itemType: "link", section: "tools" } }).submissions, { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "link", section: "tools" });
 
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { mode: "off" } }).moderation, { mode: "off", preModeration: false, reportsPerDay: 20 });
+assert.deepEqual(
+  resolveReaderSteeringConfig({ ...base, moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key" } } }).moderation,
+  { mode: "ai", preModeration: false, reportsPerDay: 20, ai: { model: "gpt-6-luna", apiKeyParameter: "/papyrus/shipped/openai-api-key" } },
+);
+assert.equal(resolveReaderSteeringConfig({ ...base, moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key", model: "gpt-6-luna-2" } } }).moderation.ai?.model, "gpt-6-luna-2");
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { preModeration: true, reportsPerDay: 5 } }).moderation, { mode: "human", preModeration: true, reportsPerDay: 5 });
 
 const shipped = resolveReaderSteeringConfig({
@@ -110,6 +115,13 @@ for (const bad of [
   { comments: "yes" },
   { moderation: { mode: "auto" } },
   { moderation: { mode: "ai" } },
+  { moderation: { mode: "ai", ai: {} } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/other-key" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/amplify/shipped/openai-api-key" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/../openai-api-key" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key", model: "GPT 6" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key", key: "sk-secret" } } },
+  { moderation: { mode: "human", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key" } } },
   { moderation: { mode: "off", preModeration: true } },
   { moderation: { preModeration: "yes" } },
   { moderation: { reportsPerDay: 0 } },
@@ -299,6 +311,35 @@ assert.equal(actionsOn(unpolledStatements, "ReaderHandle").length, 0, "the snaps
 
 console.log("reader steering plugin ok");
 
+
+
+// AI moderation: the key is read from one SSM SecureString, nothing else is opened, and nothing else changes without it.
+const KEY_PARAMETER = "/papyrus/shipped/openai-api-key";
+const aiConfig = resolveReaderSteeringConfig({ ...base, dimensions: ["real"], moderation: { mode: "ai", ai: { apiKeyParameter: KEY_PARAMETER } } });
+const aiRun = synthesize(aiConfig, { SITE_ENV: "production" });
+const readerStatements = statementsOf(aiRun.template, "ReaderActions");
+const keyReads = readerStatements.filter((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:")));
+assert.equal(keyReads.length, 1, "reader-actions reads exactly one parameter");
+assert.deepEqual(([] as string[]).concat(keyReads[0].Action), ["ssm:GetParameter"], "read only");
+assert.match(JSON.stringify(keyReads[0].Resource), /parameter\/papyrus\/shipped\/openai-api-key"/, "the one named parameter, no wildcard");
+assert.equal(JSON.stringify(keyReads[0].Resource).includes("*"), false);
+assert.equal(readerStatements.some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("secretsmanager:"))), false, "secrets live in SSM SecureString, never Secrets Manager");
+const readerInvokes = readerStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("lambda:InvokeFunction"));
+assert.equal(readerInvokes.length, 1, "reader-actions may invoke exactly one function");
+assert.match(JSON.stringify(readerInvokes[0].Resource), /ContentActions/, "content-actions, to request the snapshot");
+const schedulerStatements = Object.values(aiRun.template.findResources("AWS::IAM::Policy")).filter((policy) =>
+  ((policy as { Properties: { Roles: Array<{ Ref: string }> } }).Properties.Roles ?? []).some((role) => role.Ref.startsWith("ReaderSnapshotSchedulerRole")))
+  .flatMap((policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement);
+assert.equal(schedulerStatements.filter((statement) => JSON.stringify(statement.Resource).includes("ReaderActions")).length, 1, "the scheduler role may also invoke reader-actions for the AI review");
+assert.equal(schedulerStatements.filter((statement) => JSON.stringify(statement.Resource).includes("ContentActions")).length, 1, "and still content-actions for the snapshot");
+const aiSettings = JSON.parse(Object.values(aiRun.template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables?.PAPYRUS_READER_SETTINGS).find(Boolean) as string);
+assert.deepEqual(aiSettings.moderation.ai, { model: "gpt-6-luna", apiKeyParameter: KEY_PARAMETER }, "the function learns the parameter name, never a key");
+assert.equal(JSON.stringify(aiRun.template.toJSON()).includes("sk-"), false);
+const humanRun = statementsOf(synthesize(shipped, { SITE_ENV: "production" }).template, "ReaderActions");
+assert.equal(humanRun.some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:"))), false, "no key access without AI mode");
+assert.equal(humanRun.some((statement) => ([] as string[]).concat(statement.Action).includes("lambda:InvokeFunction")), false);
+assert.equal(readerSteeringPlugin.publicSettings(aiConfig).moderation && (readerSteeringPlugin.publicSettings(aiConfig).moderation as { mode: string }).mode, "ai");
+assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(aiConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
 
 const transformed = schemaWithPlugins(readerSteeringSchemaDefinitions()).transform().schema;
 for (const model of readerSteeringManifest.models) {
