@@ -854,3 +854,123 @@ test("ranked list: it polls every minute while the page is visible and keeps the
   assert.equal(await page.locator("#ranked").getByText("could not be loaded").count(), 0);
   await context.close();
 });
+
+// Votes on any subject type, and the Flag control.
+const TYPED_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Typed</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<header><div id="signin" data-island="ReaderSignIn"></div></header>
+<main><div id="pvote" data-island="Vote" data-props='{"type":"proposal","id":"prop-1","up":2,"down":1}'></div>
+<div id="pflag" data-island="Flag" data-props='{"type":"proposal","id":"prop-1"}'></div></main></body></html>`;
+const typedSnapshot = () => ({ generatedAt: new Date().toISOString(), items: { "proposal:prop-1": { up: 4, down: 2, net: 2, score: 0.05, flags: {}, comments: 0 } } });
+
+test("a typed Vote shows up and down in words and shapes and posts {type, id} with value 1, -1 or null", async () => {
+  const context = await browser.newContext();
+  const state = fake({ snapshot: typedSnapshot() });
+  const page = await open(context, state, { page: TYPED_PAGE });
+  const count = page.locator("#pvote .papyrus-reader-count");
+  await count.getByText("4 votes up, 2 votes down").waitFor();
+  const up = page.getByRole("button", { name: /Vote up/ });
+  const down = page.getByRole("button", { name: /Vote down/ });
+  assert.match((await up.textContent()) ?? "", /△/, "a triangle shape, not only colour");
+  await up.click();
+  await page.getByRole("button", { name: "▲ Voted up" }).waitFor();
+  await count.getByText("5 votes up, 2 votes down").waitFor();
+  await down.click();
+  await page.getByRole("button", { name: "▼ Voted down" }).waitFor();
+  await count.getByText("4 votes up, 3 votes down").waitFor();
+  assert.equal(await page.getByRole("button", { name: "▲ Voted up" }).count(), 0);
+  await page.getByRole("button", { name: "▼ Voted down" }).click();
+  await count.getByText("4 votes up, 2 votes down").waitFor();
+  assert.deepEqual(
+    state.writes.map((write) => [write.path, write.body]),
+    [
+      ["/api/reader/vote", { subject: { type: "proposal", id: "prop-1" }, value: 1 }],
+      ["/api/reader/vote", { subject: { type: "proposal", id: "prop-1" }, value: -1 }],
+      ["/api/reader/vote", { subject: { type: "proposal", id: "prop-1" }, value: null }],
+    ],
+  );
+  assert.ok(state.meRequests.some((query) => decodeURIComponent(query).includes("proposal:prop-1")), "the reader's own vote is asked for by subject key");
+  await context.close();
+});
+
+test("a typed Vote shows the reader's earlier vote and rolls back a refused one", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    snapshot: typedSnapshot(),
+    me: signedInMe({ votes: { "proposal:prop-1": { up: -1 } } }),
+    writeAnswer: () => ({ status: 422, body: { error: "unknown_subject_type", message: "That kind of subject cannot be voted on here." } }),
+  });
+  const page = await open(context, state, { page: TYPED_PAGE });
+  await page.getByRole("button", { name: "▼ Voted down" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "▼ Voted down" }).getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: /Vote up/ }).click();
+  await page.locator("#pvote .papyrus-reader-status").getByText("That kind of subject cannot be voted on here.").waitFor();
+  await page.getByRole("button", { name: "▼ Voted down" }).waitFor();
+  await page.locator("#pvote .papyrus-reader-count").getByText("4 votes up, 2 votes down").waitFor();
+  await context.close();
+});
+
+test("signed out, the typed Vote and the Flag control fail closed and say why", async () => {
+  const context = await browser.newContext();
+  const state = fake({ snapshot: typedSnapshot(), me: { status: 401, body: { error: "signed_out" } } });
+  const page = await open(context, state, { page: TYPED_PAGE });
+  await page.locator("#pvote .papyrus-reader-status").getByText("Sign in to vote and rate").waitFor();
+  for (const button of await page.locator("#pvote button, #pflag button").all()) assert.equal(await button.isDisabled(), true);
+  await page.locator("#pflag .papyrus-reader-status").getByText("Sign in to vote and rate").waitFor();
+  assert.deepEqual(state.writes, []);
+  await context.close();
+});
+
+test("the Flag control offers the three kinds, requires a reason, and sends target or name for the kind", async () => {
+  const context = await browser.newContext();
+  const state = fake({ snapshot: typedSnapshot() });
+  const page = await open(context, state, { page: TYPED_PAGE });
+  const flag = page.locator("#pflag");
+  const open_ = flag.getByRole("button", { name: /Flag/ });
+  await page.waitForFunction(() => !(document.querySelector("#pflag button") as HTMLButtonElement).disabled);
+  await open_.click();
+  const kinds = await flag.locator("select[name=kind] option").allTextContents();
+  assert.deepEqual(kinds, ["This is wrong", "This belongs under…", "Suggest a better name"]);
+  // no reason: the browser refuses to submit
+  await flag.getByRole("button", { name: "Send flag" }).click();
+  assert.deepEqual(state.writes, []);
+  await flag.locator("textarea[name=reason]").fill("The figures do not match.");
+  await flag.getByRole("button", { name: "Send flag" }).click();
+  await flag.getByText("Flag sent. Thank you.").waitFor();
+  await open_.click();
+  await flag.locator("select[name=kind]").selectOption("belongs_under");
+  await flag.locator("input[name=targetId]").fill("hardware");
+  await flag.locator("textarea[name=reason]").fill("It is about chips.");
+  await flag.getByRole("button", { name: "Send flag" }).click();
+  await flag.getByText("Flag sent. Thank you.").waitFor();
+  await open_.click();
+  await flag.locator("select[name=kind]").selectOption("better_name");
+  await flag.locator("input[name=name]").fill("Edge inference");
+  await flag.locator("textarea[name=reason]").fill("Clearer.");
+  await flag.getByRole("button", { name: "Send flag" }).click();
+  await flag.getByText("Flag sent. Thank you.").waitFor();
+  const subject = { type: "proposal", id: "prop-1" };
+  assert.deepEqual(state.writes.map((write) => [write.path, write.body]), [
+    ["/api/reader/flag", { subject, kind: "wrong", reason: "The figures do not match." }],
+    ["/api/reader/flag", { subject, kind: "belongs_under", reason: "It is about chips.", target: { type: "concept", id: "hardware" } }],
+    ["/api/reader/flag", { subject, kind: "better_name", reason: "Clearer.", name: "Edge inference" }],
+  ]);
+  await context.close();
+});
+
+test("a refused flag keeps the form and says what went wrong", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    snapshot: typedSnapshot(),
+    writeAnswer: () => ({ status: 422, body: { error: "invalid_reason", message: "Give a reason in plain text of at most 500 characters." } }),
+  });
+  const page = await open(context, state, { page: TYPED_PAGE });
+  const flag = page.locator("#pflag");
+  await page.waitForFunction(() => !(document.querySelector("#pflag button") as HTMLButtonElement).disabled);
+  await flag.getByRole("button", { name: /Flag/ }).click();
+  await flag.locator("textarea[name=reason]").fill("x");
+  await flag.getByRole("button", { name: "Send flag" }).click();
+  await flag.locator(".papyrus-reader-status").getByText("Give a reason in plain text of at most 500 characters.").waitFor();
+  assert.equal(await flag.locator("form").isVisible(), true);
+  await context.close();
+});
