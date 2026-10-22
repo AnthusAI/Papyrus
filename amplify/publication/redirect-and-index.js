@@ -91,6 +91,22 @@ function markdownTwin(uri) {
   return uri.substring(0, uri.length - 5) + ".md";
 }
 
+// Directory-style sites keep a page's twin at /x/index.md, so a bare /x.md is rewritten there. The edge cannot test for
+// existence, hence the rule: a last segment <name>.md with a name other than index. A path prefix (a base path) is just
+// part of <path>. The flag is spliced in by redirect-rules.ts at deploy time from urls.style.
+const directoryTwins = /*PAPYRUS_DIRECTORY_TWINS*/false/*END_PAPYRUS_DIRECTORY_TWINS*/;
+
+function directoryTwin(uri) {
+  if (uri.length < 5 || uri.substring(uri.length - 3) !== ".md") {
+    return null;
+  }
+  const lastSegment = uri.substring(uri.lastIndexOf("/") + 1);
+  if (lastSegment === "index.md" || lastSegment === ".md") {
+    return null;
+  }
+  return uri.substring(0, uri.length - 3) + "/index.md";
+}
+
 async function handler(event) {
   const request = event.request;
   const redirectTarget = await lookUpRedirectTarget(request.uri);
@@ -110,6 +126,12 @@ async function handler(event) {
     };
   }
   request.uri = rewriteToIndexDocument(request.uri);
+  if (directoryTwins) {
+    const bareTwin = directoryTwin(request.uri);
+    if (bareTwin !== null) {
+      request.uri = bareTwin;
+    }
+  }
   if (negotiateMarkdown && prefersMarkdown(request)) {
     const twin = markdownTwin(request.uri);
     if (twin !== null) {

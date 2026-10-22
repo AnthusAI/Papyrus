@@ -112,11 +112,13 @@ export function addS3ProjectionPublication(
   const bucket = createSiteBucket(scope, props.retainBucketOnDelete !== false);
 
   const keyValueStore = new cloudfront.KeyValueStore(scope, "RedirectsKeyValueStore");
+  const edgeConfig = readEdgeConfig(props.staticDir);
   const redirectFunction = new cloudfront.Function(scope, "RedirectAndIndexFunction", {
     runtime: cloudfront.FunctionRuntime.JS_2_0,
     code: cloudfront.FunctionCode.fromInline(
-      compileRedirectFunctionSource(readFileSync(redirectFunctionSourcePath, "utf8"), readEdgeConfig(props.staticDir).rules, {
-        negotiateMarkdown: readEdgeConfig(props.staticDir).negotiateMarkdown,
+      compileRedirectFunctionSource(readFileSync(redirectFunctionSourcePath, "utf8"), edgeConfig.rules, {
+        negotiateMarkdown: edgeConfig.negotiateMarkdown,
+        directoryTwins: edgeConfig.directoryTwins,
       }),
     ),
     keyValueStore,
