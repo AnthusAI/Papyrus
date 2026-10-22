@@ -38,6 +38,11 @@ export type ReaderSteeringConfig = {
     hypeMinimum: number;
   };
   /**
+   * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
+   * Absent means no hype gap is published. Shipped sets plus = notable, novel and minus = real, useful.
+   */
+  hypeGap?: { plus: string[]; minus: string[] };
+  /**
    * Reserved concurrency for reader-actions. Unset by default, which reserves nothing: an account with a small total
    * Lambda concurrency quota (papyrus-production has 10) cannot reserve any without dropping below its unreserved minimum.
    */
