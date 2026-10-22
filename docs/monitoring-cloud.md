@@ -185,6 +185,7 @@ Monitoring page shows it on the router run.
 | `LOCK#router` | Lease (660 s, longer than the 600 s timeout), separate from the collector's `LOCK` |
 | `ROUTE#<sourceId>#<rev6>` | `dryRun` (`count`, `validatedAt`, `requests.<pub>` = path, `requestId`, bytes, body; `contexts.<pub>` = `contextHash`/`reason`), `jobs.<pub>` (`requestId`, `jobId`, `checked`), `decision` (`decisionId`, `source` = id/revision/fingerprint, per-publication `output`, `label`, `fingerprint`, `version`, plus account, run, binding revision), `publications.<pub>` (`delivered`, `referenceId`, `attempts`, `lastError`), `final` |
 | `DELIV#<pub>#<referenceId>` | A Reference this router delivered; feedback source. In `FEEDBACK#hn#pending` while feedback is outstanding |
+| `TRIGGER#<pub>#<procedureKey>#<sourceId>` | A procedure trigger for this item: `status` (`starting`, `started`, `startFailed`, `notTriggered`, then the runner's `completed`, `failed` or `notRunnable`), the runner `request`, `runId`, errors. Written only if absent, so each item starts each procedure once (`docs/procedure-runner.md`) |
 | `FB#<requestId>` | Feedback receipt: outcome, label, curation status, publication |
 | `ROUTERUN#<startedAt>#<runId>` | Run receipt: mode, status, `stoppedBy`, counts, feedback summary, errors; 30 days |
 
@@ -224,6 +225,14 @@ Reference's rationale line ends with the decision so editors see it in the queue
 flags, attempts and errors are kept per publication per item; one failing backend never loses
 the others, and a rerun skips what is already delivered. The publication needs exactly one
 canonical `KnowledgeCorpus`.
+
+## Procedure triggers
+
+A publication may list `procedureTriggers` and name its OpenAI key's SSM parameter
+(`openaiKeyParameter`). After a delivery that created a new Reference, the router starts each named
+procedure once for that item by invoking the procedure runner asynchronously, and never waits for it.
+A Reference that already existed starts nothing. See `docs/procedure-runner.md` for the config,
+the input placeholders and the runner.
 
 ## Feedback
 

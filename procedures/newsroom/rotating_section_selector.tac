@@ -13,7 +13,7 @@ Toolset "papyrus" {
 
 newsroom_rotating_section_selector = Agent {
     provider = "openai",
-    model = "gpt-5.4-mini",
+    model = "gpt-6-luna",
     system_prompt = [[
 You are the Papyrus rotating-desk selector for edition planning step 2.
 

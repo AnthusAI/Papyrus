@@ -15,6 +15,10 @@ A monitor whose router config says `decisions: direct` makes no relevance call a
 collected item goes to every configured publication, recorded as the monitor's own rule.
 That suits sources a section covers exhaustively (every TTAB decision for a rulings tracker).
 
+A publication may also list `procedureTriggers`: after the router creates a new Reference there, it starts
+each named Tactus procedure once per source item by invoking the procedure runner asynchronously
+(docs/procedure-runner.md). A `TRIGGER#` row, written only if absent, makes the start exactly-once.
+
 Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing modules.
 """
 from __future__ import annotations
@@ -25,6 +29,7 @@ import json
 import os
 from pathlib import Path
 import re
+import string
 import time
 from typing import Any, Callable
 import urllib.error
@@ -63,6 +68,11 @@ PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 APPSYNC_HOST = re.compile(r"^[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com$")
 EXECUTE_API_HOST = re.compile(r"^[a-z0-9]+\.execute-api\.([a-z0-9-]+)\.amazonaws\.com$")
 ROLE_ARN = re.compile(r"^arn:aws:iam::\d{12}:role/[\w+=,.@/-]{1,200}$")
+PROCEDURE_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
+PROCEDURE_INPUT_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
+SSM_PARAMETER = re.compile(r"^/[A-Za-z0-9_./-]{1,1000}$")
+TRIGGER_PLACEHOLDERS = frozenset({"sourceId", "sourceIdPrefix", "canonicalUrl", "sourceItemUrl", "title",
+                                  "publishedAt", "referenceId", "publicationId", "corpusId"})
 
 
 class StopSweep(Exception):
@@ -179,10 +189,51 @@ def validate_router_publications(raw: dict) -> list[dict]:
             "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
             "output": str(entry.get("output") or f"{publication_id}-relevance"),
             "positiveLabel": str(entry.get("positiveLabel") or "include"),
-            "negativeLabel": str(entry.get("negativeLabel") or "exclude")})
+            "negativeLabel": str(entry.get("negativeLabel") or "exclude"),
+            "procedureTriggers": validate_procedure_triggers(publication_id, entry),
+            "openaiKeyParameter": entry.get("openaiKeyParameter")})
     if not publications:
         raise ValueError("router needs at least one publication")
     return publications
+
+
+def validate_procedure_triggers(publication_id: str, entry: dict) -> list[dict]:
+    triggers, seen = [], set()
+    for trigger in entry.get("procedureTriggers") or []:
+        key = str(trigger.get("procedureKey") or "")
+        inputs = trigger.get("input") or {}
+        if not PROCEDURE_KEY.match(key) or key in seen or not isinstance(inputs, dict):
+            raise ValueError(f"router publication {publication_id} has an invalid or duplicated procedure trigger")
+        for name, template in inputs.items():
+            used = {field for _, field, _, _ in string.Formatter().parse(str(template)) if field is not None}
+            if not PROCEDURE_INPUT_NAME.match(name) or not used <= TRIGGER_PLACEHOLDERS:
+                raise ValueError(f"router publication {publication_id} trigger {key} input {name} is invalid")
+        seen.add(key)
+        triggers.append({"procedureKey": key, "input": {name: str(template) for name, template in inputs.items()}})
+    parameter = entry.get("openaiKeyParameter")
+    if triggers and not SSM_PARAMETER.match(str(parameter or "")):
+        raise ValueError(f"router publication {publication_id} needs openaiKeyParameter for its procedure triggers")
+    return triggers
+
+
+def procedure_trigger_input(trigger: dict, publication: dict, disc: dict, reference_id: str) -> dict:
+    values = {"sourceId": disc["sourceId"], "sourceIdPrefix": str(disc["sourceId"]).split("-", 1)[0],
+              "canonicalUrl": disc["canonicalUrl"], "sourceItemUrl": disc.get("sourceItemUrl") or "",
+              "title": disc.get("title") or "", "publishedAt": disc.get("sourcePublishedAt") or "",
+              "referenceId": reference_id, "publicationId": publication["publicationId"],
+              "corpusId": publication["corpusId"]}
+    return {name: template.format(**values) for name, template in trigger["input"].items()}
+
+
+def lambda_procedure_starter(function_name: str | None) -> Callable[[dict], None] | None:
+    if not function_name:
+        return None
+
+    def start(request: dict) -> None:
+        import boto3  # provided by the Lambda runtime
+        boto3.client("lambda").invoke(FunctionName=function_name, InvocationType="Event",
+                                      Payload=json.dumps(request).encode("utf-8"))
+    return start
 
 
 # --- request building -------------------------------------------------------------------------------
@@ -482,6 +533,20 @@ class RouterStore(DynamoStore):
             if getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException":
                 raise
 
+    def put_new(self, monitor_id, record) -> bool:
+        try:
+            self._conditional_put(decimalize(record), "attribute_not_exists(pk)")
+            return True
+        except ConditionFailed:
+            return False
+
+    def update_fields(self, monitor_id, sk, fields: dict):
+        names = {f"#f{n}": key for n, key in enumerate(fields)}
+        self.table.update_item(Key={"pk": pk(monitor_id), "sk": sk},
+                               UpdateExpression="SET " + ", ".join(f"#f{n} = :v{n}" for n in range(len(fields))),
+                               ExpressionAttributeNames=names,
+                               ExpressionAttributeValues={f":v{n}": decimalize(value) for n, value in enumerate(fields.values())})
+
     def delete_any(self, monitor_id, sk):
         self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk})
 
@@ -578,8 +643,10 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
 class Router:
     def __init__(self, store, config: dict, *, monitor_id="hn", now: float, run_id: str,
                  cyclotron: CyclotronClient | None, appsync: Callable[[str], Any], deliver=deliver_reference,
-                 context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9):
+                 context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
+                 start_procedure: Callable[[dict], None] | None = None):
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
+        self.start_procedure = start_procedure
         self.cyclotron, self.appsync_factory, self.deliver = cyclotron, appsync, deliver
         self.context_receipt, self.time_left = context_receipt, time_left
         self._clients: dict = {}
@@ -587,7 +654,8 @@ class Router:
         self.publications = {p["publicationId"]: p for p in config["publications"]}
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
-                       "parked": 0, "backfilled": 0}
+                       "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
+                       "procedureNotTriggered": 0}
         self._parks: dict = {}
 
     def client(self, publication: dict):
@@ -870,6 +938,7 @@ class Router:
                              provenanceMessageId=result.get("provenanceMessageId"), lastError=None)
                 self.record_delivery(publication, disc, route, result)
                 self.counts["delivered"] += 1
+                self.start_procedures(publication, disc, result)
             except Exception as error:
                 all_delivered = False
                 attempts = int(state.get("attempts", 0)) + 1
@@ -894,6 +963,42 @@ class Router:
             record.update(gsi1pk=feedback_partition(self.monitor_id),
                           gsi1sk=f"{_iso(self.now)}#{publication['publicationId']}#{result['referenceId']}")
         self.store.put_any(self.monitor_id, record)
+
+    def start_procedures(self, publication: dict, disc: dict, result: dict):
+        """Fire-and-forget: each trigger starts at most once per source item, and never for a Reference that
+        already existed (its decision may already have coverage). A failure here never fails the delivery."""
+        for trigger in publication.get("procedureTriggers") or []:
+            key = f"TRIGGER#{publication['publicationId']}#{trigger['procedureKey']}#{disc['sourceId']}"
+            record = {"pk": pk(self.monitor_id), "sk": key, "publicationId": publication["publicationId"],
+                      "procedureKey": trigger["procedureKey"], "sourceId": disc["sourceId"],
+                      "referenceId": result["referenceId"], "routerRunId": self.run_id, "createdAt": _iso(self.now)}
+            try:
+                if result.get("referenceReused"):
+                    self.store.put_new(self.monitor_id, {**record, "status": "notTriggered",
+                                                         "reason": "the Reference already existed"})
+                    self.counts["procedureNotTriggered"] += 1
+                    continue
+                request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+                           "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": trigger["procedureKey"],
+                           "input": procedure_trigger_input(trigger, publication, disc, result["referenceId"]),
+                           "actorLabel": f"Papyrus monitor {self.monitor_id}",
+                           "trigger": {"kind": "monitor", "monitorId": self.monitor_id, "sourceId": disc["sourceId"],
+                                       "referenceId": result["referenceId"], "pk": record["pk"], "sk": key,
+                                       "title": f"{trigger['procedureKey']}: {disc.get('title') or disc['sourceId']}"[:200],
+                                       "summary": f"Started by monitor {self.monitor_id} for {disc['canonicalUrl']}"[:500]}}
+                if not self.store.put_new(self.monitor_id, {**record, "status": "starting", "request": request}):
+                    continue
+                if self.start_procedure is None:
+                    raise RuntimeError("no procedure runner is configured for this router")
+                self.start_procedure(request)
+                self.store.update_fields(self.monitor_id, key, {"status": "started", "startedAt": _iso(self.now)})
+                self.counts["proceduresStarted"] += 1
+            except Exception as error:
+                self.counts["procedureStartFailed"] += 1
+                try:
+                    self.store.update_fields(self.monitor_id, key, {"status": "startFailed", "error": short(error)})
+                except Exception:
+                    pass
 
     def live(self, disc: dict):
         route = self.get_route(disc)
@@ -1035,7 +1140,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                run_id: str | None = None, task: str | None = None, cyclotron: CyclotronClient | None = None,
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
-               cyclotron_factory: Callable[[dict], CyclotronClient] | None = None) -> dict:
+               cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
+               start_procedure: Callable[[dict], None] | None = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -1050,7 +1156,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         if cyclotron is None and config["mode"] == "live" and config["decisions"] == "cyclotron":
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
-                        appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left)
+                        appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
+                        start_procedure=start_procedure)
         outcome = {"status": "skipped"} if task == "feedback" else router.sweep()
         feedback = {"status": "skipped"} if task == "route" else router.feedback()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
@@ -1074,6 +1181,7 @@ def handler(event, context):
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
-    result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining)
+    result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining,
+                        start_procedure=lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION")))
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}

@@ -9,7 +9,7 @@
 
 newsroom_reference_summarizer = Agent {
     provider = "openai",
-    model = "gpt-5.4-mini",
+    model = "gpt-6-luna",
     system_prompt = [[
 You summarize reference source material for Papyrus editorial curation metadata.
 
@@ -42,7 +42,7 @@ Procedure {
         known_subtitle = field.string{default = "", description = "Resolved subtitle for outcome mode"},
         media_type = field.string{default = "", description = "Reference media type"},
         doctrine_context_text = field.string{default = "", description = "Publication doctrine block for reference_summary mode"},
-        model = field.string{default = "gpt-5.4-mini", description = "Model hint for metadata only"},
+        model = field.string{default = "gpt-6-luna", description = "Model hint for metadata only"},
         prompt_version = field.string{default = "", description = "Optional override prompt version"}
     },
     output = {
@@ -64,7 +64,7 @@ Procedure {
         local known_title = input.known_title or ""
         local known_subtitle = input.known_subtitle or ""
         local media_type = input.media_type or ""
-        local model = input.model or "gpt-5.4-mini"
+        local model = input.model or "gpt-6-luna"
 
         local prompt_version = input.prompt_version or ""
         local message = ""
