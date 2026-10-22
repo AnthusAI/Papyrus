@@ -297,7 +297,9 @@ line of content is a `::column` has no empty implicit first column: that `::colu
 
 **Agent-readable twins.** The `.md` twin and `llms-full.txt` carry the page's Markus source as written: `::band`, `::column`,
 `::button` and `::island` lines stay, with their attributes, and `{{name}}` tokens are replaced. Only `::include` and
-`::raw` ... `::endraw` regions are left out, because they place generated or hand-written markup that has no source text.
+`::raw` ... `::endraw` regions are left out, because they place generated or hand-written markup that has no source text. The
+knowledge blocks (`::include{kind="block" name="knowledge-..."}`) stay as written, and so do the wiki directives
+(`::recent-concepts`, `::concept-list`, `::concept-count`).
 An island is read through its `summary` (see "Islands").
 
 The baseline `css/markus-components.css` styles bands, columns, panels and buttons through `--papyrus-band-*`,
@@ -316,7 +318,7 @@ A `pages` entry with `source` is a page written as a Markus file in the static d
 
 `path: ""` is the home page (`/`; an authored `index` item and a `pages` entry for `""` are alternatives, not both). `title`, `description` and `image` are the page's head; the file's own front matter is not read. The file uses page blocks (it starts with a
 `::band`; `::band{size="bare"}` adds no wrapper) and two more directives, which only a page file may use (an item that holds
-them is a build error that names it):
+them is a build error that names it, except the `knowledge-` blocks, which an item may place after a `::band` line):
 
 ```markdown
 ::band{size="bare"}
@@ -338,7 +340,7 @@ them is a build error that names it):
 | `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest first by default, `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
 | `showcase` | none | the logo wall of the `showcase` settings |
 | `form` | `id` | a `forms` entry |
-| `block` | `name` (required), `depends`, any other attributes | what the `block(name, attributes, page)` hook returns; `depends` lists the sections it reads (`@root`, or `*` for all) |
+| `block` | `name` (required), `depends`, any other attributes | what the `block(name, attributes, page)` hook returns; `depends` lists the sections it reads (`@root`, or `*` for all). The names that start with `knowledge-` are built in and need no hook (see [Knowledge components](knowledge-components.md)) |
 
 `::raw` ... `::endraw` puts the lines between them in the page exactly as written (no Markus, no directives, no escaping);
 a `::raw` without `::endraw` is an error. Fences hold both as text. Unknown attributes, kinds, collections, forms, layouts and non-numeric

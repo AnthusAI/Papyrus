@@ -3,7 +3,7 @@
   "title": "Entity chip and score readout components (no JavaScript required)",
   "description": "As a publication builder, I want server-rendered markup and CSS for entity chips and score readouts, so that they work before any script runs.\n\nEntity chip: kind plus name, dashed outline when state is proposed (marks and legend, never colour alone). Score readout: 5-segment meter, value and n; dimmed when below a threshold; text value always present.\n\n```gherkin\nFeature: Chip and readout\n  Scenario: Proposed chip\n    Given an entity in state proposed\n    Then the chip is rendered dashed and has the accessible text \"proposed\"\n\n  Scenario: Low score\n    Given a score below the threshold\n    Then the readout is dimmed and its text value is still present\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-21T12:50:05.305124Z",
-  "updated_at": "2026-10-21T12:50:05.305159Z",
+  "updated_at": "2026-10-22T03:32:31.039551Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

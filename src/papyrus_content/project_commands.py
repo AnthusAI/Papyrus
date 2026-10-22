@@ -80,6 +80,12 @@ def content_project(flags: list[str]) -> None:
     else:
         client, _claims = create_authoring_client()
     context = _context_for(client, options)
+    knowledge_directory = normalize_string(options.get("knowledge-dir"))
+    if knowledge_directory:
+        use = getattr(context.projector, "use_knowledge_directory", None)
+        if use is None:
+            raise ValueError("--knowledge-dir needs a site that uses the standard front end.")
+        use(Path(knowledge_directory))
     if options.get("reconcile"):
         _run_reconcile(context, options)
         return

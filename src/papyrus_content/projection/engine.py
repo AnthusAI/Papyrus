@@ -58,6 +58,11 @@ class ProjectionContext:
     maximum_rounds: int = MAXIMUM_ROUNDS
     defer_follow_up: bool = False
 
+    def __post_init__(self) -> None:
+        attach = getattr(self.projector, "attach_store", None)
+        if attach is not None:
+            attach(self.writer)
+
 
 def _page_order(keys) -> list[str]:
     return sorted(keys, key=lambda key: (key.endswith(".xml"), key))

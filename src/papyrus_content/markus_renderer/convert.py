@@ -46,16 +46,16 @@ def convert_fragment(
     return transform.apply(result.stdout)
 
 
-def convert_text_in_process(text: str, *, theme: str | None = None) -> str:
+def convert_text_in_process(text: str, *, theme: str | None = None, registry=None) -> str:
     """Convert Markus source to a fragment in this process, matching the CLI's bytes.
 
     Same contract as :func:`convert_fragment` (fragment, no CSS, raw HTML never
-    allowed) without the subprocess, and the CLI's trailing newline.
+    allowed) without the subprocess, and the CLI's trailing newline. ``registry`` adds directives of the caller's.
     """
     import markusmd
 
     assert_supported_markus_version(markusmd.__version__)
     fragment = markusmd.convert(
-        text, allow_html=False, include_css=False, full_document=False, theme=theme
+        text, registry=registry, allow_html=False, include_css=False, full_document=False, theme=theme
     )
     return fragment if fragment.endswith("\n") else fragment + "\n"

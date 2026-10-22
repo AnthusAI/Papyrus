@@ -3,7 +3,7 @@
   "title": "Cluster callouts from accepted proposals and cluster JSON",
   "description": "As a reader, I want a short list of new and growing themes with item counts and top terms, so that I can see what is emerging.\n\n```gherkin\nFeature: Emerging cluster callouts\n  Scenario: Accepted cluster shown\n    Given a cluster with a stable uid that the desk accepted and named\n    Then the callout shows the name, item count, top terms and a sparkline\n\n  Scenario: Unaccepted cluster\n    Given a cluster the desk has not accepted\n    Then it is hidden or shown as unnamed according to the publication setting\n\n  Scenario: Public-safe\n    Then the cluster JSON contains ids, names, counts, series and terms only\n\n  Scenario: Not enough data\n    Given a cluster with fewer than 4 weeks of data\n    Then no New, Growing or Cooling label is shown\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-21T12:50:05.877847Z",
-  "updated_at": "2026-10-21T12:50:05.877876Z",
+  "updated_at": "2026-10-22T03:32:31.247468Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
