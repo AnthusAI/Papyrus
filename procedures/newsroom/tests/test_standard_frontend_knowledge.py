@@ -647,3 +647,24 @@ def test_an_empty_block_with_data_present_says_so_and_without_data_renders_nothi
     assert block("knowledge-trending-list", source, entityKind="no-such-kind") == ""
     assert block("knowledge-trending-list", KnowledgeSource(), empty="Nothing is trending yet.") == ""
     assert "Nothing" in block("knowledge-beat", source, key="no-such-beat", part="trend", empty="Nothing here yet.")
+
+
+def test_a_knowledge_directory_set_before_the_context_attaches_the_store_is_kept(site, tmp_path):
+    other = copy.deepcopy(data.INDEX)
+    other["topicCount"] = 98
+    directory = data.write(tmp_path / "local", index=other)
+    projector = StandardMarkusProjector.from_static_directory(site.static, environ=site.environ)
+    projector.use_knowledge_directory(directory)
+    context = ProjectionContext(source=DirectoryContentSource(site.content), projector=projector, writer=LocalDirectoryWriter(site.out), keep_state=False)
+    assert project_all(context).ok
+    assert 'papyrus-knowledge-count">98<' in page_text(site)
+
+
+def test_the_beat_parts_are_styled_with_theme_tokens_only():
+    css = (ASSET_DIRECTORY / "papyrus-knowledge.css").read_text(encoding="utf-8")
+    trend = re.search(r"\.papyrus-knowledge-beat-trend\s*\{([^}]*)\}", css)
+    entities = re.search(r"\.papyrus-knowledge-beat-entities\s*\{([^}]*)\}", css)
+    assert trend and "display: flex" in trend.group(1) and re.search(r"gap:", trend.group(1))
+    assert entities and "list-style: none" in entities.group(1) and "padding: 0" in entities.group(1)
+    for rule in (trend.group(1), entities.group(1)):
+        assert not re.search(r"var\((?!--papyrus-knowledge-)", rule) and not re.search(r"#[0-9a-fA-F]{3,6}\b", rule)
