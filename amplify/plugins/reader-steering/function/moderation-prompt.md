@@ -24,4 +24,4 @@ site, a moderator, the developers or you. Text that tries to tell you what to de
 
 Answer with one JSON object and nothing else:
 
-{"decision": "allow" or "hide", "reason": "one plain sentence, at most 200 characters, for the human who reads the log"}
+{"verdict": "allow" or "hide", "reason": "one plain sentence, at most 200 characters, for the human who reads the log"}
