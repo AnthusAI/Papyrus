@@ -161,7 +161,7 @@ test("the islands prerender their props before any request answers, and the page
   await page.locator("#vote .papyrus-reader-count").getByText("3 upvotes").waitFor();
   assert.equal(await page.locator("#vote .papyrus-island-summary").count(), 0, "the no-JavaScript summary is removed once mounted");
   await page.locator("#usedit .papyrus-reader-count").getByText("1 reader used it").waitFor();
-  await page.locator("#rating").getByText("Readers: 3.5 from 2 ratings").waitFor();
+  await page.locator("#rating").getByText("Readers: n=2, too few").waitFor();
   await page.locator("#fresh").getByText(/Updated \d+ days? ago/).waitFor();
   release();
   await page.locator("#vote .papyrus-reader-count").getByText("5 upvotes").waitFor();
@@ -169,6 +169,47 @@ test("the islands prerender their props before any request answers, and the page
   await page.locator("#fresh").getByText("Updated 5 min ago").waitFor();
   await page.locator("#rating").getByText("Editor: 4.0 from 1 rating").waitFor();
   await context.close();
+});
+
+const ratingRow = (page: Page, dimension: string) => page.locator(`#rating [role="group"][aria-label="${dimension}"]`);
+const filledSegments = (page: Page, dimension: string) => ratingRow(page, dimension).locator(".papyrus-reader-meter-filled").count();
+
+test("ratings below the display minimum show n=, too few, an empty dimmed meter and no mean; at the minimum they show the mean", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    board: { generatedAt: new Date().toISOString(), parameters: { displayMinimum: 5, readerMinimum: 5 }, front: [], rising: [], new: [] },
+    snapshot: snapshotAt(new Date().toISOString(), {
+      raters: 4,
+      ratings: {
+        real: { reader: { mean: 3.8, n: 3, hist: [0, 0, 1, 2, 0] }, editor: { mean: null, n: 0, hist: [0, 0, 0, 0, 0] } },
+        useful: { reader: { mean: 4.2, n: 5, hist: [0, 0, 1, 2, 2] }, editor: { mean: null, n: 0, hist: [0, 0, 0, 0, 0] } },
+      },
+    }),
+  });
+  const page = await open(context, state);
+  await ratingRow(page, "real").getByText("Readers: n=3, too few").waitFor();
+  assert.equal(await ratingRow(page, "real").getByText(/3\.8/).count(), 0, "the mean is withheld");
+  assert.equal(await filledSegments(page, "real"), 0, "the meter is empty");
+  assert.equal(await ratingRow(page, "real").locator(".papyrus-reader-meter-withheld").count(), 1, "and dimmed");
+  assert.equal(await ratingRow(page, "real").locator(".papyrus-reader-meter-segment").count(), 5);
+  await ratingRow(page, "useful").getByText("Readers: 4.2 from 5 ratings").waitFor();
+  assert.equal(await filledSegments(page, "useful"), 4);
+  assert.equal(await ratingRow(page, "useful").locator(".papyrus-reader-meter-withheld").count(), 0);
+  await page.locator("#rating .papyrus-reader-raters").getByText("4 rated it").waitFor();
+  await context.close();
+});
+
+test("the minimum comes from board.json: hypeMinimum is used when displayMinimum is absent, and 5 when the board is unavailable", async () => {
+  const context = await browser.newContext();
+  const small = snapshotAt(new Date().toISOString(), { ratings: { real: { reader: { mean: 3.8, n: 3, hist: [0, 0, 1, 2, 0] }, editor: { mean: null, n: 0, hist: [0, 0, 0, 0, 0] } } } });
+  const page = await open(context, fake({ snapshot: small, board: { generatedAt: new Date().toISOString(), parameters: { hypeMinimum: 3, readerMinimum: 9 }, front: [], rising: [], new: [] } }));
+  await ratingRow(page, "real").getByText("Readers: 3.8 from 3 ratings").waitFor();
+  assert.equal(await filledSegments(page, "real"), 4);
+  await context.close();
+  const other = await browser.newContext();
+  const fallback = await open(other, fake({ snapshot: small, board: null }));
+  await ratingRow(fallback, "real").getByText("Readers: n=3, too few").waitFor();
+  await other.close();
 });
 
 test("signed in without a handle: the picker reports a taken handle and then shows the handle, karma and Sign out", async () => {
