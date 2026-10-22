@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6ef1e10a-0008-49f0-88c1-bd8afc9d36d5",
+  "issue_id": "PPY-1e32361b-5303-4b5f-af7d-9b0891209a0e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:20.477Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier P4b: Retire the sweep and re-source its UI",
+    "description": "Status strip from the lab status op; agreement recomputed from lab decisions vs curation; drop per-publication review-rate UI; priming list -> lab drafts; auto-reject off until lab proof.\nAcceptance: UI no longer reads the sweep or per-publication review rate; auto-reject disabled until lab proof.\n\nSize: M\nDependencies: lab status op; lab proof before auto-reject (related PPY-7a1ca2)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

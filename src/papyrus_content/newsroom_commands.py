@@ -26,7 +26,7 @@ from .model_attachments import (
 )
 from .newsroom_sections import DEFAULT_NEWSROOM_SECTIONS_PATH, build_newsroom_section_records, load_newsroom_section_seeds
 from .newsroom_doctrine import (
-    DEFAULT_PUBLICATION_DOCTRINE_PATH,
+    require_explicit_doctrine,
     build_publication_doctrine_records,
     load_publication_doctrine_seed,
 )
@@ -509,7 +509,8 @@ def newsroom_import_sections(flags: list[str]) -> None:
 
 def newsroom_import_doctrine(flags: list[str]) -> None:
     options = parse_options(flags)
-    config_path = options.get("config") or str(DEFAULT_PUBLICATION_DOCTRINE_PATH)
+    require_explicit_doctrine(options, "sections import-doctrine", flag="config")
+    config_path = options["config"]
     seed = load_publication_doctrine_seed(config_path)
     records = build_publication_doctrine_records(seed["doctrine"])
     client, _ = create_authoring_client()
