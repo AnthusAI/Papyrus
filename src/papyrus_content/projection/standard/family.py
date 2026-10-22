@@ -69,6 +69,13 @@ def _item(label: str, href: str, description: str, *, external: bool) -> str:
     return f'<div class="papyrus-family-footer-item">{_link(label, href, external=external)}{text}</div>'
 
 
+def _community_href(link: dict, family: FamilyFooter) -> str:
+    """The registry's contact link points at ``family.contact_url`` when the site sets one; every other link is unchanged."""
+    if family.contact_url and link["href"] == REGISTRY["contactUrl"]:
+        return family.contact_url
+    return link["href"]
+
+
 def family_footer(family: FamilyFooter, site_name: str, text: str, columns: tuple[FooterColumn, ...]) -> str:
     """The inside of the footer element. ``text`` (``footer.text``) is the description when the family sets none."""
     registered = REGISTRY["sites"].get(family.site_id) or {}
@@ -109,7 +116,10 @@ def family_footer(family: FamilyFooter, site_name: str, text: str, columns: tupl
         f'<div class="papyrus-family-footer-bottom"><a href="{esc(company_url)}">{esc(family.byline or DEFAULT_BYLINE)}</a></div>'
         "</div></div></div>"
     )
-    community = "".join(_item(link["label"], link["href"], link.get("description", ""), external=True) for link in REGISTRY["communityLinks"])
+    community = "".join(
+        _item(link["label"], _community_href(link, family), link.get("description", ""), external=True)
+        for link in REGISTRY["communityLinks"]
+    )
     return (
         '<div class="papyrus-family-footer">'
         f"{local}{band}"

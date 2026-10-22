@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "88106a82-2365-417c-9c42-395bf7e001c6",
+  "issue_id": "PPY-b0f89382-edb1-4d54-abb6-af8e71e7c90b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T15:10:36.002Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Docs site builder renders the Anthus family footer with a configurable Contact us link",
+    "description": "Biblicus docs (and every Papyrus docs_site build) must show the shared Anthus family footer with a Contact us link. Add --contact-url to docs_site so a site can point Contact us at its own engage URL; reuse family_footer; include footer CSS in the output.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-sonnet-5-5",
+      "name": "claude"
+    }
+  }
+}

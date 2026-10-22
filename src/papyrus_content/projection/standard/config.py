@@ -170,6 +170,7 @@ class FamilyFooter:
     byline: str = ""
     logo: str = ""        # a site path or https URL of an image shown beside the name and description
     logo_alt: str = ""
+    contact_url: str = ""  # replaces the href of the registry's "Contact us" community link for this site
 
 
 @dataclass(frozen=True)
@@ -502,8 +503,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     family_raw = footer.get("family")
     family = None
     if family_raw is not None:
-        _only(family_raw, {"siteId", "name", "tagline", "description", "byline", "logo", "logoAlt"}, "footer.family")
-        family = FamilyFooter(*(_text(family_raw, key) for key in ("siteId", "name", "tagline", "description", "byline", "logo", "logoAlt")))
+        _only(family_raw, {"siteId", "name", "tagline", "description", "byline", "logo", "logoAlt", "contactUrl"}, "footer.family")
+        family = FamilyFooter(*(_text(family_raw, key) for key in ("siteId", "name", "tagline", "description", "byline", "logo", "logoAlt", "contactUrl")))
     values = []
     for key, value in dict(raw.get("values") or {}).items():
         if not re.fullmatch(r"\w+", key) or isinstance(value, bool) or not isinstance(value, (str, int, float)):
