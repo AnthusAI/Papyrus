@@ -176,8 +176,10 @@ stay on items and submissions.
 flag per subject and kind: flagging again replaces the reason. Flags are stored in `ReaderFlag`, not with votes, and reach the
 snapshot as counts only.
 
-**Reader state.** `GET /api/reader/me?subjects=...` takes subject keys (`proposal:prop-1`) and answers
-`votes: {subjectKey: {up: 1 | -1}}`.
+**Reader state.** `GET /api/reader/me?subjects=...` takes at most 50 subject keys (`proposal:prop-1`; `item-one` for an item)
+and answers, for those subjects only and for the signed-in reader only, `votes: {subjectKey: {up: 1 | -1, ...}}` (unchanged)
+and the flat `subjectVotes: {subjectKey: 1 | -1}`: the reader's own vote, in the key format of `items.json`. A subject the
+reader has not voted on is absent. There is no way to list every vote of a reader: ask for the subjects on the page.
 
 **Identity.** Rows hold the opaque `readerId` only. The pairwise `ss1_...` site subject is the profile key and never goes into a
 vote, a flag, a response or a snapshot file; the Person ID never reaches this plugin.
@@ -689,12 +691,21 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 |---|---|---|
 | `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words and then removes from the address; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
+| `Vote` (any subject type) | `type`, `id`, optional `up`, `down` | Two buttons, "△ Vote up" and "▽ Vote down" ("▲ Voted up" and "▼ Voted down" once chosen, with `aria-pressed`), and "N votes up, M votes down" read from `items.json` under the subject key. Choosing the chosen button again removes the vote. Posts `{subject: {type, id}, value: 1 \| -1 \| null}`; a refused vote is rolled back and the reason shown in words. |
+| `Flag` | `type`, `id`, optional `targetTypes` (default `concept`, `story`, `proposal`, `item`) | A "⚑ Flag" button that opens a form: what is the problem (This is wrong, This belongs under…, Suggest a better name), the target type and id for "belongs under", the suggested name for "better name", and a required reason of at most 500 characters. Posts `/api/reader/flag`, then says "Flag sent. Thank you." |
 | `UsedIt` | `subject`, `usedIt` | "I used it" toggle with a count. |
 | `Rating` | `subject`, `dimensions`, optional `ratings`, `raters` | One to five per dimension, the reader's own value (optimistic), the reader and editor numbers. Reader numbers are shown only with at least the display minimum of ratings on that dimension (`board.json` `parameters.displayMinimum`, else `hypeMinimum`, else `readerMinimum`, else 5): below it the row reads "Readers: n=3, too few", and its five-segment meter is empty, dimmed and dashed, so the state is words and shape, not colour. At or above it the row reads "Readers: 3.8 from 5 ratings" and the meter fills to the rounded mean. Under the rows, "N rated it" gives the distinct raters (`raters`), separate from the `Vote` island's "N upvotes". Selecting the current value clears it. After a rating it asks "Why? (optional, public)" and posts the answer as a comment that carries the rating. |
 | `Freshness` | optional `generatedAt` | "Updated N min ago". |
 | `RankedList` | `list` (`front`, `rising` or `new`), optional `limit` (10), `section`, `empty` | A ranked list from `board.json` and `subjects.json`: a real `<ol>` whose rows have the rank as text, the title link, the section (a submission: its domain, and the word "Pending" while it is pending, linking to its source with `rel="nofollow noopener noreferrer ugc"`) and the figure in words ("3 upvotes in 6 h", "Score 2.96", "5 min ago"). `section` keeps only that section's items before `limit` applies. An empty list shows `empty` as ordinary text; a failed load says it could not load and is never shown as empty. Under the list, "Updated N min ago" from `generatedAt`. Refetches both files every 60 seconds while visible and keeps the rows it has when a refetch fails. |
 | `Comments` | `subject`, optional `count`, `editMinutes`, `maximumLength` | The comments of one item or submission: a threaded list (handles and text only, a stub reads "This comment was removed."), a form and, for top-level comments, Reply. The author's own comments show Edit (inside the edit window) and Delete. Fetches `<base>_data/reader/comments/<subject>.json`, refetches it every 60 seconds while visible, and shows the reader's own new, edited and deleted comments at once until a newer file arrives. A reply or edit being typed survives a refresh. |
 | `Submit` | optional `kinds` | The `/submit/` form: link, title, kind radio (when there are several kinds) and note. It warns, without blocking, when the link is already in `submissions.json` or the site has a recent submission, saves a draft in `localStorage` and says so ("Saved locally ..."), clears the draft on success and then shows "Pending — we're reading the link." and any `similar` links. |
+
+**Which types can be voted on.** The deployed backend publishes the enabled types as `subjects.types` under
+`custom.papyrusPlugins["reader-steering"]` in `amplify_outputs.json`. The site copies them into the page config:
+`window.papyrusReader = { voteSubjects: ["item", "proposal"] }` (default `["item", "submission"]`). The script then sets two
+fields on `window.papyrusReader` that the page can key on: `voteSubjects` (the list) and `proposalVoting`
+(`voteSubjects.includes("proposal")`). A typed `Vote` or `Flag` island whose type is not in `voteSubjects` is disabled and says
+"Voting on this is not open yet".
 
 `subject` is the lineage id of the published item. Props prerender the last snapshot values; each page then fetches
 `<base>_data/reader/items.json`, refetches it every 60 seconds while the tab is visible, and asks `/api/reader/me` once for every

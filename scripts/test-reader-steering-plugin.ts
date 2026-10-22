@@ -47,6 +47,7 @@ assert.deepEqual(resolveReaderSteeringConfig({ ...base, subjects: { types: ["ite
 assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { types: ["person"] } }), /subjects\.types/, "an unknown subject type is refused");
 assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { types: [] } }), /subjects\.types/, "at least one subject type");
 assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { kinds: ["item"] } }), /Unknown reader-steering plugin subjects settings/);
+assert.deepEqual((readerSteeringPlugin.publicSettings(resolveReaderSteeringConfig({ ...base, subjects: { types: ["item", "proposal"] } })) as { subjects: unknown }).subjects, { types: ["item", "proposal"] }, "the browser is told the enabled types");
 assert.deepEqual(readerActionsSettings(resolveReaderSteeringConfig({ ...base, subjects: { types: ["proposal"] } }), false).subjects, { types: ["proposal"] }, "the actions function is told the enabled types");
 assert.deepEqual(readerSnapshotSettings(resolveReaderSteeringConfig({ ...base, subjects: { types: ["proposal"] } })).subjects, { types: ["proposal"] }, "the snapshot is told the enabled types");
 
@@ -194,7 +195,7 @@ assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development", NODE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({}), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development" }), true);
-assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"], moderation: { mode: "human" } });
+assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"], subjects: { types: ["item", "submission"] }, moderation: { mode: "human" } });
 
 function synthesize(config = shipped, environment: Record<string, string> = {}) {
   const app = new App();
