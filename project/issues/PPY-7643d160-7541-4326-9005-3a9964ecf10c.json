@@ -3,7 +3,7 @@
   "title": "Email renderer: Markus to responsive email HTML and plain text, per-site theme, compliance footer",
   "description": "src/papyrus_content/email_render: table-based HTML with inlined styles plus text part, theme tokens from plugin config, footer with why-you-get-this, manage and unsubscribe links and the postal address (issues refuse to render while it is unset). No tracking.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -20,8 +20,8 @@
     }
   ],
   "created_at": "2026-10-22T02:43:37.585826Z",
-  "updated_at": "2026-10-22T03:42:43.349149Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T03:42:59.791344Z",
+  "closed_at": "2026-10-22T03:42:59.791300Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
