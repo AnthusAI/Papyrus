@@ -368,3 +368,22 @@ def step_each_fails(context, stages):
 @then('the project command passes the plugins "{plugins}"')
 def step_project_plugins(context, plugins):
     assert context.run_.command_env()["PAPYRUS_PLUGINS"] == plugins
+
+
+@given('the Amplify jobs "{first}" succeeded with commit "{slow}" at minute {m1:d} and "{second}" succeeded with commit "{fast}" at minute {m2:d}')
+def step_jobs(context, first, slow, m1, second, fast, m2):
+    from papyrus_content.knowledge_cloud.command import latest_successful_commit  # noqa: F401
+
+    stamp = lambda minute: dt.datetime(2026, 10, 22, 14, minute, tzinfo=dt.timezone.utc)  # noqa: E731
+    context.jobs = [
+        {"jobId": first, "status": "SUCCEED", "commitId": slow, "endTime": stamp(m1)},
+        {"jobId": second, "status": "SUCCEED", "commitId": fast, "endTime": stamp(m2)},
+    ]
+
+
+@then('the deployed commit is "{commit}" in either order of listing')
+def step_deployed_order(context, commit):
+    from papyrus_content.knowledge_cloud.command import latest_successful_commit
+
+    assert latest_successful_commit(context.jobs, "app", "main") == commit
+    assert latest_successful_commit(list(reversed(context.jobs)), "app", "main") == commit
