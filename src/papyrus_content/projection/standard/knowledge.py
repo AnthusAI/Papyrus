@@ -36,13 +36,16 @@ class KnowledgeSource:
         self._memo: dict[str, tuple[bytes | None, dict | None]] = {}
 
     def attach_store(self, reader: Reader) -> None:
-        """Read from a site store (``writer.get``); a directory chosen earlier is dropped. :meth:`use_directory` after this wins."""
+        """Read from a site store (``writer.get``).
+
+        A directory chosen with :meth:`use_directory` keeps winning over the store, whichever of the two calls came first
+        (``ProjectionContext`` attaches the store when it is built, so callers may set the directory before or after).
+        """
         self._reader = reader
-        self._directory = None
         self.reset()
 
     def use_directory(self, directory: Path | str | None) -> None:
-        """Read ``index.json``, ``clusters.json`` and ``entities/`` from this directory (a local build)."""
+        """Read ``index.json``, ``clusters.json`` and ``entities/`` from this directory (a local build). It wins over an attached store in any call order."""
         self._directory = Path(directory) if directory else None
         self.reset()
 
