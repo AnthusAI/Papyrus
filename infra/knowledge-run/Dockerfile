@@ -1,5 +1,5 @@
 # The scheduled knowledge run (docs/knowledge-cloud-run.md): Papyrus + Biblicus + BERTopic + GLiNER2 on CPU, models baked in.
-# Build for arm64 (Fargate Graviton): infra/knowledge-run/build_image.sh
+# Papyrus and Biblicus are pinned (build args PAPYRUS_VERSION, BIBLICUS_REF). Build for arm64 (Fargate Graviton): infra/knowledge-run/build_image.sh
 FROM public.ecr.aws/docker/library/python:3.12-slim-bookworm
 
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1 \
@@ -22,12 +22,11 @@ RUN pip install -c /tmp/constraints.txt \
 COPY infra/knowledge-run/bake_models.py /tmp/bake_models.py
 RUN python /tmp/bake_models.py && rm /tmp/bake_models.py
 
-COPY pyproject.toml README.md LICENSE* /opt/papyrus/
-COPY src /opt/papyrus/src
-COPY corpora /opt/papyrus/corpora
-RUN pip install -c /tmp/constraints.txt "/opt/papyrus[markus]" && rm -rf /root/.cache
+# Papyrus is the release from PyPI (it carries the data files the run needs), not a source tree.
+ARG PAPYRUS_VERSION=5.29.0
+RUN pip install -c /tmp/constraints.txt "papyrus-newsroom[markus]==${PAPYRUS_VERSION}" && rm -rf /root/.cache
 
-ENV PAPYRUS_ROOT=/opt/papyrus PAPYRUS_ALLOW_CROSS_ROOT=1 PAPYRUS_GRAPHQL_AUTH=iam HOME=/tmp
+ENV PAPYRUS_ALLOW_CROSS_ROOT=1 PAPYRUS_GRAPHQL_AUTH=iam HOME=/tmp
 WORKDIR /work
 ENTRYPOINT []
 CMD ["papyrus", "knowledge", "cloud-run", "--help"]
