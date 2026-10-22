@@ -3,17 +3,25 @@
   "title": "Hide 'Test a rule change' until hosted steering exists",
   "description": "Fix now. 'Test a rule change' in PublicationCyclotronPanel calls an operation the hosted Cyclotron refuses; its hosted contract reports steering:false. Hide the control, or show 'not available yet', whenever the contract says steering is off, until M4. Read the capability from the contract; don't hard-code it.",
   "type": "bug",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0cd00ef5-bd0d-43a8-bba5-06731beb50ad",
+      "author": "home",
+      "text": "Fixed in #506 and #508 (released v5.19.1 via promotion #507). The panel reads features.steering from the Cyclotron contract; false or missing shows a disabled \"Not available yet\" control with a reason, true keeps today's behaviour. Test: scripts/test-publication-steering-capability.ts.",
+      "created_at": "2026-10-22T01:55:11.391338Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T00:56:30.480485Z",
-  "updated_at": "2026-10-22T00:56:30.480520Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T01:55:11.420713Z",
+  "closed_at": "2026-10-22T01:55:11.420663Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-opus-5-5",

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6480de01-0923-4044-ba18-84beb93f7e47",
+  "issue_id": "PPY-17d5a7fd-50cd-4915-a30f-555262c5fbfd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:05.456Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier P1: Hosted transformer implementation",
+    "description": "DynamoDB-backed CurationJobs, front handler, task entrypoint running PapyrusPrimingCuration unchanged, SSRF-safe authorize_source (https only, no private/link-local/metadata addresses, re-check after redirects), per-job budget on DynamoDB.\nAcceptance: contract tests for idempotency, feedback and cancel; no AppSync/registration writes.\n\nSize: L\nDependencies: Cyclotron C1 (wiring; both sides develop against fakes), I6/I7 for deployment\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}
