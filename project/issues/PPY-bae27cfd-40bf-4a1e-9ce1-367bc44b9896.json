@@ -1,0 +1,25 @@
+{
+  "id": "PPY-bae27cfd-40bf-4a1e-9ce1-367bc44b9896",
+  "title": "Larger AI moderation evaluation before trust graduation",
+  "description": "As an editor, I want a larger evaluation of the AI moderator, so that I can trust it before human moderation is turned off.\n\nContext: the 12-case live check of AI moderation on PR #558 (GPT-6 Luna, Responses API, Structured Outputs) scored 11/11. That is too small to graduate trust. This does not block the Shipped launch, because the site moderation mode stays human.\n\nScope: 100+ cases per category (spam, abuse, off-topic, legitimate); non-English and coded abuse; prompt injection in the title and URL fields; repeated runs of every case for stability; sample audits of AI allows (what the AI let through that a human would hide).\n\n```gherkin\nFeature: Larger AI moderation evaluation\n  Scenario: Coverage\n    Given an evaluation set with at least 100 cases per category, including non-English text, coded abuse, and injection in title and URL fields\n    When the AI moderator runs on every case\n    Then the report shows the verdict agreement per category\n\n  Scenario: Stability\n    When every case is run several times\n    Then the report shows how many verdicts changed between runs\n\n  Scenario: Audit of allows\n    Then a sample of the AI allows is reviewed by a human and the miss rate is reported\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T11:29:03.377149Z",
+  "updated_at": "2026-10-22T11:29:03.377179Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Sonnet-5.5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

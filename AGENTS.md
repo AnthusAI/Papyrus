@@ -75,6 +75,12 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 | `.env*` stays ignored; `.env.example` is the committed template. New required settings go in `.env.example`. | `.gitignore` (`.env*`); `.env.example` completeness is unenforced. |
 | Python-first backend: new utilities, CLIs, automation and backend tests are Python. JS/TS is for the frontend and its harnesses. | `npm run check:backend-node-policy`. |
 
+### URLs people see
+
+| Rule | Enforced by |
+| --- | --- |
+| People never land on, and are never sent to, an `/api/...` URL (Ryan). `/api/*` is only for machine endpoints: form POST targets, RFC 8058 List-Unsubscribe-Post, and JSON. Every page a person opens is a clean page of the site; a route a browser can reach answers with a redirect to one, and email links are clean URLs. | `scripts/test-newsletter-api.ts` and `scripts/test-newsletter-pages-browser.ts` (every redirect and every final URL), `scripts/test-prospectus-sign-in-routes.ts`; other routes unenforced. See [docs/newsletter.md](docs/newsletter.md). |
+
 ### Deploys and AWS
 
 - Read `AGENTS.local.md` before any AWS, Amplify, sandbox or deploy command. Unenforced.

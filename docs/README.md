@@ -50,6 +50,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
 - [hosting/edge-under-the-cms-backend.md](hosting/edge-under-the-cms-backend.md): design notes (status: design only) for putting each site edge under its CMS backend.
 - [plugins.md](plugins.md): deploy-time site plugins.
+- [score-combination.md](score-combination.md): exploration of how editor and reader scores combine (PPY-0b2cbb), with the simulation.
 - [google-oauth-setup.md](google-oauth-setup.md): Google sign-in for a publication.
 - [aws-sandbox-personal.md](aws-sandbox-personal.md): standing up a personal Amplify sandbox.
 - [hosting/](hosting/): Amplify build spec examples, edge notes and Pilobolus DNS and front door files.

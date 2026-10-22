@@ -42,6 +42,16 @@ relation (plus the node the first time, and one get and update per superseded re
 are in the managed policy `RouterDecisionRelationPolicy` (cyclotron-decided sites only), which must be deployed with
 the stack before this code runs against a site, or delivery fails on the first write. `direct` monitors write none.
 
+**Backfilling relations for earlier deliveries.** References the router delivered before the relation code
+shipped have no decision relation, so their Suggestion row is empty. `papyrus monitors backfill-decision-relations`
+(account 712236451410, table from `/papyrus/monitoring/table-name`) reads the `ROUTE#` receipts, and for each
+publication that delivered a lab decision it builds the same records with the router's own `lab_decision_records`
+and writes them over the publication's AppSync endpoint with IAM. It is a dry run unless `--apply` is given, and
+prints the planned writes (reference id, label, confidence) and the skip counts per publication. A Reference that
+has any current decision relation is skipped, a decision already recorded (even if superseded since) is not
+recreated, and nothing is ever superseded, so a re-run writes nothing. Options: `--publication <id>` (repeatable),
+`--since <iso>` (delivery time, needs a timezone), `--monitor <id>` (default `hn`).
+
 ## What it does, and does not do
 
 The **collector** collects, dedupes, checkpoints and records receipts. It holds no

@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import {
   clientAddress,
-  handleNewsletterConfirmPage,
-  handleNewsletterConfirmPost,
+  handleNewsletterConfirm,
   handleNewsletterPreferences,
+  handleNewsletterState,
   handleNewsletterSubscribe,
   handleNewsletterUnsubscribe,
+  isSameSiteRequest,
+  type NewsletterApiOptions,
   type NewsletterEvent,
   type NewsletterResult,
 } from "../lib/newsletter-api";
-import { escapeHtml, pageTheme, renderPage } from "../lib/newsletter-pages";
 import { PROSPECTUS_SESSION_COOKIE, sealProspectusCookie } from "../lib/prospectus-session";
 
 const siteOrigin = "https://news.example.com";
@@ -23,12 +24,12 @@ const outputs = {
     papyrusPlugins: {
       newsletter: {
         contract: 1,
-        fromName: 'Example <b>"News"</b>',
+        fromName: "Example News",
         lists: [
-          { id: "weekly", name: "Weekly <i>roundup</i>", description: "", kind: "roundup" },
+          { id: "weekly", name: "Weekly roundup", description: "", kind: "roundup" },
           { id: "alerts-x", name: "Alerts", description: "", kind: "alert" },
         ],
-        theme: { accent: "#aa3300", text: "#111111", background: "#ffffff", fontFamily: "x; } body { display:none" },
+        theme: { accent: "#aa3300", text: "#111111", background: "#ffffff" },
       },
     },
     newsletter: { actionsFunction: "newsletter-fn" },
@@ -70,11 +71,12 @@ const subscribeBody = (changes: Record<string, unknown> = {}) =>
     const { calls, options } = harness();
     const subscribe = await handleNewsletterSubscribe(request("POST", "/api/newsletter/subscribe", { body: subscribeBody() }), { ...options, outputs: disabled });
     assert.equal(subscribe.status, 404);
-    assert.equal((await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?t=abc"), { ...options, outputs: disabled })).status, 404);
+    assert.equal((await handleNewsletterConfirm(request("GET", "/api/newsletter/confirm?t=abc"), { ...options, outputs: disabled })).status, 404);
     assert.equal(
-      (await handleNewsletterConfirmPost(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", body: "t=abc" }), { ...options, outputs: disabled })).status,
+      (await handleNewsletterConfirm(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", body: "t=abc" }), { ...options, outputs: disabled })).status,
       404,
     );
+    assert.equal((await handleNewsletterState(request("GET", "/api/newsletter/state?kind=lists"), { ...options, outputs: disabled })).status, 404);
     assert.equal(calls.length, 0);
   }
 
@@ -140,8 +142,8 @@ const subscribeBody = (changes: Record<string, unknown> = {}) =>
   {
     const { calls, options } = harness();
     const post = (init: Parameters<typeof request>[2]) => handleNewsletterSubscribe(request("POST", "/api/newsletter/subscribe", init), options);
-    assert.equal((await post({ body: subscribeBody(), origin: "https://evil.example" })).status, 403);
-    assert.equal((await post({ body: subscribeBody(), origin: null })).status, 403);
+    assert.equal((await post({ body: subscribeBody(), origin: "https://evil.example" })).status, 400);
+    assert.equal((await post({ body: subscribeBody(), origin: null })).status, 400);
     assert.equal((await post({ body: subscribeBody(), contentType: "text/plain" })).status, 415);
     assert.equal((await post({ body: "x".repeat(9000) })).status, 413);
     assert.equal((await post({ body: "x".repeat(9000), headers: { "content-length": "9000" } })).status, 413);
@@ -181,146 +183,222 @@ const subscribeBody = (changes: Record<string, unknown> = {}) =>
     assert.equal(get({}), "unknown");
   }
 
-  // Confirm page: GET never confirms.
+  // isSameSiteRequest: Origin first, Referer only when there is no Origin, null never.
   {
-    const { calls, options } = harness({ statusCode: 200, body: { status: "ready", lists: [{ id: "weekly", name: "Weekly <i>roundup</i>" }] } });
-    const page = await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?t=v1.abc.def"), options);
-    const html = await page.text();
-    assert.equal(page.status, 200);
-    assert.deepEqual(calls.map((call) => call.event.action), ["confirm_page_state"], "the page only reads");
-    assert.match(html, /<form method="post" action="\/api\/newsletter\/confirm">/);
-    assert.match(html, /name="t" value="v1.abc.def"/);
-    assert.match(html, /Confirm subscription/);
-    assert.match(html, /<meta name="robots" content="noindex">/);
-    assert.equal(page.headers.get("cache-control"), "no-store");
-    assert.match(page.headers.get("content-type") ?? "", /^text\/html/);
-    assert.match(page.headers.get("content-security-policy") ?? "", /default-src 'none'/);
-    assert.ok(!html.includes("<i>roundup</i>") && html.includes("Weekly &#60;i&#62;roundup&#60;/i&#62;"), "list names are escaped");
-    assert.ok(!html.includes("<b>"), "the site name is escaped");
-    assert.ok(!html.includes("display:none"), "an unsafe theme value falls back to the default");
-    assert.match(html, /#aa3300/);
-  }
-  {
-    const { calls, options } = harness({ statusCode: 410, body: { status: "expired" } });
-    const page = await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?t=v1.abc.def"), options);
-    assert.equal(page.status, 410);
-    assert.match(await page.text(), /expired or was already used[\s\S]*href="\/"/);
-    assert.equal(calls.length, 1);
-    const bad = await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?t=" + encodeURIComponent('"><script>alert(1)</script>')), options);
-    assert.equal(bad.status, 410);
-    assert.ok(!(await bad.text()).includes("<script>"));
-    const none = await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm"), options);
-    assert.equal(none.status, 410);
-    assert.equal(calls.length, 1, "a malformed or missing token never reaches the function");
-    const unavailable = await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?t=abc"), { ...options, invoke: async () => { throw new Error("boom"); } });
-    assert.equal(unavailable.status, 502);
-  }
-  // The result page names the lists from the site's own settings and ignores unknown ids.
-  {
-    const { calls, options } = harness();
-    const page = await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?done=1&l=weekly,nope,alerts-x"), options);
-    const html = await page.text();
-    assert.equal(page.status, 200);
-    assert.match(html, /You are subscribed/);
-    assert.match(html, /Weekly &#60;i&#62;roundup&#60;\/i&#62;/);
-    assert.match(html, /<li>Alerts<\/li>/);
-    assert.ok(!html.includes("nope"));
-    assert.equal(calls.length, 0, "the result page changes nothing and asks nothing");
+    const headers = (init: Record<string, string>) => new Headers(init);
+    assert.equal(isSameSiteRequest(headers({ origin: siteOrigin }), siteOrigin), true);
+    assert.equal(isSameSiteRequest(headers({ origin: "null" }), siteOrigin), false);
+    assert.equal(isSameSiteRequest(headers({ origin: "null", referer: `${siteOrigin}/p` }), siteOrigin), false, "a null origin is not rescued by a referer");
+    assert.equal(isSameSiteRequest(headers({ origin: "https://evil.example", referer: `${siteOrigin}/p` }), siteOrigin), false);
+    assert.equal(isSameSiteRequest(headers({ referer: `${siteOrigin}/newsletter/confirm/?token=x` }), siteOrigin), true);
+    assert.equal(isSameSiteRequest(headers({ referer: `${siteOrigin}.evil.example/p` }), siteOrigin), false);
+    assert.equal(isSameSiteRequest(headers({ referer: "not a url" }), siteOrigin), false);
+    assert.equal(isSameSiteRequest(headers({}), siteOrigin), false);
   }
 
-  // Confirm POST.
-  {
-    const { calls, options } = harness({ statusCode: 200, body: { status: "confirmed", lists: [{ id: "weekly", name: "Weekly" }, { id: "alerts-x", name: "Alerts" }], manageToken: "v1.manage.token" } });
-    const response = await handleNewsletterConfirmPost(
-      request("POST", "/api/newsletter/confirm", {
-        contentType: "application/x-www-form-urlencoded",
-        headers: { "cloudfront-viewer-address": "198.51.100.9:1111", "user-agent": "Mail Client/1" },
-        body: "t=v1.abc.def",
-      }),
-      options,
-    );
-    assert.equal(response.status, 303);
-    assert.equal(response.headers.get("location"), `${siteOrigin}/api/newsletter/confirm?done=1&l=weekly%2Calerts-x&m=v1.manage.token`);
-    assert.equal(response.headers.get("referrer-policy"), "no-referrer");
-    const done = await (await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?done=1&l=weekly&m=v1.manage.token"), harness().options)).text();
-    assert.match(done, /href="\/api\/newsletter\/preferences\?t=v1.manage.token"/, "the confirmed page links to preferences");
-    const noLink = await (await handleNewsletterConfirmPage(request("GET", "/api/newsletter/confirm?done=1&m=%22%3E%3Cx%3E"), harness().options)).text();
-    assert.ok(!noLink.includes("preferences"), "a malformed manage token makes no link");
-    assert.deepEqual(calls[0].event, { action: "confirm", token: "v1.abc.def", ip: "198.51.100.9", userAgent: "Mail Client/1" });
-  }
-  {
-    const { calls, options } = harness({ statusCode: 410, body: { status: "expired" } });
-    const post = (init: Parameters<typeof request>[2]) => handleNewsletterConfirmPost(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", ...init }), options);
-    const expired = await post({ body: "t=v1.abc.def" });
-    assert.equal(expired.status, 410);
-    assert.match(await expired.text(), /expired/);
-    assert.equal((await post({ body: "t=v1.abc.def", origin: "https://evil.example" })).status, 403);
-    assert.equal((await post({ body: "t=v1.abc.def", origin: null })).status, 403);
-    assert.equal((await post({ body: "t=v1.abc.def", contentType: "application/json" })).status, 415);
-    assert.equal((await post({ body: "t=" + "a".repeat(5000) })).status, 413);
-    assert.equal((await post({ body: "x=1" })).status, 410);
-    assert.equal((await post({ body: "t=%3Cscript%3E" })).status, 410);
-    assert.equal(calls.length, 1, "only the one well formed request reached the function");
-    const failing = await handleNewsletterConfirmPost(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", body: "t=abc" }), {
-      ...options,
-      invoke: async () => { throw new Error("boom"); },
-    });
-    assert.equal(failing.status, 502);
-  }
-
-  // Page helpers.
-  assert.equal(escapeHtml(`<a href="x">'&`), "&#60;a href=&#34;x&#34;&#62;&#39;&#38;");
-  assert.equal(pageTheme(null).accent, "#1a4d8f");
-  assert.equal(pageTheme({ accent: "url(javascript:x)" }).accent, "#1a4d8f");
-  assert.equal(pageTheme({ accent: "#123456" }).accent, "#123456");
-  const html = renderPage({
-    siteName: "S", theme: pageTheme(null), heading: "<h>", paragraphs: ["<p>"], lists: ["<l>"],
-    notice: "<n>", forms: [{ action: "/a", hidden: { t: '"><x>' }, checkboxes: [{ name: "l", value: '"><z>', label: "<c>", checked: true }], buttons: [{ label: "<b>", name: "action", value: "<v>" }] }],
-    links: [{ href: '"><y>', label: "<a>" }],
-  });
-  assert.ok(!/<(h|p|l|x|b|y|a|n|z|c|v)>/.test(html.replace(/<\/?(h1|p|ul|li|a|form|button|main|title|style|html|head|body|meta|input)\b[^>]*>/g, "")), "every dynamic value is escaped");
-
-  await manageTests();
+  await humanPageTests();
+  await stateTests();
+  await machineTests();
   console.log("newsletter api ok");
 })();
 
-async function manageTests() {
-  const manage = "v1.manage.token";
-  const unsubscribed = { statusCode: 200, body: { status: "unsubscribed", scope: "all", lists: [{ id: "weekly", name: "Weekly <i>roundup</i>" }] } };
-  const formInit = (body: string, extra: Record<string, string | null> = {}) => ({ contentType: "application/x-www-form-urlencoded", body, ...extra });
+const manage = "v1.manage.token";
+const formInit = (body: string, extra: Record<string, string | null> = {}) => ({ contentType: "application/x-www-form-urlencoded", body, ...extra });
+const unsubscribed = { statusCode: 200, body: { status: "unsubscribed", scope: "all", lists: [{ id: "weekly", name: "Weekly roundup" }] } };
+const withBase = (base: string): Record<string, unknown> => ({
+  custom: { ...outputs.custom, papyrusPlugins: { newsletter: { ...outputs.custom.papyrusPlugins.newsletter, basePath: base } } },
+});
 
-  // Disabled: 404 on both.
+function redirect(response: Response): { status: number; path: string; query: Record<string, string>; referrerPolicy: string | null } {
+  const location = new URL(response.headers.get("location") ?? "", "https://invalid.example");
+  assert.equal(location.origin, siteOrigin, "every redirect stays on the site");
+  assert.ok(!location.pathname.startsWith("/api"), `a person is never sent to an /api URL: ${location.pathname}`);
+  return { status: response.status, path: location.pathname, query: Object.fromEntries(location.searchParams), referrerPolicy: response.headers.get("referrer-policy") };
+}
+
+/** Every route a person's browser can reach answers with a redirect to a clean page of the site. */
+async function humanPageTests() {
+  // Old emails: GET on the human URLs redirects, changes nothing and asks nothing.
   {
-    const { calls, options } = harness();
-    for (const handler of [handleNewsletterUnsubscribe, handleNewsletterPreferences]) {
-      assert.equal((await handler(request("GET", `/api/newsletter/x?t=${manage}`), { ...options, outputs: {} })).status, 404);
-      assert.equal((await handler(request("POST", "/api/newsletter/x", formInit(`t=${manage}`)), { ...options, outputs: null })).status, 404);
+    const h = harness();
+    const get = (handler: typeof handleNewsletterConfirm, path: string) => handler(request("GET", path), h.options);
+    assert.deepEqual(redirect(await get(handleNewsletterConfirm, "/api/newsletter/confirm?t=v1.abc.def")), { status: 302, path: "/newsletter/confirm/", query: { token: "v1.abc.def" }, referrerPolicy: "no-referrer" });
+    assert.deepEqual(redirect(await get(handleNewsletterPreferences, `/api/newsletter/preferences?t=${manage}&msg=saved`)), { status: 302, path: "/newsletter/preferences/", query: { token: manage }, referrerPolicy: "no-referrer" });
+    assert.deepEqual(redirect(await get(handleNewsletterUnsubscribe, `/api/newsletter/unsubscribe?t=${manage}`)), { status: 302, path: "/newsletter/unsubscribe/", query: { token: manage }, referrerPolicy: "no-referrer" });
+    assert.deepEqual(redirect(await get(handleNewsletterUnsubscribe, `/api/newsletter/unsubscribe?t=${manage}&l=alerts-x`)).query, { token: manage, list: "alerts-x" });
+    assert.equal(redirect(await get(handleNewsletterUnsubscribe, `/api/newsletter/unsubscribe?t=${manage}&l=BAD!`)).query.list, undefined, "a malformed list id is dropped");
+    for (const [handler, route] of [[handleNewsletterConfirm, "confirm"], [handleNewsletterPreferences, "preferences"], [handleNewsletterUnsubscribe, "unsubscribe"]] as const) {
+      for (const bad of [`/api/newsletter/${route}`, `/api/newsletter/${route}?t=%3Cscript%3E`]) {
+        assert.deepEqual(redirect(await get(handler, bad)), { status: 302, path: "/newsletter/expired/", query: {}, referrerPolicy: "no-referrer" });
+      }
     }
-    assert.equal(calls.length, 0);
+    assert.equal(h.calls.length, 0, "a GET never reaches the function");
   }
 
-  // Unsubscribe GET: a page with a POST button; nothing changes and nothing is asked of the function.
+  // Confirm POST: 303 to confirmed, carrying the lists and the manage token.
   {
-    const { calls, options } = harness(unsubscribed);
-    const all = await handleNewsletterUnsubscribe(request("GET", `/api/newsletter/unsubscribe?t=${manage}`), options);
-    const html = await all.text();
-    assert.equal(all.status, 200);
-    assert.match(html, /<form method="post" action="\/api\/newsletter\/unsubscribe">/);
-    assert.match(html, /name="t" value="v1.manage.token"/);
-    assert.match(html, /name="page" value="1"/);
-    assert.match(html, /Unsubscribe from everything/);
-    assert.match(all.headers.get("content-type") ?? "", /^text\/html/);
-    assert.equal(all.headers.get("cache-control"), "no-store");
-    assert.match(html, /<meta name="robots" content="noindex">/);
-    const one = await (await handleNewsletterUnsubscribe(request("GET", `/api/newsletter/unsubscribe?t=${manage}&l=alerts-x`), options)).text();
-    assert.match(one, /name="l" value="alerts-x"/);
-    assert.match(one, /Unsubscribe from this list/);
-    assert.equal((await handleNewsletterUnsubscribe(request("GET", "/api/newsletter/unsubscribe"), options)).status, 400);
-    assert.equal((await handleNewsletterUnsubscribe(request("GET", "/api/newsletter/unsubscribe?t=%3Cx%3E"), options)).status, 400);
-    assert.equal(calls.length, 0);
+    const h = harness({ statusCode: 200, body: { status: "confirmed", lists: [{ id: "weekly", name: "Weekly" }, { id: "alerts-x", name: "Alerts" }, { id: "BAD!", name: "x" }], manageToken: manage } });
+    const response = await handleNewsletterConfirm(
+      request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", headers: { "cloudfront-viewer-address": "198.51.100.9:1111", "user-agent": "Mail Client/1" }, body: "t=v1.abc.def" }),
+      h.options,
+    );
+    assert.deepEqual(redirect(response), { status: 303, path: "/newsletter/confirmed/", query: { lists: "weekly,alerts-x", token: manage }, referrerPolicy: "no-referrer" });
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(h.calls[0].event, { action: "confirm", token: "v1.abc.def", ip: "198.51.100.9", userAgent: "Mail Client/1" });
+  }
+  // Confirm POST errors all land on the expired page; only transport problems (type, size) answer JSON, and a browser form cannot cause those.
+  {
+    const h = harness({ statusCode: 410, body: { status: "expired" } });
+    const post = (init: Parameters<typeof request>[2]) => handleNewsletterConfirm(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", ...init }), h.options);
+    for (const init of [{ body: "t=v1.abc.def" }, { body: "t=v1.abc.def", origin: "https://evil.example" }, { body: "t=v1.abc.def", origin: null }, { body: "x=1" }, { body: "t=%3Cscript%3E" }]) {
+      assert.deepEqual(redirect(await post(init)), { status: 303, path: "/newsletter/expired/", query: {}, referrerPolicy: "no-referrer" }, JSON.stringify(init));
+    }
+    assert.equal(h.calls.length, 1, "only the one well formed same-site request reached the function");
+    assert.equal((await post({ body: "t=v1.abc.def", contentType: "application/json" })).status, 415);
+    assert.equal((await post({ body: "t=" + "a".repeat(5000) })).status, 413);
+    const failing = await handleNewsletterConfirm(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", body: "t=abc" }), { ...h.options, invoke: async () => { throw new Error("boom"); } });
+    assert.equal(redirect(failing).path, "/newsletter/expired/");
+    const noFunction = await handleNewsletterConfirm(request("POST", "/api/newsletter/confirm", { contentType: "application/x-www-form-urlencoded", body: "t=abc" }), { ...h.options, outputs: { custom: { papyrusPlugins: outputs.custom.papyrusPlugins } } });
+    assert.equal(redirect(noFunction).path, "/newsletter/expired/");
   }
 
-  // RFC 8058 one-click: a cross-origin POST (or none) with the marker and the token in the query. Tiny body, 200, idempotent.
+  // Unsubscribe from the page: 303 to unsubscribed with the lists and the token (for the way back to preferences).
+  {
+    const h = harness(unsubscribed);
+    const done = await handleNewsletterUnsubscribe(request("POST", "/api/newsletter/unsubscribe", formInit(`t=${manage}&l=weekly&page=1`)), h.options);
+    assert.deepEqual(redirect(done), { status: 303, path: "/newsletter/unsubscribed/", query: { lists: "weekly", token: manage }, referrerPolicy: "no-referrer" });
+    assert.deepEqual(h.calls[0].event, { action: "unsubscribe", token: manage, list: "weekly" });
+    const invalid = await handleNewsletterUnsubscribe(request("POST", "/api/newsletter/unsubscribe", formInit("t=%22%3E&page=1")), h.options);
+    assert.equal(redirect(invalid).path, "/newsletter/expired/");
+    const rejected = await handleNewsletterUnsubscribe(request("POST", "/api/newsletter/unsubscribe", formInit(`t=${manage}&page=1`)), { ...h.options, invoke: async () => ({ statusCode: 400, body: { status: "invalid" } }) });
+    assert.equal(redirect(rejected).path, "/newsletter/expired/");
+    const failing = await handleNewsletterUnsubscribe(request("POST", "/api/newsletter/unsubscribe", formInit(`t=${manage}&page=1`)), { ...h.options, invoke: async () => { throw new Error("boom"); } });
+    assert.equal(redirect(failing).path, "/newsletter/expired/");
+  }
+
+  // Preferences POST: save, unsubscribe from everything, delete with a confirm step, and the errors.
+  {
+    const saved = harness({ statusCode: 200, body: { status: "saved", lists: ["weekly"] } });
+    const save = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save&l=weekly&l=alerts-x&l=BAD!`)), saved.options);
+    assert.deepEqual(redirect(save), { status: 303, path: "/newsletter/preferences/", query: { token: manage, msg: "saved" }, referrerPolicy: "no-referrer" });
+    assert.deepEqual(saved.calls[0].event, { action: "update_preferences", token: manage, lists: ["weekly", "alerts-x"] });
+
+    const none = harness({ statusCode: 200, body: { status: "saved", lists: [] } });
+    await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), none.options);
+    assert.deepEqual(none.calls[0].event, { action: "update_preferences", token: manage, lists: [] }, "unticking everything saves an empty set");
+
+    const all = harness(unsubscribed);
+    const out = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=unsubscribe_all`)), all.options);
+    assert.deepEqual(redirect(out).query, { token: manage, msg: "unsubscribed" });
+    assert.deepEqual(all.calls[0].event, { action: "unsubscribe", token: manage });
+
+    const deletion = harness({ statusCode: 200, body: { status: "deleted" } });
+    const confirmStep = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=delete`)), deletion.options);
+    assert.deepEqual(redirect(confirmStep), { status: 303, path: "/newsletter/preferences/", query: { token: manage, step: "delete" }, referrerPolicy: "no-referrer" });
+    assert.equal(deletion.calls.length, 0, "nothing is deleted before the confirm step");
+    const done = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=delete&confirm=1`)), deletion.options);
+    assert.deepEqual(redirect(done).query, { msg: "deleted" }, "the deleted state carries no token");
+    assert.deepEqual(deletion.calls[0].event, { action: "delete_subscriber", token: manage });
+
+    const h = harness(unsubscribed);
+    const post = (init: ReturnType<typeof formInit>) => handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", init), h.options);
+    for (const init of [formInit(`t=${manage}&action=save`, { origin: "https://evil.example" }), formInit(`t=${manage}&action=save`, { origin: null }), formInit("action=save")]) {
+      assert.equal(redirect(await post(init)).path, "/newsletter/expired/");
+    }
+    assert.equal((await post(formInit(`t=${manage}&action=save`, { contentType: "application/json" }))).status, 415);
+    assert.equal((await post(formInit("t=" + manage + "&x=" + "a".repeat(5000)))).status, 413);
+    assert.equal((await post(formInit(`t=${manage}&action=explode`))).status, 400);
+    assert.equal(h.calls.length, 0);
+    const rejected = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), { ...h.options, invoke: async () => ({ statusCode: 400, body: { status: "invalid" } }) });
+    assert.equal(redirect(rejected).path, "/newsletter/expired/");
+    const failing = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), { ...h.options, invoke: async () => { throw new Error("boom"); } });
+    assert.equal(redirect(failing).path, "/newsletter/expired/");
+  }
+
+  // A site under a base path: every redirect lives under it; the machine endpoints do not.
+  {
+    const h = harness({ statusCode: 200, body: { status: "confirmed", lists: [{ id: "weekly", name: "Weekly" }], manageToken: manage } });
+    const options: NewsletterApiOptions = { ...h.options, outputs: withBase("posts") };
+    assert.equal(redirect(await handleNewsletterConfirm(request("GET", "/api/newsletter/confirm?t=v1.abc.def"), options)).path, "/posts/newsletter/confirm/");
+    assert.equal(redirect(await handleNewsletterConfirm(request("POST", "/api/newsletter/confirm", formInit("t=v1.abc.def")), options)).path, "/posts/newsletter/confirmed/");
+    assert.equal(redirect(await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), options)).path, "/posts/newsletter/expired/" /* the stub answers confirmed, not saved */);
+    assert.equal(redirect(await handleNewsletterUnsubscribe(request("GET", `/api/newsletter/unsubscribe?t=${manage}`), options)).path, "/posts/newsletter/unsubscribe/");
+    // An unusable base path is ignored, never injected into a redirect.
+    for (const bad of ["../x", "/evil.example", "//evil.example", 7, "a b"]) {
+      const odd = await handleNewsletterConfirm(request("GET", "/api/newsletter/confirm?t=v1.abc.def"), { ...h.options, outputs: withBase(bad as string) });
+      assert.equal(redirect(odd).path, "/newsletter/confirm/", `base path ${String(bad)} is ignored`);
+    }
+  }
+
+  // No public origin configured: 503 JSON, never a redirect to localhost.
+  {
+    const h = harness();
+    const response = await handleNewsletterConfirm(request("GET", "/api/newsletter/confirm?t=abc"), { ...h.options, environment: { SITE_ENV: "production" } });
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("location"), null);
+  }
+}
+
+async function stateTests() {
+  const get = (path: string, options: NewsletterApiOptions) => handleNewsletterState(request("GET", path), options);
+  const ready = { statusCode: 200, body: { status: "ready", email: "r***@example.com", lists: [
+    { id: "weekly", name: "Weekly roundup", description: "The week.", subscribed: true },
+    { id: "alerts-x", name: "Alerts", description: "", subscribed: false },
+  ] } };
+
+  // Preferences state: JSON, read only.
+  {
+    const h = harness(ready);
+    const response = await get(`/api/newsletter/state?kind=preferences&t=${manage}`, h.options);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get("content-type") ?? "", /^application\/json/);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), {
+      status: "ready",
+      email: "r***@example.com",
+      lists: [
+        { id: "weekly", name: "Weekly roundup", description: "The week.", subscribed: true },
+        { id: "alerts-x", name: "Alerts", description: "", subscribed: false },
+      ],
+    });
+    assert.deepEqual(h.calls.map((call) => call.event), [{ action: "preferences_state", token: manage }]);
+    const invalid = await get(`/api/newsletter/state?kind=preferences&t=${manage}`, { ...h.options, invoke: async () => ({ statusCode: 400, body: { status: "invalid" } }) });
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(await invalid.json(), { status: "invalid" });
+  }
+  // Confirm state: names only; it never confirms.
+  {
+    const h = harness({ statusCode: 200, body: { status: "ready", lists: [{ id: "weekly", name: "Weekly roundup" }] } });
+    const response = await get("/api/newsletter/state?kind=confirm&t=v1.abc.def", h.options);
+    assert.deepEqual(await response.json(), { status: "ready", lists: [{ name: "Weekly roundup" }] });
+    assert.deepEqual(h.calls.map((call) => call.event.action), ["confirm_page_state"]);
+    const expired = await get("/api/newsletter/state?kind=confirm&t=v1.abc.def", { ...h.options, invoke: async () => ({ statusCode: 410, body: { status: "expired" } }) });
+    assert.equal(expired.status, 400, "the edge masks 403 and 404, so an invalid link answers 400");
+  }
+  // List names come from the site's own settings; unknown ids are dropped; the function is not asked.
+  {
+    const h = harness();
+    const response = await get("/api/newsletter/state?kind=lists&lists=weekly,nope,alerts-x,BAD!", h.options);
+    assert.deepEqual(await response.json(), { status: "ready", lists: [{ id: "weekly", name: "Weekly roundup" }, { id: "alerts-x", name: "Alerts" }] });
+    assert.equal(h.calls.length, 0);
+  }
+  // Refusals.
+  {
+    const h = harness(ready);
+    for (const path of ["/api/newsletter/state", "/api/newsletter/state?kind=other", "/api/newsletter/state?kind=preferences", "/api/newsletter/state?kind=preferences&t=%3Cx%3E"]) {
+      assert.equal((await get(path, h.options)).status, 400, path);
+    }
+    assert.equal(h.calls.length, 0, "a missing or malformed token never reaches the function");
+    const unavailable = await get(`/api/newsletter/state?kind=preferences&t=${manage}`, { ...h.options, invoke: async () => { throw new Error("boom"); } });
+    assert.equal(unavailable.status, 502);
+    const noFunction = await get(`/api/newsletter/state?kind=preferences&t=${manage}`, { ...h.options, outputs: { custom: { papyrusPlugins: outputs.custom.papyrusPlugins } } });
+    assert.equal(noFunction.status, 503);
+  }
+}
+
+/** The machine endpoints keep their contracts. */
+async function machineTests() {
+  // RFC 8058 one-click: a cross-origin POST (or none) with the marker and the token in the query. Tiny body, 200, idempotent, no redirect.
   {
     const { calls, options } = harness(unsubscribed);
     for (const origin of [null, "https://mail.example.org", siteOrigin]) {
@@ -329,6 +407,7 @@ async function manageTests() {
         options,
       );
       assert.equal(response.status, 200);
+      assert.equal(response.headers.get("location"), null, "one-click never redirects");
       assert.equal(await response.text(), "Unsubscribed.");
       assert.match(response.headers.get("content-type") ?? "", /^text\/plain/);
     }
@@ -355,89 +434,18 @@ async function manageTests() {
     assert.equal(failing.status, 502, "a mail provider retries");
   }
 
-  // Unsubscribe POST from our page: a themed page that links to preferences.
+  // The subscribe route shares the same-origin rule and also avoids 403 (the edge would mask it).
   {
-    const { calls, options } = harness(unsubscribed);
-    const response = await handleNewsletterUnsubscribe(request("POST", "/api/newsletter/unsubscribe", formInit(`t=${manage}&l=weekly&page=1`)), options);
-    const html = await response.text();
-    assert.equal(response.status, 200);
-    assert.match(html, /You are unsubscribed/);
-    assert.match(html, /Weekly &#60;i&#62;roundup&#60;\/i&#62;/);
-    assert.match(html, /href="\/api\/newsletter\/preferences\?t=v1.manage.token"/);
-    assert.deepEqual(calls[0].event, { action: "unsubscribe", token: manage, list: "weekly" });
-    const invalid = await handleNewsletterUnsubscribe(request("POST", "/api/newsletter/unsubscribe", formInit("t=%22%3E&page=1")), options);
-    assert.equal(invalid.status, 400);
-    assert.match(await invalid.text(), /not valid/);
-  }
-
-  // Preferences GET.
-  {
-    const state = { statusCode: 200, body: { status: "ready", email: "r***@example.com", lists: [
-      { id: "weekly", name: "Weekly <i>roundup</i>", description: "The week.", subscribed: true },
-      { id: "alerts-x", name: "Alerts", description: "", subscribed: false },
-    ] } };
-    const { calls, options } = harness(state);
-    const page = await handleNewsletterPreferences(request("GET", `/api/newsletter/preferences?t=${manage}&msg=saved`), options);
-    const html = await page.text();
-    assert.equal(page.status, 200);
-    assert.match(html, /r\*\*\*@example.com/);
-    assert.match(html, /name="l" value="weekly" checked/);
-    assert.match(html, /name="l" value="alerts-x">/);
-    assert.match(html, /Your preferences are saved\./);
-    assert.match(html, /name="action" value="save"/);
-    assert.match(html, /Unsubscribe from everything/);
-    assert.match(html, /Delete my data/);
-    assert.ok(!html.includes("<i>roundup</i>"), "list names are escaped");
-    assert.equal(page.headers.get("cache-control"), "no-store");
-    assert.deepEqual(calls[0].event, { action: "preferences_state", token: manage });
-    const unknown = await handleNewsletterPreferences(request("GET", `/api/newsletter/preferences?t=${manage}&msg=<script>`), options);
-    assert.ok(!(await unknown.text()).includes("<script>"));
-    const invalid = await handleNewsletterPreferences(request("GET", `/api/newsletter/preferences?t=${manage}`), { ...options, invoke: async () => ({ statusCode: 400, body: { status: "invalid" } }) });
-    assert.equal(invalid.status, 400);
-    assert.equal((await handleNewsletterPreferences(request("GET", "/api/newsletter/preferences"), options)).status, 400);
-  }
-
-  // Preferences POST: same-origin, save / unsubscribe all / delete with a confirm step.
-  {
-    const saved = harness({ statusCode: 200, body: { status: "saved", lists: ["weekly"] } });
-    const save = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save&l=weekly&l=alerts-x&l=BAD!`)), saved.options);
-    assert.equal(save.status, 303);
-    assert.equal(save.headers.get("location"), `${siteOrigin}/api/newsletter/preferences?t=${manage}&msg=saved`);
-    assert.deepEqual(saved.calls[0].event, { action: "update_preferences", token: manage, lists: ["weekly", "alerts-x"] });
-
-    const none = harness({ statusCode: 200, body: { status: "saved", lists: [] } });
-    await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), none.options);
-    assert.deepEqual(none.calls[0].event, { action: "update_preferences", token: manage, lists: [] }, "unticking everything saves an empty set");
-
-    const all = harness(unsubscribed);
-    const out = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=unsubscribe_all`)), all.options);
-    assert.equal(out.status, 303);
-    assert.match(out.headers.get("location") ?? "", /msg=unsubscribed$/);
-    assert.deepEqual(all.calls[0].event, { action: "unsubscribe", token: manage });
-
-    const deletion = harness({ statusCode: 200, body: { status: "deleted" } });
-    const confirmStep = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=delete`)), deletion.options);
-    const confirmHtml = await confirmStep.text();
-    assert.equal(confirmStep.status, 200);
-    assert.match(confirmHtml, /Delete your data\?/);
-    assert.match(confirmHtml, /name="confirm" value="1"/);
-    assert.equal(deletion.calls.length, 0, "nothing is deleted before the confirm step");
-    const done = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=delete&confirm=1`)), deletion.options);
-    assert.match(await done.text(), /Your data is deleted/);
-    assert.deepEqual(deletion.calls[0].event, { action: "delete_subscriber", token: manage });
-
-    const { calls, options } = harness(unsubscribed);
-    const post = (init: ReturnType<typeof formInit>) => handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", init), options);
-    assert.equal((await post(formInit(`t=${manage}&action=save`, { origin: "https://evil.example" }))).status, 403);
-    assert.equal((await post(formInit(`t=${manage}&action=save`, { origin: null }))).status, 403);
-    assert.equal((await post(formInit(`t=${manage}&action=save`, { contentType: "application/json" }))).status, 415);
-    assert.equal((await post(formInit("t=" + manage + "&x=" + "a".repeat(5000)))).status, 413);
-    assert.equal((await post(formInit(`t=${manage}&action=explode`))).status, 400);
-    assert.equal((await post(formInit("action=save"))).status, 400);
-    assert.equal(calls.length, 0);
-    const rejected = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), { ...options, invoke: async () => ({ statusCode: 400, body: { status: "invalid" } }) });
-    assert.equal(rejected.status, 400);
-    const failing = await handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", formInit(`t=${manage}&action=save`)), { ...options, invoke: async () => { throw new Error("boom"); } });
-    assert.equal(failing.status, 502);
+    const { options, calls } = harness();
+    const subscribe = (headers: Record<string, string>) =>
+      handleNewsletterSubscribe(
+        new NextRequest(`${siteOrigin}/api/newsletter/subscribe`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ email: "reader@example.com", lists: ["weekly"], renderedAt: 1, website: "" }) }),
+        options,
+      );
+    assert.equal((await subscribe({ origin: "null" })).status, 400);
+    assert.equal((await subscribe({})).status, 400);
+    assert.equal((await subscribe({ origin: siteOrigin })).status, 202);
+    assert.equal((await subscribe({ referer: `${siteOrigin}/roundup/` })).status, 202);
+    assert.equal(calls.length, 2);
   }
 }

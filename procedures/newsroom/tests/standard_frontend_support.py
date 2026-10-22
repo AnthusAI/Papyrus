@@ -96,14 +96,14 @@ def fixture_settings(name: str) -> dict:
 class ProjectedSite:
     """A fixture published into a fake CMS and projected by the standard front end into a local directory."""
 
-    def __init__(self, name: str | None = None, *, settings: dict | None = None, environ: dict | None = None, extra_files=None, content: Path | None = None, seed: dict[str, bytes] | None = None) -> None:
+    def __init__(self, name: str | None = None, *, settings: dict | None = None, environ: dict | None = None, extra_files=None, content: Path | None = None, seed: dict[str, bytes] | None = None, plugins: tuple[str, ...] = ()) -> None:
         self.work = Path(tempfile.mkdtemp(prefix="standard-frontend-"))
         self.settings = settings if settings is not None else fixture_settings(name)
         self.content_root = content or (FIXTURES / name / "content")
         self.client = FakeAuthoringClient()
         self.environ = {"PAPYRUS_SITE_PUBLIC_URL": "", **(environ or {})}
         self.static = static_directory(self.work, self.settings, extra_files)
-        self.projector = StandardMarkusProjector.from_static_directory(self.static, environ=self.environ)
+        self.projector = StandardMarkusProjector.from_static_directory(self.static, environ=self.environ, plugins=plugins)
         self.redirects = FakeRedirects()
         self.ids = publish_tree(self.client, self.content_root)
         self.out = self.work / "out"

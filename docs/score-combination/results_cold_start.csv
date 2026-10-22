@@ -1,0 +1,10 @@
+option,mean_abs_rank_shift_vs_editor,mean_abs_score_shift_vs_editor,spearman_vs_editor,rank_jump_when_5th_rating_arrives,score_jump_when_5th_rating_arrives
+A,0.0,0.0,1.0,7.31,0.093
+B5,17.846,0.499,0.381,2.195,0.034
+B10,14.344,0.283,0.582,1.585,0.023
+B20,9.99,0.152,0.784,1.195,0.014
+B40,5.999,0.079,0.917,1.08,0.008
+B20cap.4,9.99,0.152,0.784,1.195,0.014
+C-Front,0.0,0.0,1.0,0.0,0.0
+C-Readers,21.935,0.45,0.102,0.0,0.073
+D,21.564,n/a,0.131,0.0,n/a

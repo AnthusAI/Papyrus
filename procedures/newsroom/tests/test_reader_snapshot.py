@@ -248,6 +248,23 @@ class SnapshotTests(unittest.TestCase):
         self.assertTrue(first.endswith(b"\n"))
         self.assertEqual(list(json.loads(first)), sorted(json.loads(first)))
 
+    def test_raters_counts_distinct_readers_with_any_rating_not_upvotes_or_editors(self) -> None:
+        votes = [
+            vote("a", "r1", "real", 4), vote("a", "r1", "useful", 3), vote("a", "r2", "useful", 5),
+            vote("a", "r3", "up"), vote("a", "r4", "used-it"), vote("a", "e1", "real", 5, role="editor"),
+            vote("a", "r5", "other", 4), vote("b", "r1", "real", 2),
+        ]
+        items = snapshot(votes).items["items"]
+        self.assertEqual(items["a"]["raters"], 2, "r1 counted once; the upvoter, used-it, editor and unknown dimension are not raters")
+        self.assertEqual(items["a"]["up"], 1)
+        self.assertEqual(items["b"]["raters"], 1)
+
+    def test_the_board_publishes_the_display_minimum_from_the_hype_minimum(self) -> None:
+        default = snapshot([vote("a", "r1", "real", 4)]).board["parameters"]
+        self.assertEqual(default["displayMinimum"], 5)
+        configured = snapshot([vote("a", "r1", "real", 4)], ranking=RankingParameters(hype_minimum=8)).board["parameters"]
+        self.assertEqual(configured["displayMinimum"], 8)
+
 
 class UrlPolicyTests(unittest.TestCase):
     def test_snapshot_keys_follow_the_base_path(self) -> None:
@@ -279,17 +296,60 @@ class SnapshotTaskTests(unittest.TestCase):
             store = LocalDirectoryWriter(Path(directory))
             purged: list[list[str]] = []
             report = self.run_task(backend, store, base_path="posts", invalidate=lambda keys: purged.append(list(keys)) or keys)
-            self.assertEqual(report.written, ["posts/_data/reader/items.json", "posts/_data/reader/board.json", "posts/_data/reader/readers.json", "posts/_data/reader/submissions.json"])
+            self.assertEqual(report.written, ["posts/_data/reader/items.json", "posts/_data/reader/board.json", "posts/_data/reader/readers.json", "posts/_data/reader/subjects.json", "posts/_data/reader/submissions.json"])
             items = json.loads(store.get("posts/_data/reader/items.json"))
             self.assertEqual(items["items"]["item-one"]["up"], 2)
             self.assertEqual(items["items"]["item-one"]["ratings"]["real"]["editor"]["mean"], 4.0)
             self.assertEqual(items["items"]["item-one"]["ratings"]["real"]["reader"]["mean"], 2.0)
             self.assertEqual([row["subject"] for row in json.loads(store.get("posts/_data/reader/board.json"))["front"]], ["item-one"])
             self.assertEqual(json.loads(store.get("posts/_data/reader/readers.json"))["readers"], [])
-            self.assertEqual(purged, [report.written], "exactly the four files are purged, never a wildcard")
+            self.assertEqual(purged, [report.written], "exactly the five files are purged, never a wildcard")
             self.assertFalse(any("*" in key for key in report.purged))
             self.assertFalse(report.retirement_poll.enabled)
             self.assertEqual(report.to_dict()["retirementPoll"]["pages"], 0)
+
+    def test_the_subjects_index_and_the_new_list_describe_what_the_board_lists(self) -> None:
+        with ReaderBackend() as backend, tempfile.TemporaryDirectory() as directory:
+            alice, bob = subject_for("alice"), subject_for("bob")
+            backend.call(alice, "handle", {"handle": "quiet-fox"})
+            backend.call(alice, "vote", {"subject": "item-one", "dimension": "up", "on": True})
+            backend.call(alice, "rating", {"subject": "item-one", "dimension": "real", "value": 4}, staff=True)
+            backend.call(bob, "handle", {"handle": "calm-owl"})
+            submitted = backend.call(bob, "submit", {"url": "https://Example.com/post/1#x", "title": "A small tool"})["body"]
+            backend.call(alice, "vote", {"subject": submitted["subject"], "dimension": "up", "on": True})
+            store = LocalDirectoryWriter(Path(directory))
+            self.run_task(backend, store, base_path="posts")
+            board = json.loads(store.get("posts/_data/reader/board.json"))
+            subjects = json.loads(store.get("posts/_data/reader/subjects.json"))
+            self.assertEqual([(row["subject"], row["kind"]) for row in board["new"]], [(submitted["subject"], "submission"), ("item-one", "item"), ("item-two", "item")], "newest first, items and pending submissions interleaved")
+            self.assertEqual(subjects["generatedAt"], board["generatedAt"])
+            self.assertEqual(
+                subjects["subjects"]["item-one"],
+                {"kind": "item", "title": "Title of item-one", "url": "/posts/item-one.html", "section": None, "date": subjects["subjects"]["item-one"]["date"]},
+            )
+            self.assertRegex(subjects["subjects"]["item-one"]["date"], r"^\d{4}-\d{2}-\d{2}$")
+            entry = subjects["subjects"][submitted["subject"]]
+            self.assertEqual((entry["kind"], entry["state"], entry["url"], entry["domain"], entry["title"]), ("submission", "pending", "https://example.com/post/1", "example.com", "A small tool"))
+            self.assertEqual(sorted(subjects["subjects"]), sorted({row["subject"] for key in ("front", "rising", "new") for row in board[key]}), "only the subjects some list shows")
+            self.assertEqual(sorted(entry), ["date", "domain", "kind", "section", "state", "title", "url"])
+
+    def test_an_item_without_a_page_and_an_unpublished_item_are_not_listed(self) -> None:
+        with ReaderBackend() as backend, tempfile.TemporaryDirectory() as directory:
+            store = LocalDirectoryWriter(Path(directory))
+            self.run_task(backend, store, published=("item-two",))
+            self.assertEqual([row["subject"] for row in json.loads(store.get("_data/reader/board.json"))["new"]], ["item-two"])
+
+    def test_the_new_list_is_capped_and_a_promoted_submission_is_not_pending(self) -> None:
+        items = [{"subject": f"i{number}", "publishedAt": timestamp(NOW - number * HOUR), "title": "t", "url": "/t/", "section": None, "date": "2026-01-01"} for number in range(60)]
+        pending = {"id": "sub-" + "a" * 24, "canonicalUrl": "https://example.com/a", "domain": "example.com", "title": "T", "readerId": "r", "state": "pending", "createdAt": timestamp(NOW - 30.5 * HOUR)}
+        promoted = {**pending, "id": "sub-" + "b" * 24, "state": "promoted", "createdAt": timestamp(NOW - HOUR / 2)}
+        result = build_snapshot([], [], published_at={}, now_seconds=NOW, settings=settings(), submissions=[pending, promoted], published_items=items)
+        subjects = [row["subject"] for row in result.board["new"]]
+        self.assertEqual(len(subjects), 50)
+        self.assertEqual(subjects[:2], ["i0", "i1"])
+        self.assertIn(pending["id"], subjects)
+        self.assertNotIn(promoted["id"], subjects)
+        self.assertEqual(subjects.index(pending["id"]), 31, "interleaved by time: after i30 (30 h) and before i31 (31 h)")
 
     def test_the_run_without_an_edge_distribution_still_writes(self) -> None:
         with ReaderBackend() as backend, tempfile.TemporaryDirectory() as directory:
@@ -407,7 +467,8 @@ class PrivacyScanTests(unittest.TestCase):
                 profile["personId"] = self.PERSON_IDS[0]
                 backend.table("profile").put_item(Item=profile)
             reader_ids = [profile["readerId"] for profile in profiles]
-            client = SimpleNamespace(get_record=lambda model, record_id: {"status": "published", "publishedAt": timestamp(NOW - HOUR)})
+            row = {"id": published_item_id_for("item-one"), "itemLineageId": "item-one", "sourceItemId": "item-one", "type": "article", "status": "published", "slug": "item-one", "section": "articles", "title": "Item one", "publishedAt": timestamp(NOW - HOUR), "metadata": "{}"}
+            client = SimpleNamespace(get_record=lambda model, record_id: {"status": "published", "publishedAt": timestamp(NOW - HOUR)}, list_published_item_summaries=lambda: [row])
             context = SimpleNamespace(projector=site.projector, writer=site.store, invalidate=None)
             environment = {
                 SETTINGS_ENV: json.dumps({"dimensions": ["real"], "karma": {}, "ranking": {}, "hypeMinimum": 5}),
@@ -418,6 +479,7 @@ class PrivacyScanTests(unittest.TestCase):
             written = {path.relative_to(Path(temporary) / "incremental").as_posix(): path.read_bytes() for path in (Path(temporary) / "incremental").rglob("*") if path.is_file()}
             self.assertIn("_data/reader/items.json", written)
             self.assertIn("_data/reader/readers.json", written)
+            self.assertEqual(sorted(json.loads(written["_data/reader/subjects.json"])["subjects"]), ["item-one"], "the subjects index is part of the scan")
             self.assertTrue(any(name.endswith(".html") for name in written), "projected pages are part of the scan")
             self.assertEqual(scan_files(written, reader_ids), {})
             readers = json.loads(written["_data/reader/readers.json"])["readers"]

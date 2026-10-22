@@ -82,8 +82,19 @@ function clearSealedCookie(response: NextResponse, cookieName: string): void {
   response.cookies.set(cookieName, "", sealedCookieAttributes(0, 0));
 }
 
+/** A JSON failure, for the routes the page script calls with fetch (session, account selection and creation). */
 function signInFailedResponse(status: number, code: string, message: string): NextResponse {
   return NextResponse.json({ error: code, message }, { status, headers: NO_STORE_HEADERS });
+}
+
+/**
+ * A failed sign-in never leaves the browser on /api/auth/prospectus/callback: it answers 303 to the page the reader started from
+ * (or the home page when that is not known) with `sign_in_error=<code>`, which the reader plugin turns into a short message.
+ */
+function signInFailedRedirect(request: NextRequest, options: ProspectusSignInRouteOptions, returnPath: string | null, code: string): NextResponse {
+  const target = new URL(returnPath ?? "/", siteOriginFor(request, options));
+  target.searchParams.set("sign_in_error", /^[a-z0-9_]{1,60}$/.test(code) ? code : "sign_in_failed");
+  return NextResponse.redirect(target, { status: 303, headers: NO_STORE_HEADERS });
 }
 
 export function signedInProspectusSession(
@@ -99,6 +110,18 @@ export function signedInProspectusSession(
   );
 }
 
+/** `returnTo` from the query (a link) or, for the POST form the reader plugin's button submits, from the form body. */
+async function requestedReturnPath(request: NextRequest): Promise<string | null> {
+  if (request.method !== "POST") return request.nextUrl.searchParams.get("returnTo");
+  try {
+    const value = (await request.formData()).get("returnTo");
+    return typeof value === "string" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** GET (a link) or POST (the reader plugin's "Sign in" button, so people are never sent to an /api URL) starts the Google sign-in with a 303 to Google. */
 export function handleProspectusSignInStart(request: NextRequest, options: ProspectusSignInRouteOptions = {}): Promise<NextResponse> {
   return failingClosedWithoutSiteOrigin(() => handleProspectusSignInStartRoute(request, options));
 }
@@ -109,7 +132,7 @@ async function handleProspectusSignInStartRoute(request: NextRequest, options: P
   const { authorizationUrl, pendingSignIn } = await beginProspectusGoogleSignIn(runtime.accounts, runtime.cognitoClient);
   const pendingSignInCookie: PendingProspectusSignInCookie = {
     ...pendingSignIn,
-    returnPath: sameSiteReturnPath(request.nextUrl.searchParams.get("returnTo")),
+    returnPath: sameSiteReturnPath(await requestedReturnPath(request)),
   };
   const response = NextResponse.redirect(authorizationUrl, { status: 303, headers: NO_STORE_HEADERS });
   response.cookies.set(
@@ -146,12 +169,13 @@ async function completeCallback(
   options: ProspectusSignInRouteOptions,
   nowInSeconds: number,
 ): Promise<NextResponse> {
-  if (!pendingSignIn) return signInFailedResponse(401, "sign_in_expired", "This sign-in is no longer pending. Start again.");
+  const failed = (code: string) => signInFailedRedirect(request, options, pendingSignIn?.returnPath ?? null, code);
+  if (!pendingSignIn) return failed("sign_in_expired");
   const searchParams = request.nextUrl.searchParams;
-  if (searchParams.get("error")) return signInFailedResponse(401, "sign_in_declined", "Google sign-in did not complete.");
+  if (searchParams.get("error")) return failed("sign_in_declined");
   const authorizationCode = searchParams.get("code");
   const returnedState = searchParams.get("state");
-  if (!authorizationCode || !returnedState) return signInFailedResponse(400, "sign_in_incomplete", "The sign-in response is missing its code or state.");
+  if (!authorizationCode || !returnedState) return failed("sign_in_incomplete");
   try {
     const signedIn = await completeProspectusGoogleSignIn({
       accounts: runtime.accounts,
@@ -176,9 +200,9 @@ async function completeCallback(
     );
     return response;
   } catch (error) {
-    if (error instanceof ProspectusAccountsError) return signInFailedResponse(error.status, error.code, error.message);
+    if (error instanceof ProspectusAccountsError) return failed(error.code);
     console.error(`Prospectus sign-in failed (${error instanceof Error ? error.name : "error"}).`);
-    return signInFailedResponse(401, "sign_in_failed", "Sign-in could not be completed.");
+    return failed("sign_in_failed");
   }
 }
 

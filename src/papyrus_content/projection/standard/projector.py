@@ -48,7 +48,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import blocks, components, includes, knowledge_blocks
+from . import blocks, components, includes, knowledge_blocks, newsletter_pages
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -67,7 +67,9 @@ from .hooks import NO_HOOKS, HookSite, Hooks, load_hooks
 from .page import ListingView, StandardPage
 from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
-from .urls import NOT_FOUND_KEY, UrlPolicy, slugify_tag
+from .newsletter_pages import NEWSLETTER_PLUGIN
+from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
+
 
 def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
     """Add every file under the named directories of the static directory to ``files`` at its relative path."""
@@ -595,6 +597,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
             ),
         )
 
+        # the newsletter plugin's human pages: real static pages with the full chrome, never listed anywhere (docs/newsletter.md)
+        if NEWSLETTER_PLUGIN in self._settings.plugins:
+            identity = self.standard.identity
+            paths = {name: self.policy.path(newsletter_pages.site_path(name)) for name in newsletter_pages.PAGE_NAMES}
+            for name in newsletter_pages.PAGE_NAMES:
+                body = newsletter_pages.fragment(name, site=identity.name, home=self.policy.path("/"), paths=paths)
+                add(
+                    self.policy.key(newsletter_pages.site_key(name)),
+                    f"newsletter:{name}",
+                    [body],
+                    lambda name=name, body=body: self._page(
+                        "newsletter_page", newsletter_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
+                    ),
+                    markdown=False,
+                )
+
         # sitemap, feeds
         sitemap = sitemap_files(self.standard.sitemap_style, self.environment, self._sitemap_urls(site, entries, listed, plan), lastmod=self.standard.sitemap_lastmod, root=self.policy.root)
         selection = feed_selection(entries, self.standard)
@@ -903,8 +921,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ ownership, static files, redirects
 
     def owns_page_key(self, key: str) -> bool:
-        if key == NOT_FOUND_KEY:
-            return True
+        if key == NOT_FOUND_KEY or key == self.policy.key(LEGACY_NEWSLETTER_SHELL_KEY):
+            return True   # the legacy shell (before the newsletter pages were projected) is owned only so the reconcile removes it
         relative = self.policy.relative_key(key)
         if relative is None or relative in self._passthrough:
             return False
@@ -986,7 +1004,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
-        extra = self.hooks.head_extra(page) if self.hooks.head_extra is not None else ""
+        extra = page.head.extra + (self.hooks.head_extra(page) if self.hooks.head_extra is not None else "")
         twin = None
         if self.standard.agents.markdown and not page.head.noindex:
             key = self.policy.key_for_path(page.path)
@@ -1007,6 +1025,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         scripts = tuple(base.scripts) + ((NAV_SCRIPT_PATH,) if self.standard.nav_disclosure else ())
         if any(form.endpoint for form in self.standard.forms):
             scripts += (FORM_SCRIPT_PATH,)
+        if page.kind == "newsletter_page":
+            scripts += (newsletter_pages.PAGES_SCRIPT_PATH,)
         if page.page_actions:  # only pages that render the actions load their script
             scripts += (PAGE_ACTIONS_SCRIPT,)
         identity = self.standard.identity
@@ -1211,7 +1231,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_page") and page.fragment:
             return page.fragment
         if page.kind == "home":
             view = page.listing

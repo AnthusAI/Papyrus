@@ -7,6 +7,7 @@ from .config import SectionConfig, StandardSettings
 
 NOT_FOUND_KEY = "404.html"
 HOME_KEY = "index.html"
+LEGACY_NEWSLETTER_SHELL_KEY = "_plugins/newsletter-shell/index.html"
 
 
 def slugify_tag(tag: str) -> str:

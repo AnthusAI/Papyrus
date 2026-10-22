@@ -20,12 +20,16 @@ READER_DATA_DIRECTORY = "_data/reader"
 ITEMS_FILE = f"{READER_DATA_DIRECTORY}/items.json"
 BOARD_FILE = f"{READER_DATA_DIRECTORY}/board.json"
 READERS_FILE = f"{READER_DATA_DIRECTORY}/readers.json"
+SUBJECTS_FILE = f"{READER_DATA_DIRECTORY}/subjects.json"
 SUBMISSIONS_FILE = f"{READER_DATA_DIRECTORY}/submissions.json"
 COMMENTS_DIRECTORY = f"{READER_DATA_DIRECTORY}/comments"
 COMMENT_VISIBLE = "visible"
 SAFE_FILE_SUBJECT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._:-]*")
-SNAPSHOT_FILES = (ITEMS_FILE, BOARD_FILE, READERS_FILE, SUBMISSIONS_FILE)
+SNAPSHOT_FILES = (ITEMS_FILE, BOARD_FILE, READERS_FILE, SUBMISSIONS_FILE, SUBJECTS_FILE)
 SUBMISSIONS_LISTED = 200
+NEW_LISTED = 50
+KIND_ITEM = "item"
+KIND_SUBMISSION = "submission"
 SUBMISSION_PENDING = "pending"
 SUBMISSION_PROMOTED = "promoted"
 VISIBLE_SUBMISSION_STATES = (SUBMISSION_PENDING, SUBMISSION_PROMOTED)
@@ -95,6 +99,20 @@ def ratings_by_role(votes: Iterable[Mapping], dimensions: Collection[str]) -> di
     return grouped
 
 
+def distinct_raters(votes: Iterable[Mapping], dimensions: Collection[str]) -> int:
+    """Distinct readers (editors excluded) who left a valid rating on any dimension; upvotes and used-it do not count."""
+    return len(
+        {
+            vote["readerId"]
+            for vote in votes
+            if vote.get("voterRole") == ROLE_READER
+            and vote["dimension"] in dimensions
+            and isinstance(vote["value"], int)
+            and 1 <= vote["value"] <= 5
+        }
+    )
+
+
 def karma_by_reader(
     votes: Iterable[Mapping], submitter_of: Callable[[str], str | None], weights: KarmaWeights
 ) -> dict[str, float]:
@@ -141,6 +159,7 @@ class Snapshot:
     readers: dict
     karma: dict[str, int]
     submissions: dict
+    subjects: dict
     comments: dict[str, dict]
     """Subject key to the content of its comment file, for every subject with a visible comment or a stub."""
 
@@ -158,6 +177,44 @@ def submitters(submissions: Iterable[Mapping]) -> dict[str, str]:
         found[submission["id"]] = submission["readerId"]
         if submission.get("itemId"):
             found[submission["itemId"]] = submission["readerId"]
+    return found
+
+
+def new_rows(published_items: Iterable[Mapping], submissions: Iterable[Mapping]) -> list[dict]:
+    """``{subject, kind, at}``, newest first: published items and pending submissions interleaved by time (``at``), at most ``NEW_LISTED``."""
+    rows = [(item["publishedAt"], KIND_ITEM, item["subject"]) for item in published_items if item.get("publishedAt")]
+    rows += [(submission["createdAt"], KIND_SUBMISSION, submission["id"]) for submission in submissions if submission.get("state") == SUBMISSION_PENDING]
+    rows.sort(key=lambda row: (seconds_of(row[0]), row[2]), reverse=True)
+    return [{"subject": subject, "kind": kind, "at": at} for at, kind, subject in rows[:NEW_LISTED]]
+
+
+def subject_index(subjects: Collection[str], published_items: Iterable[Mapping], submissions: Iterable[Mapping]) -> dict[str, dict]:
+    """Subject key to ``{kind, title, url, section, date}`` for each wanted subject that is a published item or a visible submission.
+
+    A submission also carries ``domain`` and ``state``; its ``url`` is the source it points to. Public-safe fields only.
+    """
+    wanted = set(subjects)
+    found: dict[str, dict] = {}
+    for item in published_items:
+        if item["subject"] in wanted:
+            found[item["subject"]] = {
+                "kind": KIND_ITEM,
+                "title": item["title"],
+                "url": item["url"],
+                "section": item.get("section"),
+                "date": item.get("date"),
+            }
+    for submission in submissions:
+        if submission["id"] in wanted and submission["id"] not in found:
+            found[submission["id"]] = {
+                "kind": KIND_SUBMISSION,
+                "title": submission["title"],
+                "url": submission["canonicalUrl"],
+                "domain": submission["domain"],
+                "state": submission["state"],
+                "section": None,
+                "date": submission["createdAt"][:10],
+            }
     return found
 
 
@@ -230,6 +287,7 @@ def build_snapshot(
     submitter_of: Callable[[str], str | None] | None = None,
     submissions: Iterable[Mapping] = (),
     comments: Iterable[Mapping] = (),
+    published_items: Iterable[Mapping] = (),
 ) -> Snapshot:
     """``published_at`` holds exactly the published subjects (its values may be ``None``); votes on any other subject are ignored.
 
@@ -237,6 +295,7 @@ def build_snapshot(
     the readers of those submissions, so upvotes and used-it reports on a submission (or on the item it became) earn its submitter karma.
     """
     generated_at = iso(now_seconds)
+    item_rows = list(published_items)  # {subject, title, url, section, date, publishedAt}: the page facts the task resolved
     submission_rows = visible_submissions(submissions)
     published_at = {**{submission["id"]: submission["createdAt"] for submission in submission_rows}, **published_at}
     if submitter_of is None:
@@ -274,6 +333,7 @@ def build_snapshot(
             "up": len(upvotes),
             "usedIt": sum(1 for vote in subject_votes if vote["dimension"] == USED_IT),
             "comments": comment_counts.get(subject, 0),
+            "raters": distinct_raters(subject_votes, settings.dimensions),
             "ratings": stats,
             "editor": None if editor_composite is None else rounded(editor_composite),
             "reader": None if reader_composite is None else rounded(reader_composite),
@@ -309,6 +369,8 @@ def build_snapshot(
     top_readers = sorted(reader_rows, key=lambda row: (-row["karma"], row["handle"]))[:TOP_READERS]
 
     ranking = settings.ranking
+    front, rising, new = rank(front_rows, "score"), rank(rising_rows, "upvotes"), new_rows(item_rows, submission_rows)
+    listed = {row["subject"] for row in (*front, *rising, *new)}
     return Snapshot(
         items={"generatedAt": generated_at, "items": items},
         board={
@@ -317,11 +379,14 @@ def build_snapshot(
                 "halfLifeHours": ranking.half_life_hours,
                 "risingWindowHours": ranking.rising_window_hours,
                 "readerMinimum": ranking.reader_minimum,
+                "displayMinimum": ranking.hype_minimum,
                 "editorWeight": ranking.editor_weight,
             },
-            "front": rank(front_rows, "score"),
-            "rising": rank(rising_rows, "upvotes"),
+            "front": front,
+            "rising": rising,
+            "new": new,
         },
+        subjects={"generatedAt": generated_at, "subjects": subject_index(listed, item_rows, submission_rows)},
         readers={"generatedAt": generated_at, "readers": top_readers},
         karma=karma_values,
         submissions={

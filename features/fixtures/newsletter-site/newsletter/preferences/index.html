@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your subscriptions · Fixture Site</title>
+<meta name="theme-color" content="#C6F432">
+<meta name="theme-color" content="#C6F432" media="(prefers-color-scheme: dark)">
+<link rel="alternate" type="application/rss+xml" title="Fixture Site" href="/feed.xml">
+<link rel="alternate" type="application/atom+xml" title="Fixture Site" href="/atom.xml">
+<link rel="sitemap" type="application/xml" href="/sitemap.xml">
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="A fixture site for the newsletter pages.">
+<link rel="canonical" href="https://fixture.example/newsletter/preferences/">
+<meta property="og:site_name" content="Fixture Site">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Your subscriptions">
+<meta property="og:description" content="A fixture site for the newsletter pages.">
+<meta property="og:url" content="https://fixture.example/newsletter/preferences/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Your subscriptions">
+<meta name="twitter:description" content="A fixture site for the newsletter pages.">
+<meta name="referrer" content="same-origin">
+<link rel="stylesheet" href="/css/markus-vendor.css">
+<link rel="stylesheet" href="/css/markus-components.css">
+<link rel="stylesheet" href="/css/site-theme.css">
+</head>
+<body class="markus-body markus-site">
+<a class="markus-skip-link" href="#main">Skip to main content</a>
+  <header class="markus-site-masthead">
+    <p class="markus-site-wordmark"><a href="/">Fixture Site</a></p>
+    <nav class="markus-site-nav" id="site-nav" aria-label="Site">
+      <a href="/">Front</a>
+      <a href="/new/">New</a>
+    </nav>
+  </header>
+  <main id="main">
+<div class="markus-document markus-newsletter-page" data-newsletter-page="preferences" data-site-name="Fixture Site" data-expired-href="/newsletter/expired/" data-preferences-href="/newsletter/preferences/"><p class="markus-newsletter-notice" role="status" data-newsletter-notice hidden></p><noscript><p>This page needs JavaScript. Turn it on and reload the page.</p></noscript><div data-newsletter-section="manage" hidden><h1>Your subscriptions</h1><p data-newsletter-email>Tick the lists you want.</p><form class="markus-newsletter-form" method="post" action="/api/newsletter/preferences" data-newsletter-form="manage" hidden><input type="hidden" name="t" value=""><div data-newsletter-lists></div><p class="markus-actions"><button type="submit" class="markus-button" name="action" value="save">Save preferences</button><button type="submit" class="markus-button" name="action" value="unsubscribe_all" data-variant="secondary">Unsubscribe from everything</button><button type="submit" class="markus-button" name="action" value="delete" data-variant="secondary">Delete my data</button></p></form><p><a href="/">Back to Fixture Site</a></p></div><div data-newsletter-section="delete" hidden><h1>Delete your data?</h1><p>This erases your address and everything Fixture Site holds about your subscriptions. You will not get any more email. This cannot be undone.</p><form class="markus-newsletter-form" method="post" action="/api/newsletter/preferences" data-newsletter-form="delete" hidden><input type="hidden" name="t" value=""><input type="hidden" name="action" value="delete"><input type="hidden" name="confirm" value="1"><p class="markus-actions"><button type="submit" class="markus-button">Yes, delete my data</button></p></form><p><a data-newsletter-back href="/newsletter/preferences/">No, go back</a></p></div><div data-newsletter-section="deleted" hidden><h1>Your data is deleted</h1><p>Your address and subscriptions have been erased. You will not get any more email from us.</p><p><a href="/">Back to Fixture Site</a></p></div></div>
+  </main>
+  <footer class="markus-site-footer">
+    <p class="markus-footer-text">Fixture footer.</p>
+  </footer>
+<script>window.__markusAssetVersion = "fixture";</script>
+<script src="/_plugins/papyrus-newsletter-pages@1.js"></script>
+</body>
+</html>

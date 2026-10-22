@@ -29,11 +29,16 @@ const fixture = path.join(process.cwd(), "procedures", "newsroom", "tests", "rea
 const output = execFileSync(process.env.PAPYRUS_PYTHON ?? "python3", [fixture], { encoding: "utf8" });
 const { readerIds, files } = JSON.parse(output) as { readerIds: string[]; files: Record<string, string> };
 
-assert.deepEqual(Object.keys(files).sort(), ["_data/reader/board.json", "_data/reader/comments/item-one.json", "_data/reader/items.json", "_data/reader/readers.json", "_data/reader/submissions.json"]);
+assert.deepEqual(Object.keys(files).sort(), ["_data/reader/board.json", "_data/reader/comments/item-one.json", "_data/reader/items.json", "_data/reader/readers.json", "_data/reader/subjects.json", "_data/reader/submissions.json"]);
 for (const [name, body] of Object.entries(files)) {
   assert.deepEqual(identityLeaks(body, readerIds), [], `${name} identifies no one`);
   JSON.parse(body);
 }
+const board = JSON.parse(files["_data/reader/board.json"]) as { new: Array<Record<string, unknown>> };
+assert.deepEqual(board.new.map((row) => Object.keys(row).sort()), [["at", "kind", "subject"], ["at", "kind", "subject"]], "a new row is subject, kind and time only");
+const subjectIndex = (JSON.parse(files["_data/reader/subjects.json"]) as { subjects: Record<string, Record<string, unknown>> }).subjects;
+assert.deepEqual(Object.keys(subjectIndex["item-one"]).sort(), ["date", "kind", "section", "title", "url"], "an item is public as page facts only");
+assert.deepEqual(Object.keys(subjectIndex["sub-" + "a".repeat(24)]).sort(), ["date", "domain", "kind", "section", "state", "title", "url"], "a submission is public as the facts of its public row only");
 const readers = (JSON.parse(files["_data/reader/readers.json"]) as { readers: Array<Record<string, unknown>> }).readers;
 assert.ok(readers.length > 0, "the fixture has a reader on the karma board");
 for (const row of readers) assert.deepEqual(Object.keys(row).sort(), ["handle", "karma", "readerId"], "only readerId, handle and karma are public");

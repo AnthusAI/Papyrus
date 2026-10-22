@@ -34,6 +34,9 @@ type Fake = {
   comments: Record<string, unknown> | null;
   writeAnswer: (path: string, body: Record<string, unknown>) => { status: number; body: Record<string, unknown> };
   holdSnapshot: Promise<void> | null;
+  board: Record<string, unknown> | null;
+  subjects: Record<string, unknown> | null;
+  boardRequests: number;
 };
 
 const signedInMe = (changes: Record<string, unknown> = {}) => ({
@@ -64,11 +67,14 @@ function fake(changes: Partial<Fake> = {}): Fake {
     comments: null,
     writeAnswer: (path, body) => ({ status: 200, body: path === "/api/reader/handle" ? { handle: String(body.handle).toLowerCase() } : { subject: body.subject, dimension: body.dimension } }),
     holdSnapshot: null,
+    board: null,
+    subjects: null,
+    boardRequests: 0,
     ...changes,
   };
 }
 
-async function open(context: BrowserContext, state: Fake, options: { clock?: boolean; page?: string } = {}): Promise<Page> {
+async function open(context: BrowserContext, state: Fake, options: { clock?: boolean; page?: string; query?: string } = {}): Promise<Page> {
   await context.route("**/*", async (route: Route) => {
     const url = new URL(route.request().url());
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -82,6 +88,11 @@ async function open(context: BrowserContext, state: Fake, options: { clock?: boo
       return state.snapshot ? json(200, state.snapshot) : json(404, {});
     }
     if (url.pathname === "/_data/reader/comments/item-one.json") return state.comments ? json(200, state.comments) : json(404, {});
+    if (url.pathname === "/_data/reader/board.json") {
+      state.boardRequests += 1;
+      return state.board ? json(200, state.board) : json(404, {});
+    }
+    if (url.pathname === "/_data/reader/subjects.json") return state.subjects ? json(200, state.subjects) : json(404, {});
     if (url.pathname === "/_data/reader/submissions.json") return json(200, { generatedAt: new Date().toISOString(), submissions: state.submissions });
     if (url.pathname === "/api/reader/me") {
       state.meRequests.push(url.search);
@@ -97,7 +108,7 @@ async function open(context: BrowserContext, state: Fake, options: { clock?: boo
   });
   const page = await context.newPage();
   if (options.clock) await page.clock.install();
-  await page.goto(`${ORIGIN}/article.html`);
+  await page.goto(`${ORIGIN}/article.html${options.query ?? ""}`);
   return page;
 }
 
@@ -115,15 +126,31 @@ test("while the API answers 503 reader_identity_unavailable every control is dis
   await context.close();
 });
 
-test("signed out: a Sign in link returns to this page and the controls say why they are off", async () => {
+test("signed out: a Sign in button posts the way back to this page (people are never sent to an /api link) and the controls say why they are off", async () => {
   const context = await browser.newContext();
   const page = await open(context, fake({ me: { status: 401, body: { error: "signed_out" } } }));
-  const link = page.getByRole("link", { name: "Sign in" });
-  await link.waitFor();
-  assert.equal(await link.getAttribute("href"), "/api/auth/prospectus/sign-in?returnTo=%2Farticle.html");
+  const button = page.locator("#signin").getByRole("button", { name: "Sign in" });
+  await button.waitFor();
+  assert.equal(await page.locator("#signin a").count(), 0, "no link to /api");
+  assert.equal(await page.locator("#signin form").getAttribute("method"), "post");
+  assert.equal(await page.locator("#signin form").getAttribute("action"), "/api/auth/prospectus/sign-in");
+  assert.equal(await page.locator('#signin input[name="returnTo"]').getAttribute("value"), "/article.html");
   await page.locator("#vote .papyrus-reader-status").getByText("Sign in to vote and rate").waitFor();
   assert.equal(await page.getByRole("button", { name: "Upvote" }).isDisabled(), true);
   await context.close();
+});
+
+test("a failed sign-in comes back with ?sign_in_error=, says so in words once, and tidies the address", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ me: { status: 401, body: { error: "signed_out" } } }), { query: "?x=1&sign_in_error=sign_in_declined" });
+  await page.locator("#signin").getByText("Sign-in was cancelled.").waitFor();
+  assert.equal(new URL(page.url()).search, "?x=1", "the error is removed from the address");
+  assert.equal(await page.locator('#signin input[name="returnTo"]').getAttribute("value"), "/article.html?x=1");
+  await context.close();
+  const other = await browser.newContext();
+  const failed = await open(other, fake({ me: { status: 401, body: { error: "signed_out" } } }), { query: "?sign_in_error=state_mismatch" });
+  await failed.locator("#signin").getByText("Sign-in did not complete. Try again.").waitFor();
+  await other.close();
 });
 
 test("the islands prerender their props before any request answers, and the page's text fallback is replaced", async () => {
@@ -134,7 +161,7 @@ test("the islands prerender their props before any request answers, and the page
   await page.locator("#vote .papyrus-reader-count").getByText("3 upvotes").waitFor();
   assert.equal(await page.locator("#vote .papyrus-island-summary").count(), 0, "the no-JavaScript summary is removed once mounted");
   await page.locator("#usedit .papyrus-reader-count").getByText("1 reader used it").waitFor();
-  await page.locator("#rating").getByText("Readers: 3.5 from 2 ratings").waitFor();
+  await page.locator("#rating").getByText("Readers: n=2, too few").waitFor();
   await page.locator("#fresh").getByText(/Updated \d+ days? ago/).waitFor();
   release();
   await page.locator("#vote .papyrus-reader-count").getByText("5 upvotes").waitFor();
@@ -142,6 +169,47 @@ test("the islands prerender their props before any request answers, and the page
   await page.locator("#fresh").getByText("Updated 5 min ago").waitFor();
   await page.locator("#rating").getByText("Editor: 4.0 from 1 rating").waitFor();
   await context.close();
+});
+
+const ratingRow = (page: Page, dimension: string) => page.locator(`#rating [role="group"][aria-label="${dimension}"]`);
+const filledSegments = (page: Page, dimension: string) => ratingRow(page, dimension).locator(".papyrus-reader-meter-filled").count();
+
+test("ratings below the display minimum show n=, too few, an empty dimmed meter and no mean; at the minimum they show the mean", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    board: { generatedAt: new Date().toISOString(), parameters: { displayMinimum: 5, readerMinimum: 5 }, front: [], rising: [], new: [] },
+    snapshot: snapshotAt(new Date().toISOString(), {
+      raters: 4,
+      ratings: {
+        real: { reader: { mean: 3.8, n: 3, hist: [0, 0, 1, 2, 0] }, editor: { mean: null, n: 0, hist: [0, 0, 0, 0, 0] } },
+        useful: { reader: { mean: 4.2, n: 5, hist: [0, 0, 1, 2, 2] }, editor: { mean: null, n: 0, hist: [0, 0, 0, 0, 0] } },
+      },
+    }),
+  });
+  const page = await open(context, state);
+  await ratingRow(page, "real").getByText("Readers: n=3, too few").waitFor();
+  assert.equal(await ratingRow(page, "real").getByText(/3\.8/).count(), 0, "the mean is withheld");
+  assert.equal(await filledSegments(page, "real"), 0, "the meter is empty");
+  assert.equal(await ratingRow(page, "real").locator(".papyrus-reader-meter-withheld").count(), 1, "and dimmed");
+  assert.equal(await ratingRow(page, "real").locator(".papyrus-reader-meter-segment").count(), 5);
+  await ratingRow(page, "useful").getByText("Readers: 4.2 from 5 ratings").waitFor();
+  assert.equal(await filledSegments(page, "useful"), 4);
+  assert.equal(await ratingRow(page, "useful").locator(".papyrus-reader-meter-withheld").count(), 0);
+  await page.locator("#rating .papyrus-reader-raters").getByText("4 rated it").waitFor();
+  await context.close();
+});
+
+test("the minimum comes from board.json: hypeMinimum is used when displayMinimum is absent, and 5 when the board is unavailable", async () => {
+  const context = await browser.newContext();
+  const small = snapshotAt(new Date().toISOString(), { ratings: { real: { reader: { mean: 3.8, n: 3, hist: [0, 0, 1, 2, 0] }, editor: { mean: null, n: 0, hist: [0, 0, 0, 0, 0] } } } });
+  const page = await open(context, fake({ snapshot: small, board: { generatedAt: new Date().toISOString(), parameters: { hypeMinimum: 3, readerMinimum: 9 }, front: [], rising: [], new: [] } }));
+  await ratingRow(page, "real").getByText("Readers: 3.8 from 3 ratings").waitFor();
+  assert.equal(await filledSegments(page, "real"), 4);
+  await context.close();
+  const other = await browser.newContext();
+  const fallback = await open(other, fake({ snapshot: small, board: null }));
+  await ratingRow(fallback, "real").getByText("Readers: n=3, too few").waitFor();
+  await other.close();
 });
 
 test("signed in without a handle: the picker reports a taken handle and then shows the handle, karma and Sign out", async () => {
@@ -237,7 +305,7 @@ test("a vote the server says needs a sign-in turns the controls into the signed-
   const page = await open(context, state);
   await page.locator("#vote button:not([disabled])").waitFor();
   await page.locator("#vote button").click();
-  await page.getByRole("link", { name: "Sign in" }).waitFor();
+  await page.locator("#signin").getByRole("button", { name: "Sign in" }).waitFor();
   await page.locator("#vote .papyrus-reader-status").getByText("Sign in to vote and rate").waitFor();
   await context.close();
 });
@@ -688,4 +756,101 @@ test("a held submission or comment is shown as held for review, not as public", 
   await page2.getByRole("button", { name: "Post comment" }).click();
   await page2.locator("#comments").getByText(/held for review, only you can see it/).waitFor();
   await context2.close();
+});
+
+const RANKED_PAGE = (props: Record<string, unknown>) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Rising</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<main><h1>Rising</h1><div id="ranked" data-island="RankedList" data-props='${JSON.stringify(props)}'><p class="papyrus-island-summary">Prerendered</p></div></main></body></html>`;
+
+const boardAt = (generatedAt: string, changes: Record<string, unknown> = {}) => ({
+  generatedAt,
+  parameters: { risingWindowHours: 6 },
+  front: [{ subject: "a", score: 2.957, editor: 3, reader: 3.5, readerN: 2, ageHours: 1 }, { subject: "b", score: 1.5, editor: 2, reader: null, readerN: 0, ageHours: 4 }],
+  rising: [{ subject: "b", upvotes: 3 }, { subject: "sub-1", upvotes: 1 }, { subject: "a", upvotes: 1 }, { subject: "gone", upvotes: 1 }],
+  new: [{ subject: "sub-1", kind: "submission", at: minutesAgo(5) }, { subject: "a", kind: "item", at: minutesAgo(125) }],
+  ...changes,
+});
+const subjectsAt = (generatedAt: string) => ({
+  generatedAt,
+  subjects: {
+    a: { kind: "item", title: "Alpha tool", url: "/tools/alpha.html", section: "tools", date: "2026-10-20" },
+    b: { kind: "item", title: "Beta post", url: "/news/beta.html", section: "news", date: "2026-10-21" },
+    "sub-1": { kind: "submission", state: "pending", title: "Linked <b>thing</b>", url: "https://example.com/thing", domain: "example.com", section: null, date: "2026-10-22" },
+  },
+});
+const rankedState = (board: Record<string, unknown> = {}) => fake({ board: boardAt(minutesAgo(7), board), subjects: subjectsAt(minutesAgo(7)) });
+
+test("ranked list: rising is a real ordered list with the rank as text, the figure in words, a Pending submission and an update stamp", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, rankedState(), { page: RANKED_PAGE({ list: "rising", empty: "Nothing is rising yet." }) });
+  const rows = page.locator("#ranked ol > li");
+  await rows.first().waitFor();
+  assert.equal(await page.locator("#ranked ol").count(), 1);
+  assert.equal(await rows.count(), 3, "a row whose subject is not in the index is left out");
+  assert.match((await rows.nth(0).innerText()).replace(/\s+/g, " "), /^1\. Beta post news 3 upvotes in 6 h$/);
+  assert.match((await rows.nth(1).innerText()).replace(/\s+/g, " "), /^2\. Linked <b>thing<\/b> example\.com Pending 1 upvote in 6 h$/, "titles are text, a submission says Pending and shows its domain");
+  assert.equal(await rows.nth(0).getByRole("link", { name: "Beta post" }).getAttribute("href"), "/news/beta.html");
+  const external = rows.nth(1).getByRole("link");
+  assert.equal(await external.getAttribute("href"), "https://example.com/thing");
+  assert.match((await external.getAttribute("rel")) ?? "", /nofollow/);
+  assert.equal(await page.locator("#ranked b").count(), 0);
+  assert.equal(await page.locator("#ranked .papyrus-island-summary").count(), 0, "the prerendered summary is replaced");
+  await page.locator("#ranked").getByText("Updated 7 min ago").waitFor();
+  await context.close();
+});
+
+test("ranked list: front shows the labelled score, new shows time and Pending, limit and section narrow the list", async () => {
+  const context = await browser.newContext();
+  const front = await open(context, rankedState(), { page: RANKED_PAGE({ list: "front", limit: 1 }) });
+  await front.locator("#ranked ol > li").first().waitFor();
+  assert.equal(await front.locator("#ranked ol > li").count(), 1);
+  assert.match((await front.locator("#ranked ol > li").innerText()).replace(/\s+/g, " "), /^1\. Alpha tool tools Score 2\.96$/);
+  await context.close();
+
+  const context2 = await browser.newContext();
+  const news = await open(context2, rankedState(), { page: RANKED_PAGE({ list: "new" }) });
+  await news.locator("#ranked ol > li").first().waitFor();
+  const text = (await news.locator("#ranked ol > li").allInnerTexts()).map((row) => row.replace(/\s+/g, " "));
+  assert.match(text[0], /^1\. Linked <b>thing<\/b> example\.com Pending 5 min ago$/);
+  assert.match(text[1], /^2\. Alpha tool tools 2 h ago$/);
+  await context2.close();
+
+  const context3 = await browser.newContext();
+  const section = await open(context3, rankedState(), { page: RANKED_PAGE({ list: "rising", section: "news" }) });
+  await section.locator("#ranked ol > li").first().waitFor();
+  assert.deepEqual((await section.locator("#ranked ol > li .papyrus-reader-ranked-title").allInnerTexts()), ["Beta post"]);
+  await context3.close();
+});
+
+test("ranked list: an empty list says the empty text at full strength, and a failed load says so", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, rankedState({ rising: [] }), { page: RANKED_PAGE({ list: "rising", empty: "Nothing is rising yet." }) });
+  const empty = page.locator("#ranked").getByText("Nothing is rising yet.");
+  await empty.waitFor();
+  assert.equal(await page.locator("#ranked ol").count(), 0);
+  assert.equal(await empty.evaluate((node) => getComputedStyle(node).opacity), "1");
+  await context.close();
+
+  const context2 = await browser.newContext();
+  const broken = await open(context2, fake(), { page: RANKED_PAGE({ list: "rising", empty: "Nothing is rising yet." }) });
+  await broken.locator("#ranked").getByText("This list could not be loaded. Try again later.").waitFor();
+  assert.equal(await broken.locator("#ranked").getByText("Nothing is rising yet.").count(), 0, "a failure is not shown as an empty list");
+  await context2.close();
+});
+
+test("ranked list: it polls every minute while the page is visible and keeps the old rows when a poll fails", async () => {
+  const context = await browser.newContext();
+  const state = rankedState();
+  const page = await open(context, state, { page: RANKED_PAGE({ list: "rising" }), clock: true });
+  await page.locator("#ranked ol > li").first().waitFor();
+  const first = state.boardRequests;
+  state.board = boardAt(new Date().toISOString(), { rising: [{ subject: "a", upvotes: 9 }] });
+  await page.clock.fastForward(61_000);
+  await page.locator("#ranked").getByText("9 upvotes in 6 h").waitFor();
+  assert.ok(state.boardRequests > first);
+  state.board = null;
+  await page.clock.fastForward(61_000);
+  await page.locator("#ranked").getByText("9 upvotes in 6 h").waitFor();
+  assert.equal(await page.locator("#ranked").getByText("could not be loaded").count(), 0);
+  await context.close();
 });

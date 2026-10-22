@@ -81,7 +81,19 @@ def command(argv: list[str]) -> int:
     local.add_argument("--interval-seconds", type=int, default=900)
     local.add_argument("--limit", type=int, default=30)
     local.add_argument("--shown-records", help="Private JSON array of source/message presentation receipts; no labels")
+    backfill = sub.add_parser("backfill-decision-relations",
+                              help="Write the missing relevance_decision_is relations for References the router delivered before #517 (dry-run unless --apply)")
+    backfill.add_argument("--monitor", default="hn")
+    backfill.add_argument("--publication", action="append", help="Only this publication id (repeatable)")
+    backfill.add_argument("--since", help="Only deliveries at or after this ISO timestamp (with timezone)")
+    backfill.add_argument("--apply", action="store_true", help="Write the relations; without it nothing is written")
+    backfill.add_argument("--dry-run", action="store_true", help="The default; accepted for clarity")
     args = parser.parse_args(argv)
+    if args.command == "backfill-decision-relations":
+        if args.apply and args.dry_run:
+            parser.error("--apply and --dry-run are mutually exclusive")
+        from .monitoring_backfill import command as backfill_command
+        return backfill_command(args)
     if args.command == "collect-local":
         from .monitoring_queue import collect_queue
         shown = json.loads(Path(args.shown_records).read_text()) if args.shown_records else ()
