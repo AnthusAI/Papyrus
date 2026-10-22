@@ -159,3 +159,5 @@ pins the registry, the settings, the web ACL and the manifest-to-schema match.
 ## Other plugins
 
 `reader-steering` (reader identity, votes, ratings and live numbers) is documented in [reader-steering.md](reader-steering.md).
+
+`newsletter` (double opt-in subscriptions and the confirmation email, with sending to follow) is documented in [newsletter.md](newsletter.md). It adds no GraphQL model or operation: a retained DynamoDB table with a customer-managed key, a generated SSM key, one Python function that only the CMS compute role may invoke, the CMS routes `app/api/newsletter/*` and the `<papyrus-newsletter>` component.
