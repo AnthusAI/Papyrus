@@ -7,6 +7,7 @@ export const MODERATION_MODES = ["off", "human", "ai"] as const;
 export const AI_KEY_PARAMETER = /^\/papyrus\/[a-z0-9][a-z0-9-]{0,62}\/openai-api-key$/;
 export const AI_MODEL_NAME = /^[a-z0-9][a-z0-9.-]{0,63}$/;
 export const SUBMISSION_KIND_NAME = /^[a-z][a-z0-9-]{0,23}$/;
+export const SUBJECT_TYPES = ["item", "submission", "story", "proposal", "concept"] as const;
 export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]{1,512}$/;
 
 export type ReaderSteeringConfig = {
@@ -63,6 +64,11 @@ export type ReaderSteeringConfig = {
     /** The section of that draft. */
     section: string;
   };
+  /**
+   * The kinds of subject a signed-in reader may vote on and flag, by `{type, id}`. Default: items and submissions, which is
+   * what readers could vote on before subject types existed. `story`, `proposal` and `concept` are opt-in.
+   */
+  subjects: { types: (typeof SUBJECT_TYPES)[number][] };
   moderation: {
     /**
      * `human`: new submissions and comments are public at once and wait in the Administration queue (the default for a pilot).
@@ -109,7 +115,7 @@ export type ReaderSteeringConfig = {
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments", "moderation"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments", "moderation", "subjects"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -206,6 +212,11 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       throw new Error(`reader-steering plugin moderation.ai.model must be a model name matching ${AI_MODEL_NAME}`);
     }
   }
+  const subjects = object(raw.subjects, "subjects", ["types"]);
+  const subjectTypes = subjects.types === undefined ? ["item", "submission"] : subjects.types;
+  if (!Array.isArray(subjectTypes) || subjectTypes.length === 0 || !subjectTypes.every((type) => (SUBJECT_TYPES as readonly unknown[]).includes(type))) {
+    throw new Error(`reader-steering plugin subjects.types must be a non-empty list of: ${SUBJECT_TYPES.join(", ")}`);
+  }
   const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
   const comments = object(raw.comments, "comments", ["perHour", "editWindowMinutes", "maximumLength", "maximumLinks"]);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
@@ -249,6 +260,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       itemType: lowercaseName(submissions.itemType, "submissions.itemType", "brief"),
       section: lowercaseName(submissions.section, "submissions.section", "unsectioned"),
     },
+    subjects: { types: [...new Set(subjectTypes)] as (typeof SUBJECT_TYPES)[number][] },
     moderation: {
       mode: mode as (typeof MODERATION_MODES)[number],
       preModeration,

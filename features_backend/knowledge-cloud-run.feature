@@ -44,6 +44,31 @@ Feature: The scheduled cloud knowledge run
     Then the archive command has the snapshot's options and the Monday of the week "2026-10-26"
     And no command was given "--replace"
 
+  Scenario: A week that is already archived keeps its entry and says so in the ledger
+    Given the site already holds the archive entry of the week from run "run9da9"
+    When the stage "archive" runs
+    Then the stage succeeded
+    And no command was given "knowledge archive"
+    And the ledger details for "archive" say "kept-existing (run run9da9)"
+
+  Scenario: A corrupt archive entry fails the stage instead of being skipped or replaced
+    Given the site holds a corrupt archive entry for the week
+    When the stage "archive" runs
+    Then the stage failed
+    And no command was given "knowledge archive"
+    And no command was given "--replace"
+
+  Scenario: An archive entry for another week fails the stage
+    Given the site holds an archive entry for the week that says it is for 2026-10-19
+    When the stage "archive" runs
+    Then the stage failed
+
+  Scenario: A week without an entry is archived without replacing anything
+    When the stage "archive" runs
+    Then the stage succeeded
+    And the commands include "knowledge archive"
+    And no command was given "--replace"
+
   Scenario: Wiki pages are published without projecting
     When the stage "wiki-sync" runs
     Then the wiki publish command was given "--no-trigger"

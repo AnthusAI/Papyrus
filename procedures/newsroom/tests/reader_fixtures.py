@@ -48,6 +48,7 @@ TABLE_NAMES = {
     "submission": "ReaderSubmission-test",
     "comment": "ReaderComment-test",
     "report": "ReaderReport-test",
+    "flag": "ReaderFlag-test",
     "action": "ModerationAction-test",
     "item": "Item-test",
     "proposal": "Proposal-test",
@@ -146,6 +147,7 @@ class ReaderBackend:
             action_table=TABLE_NAMES["action"],
             item_table=TABLE_NAMES["item"],
             proposal_table=TABLE_NAMES["proposal"],
+            flag_table=TABLE_NAMES["flag"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -181,6 +183,9 @@ class ReaderBackend:
 
     def comments(self) -> list[dict]:
         return self.table("comment").scan()["Items"]
+
+    def flags(self) -> list[dict]:
+        return self.table("flag").scan()["Items"]
 
     def reports(self) -> list[dict]:
         return self.table("report").scan()["Items"]

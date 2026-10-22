@@ -28,7 +28,7 @@ export default defineSite({
 });
 ```
 
-Enabling it is a backend deploy: eight models, three staff mutations, the `reader-actions` function, a rate-window table and, when
+Enabling it is a backend deploy: nine models, three staff mutations, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
 `computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
@@ -55,6 +55,7 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `snapshot.intervalHours` | 6 | 1 to 24. Four runs a day was approved for the pilot. |
 | `hypeGap` | unset | `{ plus: [...], minus: [...] }`: the dimensions whose mean is added and subtracted to make the hype gap (Shipped: plus `notable`, `novel`; minus `real`, `useful`). Both lists are required, must be rated dimensions and cannot overlap. Without it no hype gap is published. |
 | `snapshot.hypeMinimum` | 5 | Reader ratings every dimension in `hypeGap` needs before the reader hype gap is published. |
+| `subjects.types` | `["item", "submission"]` | The kinds of subject readers may vote on and flag: any of `item`, `submission`, `story`, `proposal`, `concept`. See [Subjects](#subjects). |
 | `reservedConcurrency` | unset | Reserved concurrent executions for `reader-actions`. Unset reserves none. An account with a small total Lambda quota cannot reserve any: papyrus-production has 10 in total, and Lambda requires 10 left unreserved. |
 | `submissions.perDay` | 10 | Submissions one reader may make in a UTC day. A profile younger than `limits.newAccountHours` gets `perDay / limits.newAccountDivisor` (3 by default). |
 | `submissions.similarHours` | 48 | Another submission from the same domain inside this window is returned as a `similar` warning. |
@@ -104,9 +105,11 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /api/reader/me?subjects=a,b` (at most 50 item keys) | | `{readerId, handle \| null, karma, state, votes: {subjectKey: {up: 1, "used-it": 1, real: 4, ...}}}`. Creates the profile on first call. `401` when signed out. |
+| `GET /api/reader/me?subjects=a,b` (at most 50 subject keys; see [Subjects](#subjects)) | | `{readerId, handle \| null, karma, state, votes: {subjectKey: {up: 1, "used-it": 1, real: 4, ...}}}`. Creates the profile on first call. `401` when signed out. |
 | `POST /api/reader/handle` | `{handle}` | Sets the handle once: 3 to 24 characters of `[a-z0-9_-]`, case-insensitive (stored lowercase). `409 handle_taken`, `409 handle_already_set`, `422 reserved_handle`, `422 invalid_handle`. |
 | `POST /api/reader/vote` | `{subject, dimension: "up" \| "used-it", on: boolean}` | `on: true` stores the vote (idempotent), `on: false` removes it. |
+| `POST /api/reader/vote` (any subject type) | `{subject: {type, id}, value: 1 \| -1 \| null}` | An up or down vote on any enabled subject type; `null` removes the reader's vote. One vote per reader and subject. `422 unknown_subject_type`. See [Subjects](#subjects). |
+| `POST /api/reader/flag` | `{subject: {type, id}, kind, reason, target?, name?}` | `200 {subject, kind}`. See [Subjects](#subjects). |
 | `POST /api/reader/rating` | `{subject, dimension, value: 1..5 \| null}` | A new value replaces the old one; `null` removes it. |
 | `POST /api/reader/report` | `{target, reason}` | `200 {reported: true}` for a visible submission or comment; one report per reader and target; `404 unknown_target`. See [Moderation](#moderation). |
 | `POST /api/reader/comment` | `{subject, body, parent?, ratingContext?}` | `201 {id, subject, parent, body, createdAt, ratingContext}`. See [Comments](#comments). |
@@ -140,6 +143,45 @@ schedule fails, the vote still succeeds and the window is reopened so the next w
 role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` only), and gives `reader-actions` only
 `scheduler:CreateSchedule` on `schedule/default/papyrus-reader-snapshot-*` and `iam:PassRole` on that one role.
 
+## Subjects
+
+A vote or a flag is about a subject, named `{type, id}`. The publication's `subjects.types` lists the types it has turned on;
+every other type is refused with `422 unknown_subject_type`. Defaults keep what existed before: `item` and `submission`.
+
+| Type | `id` | Checked against |
+|---|---|---|
+| `item` | the lineage id of a published item | the `PublishedItem` table (`404 unknown_subject` when unpublished) |
+| `submission` | a submission id (`sub-` + 24 hex) | the `ReaderSubmission` table; hidden submissions are unknown |
+| `story`, `proposal`, `concept` | any id of 1 to 190 characters from `[A-Za-z0-9._:-]` | nothing: these records live in the site's own data, so the plugin accepts any well-formed id |
+
+The **subject key** is how a subject is stored and keyed in the reader state: the bare `id` for `item` and `submission`
+(so every vote written before subject types stays valid and is read as `type: "item"`, or `"submission"` for a `sub-` id),
+and `type:id` for the others (`proposal:prop-1`). The same id under two types is two subjects.
+
+**Votes.** `POST /api/reader/vote {subject: {type, id}, value: 1 | -1 | null}` stores an up vote, a down vote, or removes
+the reader's vote. A reader has one vote per subject: a new value replaces the old one. It is stored as the `up` dimension
+of `ReaderVote` with `value` 1 or -1 (the old `{subject: "<key>", dimension, on}` request still works and means +1 or remove).
+Any signed-in reader can vote: there is no karma gate. Votes share the hourly allowance with ratings. `used-it` and ratings
+stay on items and submissions.
+
+**Flags.** `POST /api/reader/flag {subject, kind, reason, target?, name?}`:
+
+| `kind` | extra field | Meaning |
+|---|---|---|
+| `wrong` | none | This is wrong. |
+| `belongs_under` | `target: {type, id}` (required, not the subject itself) | This belongs under another subject. |
+| `better_name` | `name` (required, plain text, at most 120 characters) | Suggest a better name. |
+
+`reason` is required plain text of at most 500 characters, with no control characters and no email address. A reader has one
+flag per subject and kind: flagging again replaces the reason. Flags are stored in `ReaderFlag`, not with votes, and reach the
+snapshot as counts only.
+
+**Reader state.** `GET /api/reader/me?subjects=...` takes subject keys (`proposal:prop-1`) and answers
+`votes: {subjectKey: {up: 1 | -1}}`.
+
+**Identity.** Rows hold the opaque `readerId` only. The pairwise `ss1_...` site subject is the profile key and never goes into a
+vote, a flag, a response or a snapshot file; the Person ID never reaches this plugin.
+
 ## Data
 
 | Model | Key (`id`) | Fields |
@@ -150,7 +192,8 @@ role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` 
 | `ReaderComment` | `cmt-` + 32 hex characters | `subjectKey`, `readerId`, `body` (empty once deleted), `parentId`, `ratingContext` (JSON string `{dimension, value}`), `state` (`visible`, `hidden`, `deleted`), `signals`, `reviewedAt`, `editedAt`, `deletedAt`, `createdAt` |
 | `ReaderReport` | `rep-` + 24 hex characters of the SHA-256 of `readerId#target` | `targetType`, `target`, `reporterReaderId`, `reason`, `state` (`open`, `closed`), `closedAt`, `createdAt`. An index `reportsByTarget`. |
 | `ModerationAction` | `mod-` + 32 hex characters | `by` (`human`, `ai`), `actorSub` (the staff member's Cognito subject, or `ai`), `action`, `targetType` (`submission`, `comment`, `reader`), `target`, `reason`, `fromState`, `toState`, `fromModeration`, `toModeration`, `undoOf`, `undoneBy`, `at`. An index `actionsByTarget`. |
-| `ReaderVote` | `subjectKey#readerId#dimension` | `subjectKey`, `readerId`, `dimension`, `value` (1 for `up` and `used-it`, 1 to 5 for ratings), `voterRole` (`editor` or `reader`), `createdAt`, `updatedAt` |
+| `ReaderVote` | `subjectKey#readerId#dimension` | `subjectKey`, `subjectType` (absent on rows written before subject types: read as `submission` for a `sub-` key, otherwise `item`), `readerId`, `dimension`, `value` (1 or -1 for `up`, 1 for `used-it`, 1 to 5 for ratings), `voterRole` (`editor` or `reader`), `createdAt`, `updatedAt` |
+| `ReaderFlag` | `subjectKey#readerId#kind` | `subjectKey`, `subjectType`, `readerId`, `kind` (`wrong`, `belongs_under`, `better_name`), `reason`, `targetKey` (`belongs_under` only), `suggestedName` (`better_name` only), `voterRole`, `createdAt`. Kept apart from votes. |
 
 A revote overwrites and keeps `createdAt`; an unvote deletes. `ReaderProfile.state` is what a ban or limit changes; it has an index on `readerId` (`profilesByReader`), because moderators name readers by their public id.
 Submissions and comments also carry `moderation` (`new` or `approved`) and `reportCount`.

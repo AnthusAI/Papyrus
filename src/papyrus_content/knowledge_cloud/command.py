@@ -29,6 +29,7 @@ class AwsServices:
         self._ssm = boto3.client("ssm", region_name=region)
         self._lambda = boto3.client("lambda", region_name=region)
         self._amplify = boto3.client("amplify", region_name=region)
+        self._s3 = boto3.client("s3", region_name=region)
         self._max_calls = max_calls
 
     def api_key(self, parameter: str) -> str:
@@ -37,6 +38,16 @@ class AwsServices:
     def deployed_environment(self, function: str) -> dict[str, str]:
         configuration = self._lambda.get_function_configuration(FunctionName=function)
         return dict((configuration.get("Environment") or {}).get("Variables") or {})
+
+    def read_object(self, bucket: str, key: str) -> bytes | None:
+        from botocore.exceptions import ClientError
+
+        try:
+            return self._s3.get_object(Bucket=bucket, Key=key)["Body"].read()
+        except ClientError as error:
+            if error.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise
 
     def deployed_commit(self, app_id: str, branch: str) -> str:
         """The commit of the app's most recent successful deploy of the branch."""
