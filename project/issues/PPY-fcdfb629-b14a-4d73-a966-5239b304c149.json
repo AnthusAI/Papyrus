@@ -3,7 +3,7 @@
   "title": "Public comments on items (signed-in, threaded, moderated)",
   "description": "As a signed-in reader, I want to comment on an item and reply to others, so that discussion improves the record.\n\nNotes: new message kind for reader comments (the existing staff message model is private); approved or visible comments are projected to public JSON per item; comment counts are shown only when comments exist. Subject to the moderation mode. Board and item pages must look finished with comments off.\n\n```gherkin\nFeature: Comments\n  Scenario: Post\n    Given a signed-in reader on an item with comments enabled\n    When the reader posts a comment\n    Then it is visible according to the moderation mode\n\n  Scenario: Reply\n    When the reader replies to a comment\n    Then the reply is threaded under the parent\n\n  Scenario: Comments off\n    Given a publication with comments disabled\n    Then no comment control or count is rendered\n\n  Scenario: Guests read only\n    Then guests can read visible comments but cannot post\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,11 +17,18 @@
       "text": "Threaded comments, edit window, delete stubs, limits and snapshot files are built. Moderation of comments lands with the moderation PR; this story closes there.",
       "created_at": "2026-10-22T04:33:49.227582Z",
       "comment_type": "default"
+    },
+    {
+      "id": "36c5124d-9f89-415d-be22-107bb4bff31a",
+      "author": "home",
+      "text": "Built: threaded comments with moderation (report, queue, hide, ban); see the comments and moderation PRs.",
+      "created_at": "2026-10-22T04:47:29.785937Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.239478Z",
-  "updated_at": "2026-10-22T04:33:49.227611Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T04:47:29.836168Z",
+  "closed_at": "2026-10-22T04:47:29.836135Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

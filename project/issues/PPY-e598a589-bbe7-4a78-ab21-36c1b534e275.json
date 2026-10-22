@@ -3,17 +3,25 @@
   "title": "Moderation queue in Administration: approve, hide, ban",
   "description": "As a moderator, I want a queue of submissions, comments and reports, so that I can approve, hide or ban quickly.\n\n```gherkin\nFeature: Moderation queue\n  Scenario: Review an item\n    Given an item awaiting review\n    When the moderator chooses \"Approve\"\n    Then the item is marked approved and leaves the queue\n\n  Scenario: Hide\n    When the moderator chooses \"Hide\"\n    Then the item disappears from public pages and JSON\n    And the action is recorded with the moderator and reason\n\n  Scenario: Ban\n    When the moderator bans a reader\n    Then that reader's new content is rejected\n    And the reader's existing content is hidden or kept per the chosen option\n\n  Scenario: Permissions\n    Then only moderator roles can see the queue\n```\nLives in Administration; follows the existing staff-role model.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a9698eaf-33ae-4d91-9fc8-fefd6db42c9f",
+      "author": "home",
+      "text": "Built: Administration, Moderation panel (queue, hidden, recent actions; approve, hide, show again, promote, ban, limit, undo) over the moderateReader mutation, editors and admins only.",
+      "created_at": "2026-10-22T04:47:29.682683Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:27.536495Z",
-  "updated_at": "2026-10-21T12:49:27.536521Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T04:47:29.729446Z",
+  "closed_at": "2026-10-22T04:47:29.729419Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

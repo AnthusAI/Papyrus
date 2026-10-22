@@ -21,10 +21,10 @@ export const READER_POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARA
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
-  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment"],
-  mutations: [],
+  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction"],
+  mutations: ["moderateReader"],
   guest: { mutations: [] },
-  newsroomPanels: [],
+  newsroomPanels: [{ id: "moderation", label: "Moderation" }],
   staticAssets: ["_plugins/papyrus-reader@1.js", "_plugins/papyrus-reader@1.css"],
 };
 
@@ -35,6 +35,7 @@ export function readerActionsSettings(config: ReaderSteeringConfig, allowInterim
     limits: config.limits,
     submissions: config.submissions,
     comments: config.comments,
+    moderation: config.moderation,
     reservedHandles: config.reservedHandles,
     allowInterimSubjects,
     snapshotDebounceSeconds: 60,
@@ -94,7 +95,11 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
   resolveConfig: resolveReaderSteeringConfig,
   functions: () => ({ readerActions }),
   schemaDefinitions: readerSteeringSchemaDefinitions,
-  publicSettings: (config) => ({ contract: readerSteeringManifest.contract, dimensions: config.dimensions }),
+  publicSettings: (config) => ({
+    contract: readerSteeringManifest.contract,
+    dimensions: config.dimensions,
+    moderation: { mode: config.moderation.mode },
+  }),
   wire(backend, config, context: PluginWiringContext) {
     const lambda = backend.readerActions.resources.lambda as LambdaFunction;
     const tables = backend.data.resources.tables as Record<string, ITable>;
@@ -106,11 +111,16 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       ["PAPYRUS_READER_VOTE_TABLE", "ReaderVote"],
       ["PAPYRUS_READER_SUBMISSION_TABLE", "ReaderSubmission"],
       ["PAPYRUS_READER_COMMENT_TABLE", "ReaderComment"],
+      ["PAPYRUS_READER_REPORT_TABLE", "ReaderReport"],
+      ["PAPYRUS_READER_ACTION_TABLE", "ModerationAction"],
     ] as const) {
       tables[model].grantReadWriteData(lambda);
       lambda.addEnvironment(variable, tables[model].tableName);
       contentActions.addEnvironment(variable, tables[model].tableName);
     }
+    // Promoting a submission writes one draft Item (a version 1 draft; nothing is published by this function).
+    tables.Item.grantWriteData(lambda);
+    lambda.addEnvironment("PAPYRUS_READER_ITEM_TABLE", tables.Item.tableName);
     tables.PublishedItem.grantReadData(lambda);
     lambda.addEnvironment("PAPYRUS_READER_PUBLISHED_ITEM_TABLE", tables.PublishedItem.tableName);
     tables.ReaderVote.grantReadData(contentActions);

@@ -36,3 +36,6 @@
 .papyrus-reader-comment-actions { display: flex; gap: .5rem; }
 .papyrus-reader-comment-form, .papyrus-reader-why { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
 .papyrus-reader-why[hidden] { display: none; }
+.papyrus-reader-report { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.papyrus-reader-report-form { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.papyrus-reader-report-form[hidden] { display: none; }

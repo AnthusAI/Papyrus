@@ -12,6 +12,7 @@
  *   <div data-island="Freshness" data-props='{"generatedAt":"2026-10-21T10:00:00Z"}'></div>
  *   <div data-island="Submit" data-props='{"kinds":["article","tool"]}'></div>   (the /submit/ page)
  *   <div data-island="Comments" data-props='{"subject":"<item key>"}'></div>   (an item page; optional "editMinutes", "maximumLength")
+ *   <div data-island="Report" data-props='{"target":"<submission id or comment id>"}'></div>   (next to a listed submission)
  *
  * The script registers its islands in window.papyrusIslands and also mounts any [data-island] of its own names, once, so
  * it works with or without the core islands runtime. Props prerender the last snapshot values; the page then fetches
@@ -617,8 +618,12 @@
 
     function showSuccess(body) {
       result.textContent = "";
-      result.appendChild(element("p", "papyrus-reader-pending", "Pending \u2014 we\u2019re reading the link."));
-      result.appendChild(element("p", "papyrus-reader-hint", "Your submission is public now. Editors may promote it to a story."));
+      if (body.state === "held") {
+        result.appendChild(element("p", "papyrus-reader-pending", "Held for review \u2014 a moderator reads it before it is public."));
+      } else {
+        result.appendChild(element("p", "papyrus-reader-pending", "Pending \u2014 we\u2019re reading the link."));
+        result.appendChild(element("p", "papyrus-reader-hint", "Your submission is public now. Editors may promote it to a story."));
+      }
       if (body.similar && body.similar.length) {
         result.appendChild(element("p", "papyrus-reader-warning", "Similar recent links from the same site:"));
         var list = element("ul", "papyrus-reader-similar");
@@ -676,7 +681,7 @@
     var local = localFor(subject);
     local.added[created.id] = {
       id: created.id, readerId: state.me ? state.me.readerId : "", handle: state.me ? state.me.handle : "", body: created.body,
-      createdAt: created.createdAt, parent: created.parent || null, edited: false, at: Date.now()
+      createdAt: created.createdAt, parent: created.parent || null, edited: false, held: created.state === "held", at: Date.now()
     };
     notify();
   }
@@ -750,6 +755,60 @@
     return { form: form, input: input, send: send, status: status, refresh: function () { input.disabled = !enabled(); send.disabled = !enabled(); } };
   }
 
+  // A report goes to the moderation queue. One button that opens a short form; every state is words.
+  function reportControl(target) {
+    var wrapper = element("span", "papyrus-reader-report");
+    var open = element("button", "papyrus-reader-button", "Report");
+    open.type = "button";
+    open.setAttribute("aria-expanded", "false");
+    var form = element("form", "papyrus-reader-report-form");
+    form.hidden = true;
+    var input = element("input", "papyrus-reader-input");
+    input.type = "text"; input.name = "reason"; input.required = true; input.maxLength = 500; input.autocomplete = "off";
+    input.id = "papyrus-reader-report-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", "Why are you reporting this?");
+    label.setAttribute("for", input.id);
+    var send = element("button", "papyrus-reader-button", "Send report");
+    send.type = "submit";
+    var status = element("span", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    [label, input, send].forEach(function (node) { form.appendChild(node); });
+    wrapper.appendChild(open);
+    wrapper.appendChild(form);
+    wrapper.appendChild(status);
+    open.addEventListener("click", function () {
+      form.hidden = !form.hidden;
+      open.setAttribute("aria-expanded", form.hidden ? "false" : "true");
+      if (!form.hidden) input.focus();
+    });
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!input.value.trim() || send.getAttribute("aria-busy") === "true") return;
+      send.setAttribute("aria-busy", "true");
+      status.textContent = "";
+      post("/report", { target: target, reason: input.value }).then(function (result) {
+        send.setAttribute("aria-busy", "false");
+        if (result.ok) {
+          form.hidden = true;
+          open.hidden = true;
+          status.textContent = "Reported. A moderator will look at it.";
+        } else {
+          status.textContent = failureText(result);
+        }
+      }).catch(function () { send.setAttribute("aria-busy", "false"); status.textContent = TEXT.failed; });
+    });
+    return { node: wrapper };
+  }
+
+  function mountReport(host, props) {
+    requestMe();
+    var control = reportControl(props.target);
+    var open = control.node.querySelector("button");
+    host.appendChild(control.node);
+    subscribe(function () { open.disabled = !enabled(); });
+  }
+
   function mountComments(host, props) {
     var subject = props.subject;
     var maximumLength = Number(props.maximumLength) || 2000;
@@ -808,7 +867,7 @@
       } else {
         var meta = element("p", "papyrus-reader-comment-meta");
         meta.appendChild(element("span", "papyrus-reader-handle", entry.handle || "A reader"));
-        meta.appendChild(document.createTextNode(" \u00b7 " + commentTime(entry.createdAt) + (entry.edited ? " (edited)" : "")));
+        meta.appendChild(document.createTextNode(" \u00b7 " + commentTime(entry.createdAt) + (entry.edited ? " (edited)" : "") + (entry.held ? " \u2014 held for review, only you can see it" : "")));
         item.appendChild(meta);
         var own = state.me && entry.readerId && entry.readerId === state.me.readerId;
         if (editing === entry.id) {
@@ -858,6 +917,7 @@
             });
             actions.appendChild(remove);
           }
+          if (!own && enabled() && !entry.held) actions.appendChild(reportControl(entry.id).node);
           if (actions.childNodes.length) item.appendChild(actions);
         }
       }
@@ -911,7 +971,7 @@
     setInterval(function () { if (document.visibilityState === "visible") load(); }, settings.pollSeconds * 1000);
   }
 
-  var islands = { ReaderSignIn: mountSignIn, Comments: mountComments, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
+  var islands = { ReaderSignIn: mountSignIn, Comments: mountComments, Report: mountReport, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
   var started = false;
 
   function guarded(mount) {

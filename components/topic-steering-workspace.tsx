@@ -15,6 +15,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import amplifyOutputs from "papyrus-amplify-outputs";
 import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { MonitoringPanel } from "./monitoring-panel";
+import { ModerationPanel } from "./moderation-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
 import { generateClient } from "aws-amplify/data";
@@ -249,7 +250,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups" | "moderation" | "editorial-checks" | "monitoring";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4351,9 +4352,21 @@ function AdministrationDeskView({
                   <span>Addresses from the site&apos;s signup forms</span>
                 </Link>
               ) : null}
+              {readerPluginEnabled() ? (
+                <Link
+                  href={administrationPanelHref("moderation", isDemo)}
+                  data-news-desk-admin-nav="moderation"
+                  data-active={administrationPanel === "moderation" || undefined}
+                  onClick={() => onPanelChange("moderation")}
+                >
+                  <strong>Moderation</strong>
+                  <span>Reader submissions and comments</span>
+                </Link>
+              ) : null}
             </nav>}
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
+              {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
               {administrationPanel === "monitoring" ? <MonitoringPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
@@ -12819,9 +12832,14 @@ function signupPluginEnabled(): boolean {
   return pluginSettings(amplifyOutputs as PluginOutputs, "signup") !== null;
 }
 
+function readerPluginEnabled(): boolean {
+  return pluginSettings(amplifyOutputs as PluginOutputs, "reader-steering") !== null;
+}
+
 function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
   if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations" || value === "editorial-checks" || value === "monitoring") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
+  if (value === "moderation" && readerPluginEnabled()) return value;
   return "users";
 }
 
