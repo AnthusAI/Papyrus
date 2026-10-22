@@ -24,10 +24,17 @@
       "text": "Landed: PR #528 merged to develop (branch feature/PPY-9abb98-knowledge-snapshot). Verification: 35 pytest tests in src/papyrus_content/knowledge_snapshot (builder, guest-surface field pin, byte-identical rebuild, publish-run idempotency, entity review, snapshot end to end), CI python/ts/smoke green, offline snapshot from a fixture records file. Not yet run against Shipped: no CLI session for its publication on the build machine. Docs: docs/knowledge-snapshot.md.",
       "created_at": "2026-10-22T03:48:15.956096Z",
       "comment_type": "default"
+    },
+    {
+      "id": "39d1cdb5-4b56-4525-afee-81970da22b4c",
+      "author": "home",
+      "text": "PR #541 merged to develop (CI green): actor recording (acceptedBy, description.editedBy), knowledge clusters/relations review, Biblicus run files (--identity/--trends/--entities), base path, operator lane (--auth iam, --amplify-outputs). Shipped dry run (IAM): 119 nodes, 192 front-matter links, 71 published items.",
+      "created_at": "2026-10-22T05:28:51.414361Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.234524Z",
-  "updated_at": "2026-10-22T04:13:49.598623Z",
+  "updated_at": "2026-10-22T05:28:51.414387Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
