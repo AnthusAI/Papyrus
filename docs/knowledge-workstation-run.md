@@ -334,3 +334,26 @@ What the first run taught, for the next one:
 - The extractor is noisy outside makers and named models; most `task`, `concept` and `dataset` proposals were not worth accepting. Reviewing with a short list of exact names (in one Python process, as in step 11) was practical; reviewing 1,100 nodes one command at a time is not.
 - A mention should be matched to an accepted entity before it is proposed again: `Mistral` was proposed next to the accepted `Mistral AI`. Step 7's registry now carries every name and alias of each accepted entity, which avoids those duplicates.
 - A mention typed `model` for a benchmark (`SWE-bench`) or `platform` for a model card used to stay unaccepted because nothing could retype it; `entities retype` (step 11) now does.
+
+## Second run: Shipped, 2026-10-22
+
+The second weekly run, the same day as the first, from `origin/develop` of Papyrus and Biblicus in a fresh virtual environment. Same work folder (`/private/tmp/kb-work/shipped-run-2026-10-22`, scratch files in `runs/2026-10-22`), operator IAM lane, account 712236451410.
+
+| Step | Result |
+| --- | --- |
+| Export and `reindex` | 71 published items, none new since the first run. `scanned` 72, `skipped` 1: when the corpus root is the raw folder, `corpus/knowledge-run.json` is scanned and skipped (no item id). Harmless; the check is `inserted + updated` equals the exported items. |
+| Topic modelling | The same settings, with `topic-config --stop-words` (9 extra words, 11,526 stop words in all). 71 documents, 4 clusters of 21, 21, 20 and 9 items, 0 outliers (the first run had 1). |
+| Identity | `--previous` the first run id: 4 `continued`, 0 `new`, `merged` or `split`. The `uid`s, names and acceptance carried over. |
+| Cluster top terms | Clean: no `card`, `model`, `hugging`, `face`, `plus`, `f1` or whole numbers. `apache20` and `repo` still appear as terms; they are not on the stop-word list. |
+| Run import | Dry run, then `--apply`: 4 proposals updated, 192 front-matter links unchanged. |
+| Registry and typed entities | Registry of 282 accepted entities. 71 items, 2,649 mentions (1,171 resolved, up from 406) and 309 relations. Import: no new nodes, 111 new proposed relations; 91 relations skipped because an endpoint is not accepted. |
+| Relation review (`--actor ai`) | 39 proposed in all (the 5 left over from the first run plus 34 new): 23 accepted (a licence or maker or base model the item states), 16 rejected (wrong target kind such as a maker as base model, a weights licence that differs from the code licence, a made-by pointing at a licence or a platform, replaces or successor claims the item does not make, and the 5 that pointed at a duplicate maker). |
+| Retypes | None. No accepted entity had a clearly wrong kind. |
+| Wiki | `wiki sync --no-topics --apply`: 203 pending revisions beside live pages, 79 unchanged; `wiki publish --all-drafts --actor ai --apply --no-trigger`: 203 published. A second dry run plans 282 unchanged. |
+| Snapshot | `--as-of 2026-10-19 --reproject`: 282 entities, 2 beats, 4 clusters, 44 trending; 30 files written, 254 unchanged; 1,029 pages projected. |
+
+Found on this run:
+
+- `entities registry` writes the stored `nodeKind`, which is `model-family` for a node whose kind was slugged, while the vocabulary key is `model_family`; the extractor refuses the registry ("kind model-family outside the vocabulary"). The run mapped hyphens to underscores in the registry file by hand. The registry should map a node kind to the vocabulary key, or nodes should store the vocabulary key.
+- Several items state `Mistral`, `DeepSeek`, `Moonshot` or `Aleph Alpha` as the maker; those names were rejected as duplicates of the front-matter makers and are not aliases of them, so the extractor still proposes relations to the rejected node. Adding the variants as aliases of the accepted makers (`rename` keeps the old name) would remove this.
+- The previous-run id lives in `corpus/knowledge-run.json`; it now holds `e7631ce7...` (topic-modeling snapshot) and `31b0af6b...` (trends snapshot).
