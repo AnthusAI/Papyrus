@@ -188,3 +188,24 @@ def consent_evidence(context) -> None:
     assert consent["wording"] and consent["pageUrl"].startswith(ORIGIN)
     assert consent["requestIpHash"] and consent["confirmIp"] and consent["confirmedAt"] and consent["requestedAt"]
     assert "198.51.100.7" not in consent.values()
+
+
+@when("a mail scanner sends HEAD to the legacy {route} link")
+def scanner_head(context, route: str) -> None:
+    import json
+    import subprocess
+
+    token = context.harness.last_token()
+    done = subprocess.run(
+        ["npx", "tsx", str(REPO_ROOT / "scripts" / "newsletter-head-probe.ts"), route, token],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+    )
+    context.head = json.loads(done.stdout.strip().splitlines()[-1])
+
+
+@then('the link answers 302 to the clean "{page}" page with no body')
+def head_redirects(context, page: str) -> None:
+    assert context.head["status"] == 302, context.head
+    assert context.head["path"] == page, context.head
+    assert context.head["body"] == "", context.head
+    assert context.head["calls"] == 0, context.head

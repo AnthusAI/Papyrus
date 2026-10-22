@@ -238,6 +238,14 @@ function call(options: NewsletterApiOptions, functionName: string, event: Newsle
   return (options.invoke ?? invokeNewsletterLambda)(functionName, event);
 }
 
+/**
+ * Next answers HEAD by running the route's GET export, but leaves `request.method` as "HEAD". A check for `=== "GET"` therefore
+ * sends a mail scanner's HEAD down the POST path. Every read-only branch asks this instead, so HEAD redirects exactly like GET.
+ */
+function isReadRequest(request: Pick<NextRequest, "method">): boolean {
+  return request.method === "GET" || request.method === "HEAD";
+}
+
 function textResponse(body: string, status: number): NextResponse {
   return new NextResponse(body, { status, headers: { ...NO_STORE, "content-type": "text/plain; charset=utf-8" } });
 }
@@ -266,7 +274,7 @@ export async function handleNewsletterConfirm(request: NextRequest, options: New
   if (!plugin) return notFoundPage();
   const to = redirector(request, environment, plugin);
   if ("response" in to) return to.response;
-  if (request.method === "GET") {
+  if (isReadRequest(request)) {
     const token = manageTokenFrom(request.nextUrl.searchParams.get("t"));
     return token ? to.go("confirm", { token }, 302) : to.go("expired", {}, 302);
   }
@@ -304,7 +312,7 @@ export async function handleNewsletterUnsubscribe(request: NextRequest, options:
   const to = redirector(request, environment, plugin);
   if ("response" in to) return to.response;
   const query = request.nextUrl.searchParams;
-  if (request.method === "GET") {
+  if (isReadRequest(request)) {
     const token = manageTokenFrom(query.get("t"));
     const listId = listParameter(query.get("l"));
     return token ? to.go("unsubscribe", { token, ...(listId ? { list: listId } : {}) }, 302) : to.go("expired", {}, 302);
@@ -344,7 +352,7 @@ export async function handleNewsletterPreferences(request: NextRequest, options:
   if (!plugin) return notFoundPage();
   const to = redirector(request, environment, plugin);
   if ("response" in to) return to.response;
-  if (request.method === "GET") {
+  if (isReadRequest(request)) {
     const token = manageTokenFrom(request.nextUrl.searchParams.get("t"));
     return token ? to.go("preferences", { token }, 302) : to.go("expired", {}, 302);
   }
