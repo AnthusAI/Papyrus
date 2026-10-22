@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "event_id": "3a2ef714-846e-403b-b28f-0add45be9525",
+  "issue_id": "PPY-db3fd755-290a-463d-993a-d51524817993",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T15:31:52.310Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "9. AI-drafted sections of The Weekly (M)",
+    "description": "Shipped story: ship-b88e8c (AI-drafted sections of The Weekly). Size M. Depends on story 7.\n\nAs an editor, I want sections of The Weekly drafted from the snapshot and approved stories, so that the issue assembles itself for review.\n\nAcceptance criteria:\n- Sections are drafted from the knowledge snapshot plus approved stories (story 7).\n- Admin approval is kept: nothing publishes without it.\n- Attribution reads AI.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 4,
+    "assignee": null,
+    "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+    "labels": [
+      "size-M",
+      "shipped",
+      "ship-b88e8c"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "board-reposition"
+    }
+  }
+}

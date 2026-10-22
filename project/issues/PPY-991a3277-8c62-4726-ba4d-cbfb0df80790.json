@@ -1,0 +1,27 @@
+{
+  "id": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "title": "Shipped repositioning: engine support (ship-054405)",
+  "description": "As the Shipped owner, I want Papyrus to support the repositioning of Shipped from a board of verdicts to a living map (signals, the map, AI-written stories) steered by signed-in readers with an editor tier, so that Shipped can ship its engine-backed features on Papyrus rather than site-side workarounds.\n\nPlan: AnthusAI/Shipped-web PR #53. Shipped engine epic: ship-054405 (Reposition 3: engine-backed features). Reader-facing parts on the Shipped side are blocked by the OAuth fix (ship-63b07d).\n\nBUILD ORDER (stories are numbered in their titles and prioritised to match):\n1. Weekly knowledge history archive (ship-09ea2c), M, urgent: cluster history cannot be backfilled.\n2. Scheduled knowledge run in AWS (ship-09ea2c), L, BLOCKED on Ryan's approval.\n3. Votes on any subject type (ship-15b04c), L.\n4. Proposal record (ship-37026d), L; depends on 3.\n5. Editor tier (ship-9890b5), L; depends on 3 and 4.\n6. Model entity attributes (ship-87b02c), M; Proposals dependency for curated columns (4).\n7. Trend story pipeline (ship-2fd025), XL; depends on 1, 4, 5.\n8. Insight to concept promotion with lineage (ship-0be231), M; depends on 4 and 7.\n9. AI-drafted sections of The Weekly (ship-b88e8c), M; depends on 7.\n\nDefinition of Done: every child story is closed, each behaviour change has passing Gherkin specs, and each feature is documented on the p.apyr.us product site.\nNot included: a generic entity-grid block (deferred, YAGNI; Shipped builds its grid site-side first).",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [
+    "shipped"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T15:30:45.086932Z",
+  "updated_at": "2026-10-22T15:30:45.087018Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "board-reposition"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
