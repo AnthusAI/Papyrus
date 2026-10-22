@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "00b466f3-60cc-4b5e-bd2e-8212b35b72bc",
+  "issue_id": "PPY-a86f193b-ed1c-4cac-8457-96ac424df32d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T17:33:38.898Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Model families and stated memberships in the knowledge base (M)",
+    "description": "Follow-up from the 2026-10-22 Shipped knowledge refresh, which accepted only one `member_of` relation (Qwen3.8-27B → Qwen3.8). Linked Shipped story: ship-87b02c (periodic table), where model families and \"built on\" feed the isotopes and the family grouping. Spans Papyrus and Biblicus.\n\n## Scope\n1. **Family entities for stated series.** Create `model_family` entities for series the sources name, for example Qwen3.8, MiMo-V2.6 and MiniCPM5. Re-kind Qwen3.8 from `model` to `model_family`, which fixes the current model-to-model \"Member of\" pair. Re-kinding must keep the entity's slug and wiki URL, or redirect them.\n2. **Extractor recall for stated memberships** (Biblicus GLiNER2 plus the alias registry and AI review). Test cases from the misses: MiMo-V2.6-Pro-RL → MiMo-V2.6, and MiniCPM5-2B → MiniCPM5. Keep the stated-evidence-only rule: no membership without text that states it, and leave a model unrelated when unsure.\n3. **Reverse label.** A family page lists its members under \"Members\". A model page keeps \"Member of <family>\".\n\n## Acceptance\n- The next weekly run shows on the wiki at least the Qwen3.8, MiMo-V2.6 and MiniCPM5 families, each with its stated members, and no unstated memberships.\n- Gherkin specs (narrative, complete) and unit tests: re-kind without URL loss, the two recall cases, the stated-evidence-only rule (a negative case), and both label directions.\n- It lands in the weekly cloud run, with no one-off refresh.\n\nPriority: after PPY-dca7cd (the cloud run) and its packaging fixes.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+    "labels": [
+      "size-M"
+    ]
+  }
+}
