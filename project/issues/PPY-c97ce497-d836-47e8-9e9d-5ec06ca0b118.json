@@ -3,7 +3,7 @@
   "title": "3. Votes on any subject type (L)",
   "description": "Shipped story: ship-15b04c (voting on any subject). Size L.\n\nAs a signed-in reader, I want to vote on any subject, so that readers steer the map.\n\nAcceptance criteria:\n- Subject types: items, submissions, stories, proposals, concepts.\n- Downvotes are supported, plus flags: wrong, belongs-under, better-name, each requiring a reason.\n- Any signed-in reader can vote; there is no karma gate.\n- Votes are keyed by the pairwise siteSubject, never by the Person ID.\n- The adopted shrinkage and new-account weighting are kept unchanged (existing scoring specs stay green).\n- Votes on a subject type that does not exist, or by a signed-out reader, are rejected.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -16,7 +16,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-22T15:31:20.755225Z",
-  "updated_at": "2026-10-22T15:31:20.755311Z",
+  "updated_at": "2026-10-22T21:13:22.043842Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
