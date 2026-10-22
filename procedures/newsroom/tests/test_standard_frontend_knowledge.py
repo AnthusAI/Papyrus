@@ -243,10 +243,10 @@ BLOCK_NAMES = ("knowledge-topic-count", "knowledge-trending-strip", "knowledge-t
 class KnowledgeSite(DirectorySite):
     """A directory site whose output directory already holds the snapshot, as after ``papyrus knowledge snapshot``."""
 
-    def __init__(self, items, files, *, snapshot=True, **extra):
+    def __init__(self, items, files, *, snapshot=True, base="", **extra):
         super().__init__(settings(pages=[{"id": "knowledge", "path": "knowledge", "title": "Knowledge", "source": "knowledge.md"}], **extra), items, files)
         if snapshot:
-            data.write(self.out / "_data" / "knowledge")
+            data.write(self.out / base / "_data" / "knowledge")
 
     def context(self):
         projector = StandardMarkusProjector.from_static_directory(self.static, environ=self.environ)
@@ -363,3 +363,63 @@ def test_the_projector_does_not_own_the_snapshot_files(site):
     projector = site.context().projector
     for key in ("_data/knowledge/index.json", "_data/knowledge/clusters.json", "_data/knowledge/entities/acme-loom.json"):
         assert not projector.owns_page_key(key)
+
+
+# ------------------------------------------------------------------ who accepted and who edited
+
+@pytest.mark.parametrize(
+    ("actor", "verb", "text"),
+    [
+        ({"actor": "ai", "name": None, "on": "2026-10-01"}, "accepted", "Accepted by AI"),
+        ({"actor": "ai", "name": "Research agent", "on": "2026-10-01"}, "accepted", "Accepted by AI"),
+        ({"actor": "human", "name": "Ada", "on": "2026-10-12"}, "accepted", "Accepted by Ada"),
+        ({"actor": "human", "name": None, "on": "2026-10-12"}, "accepted", "Accepted by an editor"),
+        ({"actor": "ai", "name": None, "on": "2026-10-01"}, "description", "Edited by AI on 2026-10-01"),
+        ({"actor": "human", "name": "Ada", "on": "2026-10-12"}, "description", "Reviewed by Ada on 2026-10-12"),
+        ({"actor": "human", "name": None, "on": "2026-10-12"}, "description", "Reviewed by an editor on 2026-10-12"),
+    ],
+)
+def test_attribution_text_names_the_ai_or_the_person(actor, verb, text):
+    assert parts.attribution_text(actor, verb) == text
+    assert text in parts.attribution(actor, verb) and f'data-actor="{actor["actor"]}"' in parts.attribution(actor, verb)
+
+
+def test_no_actor_means_no_attribution():
+    assert parts.attribution(None, "accepted") == "" and parts.attribution({"actor": "robot"}, "accepted") == ""
+    assert parts.attribution_text({"actor": "ai", "name": "Research agent", "on": "2026-10-01"}, "accepted") == "Accepted by AI"
+
+
+def test_clusters_say_who_accepted_them(tmp_path):
+    markup = block("knowledge-clusters", source_for(tmp_path), limit="5")
+    assert "Accepted by AI" in markup.split("Wearable looms")[1].split("</li>")[0]
+    assert "Accepted by Ada" in markup.split("Fresh theme")[1].split("</li>")[0]
+
+
+def test_the_concept_of_the_week_says_who_edited_its_description(tmp_path):
+    assert "Edited by AI on 2026-10-01" in block("knowledge-concept-of-the-week", source_for(tmp_path))
+    human = copy.deepcopy(data.INDEX)
+    human["conceptOfTheWeek"]["editedBy"] = data.BY_ADA
+    assert "Reviewed by Ada on 2026-10-12" in block("knowledge-concept-of-the-week", source_for(tmp_path / "human", index=human))
+
+
+def test_the_provenance_part_shows_the_acceptance_and_the_description_edit(tmp_path):
+    source = source_for(tmp_path)
+    markup = block("knowledge-entity", source, key="acme-loom", part="provenance")
+    assert "Accepted by AI" in markup and "Edited by AI on 2026-10-01" in markup
+    assert block("knowledge-entity", source, key="gamma-new", part="provenance").count("papyrus-knowledge-attribution") == 1   # no description edit
+
+
+# ------------------------------------------------------------------ a site under urls.basePath
+
+def test_a_based_site_reads_the_snapshot_under_its_base_path_and_does_not_own_it():
+    wiki = item("loom", section="wiki", body=f'{BAND}# Acme Loom\n\n::include{{kind="block" name="knowledge-topic-count"}}\n')
+    created = KnowledgeSite([wiki], {"knowledge.md": PAGE}, base="posts", urls={"basePath": "/posts"})
+    try:
+        context = created.context()
+        assert project_all(context).ok
+        assert 'papyrus-knowledge-count">7<' in page_text(created, "posts/knowledge/index.html")
+        assert not any(key.startswith("_data/") for key in created.keys())
+        for key in ("posts/_data/knowledge/index.json", "posts/_data/knowledge/entities/acme-loom.json"):
+            assert not context.projector.owns_page_key(key)
+    finally:
+        created.cleanup()

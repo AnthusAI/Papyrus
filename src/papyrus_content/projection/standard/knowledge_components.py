@@ -60,6 +60,26 @@ def entity_chip(kind_label: str, name: str, *, kind: str = "", href: str | None 
     return f'<a {attributes} href="{esc(link)}">{inner}</a>' if link else f"<span {attributes}>{inner}</span>"
 
 
+def attribution_text(actor, verb: str) -> str:
+    """Who did it, as reader text: ``Accepted by AI``, ``Accepted by Ada``, ``Edited by AI on 2026-10-21``, ``Reviewed by Ada on 2026-10-21``.
+
+    ``verb`` is ``accepted`` or ``description``; a person's description edit reads "Reviewed", an AI agent's "Edited"."""
+    if not isinstance(actor, Mapping) or actor.get("actor") not in ("ai", "human"):
+        return ""
+    human = actor["actor"] == "human"
+    name = str(actor.get("name") or "").strip() or "an editor"
+    day = str(actor.get("on") or "")[:10]
+    on = f" on {day}" if day else ""
+    if verb == "accepted":
+        return f"Accepted by {name if human else 'AI'}"
+    return f"Reviewed by {name}{on}" if human else f"Edited by AI{on}"
+
+
+def attribution(actor, verb: str) -> str:
+    text = attribution_text(actor, verb)
+    return f'<p class="papyrus-knowledge-attribution" data-actor="{esc(actor["actor"])}">{esc(text)}</p>' if text else ""
+
+
 def sparkline(values: Sequence[int]) -> str:
     """Inline SVG polyline of the values, oldest first, with the newest point marked. Decorative: the figure is text beside it."""
     points = [max(0, int(value)) for value in values]

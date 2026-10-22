@@ -712,6 +712,13 @@ def categories_review_proposal(flags: list[str]) -> None:
     categories = client.list_records("Category")
     if not proposal:
         raise ValueError(f"SteeringProposal {proposal_id} was not found.")
+    from .knowledge_snapshot.cluster_records import CLUSTER_KIND, decode_metadata
+
+    if proposal.get("proposalKind") == CLUSTER_KIND and decode_metadata(proposal.get("summary")) is not None:
+        raise ValueError(
+            f"{proposal['id']} is a knowledge topic cluster: review it with `papyrus knowledge clusters accept|name|reject --uid <cluster uid> --actor ai|human`, "
+            "which records who accepted it."
+        )
     if proposal.get("status") in {"accepted", "rejected"}:
         print(f"categories\treview-proposal\t{proposal['id']}\t{proposal['status']}\tidempotent")
         return

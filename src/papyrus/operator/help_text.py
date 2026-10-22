@@ -91,8 +91,12 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   concepts.add_argument("concepts_command")
   subparsers.add_parser("publish-run", help="Import a workstation run (clusters, entities, front-matter entities); dry run unless --apply")
   subparsers.add_parser("snapshot", help="Write the public knowledge JSON (_data/knowledge/) for a site")
-  entities = subparsers.add_parser("entities", help="Review entities: list, accept, reject, rename, describe")
+  entities = subparsers.add_parser("entities", help="Review entities (--actor ai|human required): list, accept, reject, rename, describe")
   entities.add_argument("entities_command")
+  clusters = subparsers.add_parser("clusters", help="Review topic clusters (--actor ai|human required): list, accept, name, reject")
+  clusters.add_argument("clusters_command")
+  relations = subparsers.add_parser("relations", help="Review typed relations between entities (--actor ai|human required): list, accept, reject")
+  relations.add_argument("relations_command")
   return parser
 
 
