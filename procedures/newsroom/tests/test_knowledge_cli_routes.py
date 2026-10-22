@@ -10,6 +10,9 @@ from papyrus.operator import help_text
     ("command", "flags", "routed"),
     [
         ("entities", ["accept", "--key", "k", "--actor", "ai"], "entities-accept"),
+        ("entities", ["retype", "--key", "k", "--kind", "model", "--actor", "ai"], "entities-retype"),
+        ("entities", ["registry", "--out", "f"], "entities-registry"),
+        ("topic-config", ["--out", "f"], "topic-config"),
         ("clusters", ["accept", "--uid", "u", "--actor", "ai"], "clusters-accept"),
         ("clusters", ["list"], "clusters-list"),
         ("relations", ["reject", "--id", "r", "--actor", "human"], "relations-reject"),

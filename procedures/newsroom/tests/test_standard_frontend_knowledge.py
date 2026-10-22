@@ -41,9 +41,14 @@ def test_cold_start_shows_no_sparkline_and_no_percent_and_says_new():
 
 
 def test_four_to_seven_weeks_show_a_sparkline_without_a_percent():
-    markup = parts.trend({"weeksOfHistory": 5, "series8": [0, 0, 0, 1, 2, 2, 3, 4], "change": {"last4": 11, "prior4": 1, "percent": 1000}})
+    markup = parts.trend({"weeksOfHistory": 5, "series8": [0, 0, 0, 1, 2, 2, 3, 4], "change": {"last4": 11, "prior4": 1, "percent": None}})
     assert "<svg" in markup and "%" not in markup and 'data-state="building"' in markup
     assert len(re.search(r'points="([^"]+)"', markup).group(1).split()) == 5
+
+
+def test_the_percent_is_the_snapshots_and_the_component_does_not_apply_a_history_rule_of_its_own():
+    markup = parts.trend({"weeksOfHistory": 5, "series8": [0, 0, 0, 1, 2, 2, 3, 4], "change": {"last4": 11, "prior4": 6, "percent": 83}})
+    assert "+83%" in markup
 
 
 def test_full_history_shows_the_sparkline_and_the_percent_change_with_a_mark_and_a_sign():

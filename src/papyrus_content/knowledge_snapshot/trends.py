@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 WINDOW_WEEKS = 4
 MINIMUM_PRIOR_FOR_PERCENT = 5
+MINIMUM_HISTORY_FOR_PERCENT = 8
 NEW_BELOW_WEEKS = 4
 SERIES_SHORT = 8
 SERIES_LONG = 26
@@ -43,11 +44,17 @@ def percent_change(last4: int, prior4: int) -> int | None:
     return magnitude if delta >= 0 else -magnitude
 
 
-def change_of(values: list[int]) -> Change:
-    """The last four weeks against the four before them, from a series that ends at the as-of week."""
+def change_of(values: list[int], history: int | None = None) -> Change:
+    """The last four weeks against the four before them, from a series that ends at the as-of week.
+
+    With ``history`` (weeks since the first confirmed link) the percent is also withheld under eight weeks: the one
+    place the cold-start rule for a percent lives."""
     last4 = sum(values[-WINDOW_WEEKS:])
     prior4 = sum(values[-2 * WINDOW_WEEKS : -WINDOW_WEEKS])
-    return Change(last4=last4, prior4=prior4, percent=percent_change(last4, prior4))
+    percent = percent_change(last4, prior4)
+    if history is not None and history < MINIMUM_HISTORY_FOR_PERCENT:
+        percent = None
+    return Change(last4=last4, prior4=prior4, percent=percent)
 
 
 def weeks_of_history(first_week: int, as_of_week: int) -> int:

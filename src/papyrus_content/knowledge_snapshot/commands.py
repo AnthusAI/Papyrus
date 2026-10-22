@@ -47,6 +47,7 @@ from .entity_review import (
     reject_patches,
     rename_patches,
 )
+from .entity_retype import retype_plan
 from .loaders import (
     beats_from_categories,
     beats_from_config,
@@ -61,6 +62,8 @@ from .loaders import (
 )
 from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotOptions
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
+from .registry import build_registry
+from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
 from .relation_review import (
     RELATION_STATES,
     RelationReviewError,
@@ -498,6 +501,61 @@ def knowledge_entities_describe(flags: list[str]) -> None:
     _review(flags, "describe", build)
 
 
+def knowledge_entities_retype(flags: list[str]) -> None:
+    options = parse_options(flags)
+    identifier = normalize_string(options.get("key"))
+    kind = normalize_string(options.get("kind"))
+    if not identifier or not kind:
+        raise ValueError("knowledge entities retype requires --key <node key, id or lineage id> and --kind <new kind>.")
+    actor = actor_from_options(options, today(), command="knowledge entities retype")
+    client = authoring_client(options)
+    rows = client.list_records("SemanticNode")
+    try:
+        node = find_node(rows, identifier)
+        records, patches, new_key = retype_plan(node, kind, rows, relations_of_nodes(client, [node]), actor=actor, now=utc_now())
+    except EntityReviewError as error:
+        raise ValueError(str(error)) from error
+    dry_run = options.get("dry-run") is True
+    print(f"knowledge\tentities\tretype\t{node['nodeKey']} -> {new_key}\t{node.get('status')}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
+    changes = [
+        build_record_change_from_current(record["modelName"], record["expected"], client.get_record(record["modelName"], record["expected"]["id"]))
+        for record in records
+    ] + [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches]
+    for (model, action), count in sorted(Counter((change["modelName"], change["action"]) for change in changes).items()):
+        print(f"knowledge\tentities\tretype\tchanges\t{model}\t{action}\t{count}")
+    if not dry_run:
+        apply_record_changes(client, changes)
+
+
+def knowledge_entities_registry(flags: list[str]) -> None:
+    options = parse_options(flags)
+    out = _path_option(options, "out")
+    if out is None:
+        raise ValueError("Pass --out FILE: the registry JSON for `biblicus extract typed-entities --registry`.")
+    client = authoring_client(options)
+    registry, warnings = build_registry(client.list_records("SemanticNode"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(registry, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    for warning in warnings:
+        print(f"knowledge\tentities\tregistry\twarning\t{warning}", file=sys.stderr)
+    aliases = sum(len(entry["aliases"]) for entry in registry)
+    print(f"knowledge\tentities\tregistry\t{len(registry)} entities\t{aliases} aliases\t{len(warnings)} ambiguous\t{out}")
+
+
+def knowledge_topic_config(flags: list[str]) -> None:
+    options = parse_options(flags)
+    out = _path_option(options, "out")
+    if out is None:
+        raise ValueError("Pass --out FILE: the topic-modeling configuration for `biblicus analyze topics --configuration`.")
+    stop_words_file = _path_option(options, "stop-words")
+    extra = read_extra_stop_words(stop_words_file) if stop_words_file else []
+    configuration = topic_modeling_configuration(extra)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(render(configuration), encoding="utf-8")
+    listed = len(configuration["bertopic_analysis"]["vectorizer"]["stop_words"])
+    print(f"knowledge\ttopic-config\t{len(extra)} extra stop words\t{listed} stop words in all\t{out}")
+
+
 def _cluster_row(row: dict) -> str:
     metadata = decode_metadata(row.get("summary")) or {}
     accepted_by = metadata.get("acceptedBy") or {}
@@ -613,6 +671,9 @@ KNOWLEDGE_COMMANDS = {
     "entities-reject": knowledge_entities_reject,
     "entities-rename": knowledge_entities_rename,
     "entities-describe": knowledge_entities_describe,
+    "entities-retype": knowledge_entities_retype,
+    "entities-registry": knowledge_entities_registry,
+    "topic-config": knowledge_topic_config,
     "clusters-list": knowledge_clusters_list,
     "clusters-accept": knowledge_clusters_accept,
     "clusters-name": knowledge_clusters_name,

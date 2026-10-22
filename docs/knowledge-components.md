@@ -50,11 +50,11 @@ Place a block in a page file, or in an item after a `::band` line, with `::inclu
 | Weeks of history | Sparkline | Percent | Chart |
 |---|---|---|---|
 | under 4 | none | none | none; the chip says "new" |
-| 4 to 7 | yes (only the weeks since the first link) | none | none |
+| 4 to 7 | yes (only the weeks since the first link) | none (the snapshot's `change.percent` is null under 8 weeks) | none |
 | 8 or more | yes | yes when the snapshot has one (`change.percent` is null when the prior four weeks hold fewer than 5 items) | none |
 | 12 or more | yes | as above | the weekly chart |
 
-Cluster labels follow the same floor: nothing under 4 weeks of data. The reader never recomputes a number; it shows what the snapshot holds.
+Cluster labels follow the same floor: nothing under 4 weeks of data. The reader never recomputes a number; it shows what the snapshot holds. The percent rule (a base of 5 items and 8 weeks of history) lives in the snapshot; the components decide only whether to draw a sparkline.
 
 ## Components
 

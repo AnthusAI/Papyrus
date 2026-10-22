@@ -105,13 +105,15 @@ EXTRACTION=$(python -c "import json;print(json.load(open('corpus/extracted/pipel
 
 ```bash
 PREVIOUS=$(python -c "import json;print(json.load(open('corpus/knowledge-run.json'))['previousRunId'])" 2>/dev/null)
-cp ~/knowledge/shipped/topic-modeling.yml $RUN/topic-modeling.yml          # the file below, kept under version control with the run
+papyrus knowledge topic-config --out $RUN/topic-modeling.yml --stop-words ~/knowledge/shipped/stop-words.txt   # the settings below
 biblicus analyze topics --corpus corpus --configuration $RUN/topic-modeling.yml \
   --extraction-snapshot pipeline:$EXTRACTION > $RUN/topics.json
 CURRENT=$(python -c "import json;print(json.load(open('$RUN/topics.json'))['snapshot']['snapshot_id'])")
 ```
 
 The settings, fixed for a small corpus (tens to a few hundred items). Do not tune them toward tidier-looking clusters from one run to the next, because the cluster identity of the next run is matched against this one; change them only on purpose, and record the change here and in the run notes.
+
+`topic-config` writes the file below; keep the generated file and the stop-word file under version control with the run. Spelled out (the `stop_words` list is shortened here):
 
 ```yaml
 schema_version: 1
@@ -130,7 +132,7 @@ bertopic_analysis:
     min_topic_size: 5
   vectorizer:
     ngram_range: [1, 2]
-    stop_words: english
+    stop_words: [a, about, above, ..., card, date, models, weights, hugging, face, 00, 01, ..., 9999, aa, ab, ...]
   umap_model:
     parameters:
       n_neighbors: 10          # the BERTopic default is 15; a small corpus needs a smaller neighbourhood
@@ -146,6 +148,17 @@ bertopic_analysis:
       cluster_selection_method: eom
       prediction_data: true
 ```
+
+**Readable top terms.** c-TF-IDF over raw words picked `card`, `model`, `20`, `35`, `f1`, `plus` and `date` as cluster terms. The vectorizer therefore drops English stop words, the publication's own extra stop words, tokens that are pure numbers and tokens shorter than three characters. The extra words are a plain file for the publication, passed with `--stop-words` and never written into code: words separated by white space or lines, `#` starts a comment, a phrase counts as its words (the vectorizer compares single tokens). Shipped's `~/knowledge/shipped/stop-words.txt`:
+
+```text
+# words every model card repeats
+card model models date weights hugging face
+# fragments that read as terms
+f1 plus
+```
+
+Biblicus's `vectorizer` block accepts only `ngram_range` and `stop_words` (`english` or a list of strings) and refuses any other key, and `english` cannot be combined with extra words. So `topic-config` writes the whole rule as one explicit list: scikit-learn's English stop words, the extra words, every one- and two-character token (`[a-z0-9]`) and every whole number from 0 to 9999. A number above 9999 or a fragment like `f1` that is not a whole number still needs the extra file. The list needs scikit-learn, which `biblicus[topic-modeling]` installs. **What Biblicus is missing** to do this properly: `TopicModelingVectorizerConfig` has no `token_pattern` (for example `(?u)\b[^\W\d_]{3,}\b`, letters only and at least three of them), no `min_df`/`max_df` and no `stop_words` that adds to `english`. With a `token_pattern` the config would stay a few lines and cover every number; Papyrus's list is the workaround until then. The vectorizer changes only the words a cluster is labelled with: clusters come from the embeddings and topic identity matches clusters by the overlap of their member items, so changing the stop words does not move cluster membership or `uid`s. Record a change to the stop-word file in the run notes all the same.
 
 No language model is used (`llm_extraction` is off and there is no representation model), so cluster labels are keywords; people read the top terms and the member titles and name the cluster in review. The embedder is BERTopic's default, `all-MiniLM-L6-v2`. After the run, record `document_count`, the number of clusters and `outlier_document_count` (topic `-1`) with the run notes; they are in the identity report (step 6).
 
@@ -178,13 +191,13 @@ aws sts get-caller-identity --profile papyrus-production --query Account --outpu
 papyrus knowledge publish-run --auth iam --amplify-outputs $OUT --corpus-key shipped --actor-name "Shipped research agent" --apply
 ```
 
-Front-matter entities of published items are entered by an AI research agent, so they are recorded as accepted by `ai`; `--actor-name` names that agent. Then write the registry of accepted entities (`key`, `kind`, `aliases`) for the extractor:
+Front-matter entities of published items are entered by an AI research agent, so they are recorded as accepted by `ai`; `--actor-name` names that agent. Then write the registry of accepted entities for the extractor:
 
 ```bash
-papyrus knowledge entities list --auth iam --amplify-outputs $OUT --status accepted --limit 100000 > $RUN/accepted.tsv
+papyrus knowledge entities registry --auth iam --amplify-outputs $OUT --out $RUN/registry.json
 ```
 
-The columns are node key, status, kind, name and id. Turn each row into `{"key": <node key>, "kind": <kind>, "aliases": [<name>]}` in `$RUN/registry.json` (add the aliases the node has; an alias that belongs to two entities is refused by the extractor, so skip the ambiguous ones).
+Each entry is `{key, kind, aliases}`, and `aliases` holds the node's display name and every alias it has, so name variants such as `Mistral` and `Mistral AI` resolve to the same entity when the node holds both (a `rename` keeps the old name as an alias). An alias that belongs to two entities is refused by the extractor, so the command leaves it out of all of them and prints a warning on stderr; read the warnings, and fix the entities if one of them is a duplicate.
 
 ### 8. Typed entities
 
@@ -249,6 +262,7 @@ papyrus knowledge entities accept   --auth iam --amplify-outputs $OUT --key mode
 papyrus knowledge entities reject   --auth iam --amplify-outputs $OUT --key platform--card --actor ai
 papyrus knowledge entities rename   --auth iam --amplify-outputs $OUT --key model--qwen3-tts --name "Qwen3-TTS" --actor ai
 papyrus knowledge entities describe --auth iam --amplify-outputs $OUT --key model--qwen3-tts --text "..." --actor ai   # facts stated in the site's items only
+papyrus knowledge entities retype   --auth iam --amplify-outputs $OUT --key platform--swe-bench --kind benchmark --actor ai   # wrong kind: add --dry-run first
 
 papyrus knowledge clusters list     --auth iam --amplify-outputs $OUT --status all
 papyrus knowledge clusters accept   --auth iam --amplify-outputs $OUT --uid cl-... --name "Short plain name" --actor ai
@@ -261,6 +275,8 @@ papyrus knowledge relations reject  --auth iam --amplify-outputs $OUT --id ... -
 ```
 
 Each command reads the whole entity table, so a long review is faster in one Python process that calls the same functions (`papyrus_content.knowledge_snapshot.entity_review`, `cluster_review`, `relation_review`, then `apply_record_changes`); it records the same fields.
+
+`retype` is how the reviewer fixes a wrong kind. The kind is part of the key, so the entity moves to a new key (`platform--swe-bench` becomes `benchmark--swe-bench`): a new node with the same name, aliases, description and acceptance, the old node superseded, and every item link and relation moved to the new node with its metadata, so confirmed links stay confirmed. The kind must be one of the vocabulary's if the entity is to be matched by the extractor next week. Re-run step 7's registry command afterwards, then `snapshot` and `wiki sync`; anything that used the old key (a wiki page, a link) needs the new one. Details: [knowledge-snapshot.md](knowledge-snapshot.md).
 
 Name a cluster from its top terms and the titles of its members, short and plain. Leave a cluster unaccepted when its members do not share a subject. After accepting entities, repeat step 9 (`--apply`) to import the relations that were waiting.
 
@@ -314,7 +330,7 @@ The previous run id is stored at `corpus/knowledge-run.json` of the work folder:
 What the first run taught, for the next one:
 
 - With 71 items, BERTopic with these settings found four broad clusters and almost no outliers. That is what the settings produce, not a measure of how stable the clusters will be: the identity report says every cluster is `new` because there is no earlier run. Record the smallest corpus size at which events stayed stable once there are two runs to compare.
-- Cluster top terms are dominated by words every model card repeats (`card`, `model`, `hugging`). The names came from the member titles. A stop-word list for the publication would improve the terms; it would also change the clusters, so do it as a recorded change.
+- Cluster top terms are dominated by words every model card repeats (`card`, `model`, `hugging`). The names came from the member titles. Step 4 now drops English stop words, numbers, short tokens and the publication's extra words (`stop-words.txt`) from the vectorizer; that changes the labels and not the clusters. Re-run with it before the next import and compare the terms.
 - The extractor is noisy outside makers and named models; most `task`, `concept` and `dataset` proposals were not worth accepting. Reviewing with a short list of exact names (in one Python process, as in step 11) was practical; reviewing 1,100 nodes one command at a time is not.
-- A mention should be matched to an accepted entity before it is proposed again: `Mistral` was proposed next to the accepted `Mistral AI`. Adding the aliases of each accepted maker to the registry (step 7) avoids those duplicates.
-- A mention typed `model` for a benchmark (`SWE-bench`) or `platform` for a model card stays unaccepted, and there is no command to retype it.
+- A mention should be matched to an accepted entity before it is proposed again: `Mistral` was proposed next to the accepted `Mistral AI`. Step 7's registry now carries every name and alias of each accepted entity, which avoids those duplicates.
+- A mention typed `model` for a benchmark (`SWE-bench`) or `platform` for a model card used to stay unaccepted because nothing could retype it; `entities retype` (step 11) now does.

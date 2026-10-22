@@ -728,3 +728,130 @@ def test_auth_and_amplify_outputs_select_the_lane_and_endpoint_on_purpose_and_ar
     outputs.write_text("{}")
     with pytest.raises(ValueError, match="no GraphQL endpoint"):
         run(commands.knowledge_entities_list, "--amplify-outputs", str(outputs))
+
+
+# ------------------------------------------------------------------ retype and registry
+
+def test_retype_migrates_the_node_its_links_and_its_relations_and_is_idempotent(client, tmp_path, monkeypatch, capsys):
+    run_dir = write_run_directory(tmp_path / "run")
+    flags = ("--entities", str(run_dir / "entities.json"), "--apply")
+    run(commands.knowledge_publish_run, *flags)
+    run(commands.knowledge_entities_accept, "--key", "model--tern-3", "--actor", "ai")
+    run(commands.knowledge_publish_run, *flags)
+    capsys.readouterr()
+    old = next(row for row in client.rows["SemanticNode"].values() if row["nodeKey"] == "model--tern-3")
+    relation = next(row for row in client.rows["SemanticRelation"].values() if row["predicate"] == "made_by")
+    run(commands.knowledge_relations_accept, "--id", relation["id"], "--actor", "ai")
+
+    run(commands.knowledge_entities_retype, "--key", "model--tern-3", "--kind", "model_family", "--actor", "ai", "--actor-name", "Reviewer", "--dry-run")
+    assert "dry-run" in capsys.readouterr().out and not [n for n in client.rows["SemanticNode"].values() if n["nodeKey"].startswith("model-family")]
+
+    run(commands.knowledge_entities_retype, "--key", "model--tern-3", "--kind", "model_family", "--actor", "ai", "--actor-name", "Reviewer")
+    assert "model--tern-3 -> model-family--tern-3" in capsys.readouterr().out
+    nodes = {row["nodeKey"]: row for row in client.rows["SemanticNode"].values()}
+    new = nodes["model-family--tern-3"]
+    assert (new["status"], new["versionState"], new["displayName"], new["aliases"], new["nodeKind"]) == ("accepted", "current", old["displayName"], old["aliases"], "model-family")
+    marks = decode_review(new["changeReason"])
+    assert marks.accepted_by.actor == "ai" and marks.retyped_by.to_dict() == {"actor": "ai", "name": "Reviewer", "on": today_utc()}
+    superseded = client.rows["SemanticNode"][old["id"]]
+    assert (superseded["versionState"], superseded["status"]) == ("superseded", "superseded")
+
+    current = [row for row in client.rows["SemanticRelation"].values() if row["relationState"] == "current"]
+    assert not [row for row in current if old["lineageId"] in (row["objectLineageId"], row["subjectLineageId"])]
+    moved = [row for row in current if new["lineageId"] in (row["objectLineageId"], row["subjectLineageId"])]
+    assert len(moved) == 3
+    assert {row["predicate"] for row in moved} == {"mentions", "made_by"}
+    assert all(json.loads(row["metadata"]).get("confirmed") is not None for row in moved)
+    accepted_relation = next(row for row in moved if row["predicate"] == "made_by")
+    assert json.loads(accepted_relation["metadata"])["acceptedBy"]["actor"] == "ai"
+
+    before = len(client.writes)
+    with pytest.raises(ValueError, match="No entity"):
+        run(commands.knowledge_entities_retype, "--key", "model--tern-3", "--kind", "model_family", "--actor", "ai")
+    with pytest.raises(ValueError, match="already of kind"):
+        run(commands.knowledge_entities_retype, "--key", "model-family--tern-3", "--kind", "model_family", "--actor", "ai")
+    assert len(client.writes) == before
+
+    out = snapshot_to(tmp_path, monkeypatch)
+    index = json.loads((out / INDEX_FILE).read_text())
+    keys = {entity["key"] for entity in index["entities"]}
+    assert "model-family--tern-3" in keys and "model--tern-3" not in keys
+    assert not (out / "_data/knowledge/entities/model--tern-3.json").exists()
+
+
+def test_retype_refuses_the_same_kind_a_taken_key_a_rejected_node_and_needs_an_actor(client, capsys):
+    run(commands.knowledge_publish_run, "--apply")
+    client.rows["SemanticNode"]["extra"] = {
+        "id": "extra", "lineageId": "extra", "versionNumber": 1, "versionState": "current", "nodeKey": "maker--voice-cloning",
+        "nodeKind": "maker", "displayName": "Voice cloning", "aliases": [], "status": "generated",
+    }
+    with pytest.raises(ValueError, match="already of kind"):
+        run(commands.knowledge_entities_retype, "--key", "task--voice-cloning", "--kind", "task", "--actor", "ai")
+    with pytest.raises(ValueError, match="already holds the key"):
+        run(commands.knowledge_entities_retype, "--key", "task--voice-cloning", "--kind", "maker", "--actor", "ai")
+    with pytest.raises(ValueError, match="requires --actor ai\\|human"):
+        run(commands.knowledge_entities_retype, "--key", "task--voice-cloning", "--kind", "model")
+    with pytest.raises(ValueError, match="requires --key"):
+        run(commands.knowledge_entities_retype, "--actor", "ai")
+    run(commands.knowledge_entities_reject, "--key", "task--code-completion", "--actor", "ai")
+    with pytest.raises(ValueError, match="rejected"):
+        run(commands.knowledge_entities_retype, "--key", "task--code-completion", "--kind", "model", "--actor", "ai")
+
+
+def test_the_registry_holds_every_accepted_node_with_all_its_names_and_drops_ambiguous_aliases(client, tmp_path, capsys):
+    def node_row(key, kind, name, aliases, status="accepted"):
+        return {"id": f"{key}-v1", "lineageId": key, "versionNumber": 1, "versionState": "current", "nodeKey": key, "nodeKind": kind, "displayName": name, "aliases": aliases, "status": status}
+
+    rows = [
+        node_row("maker--mistral-ai", "maker", "Mistral AI", ["Mistral", "mistral  ai", "Mistral-AI", "team@example.org"]),
+        node_row("maker--other", "maker", "Other Lab", ["Mistral.", "Other"]),
+        node_row("model--gemma-3", "model", "Gemma 3", []),
+        node_row("model--generated", "model", "Generated", [], status="generated"),
+    ]
+    client.rows["SemanticNode"] = {row["id"]: row for row in rows}
+    out = tmp_path / "run" / "registry.json"
+    run(commands.knowledge_entities_registry, "--out", str(out))
+    registry = json.loads(out.read_text())
+    assert registry == [
+        {"aliases": ["Mistral AI"], "key": "maker--mistral-ai", "kind": "maker"},
+        {"aliases": ["Other Lab", "Other"], "key": "maker--other", "kind": "maker"},
+        {"aliases": ["Gemma 3"], "key": "model--gemma-3", "kind": "model"},
+    ]
+    captured = capsys.readouterr()
+    assert "3 entities" in captured.out and "'mistral'" in captured.err
+    with pytest.raises(ValueError, match="--out"):
+        run(commands.knowledge_entities_registry)
+
+
+def test_a_rename_keeps_the_old_name_so_both_makers_resolve_through_the_registry(client, tmp_path):
+    from .registry import build_registry
+
+    run(commands.knowledge_publish_run, "--apply")
+    run(commands.knowledge_entities_rename, "--key", "maker--some-lab", "--name", "Some Lab Inc", "--actor", "ai")
+    registry, warnings = build_registry(client.list_records("SemanticNode"))
+    entry = next(row for row in registry if row["key"] == "maker--some-lab")
+    assert entry["aliases"] == ["Some Lab Inc", "Some Lab"] and warnings == []
+
+
+def test_topic_config_writes_the_vectorizer_with_the_extra_stop_words(tmp_path, monkeypatch):
+    import yaml
+
+    from . import topic_config
+
+    monkeypatch.setattr(topic_config, "english_stop_words", lambda: ["the", "and"])
+    words = tmp_path / "stop-words.txt"
+    words.write_text("# Shipped\ncard\nModels\n\nhugging  face  # two words\n", encoding="utf-8")
+    out = tmp_path / "topic-modeling.yml"
+    run(commands.knowledge_topic_config, "--out", str(out), "--stop-words", str(words))
+    configuration = yaml.safe_load(out.read_text())
+    vectorizer = configuration["bertopic_analysis"]["vectorizer"]
+    listed = set(vectorizer["stop_words"])
+    assert vectorizer["ngram_range"] == [1, 2]
+    assert {"the", "and", "card", "models", "hugging", "face"} <= listed
+    assert {"20", "35", "2026", "9999", "f1", "ab", "x", "7"} <= listed
+    assert not ({"voice", "clone", "10000", "f1x", "abc"} & listed)
+    assert vectorizer["stop_words"] == sorted(listed)
+    assert configuration["bertopic_analysis"]["hdbscan_model"]["parameters"]["min_cluster_size"] == 5
+    assert configuration["bertopic_analysis"]["parameters"] == {"nr_topics": None, "min_topic_size": 5}
+    with pytest.raises(ValueError, match="--out"):
+        run(commands.knowledge_topic_config)
