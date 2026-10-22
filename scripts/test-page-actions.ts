@@ -29,11 +29,11 @@ after(async () => {
   await browser.close();
 });
 
-async function open(context: BrowserContext, options: { clipboard?: boolean } = {}): Promise<Page> {
+async function open(context: BrowserContext, options: { twin?: string } = {}): Promise<Page> {
   await context.route("**/*", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/orchids.html") return route.fulfill({ contentType: "text/html", body: html });
-    if (path === "/orchids.md") return route.fulfill({ contentType: "text/markdown", body: markdown });
+    if (path === "/orchids.md") return route.fulfill({ contentType: "text/markdown", body: options.twin ?? markdown });
     if (path.startsWith("/_plugins/papyrus-page-actions")) return route.fulfill({ contentType: "text/javascript", body: script });
     if (path.includes("markus-components")) return route.fulfill({ contentType: "text/css", body: css });
     if (path.endsWith(".css")) return route.fulfill({ contentType: "text/css", body: "" });
@@ -57,6 +57,30 @@ test("copy puts the Markdown twin on the clipboard, confirms it, and reports the
   assert.ok(markdown.startsWith("# Orchids of the Marsh") && markdown.includes("Canonical: https://almanac.example.org/orchids.html"));
   const events = await page.evaluate(() => (window as unknown as { events: unknown[][] }).events);
   assert.deepEqual(events.find((entry) => entry[0] === "event")?.slice(1), ["page_action", { action: "copy" }]);
+  await context.close();
+});
+
+test("copy gives a page written as page blocks exactly as the twin, directives and all, with no second title", async () => {
+  const twin = [
+    "> How decisions get made.",
+    "",
+    '::band{id="top" tone="card"}',
+    "# Decision models",
+    "",
+    '::image{src="images/wide.png" alt="A wide chart" layout="full" caption="Wide"}',
+    "",
+    '::column{panel="card"}',
+    '::island{name="Chart" kind="bar" summary="A bar chart: 2B leads."}',
+    "",
+  ].join("\n");
+  const context = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+  const page = await open(context, { twin });
+  await page.getByRole("button", { name: "Copy Markdown" }).click();
+  await page.getByRole("status").filter({ hasText: "Copied" }).waitFor();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  assert.ok(copied.endsWith(twin), "the twin is copied whole");
+  assert.equal(copied.split("# ").length - 1, 1, "the title is not added when the page carries its own H1 after ::band");
+  assert.ok(copied.includes('::image{src="images/wide.png" alt="A wide chart" layout="full" caption="Wide"}'));
   await context.close();
 });
 

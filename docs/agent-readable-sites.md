@@ -31,6 +31,30 @@ Which pages get no twin:
 
 A page copied verbatim with `static.copy` has no generated twin. The site can ship its own and list the route in `sitemap.extra`; see "Hand-published routes" in [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md#agent-readable-pages).
 
+## Every Markdown output is Markus source
+
+Whatever serves Markdown to a reader or an agent serves the Markus source as written: `::image{src=… alt=… caption=…}` with all its attributes, page blocks (`::band`, `::column`, `::button`), and an `::island` with its `summary` text. Nothing flattens a directive into plain Markdown. Only `::include` and `::raw` regions are left out, because they place markup that has no source text. The audit (PPY-b2e95d), one test per row:
+
+| Path | File(s) | Before | After | Test |
+| --- | --- | --- | --- | --- |
+| Item twin (`x.md`) | `projection/standard/markdown.py` `item_markdown`, `blocks.twin` | Directives kept (5.19.0) | Same | `test_markus_everywhere.py::test_item_twin_keeps_the_image_directive_and_drops_only_the_front_matter` |
+| Authored page twin | `projector.py` `_authored_markdown` | Page blocks kept (5.19.0) | Same | `test_authored_page_twin_keeps_its_page_blocks`; `features_backend/markus-twins.feature` |
+| Home twin | `markdown.py` `home_markdown`, `projector.py` | Wrote a title and description of its own in front of the source, so a home written as page blocks showed a second `# Title` before `::band` | Source as written; title only when the source has none | `test_home_twin_keeps_the_page_blocks_without_a_second_title`, `test_home_twin_adds_the_title_only_when_the_source_has_none` |
+| Listing, archive, tag and tags twins | `markdown.py` `listing_markdown` | Link lists to the `.md` twins | Same (no body to carry; each link leads to a Markus twin) | `test_listing_and_tag_twins_are_link_lists_to_the_markus_twins`, `test_listing_twin_lines_link_to_the_twin_not_the_html` |
+| `Accept: text/markdown` | `amplify/publication/redirect-and-index.js` | A URI rewrite to the twin object | Same object, now checked against every twin of the golden sites | `scripts/test-redirect-rules.ts` "negotiated Markdown for every page…" |
+| `llms.txt` | `markdown.py` `llms_txt` | Links to the twins | Same | `test_llms_txt_links_to_the_twins` |
+| `llms-full.txt` | `markdown.py` `llms_full_txt`, `projector.py` | Twin bodies (5.19.0) | Same | `test_llms_full_carries_page_blocks_as_written`, `test_llms_full_carries_the_image_directive` |
+| Copy Markdown | `assets/papyrus-page-actions.js` | Fetched the twin, but added a second `# Title` in front of any twin that did not start with `# ` (every page written as page blocks) | Copies the twin; adds a title only when the twin has no H1 anywhere | `scripts/test-page-actions.ts` "copy gives a page written as page blocks exactly as the twin…" |
+| View as Markdown | `page_actions.py` | Links to the twin | Same | `test_page_actions_point_at_the_twin_and_ai_links_carry_only_the_page_url` |
+| Open in ChatGPT, Claude, Perplexity | `page_actions.py` `ai_links` | Hand over the page URL in a short prompt, never the body | Same | `test_ai_prompt_targets_never_carry_the_page_body` |
+| RSS and Atom feeds | `feeds.py` | Front matter summary as plain text; no Markdown, no body | Same (nothing to change) | `test_feeds_carry_only_the_front_matter_summary` |
+| Markus docs sites | `markus_renderer/docs_site.py` `twin_text`, `write_agent_outputs` | The staged Markus page (MkDocs dialects already converted to directives) | Same | `test_markus_docs_site.py::test_twins_and_llms_full_carry_the_markus_source_with_directives_intact` |
+| Public data JSON (`search-index.json`, `latest.json`) | `projection/public_data.py` | Front matter summary text; no body | Same (nothing to change) | none (read-only audit; owned by Data Parade) |
+| `papyrus ops content export` | `markus_export.py` | Writes `bodyMarkus` as stored | Same | `test_markus_export.py::test_an_exported_body_keeps_its_image_directive_verbatim` |
+| CMS app API routes (`app/api/*`) | `app/api` | None serves Markdown to readers | Same | none |
+
+Out of scope, listed: the plain-text excerpts the editorial checks and the console chat use internally (`lib/editorial-checks-demo.ts`, `components/topic-steering-workspace.tsx`) are for the editor's own UI, not reader output.
+
 ## llms.txt and llms-full.txt
 
 `/llms.txt` follows llmstxt.org: an H1 with the site name, a blockquote from the site description, H2 sections of links to the twins, and an Optional section with the feeds, the sitemap and `llms-full.txt`.

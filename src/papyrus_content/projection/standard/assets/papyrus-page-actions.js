@@ -18,7 +18,9 @@
         // The twin already opens with the title and carries the canonical URL; add what is missing.
         var prefix = "";
         if (markdown.indexOf(canonical) === -1) prefix = canonical + "\n\n";
-        if (markdown.replace(/^\s+/, "").indexOf("# ") !== 0) prefix = "# " + title + "\n\n" + prefix;
+        // The server twin always carries its H1. A page written as page blocks has it after a summary line and the
+        // ::band lines, so look for it anywhere rather than only at the top: the copy is the twin, never a rewrite of it.
+        if (!/^# /m.test(markdown)) prefix = "# " + title + "\n\n" + prefix;
         return prefix + markdown;
       });
   }
