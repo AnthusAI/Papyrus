@@ -47,7 +47,9 @@ def run_site_triggers(client, options: dict[str, Any], result, *, unpublished: b
         return {"projection": skipped_projection()} if projecting else {}
     triggers: dict[str, Any] = {}
     if projecting:
-        triggers["projection"] = trigger_projection(item_task(result.item_id, unpublished=unpublished))
+        triggers["projection"] = trigger_projection(
+            item_task(result.item_id, unpublished=unpublished, published_item_id=result.published_item_id if result.changed else None)
+        )
     if not result.changed:
         return triggers
     item = client.get_record("Item", result.item_id) or {}

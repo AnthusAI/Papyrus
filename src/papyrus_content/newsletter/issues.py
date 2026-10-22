@@ -6,7 +6,10 @@ Rows (single table):
   ISSUE#<id> / RENDER      the issue rendered once for sending (html, text, subject)
   ISSUE#<id> / SEND#<hid>  ledger: ``claimed`` before SES is called (at most once), then ``sent``, ``failed``, ``suppressed`` or ``skipped``
 
-Statuses: draft, awaiting_approval, scheduled, sending, sent, cancelled, stopped, blocked.
+  ALERT#<listId> / ITEM#<lineageId>   dedupe: one alert per list and published item, ever (see ``alerts.py``)
+
+Statuses: draft, awaiting_approval, scheduled, sending, sent, cancelled, stopped, blocked. A roundup is born ``draft``; an
+alert (``kind`` "alert", no Item: its subject, body and preheader live on the META row) is born ``awaiting_approval``.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ EDITORS = frozenset({"editor", "admin"})
 ADMINS = frozenset({"admin"})
 EDITED_NOTE = "edited after approval; approve again"
 SUMMARY_FIELDS = (
-    "issueId", "listId", "kind", "itemId", "sourceItemId", "subject", "status", "sendAt", "approvedBy", "approvedAt", "sentAt",
+    "issueId", "listId", "kind", "itemId", "sourceItemId", "lineageId", "subject", "status", "sendAt", "approvedBy", "approvedAt", "sentAt",
     "counts", "note", "archiveUrl", "createdAt", "updatedAt",
 )
 
@@ -479,7 +482,7 @@ class IssueService:
             return failure(409, "item_missing", "The issue's item no longer exists.")
         address = self.postal.resolve()
         try:
-            render(self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER)
+            render(self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER, kind=issue.get("kind", "roundup"))
         except Exception as error:  # noqa: BLE001 - a body that cannot render is the editor's to fix
             return failure(422, "render_failed", f"The issue cannot be rendered: {type(error).__name__}.")
         now = self.clock()
@@ -514,19 +517,22 @@ class IssueService:
         issue = self._issue(input_of(event))
         if issue is None:
             return failure(404, "not_found", "No such issue.")
-        if issue.get("status") != "scheduled":
+        alert = issue.get("kind") == "alert"
+        # An alert waiting for approval can be dismissed too; an alert is never edited, so cancelling ends it (a roundup goes back to draft).
+        cancellable = ("scheduled", "awaiting_approval") if alert else ("scheduled",)
+        if issue.get("status") not in cancellable:
             return failure(409, "invalid_state", "Only a scheduled issue can be cancelled; stop one that is sending.")
         if issue.get("scheduleName"):
             self.scheduler.delete(issue["scheduleName"])
         changed = self.issues.update(
             issue["issueId"],
-            {"status": "draft", "note": f"cancelled by {actor_of(event)}"},
-            expect="scheduled",
+            {"status": "cancelled" if alert else "draft", "note": f"cancelled by {actor_of(event)}"},
+            expect=cancellable,
             remove=("contentHash", "approvedBy", "approvedAt", "sendAt", "scheduleName"),
         )
         if not changed:
             return failure(409, "invalid_state", "The issue started sending; stop it instead.")
-        log("issue_cancelled", issue["issueId"], status="draft")
+        log("issue_cancelled", issue["issueId"], status="cancelled" if alert else "draft")
         return reply(200, ok=True, issue=summary(self.issues.get(issue["issueId"]) or {}, self.settings))
 
     def stop(self, event: Mapping[str, Any]) -> Response:
@@ -574,7 +580,8 @@ class IssueService:
         address = self.postal.resolve()
         try:
             rendered = render(
-                self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER, manage_url="#preview", unsubscribe_url="#preview"
+                self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER, manage_url="#preview", unsubscribe_url="#preview",
+                kind=issue.get("kind", "roundup"),
             )
         except Exception as error:  # noqa: BLE001
             return failure(422, "render_failed", f"The issue cannot be rendered: {type(error).__name__}.")
@@ -604,7 +611,7 @@ class IssueService:
 
         try:
             source = load_source(self.content, issue)
-            rendered = render(self.settings, entry["name"], source, address, manage_url="#test", unsubscribe_url="#test", subject_prefix="[Test] ")
+            rendered = render(self.settings, entry["name"], source, address, manage_url="#test", unsubscribe_url="#test", subject_prefix="[Test] ", kind=issue.get("kind", "roundup"))
         except ItemMissing:
             return failure(409, "item_missing", "The issue's item no longer exists.")
         except Exception as error:  # noqa: BLE001
@@ -625,6 +632,11 @@ class IssueService:
         from .roundup import assemble
 
         return reply(200, ok=True, **assemble(self, entry, manual=False, actor="roundup-schedule"))
+
+    def item_published(self, event: Mapping[str, Any]) -> Response:
+        from .alerts import raise_alerts
+
+        return reply(200, ok=True, **raise_alerts(self, event))
 
     def start_send(self, event: Mapping[str, Any]) -> Response:
         from .send import start_send

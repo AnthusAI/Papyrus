@@ -38,7 +38,7 @@ Initiative PPY-31455f plans sending. Its milestones, with what is built:
 
 - M1 (PPY-08dbd8): Amazon SES per site, double opt-in (built, see below), one-click unsubscribe.
 - M2 (PPY-19a098): issues composed, approved by an admin and sent once (built, see below).
-- M3 (PPY-024f96): automation and alerts.
+- M3 (PPY-024f96): automation and alerts (alerts: PPY-d415c0, see Alerts).
 - M4 (PPY-df1d54): hardening.
 
 ## Email rendering
@@ -174,7 +174,7 @@ Two CloudWatch alarms (`papyrus-newsletter-<siteId>-bounce-rate`, `-complaint-ra
 
 ### Known gaps
 
-Not built: alerts and the newsroom panel (their stories). The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasure finds them. Events carry the subscriber id, a pseudonym, so the 90 day event log is not erased with the subscriber; it expires. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
+Not built: the newsroom panel (its story). The sender (PPY-3ae3b9) writes `gsiHid` on every ledger row, as above, so erasure finds them. Events carry the subscriber id, a pseudonym, so the 90 day event log is not erased with the subscriber; it expires. A form left open more than 24 hours is accepted silently and sends nothing; the reader has to reload and try again.
 
 
 
@@ -201,7 +201,7 @@ stateDiagram-v2
     sent --> [*]: roundup Item published to the archive
 ```
 
-`awaiting_approval` (alerts) and `cancelled` exist as statuses for the alert story. A `blocked` issue is fixed at its cause (configure the address, resume the site) and approved again.
+`awaiting_approval` and `cancelled` belong to alerts (below). A `blocked` issue is fixed at its cause (configure the address, resume the site) and approved again.
 
 ### Archive: what a site puts in projection.json
 
@@ -289,7 +289,7 @@ Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-ad
 ### Operator notes
 
 - Environment (all set by the plugin): `FUNCTION_ARN`, `SCHEDULER_ROLE_ARN`, `QUEUE_URL`, `CONTENT_ACTIONS_FUNCTION`, `PAPYRUS_GRAPHQL_ENDPOINT`, `ITEM_URL_STYLE`, plus those of the double opt-in. `LISTS_JSON` also carries a roundup's `issueType`, `archivePath` and `timezone`.
-- IAM: `newsletter` may create, update and delete schedules named `papyrus-nl-<siteId>-*`, pass the one scheduler role, send to the queue, read the two postal parameters, invoke `content-actions`, and call four AppSync fields (`Query.getItem`, `Query.listPublishedItems`, `Mutation.createItem`, `Mutation.updateItem`). The worker may read and write the table, receive from and send to the queue, invoke `content-actions`, read the key parameter, send through the site identity and configuration set, and call `sesv2:GetAccount` (no resource-level form exists). The AppSync function may only invoke `newsletter`.
+- IAM: `newsletter` may create, update and delete schedules named `papyrus-nl-<siteId>-*`, pass the one scheduler role, send to the queue, read the two postal parameters, invoke `content-actions`, and call five AppSync fields (`Query.getItem`, `Query.getPublishedItem`, `Query.listPublishedItems`, `Mutation.createItem`, `Mutation.updateItem`). The worker may read and write the table, receive from and send to the queue, invoke `content-actions`, read the key parameter, send through the site identity and configuration set, and call `sesv2:GetAccount` (no resource-level form exists). The AppSync function may only invoke `newsletter`.
 - To stop a send in progress, an admin calls `newsletterStopIssue`: workers drop the remaining messages and the counts stay as they were.
 - A message in the dead letter queue (`papyrus-newsletter-send-<siteId>-dlq`) is a batch that failed three times (a missing render, SES unreachable). The ledger makes it safe to redrive: addresses already handled are skipped.
 - A `blocked` issue needs its cause fixed (create the postal address parameter, resume the site) and an admin to approve it again; approval accepts `blocked`.
@@ -300,4 +300,64 @@ Read at send time from SSM String parameters: `/papyrus/<siteId>/email/postal-ad
 - The window is read by scanning the published item summaries (as the projector does); a very large site may want an index by publish time.
 - Link paths assume a section's `base` equals its name. A section declared with another `base` would be linked wrongly in a draft (the editor fixes the link).
 - The article list in the newsroom does not show issue types; the panel links to the editor by item id.
-- Alerts are another story. `compliance.py` binds the unsubscribe story's `links`, `suppression` and `pause` calls to the sender's store and keys.
+- `compliance.py` binds the unsubscribe story's `links`, `suppression` and `pause` calls to the sender's store and keys.
+
+## Alerts: publish-triggered (PPY-d415c0)
+
+Status: Built. An alert list sends one short email when a matching item is published. Alerts hang off the Papyrus publish event and nothing else: not procedure runs, not monitor triggers.
+
+### Configuration
+
+```ts
+newsletter: {
+  // ...as above
+  instantAlerts: false,            // true lets a list with approval: "none" send without an admin
+  lists: [
+    // Every published item, approved by an admin.
+    { id: "all-alerts", name: "All alerts", description: "...", kind: "alert", approval: "admin" },
+    // Items in either section, with a matching tag, of one type; OR within a field, AND across the fields present.
+    {
+      id: "rulings", name: "Rulings", description: "...", kind: "alert", approval: "none",
+      rule: { sections: ["rulings", "notes"], tags: ["breaking"], types: ["article"] },
+    },
+  ],
+}
+```
+
+`rule` is optional; absent or empty it matches every published item. Names compare without regard to case. A section is the item's section, a tag comes from the `tags` front matter, and a type is the item type. Items of any roundup list's `issueType` never raise an alert.
+
+### How a publish reaches the newsletter
+
+```mermaid
+flowchart LR
+    N[newsroom publishItem] --> C
+    L[papyrus content publish] -->|projection task, marked published| C[content-actions]
+    C -->|after a real publish, page live| H[announce_published]
+    H -->|async Event| F["newsletter: item-published"]
+    F --> D{ALERT# dedupe row}
+    D -->|new| I[alert issue]
+    D -->|exists| X[nothing]
+    I -->|approval none and instantAlerts| S[start-send]
+    I -->|otherwise| W[awaiting_approval]
+```
+
+`src/papyrus_content/publish_alerts.py` (`announce_published`) is the only code that invokes the newsletter function, from `content-actions`. It fires only for a real publish (`PublishResult.changed`), never for unpublish, edits that keep the same published content, or reprojection (`all`, `item-pages`, `deploy-render`):
+
+- Newsroom: `publish_item_action` passes the published item id to `project_item_action` when `changed`. The announcement goes out once the page is live. If the projection failed, the scheduled retry carries the same marker and announces when it succeeds.
+- CLI: `papyrus content publish` marks its projection task with the published item id when `changed`; `run_projection_task` announces after the projection succeeds. A task without the marker (a plain reprojection, `--no-trigger`, an unchanged republish) announces nothing.
+- No `PAPYRUS_NEWSLETTER_FUNCTION` (the plugin is off): a no-op. Any error is logged and swallowed, with 2 and 3 second timeouts, so an alert problem never fails or slows a publish.
+
+The plugin sets `PAPYRUS_NEWSLETTER_FUNCTION` on `content-actions` and grants it `lambda:InvokeFunction` on `papyrus-newsletter-<siteId>` only.
+
+### What the function does
+
+For each alert list whose rule matches, `alerts.py` takes a conditional-put dedupe row `ALERT#<listId>` / `ITEM#<lineageId>` (kept, never expired) and, if it was new, writes an issue of kind `alert` with `sourceItemId` and `lineageId`. A repeated event, a republish or an edit therefore never alerts again; a crash between the dedupe row and the issue is finished by the retry. No Item is created and there is no archive. The subject is the item title; the Markus body, stored on the issue row, is the title as a link, the dek (`deck`, or a `description`/`summary` style front matter field), the item's first paragraph of plain prose if it has one, and a "Read it on <site>" link. Links use `ITEM_URL_STYLE` as roundup drafts do. The footer says "You get this because you subscribed to <list name> alerts on <site>."
+
+An alert starts `awaiting_approval`; the admin approves it (`newsletterApproveIssue`), which schedules it like a roundup. Cancelling an alert (waiting or scheduled) ends it as `cancelled`; it does not return to draft. If the list has `approval: "none"` and the site has `instantAlerts: true`, the function approves it as `system:instant-alert` and calls `start-send` at once, so the content-hash, postal address and paused-site guards still run (a failure leaves it `blocked` for an admin). When an alert finishes `sent`, nothing is published.
+
+### Known gaps
+
+- Only `publishItem` (the newsroom action and the CLI) alerts. `saveItemDraft` on an already-live item, `papyrus story` commands and imports publish without an alert, on purpose: a bulk import must not alert.
+- A CLI publish with `--no-trigger`, or on a site with no projection and no `content-actions` function configured, does not alert.
+- A site that publishes an item before the matching alert list exists gets no alert for it (the event has passed).
+- The alert shows no admin notification; the panel shows pending alerts.

@@ -92,7 +92,7 @@ def start_send(service: IssueService, issue_id: str) -> dict[str, Any]:
         if service.compliance.is_paused():
             return _block(service, issue_id, "blocked", "site paused", "scheduled")
         try:
-            rendered = render(service.settings, entry["name"], source, address)
+            rendered = render(service.settings, entry["name"], source, address, kind=issue.get("kind", "roundup"))
         except PostalAddressMissing:
             return _block(service, issue_id, "blocked", "postal address missing", "scheduled")
         except Exception as error:  # noqa: BLE001
