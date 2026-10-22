@@ -6,11 +6,13 @@ import json
 from pathlib import Path
 
 AS_OF = "2026-10-19"
+BY_AI = {"actor": "ai", "name": None, "on": "2026-10-01"}
+BY_ADA = {"actor": "human", "name": "Ada", "on": "2026-10-12"}
 
 
 def entity(key, kind, name, weeks, series8, last4, prior4, percent, *, href="", is_new=False, count=None):
     return {
-        "key": key, "kind": kind, "name": name, "href": href or None, "itemCount": count if count is not None else sum(series8),
+        "key": key, "kind": kind, "name": name, "href": href or None, "acceptedBy": BY_AI, "itemCount": count if count is not None else sum(series8),
         "weeksOfHistory": weeks, "series8": series8, "change": {"last4": last4, "prior4": prior4, "percent": percent}, "isNew": is_new,
     }
 
@@ -28,12 +30,12 @@ INDEX = {
     "beats": [],
     "entities": ENTITIES,
     "trending": ["acme-loom", "delta-fade", "beta-spool"],
-    "conceptOfTheWeek": {"key": "acme-loom", "name": "Acme Loom", "href": "/wiki/acme-loom/", "lede": "A loom maker that doubled its output.", "itemCount": 36, "makerCount": 3},
+    "conceptOfTheWeek": {"key": "acme-loom", "name": "Acme Loom", "href": "/wiki/acme-loom/", "lede": "A loom maker that doubled its output.", "editedBy": BY_AI, "itemCount": 36, "makerCount": 3},
 }
 
 ACME = {
-    "schemaVersion": 1, "key": "acme-loom", "kind": "maker", "name": "Acme Loom", "aliases": [],
-    "description": {"state": "reviewed", "reviewedOn": "2026-10-01"}, "href": "/wiki/acme-loom/", "itemCount": 24,
+    "schemaVersion": 1, "key": "acme-loom", "kind": "maker", "name": "Acme Loom", "aliases": [], "acceptedBy": BY_AI,
+    "description": {"state": "ai_edited", "editedBy": BY_AI}, "href": "/wiki/acme-loom/", "itemCount": 24,
     "weeksOfHistory": 12, "series8": [1, 1, 2, 2, 3, 4, 5, 6],
     "series26": [0] * 14 + [1, 1, 2, 2, 3, 4, 5, 6, 0, 1, 2, 3],
     "change": {"last4": 18, "prior4": 6, "percent": 200},
@@ -47,7 +49,7 @@ ACME = {
 }
 
 NEW_ENTITY = {
-    "schemaVersion": 1, "key": "gamma-new", "kind": "maker", "name": "Gamma New", "aliases": [], "description": {"state": "none", "reviewedOn": None},
+    "schemaVersion": 1, "key": "gamma-new", "kind": "maker", "name": "Gamma New", "aliases": [], "acceptedBy": BY_ADA, "description": {"state": "none", "editedBy": None},
     "href": None, "itemCount": 3, "weeksOfHistory": 2, "series8": [0, 0, 0, 0, 0, 0, 1, 2], "series26": [0] * 24 + [1, 2],
     "change": {"last4": 3, "prior4": 0, "percent": None}, "neighbours": [], "relatedItems": [],
 }
@@ -55,9 +57,9 @@ NEW_ENTITY = {
 CLUSTERS = {
     "schemaVersion": 1, "asOf": AS_OF, "runId": "run-1", "unacceptedClusters": "hide",
     "clusters": [
-        {"uid": "c-1", "name": "Wearable looms", "state": "growing", "itemCount": 14, "topTerms": ["loom", "wearable", "textile"], "series8": [1, 1, 2, 2, 3, 3, 4, 5], "weeksOfData": 10, "href": "/topics/wearable-looms/"},
-        {"uid": "c-2", "name": "Fresh theme", "state": "new", "itemCount": 3, "topTerms": ["fresh"], "series8": [0, 0, 0, 0, 0, 1, 1, 1], "weeksOfData": 3, "href": None},
-        {"uid": "c-3", "name": None, "state": None, "itemCount": 6, "topTerms": ["secret"], "series8": [0, 0, 1, 1, 1, 1, 1, 1], "weeksOfData": 6, "href": None},
+        {"uid": "c-1", "name": "Wearable looms", "acceptedBy": BY_AI, "state": "growing", "itemCount": 14, "topTerms": ["loom", "wearable", "textile"], "series8": [1, 1, 2, 2, 3, 3, 4, 5], "weeksOfData": 10, "href": "/topics/wearable-looms/"},
+        {"uid": "c-2", "name": "Fresh theme", "acceptedBy": BY_ADA, "state": "new", "itemCount": 3, "topTerms": ["fresh"], "series8": [0, 0, 0, 0, 0, 1, 1, 1], "weeksOfData": 3, "href": None},
+        {"uid": "c-3", "name": None, "acceptedBy": None, "state": None, "itemCount": 6, "topTerms": ["secret"], "series8": [0, 0, 1, 1, 1, 1, 1, 1], "weeksOfData": 6, "href": None},
     ],
 }
 

@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 from papyrus_content.reader_steering.snapshot import encoded
 
+from .actors import Actor
 from .builder import CLUSTERS_FILE, INDEX_FILE, build_files, entity_file
 from .model import (
     Beat,
@@ -21,6 +22,8 @@ from .trends import change_of, percent_change
 from .weeks import week_label, week_number
 
 AS_OF = date(2026, 10, 19)
+AI = Actor("ai", None, "2026-10-12")
+ADA = Actor("human", "Ada", "2026-10-13")
 MONDAY_WEEK = week_number(AS_OF)
 
 
@@ -54,7 +57,7 @@ OPTIONS = SnapshotOptions(as_of=AS_OF)
 
 
 def two_tasks():
-    voice = node("task", "Voice cloning", description="Copying a voice from a short sample.", description_state="reviewed", reviewed_on="2026-10-12")
+    voice = node("task", "Voice cloning", description="Copying a voice from a short sample.", description_state="reviewed", description_edited_by=ADA, accepted_by=AI)
     completion = node("task", "Code completion")
     maker = node("maker", "Some Lab")
     items = []
@@ -182,6 +185,7 @@ def test_concept_of_the_week_is_the_reviewed_entity_with_the_most_recent_items()
         "name": "Voice cloning",
         "href": None,
         "lede": "Copying a voice from a short sample.",
+        "editedBy": {"actor": "human", "name": "Ada", "on": "2026-10-13"},
         "itemCount": 18,
         "makerCount": 1,
     }
@@ -194,6 +198,39 @@ def test_concept_of_the_week_is_the_reviewed_entity_with_the_most_recent_items()
         links=data.links,
     )
     assert build_files(without_review, OPTIONS)[INDEX_FILE]["conceptOfTheWeek"] is None
+
+
+def test_description_edited_by_ai_counts_for_concept_of_the_week_and_says_so():
+    data, voice, *_ = two_tasks()
+    edited = EntityNode(**{**voice.__dict__, "description_state": "ai_edited", "description_edited_by": AI})
+    files = build_files(KnowledgeData(items=data.items, nodes=(edited, *data.nodes[1:]), links=data.links), OPTIONS)
+    assert files[INDEX_FILE]["conceptOfTheWeek"]["editedBy"] == {"actor": "ai", "name": None, "on": "2026-10-12"}
+    assert files[entity_file("task--voice-cloning")]["description"] == {"state": "ai_edited", "editedBy": {"actor": "ai", "name": None, "on": "2026-10-12"}}
+
+
+def test_a_draft_description_has_no_editor_and_is_not_the_concept_of_the_week():
+    data, voice, *_ = two_tasks()
+    draft = EntityNode(**{**voice.__dict__, "description_state": "draft", "description_edited_by": None})
+    files = build_files(KnowledgeData(items=data.items, nodes=(draft, *data.nodes[1:]), links=data.links), OPTIONS)
+    assert files[INDEX_FILE]["conceptOfTheWeek"] is None
+    assert files[entity_file("task--voice-cloning")]["description"] == {"state": "draft", "editedBy": None}
+
+
+def test_a_cluster_says_who_accepted_it_and_the_new_rule_uses_the_earliest_publication_not_the_run_date():
+    old_story = cluster("old", event="new", earliest_published_at="2026-08-01", accepted_by=AI, weekly_series=weekly(0, 0, 0, 0, 0, 0, 2, 3))
+    fresh = cluster("fresh", event="new", earliest_published_at="2026-10-12", accepted_by=ADA, weekly_series=weekly(0, 0, 0, 0, 0, 0, 2, 3))
+    rows = {row["uid"]: row for row in build_files(KnowledgeData(items=(item("a", 0),), clusters=(old_story, fresh)), OPTIONS)[CLUSTERS_FILE]["clusters"]}
+    assert rows["old"]["state"] is None and rows["fresh"]["state"] == "new"
+    assert rows["old"]["acceptedBy"] == {"actor": "ai", "name": None, "on": "2026-10-12"}
+    assert rows["fresh"]["acceptedBy"] == {"actor": "human", "name": "Ada", "on": "2026-10-13"}
+
+
+def test_an_unnamed_cluster_does_not_claim_an_acceptance():
+    shown = build_files(
+        KnowledgeData(items=(item("a", 0),), clusters=(cluster("p", accepted=False, name=None, accepted_by=AI, member_item_keys=("lineage-a",)),)),
+        SnapshotOptions(as_of=AS_OF, unaccepted_clusters="unnamed"),
+    )[CLUSTERS_FILE]
+    assert shown["clusters"][0]["acceptedBy"] is None
 
 
 def test_neighbours_are_confirmed_relations_and_shared_items():
@@ -219,9 +256,10 @@ def test_neighbours_are_confirmed_relations_and_shared_items():
 def test_description_state_is_reported_without_the_text():
     data, _voice, _completion, _maker = two_tasks()
     entity = build_files(data, OPTIONS)[entity_file("task--voice-cloning")]
-    assert entity["description"] == {"state": "reviewed", "reviewedOn": "2026-10-12"}
+    assert entity["description"] == {"state": "reviewed", "editedBy": {"actor": "human", "name": "Ada", "on": "2026-10-13"}}
+    assert entity["acceptedBy"] == {"actor": "ai", "name": None, "on": "2026-10-12"}
     other = build_files(data, OPTIONS)[entity_file("task--code-completion")]
-    assert other["description"] == {"state": "none", "reviewedOn": None}
+    assert other["description"] == {"state": "none", "editedBy": None} and other["acceptedBy"] is None
 
 
 def test_beats_count_member_items_per_week():
@@ -246,7 +284,7 @@ def cluster(uid: str, **overrides) -> Cluster:
         "event": "continued",
         "top_terms": ("agent", "tool"),
         "weekly_series": {},
-        "first_seen": "2026-06-01",
+        "earliest_published_at": "2026-06-01",
         "member_item_keys": ("lineage-a", "lineage-b"),
         "member_count": 2,
         "run_id": "run-1",
@@ -268,8 +306,8 @@ def test_clusters_hide_unaccepted_by_default_and_label_state_by_the_change_rule(
             cluster("growing", weekly_series=weekly(5, 5, 5, 5, 8, 8, 8, 8)),
             cluster("cooling", weekly_series=weekly(8, 8, 8, 8, 5, 5, 5, 5)),
             cluster("flat", weekly_series=weekly(5, 5, 5, 5, 5, 5, 5, 5)),
-            cluster("young", first_seen="2026-10-05", event="continued", weekly_series=weekly(0, 0, 0, 0, 0, 3, 4, 5)),
-            cluster("fresh", first_seen="2026-10-12", event="new", weekly_series=weekly(0, 0, 0, 0, 0, 0, 2, 3)),
+            cluster("young", earliest_published_at="2026-10-05", event="continued", weekly_series=weekly(0, 0, 0, 0, 0, 3, 4, 5)),
+            cluster("fresh", earliest_published_at="2026-10-12", event="new", weekly_series=weekly(0, 0, 0, 0, 0, 0, 2, 3)),
             cluster("proposed", accepted=False, name=None),
         ),
     )
@@ -302,7 +340,7 @@ def test_same_records_and_as_of_give_byte_identical_output():
 
 def test_public_safe_output_has_no_email_or_private_text():
     leaky = node("maker", "Ann <ann@example.org>")
-    named = node("task", "Safe task", aliases=("secret@example.org", "Fine alias"), description="Mail ann@example.org", description_state="reviewed", reviewed_on="2026-10-01")
+    named = node("task", "Safe task", aliases=("secret@example.org", "Fine alias"), description="Mail ann@example.org", description_state="reviewed", description_edited_by=ADA)
     data = KnowledgeData(
         items=(item("a", 0, title="Contact ann@example.org"), item("b", 0, title="A clean title")),
         nodes=(leaky, named),
@@ -319,18 +357,19 @@ def test_public_safe_output_has_no_email_or_private_text():
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
 BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "href", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
-CONCEPT_FIELDS = {"key", "name", "href", "lede", "itemCount", "makerCount"}
+CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
+ACTOR_FIELDS = {"actor", "name", "on"}
 ENTITY_FIELDS = {
-    "schemaVersion", "key", "kind", "name", "aliases", "description", "href", "itemCount", "weeksOfHistory",
+    "schemaVersion", "key", "kind", "name", "aliases", "acceptedBy", "description", "href", "itemCount", "weeksOfHistory",
     "series8", "series26", "change", "neighbours", "relatedItems",
 }
-DESCRIPTION_FIELDS = {"state", "reviewedOn"}
+DESCRIPTION_FIELDS = {"state", "editedBy"}
 NEIGHBOUR_FIELDS = {"relation", "key", "name", "kind", "weight"}
 RELATED_FIELDS = {"title", "url", "publishedAt", "reason"}
 CLUSTERS_FIELDS = {"schemaVersion", "asOf", "runId", "unacceptedClusters", "clusters"}
-CLUSTER_FIELDS = {"uid", "name", "state", "itemCount", "topTerms", "series8", "weeksOfData", "href"}
+CLUSTER_FIELDS = {"uid", "name", "acceptedBy", "state", "itemCount", "topTerms", "series8", "weeksOfData", "href"}
 
 
 def test_guest_surface_pins_the_exact_field_set_of_every_file():
@@ -340,7 +379,7 @@ def test_guest_surface_pins_the_exact_field_set_of_every_file():
         nodes=data.nodes,
         links=data.links,
         relations=(NodeRelation(voice.lineage_id, completion.lineage_id, "related_to", confirmed=True),),
-        clusters=(cluster("c", member_item_keys=("lineage-v0",), weekly_series=weekly(1, 1, 1, 1, 1, 1, 1, 1)),),
+        clusters=(cluster("c", member_item_keys=("lineage-v0",), accepted_by=AI, weekly_series=weekly(1, 1, 1, 1, 1, 1, 1, 1)),),
         beats=(Beat("b", "B", None, frozenset({"lineage-v0"})),),
     )
     files = build_files(data, OPTIONS)
@@ -349,12 +388,15 @@ def test_guest_surface_pins_the_exact_field_set_of_every_file():
     assert all(set(row) == KIND_FIELDS for row in index["kinds"])
     assert all(set(row) == BEAT_FIELDS for row in index["beats"])
     assert all(set(row) == INDEX_ENTITY_FIELDS and set(row["change"]) == CHANGE_FIELDS for row in index["entities"])
-    assert set(index["conceptOfTheWeek"]) == CONCEPT_FIELDS
+    assert set(index["conceptOfTheWeek"]) == CONCEPT_FIELDS and set(index["conceptOfTheWeek"]["editedBy"]) == ACTOR_FIELDS
+    assert any(row["acceptedBy"] and set(row["acceptedBy"]) == ACTOR_FIELDS for row in index["entities"])
     entity_files = [value for key, value in files.items() if key.startswith("_data/knowledge/entities/")]
     assert len(entity_files) == 3
     for entity in entity_files:
         assert set(entity) == ENTITY_FIELDS
         assert set(entity["description"]) == DESCRIPTION_FIELDS
+        assert entity["acceptedBy"] is None or set(entity["acceptedBy"]) == ACTOR_FIELDS
+        assert entity["description"]["editedBy"] is None or set(entity["description"]["editedBy"]) == ACTOR_FIELDS
         assert set(entity["change"]) == CHANGE_FIELDS
         assert all(set(row) == NEIGHBOUR_FIELDS for row in entity["neighbours"])
         assert all(set(row) == RELATED_FIELDS for row in entity["relatedItems"])
@@ -362,6 +404,7 @@ def test_guest_surface_pins_the_exact_field_set_of_every_file():
     clusters = files[CLUSTERS_FILE]
     assert set(clusters) == CLUSTERS_FIELDS
     assert clusters["clusters"] and all(set(row) == CLUSTER_FIELDS for row in clusters["clusters"])
+    assert all(set(row["acceptedBy"]) == ACTOR_FIELDS for row in clusters["clusters"])
     assert set(files) == {INDEX_FILE, CLUSTERS_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
     json.dumps(files)
 

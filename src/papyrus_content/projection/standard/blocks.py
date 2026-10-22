@@ -184,11 +184,13 @@ def _island_html(source: str, attributes: dict) -> str:
 
 def render(
     text: str, source: str, convert: Callable[[str], str], include: Callable[[dict], str] | None = None, *, trusted: bool = False,
+    implicit_band: bool = False,
 ) -> str:
     """The HTML of a page that uses bands. ``text`` has no front matter; ``convert`` turns one Markdown segment into HTML.
 
     ``include`` turns the attributes of one ``::include`` into markup; ``trusted`` allows ``::raw`` (a page file of the
-    site's repository, not an item an editor wrote).
+    site's repository, not an item an editor wrote). ``implicit_band`` lets content come before the first ``::band``: it
+    then sits in a bare band of its own (generated wiki pages, which are saved without page blocks).
     """
     bands: list[dict] = []
     lines: list[str] = []
@@ -198,7 +200,9 @@ def render(
 
     def parts() -> list[str]:
         if not bands:
-            raise ValueError(f"{source}: content before the first ::band")
+            if not implicit_band:
+                raise ValueError(f"{source}: content before the first ::band")
+            bands.append({"id": "", "tone": "background", "size": "bare", "eyebrow": "", "layout": "", "columns": [{"panel": "", "parts": []}]})
         return bands[-1]["columns"][-1]["parts"]
 
     def flush_buttons() -> None:

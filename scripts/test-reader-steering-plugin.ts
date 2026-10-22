@@ -33,8 +33,26 @@ assert.deepEqual(defaults, {
   karma: { upvoteWeight: 1, usedItWeight: 2 },
   ranking: { halfLifeHours: 48, risingWindowHours: 6, readerMinimum: 5, editorWeight: 0.5 },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
+  submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "brief", section: "unsectioned" },
+  moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
+  comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
   retirementPoll: false,
 });
+
+const tuned = resolveReaderSteeringConfig({ ...base, comments: { perHour: 5, editWindowMinutes: 0, maximumLinks: 0 } });
+assert.deepEqual(tuned.comments, { perHour: 5, editWindowMinutes: 0, maximumLength: 2000, maximumLinks: 0 });
+
+const withKinds = resolveReaderSteeringConfig({ ...base, submissions: { perDay: 20, kinds: ["article", "tool", "article"] } });
+assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"], itemType: "brief", section: "unsectioned" });
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, submissions: { itemType: "link", section: "tools" } }).submissions, { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "link", section: "tools" });
+
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { mode: "off" } }).moderation, { mode: "off", preModeration: false, reportsPerDay: 20 });
+assert.deepEqual(
+  resolveReaderSteeringConfig({ ...base, moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key" } } }).moderation,
+  { mode: "ai", preModeration: false, reportsPerDay: 20, ai: { model: "gpt-6-luna", apiKeyParameter: "/papyrus/shipped/openai-api-key" } },
+);
+assert.equal(resolveReaderSteeringConfig({ ...base, moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key", model: "gpt-6-luna-2" } } }).moderation.ai?.model, "gpt-6-luna-2");
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, moderation: { preModeration: true, reportsPerDay: 5 } }).moderation, { mode: "human", preModeration: true, reportsPerDay: 5 });
 
 const shipped = resolveReaderSteeringConfig({
   ...base,
@@ -82,16 +100,54 @@ for (const bad of [
   { retirementPoll: true, snapshot: { schedule: false } },
   { retirementPoll: "yes" },
   { waf: true },
+  { submissions: { perDay: 0 } },
+  { submissions: { perDay: 1.5 } },
+  { submissions: { similarHours: 0 } },
+  { submissions: { kinds: ["Bad Kind"] } },
+  { submissions: { kinds: "article" } },
+  { submissions: { burst: 1 } },
+  { submissions: [] },
+  { comments: { perHour: 0 } },
+  { comments: { editWindowMinutes: -1 } },
+  { comments: { maximumLength: 0 } },
+  { comments: { maximumLinks: 1.5 } },
+  { comments: { threads: 2 } },
+  { comments: "yes" },
+  { moderation: { mode: "auto" } },
+  { moderation: { mode: "ai" } },
+  { moderation: { mode: "ai", ai: {} } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/other-key" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/amplify/shipped/openai-api-key" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/../openai-api-key" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key", model: "GPT 6" } } },
+  { moderation: { mode: "ai", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key", key: "sk-secret" } } },
+  { moderation: { mode: "human", ai: { apiKeyParameter: "/papyrus/shipped/openai-api-key" } } },
+  { moderation: { mode: "off", preModeration: true } },
+  { moderation: { preModeration: "yes" } },
+  { moderation: { reportsPerDay: 0 } },
+  { moderation: { trust: true } },
+  { moderation: "human" },
+  { submissions: { itemType: "Brief Item" } },
+  { submissions: { section: 3 } },
 ]) {
   assert.throws(() => resolveReaderSteeringConfig({ ...base, ...bad } as never), /reader-steering/, JSON.stringify(bad));
 }
 
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
-assert.deepEqual(Object.keys(definitions).sort(), [...readerSteeringManifest.models].sort(), "the schema defines exactly the manifest's models");
+assert.deepEqual(
+  Object.keys(definitions).sort(),
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt"].sort(),
+  "the schema defines exactly the manifest's models and mutations, plus the receipt type",
+);
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, []);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"]);
+assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
-const schemaSource = JSON.stringify(Object.values(definitions).map((model) => (model as { data?: { authorization?: unknown } }).data?.authorization));
+const schemaSource = JSON.stringify(
+  Object.entries(definitions)
+    .filter(([name]) => readerSteeringManifest.models.includes(name))
+    .map(([, model]) => (model as { data?: { authorization?: unknown } }).data?.authorization),
+);
 assert.equal(/guest|public|apiKey|private|custom/i.test(schemaSource), false, "no guest, API key or custom rule on any reader model");
 
 const settings = readerActionsSettings(shipped, false);
@@ -99,6 +155,9 @@ assert.deepEqual(settings, {
   dimensions: ["real", "useful", "notable", "novel"],
   limits: shipped.limits,
   reservedHandles: ["shipped-team"],
+  submissions: shipped.submissions,
+  comments: shipped.comments,
+  moderation: shipped.moderation,
   allowInterimSubjects: false,
   snapshotDebounceSeconds: 60,
 });
@@ -108,7 +167,7 @@ assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development", NODE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({}), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development" }), true);
-assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"] });
+assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"], moderation: { mode: "human" } });
 
 function synthesize(config = shipped, environment: Record<string, string> = {}) {
   const app = new App();
@@ -119,7 +178,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
-    ["ReaderProfile", "ReaderHandle", "ReaderVote", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
   const outputs: unknown[] = [];
   const backend = {
@@ -150,7 +209,7 @@ assert.equal(permissions.filter((permission) => permission.Properties.Principal 
 const readerEnvironments = Object.values(template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
 const readerVariables = readerEnvironments.find((variables) => variables.PAPYRUS_READER_SETTINGS) as Record<string, string>;
 assert.ok(readerVariables, "the function gets its settings");
-for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
+for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_COMMENT_TABLE", "PAPYRUS_READER_REPORT_TABLE", "PAPYRUS_READER_ACTION_TABLE", "PAPYRUS_READER_ITEM_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
   assert.ok(name in readerVariables, `${name} is set`);
 }
 assert.equal(JSON.parse(readerVariables.PAPYRUS_READER_SETTINGS).allowInterimSubjects, false, "a production synth refuses interim subjects");
@@ -253,6 +312,35 @@ assert.equal(actionsOn(unpolledStatements, "ReaderHandle").length, 0, "the snaps
 console.log("reader steering plugin ok");
 
 
+
+// AI moderation: the key is read from one SSM SecureString, nothing else is opened, and nothing else changes without it.
+const KEY_PARAMETER = "/papyrus/shipped/openai-api-key";
+const aiConfig = resolveReaderSteeringConfig({ ...base, dimensions: ["real"], moderation: { mode: "ai", ai: { apiKeyParameter: KEY_PARAMETER } } });
+const aiRun = synthesize(aiConfig, { SITE_ENV: "production" });
+const readerStatements = statementsOf(aiRun.template, "ReaderActions");
+const keyReads = readerStatements.filter((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:")));
+assert.equal(keyReads.length, 1, "reader-actions reads exactly one parameter");
+assert.deepEqual(([] as string[]).concat(keyReads[0].Action), ["ssm:GetParameter"], "read only");
+assert.match(JSON.stringify(keyReads[0].Resource), /parameter\/papyrus\/shipped\/openai-api-key"/, "the one named parameter, no wildcard");
+assert.equal(JSON.stringify(keyReads[0].Resource).includes("*"), false);
+assert.equal(readerStatements.some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("secretsmanager:"))), false, "secrets live in SSM SecureString, never Secrets Manager");
+const readerInvokes = readerStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("lambda:InvokeFunction"));
+assert.equal(readerInvokes.length, 1, "reader-actions may invoke exactly one function");
+assert.match(JSON.stringify(readerInvokes[0].Resource), /ContentActions/, "content-actions, to request the snapshot");
+const schedulerStatements = Object.values(aiRun.template.findResources("AWS::IAM::Policy")).filter((policy) =>
+  ((policy as { Properties: { Roles: Array<{ Ref: string }> } }).Properties.Roles ?? []).some((role) => role.Ref.startsWith("ReaderSnapshotSchedulerRole")))
+  .flatMap((policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement);
+assert.equal(schedulerStatements.filter((statement) => JSON.stringify(statement.Resource).includes("ReaderActions")).length, 1, "the scheduler role may also invoke reader-actions for the AI review");
+assert.equal(schedulerStatements.filter((statement) => JSON.stringify(statement.Resource).includes("ContentActions")).length, 1, "and still content-actions for the snapshot");
+const aiSettings = JSON.parse(Object.values(aiRun.template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables?.PAPYRUS_READER_SETTINGS).find(Boolean) as string);
+assert.deepEqual(aiSettings.moderation.ai, { model: "gpt-6-luna", apiKeyParameter: KEY_PARAMETER }, "the function learns the parameter name, never a key");
+assert.equal(JSON.stringify(aiRun.template.toJSON()).includes("sk-"), false);
+const humanRun = statementsOf(synthesize(shipped, { SITE_ENV: "production" }).template, "ReaderActions");
+assert.equal(humanRun.some((statement) => ([] as string[]).concat(statement.Action).some((action) => action.startsWith("ssm:"))), false, "no key access without AI mode");
+assert.equal(humanRun.some((statement) => ([] as string[]).concat(statement.Action).includes("lambda:InvokeFunction")), false);
+assert.equal(readerSteeringPlugin.publicSettings(aiConfig).moderation && (readerSteeringPlugin.publicSettings(aiConfig).moderation as { mode: string }).mode, "ai");
+assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(aiConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
+
 const transformed = schemaWithPlugins(readerSteeringSchemaDefinitions()).transform().schema;
 for (const model of readerSteeringManifest.models) {
   const declaration = new RegExp(`type ${model} @model[^\\n]*`).exec(transformed);
@@ -260,4 +348,11 @@ for (const model of readerSteeringManifest.models) {
   assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)/.test(declaration[0]), false, `${model} has no guest, API key or IAM rule: ${declaration[0]}`);
   assert.match(declaration[0], /groups: \["editor"\]|groups: \["admin"\]/);
 }
+const mutationStart = transformed.indexOf("moderateReader(");
+assert.ok(mutationStart > 0, "moderateReader is in the deployed schema");
+const mutation = transformed.slice(mutationStart, mutationStart + 400).split("\n\n")[0];
+assert.match(mutation, /@function/);
+assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
+assert.match(mutation, /groups: \["editor"\]/);
+assert.match(mutation, /groups: \["admin"\]/);
 console.log("reader steering schema ok");

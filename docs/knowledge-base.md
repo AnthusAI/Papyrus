@@ -8,6 +8,10 @@ Status words used here: Live, Beta, Not built yet.
 
 `/newsroom/concepts` is a wiki of concepts for editors. It sits in the newsroom, so it is for signed-in editors and not for the public. Each page is a concept: an entity in the knowledge graph that the newsroom has reported on, researched or cited. A page shows what it is, what it connects to and the references behind it. The front page is an ordinary content item with the slug `wiki-index`, and it lists recently edited concepts and all concepts. Code: `lib/wiki.ts`.
 
+## Public wiki (Beta)
+
+Accepted entities and beats become pages of a public, read-only wiki: `papyrus knowledge wiki sync` makes draft pages, `papyrus knowledge wiki publish` stamps and publishes them. Every page says who last put it in front of readers. See [public-wiki.md](public-wiki.md).
+
 ## Topics and taxonomy (Live)
 
 Accepted topics are a versioned tree: a `CategorySet` with parent and child `Category` rows. Editors accept, reject, rename, move, split, merge or ignore proposed changes. How that steering works is in [steering-and-relevance.md](steering-and-relevance.md). The model is described in [how-papyrus-works.md](how-papyrus-works.md).
@@ -49,6 +53,5 @@ Options: `--report-type all|popularity|trending|pagerank` (default `all`), `--tr
 
 These are planned under initiative PPY-428252:
 
-- A public, read-only wiki (epic PPY-495ec8).
 - Public topic pages and public trends (epics PPY-a45fd1 and PPY-964472).
 - Entity trends for readers (epic PPY-0331f5): the data is the knowledge snapshot above; the reader-facing pages are still to come. The report above ranks concepts for editors.

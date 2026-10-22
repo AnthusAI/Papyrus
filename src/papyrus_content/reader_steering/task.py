@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -23,12 +24,18 @@ from .retirement import (
     RetirementReport,
     run_retirement_poll,
 )
+from .review import ReviewReport, review_comments, review_submissions
+from .signals import submission_signals
 from .snapshot import (
+    COMMENTS_DIRECTORY,
     BOARD_FILE,
+    iso as snapshot_iso,
     ITEMS_FILE,
     READERS_FILE,
+    SUBMISSIONS_FILE,
     SnapshotSettings,
     build_snapshot,
+    comments_key,
     encoded,
     settings_from_mapping,
 )
@@ -37,10 +44,13 @@ SETTINGS_ENV = "PAPYRUS_READER_SNAPSHOT_SETTINGS"
 PROFILE_TABLE_ENV = "PAPYRUS_READER_PROFILE_TABLE"
 VOTE_TABLE_ENV = "PAPYRUS_READER_VOTE_TABLE"
 HANDLE_TABLE_ENV = "PAPYRUS_READER_HANDLE_TABLE"
+SUBMISSION_TABLE_ENV = "PAPYRUS_READER_SUBMISSION_TABLE"
+COMMENT_TABLE_ENV = "PAPYRUS_READER_COMMENT_TABLE"
 STATE_TABLE_ENV = "PAPYRUS_READER_RATE_TABLE"
 POLL_URL_ENV = "PAPYRUS_READER_POLL_URL"
 POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER"
 TASK_NAME = "reader-snapshot"
+SUBMISSION_SUBJECT = re.compile(r"sub-[0-9a-f]{24}")
 
 
 class ReaderSnapshotNotEnabled(RuntimeError):
@@ -53,9 +63,11 @@ class ReaderSnapshotReport:
     subjects: int
     readers: int
     karma_updated: int
+    comment_files: int
     purged: list[str]
     purge_error: str | None
     retirement_poll: RetirementReport
+    review: ReviewReport
 
     def to_dict(self) -> dict:
         return {
@@ -64,9 +76,11 @@ class ReaderSnapshotReport:
             "subjects": self.subjects,
             "readers": self.readers,
             "karmaUpdated": self.karma_updated,
+            "commentFiles": self.comment_files,
             "purged": self.purged,
             "purgeError": self.purge_error,
             "retirementPoll": self.retirement_poll.to_dict(),
+            "review": self.review.to_dict(),
         }
 
 
@@ -111,6 +125,8 @@ def published_times(client: Any, subjects: set[str]) -> dict[str, str | None]:
     """The publication time of each subject that is still published; unpublished subjects are left out."""
     published: dict[str, str | None] = {}
     for subject in sorted(subjects):
+        if SUBMISSION_SUBJECT.fullmatch(subject):
+            continue
         row = client.get_record("PublishedItem", published_item_id_for(subject))
         if row is not None and row.get("status") == "published":
             published[subject] = row.get("publishedAt")
@@ -140,6 +156,37 @@ def write_karma(resource: Any, table_name: str, profiles: list[dict], karma: Map
     return updated
 
 
+def without_generated_at(payload: Mapping) -> dict:
+    return {key: value for key, value in payload.items() if key != "generatedAt"}
+
+
+def write_comment_files(context: Any, files: Mapping[str, dict], generated_at: str) -> list[str]:
+    """Writes the comment file of each subject whose comments changed, and empties the file of a subject that has none any more.
+
+    Only changed files are written (and so purged on the edge): the freshness stamp alone is not a change.
+    A file is emptied rather than deleted, so a page that asks for it still gets valid JSON.
+    """
+    prefix = snapshot_key(context.projector, COMMENTS_DIRECTORY) + "/"
+    existing = {entry.key for entry in context.writer.list(prefix)}
+    current: dict[str, dict] = {}
+    for subject, payload in files.items():
+        key = comments_key(subject)
+        if key is not None:
+            current[snapshot_key(context.projector, key)] = payload
+    for key in sorted(existing - set(current)):
+        previous = json.loads(context.writer.get(key) or b"{}")
+        if previous.get("comments"):
+            current[key] = {"generatedAt": generated_at, "subject": previous.get("subject"), "comments": []}
+    written: list[str] = []
+    for key in sorted(current):
+        old = context.writer.get(key)
+        if old is not None and without_generated_at(json.loads(old)) == without_generated_at(current[key]):
+            continue
+        context.writer.put(key, encoded(current[key]))
+        written.append(key)
+    return written
+
+
 def run_reader_snapshot(
     context: Any,
     client: Any,
@@ -149,7 +196,9 @@ def run_reader_snapshot(
     now_seconds: float | None = None,
     retirement_poll: RetirementPoll | None = None,
     poll_retirements: bool = False,
-    submitter_of: Callable[[str], str | None] = lambda subject: None,
+    submitter_of: Callable[[str], str | None] | None = None,
+    review_signals: Callable[..., list[dict]] | None = None,
+    comment_signals: Callable[[str], list[dict]] | None = None,
 ) -> ReaderSnapshotReport:
     environment = os.environ if environment is None else environment
     settings = snapshot_settings_from_environment(environment)
@@ -169,26 +218,45 @@ def run_reader_snapshot(
                     handle=environment[HANDLE_TABLE_ENV],
                     vote=environment[VOTE_TABLE_ENV],
                     state=environment[STATE_TABLE_ENV],
+                    submission=environment.get(SUBMISSION_TABLE_ENV, ""),
+                    comment=environment.get(COMMENT_TABLE_ENV, ""),
                 ),
             )
         except Exception as error:  # noqa: BLE001 - a poll that cannot start must not stop the numbers
             retirement = RetirementReport(enabled=True, error=type(error).__name__)
     votes = [plain_row(row) for row in scan_table(resource, environment[VOTE_TABLE_ENV])]
     profiles = [plain_row(row) for row in scan_table(resource, environment[PROFILE_TABLE_ENV])]
+    submissions = [plain_row(row) for row in scan_table(resource, environment[SUBMISSION_TABLE_ENV])] if environment.get(SUBMISSION_TABLE_ENV) else []
     now = time.time() if now_seconds is None else now_seconds
+    comments = [plain_row(row) for row in scan_table(resource, environment[COMMENT_TABLE_ENV])] if environment.get(COMMENT_TABLE_ENV) else []
+    review = ReviewReport()
+    try:
+        if submissions:
+            review.submissions = review_submissions(resource, environment[SUBMISSION_TABLE_ENV], submissions, now_iso=snapshot_iso(now), signals=review_signals or submission_signals)
+        if comments:
+            review.comments = review_comments(resource, environment[COMMENT_TABLE_ENV], comments, now_iso=snapshot_iso(now), **({"signals": comment_signals} if comment_signals else {}))
+    except Exception as error:  # noqa: BLE001 - signals are advice; a failure must not stop the numbers
+        review.error = type(error).__name__
     snapshot = build_snapshot(
         votes,
         profiles,
-        published_at=published_times(client, {vote["subjectKey"] for vote in votes}),
+        published_at=published_times(client, {vote["subjectKey"] for vote in votes} | {comment["subjectKey"] for comment in comments}),
         now_seconds=now,
         settings=settings,
         submitter_of=submitter_of,
+        submissions=submissions,
+        comments=comments,
     )
     keys: list[str] = []
-    for site_key, payload in ((ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers)):
+    files = [(ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers)]
+    if environment.get(SUBMISSION_TABLE_ENV):
+        files.append((SUBMISSIONS_FILE, snapshot.submissions))
+    for site_key, payload in files:
         key = snapshot_key(context.projector, site_key)
         context.writer.put(key, encoded(payload))
         keys.append(key)
+    comment_keys = write_comment_files(context, snapshot.comments, snapshot.items["generatedAt"])
+    keys.extend(comment_keys)
     karma_updated = write_karma(resource, environment[PROFILE_TABLE_ENV], profiles, snapshot.karma)
     purged: list[str] = []
     purge_error: str | None = None
@@ -202,7 +270,9 @@ def run_reader_snapshot(
         subjects=len(snapshot.items["items"]),
         readers=len(snapshot.readers["readers"]),
         karma_updated=karma_updated,
+        comment_files=len(comment_keys),
         purged=purged,
         purge_error=purge_error,
         retirement_poll=retirement,
+        review=review,
     )

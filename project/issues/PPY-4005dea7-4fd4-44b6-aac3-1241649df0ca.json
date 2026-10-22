@@ -3,16 +3,31 @@
   "title": "Newsroom newsletter panel: counts, lists, issues, approval, test send, delivery history",
   "description": "Administration panel backed by newsletter custom queries and mutations with group checks: subscriber counts, issues and actions (approve for a time, cancel, stop, test send to own address), delivery, bounce and complaint history, pause and resume, admin erasure and CSV export.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "06110484-f57f-422a-ad53-a67c44d73016",
+      "author": "home",
+      "text": "Newsroom Newsletter panel merged to develop in PR 544 (feat: newsroom newsletter panel). Operations: newsletterOverview, newsletterIssueDeliveries, newsletterSubscribers, newsletterExport, newsletterErase, newsletterResume. Counters on COUNT# rows with recount. pytest, test-plugins, tsx panel test and cucumber demo scenarios pass; CI green. Left open: not enabled/deployed on a site, no main promotion, and the subscriber scan gap noted in docs/newsletter.md.",
+      "created_at": "2026-10-22T06:16:30.779074Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "a99521b3-e31e-440c-9e03-3cae821fa0f6",
+      "author": "home",
+      "text": "Newsroom Newsletter panel merged to develop in PR 544. Operations: newsletterOverview, newsletterIssueDeliveries, newsletterSubscribers, newsletterExport, newsletterErase, newsletterResume. Counters on COUNT# rows with recount. pytest, test-plugins, tsx panel test and cucumber demo scenarios pass; CI green. Left open: not deployed or enabled on a site, no main promotion; subscriber scan gap noted in docs/newsletter.md.",
+      "created_at": "2026-10-22T06:16:34.315807Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:39.299501Z",
-  "updated_at": "2026-10-22T02:43:39.299530Z",
+  "updated_at": "2026-10-22T06:16:34.315842Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

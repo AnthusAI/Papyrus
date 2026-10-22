@@ -1,13 +1,23 @@
-"""CLI entries: ``papyrus knowledge publish-run | snapshot | entities list|accept|reject|rename|describe``."""
+"""CLI entries: ``papyrus knowledge publish-run | snapshot | entities ... | clusters ... | relations ...``.
+
+Every command that reads or writes the CMS takes ``--auth user|iam`` and ``--amplify-outputs FILE`` (or the
+``PAPYRUS_GRAPHQL_AUTH`` and ``PAPYRUS_GRAPHQL_ENDPOINT`` variables), says on stderr which lane and endpoint it uses,
+and never switches lanes by itself.
+"""
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import os
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
+from ..env import graphql_endpoint
 from ..graphql_authoring import create_authoring_client
 from ..ids import knowledge_corpus_id
 from ..options import normalize_string, parse_options
@@ -17,7 +27,16 @@ from ..projection.writers import LocalDirectoryWriter, request_paths_for_key
 from ..reader_steering.snapshot import encoded
 from ..reader_steering.task import snapshot_key
 from ..records import apply_record_changes, build_record_change_from_current
+from .actors import Actor, actor_from_options, clean_name
 from .builder import CLUSTERS_FILE, ENTITY_DIRECTORY, INDEX_FILE, build_files
+from .cluster_review import (
+    ClusterReviewError,
+    accept_cluster_patches,
+    find_cluster,
+    name_cluster_patches,
+    reject_cluster_patches,
+)
+from .cluster_records import CLUSTER_KIND, decode_metadata
 from .entity_review import (
     REVIEW_STATUSES,
     EntityReviewError,
@@ -41,14 +60,68 @@ from .loaders import (
 )
 from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotOptions
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
-from .run_input import load_run_directory
+from .relation_review import (
+    RELATION_STATES,
+    RelationReviewError,
+    accept_relation_patches,
+    find_relation,
+    is_node_relation,
+    reject_relation_patches,
+    review_state,
+)
+from .run_input import load_run
 from .weeks import current_monday, parse_day
 
-ACTOR = "Papyrus content CLI"
+AUTH_LANES = ("user", "iam")
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def endpoint_of_outputs(path: str) -> str:
+    try:
+        outputs = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ValueError(f"Cannot read --amplify-outputs {path}: {error}") from error
+    endpoint = (outputs.get("data") or {}).get("url") or outputs.get("aws_appsync_graphqlEndpoint")
+    if not endpoint:
+        raise ValueError(f"{path} holds no GraphQL endpoint (data.url).")
+    return str(endpoint)
+
+
+def select_backend(options: dict[str, Any]) -> None:
+    """Apply ``--auth`` and ``--amplify-outputs`` to this process, the way an operator selects a lane on purpose."""
+    lane = normalize_string(options.get("auth"))
+    if lane:
+        if lane not in AUTH_LANES:
+            raise ValueError("--auth must be user or iam.")
+        os.environ["PAPYRUS_GRAPHQL_AUTH"] = lane
+    outputs = normalize_string(options.get("amplify-outputs"))
+    if outputs:
+        os.environ["PAPYRUS_GRAPHQL_ENDPOINT"] = endpoint_of_outputs(outputs)
+
+
+def announce_backend() -> None:
+    """One line on stderr: the lane and the AppSync host a command is about to use."""
+    from ..cli_user_auth import user_auth_requested
+
+    try:
+        host = urlparse(graphql_endpoint()).netloc
+    except ValueError:
+        host = "unknown"
+    print(f"knowledge\tauth\t{'user' if user_auth_requested() else 'iam'}\t{host}", file=sys.stderr)
+
+
+def authoring_client(options: dict[str, Any]) -> Any:
+    select_backend(options)
+    client, _ = create_authoring_client()
+    announce_backend()
+    return client
+
+
+def today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
 
 
 def _no_url(_summary) -> None:
@@ -111,17 +184,22 @@ def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool,
         print(f"knowledge\t{label}\tapply\tskipped\tpass --apply to write")
 
 
+def _path_option(options: dict[str, Any], name: str) -> Path | None:
+    value = normalize_string(options.get(name))
+    return Path(value) if value else None
+
+
 def knowledge_publish_run(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = options.get("apply") is True
-    run_dir = normalize_string(options.get("run-dir"))
-    run = load_run_directory(Path(run_dir)) if run_dir else None
+    run = load_run(_path_option(options, "identity"), _path_option(options, "trends"), _path_option(options, "entities"))
     if run is None and options.get("skip-front-matter"):
-        raise ValueError("Nothing to import: pass --run-dir DIR, or drop --skip-front-matter.")
+        raise ValueError("Nothing to import: pass --identity, --entities, or drop --skip-front-matter.")
     corpus_id = normalize_string(options.get("corpus-id")) or (
         knowledge_corpus_id({"key": options["corpus-key"]}) if normalize_string(options.get("corpus-key")) else None
     )
-    client, _ = create_authoring_client()
+    agent_name = clean_name(options.get("actor-name"))
+    client = authoring_client(options)
     items = published_items(client.list_published_item_summaries(), _no_url)
     node_rows = current_nodes(client.list_records("SemanticNode"))
     accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
@@ -137,6 +215,8 @@ def knowledge_publish_run(flags: list[str]) -> None:
         category_set_id=normalize_string(options.get("category-set")),
         now=utc_now(),
         include_front_matter=not options.get("skip-front-matter"),
+        confirm_resolved=bool(options.get("confirm-resolved")),
+        front_matter_actor_name=agent_name,
     )
     changes = plan_changes(client, plan)
     _print_plan("publish-run", plan, changes, apply, bool(options.get("json")))
@@ -160,6 +240,16 @@ def _snapshot_options(options: dict[str, Any]) -> SnapshotOptions:
     )
 
 
+def based_template(projector: Any, template: str | None) -> str | None:
+    """A site-relative href template (``/concepts/{key}/``) under the site's base path (``/posts/concepts/{key}/``).
+
+    A template that already starts with the base path is taken as written."""
+    policy = getattr(projector, "policy", None)
+    if not template or policy is None or not policy.root or not template.startswith("/"):
+        return template
+    return template if template.startswith("/" + policy.root) else policy.path(template)
+
+
 def load_knowledge_data(client: Any, projector: Any, options: dict[str, Any]) -> KnowledgeData:
     items = published_items(client.list_published_item_summaries(), url_resolver(projector))
     node_rows = current_nodes(client.list_records("SemanticNode"))
@@ -174,7 +264,9 @@ def load_knowledge_data(client: Any, projector: Any, options: dict[str, Any]) ->
     if options.get("beats-config"):
         beats = beats_from_config(json.loads(Path(options["beats-config"]).read_text(encoding="utf-8")), items)
     elif options.get("beats-category-set"):
-        beats = beats_from_categories(category_rows, options["beats-category-set"], clusters, items, normalize_string(options.get("beat-href")))
+        beats = beats_from_categories(
+            category_rows, options["beats-category-set"], clusters, items, based_template(projector, normalize_string(options.get("beat-href")))
+        )
     return KnowledgeData(
         items=tuple(items),
         nodes=tuple(entity_node(row) for row in accepted),
@@ -233,11 +325,16 @@ def knowledge_snapshot(flags: list[str]) -> None:
             raise ValueError("Pass --out DIR (a local directory) or --site-bucket NAME (the site store).")
         if options.get("out") and options.get("site-bucket"):
             raise ValueError("Pass --out or --site-bucket, not both.")
-        client, _ = create_authoring_client()
+        client = authoring_client(options)
         if options.get("site-bucket"):
             options["bucket"] = options["site-bucket"]
         context = _context_for(client, options)
         data = load_knowledge_data(client, context.projector, options)
+        snapshot_options = dataclasses.replace(
+            snapshot_options,
+            entity_href_template=based_template(context.projector, snapshot_options.entity_href_template),
+            cluster_href_template=based_template(context.projector, snapshot_options.cluster_href_template),
+        )
     files = build_files(data, snapshot_options)
     outcome = write_files(context, files, projector=context.projector)
     entities = sum(1 for key in files if key.startswith(ENTITY_DIRECTORY + "/"))
@@ -295,7 +392,7 @@ def knowledge_entities_list(flags: list[str]) -> None:
     query = (normalize_string(options.get("query")) or "").casefold()
     import_run = normalize_string(options.get("import-run"))
     limit = int(options.get("limit") or 100)
-    client, _ = create_authoring_client()
+    client = authoring_client(options)
     rows = [
         row
         for row in current_nodes(client.list_records("SemanticNode"))
@@ -318,42 +415,51 @@ def knowledge_entities_list(flags: list[str]) -> None:
     print(f"knowledge\tentities\tlist\t{len(shown)} of {len(rows)}")
 
 
+def _actor_label(actor: Actor) -> str:
+    return f"{actor.actor}:{actor.name}" if actor.name else actor.actor
+
+
+def _apply_patches(client: Any, options: dict[str, Any], patches: list[dict], *, group: str, name: str, subject: str, status: str, actor: Actor) -> None:
+    dry_run = options.get("dry-run") is True
+    print(f"knowledge\t{group}\t{name}\t{subject}\t{status}\t{'dry-run' if dry_run else 'apply'}\t{_actor_label(actor)}")
+    for patch in patches:
+        print(f"knowledge\t{group}\t{name}\tupdate\t{patch['modelName']}\t{patch['expected']['id']}")
+    if not patches:
+        print(f"knowledge\t{group}\t{name}\tnothing to change")
+    if not dry_run:
+        apply_record_changes(client, [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches])
+
+
 def _review(flags: list[str], name: str, build) -> None:
     options = parse_options(flags)
     identifier = normalize_string(options.get("key"))
     if not identifier:
         raise ValueError(f"knowledge entities {name} requires --key <node key, id or lineage id>.")
-    client, _ = create_authoring_client()
+    actor = actor_from_options(options, today(), command=f"knowledge entities {name}")
+    client = authoring_client(options)
     rows = client.list_records("SemanticNode")
     try:
         node = find_node(rows, identifier)
-        patches = build(options, node, client, rows)
+        patches = build(options, node, client, rows, actor)
     except EntityReviewError as error:
         raise ValueError(str(error)) from error
-    dry_run = options.get("dry-run") is True
-    print(f"knowledge\tentities\t{name}\t{node['nodeKey']}\t{node.get('status')}\t{'dry-run' if dry_run else 'apply'}")
-    for patch in patches:
-        print(f"knowledge\tentities\t{name}\tupdate\t{patch['modelName']}\t{patch['expected']['id']}")
-    if not patches:
-        print(f"knowledge\tentities\t{name}\tnothing to change")
-    if not dry_run:
-        apply_record_changes(client, [{"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"} for patch in patches])
+    _apply_patches(client, options, patches, group="entities", name=name, subject=node["nodeKey"], status=str(node.get("status")), actor=actor)
 
 
 def knowledge_entities_accept(flags: list[str]) -> None:
-    def build(options, node, client, _rows):
+    def build(options, node, client, _rows, actor):
         mentions = [row for row in relations_of_nodes(client, [node]) if is_item_mention(row)]
-        return accept_patches(node, mentions, actor=normalize_string(options.get("actor")) or ACTOR, now=utc_now(), confirm_links=not options.get("keep-links-unconfirmed"))
+        return accept_patches(node, mentions, actor=actor, now=utc_now(), confirm_links=not options.get("keep-links-unconfirmed"))
 
     _review(flags, "accept", build)
 
 
 def knowledge_entities_reject(flags: list[str]) -> None:
-    _review(flags, "reject", lambda options, node, client, rows: reject_patches(node, now=utc_now()))
+    _review(flags, "reject", lambda options, node, client, rows, actor: reject_patches(node, actor=actor, now=utc_now()))
 
 
 def knowledge_entities_rename(flags: list[str]) -> None:
-    def build(options, node, client, rows):
+    def build(options, node, client, rows, actor):
         name = normalize_string(options.get("name"))
         if not name:
             raise EntityReviewError("knowledge entities rename requires --name <new name>.")
@@ -363,15 +469,119 @@ def knowledge_entities_rename(flags: list[str]) -> None:
 
 
 def knowledge_entities_describe(flags: list[str]) -> None:
-    def build(options, node, client, rows):
+    def build(options, node, client, rows, actor):
         text = normalize_string(options.get("text"))
         if not text:
             raise EntityReviewError("knowledge entities describe requires --text <description>.")
-        return describe_patches(
-            node, text, reviewed=bool(options.get("reviewed")), today=datetime.now(timezone.utc).date().isoformat(), now=utc_now()
-        )
+        return describe_patches(node, text, actor=actor, now=utc_now())
 
     _review(flags, "describe", build)
+
+
+def _cluster_row(row: dict) -> str:
+    metadata = decode_metadata(row.get("summary")) or {}
+    accepted_by = metadata.get("acceptedBy") or {}
+    return "\t".join(
+        [
+            str(metadata.get("clusterUid") or row.get("graphEntityId") or ""),
+            str(row.get("status") or ""),
+            str(row.get("displayName") or ""),
+            ", ".join(metadata.get("topTerms") or [])[:60],
+            f"{accepted_by.get('actor')}:{accepted_by.get('name') or ''}" if accepted_by else "",
+            str(row.get("id") or ""),
+        ]
+    )
+
+
+def knowledge_clusters_list(flags: list[str]) -> None:
+    options = parse_options(flags)
+    status = normalize_string(options.get("status")) or "proposed"
+    limit = int(options.get("limit") or 100)
+    client = authoring_client(options)
+    rows = [
+        row
+        for row in client.list_records("SteeringProposal")
+        if row.get("proposalKind") == CLUSTER_KIND and decode_metadata(row.get("summary")) is not None and (status == "all" or row.get("status") == status)
+    ]
+    rows.sort(key=lambda row: (str(row.get("displayName") or row.get("title") or "").casefold(), row["id"]))
+    for row in rows[:limit]:
+        print(_cluster_row(row))
+    print(f"knowledge\tclusters\tlist\t{min(limit, len(rows))} of {len(rows)}")
+
+
+def _review_cluster(flags: list[str], name: str, build) -> None:
+    options = parse_options(flags)
+    identifier = normalize_string(options.get("uid"))
+    if not identifier:
+        raise ValueError(f"knowledge clusters {name} requires --uid <cluster uid or proposal id>.")
+    actor = actor_from_options(options, today(), command=f"knowledge clusters {name}")
+    client = authoring_client(options)
+    try:
+        proposal = find_cluster(client.list_records("SteeringProposal"), identifier)
+        patches = build(options, proposal, actor)
+    except ClusterReviewError as error:
+        raise ValueError(str(error)) from error
+    _apply_patches(client, options, patches, group="clusters", name=name, subject=identifier, status=str(proposal.get("status")), actor=actor)
+
+
+def knowledge_clusters_accept(flags: list[str]) -> None:
+    _review_cluster(flags, "accept", lambda options, proposal, actor: accept_cluster_patches(proposal, normalize_string(options.get("name")), actor, now=utc_now()))
+
+
+def knowledge_clusters_name(flags: list[str]) -> None:
+    def build(options, proposal, actor):
+        name = normalize_string(options.get("name"))
+        if not name:
+            raise ClusterReviewError("knowledge clusters name requires --name <cluster name>.")
+        return name_cluster_patches(proposal, name, now=utc_now())
+
+    _review_cluster(flags, "name", build)
+
+
+def knowledge_clusters_reject(flags: list[str]) -> None:
+    _review_cluster(flags, "reject", lambda options, proposal, actor: reject_cluster_patches(proposal, actor, now=utc_now()))
+
+
+def _node_relations(client: Any) -> list[dict]:
+    accepted = [row for row in current_nodes(client.list_records("SemanticNode")) if row.get("status") == STATUS_ACCEPTED]
+    return [row for row in relations_of_nodes(client, accepted) if is_node_relation(row)]
+
+
+def knowledge_relations_list(flags: list[str]) -> None:
+    options = parse_options(flags)
+    state = normalize_string(options.get("state")) or "proposed"
+    if state != "all" and state not in RELATION_STATES:
+        raise ValueError("--state must be proposed, accepted, rejected or all.")
+    limit = int(options.get("limit") or 100)
+    client = authoring_client(options)
+    rows = [row for row in _node_relations(client) if state == "all" or review_state(row) == state]
+    rows.sort(key=lambda row: (str(row.get("predicate")), row["id"]))
+    for row in rows[:limit]:
+        print("\t".join([str(row["id"]), review_state(row), str(row.get("predicate")), str(row.get("subjectLineageId")), str(row.get("objectLineageId"))]))
+    print(f"knowledge\trelations\tlist\t{min(limit, len(rows))} of {len(rows)}")
+
+
+def _review_relation(flags: list[str], name: str, build) -> None:
+    options = parse_options(flags)
+    identifier = normalize_string(options.get("id"))
+    if not identifier:
+        raise ValueError(f"knowledge relations {name} requires --id <relation id>.")
+    actor = actor_from_options(options, today(), command=f"knowledge relations {name}")
+    client = authoring_client(options)
+    try:
+        row = find_relation(_node_relations(client), identifier)
+        patches = build(row, actor)
+    except RelationReviewError as error:
+        raise ValueError(str(error)) from error
+    _apply_patches(client, options, patches, group="relations", name=name, subject=identifier, status=review_state(row), actor=actor)
+
+
+def knowledge_relations_accept(flags: list[str]) -> None:
+    _review_relation(flags, "accept", lambda row, actor: accept_relation_patches(row, actor, now=utc_now()))
+
+
+def knowledge_relations_reject(flags: list[str]) -> None:
+    _review_relation(flags, "reject", lambda row, actor: reject_relation_patches(row, actor, now=utc_now()))
 
 
 KNOWLEDGE_COMMANDS = {
@@ -382,4 +592,11 @@ KNOWLEDGE_COMMANDS = {
     "entities-reject": knowledge_entities_reject,
     "entities-rename": knowledge_entities_rename,
     "entities-describe": knowledge_entities_describe,
+    "clusters-list": knowledge_clusters_list,
+    "clusters-accept": knowledge_clusters_accept,
+    "clusters-name": knowledge_clusters_name,
+    "clusters-reject": knowledge_clusters_reject,
+    "relations-list": knowledge_relations_list,
+    "relations-accept": knowledge_relations_accept,
+    "relations-reject": knowledge_relations_reject,
 }

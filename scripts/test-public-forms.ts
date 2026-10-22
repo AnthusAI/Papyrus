@@ -79,6 +79,20 @@ async function main() {
     assert.match(record.content, /Typo in the third paragraph\./);
     assert.ok(!result.body.includes("Ada"), "the answer must not reflect input");
   }
+  // A suggestion on a wiki page reaches the newsroom as a private message that names the page, and answers without changing anything.
+  {
+    const { saved, call } = harness();
+    const result = await call(post({ message: "The founding year is wrong.", page: "/wiki/maker-acme-loom/", website: "" }, { rawQueryString: "form=suggest-edit" }));
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(JSON.parse(result.body), { ok: true });
+    const [record] = saved;
+    assert.equal(record.searchVisibility, "private");
+    assert.equal(JSON.parse(record.metadata).formId, "suggest-edit");
+    assert.equal(JSON.parse(record.metadata).page, "/wiki/maker-acme-loom/");
+    assert.match(record.content, /Form: suggest-edit/);
+    assert.match(record.content, /page: \/wiki\/maker-acme-loom\//);
+    assert.match(record.content, /The founding year is wrong\./);
+  }
   // Newsletter signups share the endpoint (form id in the body or the query string).
   {
     const { saved, call } = harness();

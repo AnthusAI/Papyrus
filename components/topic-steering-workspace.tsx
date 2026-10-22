@@ -15,6 +15,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import amplifyOutputs from "papyrus-amplify-outputs";
 import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { MonitoringPanel } from "./monitoring-panel";
+import { ModerationPanel } from "./moderation-panel";
+import { NewsletterPanel } from "./newsletter-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
 import { generateClient } from "aws-amplify/data";
@@ -249,7 +251,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups" | "newsletter" | "moderation" | "editorial-checks" | "monitoring";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -881,7 +883,7 @@ function NewsDeskDashboard({
   const [mergeSelection, setMergeSelection] = useState<MergeSelection | null>(null);
   const [isPending, startTransition] = useTransition();
   const controlsDisabled = isPending || !canEdit;
-  const initialAdministrationPanel = normalizeAdministrationPanel(initialSelection.panel);
+  const initialAdministrationPanel = normalizeAdministrationPanel(initialSelection.panel, Boolean(dashboard.isDemo));
   const [administrationPanel, setAdministrationPanel] = useState<AdministrationPanel>(initialAdministrationPanel);
   const [doctrineDrafts, setDoctrineDrafts] = useState<DoctrineEditorState>(() => buildDoctrineEditorState(dashboard.doctrineRecords));
   const [loadedSections, setLoadedSections] = useState<Record<string, boolean>>({
@@ -1122,8 +1124,8 @@ function NewsDeskDashboard({
   }, [dashboard.procedureDefinitions, dashboard.procedureRuns, dashboard.procedureVersions]);
 
   useEffect(() => {
-    setAdministrationPanel(normalizeAdministrationPanel(initialSelection.panel));
-  }, [initialSelection.panel]);
+    setAdministrationPanel(normalizeAdministrationPanel(initialSelection.panel, Boolean(dashboard.isDemo)));
+  }, [initialSelection.panel, dashboard.isDemo]);
 
   useEffect(() => {
     if (activeTab !== "administration") return;
@@ -4351,9 +4353,33 @@ function AdministrationDeskView({
                   <span>Addresses from the site&apos;s signup forms</span>
                 </Link>
               ) : null}
+              {newsletterPluginEnabled(isDemo) ? (
+                <Link
+                  href={administrationPanelHref("newsletter", isDemo)}
+                  data-news-desk-admin-nav="newsletter"
+                  data-active={administrationPanel === "newsletter" || undefined}
+                  onClick={() => onPanelChange("newsletter")}
+                >
+                  <strong>Newsletter</strong>
+                  <span>Subscribers, issues and delivery for the site&apos;s email</span>
+                </Link>
+              ) : null}
+              {readerPluginEnabled() ? (
+                <Link
+                  href={administrationPanelHref("moderation", isDemo)}
+                  data-news-desk-admin-nav="moderation"
+                  data-active={administrationPanel === "moderation" || undefined}
+                  onClick={() => onPanelChange("moderation")}
+                >
+                  <strong>Moderation</strong>
+                  <span>Reader submissions and comments</span>
+                </Link>
+              ) : null}
             </nav>}
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
+              {administrationPanel === "newsletter" ? <NewsletterPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
+              {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
               {administrationPanel === "monitoring" ? <MonitoringPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
@@ -12819,9 +12845,20 @@ function signupPluginEnabled(): boolean {
   return pluginSettings(amplifyOutputs as PluginOutputs, "signup") !== null;
 }
 
-function normalizeAdministrationPanel(value: string | null | undefined): AdministrationPanel {
+/** The Newsletter panel exists when the site enabled the plugin; `?demo=1` shows it with fixture data so it can be seen and tested. */
+function newsletterPluginEnabled(demo = false): boolean {
+  return demo || pluginSettings(amplifyOutputs as PluginOutputs, "newsletter") !== null;
+}
+
+function readerPluginEnabled(): boolean {
+  return pluginSettings(amplifyOutputs as PluginOutputs, "reader-steering") !== null;
+}
+
+function normalizeAdministrationPanel(value: string | null | undefined, demo = false): AdministrationPanel {
   if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations" || value === "editorial-checks" || value === "monitoring") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
+  if (value === "newsletter" && newsletterPluginEnabled(demo)) return value;
+  if (value === "moderation" && readerPluginEnabled()) return value;
   return "users";
 }
 

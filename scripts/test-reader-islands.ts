@@ -30,6 +30,8 @@ type Fake = {
   writes: Array<{ path: string; body: Record<string, unknown> }>;
   meRequests: string[];
   snapshotRequests: number;
+  submissions: Array<Record<string, unknown>>;
+  comments: Record<string, unknown> | null;
   writeAnswer: (path: string, body: Record<string, unknown>) => { status: number; body: Record<string, unknown> };
   holdSnapshot: Promise<void> | null;
 };
@@ -58,6 +60,8 @@ function fake(changes: Partial<Fake> = {}): Fake {
     writes: [],
     meRequests: [],
     snapshotRequests: 0,
+    submissions: [],
+    comments: null,
     writeAnswer: (path, body) => ({ status: 200, body: path === "/api/reader/handle" ? { handle: String(body.handle).toLowerCase() } : { subject: body.subject, dimension: body.dimension } }),
     holdSnapshot: null,
     ...changes,
@@ -77,6 +81,8 @@ async function open(context: BrowserContext, state: Fake, options: { clock?: boo
       if (state.holdSnapshot) await state.holdSnapshot;
       return state.snapshot ? json(200, state.snapshot) : json(404, {});
     }
+    if (url.pathname === "/_data/reader/comments/item-one.json") return state.comments ? json(200, state.comments) : json(404, {});
+    if (url.pathname === "/_data/reader/submissions.json") return json(200, { generatedAt: new Date().toISOString(), submissions: state.submissions });
     if (url.pathname === "/api/reader/me") {
       state.meRequests.push(url.search);
       return json(state.me.status, state.me.body);
@@ -318,7 +324,368 @@ test("with the core islands runtime on the page each island still mounts exactly
   assert.equal(await page.locator('script[src="/_plugins/papyrus-islands-v1.js"]').count(), 1, "the core runtime is on the page");
   await page.locator("#vote button:not([disabled])").waitFor();
   assert.equal(await page.locator("#vote button").count(), 1);
-  assert.equal(await page.locator("#rating button").count(), 10);
+  assert.equal(await page.locator("#rating .papyrus-reader-star").count(), 10, "five stars for each of two dimensions, mounted once");
   assert.equal(await page.locator("#signin .papyrus-reader-handle").count(), 1);
   await context.close();
+});
+
+const SUBMIT_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Submit</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<header><div id="signin" data-island="ReaderSignIn"></div></header>
+<main><h1>Submit a link</h1><div id="submit" data-island="Submit" data-props='{"kinds":["article","tool"]}'><p class="papyrus-island-summary">Sign in to submit a link.</p></div></main></body></html>`;
+
+const submitAnswer = (path: string, body: Record<string, unknown>) =>
+  path === "/api/reader/submit"
+    ? { status: 201, body: { subject: "sub-abc", url: body.url, title: body.title, kind: body.kind, state: "pending", extraction: "pending", similar: [] } }
+    : { status: 200, body: {} };
+
+async function fillSubmit(page: Page, url: string, title: string, note = "") {
+  await page.getByLabel("Link").fill(url);
+  await page.getByLabel("Title").fill(title);
+  if (note) await page.getByLabel("Note (optional)").fill(note);
+}
+
+test("submit: while sign-in is not open the form is disabled and says so", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ me: unavailable }), { page: SUBMIT_PAGE });
+  await page.locator("#submit").getByText("Reader sign-in is not open yet").waitFor();
+  for (const control of await page.locator("#submit input, #submit textarea, #submit button").all()) assert.equal(await control.isDisabled(), true);
+  assert.equal(await page.locator("#submit .papyrus-island-summary").count(), 0);
+  await context.close();
+});
+
+test("submit: a signed-out visitor sees why the form is off", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ me: { status: 401, body: { error: "signed_out" } } }), { page: SUBMIT_PAGE });
+  await page.locator("#submit").getByText("Sign in to vote and rate").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Submit link" }).isDisabled(), true);
+  await context.close();
+});
+
+test("submit: the form posts the link, the title, the kind and the note, then says the link is pending and clears the saved draft", async () => {
+  const context = await browser.newContext();
+  const state = fake({ writeAnswer: (path, body) => path === "/api/reader/submit" ? { status: 201, body: { subject: "sub-abc", url: body.url, title: body.title, kind: body.kind, state: "pending", extraction: "pending", similar: [{ subject: "sub-old", url: "https://example.com/older", title: "<b>Older</b> post" }] } } : { status: 200, body: {} } });
+  const page = await open(context, state, { page: SUBMIT_PAGE });
+  await page.getByRole("button", { name: "Submit link" }).waitFor();
+  await page.getByLabel("Link").waitFor({ state: "visible" });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/post#top", "A small tool", "Worked well for me");
+  await page.getByLabel("tool").check();
+  await page.getByRole("button", { name: "Submit link" }).click();
+  await page.locator("#submit").getByText("Pending \u2014 we\u2019re reading the link.").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/submit", body: { url: "https://example.com/post#top", title: "A small tool", kind: "tool", note: "Worked well for me" } }]);
+  await page.locator("#submit .papyrus-reader-similar a").getByText("<b>Older</b> post").waitFor();
+  assert.equal(await page.locator("#submit .papyrus-reader-similar b").count(), 0, "titles are text, never markup");
+  assert.equal(await page.getByLabel("Link").inputValue(), "");
+  assert.equal(await page.evaluate(() => window.localStorage.getItem("papyrus-reader-submit-draft")), null);
+  await context.close();
+});
+
+test("submit: a draft is saved locally, says so, and comes back after a reload", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake(), { page: SUBMIT_PAGE });
+  await page.locator("#submit").getByText(/Saved locally/).waitFor();
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/draft", "Half written", "Not done");
+  await page.waitForFunction(() => window.localStorage.getItem("papyrus-reader-submit-draft") !== null);
+  assert.deepEqual(JSON.parse((await page.evaluate(() => window.localStorage.getItem("papyrus-reader-submit-draft"))) as string), { url: "https://example.com/draft", title: "Half written", note: "Not done", kind: "article" });
+  await page.reload();
+  await page.waitForFunction(() => (document.querySelector("#submit input") as HTMLInputElement | null)?.value === "https://example.com/draft");
+  assert.equal(await page.getByLabel("Title").inputValue(), "Half written");
+  assert.equal(await page.getByLabel("Note (optional)").inputValue(), "Not done");
+  await context.close();
+});
+
+test("submit: storage that throws leaves the form working", async () => {
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", { get() { throw new Error("blocked"); } });
+  });
+  const state = fake({ writeAnswer: submitAnswer });
+  const page = await open(context, state, { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/x", "Works without storage");
+  await page.getByRole("button", { name: "Submit link" }).click();
+  await page.locator("#submit").getByText(/^Pending/).waitFor();
+  await context.close();
+});
+
+test("submit: a link that is already listed, or a recent one from the same site, shows a warning before submitting", async () => {
+  const context = await browser.newContext();
+  const recent = new Date(Date.now() - 3600_000).toISOString();
+  const state = fake({ submissions: [{ id: "sub-1", url: "https://example.com/listed", domain: "example.com", title: "Listed already", createdAt: recent }, { id: "sub-2", url: "https://news.example/old", domain: "news.example", title: "Old", createdAt: new Date(Date.now() - 72 * 3600_000).toISOString() }] });
+  const page = await open(context, state, { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await page.getByLabel("Link").fill("HTTPS://Example.com:443/listed#section");
+  await page.locator("#submit .papyrus-reader-warning").getByText(/may already be submitted as .Listed already./).waitFor();
+  await page.getByLabel("Link").fill("https://example.com/another");
+  await page.locator("#submit .papyrus-reader-warning").getByText(/1 link from example.com was submitted in the last 48 hours/).waitFor();
+  await page.getByLabel("Link").fill("https://news.example/new");
+  assert.equal(await page.locator("#submit .papyrus-reader-warning").textContent(), "", "a link older than 48 hours is not a warning");
+  assert.equal(state.writes.length, 0, "a warning never blocks or posts");
+  await context.close();
+});
+
+test("submit: the server's duplicate, rate limit and handle answers are shown in words", async () => {
+  const context = await browser.newContext();
+  const answers: Array<{ status: number; body: Record<string, unknown> }> = [
+    { status: 409, body: { error: "duplicate_submission", message: "That link was already submitted.", existing: { subject: "sub-1", url: "https://example.com/x", title: "The first one", state: "pending" } } },
+    { status: 429, body: { error: "rate_limited", message: "Too many actions.", retryAfter: 7200 } },
+    { status: 422, body: { error: "handle_required", message: "Choose a handle before submitting a link." } },
+    { status: 422, body: { error: "invalid_url", message: "Send the link as an http or https address." } },
+  ];
+  const page = await open(context, fake({ writeAnswer: () => answers.shift()! }), { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/x", "Try");
+  const send = page.getByRole("button", { name: "Submit link" });
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText(/Already submitted as .The first one. \(pending\)/).waitFor();
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText("Too many actions. Try again in about 120 minutes.").waitFor();
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText(/Choose a handle first/).waitFor();
+  await send.click();
+  await page.locator("#submit .papyrus-reader-status").getByText("Send the link as an http or https address.").waitFor();
+  assert.equal(await page.getByLabel("Link").inputValue(), "https://example.com/x", "a refused submission keeps what was typed");
+  await context.close();
+});
+
+const COMMENTS_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Comments</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<header><div id="signin" data-island="ReaderSignIn"></div></header>
+<main><h1>An item</h1><div id="comments" data-island="Comments" data-props='{"subject":"${SUBJECT}","count":3}'><p class="papyrus-island-summary">3 comments</p></div></main></body></html>`;
+
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+const commentFile = (comments: Array<Record<string, unknown>>) => ({ generatedAt: new Date().toISOString(), subject: SUBJECT, comments });
+const OTHER = ["00000000", "0000", "0000", "0000", "000000000009"].join("-");
+const entry = (id: string, body: string, changes: Record<string, unknown> = {}) => ({ id, readerId: OTHER, handle: "loud-owl", body, createdAt: minutesAgo(120), parent: null, edited: false, ...changes });
+
+test("comments: a thread is shown as text with handles, edited marks and removed stubs, and markup never runs", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    comments: commentFile([
+      entry("cmt-1", "<img src=x onerror=window.pwned=1> first"),
+      entry("cmt-2", "A reply", { parent: "cmt-1", handle: "plain-cat", edited: true }),
+      { id: "cmt-3", stub: true, parent: null, createdAt: minutesAgo(100) },
+      entry("cmt-4", "Reply to a removed one", { parent: "cmt-3" }),
+    ]),
+  });
+  const page = await open(context, state, { page: COMMENTS_PAGE });
+  await page.locator("#comments .papyrus-reader-comment-count").getByText("3 comments").waitFor();
+  await page.locator("#comments .papyrus-reader-comment-body").getByText("<img src=x onerror=window.pwned=1> first").waitFor();
+  assert.equal(await page.locator("#comments img").count(), 0);
+  assert.equal(await page.evaluate(() => (window as unknown as { pwned?: number }).pwned), undefined);
+  await page.locator("#comments .papyrus-reader-replies").getByText("A reply").waitFor();
+  await page.locator("#comments").getByText(/plain-cat . 2 hours ago \(edited\)/).waitFor();
+  await page.locator("#comments").getByText("This comment was removed.").waitFor();
+  assert.equal(await page.locator("#comments .papyrus-reader-comment-removed + .papyrus-reader-replies, #comments [data-comment-id=cmt-3] .papyrus-reader-replies").count() > 0, true, "a reply under a removed comment stays attached");
+  await page.locator("#comments .papyrus-reader-comment-count").getByText("3 comments").waitFor();
+  assert.equal(await page.locator("#comments .papyrus-island-summary").count(), 0);
+  await context.close();
+});
+
+test("comments: while sign-in is not open, or signed out, the form is off and says why", async () => {
+  for (const [me, text] of [[unavailable, "Reader sign-in is not open yet"], [{ status: 401, body: { error: "signed_out" } }, "Sign in to vote and rate"]] as const) {
+    const context = await browser.newContext();
+    const page = await open(context, fake({ me, comments: commentFile([entry("cmt-1", "Hello")]) }), { page: COMMENTS_PAGE });
+    await page.locator("#comments .papyrus-reader-status").getByText(text).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Post comment" }).isDisabled(), true);
+    assert.equal(await page.getByLabel("Add a comment").isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Reply", exact: true }).count(), 0, "no Reply buttons while the controls are off");
+    await context.close();
+  }
+});
+
+test("comments: posting shows the comment at once, clears the box and counts the characters left", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    comments: commentFile([entry("cmt-1", "First")]),
+    writeAnswer: (path, body) => ({ status: 201, body: { id: "cmt-new", subject: body.subject, parent: body.parent ?? null, body: String(body.body).trim(), createdAt: new Date().toISOString(), ratingContext: null } }),
+  });
+  const page = await open(context, state, { page: COMMENTS_PAGE });
+  await page.locator("#comments").getByText("First").waitFor();
+  const box = page.getByLabel("Add a comment");
+  await page.waitForFunction(() => !(document.querySelector("#comments textarea") as HTMLTextAreaElement).disabled);
+  await page.locator("#comments").getByText("2000 characters left").waitFor();
+  await box.fill("Hello there");
+  await page.locator("#comments").getByText("1989 characters left").waitFor();
+  assert.equal(await box.getAttribute("maxlength"), "2000");
+  await page.getByRole("button", { name: "Post comment" }).click();
+  await page.locator("#comments .papyrus-reader-comment-body").getByText("Hello there").waitFor();
+  await page.locator("#comments").getByText(/quiet-fox . just now/).waitFor();
+  assert.equal(await box.inputValue(), "");
+  assert.deepEqual(state.writes, [{ path: "/api/reader/comment", body: { subject: SUBJECT, body: "Hello there" } }]);
+  await page.locator("#comments .papyrus-reader-comment-count").getByText("2 comments").waitFor();
+  await context.close();
+});
+
+test("comments: a reply goes under its parent, and only top-level comments can be replied to", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    comments: commentFile([entry("cmt-1", "Top"), entry("cmt-2", "Nested", { parent: "cmt-1" })]),
+    writeAnswer: (path, body) => ({ status: 201, body: { id: "cmt-new", subject: body.subject, parent: body.parent ?? null, body: body.body, createdAt: new Date().toISOString(), ratingContext: null } }),
+  });
+  const page = await open(context, state, { page: COMMENTS_PAGE });
+  await page.locator("#comments").getByText("Nested").waitFor();
+  await page.waitForFunction(() => document.querySelectorAll("#comments button").length > 0);
+  assert.equal(await page.getByRole("button", { name: "Reply", exact: true }).count(), 1, "the nested comment has no Reply button");
+  await page.getByRole("button", { name: "Reply", exact: true }).click();
+  await page.getByLabel("Your reply").fill("My answer");
+  await page.getByRole("button", { name: "Post reply" }).click();
+  await page.locator("#comments .papyrus-reader-replies").getByText("My answer").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/comment", body: { subject: SUBJECT, body: "My answer", parent: "cmt-1" } }]);
+  await context.close();
+});
+
+test("comments: a typed reply survives the page refreshing its numbers", async () => {
+  const context = await browser.newContext();
+  const state = fake({ comments: commentFile([entry("cmt-1", "Top")]) });
+  const page = await open(context, state, { page: COMMENTS_PAGE, clock: true });
+  await page.getByRole("button", { name: "Reply", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Reply", exact: true }).click();
+  await page.getByLabel("Your reply").fill("Half a thought");
+  await page.getByRole("button", { name: "Reply", exact: true }).focus();
+  await page.clock.runFor(61_000);
+  assert.equal(await page.getByLabel("Your reply").inputValue(), "Half a thought");
+  await context.close();
+});
+
+test("comments: the author edits within ten minutes and deletes, and both show at once", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    comments: commentFile([
+      entry("cmt-mine", "Mine, new", { readerId: READER_ID, handle: "quiet-fox", createdAt: minutesAgo(2) }),
+      entry("cmt-old", "Mine, old", { readerId: READER_ID, handle: "quiet-fox", createdAt: minutesAgo(30) }),
+      entry("cmt-theirs", "Theirs", { createdAt: minutesAgo(1) }),
+    ]),
+    writeAnswer: (path, body) => ({ status: 200, body: path === "/api/reader/comment/edit" ? { id: body.id, body: body.body } : { id: body.id, state: "deleted" } }),
+  });
+  const page = await open(context, state, { page: COMMENTS_PAGE });
+  await page.locator('[data-comment-id="cmt-theirs"]').waitFor();
+  await page.waitForFunction(() => document.querySelectorAll("#comments button").length > 3);
+  assert.equal(await page.locator('[data-comment-id="cmt-mine"]').getByRole("button", { name: "Edit" }).count(), 1);
+  assert.equal(await page.locator('[data-comment-id="cmt-old"]').getByRole("button", { name: "Edit" }).count(), 0, "the window is ten minutes");
+  assert.equal(await page.locator('[data-comment-id="cmt-theirs"]').getByRole("button", { name: "Delete" }).count(), 0, "not the author");
+  await page.locator('[data-comment-id="cmt-mine"]').getByRole("button", { name: "Edit" }).click();
+  const box = page.getByLabel("Edit your comment");
+  assert.equal(await box.inputValue(), "Mine, new");
+  await box.fill("Mine, better");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.locator('[data-comment-id="cmt-mine"] .papyrus-reader-comment-body').getByText("Mine, better").waitFor();
+  await page.locator('[data-comment-id="cmt-mine"]').getByText(/\(edited\)/).waitFor();
+  await page.locator('[data-comment-id="cmt-old"]').getByRole("button", { name: "Delete" }).click();
+  await page.locator('[data-comment-id="cmt-old"]').getByText("This comment was removed.").waitFor();
+  assert.deepEqual(state.writes, [
+    { path: "/api/reader/comment/edit", body: { id: "cmt-mine", body: "Mine, better" } },
+    { path: "/api/reader/comment/delete", body: { id: "cmt-old" } },
+  ]);
+  await context.close();
+});
+
+test("comments: refusals are shown in words", async () => {
+  const context = await browser.newContext();
+  const answers: Array<{ status: number; body: Record<string, unknown> }> = [
+    { status: 429, body: { error: "rate_limited", message: "Too many actions.", retryAfter: 600 } },
+    { status: 422, body: { error: "too_many_links", message: "A comment has at most 3 links." } },
+    { status: 422, body: { error: "handle_required", message: "Choose a handle before commenting." } },
+  ];
+  const page = await open(context, fake({ comments: commentFile([]), writeAnswer: () => answers.shift()! }), { page: COMMENTS_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#comments textarea") as HTMLTextAreaElement).disabled);
+  await page.getByLabel("Add a comment").fill("Try");
+  const send = page.getByRole("button", { name: "Post comment" });
+  await send.click();
+  await page.locator("#comments .papyrus-reader-comment-main .papyrus-reader-status").getByText("Too many actions. Try again in about 10 minutes.").waitFor();
+  await send.click();
+  await page.locator("#comments .papyrus-reader-comment-main .papyrus-reader-status").getByText("A comment has at most 3 links.").waitFor();
+  await send.click();
+  await page.locator("#comments .papyrus-reader-comment-main .papyrus-reader-status").getByText("Choose a handle before commenting.").waitFor();
+  assert.equal(await page.getByLabel("Add a comment").inputValue(), "Try", "a refused comment keeps what was typed");
+  await context.close();
+});
+
+test("rating: after rating, a public rationale can be posted with the rating it explains", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    writeAnswer: (path, body) => path === "/api/reader/comment" ? { status: 201, body: { id: "cmt-new", subject: body.subject, parent: null, body: body.body, createdAt: new Date().toISOString(), ratingContext: body.ratingContext } } : { status: 200, body: { subject: body.subject, dimension: body.dimension, value: body.value } },
+  });
+  const page = await open(context, state);
+  const why = page.getByLabel("Why? (optional, public)");
+  await page.waitForFunction(() => !(document.querySelector("#rating button") as HTMLButtonElement).disabled);
+  assert.equal(await why.count(), 2, "one hidden prompt per dimension");
+  assert.equal(await page.locator("#rating .papyrus-reader-why:visible").count(), 0, "no prompt before a rating");
+  await page.getByRole("button", { name: "Rate real 4 of 5" }).click();
+  await page.locator("#rating .papyrus-reader-why:visible").waitFor();
+  assert.equal(await page.locator("#rating .papyrus-reader-why:visible").count(), 1);
+  await page.locator("#rating .papyrus-reader-why:visible input").fill("The benchmarks held up.");
+  await page.getByRole("button", { name: "Post reason" }).click();
+  await page.locator("#rating").getByText("Posted. It shows in the comments with the next update.").waitFor();
+  assert.deepEqual(state.writes.map((write) => [write.path, write.body]), [
+    ["/api/reader/rating", { subject: SUBJECT, dimension: "real", value: 4 }],
+    ["/api/reader/comment", { subject: SUBJECT, body: "The benchmarks held up.", ratingContext: { dimension: "real", value: 4 } }],
+  ]);
+  await page.getByRole("button", { name: "Rate real 4 of 5" }).click();
+  await page.waitForFunction(() => document.querySelectorAll("#rating .papyrus-reader-why:not([hidden])").length === 0);
+  await context.close();
+});
+
+test("report: another reader's comment can be reported with a reason, your own cannot", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    comments: commentFile([entry("cmt-theirs", "Buy my thing"), entry("cmt-mine", "Mine", { readerId: READER_ID, handle: "quiet-fox", createdAt: minutesAgo(30) })]),
+    writeAnswer: () => ({ status: 200, body: { reported: true } }),
+  });
+  const page = await open(context, state, { page: COMMENTS_PAGE });
+  await page.locator('[data-comment-id="cmt-theirs"]').getByRole("button", { name: "Report" }).waitFor();
+  assert.equal(await page.locator('[data-comment-id="cmt-mine"]').getByRole("button", { name: "Report" }).count(), 0);
+  await page.locator('[data-comment-id="cmt-theirs"]').getByRole("button", { name: "Report" }).click();
+  await page.getByLabel("Why are you reporting this?").fill("An advert");
+  await page.getByRole("button", { name: "Send report" }).click();
+  await page.locator('[data-comment-id="cmt-theirs"]').getByText("Reported. A moderator will look at it.").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/report", body: { target: "cmt-theirs", reason: "An advert" } }]);
+  await context.close();
+});
+
+test("report: the Report island reports a submission and is off while sign-in is not open", async () => {
+  const page_ = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>R</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<header><div id="signin" data-island="ReaderSignIn"></div></header><main><div id="report" data-island="Report" data-props='{"target":"sub-0123456789abcdef01234567"}'></div></main></body></html>`;
+  let context = await browser.newContext();
+  const state = fake({ writeAnswer: () => ({ status: 200, body: { reported: true } }) });
+  let page = await open(context, state, { page: page_ });
+  await page.waitForFunction(() => !(document.querySelector("#report button") as HTMLButtonElement).disabled);
+  await page.getByRole("button", { name: "Report" }).click();
+  await page.getByLabel("Why are you reporting this?").fill("Spam");
+  await page.getByLabel("Why are you reporting this?").press("Enter");
+  await page.locator("#report").getByText("Reported. A moderator will look at it.").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/report", body: { target: "sub-0123456789abcdef01234567", reason: "Spam" } }]);
+  await context.close();
+  context = await browser.newContext();
+  page = await open(context, fake({ me: unavailable }), { page: page_ });
+  await page.locator("#signin").getByText("Reader sign-in is not open yet").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Report" }).isDisabled(), true);
+  await context.close();
+});
+
+test("a held submission or comment is shown as held for review, not as public", async () => {
+  const context = await browser.newContext();
+  const heldSubmit = fake({ writeAnswer: (path, body) => ({ status: 201, body: { subject: "sub-abc", url: body.url, title: body.title, kind: body.kind, state: "held", extraction: "pending", similar: [] } }) });
+  const page = await open(context, heldSubmit, { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/held", "Held one");
+  await page.getByRole("button", { name: "Submit link" }).click();
+  await page.locator("#submit").getByText("Held for review \u2014 a moderator reads it before it is public.").waitFor();
+  assert.equal(await page.locator("#submit").getByText(/Pending/).count(), 0);
+  await context.close();
+
+  const context2 = await browser.newContext();
+  const heldComment = fake({
+    comments: commentFile([]),
+    writeAnswer: (path, body) => ({ status: 201, body: { id: "cmt-held", subject: body.subject, parent: null, body: body.body, createdAt: new Date().toISOString(), ratingContext: null, state: "held" } }),
+  });
+  const page2 = await open(context2, heldComment, { page: COMMENTS_PAGE });
+  await page2.waitForFunction(() => !(document.querySelector("#comments textarea") as HTMLTextAreaElement).disabled);
+  await page2.getByLabel("Add a comment").fill("Waiting");
+  await page2.getByRole("button", { name: "Post comment" }).click();
+  await page2.locator("#comments").getByText(/held for review, only you can see it/).waitFor();
+  await context2.close();
 });

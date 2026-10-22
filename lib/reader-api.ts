@@ -7,10 +7,12 @@ import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfigured
 
 export const READER_ACTIONS_FUNCTION_ENV = "PAPYRUS_READER_ACTIONS_FUNCTION";
 export const READER_MAXIMUM_BODY_BYTES = 4096;
+/** Larger bodies for actions that carry reader text: a URL, a title and a note; a comment of 2,000 characters. */
+export const READER_BODY_BYTES_BY_ACTION: Partial<Record<ReaderAction, number>> = { submit: 8192, comment: 12288, "comment-edit": 12288 };
 export const READER_MAXIMUM_SUBJECTS = 50;
 export const READER_SUBJECT_KEY = /^[A-Za-z0-9._:-]{1,200}$/;
 
-export type ReaderAction = "me" | "handle" | "vote" | "rating";
+export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit" | "comment" | "comment-edit" | "comment-delete" | "report";
 
 export interface ReaderActionEvent {
   publication: string;
@@ -65,13 +67,13 @@ export async function invokeReaderActionsLambda(functionName: string, event: Rea
   return { statusCode: result.statusCode, body: result.body as Record<string, unknown> };
 }
 
-async function readJsonBody(request: NextRequest): Promise<{ payload: Record<string, unknown> } | { response: NextResponse }> {
+async function readJsonBody(request: NextRequest, maximumBytes: number): Promise<{ payload: Record<string, unknown> } | { response: NextResponse }> {
   const contentType = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
   if (contentType !== "application/json") return { response: failure(415, "unsupported_media_type", "Send application/json.") };
   const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > READER_MAXIMUM_BODY_BYTES) return { response: failure(413, "payload_too_large", "The request body is too large.") };
+  if (Number.isFinite(declared) && declared > maximumBytes) return { response: failure(413, "payload_too_large", "The request body is too large.") };
   const text = await request.text();
-  if (Buffer.byteLength(text, "utf8") > READER_MAXIMUM_BODY_BYTES) return { response: failure(413, "payload_too_large", "The request body is too large.") };
+  if (Buffer.byteLength(text, "utf8") > maximumBytes) return { response: failure(413, "payload_too_large", "The request body is too large.") };
   try {
     const parsed = JSON.parse(text) as unknown;
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("not an object");
@@ -120,7 +122,7 @@ export async function handleReaderRequest(request: NextRequest, action: ReaderAc
     parsed = subjectsFromQuery(request);
   } else {
     if (request.headers.get("origin") !== origin) return failure(403, "origin_mismatch", "This request did not come from this site.");
-    parsed = await readJsonBody(request);
+    parsed = await readJsonBody(request, READER_BODY_BYTES_BY_ACTION[action] ?? READER_MAXIMUM_BODY_BYTES);
   }
   if ("response" in parsed) return parsed.response;
 

@@ -163,10 +163,20 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
     if command in {"publish-run", "snapshot"}:
         _delegate_content("knowledge", command, flags)
         return 0
-    if command == "entities":
+    if command in {"entities", "clusters", "relations"}:
+        allowed = {
+            "entities": "list, accept, reject, rename or describe",
+            "clusters": "list, accept, name or reject",
+            "relations": "list, accept or reject",
+        }[command]
         if not flags or flags[0].startswith("-"):
-            raise ValueError("papyrus knowledge entities requires <command>: list, accept, reject, rename or describe.")
-        _delegate_content("knowledge", f"entities-{flags[0]}", flags[1:])
+            raise ValueError(f"papyrus knowledge {command} requires <command>: {allowed}.")
+        _delegate_content("knowledge", f"{command}-{flags[0]}", flags[1:])
+        return 0
+    if command == "wiki":
+        if not flags or flags[0].startswith("-"):
+            raise ValueError("papyrus knowledge wiki requires <command>: sync or publish.")
+        _delegate_content("knowledge", f"wiki-{flags[0]}", flags[1:])
         return 0
     raise ValueError(f"Unsupported papyrus knowledge command: {command}")
 
@@ -298,7 +308,7 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             print_group_help(group)
             return 0
         return _map_analysis(command, flags)
-    if group in {"editions", "batch", "messages"}:
+    if group in {"editions", "batch", "messages", "reader"}:
         if command is None:
             print_group_help(group)
             return 0

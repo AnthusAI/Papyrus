@@ -21,10 +21,10 @@ export const READER_POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARA
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
-  models: ["ReaderProfile", "ReaderHandle", "ReaderVote"],
-  mutations: [],
+  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction"],
+  mutations: ["moderateReader"],
   guest: { mutations: [] },
-  newsroomPanels: [],
+  newsroomPanels: [{ id: "moderation", label: "Moderation" }],
   staticAssets: ["_plugins/papyrus-reader@1.js", "_plugins/papyrus-reader@1.css"],
 };
 
@@ -33,6 +33,9 @@ export function readerActionsSettings(config: ReaderSteeringConfig, allowInterim
   return {
     dimensions: config.dimensions,
     limits: config.limits,
+    submissions: config.submissions,
+    comments: config.comments,
+    moderation: config.moderation,
     reservedHandles: config.reservedHandles,
     allowInterimSubjects,
     snapshotDebounceSeconds: 60,
@@ -43,6 +46,7 @@ export function readerActionsSettings(config: ReaderSteeringConfig, allowInterim
 export function readerSnapshotSettings(config: ReaderSteeringConfig) {
   return {
     dimensions: config.dimensions,
+    submissions: config.submissions,
     karma: config.karma,
     ranking: config.ranking,
     hypeMinimum: config.snapshot.hypeMinimum,
@@ -86,12 +90,35 @@ function wireRetirementPoll(readerLambda: LambdaFunction, contentActions: Lambda
   );
 }
 
+/**
+ * AI moderation (`moderation.mode: ai`). The debounced run becomes a run of reader-actions itself (a one-off schedule that
+ * invokes this function), which judges the new items and then asks content-actions for the snapshot. So the scheduler role may
+ * invoke reader-actions, reader-actions may invoke content-actions (its ARN is already in the environment) and may read exactly
+ * one SSM SecureString: the API key, which the plugin never creates and never receives.
+ */
+function wireAiModeration(readerLambda: LambdaFunction, contentActions: LambdaFunction, schedulerRole: Role, apiKeyParameter: string) {
+  const stack = Stack.of(readerLambda);
+  readerLambda.grantInvoke(schedulerRole);
+  contentActions.grantInvoke(readerLambda);
+  readerLambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["ssm:GetParameter"],
+      resources: [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${apiKeyParameter}`],
+    }),
+  );
+}
+
 export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerActions: typeof readerActions }> = {
   manifest: readerSteeringManifest,
   resolveConfig: resolveReaderSteeringConfig,
   functions: () => ({ readerActions }),
   schemaDefinitions: readerSteeringSchemaDefinitions,
-  publicSettings: (config) => ({ contract: readerSteeringManifest.contract, dimensions: config.dimensions }),
+  publicSettings: (config) => ({
+    contract: readerSteeringManifest.contract,
+    dimensions: config.dimensions,
+    moderation: { mode: config.moderation.mode },
+  }),
   wire(backend, config, context: PluginWiringContext) {
     const lambda = backend.readerActions.resources.lambda as LambdaFunction;
     const tables = backend.data.resources.tables as Record<string, ITable>;
@@ -101,15 +128,25 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       ["PAPYRUS_READER_PROFILE_TABLE", "ReaderProfile"],
       ["PAPYRUS_READER_HANDLE_TABLE", "ReaderHandle"],
       ["PAPYRUS_READER_VOTE_TABLE", "ReaderVote"],
+      ["PAPYRUS_READER_SUBMISSION_TABLE", "ReaderSubmission"],
+      ["PAPYRUS_READER_COMMENT_TABLE", "ReaderComment"],
+      ["PAPYRUS_READER_REPORT_TABLE", "ReaderReport"],
+      ["PAPYRUS_READER_ACTION_TABLE", "ModerationAction"],
     ] as const) {
       tables[model].grantReadWriteData(lambda);
       lambda.addEnvironment(variable, tables[model].tableName);
       contentActions.addEnvironment(variable, tables[model].tableName);
     }
+    // Promoting a submission writes one draft Item (a version 1 draft; nothing is published by this function).
+    tables.Item.grantWriteData(lambda);
+    lambda.addEnvironment("PAPYRUS_READER_ITEM_TABLE", tables.Item.tableName);
     tables.PublishedItem.grantReadData(lambda);
     lambda.addEnvironment("PAPYRUS_READER_PUBLISHED_ITEM_TABLE", tables.PublishedItem.tableName);
     tables.ReaderVote.grantReadData(contentActions);
     tables.ReaderProfile.grantReadWriteData(contentActions);
+    // The snapshot reads submissions, and the review step writes their signals and moderation state.
+    tables.ReaderSubmission.grantReadWriteData(contentActions);
+    tables.ReaderComment.grantReadWriteData(contentActions);
 
     lambda.addEnvironment("PAPYRUS_READER_SETTINGS", JSON.stringify(readerActionsSettings(config, interimSubjectsAllowedAtSynth())));
     if (config.reservedConcurrency !== undefined) {
@@ -136,6 +173,8 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     lambda.addEnvironment("PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", contentActions.functionArn);
     lambda.addEnvironment("PAPYRUS_READER_SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
     contentActions.addEnvironment("PAPYRUS_READER_SNAPSHOT_SETTINGS", JSON.stringify(readerSnapshotSettings(config)));
+
+    if (config.moderation.ai) wireAiModeration(lambda, contentActions, schedulerRole, config.moderation.ai.apiKeyParameter);
 
     lambda.addPermission("InvokeFromCmsCompute", {
       principal: new ArnPrincipal(config.computeRoleArn),

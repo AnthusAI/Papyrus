@@ -16,3 +16,26 @@
 .papyrus-reader-handle-form { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
 .papyrus-reader-handle-input { font: inherit; padding: .25rem .5rem; border: 2px solid currentColor; border-radius: .35rem; background: transparent; color: inherit; }
 @media (prefers-reduced-motion: no-preference) { .papyrus-reader-button { transition: border-width .1s; } }
+.papyrus-reader-submit-form { display: flex; flex-direction: column; gap: .75rem; max-width: 40rem; }
+.papyrus-reader-field { display: flex; flex-direction: column; gap: .25rem; }
+.papyrus-reader-field-label { font-weight: 600; }
+.papyrus-reader-input { font: inherit; padding: .35rem .5rem; border: 2px solid currentColor; border-radius: .35rem; background: transparent; color: inherit; }
+.papyrus-reader-input:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
+.papyrus-reader-input:disabled { cursor: not-allowed; opacity: .6; border-style: dashed; }
+.papyrus-reader-kinds { display: flex; flex-wrap: wrap; gap: .25rem 1rem; border: 2px solid currentColor; border-radius: .35rem; padding: .35rem .6rem; }
+.papyrus-reader-warning { font-size: .9em; font-weight: 600; }
+.papyrus-reader-warning:empty { display: none; }
+.papyrus-reader-pending { font-weight: 700; }
+.papyrus-reader-comments { display: flex; flex-direction: column; gap: .75rem; max-width: 44rem; }
+.papyrus-reader-comment-count { font-weight: 700; margin: 0; }
+.papyrus-reader-comment-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
+.papyrus-reader-replies { margin-top: .5rem; padding-left: 1.25rem; border-left: 3px double currentColor; }
+.papyrus-reader-comment-meta, .papyrus-reader-comment-actions, .papyrus-reader-comment-removed { margin: 0; font-size: .9em; }
+.papyrus-reader-comment-removed { font-style: italic; }
+.papyrus-reader-comment-body { margin: .25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.papyrus-reader-comment-actions { display: flex; gap: .5rem; }
+.papyrus-reader-comment-form, .papyrus-reader-why { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+.papyrus-reader-why[hidden] { display: none; }
+.papyrus-reader-report { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.papyrus-reader-report-form { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.papyrus-reader-report-form[hidden] { display: none; }

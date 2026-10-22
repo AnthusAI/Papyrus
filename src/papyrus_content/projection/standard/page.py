@@ -60,6 +60,8 @@ class StandardPage:
     showcase: tuple = ()                        # showcase page: the ShowcaseSite records, sorted
     site: HookSite | None = None                # the site-wide view the item-level hooks also get
     page_actions: str = ""                      # item pages: the page-actions markup core would place (empty when off), for hooks that compose their own body
+    wiki_stamp: str = ""                        # wiki pages: the review stamp and any superseded notice, placed above the text
+    wiki_footer: str = ""                       # wiki pages: "Updated", the data link and the suggest-an-edit form, placed below the text
     components = components
 
     @property

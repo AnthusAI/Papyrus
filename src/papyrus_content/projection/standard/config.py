@@ -23,7 +23,7 @@ from .select import Selection, selection_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound",
+    "values", "islands", "collections", "notFound", "wiki",
 )
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
@@ -280,6 +280,16 @@ FORM_FIELD_TYPES = ("text", "email", "textarea", "select")
 
 
 @dataclass(frozen=True)
+class WikiSettings:
+    """Public wiki pages: the entry types that carry a review stamp and, optionally, the ``forms`` entry that lets a reader
+    suggest an edit. ``data_link`` adds a link to the entity's graph JSON when the knowledge snapshot has that entity."""
+
+    types: tuple[str, ...] = ("wiki_page",)
+    suggest_form: str | None = None
+    data_link: bool = True
+
+
+@dataclass(frozen=True)
 class AgentSettings:
     """Agent-readable representations (see ``markdown.py``); all on by default."""
 
@@ -357,6 +367,7 @@ class StandardSettings:
     forms: tuple[FormSpec, ...] = ()
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
+    wiki: WikiSettings = field(default_factory=WikiSettings)
 
     @property
     def sectioned(self) -> bool:
@@ -747,6 +758,18 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError(f"pageActions.ai must be a subset of {sorted(AI_DESTINATIONS)}")
     if "{url}" not in page_actions.prompt or len(page_actions.prompt) > 200:
         raise ValueError("pageActions.prompt must contain {url} and stay short: the page body is never sent")
+    wiki_raw = dict(raw.get("wiki") or {})
+    _only(wiki_raw, {"types", "suggestForm", "dataLink"}, "wiki")
+    wiki_defaults = WikiSettings()
+    wiki = WikiSettings(
+        types=tuple(str(name) for name in wiki_raw.get("types", wiki_defaults.types)),
+        suggest_form=str(wiki_raw["suggestForm"]) if wiki_raw.get("suggestForm") else None,
+        data_link=bool(wiki_raw.get("dataLink", wiki_defaults.data_link)),
+    )
+    if not all(wiki.types):
+        raise ValueError("wiki.types lists entry type names")
+    if wiki.suggest_form is not None and wiki.suggest_form not in known_forms:
+        raise ValueError(f"wiki.suggestForm names an unknown form {wiki.suggest_form!r}")
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -795,4 +818,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         forms=tuple(forms),
         agents=agents,
         page_actions=page_actions,
+        wiki=wiki,
     )

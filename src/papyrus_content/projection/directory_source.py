@@ -42,6 +42,8 @@ class DirectoryContentSource:
         if not self.directory.is_dir():
             raise ProjectionSourceError(f"{self.directory} is not a directory")
         self._rows: dict[str, dict] | None = None
+        #: Item types beyond ``article`` and ``page`` that are projected (see ``PublishedContentSource.extra_types``).
+        self.extra_types: tuple[str, ...] = ()
 
     def _load(self) -> dict[str, dict]:
         if self._rows is not None:
@@ -54,8 +56,8 @@ class DirectoryContentSource:
             data, _raw, body = _split(path.read_text(encoding="utf-8"))
             section = relative.parts[0] if len(relative.parts) > 1 else None
             kind = str(data.pop("type", "article"))
-            if kind not in EXPORTED_TYPES:
-                raise ProjectionSourceError(f"{relative.as_posix()}: type {kind!r} is not one of {', '.join(EXPORTED_TYPES)}")
+            if kind not in EXPORTED_TYPES and kind not in self.extra_types:
+                raise ProjectionSourceError(f"{relative.as_posix()}: type {kind!r} is not one of {', '.join((*EXPORTED_TYPES, *self.extra_types))}")
             aliases = [str(alias) for alias in data.pop("aliases", None) or []]
             front_matter = yaml.safe_dump(data, sort_keys=False, allow_unicode=True) if data else None
             item_id = f"file:{relative.as_posix()}"

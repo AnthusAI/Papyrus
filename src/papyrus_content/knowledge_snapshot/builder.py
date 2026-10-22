@@ -2,7 +2,8 @@
 
 ``build_files`` is a pure function: the same records and options give the same dictionaries, with no clock and no
 timestamps in them. It is the one place that decides what is public. Only accepted entities, only published and dated
-items, only desk-confirmed links and relations come out, and no text of a reference, private note or message is read.
+items, only confirmed links and relations come out, and no text of a reference, private note or message is read. Who
+accepted an entity or a cluster, and who edited a description, is public: ``{"actor": "ai" | "human", "name", "on"}``.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 
 from .keys import contains_email, entity_key, is_public_key, kind_label, normalize_name, slug
 from .model import (
+    DESCRIPTION_AI_EDITED,
     DESCRIPTION_REVIEWED,
     UNACCEPTED_UNNAMED,
     Beat,
@@ -140,7 +142,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 values26=values26,
                 change=change_of(values8),
                 new=is_new(history),
-                href=options.entity_href_template.format(key=key) if options.entity_href_template else None,
+                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template else None,
             )
         )
     return sorted(entities, key=lambda entity: (-len(entity.item_keys), entity.key))
@@ -214,8 +216,16 @@ def _related_items(entity: _Entity, dated: dict[str, tuple[int, PublishedItem]],
     return rows[:limit]
 
 
+EDITED_STATES = (DESCRIPTION_REVIEWED, DESCRIPTION_AI_EDITED)
+
+
+def _actor(actor) -> dict | None:
+    return actor.to_dict() if actor is not None else None
+
+
 def _description(node: EntityNode) -> dict:
-    return {"state": node.description_state, "reviewedOn": node.reviewed_on if node.description_state == DESCRIPTION_REVIEWED else None}
+    edited = node.description_state in EDITED_STATES
+    return {"state": node.description_state, "editedBy": _actor(node.description_edited_by) if edited else None}
 
 
 def _index_entity(entity: _Entity) -> dict:
@@ -224,6 +234,7 @@ def _index_entity(entity: _Entity) -> dict:
         "kind": entity.kind,
         "name": entity.name,
         "href": entity.href,
+        "acceptedBy": _actor(entity.node.accepted_by),
         "itemCount": len(entity.item_keys),
         "weeksOfHistory": entity.history,
         "series8": entity.values8,
@@ -239,6 +250,7 @@ def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict]) -
         "kind": entity.kind,
         "name": entity.name,
         "aliases": list(entity.aliases),
+        "acceptedBy": _actor(entity.node.accepted_by),
         "description": _description(entity.node),
         "href": entity.href,
         "itemCount": len(entity.item_keys),
@@ -260,7 +272,7 @@ def _concept_of_the_week(entities: list[_Entity], data: KnowledgeData, options: 
     candidates = [
         entity
         for entity in entities
-        if entity.node.description_state == DESCRIPTION_REVIEWED
+        if entity.node.description_state in EDITED_STATES
         and (entity.node.description or "").strip()
         and not contains_email(entity.node.description)
         and entity.change.last4 > 0
@@ -274,6 +286,7 @@ def _concept_of_the_week(entities: list[_Entity], data: KnowledgeData, options: 
         "name": chosen.name,
         "href": chosen.href,
         "lede": " ".join((chosen.node.description or "").split()),
+        "editedBy": _actor(chosen.node.description_edited_by),
         "itemCount": len(chosen.item_keys),
         "makerCount": len(makers),
     }
@@ -306,6 +319,7 @@ def _cluster_row(cluster: Cluster, published: set[str], options: SnapshotOptions
     return {
         "uid": cluster.uid,
         "name": cluster.name if named else None,
+        "acceptedBy": _actor(cluster.accepted_by) if named else None,
         "state": _cluster_state(cluster, change, weeks_of_data, first_week, as_of_week),
         "itemCount": count,
         "topTerms": list(cluster.top_terms),
@@ -318,8 +332,10 @@ def _cluster_row(cluster: Cluster, published: set[str], options: SnapshotOptions
 
 
 def _first_week(cluster: Cluster, as_of_week: int) -> int | None:
-    if cluster.first_seen:
-        return week_number(parse_day(cluster.first_seen))
+    """The week of the earliest published member item (not the date of the run); the first week with a count if the run
+    has no such date."""
+    if cluster.earliest_published_at:
+        return week_number(parse_day(cluster.earliest_published_at))
     labelled = [as_of_week - offset for offset in range(SERIES_LONG) if cluster.weekly_series.get(week_label(as_of_week - offset), 0) > 0]
     return min(labelled) if labelled else None
 

@@ -101,6 +101,8 @@
     "test:resolver-waves": "tsx scripts/test-resolver-waves.ts",
     "test:model-groups": "tsx scripts/test-model-groups.ts",
     "test:plugins": "tsx scripts/test-plugins.ts",
+    "test:newsletter-plugin": "tsx scripts/test-newsletter-plugin.ts",
+    "test:newsletter-panel": "tsx scripts/test-newsletter-panel.ts",
     "test:editorial-checks": "tsx scripts/test-editorial-checks.ts",
     "synth:site-backend": "tsx scripts/synth-site-backend.mts",
     "test:sync-reader-base-path": "node scripts/test-sync-reader-base-path.mjs",

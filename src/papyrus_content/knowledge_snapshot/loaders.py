@@ -10,8 +10,10 @@ from ..categories_steering import semantic_state_key
 from ..projection.model import ItemSummary
 from ..projection.source import is_projectable, summary_from_row
 from .cluster_records import cluster_from_proposal
+from .actors import Actor, decode_review
 from .keys import normalize_name, slug
 from .model import (
+    DESCRIPTION_AI_EDITED,
     DESCRIPTION_DRAFT,
     DESCRIPTION_NONE,
     DESCRIPTION_REVIEWED,
@@ -27,8 +29,6 @@ from .model import (
 )
 from .publish_run import NODE_KIND, is_item_mention, json_object
 
-DESCRIPTION_REVIEWED_PREFIX = "description-reviewed:"
-DESCRIPTION_DRAFT_REASON = "description-draft"
 CURRENT = "current"
 
 UrlResolver = Callable[[ItemSummary], str | None]
@@ -77,17 +77,18 @@ def published_items(rows: Iterable[Mapping[str, Any]], url_for: UrlResolver) -> 
     return sorted(items, key=lambda item: item.key)
 
 
-def description_state(row: Mapping[str, Any]) -> tuple[str, str | None]:
+def description_state(row: Mapping[str, Any]) -> tuple[str, Actor | None]:
+    """``reviewed`` when a person edited the description, ``ai_edited`` when an AI agent did, else ``draft`` or ``none``."""
     if not str(row.get("description") or "").strip():
         return DESCRIPTION_NONE, None
-    reason = str(row.get("changeReason") or "")
-    if reason.startswith(DESCRIPTION_REVIEWED_PREFIX):
-        return DESCRIPTION_REVIEWED, reason[len(DESCRIPTION_REVIEWED_PREFIX) :] or None
-    return DESCRIPTION_DRAFT, None
+    editor = decode_review(row.get("changeReason")).description_edited_by
+    if editor is None:
+        return DESCRIPTION_DRAFT, None
+    return (DESCRIPTION_REVIEWED if editor.is_human else DESCRIPTION_AI_EDITED), editor
 
 
 def entity_node(row: Mapping[str, Any]) -> EntityNode:
-    state, reviewed_on = description_state(row)
+    state, editor = description_state(row)
     return EntityNode(
         lineage_id=str(row.get("lineageId") or row["id"]),
         node_key=str(row.get("nodeKey") or ""),
@@ -97,7 +98,8 @@ def entity_node(row: Mapping[str, Any]) -> EntityNode:
         aliases=tuple(str(alias) for alias in row.get("aliases") or ()),
         description=row.get("description"),
         description_state=state,
-        reviewed_on=reviewed_on,
+        accepted_by=decode_review(row.get("changeReason")).accepted_by,
+        description_edited_by=editor,
     )
 
 
@@ -185,16 +187,18 @@ def beats_from_categories(
     clusters: list[Cluster],
     items: list[PublishedItem],
     href_template: str | None,
+    parent_key: str | None = None,
 ) -> list[Beat]:
-    """Beats from the accepted root categories of one category set. An item belongs to a beat when it is a member of
-    the accepted cluster the category was made from, or carries the category key or name as a front-matter tag."""
+    """Beats from the accepted root categories of one category set (the accepted children of ``parent_key`` when it is
+    given). An item belongs to a beat when it is a member of the accepted cluster the category was made from, or carries
+    the category key or name as a front-matter tag."""
     beats = []
     for row in category_rows:
         if (
             row.get("categorySetId") != category_set_id
             or row.get("versionState", CURRENT) != CURRENT
             or row.get("status") != "accepted"
-            or row.get("parentCategoryKey")
+            or (row.get("parentCategoryKey") or None) != parent_key
         ):
             continue
         key, name = str(row["categoryKey"]), str(row.get("displayName") or row["categoryKey"])

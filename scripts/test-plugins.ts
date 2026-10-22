@@ -15,7 +15,7 @@ import { csvCell, neutralizeFormula, signupEntriesToCsv } from "../lib/signup-cs
 
 assert.deepEqual(resolvePlugins(undefined), []);
 assert.deepEqual(resolvePlugins([]), []);
-assert.throws(() => resolvePlugins(["newsletter"]), /Unknown plugin "newsletter"/);
+assert.throws(() => resolvePlugins(["newsletters"]), /Unknown plugin "newsletters"/);
 assert.throws(() => resolvePlugins(["signup", { name: "signup" }]), /listed twice/);
 assert.deepEqual(resolvePlugins(["signup"])[0].config, { forms: ["newsletter"], addressLimitPerMinute: 20, waf: true });
 assert.deepEqual(
@@ -101,7 +101,7 @@ assert.equal(signupEntriesToCsv([]), "form,value,submittedAt\r\n");
 
 // Editorial checks are core, not a plugin: every site's base schema has them, and they cannot be requested as a plugin.
 assert.throws(() => resolvePlugins(["editorial-checks"]), /Unknown plugin "editorial-checks"/);
-assert.deepEqual(Object.keys(KNOWN_PLUGINS).sort(), ["reader-steering", "signup"]);
+assert.deepEqual(Object.keys(KNOWN_PLUGINS).sort(), ["newsletter", "reader-steering", "signup"]);
 const baseSchemaText = schema.transform().schema;
 for (const name of Object.keys(editorialChecksSchemaDefinitions)) {
   assert.ok(baseSchemaText.includes(name), `the base schema defines ${name}`);
@@ -121,5 +121,11 @@ assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/ampl
 assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/amplify/shared/dabc123/OPENAI_API_KEY"));
 assert.ok(secretArns.every((arn) => arn.endsWith("/TYPESAFE_API_KEY") || arn.endsWith("/OPENAI_API_KEY")));
 assert.equal(editorialChecksSecretParameters("us-east-1", "123456789012", "").length, 4, "a sandbox gets only the sandbox paths");
+
+// The newsletter plugin's operations are in its manifest and its schema; none is open to guests.
+const newsletterOperations = [...(KNOWN_PLUGINS.newsletter.manifest.queries ?? []), ...KNOWN_PLUGINS.newsletter.manifest.mutations];
+assert.equal(newsletterOperations.length, 14);
+assert.deepEqual(Object.keys(KNOWN_PLUGINS.newsletter.schemaDefinitions()).sort(), [...newsletterOperations].sort());
+assert.deepEqual(KNOWN_PLUGINS.newsletter.manifest.guest.mutations, []);
 
 console.log("plugins ok");

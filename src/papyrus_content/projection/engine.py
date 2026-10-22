@@ -59,6 +59,9 @@ class ProjectionContext:
     defer_follow_up: bool = False
 
     def __post_init__(self) -> None:
+        types = tuple(getattr(self.projector, "projectable_types", ()))
+        if types and hasattr(self.source, "extra_types"):
+            self.source.extra_types = types
         attach = getattr(self.projector, "attach_store", None)
         if attach is not None:
             attach(self.writer)

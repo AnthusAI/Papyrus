@@ -112,6 +112,7 @@ from .item_content_commands import (
 )
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
 from .form_submissions_commands import messages_handle, messages_list
+from .reader_commands import reader_feedback
 from .messages_commands import (
     messages_backfill_message_body,
     messages_backfill_note_message_body,
@@ -221,6 +222,7 @@ from .tenant_adoption_commands import content_adopt_tenant_data
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
 from .knowledge_snapshot.commands import KNOWLEDGE_COMMANDS
+from .knowledge_wiki.commands import WIKI_COMMANDS
 from .renditions_commands import content_renditions
 from .publish_commands import content_publish, content_rebuild, content_unpublish
 from .markus_renderer.commands import markus_build
@@ -245,7 +247,7 @@ PORTED_COMMANDS = frozenset(
         "content:copy-backend",
         "content:upload-preview",
         "content:project",
-        *(f"knowledge:{name}" for name in KNOWLEDGE_COMMANDS),
+        *(f"knowledge:{name}" for name in (*KNOWLEDGE_COMMANDS, *WIKI_COMMANDS)),
         "content:renditions",
         "corpora:status",
         "corpora:worker-bootstrap",
@@ -379,6 +381,7 @@ PORTED_COMMANDS = frozenset(
         "ontology:dedupe",
         "ontology:recompute-authority",
         "ontology:doctor",
+        "reader:feedback",
         "messages:list",
         "messages:handle",
         "messages:export-legacy-comments",
@@ -486,7 +489,7 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "content:project":
         content_project(flags)
     elif group == "knowledge":
-        KNOWLEDGE_COMMANDS[command](flags)
+        {**KNOWLEDGE_COMMANDS, **WIKI_COMMANDS}[command](flags)
     elif route == "content:renditions":
         content_renditions(flags)
     elif route == "corpora:status":
@@ -800,6 +803,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
             ontology_doctor(flags)
         else:
             raise ValueError(f"Unsupported ontology command: {route}")
+    elif route == "reader:feedback":
+        reader_feedback(flags)
     elif route == "messages:list":
         messages_list(flags)
     elif route == "messages:handle":
@@ -1649,5 +1654,6 @@ def print_usage() -> None:
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
+    print("  reader feedback export [--since ISO_TIME] [--out FILE]  (reader comments and the ratings they explain, as JSON Lines for the Cyclotron loop),")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")

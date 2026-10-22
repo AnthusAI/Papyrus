@@ -61,7 +61,7 @@ class PluginStaticFileTests(unittest.TestCase):
 
     def test_an_unknown_plugin_is_an_error(self) -> None:
         with self.assertRaises(ValueError):
-            plugin_static_files(["newsletter"])
+            plugin_static_files(["newsletters"])
 
     def test_plugin_names_come_from_the_environment(self) -> None:
         self.assertEqual(plugin_names_from_environment({PLUGINS_ENV: "signup, other,"}), ("signup", "other"))

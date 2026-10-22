@@ -16,6 +16,7 @@ PLUGINS_ENV = "PAPYRUS_PLUGINS"
 PLUGIN_ASSET_DIRECTORY = Path(__file__).parent / "plugin_assets"
 PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
     "reader-steering": {"_plugins/papyrus-reader@1.js": "papyrus-reader.js", "_plugins/papyrus-reader@1.css": "papyrus-reader.css"},
+    "newsletter": {"_plugins/papyrus-newsletter@1.js": "papyrus-newsletter.js"},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},
 }
 

@@ -96,7 +96,7 @@ def fixture_settings(name: str) -> dict:
 class ProjectedSite:
     """A fixture published into a fake CMS and projected by the standard front end into a local directory."""
 
-    def __init__(self, name: str | None = None, *, settings: dict | None = None, environ: dict | None = None, extra_files=None, content: Path | None = None) -> None:
+    def __init__(self, name: str | None = None, *, settings: dict | None = None, environ: dict | None = None, extra_files=None, content: Path | None = None, seed: dict[str, bytes] | None = None) -> None:
         self.work = Path(tempfile.mkdtemp(prefix="standard-frontend-"))
         self.settings = settings if settings is not None else fixture_settings(name)
         self.content_root = content or (FIXTURES / name / "content")
@@ -107,6 +107,9 @@ class ProjectedSite:
         self.redirects = FakeRedirects()
         self.ids = publish_tree(self.client, self.content_root)
         self.out = self.work / "out"
+        for key, body in (seed or {}).items():
+            (self.out / key).parent.mkdir(parents=True, exist_ok=True)
+            (self.out / key).write_bytes(body)
         self.writer = RecordingWriter(self.out)
         self.context = ProjectionContext(
             source=PublishedContentSource(self.client), projector=self.projector, writer=self.writer, redirect_store=self.redirects

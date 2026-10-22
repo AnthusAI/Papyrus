@@ -330,3 +330,17 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .news-desk-columns--administration .news-desk-monitoring__usage dt{font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
 .news-desk-columns--administration .news-desk-monitoring__usage dd{margin:0;font:700 26px/1.1 var(--kb-theme-title-font);font-variant-numeric:tabular-nums}
 @container (max-width:640px){.news-desk-columns--administration .news-desk-monitoring__list li{grid-template-columns:minmax(0,1fr)}}
+
+/* Newsletter panel (components/newsletter-panel.tsx): reuses the administration card, row and button styles above. */
+.news-desk-columns--administration .news-desk-newsletter__quiet{font:400 12px/1.4 var(--kb-theme-ui-font);color:var(--administration-quiet)}
+.news-desk-columns--administration .news-desk-monitoring__usage>div{display:grid;gap:4px;align-content:start}
+.news-desk-columns--administration .news-desk-newsletter__links{display:flex;flex-wrap:wrap;gap:4px 8px}
+.news-desk-columns--administration .news-desk-newsletter__table{width:100%;border-collapse:collapse;font:400 13px/1.4 var(--kb-theme-ui-font)}
+.news-desk-columns--administration .news-desk-newsletter__table td:first-child{word-break:keep-all;overflow-wrap:break-word}
+.news-desk-columns--administration .news-desk-newsletter__table th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--administration-strong);font:600 11px/1.4 var(--kb-theme-ui-font);letter-spacing:.07em;text-transform:uppercase;color:var(--administration-quiet)}
+.news-desk-columns--administration .news-desk-newsletter__table td{padding:8px;border-bottom:1px solid var(--org-line);vertical-align:top}
+.news-desk-columns--administration .news-desk-newsletter__drawer{grid-column:1/-1;display:grid;gap:12px;padding:12px 0 0;border-top:1px dashed var(--org-line);min-width:0}
+.news-desk-columns--administration .news-desk-newsletter__frame{width:100%;height:480px;border:1px solid var(--org-line);background:#fff}
+.news-desk-columns--administration .news-desk-newsletter__text{margin:0;padding:12px;max-height:280px;overflow:auto;border:1px solid var(--org-line);font:400 12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.news-desk-columns--administration .news-desk-newsletter__filters{display:flex;flex-wrap:wrap;gap:12px 24px}
+.news-desk-columns--administration .news-desk-newsletter__filters .news-desk-doctrine-card__field{min-width:180px}

@@ -28,6 +28,7 @@ from collections.abc import Callable, Collection
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
+from ...markus_export import EXPORTED_TYPES
 from ...markus_renderer.convert import convert_text_in_process
 from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_page
 from ...renditions import RenditionCatalog
@@ -55,6 +56,7 @@ from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
+from . import wiki
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
 from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, with_date_format, with_lede, with_listing
@@ -153,6 +155,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
             [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version, prerendered_bytes.decode("utf-8", "replace")]
         )
 
+    @property
+    def projectable_types(self) -> tuple[str, ...]:
+        """Item types the site lists (``listings.types``) beyond the ``article`` and ``page`` every site projects."""
+        return tuple(name for name in self.standard.listings.types if name not in EXPORTED_TYPES)
+
     @classmethod
     def from_static_directory(cls, static_directory, *, renditions=None, plugins=(), environ=None):  # type: ignore[override]
         settings_path = static_directory / PROJECTION_SETTINGS_FILE if static_directory is not None else None
@@ -175,8 +182,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ knowledge snapshot
 
     def attach_store(self, writer) -> None:
-        """Read the knowledge snapshot (``_data/knowledge/``) from the site store the projection writes to."""
-        self._knowledge.attach_store(writer.get)
+        """Read the knowledge snapshot (``_data/knowledge/``) from the site store the projection writes to, under ``urls.basePath``."""
+        self._knowledge.attach_store(lambda key: writer.get(self.policy.key(key)))
 
     def use_knowledge_directory(self, directory) -> None:
         """Read the knowledge snapshot from a local directory (``index.json``, ``clusters.json``, ``entities/``) instead of the store."""
@@ -203,10 +210,35 @@ class StandardMarkusProjector(MarkusSiteProjector):
         used = [attributes for attributes in found if knowledge_blocks.is_knowledge_block(attributes)]
         return [self._knowledge.digest(knowledge_blocks.entity_keys(used))] if used else []
 
-    def _item_include(self, attributes: dict, source: str) -> str:
-        if not knowledge_blocks.is_knowledge_block(attributes):
+    def _item_include(self, attributes: dict, source: str, site: SiteIndex, *, wiki_page: bool = False) -> str:
+        """The includes an item page may place: the knowledge blocks, and, on a wiki page (a topic page), listings of other entries."""
+        if knowledge_blocks.is_knowledge_block(attributes):
+            return knowledge_blocks.render_block(attributes, self._knowledge, source)
+        if attributes.get("kind") != "listing" or not wiki_page:
             raise ValueError(f"{source}: ::include is not available here")
-        return knowledge_blocks.render_block(attributes, self._knowledge, source)
+        includes.check(attributes, self.standard, source)
+        self._require_listing_dependency(attributes, source)
+        listed = [entry for entry in self._entries(site) if entry.listed]
+        page = self._page("item", PageHead(title="", path="/"), site, entries=tuple(listed)) if self.hooks.card is not None else None
+        return self._listing_markup(attributes, includes.listing_entries(attributes, listed, self.standard), page)
+
+    def _require_listing_dependency(self, attributes: dict, source: str) -> None:
+        """An item page re-renders when the entries it depends on change; a listing in an item names them or fails the build."""
+        selection, _sort, _ties = includes._listing_selection(attributes, self.standard)
+        wanted = set(selection.sections) or {"*"}
+        declared = set(self._dependencies())
+        if "*" not in declared and not wanted <= declared:
+            raise ValueError(
+                f"{source}: ::include listing in an item page reads {', '.join(sorted(wanted))}; "
+                f"components.itemPagesDependOn must name {'those sections' if '*' not in wanted else '* (or the listing must name sections)'}"
+            )
+
+    def _listing_markup(self, attributes: dict, chosen, page) -> str:
+        cards = [self._card(entry, page, attributes.get("card"), position) for position, entry in enumerate(chosen)]
+        if "tag" in attributes:
+            css = f' class="{components.esc(attributes["class"])}"' if "class" in attributes else ""
+            return f'<{attributes["tag"]}{css}>' + "".join(cards) + f'</{attributes["tag"]}>' if cards else ""
+        return "".join(cards) if attributes.get("layout") == "bare" else '<div class="markus-card-grid">' + "\n".join(cards) + "</div>"
 
     # ------------------------------------------------------------------ model
 
@@ -252,7 +284,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     # ------------------------------------------------------------------ page blocks
 
-    def _fragment(self, text: str, depth: int, source: str = "", *, transform=None, trusted: bool = False, include=None) -> str:
+    def _fragment(self, text: str, depth: int, source: str = "", *, transform=None, trusted: bool = False, include=None, implicit_band: bool = False) -> str:
         """Tokens and page blocks are handled before Markus; a page with none is converted exactly as before.
 
         ``trusted`` (a page file of the static directory) allows ``::raw``; ``include`` places ``::include`` blocks.
@@ -268,7 +300,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             fragment = super(StandardMarkusProjector, self)._fragment(markdown, depth, transform=transform)
             return MARKUS_ARTICLE_CLOSE_PATTERN.sub("", ARTICLE_OPEN_PATTERN.sub("", fragment, count=1), count=1).strip()
 
-        return blocks.render(body, source, convert, include, trusted=trusted)
+        return blocks.render(body, source, convert, include, trusted=trusted, implicit_band=implicit_band)
 
     def _twin(self, text: str, source: str) -> str:
         return blocks.twin(text, dict(self.standard.values), source)
@@ -296,9 +328,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         key = paths[0]
         text = item.source_text if self.hooks.source is None else self.hooks.source(summary, item.source_text, self._hook_site(site))
         transform = self.hooks.item_transform(summary) if self.hooks.item_transform is not None else None
+        is_wiki = wiki.is_wiki_entry(self._entry(summary), self.standard)
         fragment = self._fragment(
             text, key.count("/"), summary.output_path, transform=transform,
-            include=lambda attributes: self._item_include(attributes, summary.output_path),
+            include=lambda attributes: self._item_include(attributes, summary.output_path, site, wiki_page=is_wiki),
+            implicit_band=is_wiki,
         )
         if self.hooks.item_decorator is not None:
             fragment = self.hooks.item_decorator(fragment, summary)
@@ -343,7 +377,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         pages = {key: self._render(page)}
         if len(paths) > 1:
             canonical = entry.canonical or self.head.absolute(entry.url)
-            pages[paths[1]] = item_markdown(entry, self._twin(item.source_text, summary.output_path), canonical).encode("utf-8")
+            pages[paths[1]] = self._item_twin(entry, item.source_text, canonical).encode("utf-8")
         return pages
 
     def _home_markdown(self, title: str, description: str, source_text: str) -> str:
@@ -643,7 +677,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
             def render() -> bytes:
                 documents = (
-                    item_markdown(entry, self._twin(site.load_item(entry.item_id).source_text, entry.summary.output_path), entry.canonical or self.head.absolute(entry.url))
+                    self._item_twin(entry, site.load_item(entry.item_id).source_text, entry.canonical or self.head.absolute(entry.url))
                     for entry in full_entries
                 )
                 return llms_full_txt(identity, itertools.chain(documents, authored, (text for _title, _path, text in static_documents)), agents.llms_full_max_bytes).encode("utf-8")
@@ -925,7 +959,27 @@ class StandardMarkusProjector(MarkusSiteProjector):
             site=self._hook_site(site),
             **extra,
         )
-        return dataclasses.replace(page, page_actions=self._page_actions(page)) if kind in ("item", "custom") else page
+        if kind not in ("item", "custom"):
+            return page
+        page = dataclasses.replace(page, page_actions=self._page_actions(page))
+        return dataclasses.replace(page, **self._wiki_parts(page)) if kind == "item" else page
+
+    def _wiki_parts(self, page: StandardPage) -> dict[str, str]:
+        """The stamp above and the footer below a wiki page; nothing for any other page."""
+        entry = page.entry
+        if not wiki.is_wiki_entry(entry, self.standard):
+            return {}
+        front, date_format = entry.data, self.standard.identity.date_format
+        index = self._knowledge.index() or {}
+        form = next((spec for spec in self.standard.forms if spec.id == self.standard.wiki.suggest_form), None)
+        return {
+            "wiki_stamp": wiki.stamp_html(front, date_format, self.policy.path),
+            "wiki_footer": wiki.footer_html(entry, front, self.standard, date_format, form, {str(e.get("key")) for e in index.get("entities") or []}, self.policy.path),
+        }
+
+    def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
+        notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
+        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes)
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
@@ -1119,12 +1173,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _include(self, attributes: dict, page: StandardPage, source: str) -> str:
         kind = includes.check(attributes, self.standard, source)
         if kind == "listing":
-            chosen = includes.listing_entries(attributes, list(page.entries), self.standard)
-            cards = [self._card(entry, page, attributes.get("card"), position) for position, entry in enumerate(chosen)]
-            if "tag" in attributes:
-                css = f' class="{components.esc(attributes["class"])}"' if "class" in attributes else ""
-                return f'<{attributes["tag"]}{css}>' + "".join(cards) + f'</{attributes["tag"]}>' if cards else ""
-            return "".join(cards) if attributes.get("layout") == "bare" else '<div class="markus-card-grid">' + "\n".join(cards) + "</div>"
+            return self._listing_markup(attributes, includes.listing_entries(attributes, list(page.entries), self.standard), page)
         if kind == "showcase":
             wall = self.standard.showcase
             if wall is None:
@@ -1154,7 +1203,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 extras.append(components.tag_list(entry.tags, lambda tag: self.policy.path(f"/{self.policy.tag_base(slugify_tag(tag))}/")))
             actions = self._page_actions(page)
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
-            return before + page.fragment + after + ("\n" + "\n".join(extras) if extras else "")
+            return before + page.wiki_stamp + page.fragment + page.wiki_footer + after + ("\n" + "\n".join(extras) if extras else "")
         if page.kind == "custom" and page.fragment and page.page_actions:
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)

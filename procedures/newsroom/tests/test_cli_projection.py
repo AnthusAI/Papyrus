@@ -51,6 +51,23 @@ class PublishProjectionTests(unittest.TestCase):
         _out, invoke = run(content_publish, client, ["--id", "item-articles-hello", "--json"], PROJECTING)
         invoke.assert_called_once_with(
             "content-actions-fn",
+            {
+                "projectionTask": {
+                    "task": "item",
+                    "itemId": "item-articles-hello",
+                    "unpublished": False,
+                    # A real publish is marked, so the function tells the newsletter once the page is projected.
+                    "published": {"publishedItemId": "published-item-articles-hello"},
+                }
+            },
+        )
+
+    def test_republishing_unchanged_content_schedules_an_unmarked_projection(self) -> None:
+        client = self.saved()
+        publish_item(client, "item-articles-hello", actor="t", now=NOW)
+        _out, invoke = run(content_publish, client, ["--id", "item-articles-hello", "--json"], PROJECTING)
+        invoke.assert_called_once_with(
+            "content-actions-fn",
             {"projectionTask": {"task": "item", "itemId": "item-articles-hello", "unpublished": False}},
         )
 

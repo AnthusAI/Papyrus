@@ -3,6 +3,10 @@ import type { PluginRequest } from "../types";
 export const READER_DIMENSION_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const RESERVED_DIMENSIONS = ["up", "used-it"];
 export const READER_HANDLE_NAME = /^[a-z0-9_-]{3,24}$/;
+export const MODERATION_MODES = ["off", "human", "ai"] as const;
+export const AI_KEY_PARAMETER = /^\/papyrus\/[a-z0-9][a-z0-9-]{0,62}\/openai-api-key$/;
+export const AI_MODEL_NAME = /^[a-z0-9][a-z0-9.-]{0,63}$/;
+export const SUBMISSION_KIND_NAME = /^[a-z][a-z0-9-]{0,23}$/;
 export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/-]{1,512}$/;
 
 export type ReaderSteeringConfig = {
@@ -37,6 +41,47 @@ export type ReaderSteeringConfig = {
     /** A hype gap needs at least this many ratings on every dimension involved. */
     hypeMinimum: number;
   };
+  submissions: {
+    /** Submissions one reader may make in a UTC day. Accounts younger than `limits.newAccountHours` get `perDay / limits.newAccountDivisor`. */
+    perDay: number;
+    /** Another submission from the same domain inside this many hours is returned as a `similar` warning. */
+    similarHours: number;
+    /** The kinds a reader may pick (a radio on the form). A single kind hides the radio. */
+    kinds: string[];
+    /** The item type of the draft an editor makes by promoting a submission. */
+    itemType: string;
+    /** The section of that draft. */
+    section: string;
+  };
+  moderation: {
+    /**
+     * `human`: new submissions and comments are public at once and wait in the Administration queue (the default for a pilot).
+     * `off`: no queue; moderators can still hide, ban and undo. Turning human review off is the whole of "trust graduation".
+     * `ai`: a worker asks a model to allow or hide each new item and logs it as the AI moderator; a human decision always stands.
+     */
+    mode: (typeof MODERATION_MODES)[number];
+    /** Hold new submissions and comments hidden until a moderator approves them. Needs a mode other than `off`. */
+    preModeration: boolean;
+    /** Reports one reader may file in a UTC day (a third of it for a new account). */
+    reportsPerDay: number;
+    /** Present when `mode` is `ai`. */
+    ai?: {
+      /** The model that judges each new item. */
+      model: string;
+      /** The SSM SecureString that holds the API key: `/papyrus/<site>/openai-api-key`. The plugin only grants read access to it. */
+      apiKeyParameter: string;
+    };
+  };
+  comments: {
+    /** Comments, replies and edits one reader may post in a clock hour (a third of it for new accounts). */
+    perHour: number;
+    /** The author may edit a comment for this many minutes after posting it. */
+    editWindowMinutes: number;
+    /** Most characters in a comment. */
+    maximumLength: number;
+    /** Most links (http, https or www) in a comment. */
+    maximumLinks: number;
+  };
   /**
    * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
    * Absent means no hype gap is published. Shipped sets plus = notable, novel and minus = real, useful.
@@ -54,7 +99,7 @@ export type ReaderSteeringConfig = {
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments", "moderation"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -94,6 +139,12 @@ function names(raw: unknown, label: string, pattern: RegExp): string[] {
   return [...new Set(raw as string[])];
 }
 
+function lowercaseName(raw: unknown, label: string, fallback: string): string {
+  const value = raw === undefined ? fallback : raw;
+  if (typeof value !== "string" || !SUBMISSION_KIND_NAME.test(value)) throw new Error(`reader-steering plugin ${label} must be a lowercase name matching ${SUBMISSION_KIND_NAME}`);
+  return value;
+}
+
 function resolveHypeGap(raw: unknown, dimensions: string[]): { plus: string[]; minus: string[] } | undefined {
   if (raw === undefined) return undefined;
   const groups = object(raw, "hypeGap", ["plus", "minus"]);
@@ -122,6 +173,26 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const karma = object(raw.karma, "karma", ["upvoteWeight", "usedItWeight"]);
   const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
+  const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section"]);
+  const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay", "ai"]);
+  const mode = moderation.mode === undefined ? "human" : moderation.mode;
+  if (!MODERATION_MODES.includes(mode as (typeof MODERATION_MODES)[number])) {
+    throw new Error(`reader-steering plugin moderation.mode must be one of: ${MODERATION_MODES.join(", ")}`);
+  }
+  const preModeration = flag(moderation.preModeration, "moderation.preModeration");
+  if (preModeration && mode === "off") throw new Error("reader-steering plugin moderation.preModeration needs a moderation.mode other than off");
+  const ai = object(moderation.ai, "moderation.ai", ["model", "apiKeyParameter"]);
+  if (mode !== "ai" && moderation.ai !== undefined) throw new Error("reader-steering plugin moderation.ai needs moderation.mode: ai");
+  if (mode === "ai") {
+    if (typeof ai.apiKeyParameter !== "string" || !AI_KEY_PARAMETER.test(ai.apiKeyParameter)) {
+      throw new Error("reader-steering plugin moderation.ai.apiKeyParameter must be the SSM SecureString name /papyrus/<site>/openai-api-key");
+    }
+    if (ai.model !== undefined && (typeof ai.model !== "string" || !AI_MODEL_NAME.test(ai.model))) {
+      throw new Error(`reader-steering plugin moderation.ai.model must be a model name matching ${AI_MODEL_NAME}`);
+    }
+  }
+  const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
+  const comments = object(raw.comments, "comments", ["perHour", "editWindowMinutes", "maximumLength", "maximumLinks"]);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
   const retirementPoll = flag(raw.retirementPoll, "retirementPoll");
   if (retirementPoll && !flag(snapshot.schedule, "snapshot.schedule")) {
@@ -150,6 +221,25 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       schedule: flag(snapshot.schedule, "snapshot.schedule"),
       intervalHours: integer(snapshot.intervalHours, "snapshot.intervalHours", 6, 1, 24),
       hypeMinimum: integer(snapshot.hypeMinimum, "snapshot.hypeMinimum", 5, 1, 10000),
+    },
+    submissions: {
+      perDay: integer(submissions.perDay, "submissions.perDay", 10, 1, 1000),
+      similarHours: integer(submissions.similarHours, "submissions.similarHours", 48, 1, 24 * 30),
+      kinds: kinds.length > 0 ? kinds : ["link"],
+      itemType: lowercaseName(submissions.itemType, "submissions.itemType", "brief"),
+      section: lowercaseName(submissions.section, "submissions.section", "unsectioned"),
+    },
+    moderation: {
+      mode: mode as (typeof MODERATION_MODES)[number],
+      preModeration,
+      reportsPerDay: integer(moderation.reportsPerDay, "moderation.reportsPerDay", 20, 1, 1000),
+      ...(mode === "ai" ? { ai: { model: (ai.model as string | undefined) ?? "gpt-6-luna", apiKeyParameter: ai.apiKeyParameter as string } } : {}),
+    },
+    comments: {
+      perHour: integer(comments.perHour, "comments.perHour", 30, 1, 1000),
+      editWindowMinutes: integer(comments.editWindowMinutes, "comments.editWindowMinutes", 10, 0, 24 * 60),
+      maximumLength: integer(comments.maximumLength, "comments.maximumLength", 2000, 1, 10000),
+      maximumLinks: integer(comments.maximumLinks, "comments.maximumLinks", 3, 0, 50),
     },
     retirementPoll,
     ...(hypeGap ? { hypeGap } : {}),

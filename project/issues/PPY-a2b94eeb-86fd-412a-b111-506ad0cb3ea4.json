@@ -3,17 +3,37 @@
   "title": "Execute arbitrary Tactus procedures in the cloud, not only the three seeded kinds",
   "description": "assignment-action executeImmediateProcedureRun dispatches on papyrus-procedure-kind and supports only newsroom.research.explorer, newsroom.reporting.context and ingestion.reference.register; anything else throws Unsupported seeded procedure kind, and the runbook notes Lambda does not execute arbitrary Tactus source. A procedure saved in the newsroom therefore cannot run in the cloud. Needs a runtime that runs any published ProcedureVersion (for example a container Lambda or ECS task with tactus installed), with run records, logs and cost, and the 30 s procedure-action timeout out of the path.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-053d10e5-3ebc-45b3-b6a9-e4e950a203c2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "534b0b9f-0bd5-4f61-8a2e-ebce3095bb44",
+      "author": "home",
+      "text": "Built and live (2026-10-22). papyrus-procedure-runner (infra/procedures, a container Lambda with Tactus) runs any published ProcedureVersion: it loads the code and skill attachments, records the ProcedureRun through the external-execution path, runs Tactus in a child process with a deadline, and records the output or error. papyrus procedures register stores a site's .tac and skill files as a published version. PRs #501 #505 #509 #511 #534. First successful cloud run: Distinctive's TTAB ruling analysis, procedure-run-distinctive-ttab-ruling-analysis-20261022T045502138Z-4f19de5e, completed in 188 s. Tactus gaps fixed on the way: GPT-6 tools need the Responses API (Tactus #120, 0.53.1), Responses call duration (#121), a turn's tools override was ignored (#122, 0.53.3), declared output field types (#123). Not built: per-run cost and token records, a newsroom Run button for arbitrary procedures (procedure-action still dispatches only seeded kinds), runs longer than about 14 minutes.",
+      "created_at": "2026-10-22T05:01:05.780392Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "Distinctive Mark implementation"
+      }
+    },
+    {
+      "id": "e3276262-320c-400a-a0b1-7b88ba51321e",
+      "author": "home",
+      "text": "Done: arbitrary published procedures run in the cloud. Remaining gaps are listed in the previous comment.",
+      "created_at": "2026-10-22T05:01:05.850672Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:12:49.228027Z",
-  "updated_at": "2026-10-21T12:12:49.228056Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T05:01:05.905193Z",
+  "closed_at": "2026-10-22T05:01:05.905167Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

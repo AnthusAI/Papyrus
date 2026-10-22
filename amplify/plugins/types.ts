@@ -10,6 +10,8 @@ export type PluginManifest = {
   /** Public contract version. Bump it when a mutation input, a model field, an element name or an attribute changes. No compatibility shims. */
   contract: number;
   models: string[];
+  /** Custom queries it adds (operations that read). */
+  queries?: string[];
   mutations: string[];
   /** What an anonymous visitor may call. Everything else is closed to guests. */
   guest: { mutations: string[] };

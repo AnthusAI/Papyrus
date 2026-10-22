@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from .actors import Actor
+
 DESCRIPTION_REVIEWED = "reviewed"
+DESCRIPTION_AI_EDITED = "ai_edited"
 DESCRIPTION_DRAFT = "draft"
 DESCRIPTION_NONE = "none"
 LINK_FRONT_MATTER = "front_matter"
@@ -43,7 +46,8 @@ class EntityNode:
     aliases: tuple[str, ...] = ()
     description: str | None = None
     description_state: str = DESCRIPTION_NONE
-    reviewed_on: str | None = None
+    accepted_by: Actor | None = None
+    description_edited_by: Actor | None = None
 
 
 @dataclass(frozen=True)
@@ -72,12 +76,13 @@ class Cluster:
     event: str | None
     top_terms: tuple[str, ...]
     weekly_series: dict[str, int]
-    first_seen: str | None
+    earliest_published_at: str | None
     member_item_keys: tuple[str, ...]
     member_count: int
     run_id: str | None
     run_as_of: str | None = None
     category_key: str | None = None
+    accepted_by: Actor | None = None
 
 
 @dataclass(frozen=True)

@@ -23,6 +23,8 @@ from papyrus_content.reader_steering.task import (
     PROFILE_TABLE_ENV,
     SETTINGS_ENV,
     STATE_TABLE_ENV,
+    COMMENT_TABLE_ENV,
+    SUBMISSION_TABLE_ENV,
     VOTE_TABLE_ENV,
     run_reader_snapshot,
 )
@@ -42,6 +44,11 @@ TABLE_NAMES = {
     "vote": "ReaderVote-test",
     "published": "PublishedItem-test",
     "rate": "RateWindows-test",
+    "submission": "ReaderSubmission-test",
+    "comment": "ReaderComment-test",
+    "report": "ReaderReport-test",
+    "action": "ModerationAction-test",
+    "item": "Item-test",
 }
 
 
@@ -72,9 +79,9 @@ class ScriptedRetirementPoll:
 
 
 class ReaderBackend:
-    def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_enabled=True) -> None:
+    def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_enabled=True, **settings) -> None:
         self.settings = reader_handler.ReaderSettings(
-            dimensions=tuple(dimensions), actions_per_hour=actions_per_hour, allow_interim_subjects=allow_interim
+            dimensions=tuple(dimensions), actions_per_hour=actions_per_hour, allow_interim_subjects=allow_interim, **settings
         )
         self.snapshot_target = reader_handler.SnapshotTarget(SNAPSHOT_FUNCTION_ARN, SCHEDULER_ROLE_ARN) if snapshot_enabled else None
         self.now = START_SECONDS
@@ -86,11 +93,43 @@ class ReaderBackend:
         self.scheduler_client = boto3.client("scheduler", region_name="us-east-1")
         for key, table_name in TABLE_NAMES.items():
             attribute = "pk" if key == "rate" else "id"
+            definitions = [{"AttributeName": attribute, "AttributeType": "S"}]
+            indexes = {}
+            if key == "profile":
+                definitions += [{"AttributeName": "readerId", "AttributeType": "S"}]
+                indexes = {
+                    "GlobalSecondaryIndexes": [
+                        {"IndexName": reader_handler.PROFILE_READER_INDEX, "KeySchema": [{"AttributeName": "readerId", "KeyType": "HASH"}], "Projection": {"ProjectionType": "ALL"}}
+                    ]
+                }
+            if key == "report":
+                definitions += [{"AttributeName": "target", "AttributeType": "S"}, {"AttributeName": "createdAt", "AttributeType": "S"}]
+                indexes = {
+                    "GlobalSecondaryIndexes": [
+                        {
+                            "IndexName": reader_handler.REPORT_TARGET_INDEX,
+                            "KeySchema": [{"AttributeName": "target", "KeyType": "HASH"}, {"AttributeName": "createdAt", "KeyType": "RANGE"}],
+                            "Projection": {"ProjectionType": "ALL"},
+                        }
+                    ]
+                }
+            if key == "submission":
+                definitions += [{"AttributeName": "domain", "AttributeType": "S"}, {"AttributeName": "createdAt", "AttributeType": "S"}]
+                indexes = {
+                    "GlobalSecondaryIndexes": [
+                        {
+                            "IndexName": reader_handler.SUBMISSION_DOMAIN_INDEX,
+                            "KeySchema": [{"AttributeName": "domain", "KeyType": "HASH"}, {"AttributeName": "createdAt", "KeyType": "RANGE"}],
+                            "Projection": {"ProjectionType": "ALL"},
+                        }
+                    ]
+                }
             self.resource.create_table(
                 TableName=table_name,
                 KeySchema=[{"AttributeName": attribute, "KeyType": "HASH"}],
-                AttributeDefinitions=[{"AttributeName": attribute, "AttributeType": "S"}],
+                AttributeDefinitions=definitions,
                 BillingMode="PAY_PER_REQUEST",
+                **indexes,
             )
         self.store = reader_handler.DynamoReaderStore(
             resource=self.resource,
@@ -99,6 +138,11 @@ class ReaderBackend:
             vote_table=TABLE_NAMES["vote"],
             published_item_table=TABLE_NAMES["published"],
             rate_table=TABLE_NAMES["rate"],
+            submission_table=TABLE_NAMES["submission"],
+            comment_table=TABLE_NAMES["comment"],
+            report_table=TABLE_NAMES["report"],
+            action_table=TABLE_NAMES["action"],
+            item_table=TABLE_NAMES["item"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -129,6 +173,30 @@ class ReaderBackend:
     def votes(self) -> list[dict]:
         return self.table("vote").scan()["Items"]
 
+    def submissions(self) -> list[dict]:
+        return self.table("submission").scan()["Items"]
+
+    def comments(self) -> list[dict]:
+        return self.table("comment").scan()["Items"]
+
+    def reports(self) -> list[dict]:
+        return self.table("report").scan()["Items"]
+
+    def actions(self) -> list[dict]:
+        return sorted(self.table("action").scan()["Items"], key=lambda row: (row["at"], row["id"]))
+
+    def items(self) -> list[dict]:
+        return self.table("item").scan()["Items"]
+
+    def staff_call(self, action: str, target_type: str, target: str, *, reason: str | None = None, undo_of: str | None = None, groups=("editor",), sub: str = "staff-sub-1") -> dict:
+        """The moderateReader mutation as AppSync delivers it to the function."""
+        event = {
+            "arguments": {"action": action, "targetType": target_type, "target": target, **({"reason": reason} if reason is not None else {}), **({"undoOf": undo_of} if undo_of else {})},
+            "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}},
+            "info": {"fieldName": "moderateReader"},
+        }
+        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+
 
 def iso_at(seconds: float) -> str:
     return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -147,10 +215,12 @@ def run_snapshot(
     invalidate: Any = None,
     published: tuple[str, ...] = PUBLISHED_SUBJECTS,
     dimensions: tuple[str, ...] = ("real", "useful"),
-    submitter_of: Any = lambda subject: None,
+    submitter_of: Any = None,
     retirement_poll: Any = None,
     poll_retirements: bool = False,
     hype_gap: dict | None = None,
+    review_signals: Any = None,
+    comment_signals: Any = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -165,6 +235,8 @@ def run_snapshot(
         PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
         HANDLE_TABLE_ENV: TABLE_NAMES["handle"],
         STATE_TABLE_ENV: TABLE_NAMES["rate"],
+        SUBMISSION_TABLE_ENV: TABLE_NAMES["submission"],
+        COMMENT_TABLE_ENV: TABLE_NAMES["comment"],
     }
     return run_reader_snapshot(
         context,
@@ -173,6 +245,8 @@ def run_snapshot(
         resource=backend.resource,
         now_seconds=now,
         submitter_of=submitter_of,
+        review_signals=review_signals,
+        comment_signals=comment_signals,
         retirement_poll=retirement_poll,
         poll_retirements=poll_retirements,
     )

@@ -25,7 +25,7 @@ BLOCKS: dict[str, set[str]] = {
     "knowledge-entity": {"key", "part", "annotate", "annotateLabel"},
     "knowledge-score": {"value", "n", "threshold", "label"},
 }
-PARTS = ("trend", "neighbourhood", "related")
+PARTS = ("trend", "neighbourhood", "related", "provenance")
 DEFAULT_LIMITS = {"knowledge-trending-strip": 5, "knowledge-trending-list": 6, "knowledge-clusters": 3}
 CLUSTER_LABELS = {"new": "New", "growing": "▲ Growing", "cooling": "▼ Cooling"}
 PLACEHOLDER = '<div class="papyrus-dynamic" data-papyrus-dynamic="{name}"></div>'
@@ -184,7 +184,7 @@ def _clusters(clusters: Mapping, limit: int) -> str:
         state = escape(str(cluster.get("state") or "")) if label else ""
         cards.append(
             f'<li class="papyrus-knowledge-cluster"{f" data-state={chr(34)}{state}{chr(34)}" if state else ""}>'
-            f'<p class="papyrus-knowledge-cluster-name">{title}</p>{badge}{count}{terms_html}{spark}</li>'
+            f'<p class="papyrus-knowledge-cluster-name">{title}</p>{badge}{count}{terms_html}{spark}{parts.attribution(cluster.get("acceptedBy"), "accepted")}</li>'
         )
     return f'<ul class="papyrus-knowledge-clusters">{"".join(cards)}</ul>' if cards else ""
 
@@ -203,7 +203,8 @@ def _concept_of_the_week(index: Mapping) -> str:
     if chosen.get("makerCount") is not None:
         facts.append(f'{int(chosen["makerCount"])} makers')
     meta = f'<p class="papyrus-knowledge-cotw-meta">{", ".join(facts)}</p>' if facts else ""
-    return f'<article class="papyrus-knowledge-cotw"><p class="papyrus-knowledge-cotw-name">{title}</p>{lede}{meta}</article>'
+    edited = parts.attribution(chosen.get("editedBy"), "description")
+    return f'<article class="papyrus-knowledge-cotw"><p class="papyrus-knowledge-cotw-name">{title}</p>{lede}{edited}{meta}</article>'
 
 
 def _entity(knowledge: KnowledgeSource, index: Mapping | None, attributes: Mapping) -> str:
@@ -222,6 +223,9 @@ def _entity(knowledge: KnowledgeSource, index: Mapping | None, attributes: Mappi
         return f'<div class="papyrus-knowledge-entity-trend">{body}{chart}</div>' if body or chart else ""
     if part == "neighbourhood":
         return parts.neighbourhood(entity.get("neighbours") or [], kinds, _links(index) if index else {})
+    if part == "provenance":
+        lines = parts.attribution(entity.get("acceptedBy"), "accepted") + parts.attribution((entity.get("description") or {}).get("editedBy"), "description")
+        return f'<div class="papyrus-knowledge-provenance">{lines}</div>' if lines else ""
     related = []
     for item in entity.get("relatedItems") or []:
         link = parts.safe_href(item.get("url"))

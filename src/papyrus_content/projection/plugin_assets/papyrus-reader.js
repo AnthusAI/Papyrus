@@ -10,6 +10,9 @@
  *   <div data-island="UsedIt" data-props='{"subject":"<item key>","usedIt":1}'></div>
  *   <div data-island="Rating" data-props='{"subject":"<item key>","dimensions":["real","useful"]}'></div>
  *   <div data-island="Freshness" data-props='{"generatedAt":"2026-10-21T10:00:00Z"}'></div>
+ *   <div data-island="Submit" data-props='{"kinds":["article","tool"]}'></div>   (the /submit/ page)
+ *   <div data-island="Comments" data-props='{"subject":"<item key>"}'></div>   (an item page; optional "editMinutes", "maximumLength")
+ *   <div data-island="Report" data-props='{"target":"<submission id or comment id>"}'></div>   (next to a listed submission)
  *
  * The script registers its islands in window.papyrusIslands and also mounts any [data-island] of its own names, once, so
  * it works with or without the core islands runtime. Props prerender the last snapshot values; the page then fetches
@@ -259,6 +262,44 @@
     return stats && stats.n ? Number(stats.mean).toFixed(1) + " from " + plural(stats.n, "rating", "ratings") : "no ratings yet";
   }
 
+  function whyForm(subject, dimension) {
+    var form = element("form", "papyrus-reader-why");
+    form.hidden = true;
+    var input = element("input", "papyrus-reader-input");
+    input.type = "text"; input.name = "why"; input.maxLength = 500; input.autocomplete = "off";
+    input.id = "papyrus-reader-why-" + dimension + "-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", "Why? (optional, public)");
+    label.setAttribute("for", input.id);
+    var send = element("button", "papyrus-reader-button", "Post reason");
+    send.type = "submit";
+    var status = element("span", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    [label, input, send, status].forEach(function (node) { form.appendChild(node); });
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var value = mine(subject, dimension);
+      if (!input.value.trim() || !value || send.getAttribute("aria-busy") === "true") return;
+      send.setAttribute("aria-busy", "true");
+      status.textContent = "";
+      post("/comment", { subject: subject, body: input.value, ratingContext: { dimension: dimension, value: value } }).then(function (result) {
+        send.setAttribute("aria-busy", "false");
+        if (result.ok) {
+          rememberComment(subject, result.body);
+          input.value = "";
+          status.textContent = "Posted. It shows in the comments with the next update.";
+        } else {
+          status.textContent = failureText(result);
+        }
+      }).catch(function () { send.setAttribute("aria-busy", "false"); status.textContent = TEXT.failed; });
+    });
+    return {
+      form: form,
+      reset: function () { input.value = ""; status.textContent = ""; },
+      refresh: function () { input.disabled = !enabled(); send.disabled = !enabled(); }
+    };
+  }
+
   function mountRating(host, props) {
     var subject = props.subject;
     var dimensions = Array.isArray(props.dimensions) ? props.dimensions : [];
@@ -284,7 +325,9 @@
       group.appendChild(readers);
       group.appendChild(editor);
       host.appendChild(group);
-      return { dimension: dimension, buttons: buttons, own: own, readers: readers, editor: editor, busy: false };
+      var why = whyForm(subject, dimension);
+      host.appendChild(why.form);
+      return { dimension: dimension, buttons: buttons, own: own, readers: readers, editor: editor, busy: false, why: why, askWhy: false };
     });
     var status = element("p", "papyrus-reader-status");
     status.setAttribute("role", "status");
@@ -303,6 +346,9 @@
           button.setAttribute("aria-busy", row.busy ? "true" : "false");
         });
         row.own.textContent = value ? "Your rating: " + value + " of 5" : TEXT.notRated;
+        if (!value) row.askWhy = false;
+        row.why.form.hidden = !(row.askWhy && value && enabled());
+        row.why.refresh();
         row.readers.textContent = "Readers: " + statsText(published && published.reader);
         row.editor.textContent = published && published.editor && published.editor.n ? "Editor: " + statsText(published.editor) : "";
       });
@@ -319,6 +365,8 @@
           writeVote(subject, row.dimension, next, previous).then(function (failure) {
             row.busy = false;
             message = failure;
+            row.askWhy = !failure && next !== null;
+            if (row.askWhy) row.why.reset();
             notify();
           });
         });
@@ -424,7 +472,506 @@
     requestMe();
   }
 
-  var islands = { ReaderSignIn: mountSignIn, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
+  var DRAFT_KEY = "papyrus-reader-submit-draft";
+  var SIMILAR_HOURS = 48;
+
+  function storage() {
+    try { return window.localStorage; } catch (error) { return null; }
+  }
+
+  function readDraft() {
+    try {
+      var store = storage();
+      var parsed = store ? JSON.parse(store.getItem(DRAFT_KEY) || "null") : null;
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (error) { return null; }
+  }
+
+  function writeDraft(draft) {
+    try {
+      var store = storage();
+      if (!store) return;
+      if (draft) store.setItem(DRAFT_KEY, JSON.stringify(draft)); else store.removeItem(DRAFT_KEY);
+    } catch (error) {}
+  }
+
+  function guessCanonical(text) {
+    try {
+      var url = new URL(text.trim());
+      if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+      url.hash = "";
+      return url.href;
+    } catch (error) { return null; }
+  }
+
+  function loadSubmissions() {
+    return fetch(settings.base + "_data/reader/submissions.json", { credentials: "omit", cache: "no-cache" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (body) { return body && Array.isArray(body.submissions) ? body.submissions : []; })
+      .catch(function () { return []; });
+  }
+
+  function field(form, labelText, control, hintText) {
+    var wrapper = element("div", "papyrus-reader-field");
+    control.id = "papyrus-reader-" + control.name + "-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", labelText);
+    label.setAttribute("for", control.id);
+    wrapper.appendChild(label);
+    wrapper.appendChild(control);
+    if (hintText) wrapper.appendChild(element("span", "papyrus-reader-hint", hintText));
+    form.appendChild(wrapper);
+    return wrapper;
+  }
+
+  function mountSubmit(host, props) {
+    var kinds = Array.isArray(props.kinds) && props.kinds.length ? props.kinds : ["link"];
+    requestMe();
+    host.classList.add("papyrus-reader-submit");
+    var form = element("form", "papyrus-reader-submit-form");
+    form.noValidate = false;
+    var url = element("input", "papyrus-reader-input");
+    url.type = "url"; url.name = "url"; url.required = true; url.maxLength = 2048; url.autocomplete = "off"; url.placeholder = "https://";
+    var title = element("input", "papyrus-reader-input");
+    title.type = "text"; title.name = "title"; title.required = true; title.maxLength = 200; title.autocomplete = "off";
+    var note = element("textarea", "papyrus-reader-input");
+    note.name = "note"; note.maxLength = 500; note.rows = 3;
+    field(form, "Link", url);
+    field(form, "Title", title);
+    var kindInputs = [];
+    if (kinds.length > 1) {
+      var set = element("fieldset", "papyrus-reader-kinds");
+      set.appendChild(element("legend", "papyrus-reader-field-label", "Kind"));
+      kinds.forEach(function (kind, index) {
+        var label = element("label", "papyrus-reader-kind");
+        var radio = element("input");
+        radio.type = "radio"; radio.name = "kind"; radio.value = kind; radio.checked = index === 0;
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode(" " + kind));
+        set.appendChild(label);
+        kindInputs.push(radio);
+      });
+      form.appendChild(set);
+    }
+    field(form, "Note (optional)", note, "Up to 500 characters of plain text. Everyone can read it.");
+    var warning = element("p", "papyrus-reader-warning");
+    warning.setAttribute("role", "status");
+    warning.setAttribute("aria-live", "polite");
+    var draftNote = element("p", "papyrus-reader-hint", "Saved locally: a draft of this form is kept in this browser only, never sent anywhere, and cleared when you submit.");
+    var send = element("button", "papyrus-reader-button", "Submit link");
+    send.type = "submit";
+    var status = element("p", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    var result = element("div", "papyrus-reader-submit-result");
+    [warning, draftNote, send, status].forEach(function (node) { form.appendChild(node); });
+    host.appendChild(form);
+    host.appendChild(result);
+
+    function chosenKind() {
+      var picked = kindInputs.filter(function (radio) { return radio.checked; })[0];
+      return picked ? picked.value : kinds[0];
+    }
+
+    var draft = readDraft();
+    if (draft) {
+      url.value = String(draft.url || ""); title.value = String(draft.title || ""); note.value = String(draft.note || "");
+      kindInputs.forEach(function (radio) { radio.checked = radio.value === draft.kind; });
+      if (kindInputs.length && !kindInputs.some(function (radio) { return radio.checked; })) kindInputs[0].checked = true;
+    }
+    var saveTimer = null;
+    function saveDraft() {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () {
+        writeDraft(url.value || title.value || note.value ? { url: url.value, title: title.value, note: note.value, kind: chosenKind() } : null);
+      }, 300);
+    }
+    [url, title, note].forEach(function (control) { control.addEventListener("input", saveDraft); });
+    kindInputs.forEach(function (radio) { radio.addEventListener("change", saveDraft); });
+
+    var known = [];
+    function showWarning() {
+      var canonical = guessCanonical(url.value);
+      warning.textContent = "";
+      if (!canonical) return;
+      var same = known.filter(function (row) { return row.url === canonical; })[0];
+      if (same) {
+        warning.textContent = "Warning: this link may already be submitted as \u201c" + same.title + "\u201d. You can still submit it; the site checks again.";
+        return;
+      }
+      var host_ = new URL(canonical).hostname;
+      var since = Date.now() - SIMILAR_HOURS * 3600 * 1000;
+      var recent = known.filter(function (row) { return row.domain === host_ && Date.parse(row.createdAt) >= since; });
+      if (recent.length) warning.textContent = "Heads up: " + plural(recent.length, "link", "links") + " from " + host_ + " " + (recent.length === 1 ? "was" : "were") + " submitted in the last " + SIMILAR_HOURS + " hours. Check that yours is not the same story.";
+    }
+    loadSubmissions().then(function (rows) { known = rows; showWarning(); });
+    url.addEventListener("input", showWarning);
+    url.addEventListener("change", showWarning);
+
+    var message = "";
+    var busy = false;
+    subscribe(function () {
+      var disabled = !enabled();
+      [url, title, note, send].concat(kindInputs).forEach(function (control) { control.disabled = disabled; });
+      send.setAttribute("aria-busy", busy ? "true" : "false");
+      status.textContent = message || controlStatus();
+    });
+
+    function showSuccess(body) {
+      result.textContent = "";
+      if (body.state === "held") {
+        result.appendChild(element("p", "papyrus-reader-pending", "Held for review \u2014 a moderator reads it before it is public."));
+      } else {
+        result.appendChild(element("p", "papyrus-reader-pending", "Pending \u2014 we\u2019re reading the link."));
+        result.appendChild(element("p", "papyrus-reader-hint", "Your submission is public now. Editors may promote it to a story."));
+      }
+      if (body.similar && body.similar.length) {
+        result.appendChild(element("p", "papyrus-reader-warning", "Similar recent links from the same site:"));
+        var list = element("ul", "papyrus-reader-similar");
+        body.similar.forEach(function (row) {
+          var item = element("li");
+          var link = element("a", "papyrus-reader-link", row.title);
+          link.href = row.url; link.rel = "noopener noreferrer nofollow";
+          item.appendChild(link);
+          list.appendChild(item);
+        });
+        result.appendChild(list);
+      }
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!enabled() || busy) return;
+      busy = true;
+      message = "";
+      result.textContent = "";
+      notify();
+      var body = { url: url.value, title: title.value, kind: chosenKind() };
+      if (note.value.trim()) body.note = note.value;
+      post("/submit", body).then(function (answer) {
+        busy = false;
+        if (answer.ok) {
+          clearTimeout(saveTimer);
+          writeDraft(null);
+          form.reset();
+          kindInputs.forEach(function (radio, index) { radio.checked = index === 0; });
+          showWarning();
+          showSuccess(answer.body);
+        } else if (answer.status === 409 && answer.body.error === "duplicate_submission") {
+          var existing = answer.body.existing;
+          message = existing ? "Already submitted as \u201c" + existing.title + "\u201d (" + existing.state + ")." : "That link was already submitted.";
+        } else if (answer.status === 422 && answer.body.error === "handle_required") {
+          message = "Choose a handle first, using the sign-in control, then submit again.";
+        } else {
+          message = failureText(answer);
+        }
+        notify();
+      }).catch(function () { busy = false; message = TEXT.failed; notify(); });
+    });
+  }
+
+  // Comments. Reads <base>_data/reader/comments/<subject>.json; the reader's own new, edited and deleted comments show at once
+  // from local copies until a newer file arrives.
+  var localComments = {};
+
+  function localFor(subject) {
+    return (localComments[subject] = localComments[subject] || { added: {}, overrides: {} });
+  }
+
+  function rememberComment(subject, created) {
+    var local = localFor(subject);
+    local.added[created.id] = {
+      id: created.id, readerId: state.me ? state.me.readerId : "", handle: state.me ? state.me.handle : "", body: created.body,
+      createdAt: created.createdAt, parent: created.parent || null, edited: false, held: created.state === "held", at: Date.now()
+    };
+    notify();
+  }
+
+  function commentTime(createdAt) {
+    var seconds = Math.max(0, (Date.now() - Date.parse(createdAt)) / 1000);
+    if (isNaN(seconds)) return "";
+    if (seconds < 60) return "just now";
+    var minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return plural(minutes, "minute", "minutes") + " ago";
+    var hours = Math.floor(minutes / 60);
+    if (hours < 48) return plural(hours, "hour", "hours") + " ago";
+    return plural(Math.floor(hours / 24), "day", "days") + " ago";
+  }
+
+  function mergeComments(subject, fetched) {
+    var local = localFor(subject);
+    var generated = fetched ? Date.parse(fetched.generatedAt) : 0;
+    var entries = (fetched && fetched.comments ? fetched.comments : []).map(function (entry) { return Object.assign({}, entry); });
+    var known = {};
+    entries.forEach(function (entry) { known[entry.id] = entry; });
+    Object.keys(local.overrides).forEach(function (id) {
+      var override = local.overrides[id];
+      if (generated >= override.at) { delete local.overrides[id]; return; }
+      var entry = known[id];
+      if (!entry) return;
+      if (override.deleted) { entry.stub = true; entry.parent = null; delete entry.body; delete entry.handle; delete entry.readerId; }
+      else if (override.body !== undefined) { entry.body = override.body; entry.edited = true; }
+    });
+    Object.keys(local.added).forEach(function (id) {
+      if (known[id] || generated >= local.added[id].at) { if (known[id]) delete local.added[id]; return; }
+      entries.push(Object.assign({}, local.added[id]));
+    });
+    entries.sort(function (left, right) { return Date.parse(left.createdAt) - Date.parse(right.createdAt); });
+    return entries;
+  }
+
+  function commentForm(options) {
+    var form = element("form", "papyrus-reader-comment-form");
+    var input = element("textarea", "papyrus-reader-input");
+    input.name = "body"; input.rows = options.rows || 3; input.maxLength = options.maximumLength; input.required = true;
+    input.id = "papyrus-reader-comment-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", options.label);
+    label.setAttribute("for", input.id);
+    var counter = element("span", "papyrus-reader-hint");
+    var send = element("button", "papyrus-reader-button", options.button);
+    send.type = "submit";
+    var status = element("span", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    [label, input, counter, send, status].forEach(function (node) { form.appendChild(node); });
+    var key = options.draftKey;
+    if (key && options.drafts[key] !== undefined) input.value = options.drafts[key]; else if (options.value) input.value = options.value;
+    function count() { counter.textContent = plural(options.maximumLength - input.value.length, "character", "characters") + " left"; }
+    input.addEventListener("input", function () { if (key) options.drafts[key] = input.value; count(); });
+    count();
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!enabled() || send.getAttribute("aria-busy") === "true" || !input.value.trim()) return;
+      send.setAttribute("aria-busy", "true");
+      status.textContent = "";
+      options.submit(input.value).then(function (failure) {
+        send.setAttribute("aria-busy", "false");
+        if (failure) { status.textContent = failure; return; }
+        input.value = "";
+        if (key) delete options.drafts[key];
+        count();
+        if (options.done) options.done();
+      }).catch(function () { send.setAttribute("aria-busy", "false"); status.textContent = TEXT.failed; });
+    });
+    return { form: form, input: input, send: send, status: status, refresh: function () { input.disabled = !enabled(); send.disabled = !enabled(); } };
+  }
+
+  // A report goes to the moderation queue. One button that opens a short form; every state is words.
+  function reportControl(target) {
+    var wrapper = element("span", "papyrus-reader-report");
+    var open = element("button", "papyrus-reader-button", "Report");
+    open.type = "button";
+    open.setAttribute("aria-expanded", "false");
+    var form = element("form", "papyrus-reader-report-form");
+    form.hidden = true;
+    var input = element("input", "papyrus-reader-input");
+    input.type = "text"; input.name = "reason"; input.required = true; input.maxLength = 500; input.autocomplete = "off";
+    input.id = "papyrus-reader-report-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", "Why are you reporting this?");
+    label.setAttribute("for", input.id);
+    var send = element("button", "papyrus-reader-button", "Send report");
+    send.type = "submit";
+    var status = element("span", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    [label, input, send].forEach(function (node) { form.appendChild(node); });
+    wrapper.appendChild(open);
+    wrapper.appendChild(form);
+    wrapper.appendChild(status);
+    open.addEventListener("click", function () {
+      form.hidden = !form.hidden;
+      open.setAttribute("aria-expanded", form.hidden ? "false" : "true");
+      if (!form.hidden) input.focus();
+    });
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!input.value.trim() || send.getAttribute("aria-busy") === "true") return;
+      send.setAttribute("aria-busy", "true");
+      status.textContent = "";
+      post("/report", { target: target, reason: input.value }).then(function (result) {
+        send.setAttribute("aria-busy", "false");
+        if (result.ok) {
+          form.hidden = true;
+          open.hidden = true;
+          status.textContent = "Reported. A moderator will look at it.";
+        } else {
+          status.textContent = failureText(result);
+        }
+      }).catch(function () { send.setAttribute("aria-busy", "false"); status.textContent = TEXT.failed; });
+    });
+    return { node: wrapper };
+  }
+
+  function mountReport(host, props) {
+    requestMe();
+    var control = reportControl(props.target);
+    var open = control.node.querySelector("button");
+    host.appendChild(control.node);
+    subscribe(function () { open.disabled = !enabled(); });
+  }
+
+  function mountComments(host, props) {
+    var subject = props.subject;
+    var maximumLength = Number(props.maximumLength) || 2000;
+    var editMinutes = props.editMinutes === undefined ? 10 : Number(props.editMinutes);
+    requestMe(subject);
+    host.classList.add("papyrus-reader-comments");
+    var heading = element("p", "papyrus-reader-comment-count");
+    var list = element("ol", "papyrus-reader-comment-list");
+    var status = element("p", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    var drafts = {};
+    var fetched = null;
+    var replying = null;
+    var editing = null;
+    var message = "";
+    var url = settings.base + "_data/reader/comments/" + encodeURIComponent(subject) + ".json";
+    var main = commentForm({
+      label: "Add a comment", button: "Post comment", maximumLength: maximumLength,
+      submit: function (body) {
+        return post("/comment", { subject: subject, body: body }).then(function (result) {
+          if (!result.ok) return failureText(result);
+          rememberComment(subject, result.body);
+          return "";
+        });
+      }
+    });
+    main.form.classList.add("papyrus-reader-comment-main");
+    host.appendChild(heading);
+    host.appendChild(list);
+    host.appendChild(status);
+    host.appendChild(main.form);
+
+    function load() {
+      return fetch(url, { credentials: "omit", cache: "no-cache" })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (body) { if (body && Array.isArray(body.comments)) { fetched = body; notify(); } })
+        .catch(function () {});
+    }
+
+    function write(path, payload, apply) {
+      message = "";
+      return post(path, payload).then(function (result) {
+        if (result.ok) { apply(result.body); return ""; }
+        message = failureText(result);
+        notify();
+        return message;
+      }).catch(function () { message = TEXT.failed; notify(); return message; });
+    }
+
+    function renderComment(entry, children, depth) {
+      var item = element("li", "papyrus-reader-comment");
+      item.setAttribute("data-comment-id", entry.id);
+      if (entry.stub) {
+        item.appendChild(element("p", "papyrus-reader-comment-removed", "This comment was removed."));
+      } else {
+        var meta = element("p", "papyrus-reader-comment-meta");
+        meta.appendChild(element("span", "papyrus-reader-handle", entry.handle || "A reader"));
+        meta.appendChild(document.createTextNode(" \u00b7 " + commentTime(entry.createdAt) + (entry.edited ? " (edited)" : "") + (entry.held ? " \u2014 held for review, only you can see it" : "")));
+        item.appendChild(meta);
+        var own = state.me && entry.readerId && entry.readerId === state.me.readerId;
+        if (editing === entry.id) {
+          var editForm = commentForm({
+            label: "Edit your comment", button: "Save", maximumLength: maximumLength, drafts: drafts, draftKey: "edit-" + entry.id, value: entry.body,
+            submit: function (body) {
+              return write("/comment/edit", { id: entry.id, body: body }, function () {
+                localFor(subject).overrides[entry.id] = { body: body, at: Date.now() };
+                editing = null;
+                notify();
+              });
+            }
+          });
+          editForm.refresh();
+          var cancel = element("button", "papyrus-reader-button", "Cancel");
+          cancel.type = "button";
+          cancel.addEventListener("click", function () { editing = null; notify(); });
+          editForm.form.appendChild(cancel);
+          item.appendChild(editForm.form);
+        } else {
+          var body = element("p", "papyrus-reader-comment-body", entry.body);
+          item.appendChild(body);
+          var actions = element("p", "papyrus-reader-comment-actions");
+          if (depth === 0 && enabled()) {
+            var reply = element("button", "papyrus-reader-button", "Reply");
+            reply.type = "button";
+            reply.setAttribute("aria-expanded", replying === entry.id ? "true" : "false");
+            reply.addEventListener("click", function () { replying = replying === entry.id ? null : entry.id; notify(); });
+            actions.appendChild(reply);
+          }
+          if (own && enabled()) {
+            if (editMinutes > 0 && Date.now() - Date.parse(entry.createdAt) < editMinutes * 60000) {
+              var edit = element("button", "papyrus-reader-button", "Edit");
+              edit.type = "button";
+              edit.addEventListener("click", function () { editing = entry.id; notify(); });
+              actions.appendChild(edit);
+            }
+            var remove = element("button", "papyrus-reader-button", "Delete");
+            remove.type = "button";
+            remove.addEventListener("click", function () {
+              write("/comment/delete", { id: entry.id }, function () {
+                var local = localFor(subject);
+                delete local.added[entry.id];
+                local.overrides[entry.id] = { deleted: true, at: Date.now() };
+                notify();
+              });
+            });
+            actions.appendChild(remove);
+          }
+          if (!own && enabled() && !entry.held) actions.appendChild(reportControl(entry.id).node);
+          if (actions.childNodes.length) item.appendChild(actions);
+        }
+      }
+      if (replying === entry.id && enabled()) {
+        var replyForm = commentForm({
+          label: "Your reply", button: "Post reply", maximumLength: maximumLength, rows: 2, drafts: drafts, draftKey: "reply-" + entry.id,
+          submit: function (body) {
+            return post("/comment", { subject: subject, body: body, parent: entry.id }).then(function (result) {
+              if (!result.ok) return failureText(result);
+              rememberComment(subject, result.body);
+              replying = null;
+              return "";
+            });
+          }
+        });
+        item.appendChild(replyForm.form);
+      }
+      if (children.length) {
+        var nested = element("ol", "papyrus-reader-comment-list papyrus-reader-replies");
+        children.forEach(function (child) { nested.appendChild(renderComment(child, [], 1)); });
+        item.appendChild(nested);
+      }
+      return item;
+    }
+
+    subscribe(function () {
+      var entries = mergeComments(subject, fetched);
+      var count = entries.filter(function (entry) { return !entry.stub; }).length;
+      var prerendered = !fetched && props.count !== undefined ? Number(props.count) : count;
+      heading.textContent = plural(prerendered, "comment", "comments");
+      var repliesOf = {};
+      entries.forEach(function (entry) { if (entry.parent) (repliesOf[entry.parent] = repliesOf[entry.parent] || []).push(entry); });
+      var present = {};
+      entries.forEach(function (entry) { present[entry.id] = true; });
+      var focused = document.activeElement;
+      var keepFocus = focused && host.contains(focused) && (focused.tagName === "TEXTAREA" || focused.tagName === "INPUT");
+      if (keepFocus && focused.closest(".papyrus-reader-comment-form") && list.contains(focused)) {
+        // Do not rebuild under someone who is typing a reply or an edit; the next change will catch up.
+        main.refresh();
+        status.textContent = message || controlStatus();
+        return;
+      }
+      list.textContent = "";
+      entries.filter(function (entry) { return !entry.parent || !present[entry.parent]; }).forEach(function (entry) {
+        list.appendChild(renderComment(entry, repliesOf[entry.id] || [], 0));
+      });
+      main.refresh();
+      status.textContent = message || controlStatus();
+    });
+    load();
+    setInterval(function () { if (document.visibilityState === "visible") load(); }, settings.pollSeconds * 1000);
+  }
+
+  var islands = { ReaderSignIn: mountSignIn, Comments: mountComments, Report: mountReport, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
   var started = false;
 
   function guarded(mount) {

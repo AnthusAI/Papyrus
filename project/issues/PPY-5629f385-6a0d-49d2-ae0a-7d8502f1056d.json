@@ -3,16 +3,24 @@
   "title": "Sync accepted entities into draft wiki page Items",
   "description": "As an editor, I want a draft page created for each accepted entity, so that I only review and publish rather than author each page.\n\nFront matter: entity id, kind, aliases, beat, related keys, optional pin and annotations. Body: the approved description in Markus (descriptions may be LLM-drafted but are published only after a human accepts; default model for language-model tasks is GPT-6 Luna unless stated otherwise). The node remains the system of record.\n\n```gherkin\nFeature: Entity page sync\n  Scenario: New accepted entity\n    Given an entity newly accepted by the desk\n    When the sync runs\n    Then a draft page Item exists for it and is not public\n\n  Scenario: Publish\n    When an editor publishes the draft\n    Then the page appears in the wiki listing, sitemap and search index\n\n  Scenario: Never auto-publish\n    Then the sync never sets a page to published\n\n  Scenario: Description changed\n    Given a published page whose entity description changed\n    Then the sync creates a pending revision for review rather than altering the live page\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-495ec80d-6bbe-4ab0-afc3-cb1010c9500d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "ba9650d2-fcfb-499c-bd3e-3da901346e93",
+      "author": "home",
+      "text": "Branch feature/PPY-495ec8-public-wiki, PR https://github.com/AnthusAI/Papyrus/pull/540 (CI python/ts/smoke green). Verified by procedures/newsroom/tests/test_knowledge_wiki.py (30+ tests, one per Gherkin scenario, plus projector listing/sitemap/llms/twin), src/papyrus_content/wiki_stamp_test.py, scripts/test-public-forms.ts, and the existing standard front end suites. Docs: docs/public-wiki.md. Not run against production.",
+      "created_at": "2026-10-22T05:25:08.629456Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:50:04.861270Z",
-  "updated_at": "2026-10-21T12:50:04.861303Z",
+  "updated_at": "2026-10-22T05:25:35.839159Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -22,10 +22,17 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "e9747ca1-d1ef-453c-864d-f430928b4520",
+      "author": "home",
+      "text": "Children delivered: submit, duplicate and limits, form, docs. Extraction (da545d) is left open on purpose: the submission carries extractionState pending as the hook; the worker step belongs to the knowledge-base lead.",
+      "created_at": "2026-10-22T05:11:41.647583Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:27.041834Z",
-  "updated_at": "2026-10-21T12:50:17.575122Z",
+  "updated_at": "2026-10-22T05:11:41.647614Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

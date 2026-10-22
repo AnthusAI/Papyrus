@@ -33,7 +33,7 @@ SECTIONS_COMMANDS = {
 }
 PROCEDURES_COMMANDS = ("seed-required", "register", "execute-tactus", "policy")
 OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages")
-CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages"}
+CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages", "reader": "reader"}
 
 # Usage lines for commands whose flags are worth showing in group help.
 COMMAND_USAGE = {
@@ -43,6 +43,7 @@ COMMAND_USAGE = {
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
   ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",
   ("messages", "handle"): "--message-id ID [--note TEXT] [--author-label NAME] [--dry-run]",
+  ("reader", "feedback"): "export [--since ISO_TIME] [--out FILE]",
   ("publication", "init"): "--key KEY --name NAME",
   ("site", "google-secrets"): "set|check [--site PATH] [--profile NAME] [--account ID] [--region R] [--app-id ID] [--branch NAME] [--client-id ID] [--secret-stdin]",
   ("reporting", "create"): "--title TEXT [--section KEY] [--corpus-key KEY] [--summary TEXT] [--brief TEXT] [--dry-run]",

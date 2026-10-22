@@ -18,6 +18,7 @@ a.papyrus-knowledge-chip:hover { border-color: var(--papyrus-knowledge-accent, c
 .papyrus-knowledge-sparkline-end { fill: var(--papyrus-knowledge-line, currentColor); }
 .papyrus-knowledge-change { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .papyrus-knowledge-new { padding: 0 .4em; border: 1px solid currentColor; border-radius: .25em; font-size: .75em; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.papyrus-knowledge-attribution { margin: 0; font-size: .8125em; color: var(--papyrus-knowledge-muted, inherit); }
 .papyrus-knowledge-count-text, .papyrus-knowledge-recent, .papyrus-knowledge-terms, .papyrus-knowledge-cotw-meta { font-size: .875em; color: var(--papyrus-knowledge-muted, inherit); }
 .papyrus-knowledge-kindfilter ul { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
 .papyrus-knowledge-kindfilter a { display: inline-block; padding: .1em .7em; border: 1px solid var(--papyrus-knowledge-rule, currentColor); border-radius: var(--papyrus-knowledge-radius, 999px); text-decoration: none; color: inherit; }
