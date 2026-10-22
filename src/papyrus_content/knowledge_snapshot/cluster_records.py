@@ -1,9 +1,9 @@
 """Topic clusters as ``SteeringProposal`` rows (proposalKind ``topic_cluster``).
 
 The proposal model has no field for the run's figures, so they ride in ``summary`` as one JSON object with a marker
-(``METADATA_MARKER``); ``description`` carries the readable sentence a desk reviewer sees. A continued cluster has the
-same ``clusterUid``, so it maps to the same proposal id: the run updates the figures and keeps the desk's status,
-name and review fields.
+(``METADATA_MARKER``); ``description`` carries the readable sentence a reviewer sees. A continued cluster has the
+same ``clusterUid``, so it maps to the same proposal id: the run updates the figures and keeps the status, name,
+review fields and ``acceptedBy`` (who accepted the cluster, see ``actors.py``).
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..ids import hash_short, safe_id
+from .actors import Actor, actor_from_dict
 from .keys import slug
 from .model import Cluster
 from .run_input import ClusterEntry, ClusterRun
@@ -33,16 +34,18 @@ def cluster_category_key(uid: str) -> str:
     return f"cluster-{slug(uid) or hash_short(uid)}"
 
 
-def metadata_json(entry: ClusterEntry, run: ClusterRun) -> str:
+def metadata_json(entry: ClusterEntry, run: ClusterRun, accepted_by: Actor | None = None) -> str:
     return json.dumps(
         {
+            "acceptedBy": accepted_by.to_dict() if accepted_by else None,
             "kind": METADATA_MARKER,
             "clusterUid": entry.uid,
             "event": entry.event,
             "predecessorUids": list(entry.predecessor_uids),
             "topTerms": list(entry.top_terms),
             "weeklySeries": dict(sorted(entry.weekly_series.items())),
-            "firstSeen": entry.first_seen.isoformat() if entry.first_seen else None,
+            "earliestPublishedAt": entry.earliest_published_at,
+            "firstSeen": entry.first_seen,
             "memberCount": entry.member_count,
             "runId": run.run_id,
             "runAsOf": run.as_of.isoformat() if run.as_of else None,
@@ -84,6 +87,7 @@ def proposal_record(
 ) -> dict[str, Any]:
     """The proposal for one cluster of a run. Status, name, review fields and category key of an existing proposal stay."""
     kept = dict(existing or {})
+    accepted_by = actor_from_dict((decode_metadata(kept.get("summary")) or {}).get("acceptedBy"))
     record = {
         "id": cluster_proposal_id(entry.uid),
         "categorySetId": kept.get("categorySetId") or category_set_id,
@@ -93,7 +97,7 @@ def proposal_record(
         "steeringDomain": CLUSTER_DOMAIN,
         "status": kept.get("status") or STATUS_PROPOSED,
         "title": kept.get("title") if kept.get("status") not in (None, STATUS_PROPOSED) else readable_title(entry),
-        "summary": metadata_json(entry, run),
+        "summary": metadata_json(entry, run, accepted_by),
         "categoryKey": kept.get("categoryKey") or cluster_category_key(entry.uid),
         "graphEntityId": entry.uid,
         "displayName": kept.get("displayName"),
@@ -127,10 +131,11 @@ def cluster_from_proposal(proposal: Mapping[str, Any], category_names: Mapping[t
         event=metadata.get("event"),
         top_terms=tuple(str(term) for term in metadata.get("topTerms") or ()),
         weekly_series={str(week): int(count) for week, count in series.items()} if isinstance(series, dict) else {},
-        first_seen=metadata.get("firstSeen"),
+        earliest_published_at=metadata.get("earliestPublishedAt"),
         member_item_keys=tuple(str(item) for item in proposal.get("evidenceItemIds") or ()),
         member_count=int(metadata.get("memberCount") or 0),
         run_id=metadata.get("runId"),
         run_as_of=metadata.get("runAsOf"),
         category_key=proposal.get("categoryKey"),
+        accepted_by=actor_from_dict(metadata.get("acceptedBy")) if accepted else None,
     )

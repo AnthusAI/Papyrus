@@ -2,8 +2,12 @@
 
 Three sources feed the plan:
 
-* front-matter entities of published items: accepted nodes and desk-confirmed ``mentions`` links (the desk entered them);
-* extractor entities: generated nodes and unconfirmed links, created once and never changed by a later run;
+* front-matter entities of published items: accepted nodes and confirmed ``mentions`` links. An AI research agent
+  entered them, so each node is recorded as accepted by ``ai`` (``actors.py``), never by a person;
+* extractor entities: a ``proposed`` mention makes a generated node, a ``resolved`` one links to the node its
+  ``entity_key`` names; links start unconfirmed (``--confirm-resolved`` confirms a resolved mention of an accepted
+  node). Typed relations between two accepted nodes become ``proposed`` relations until someone accepts them. All are
+  created once and never changed by a later run;
 * clusters: one ``topic_cluster`` proposal per cluster uid.
 
 A name resolves to an existing node of the same kind by case and white space insensitive name or alias. A rejected
@@ -20,10 +24,12 @@ from typing import Any
 from ..categories_commands import with_version_fields
 from ..categories_steering import semantic_relation_record
 from ..ids import safe_id
+from ..relation_types import normalize_relation_type_key
+from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
 from .keys import contains_email, entity_key, normalize_name, slug
 from .model import LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
-from .run_input import ClusterRun, TypedEntity
+from .run_input import ClusterRun, TypedItem
 
 ACTOR = "Papyrus knowledge publish-run"
 FRONT_MATTER_IMPORT_RUN = "knowledge-front-matter"
@@ -34,6 +40,8 @@ STATUS_ACCEPTED = "accepted"
 STATUS_GENERATED = "generated"
 STATUS_REJECTED = "rejected"
 LINK_METADATA_KIND = "knowledge.item_mention"
+RELATION_METADATA_KIND = "knowledge.node_relation"
+RESOLUTION_ACTOR_NAME = "extractor resolution"
 
 
 def json_object(value: Any) -> dict:
@@ -66,16 +74,23 @@ class NodeIndex:
 
     def __init__(self, rows: Iterable[Mapping[str, Any]]) -> None:
         self._by_name: dict[tuple[str, str], list[dict]] = {}
+        self._by_key: dict[str, dict] = {}
         for row in rows:
             if row.get("versionState", "current") == "current":
                 self.add(dict(row))
 
     def add(self, row: dict) -> None:
+        for identifier in (row.get("nodeKey"), row.get("lineageId")):
+            if identifier:
+                self._by_key.setdefault(str(identifier), row)
         kind = slug(row.get("nodeKind") or "")
         for name in [row.get("displayName"), *(row.get("aliases") or ())]:
             normal = normalize_name(name or "")
             if normal:
                 self._by_name.setdefault((kind, normal), []).append(row)
+
+    def by_key(self, key: str) -> dict | None:
+        return self._by_key.get(key)
 
     def resolve(self, kind: str, name: str) -> dict | None:
         candidates = self._by_name.get((slug(kind), normalize_name(name)), [])
@@ -176,8 +191,10 @@ def plan_front_matter(
     *,
     corpus_id: str | None,
     now: str,
+    accepted_by: Actor,
 ) -> set[tuple[str, str]]:
     desired: set[tuple[str, str]] = set()
+    reason = ReviewMarks(accepted_by=accepted_by).encode()
     for item in items:
         for entity in item.entities:
             if not _usable(entity.kind, entity.name, plan, item.key):
@@ -185,7 +202,7 @@ def plan_front_matter(
             node = index.resolve(entity.kind, entity.name)
             if node is None:
                 node = new_node_row(
-                    entity.kind, entity.name, STATUS_ACCEPTED, import_run_id=FRONT_MATTER_IMPORT_RUN, corpus_id=corpus_id, now=now, reason="front-matter entity"
+                    entity.kind, entity.name, STATUS_ACCEPTED, import_run_id=FRONT_MATTER_IMPORT_RUN, corpus_id=corpus_id, now=now, reason=reason
                 )
                 plan.records.append({"modelName": "SemanticNode", "expected": node})
                 plan.count("nodesCreated")
@@ -196,8 +213,15 @@ def plan_front_matter(
                 continue
             elif node.get("status") == STATUS_GENERATED:
                 node["status"] = STATUS_ACCEPTED
-                plan.patches.append({"modelName": "SemanticNode", "expected": {"id": node["id"], "status": STATUS_ACCEPTED, "updatedAt": now}})
+                node["changeReason"] = reason
+                plan.patches.append(
+                    {"modelName": "SemanticNode", "expected": {"id": node["id"], "status": STATUS_ACCEPTED, "changeReason": reason, "updatedAt": now}}
+                )
                 plan.count("nodesAccepted")
+            elif node.get("importRunId") == FRONT_MATTER_IMPORT_RUN and decode_review(node.get("changeReason")).accepted_by is None:
+                node["changeReason"] = reason
+                plan.patches.append({"modelName": "SemanticNode", "expected": {"id": node["id"], "changeReason": reason, "updatedAt": now}})
+                plan.count("nodesAcceptanceRecorded")
             pair = (item.key, node["lineageId"])
             if pair in desired:
                 continue
@@ -223,8 +247,31 @@ def plan_front_matter(
     return desired
 
 
+def relation_record(subject: Mapping[str, Any], predicate: str, target: Mapping[str, Any], *, import_run_id: str, run_id: str, now: str, state: str, score: float | None) -> dict:
+    return semantic_relation_record(
+        {
+            "predicate": predicate,
+            "subjectKind": NODE_KIND,
+            "subjectId": subject["id"],
+            "subjectLineageId": subject["lineageId"],
+            "subjectVersionNumber": subject.get("versionNumber") or 1,
+            "objectKind": NODE_KIND,
+            "objectId": target["id"],
+            "objectLineageId": target["lineageId"],
+            "objectVersionNumber": target.get("versionNumber") or 1,
+            "rank": 1,
+            "classifierId": LINK_EXTRACTOR,
+            "score": score,
+            "sourceSnapshotId": run_id,
+            "importRunId": import_run_id,
+            "importedAt": now,
+            "metadata": {"kind": RELATION_METADATA_KIND, "linkSource": LINK_EXTRACTOR, "confirmed": False, "extractorState": state},
+        }
+    )
+
+
 def plan_extractor(
-    entities: list[TypedEntity],
+    typed: list[TypedItem],
     items: list[PublishedItem],
     index: NodeIndex,
     confirmed: set[tuple[str, str]],
@@ -233,45 +280,74 @@ def plan_extractor(
     *,
     corpus_id: str | None,
     now: str,
+    confirm_resolved: bool = False,
 ) -> None:
     by_id = {item.item_id: item for item in items}
     import_run_id = f"typed-entities-run-{safe_id(run_id)}"
     planned: set[tuple[str, str]] = set()
+    planned_relations: set[str] = set()
+    resolution = Actor(actor=ACTOR_AI, name=RESOLUTION_ACTOR_NAME, on=now[:10]).to_dict()
     unpublished = 0
-    for entity in entities:
-        item = by_id.get(entity.item_id)
+    for typed_item in typed:
+        item = by_id.get(typed_item.item_id)
         if item is None:
             unpublished += 1
             continue
-        if not _usable(entity.kind, entity.name, plan, entity.item_id):
-            continue
-        node = index.resolve(entity.kind, entity.name)
-        if node is None:
-            node = new_node_row(
-                entity.kind, entity.name, STATUS_GENERATED, import_run_id=import_run_id, corpus_id=corpus_id, now=now, reason=f"typed-entities:{run_id}"
-            )
-            plan.records.append({"modelName": "SemanticNode", "expected": node, "createOnly": True})
-            plan.count("nodesGenerated")
-            index.add(node)
-        elif node.get("status") == STATUS_REJECTED:
-            plan.count("linksSkippedRejected")
-            continue
-        pair = (item.key, node["lineageId"])
-        if pair in confirmed or pair in planned:
-            continue
-        planned.add(pair)
-        plan.records.append(
-            {
-                "modelName": "SemanticRelation",
-                "expected": mention_record(
-                    item, node, source=LINK_EXTRACTOR, confirmed=False, import_run_id=import_run_id, now=now, extractor_state=entity.state, run_id=run_id
-                )["expected"],
-                "createOnly": True,
-            }
-        )
-        plan.count("linksExtractor")
+        nodes_by_mention: dict[str, dict] = {}
+        for entity in typed_item.entities:
+            if not _usable(entity.kind, entity.text, plan, typed_item.item_id):
+                continue
+            node = None
+            if entity.state == "resolved" and entity.entity_key:
+                node = index.by_key(entity.entity_key)
+                if node is None:
+                    plan.warnings.append(f"{typed_item.item_id}: resolved entity key {entity.entity_key!r} names no entity; matched by name")
+                    plan.count("resolvedKeysUnknown")
+            existing = node is not None
+            if node is None:
+                node = index.resolve(entity.kind, entity.text)
+                existing = node is not None
+            if node is None:
+                node = new_node_row(
+                    entity.kind, entity.text, STATUS_GENERATED, import_run_id=import_run_id, corpus_id=corpus_id, now=now, reason=f"typed-entities:{run_id}"
+                )
+                plan.records.append({"modelName": "SemanticNode", "expected": node, "createOnly": True})
+                plan.count("nodesGenerated")
+                index.add(node)
+            elif node.get("status") == STATUS_REJECTED:
+                plan.count("linksSkippedRejected")
+                continue
+            nodes_by_mention[entity.id] = node
+            pair = (item.key, node["lineageId"])
+            if pair in confirmed or pair in planned:
+                continue
+            planned.add(pair)
+            confirm = confirm_resolved and entity.state == "resolved" and existing and node.get("status") == STATUS_ACCEPTED
+            record = mention_record(
+                item, node, source=LINK_EXTRACTOR, confirmed=confirm, import_run_id=import_run_id, now=now, extractor_state=entity.state, run_id=run_id
+            )["expected"]
+            if confirm:
+                record = {**record, "metadata": json.dumps({**json.loads(record["metadata"]), "confirmedBy": resolution}, sort_keys=True)}
+                plan.count("linksConfirmedByResolution")
+            plan.records.append({"modelName": "SemanticRelation", "expected": record, "createOnly": True})
+            plan.count("linksExtractor")
+        for relation in typed_item.relations:
+            subject, target = nodes_by_mention.get(relation.subject), nodes_by_mention.get(relation.object)
+            predicate = normalize_relation_type_key(relation.type)
+            if subject is None or target is None or subject["lineageId"] == target["lineageId"] or not predicate or predicate == MENTIONS:
+                plan.count("relationsSkipped")
+                continue
+            if subject.get("status") != STATUS_ACCEPTED or target.get("status") != STATUS_ACCEPTED:
+                plan.count("relationsSkippedUnaccepted")
+                continue
+            record = relation_record(subject, predicate, target, import_run_id=import_run_id, run_id=run_id, now=now, state=relation.state, score=relation.score)["expected"]
+            if record["id"] in planned_relations:
+                continue
+            planned_relations.add(record["id"])
+            plan.records.append({"modelName": "SemanticRelation", "expected": record, "createOnly": True})
+            plan.count("relationsProposed")
     if unpublished:
-        plan.count("extractorMentionsOfUnpublishedItems", unpublished)
+        plan.count("extractorItemsNotPublished", unpublished)
 
 
 def plan_clusters(
@@ -309,16 +385,19 @@ def plan_publish_run(
     category_set_id: str | None,
     now: str,
     include_front_matter: bool = True,
+    confirm_resolved: bool = False,
+    front_matter_actor_name: str | None = None,
 ) -> PublishPlan:
     plan = PublishPlan()
     index = NodeIndex(node_rows)
     confirmed: set[tuple[str, str]] = set()
     if include_front_matter:
-        confirmed = plan_front_matter(items, index, mention_rows, plan, corpus_id=corpus_id, now=now)
+        agent = Actor(actor=ACTOR_AI, name=front_matter_actor_name, on=now[:10])
+        confirmed = plan_front_matter(items, index, mention_rows, plan, corpus_id=corpus_id, now=now, accepted_by=agent)
     if run is not None:
         plan.warnings.extend(run.warnings)
         if run.entities:
-            plan_extractor(run.entities, items, index, confirmed, run.run_id, plan, corpus_id=corpus_id, now=now)
+            plan_extractor(run.entities, items, index, confirmed, run.run_id, plan, corpus_id=corpus_id, now=now, confirm_resolved=confirm_resolved)
         if run.clusters:
             if not corpus_id:
                 raise ValueError("Importing clusters needs --corpus-key or --corpus-id (a steering proposal belongs to a corpus).")

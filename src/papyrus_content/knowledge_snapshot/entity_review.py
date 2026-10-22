@@ -1,9 +1,9 @@
-"""Desk review of entities: the partial updates behind ``papyrus knowledge entities accept|reject|rename|describe``.
+"""Review of entities: the partial updates behind ``papyrus knowledge entities accept|reject|rename|describe``.
 
 Pure functions over rows. A node is edited in place (same id, same lineage), so the links that point at it stay valid.
-Accepting a node also confirms its extractor links: the desk has said the entity is real, and only confirmed links are
-counted by the snapshot. Whether a description has been reviewed is kept in ``changeReason`` as
-``description-reviewed:YYYY-MM-DD``; accept, reject and rename leave it alone.
+Accepting a node also confirms its extractor links: the reviewer has said the entity is real, and only confirmed links
+are counted by the snapshot. Who accepted a node, who rejected it and who edited its description is kept in
+``changeReason`` (see ``actors.py``); each command changes only its own part.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from .actors import Actor, decode_review
 from .keys import contains_email, normalize_name, slug
-from .loaders import DESCRIPTION_DRAFT_REASON, DESCRIPTION_REVIEWED_PREFIX
 from .model import LINK_EXTRACTOR
 from .publish_run import STATUS_ACCEPTED, STATUS_REJECTED, is_item_mention, json_object
 
@@ -39,10 +39,23 @@ def find_node(rows: Iterable[Mapping[str, Any]], identifier: str) -> dict:
     return matches[0]
 
 
-def accept_patches(node: Mapping[str, Any], mention_rows: Iterable[Mapping[str, Any]], *, actor: str, now: str, confirm_links: bool = True) -> list[dict]:
+def accept_patches(node: Mapping[str, Any], mention_rows: Iterable[Mapping[str, Any]], *, actor: Actor, now: str, confirm_links: bool = True) -> list[dict]:
+    """Accept a node as ``actor``. A node already accepted by the same actor and name is left as it is."""
     patches: list[dict] = []
-    if node.get("status") != STATUS_ACCEPTED:
-        patches.append({"modelName": "SemanticNode", "expected": {"id": node["id"], "status": STATUS_ACCEPTED, "updatedAt": now}})
+    marks = decode_review(node.get("changeReason"))
+    recorded = marks.accepted_by
+    if node.get("status") != STATUS_ACCEPTED or recorded is None or (recorded.actor, recorded.name) != (actor.actor, actor.name):
+        patches.append(
+            {
+                "modelName": "SemanticNode",
+                "expected": {
+                    "id": node["id"],
+                    "status": STATUS_ACCEPTED,
+                    "changeReason": marks.replace(accepted_by=actor, rejected_by=None).encode(),
+                    "updatedAt": now,
+                },
+            }
+        )
     if confirm_links:
         for row in mention_rows:
             metadata = json_object(row.get("metadata"))
@@ -52,7 +65,7 @@ def accept_patches(node: Mapping[str, Any], mention_rows: Iterable[Mapping[str, 
                 and metadata.get("confirmed") is not True
                 and metadata.get("linkSource", LINK_EXTRACTOR) == LINK_EXTRACTOR
             ):
-                confirmed = {**metadata, "confirmed": True, "confirmedBy": actor}
+                confirmed = {**metadata, "confirmed": True, "confirmedBy": actor.to_dict()}
                 patches.append(
                     {
                         "modelName": "SemanticRelation",
@@ -62,10 +75,21 @@ def accept_patches(node: Mapping[str, Any], mention_rows: Iterable[Mapping[str, 
     return patches
 
 
-def reject_patches(node: Mapping[str, Any], *, now: str) -> list[dict]:
+def reject_patches(node: Mapping[str, Any], *, actor: Actor, now: str) -> list[dict]:
     if node.get("status") == STATUS_REJECTED:
         return []
-    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "status": STATUS_REJECTED, "updatedAt": now}}]
+    marks = decode_review(node.get("changeReason"))
+    return [
+        {
+            "modelName": "SemanticNode",
+            "expected": {
+                "id": node["id"],
+                "status": STATUS_REJECTED,
+                "changeReason": marks.replace(accepted_by=None, rejected_by=actor).encode(),
+                "updatedAt": now,
+            },
+        }
+    ]
 
 
 def rename_patches(node: Mapping[str, Any], new_name: str, others: Iterable[Mapping[str, Any]], *, now: str) -> list[dict]:
@@ -93,11 +117,12 @@ def rename_patches(node: Mapping[str, Any], new_name: str, others: Iterable[Mapp
     return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "displayName": name, "aliases": aliases, "updatedAt": now}}]
 
 
-def describe_patches(node: Mapping[str, Any], text: str, *, reviewed: bool, today: str, now: str) -> list[dict]:
+def describe_patches(node: Mapping[str, Any], text: str, *, actor: Actor, now: str) -> list[dict]:
+    """Set the description as ``actor``: a person's edit makes it ``reviewed``, an AI agent's ``ai_edited``."""
     description = " ".join(text.split())
     if not description:
         raise EntityReviewError("A description is needed.")
     if contains_email(description):
         raise EntityReviewError("A description must not hold an email address.")
-    reason = f"{DESCRIPTION_REVIEWED_PREFIX}{today}" if reviewed else DESCRIPTION_DRAFT_REASON
-    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "description": description, "changeReason": reason, "updatedAt": now}}]
+    marks = decode_review(node.get("changeReason")).replace(description_edited_by=actor)
+    return [{"modelName": "SemanticNode", "expected": {"id": node["id"], "description": description, "changeReason": marks.encode(), "updatedAt": now}}]

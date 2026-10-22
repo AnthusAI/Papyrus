@@ -13,8 +13,10 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
+from papyrus_content.projection.engine import reconcile  # noqa: E402
 from papyrus_content.projection.writers import STATE_PREFIX  # noqa: E402
 from papyrus_content.projection.standard.projector import StandardMarkusProjector  # noqa: E402
+from procedures.newsroom.tests import knowledge_fixtures  # noqa: E402
 from procedures.newsroom.tests.standard_frontend_support import ProjectedSite, static_directory  # noqa: E402
 
 ROOT_RELATIVE = re.compile(r'\b(?:href|src)="(/(?!/)[^"]*)"')
@@ -51,6 +53,14 @@ def based_alias(context, slug: str, alias: str) -> None:
     context.based_aliases.append(alias)
 
 
+@given('the based site has a knowledge page and a snapshot stored under "{prefix}"')
+def based_knowledge(context, prefix: str) -> None:
+    context.based_settings["pages"] = [{"id": "knowledge", "path": "knowledge", "title": "Knowledge", "source": "knowledge.md"}]
+    context.based_files = {"knowledge.md": '::band{size="bare"}\n# Knowledge\n\n::include{kind="block" name="knowledge-topic-count"}\n'}
+    directory = knowledge_fixtures.write(Path(tempfile.mkdtemp(prefix="based-knowledge-")))
+    context.based_seed = {prefix + path.relative_to(directory).as_posix(): path.read_bytes() for path in sorted(directory.rglob("*")) if path.is_file()}
+
+
 @when("the based site is projected")
 def project_based_site(context) -> None:
     aliases = "".join(f"  - {alias}\n" for alias in context.based_aliases)
@@ -60,8 +70,36 @@ def project_based_site(context) -> None:
         + "---\n\nThe body of the first article.\n",
         encoding="utf-8",
     )
-    context.site = ProjectedSite(settings=context.based_settings, content=context.based_content)
+    context.site = ProjectedSite(
+        settings=context.based_settings,
+        content=context.based_content,
+        extra_files=getattr(context, "based_files", None),
+        seed=getattr(context, "based_seed", None),
+    )
     context.add_cleanup(context.site.cleanup)
+
+
+@when("the based site is reconciled")
+def reconcile_based_site(context) -> None:
+    report = reconcile(context.site.context)
+    assert not report.orphan_pages, report.orphan_pages
+
+
+@then('the based site still holds "{keys}"')
+def based_still_holds(context, keys: str) -> None:
+    missing = [key for key in listed(keys) if key not in context.site.tree]
+    assert not missing, (missing, sorted(context.site.tree))
+
+
+@then('the based site does not own "{key}"')
+def based_does_not_own(context, key: str) -> None:
+    assert not context.site.projector.owns_page_key(key)
+
+
+@then("the based site holds no snapshot file at the bucket root")
+def based_no_root_snapshot(context) -> None:
+    root = [key for key in context.site.tree if key.startswith("_data/")]
+    assert not root, root
 
 
 @then('the based site has these pages: "{keys}"')

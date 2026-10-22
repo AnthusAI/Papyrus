@@ -37,6 +37,15 @@ Feature: A standard site projected under a base path
     Then the based page "posts/hello/index.html" says "href="/""
     And the based site redirects "/posts/old-hello/" to "/posts/hello/"
 
+  Scenario: The knowledge snapshot is read from the base path and left alone by the reconcile
+    Given the based site has a knowledge page and a snapshot stored under "posts/_data/knowledge/"
+    When the based site is projected
+    And the based site is reconciled
+    Then the based page "posts/knowledge/index.html" says "papyrus-knowledge-count">7<"
+    And the based site still holds "posts/_data/knowledge/index.json, posts/_data/knowledge/clusters.json, posts/_data/knowledge/entities/acme-loom.json"
+    And the based site does not own "posts/_data/knowledge/index.json"
+    And the based site holds no snapshot file at the bucket root
+
   Scenario: A base path must be a lowercase path
     When the settings of a site with base path "/Posts here" are read
     Then they are refused with a message that names "urls.basePath"

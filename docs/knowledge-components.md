@@ -16,7 +16,7 @@ All three have `schemaVersion: 1`; another version, or invalid JSON, is a build 
 
 Where the files come from:
 
-- **Deployed and `--out` builds:** the site store the projection writes to (`writer.get`), so `_data/knowledge/` next to the pages. Reconcile must leave `_data/knowledge/` alone.
+- **Deployed and `--out` builds:** the site store the projection writes to (`writer.get`), so `_data/knowledge/` next to the pages, under `urls.basePath` when the site has one (`posts/_data/knowledge/`). Reconcile must leave `_data/knowledge/` alone.
 - **Local builds:** `papyrus ops content project --all --knowledge-dir DIR`, with `index.json`, `clusters.json` and `entities/` directly under `DIR`.
 
 A page that reads the snapshot is re-rendered when the files it reads change: the digest of `index.json` and `clusters.json` is part of every generated page, and the digest of the entity files a page names with `knowledge-entity` is part of that page.
@@ -29,10 +29,10 @@ Place a block in a page file, or in an item after a `::band` line, with `::inclu
 |---|---|---|---|
 | `knowledge-trending-strip` | `limit` (5) | index | `ul.papyrus-knowledge-trending-strip`: for each entity of `trending`, in the snapshot's order, a chip and its trend |
 | `knowledge-trending-list` | `limit` (6), `entityKind` (all kinds) | index | `div.papyrus-knowledge-trending-list > ol`: rank, chip, trend, `N items` and `N in the last 4 weeks`. Entities marked `isNew` are left out. With `entityKind` the list holds only that kind. Without it, and with more than one kind present, a `nav.papyrus-knowledge-kindfilter` of links filters the list by `:target` with no script (an inline `<style>` of one rule per kind); the "All" link clears it |
-| `knowledge-clusters` | `limit` (3) | clusters | `ul.papyrus-knowledge-clusters`: name (linked when the cluster has an `href`), item count, top terms, sparkline, and a New, ▲ Growing or ▼ Cooling label. A cluster with a `name` is shown. Without one it is hidden, or "Unnamed theme" with its item count when `unacceptedClusters` is `unnamed`. A cluster with fewer than 4 `weeksOfData` has no label and no sparkline |
-| `knowledge-concept-of-the-week` | none | index | `article.papyrus-knowledge-cotw`: name, lede, item and maker counts; nothing when `conceptOfTheWeek` is null |
+| `knowledge-clusters` | `limit` (3) | clusters | `ul.papyrus-knowledge-clusters`: name (linked when the cluster has an `href`), item count, top terms, sparkline, a New, ▲ Growing or ▼ Cooling label, and who accepted it ("Accepted by AI"). A cluster with a `name` is shown. Without one it is hidden, or "Unnamed theme" with its item count when `unacceptedClusters` is `unnamed`. A cluster with fewer than 4 `weeksOfData` has no label and no sparkline |
+| `knowledge-concept-of-the-week` | none | index | `article.papyrus-knowledge-cotw`: name, lede, who edited the description ("Edited by AI on 2026-10-21", or "Reviewed by Ada on 2026-10-21" for a person), item and maker counts; nothing when `conceptOfTheWeek` is null |
 | `knowledge-topic-count` | none | index | `span.papyrus-knowledge-count` with `topicCount` |
-| `knowledge-entity` | `key`, `part` (`trend`, `neighbourhood` or `related`), for `trend`: `annotate` (a date), `annotateLabel` | entity, and index for the kind labels, links and `asOf` | `trend`: the sparkline and percent, and the chart after 12 weeks. `neighbourhood`: one column per relation type. `related`: a list of linked titles with their dates |
+| `knowledge-entity` | `key`, `part` (`trend`, `neighbourhood`, `related` or `provenance`), for `trend`: `annotate` (a date), `annotateLabel` | entity, and index for the kind labels, links and `asOf` | `trend`: the sparkline and percent, and the chart after 12 weeks. `neighbourhood`: one column per relation type. `related`: a list of linked titles with their dates. `provenance`: who accepted the entity and who edited its description |
 | `knowledge-score` | `value` (0 to 1), `n`, `threshold` (0.5), `label` | none | a score readout for a value the author gives |
 
 ```markdown
@@ -63,7 +63,7 @@ The blocks are built from pure functions in `papyrus_content.projection.standard
 - `entity_chip(kind_label, name, kind=, href=, proposed=)`: kind and name. A proposed entity has a dashed outline and the visually hidden text "(proposed)".
 - `sparkline(values)` and `trend(entity)`: an inline SVG polyline, `aria-hidden`, beside the figure as text: `▲ +40%`, `▼ −25%` or `▬ 0%`. The mark is announced as "up", "down" or "unchanged".
 - `trend_chart(series, weeks, as_of, annotate=, annotate_label=)`: an inline SVG with two series, bars for the items per week and a dashed line for their trailing four-week average, both computed from the one weekly series of the snapshot. A text summary is the SVG's label and the figure's caption. The annotated week gets a vertical marker and the label.
-- `neighbourhood(neighbours, kinds, links)`: one column per relation type (the heavier relation first, and its label made readable: `built_on` is "Built on"), entries by weight (the number of items linking both ends) with a bar and the number. The snapshot holds only relations the desk confirmed.
+- `neighbourhood(neighbours, kinds, links)`: one column per relation type (the heavier relation first, and its label made readable: `built_on` is "Built on"), entries by weight (the number of items linking both ends) with a bar and the number. The snapshot holds only accepted relations.
 - `score_readout(value, n, threshold=, label=)`: a 5-segment meter, the value and `n` as text, dimmed below the threshold with "(below threshold)" for assistive technology.
 
 ## Concept directives in a static build

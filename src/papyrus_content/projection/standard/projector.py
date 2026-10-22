@@ -175,8 +175,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ knowledge snapshot
 
     def attach_store(self, writer) -> None:
-        """Read the knowledge snapshot (``_data/knowledge/``) from the site store the projection writes to."""
-        self._knowledge.attach_store(writer.get)
+        """Read the knowledge snapshot (``_data/knowledge/``) from the site store the projection writes to, under ``urls.basePath``."""
+        self._knowledge.attach_store(lambda key: writer.get(self.policy.key(key)))
 
     def use_knowledge_directory(self, directory) -> None:
         """Read the knowledge snapshot from a local directory (``index.json``, ``clusters.json``, ``entities/``) instead of the store."""
