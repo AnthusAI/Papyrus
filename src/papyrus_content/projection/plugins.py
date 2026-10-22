@@ -7,6 +7,7 @@ The backend tells the projection which plugins a site enables through ``PAPYRUS_
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
@@ -19,6 +20,9 @@ PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
     "newsletter": {"_plugins/papyrus-newsletter@1.js": "papyrus-newsletter.js", "_plugins/papyrus-newsletter-pages@1.js": "papyrus-newsletter-pages.js"},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},
 }
+# The site-relative key prefixes of the pages a plugin projects. A reconcile never deletes a key under one of them unless the plugin
+# is known to be disabled for the site (``standard/newsletter_pages.site_key`` writes ``newsletter/<name>/index.html``).
+PLUGIN_PAGE_PREFIXES: dict[str, tuple[str, ...]] = {"newsletter": ("newsletter/",)}
 
 
 def plugin_names_from_environment(environ: Mapping[str, str]) -> tuple[str, ...]:
@@ -46,3 +50,20 @@ def is_plugin_runtime_key(key: str) -> bool:
     """
     padded = "/" + key
     return any("/" + directory in padded for directory in PLUGIN_RUNTIME_DIRECTORIES)
+
+
+def plugin_names_from_outputs(outputs_path: Path) -> tuple[str, ...] | None:
+    """The plugins the deployed backend enables: the keys of ``custom.papyrusPlugins`` in ``amplify_outputs.json``.
+
+    ``defineSiteBackend`` publishes that object when, and only when, the site enables a plugin, so a readable file without it means
+    "none". ``None`` means the file is missing or unreadable, which is not the same as "none".
+    """
+    try:
+        parsed = json.loads(Path(outputs_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    custom = parsed.get("custom")
+    published = custom.get("papyrusPlugins") if isinstance(custom, dict) else None
+    return tuple(published) if isinstance(published, dict) else ()
