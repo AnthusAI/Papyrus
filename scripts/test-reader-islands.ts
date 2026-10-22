@@ -951,7 +951,8 @@ test("the Flag control offers the three kinds, requires a reason, and sends targ
   await flag.getByRole("button", { name: "Send flag" }).click();
   await flag.getByText("Flag sent. Thank you.").waitFor();
   const subject = { type: "proposal", id: "prop-1" };
-  assert.deepEqual(state.writes.map((write) => [write.path, write.body]), [
+  const sent = (): Array<[string, Record<string, unknown>]> => state.writes.map((write) => [write.path, write.body]);
+  assert.deepEqual(sent(), [
     ["/api/reader/flag", { subject, kind: "wrong", reason: "The figures do not match." }],
     ["/api/reader/flag", { subject, kind: "belongs_under", reason: "It is about chips.", target: { type: "concept", id: "hardware" } }],
     ["/api/reader/flag", { subject, kind: "better_name", reason: "Clearer.", name: "Edge inference" }],
