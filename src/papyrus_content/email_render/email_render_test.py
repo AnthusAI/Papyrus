@@ -170,3 +170,140 @@ def test_text_linked_heading_keeps_url_and_case():
     assert "LIQUID AI RELEASES NEW MODEL" in lines
     assert f"<{url}>" in lines
     assert "(" + url.upper() not in mail.text
+
+
+# --- Branding: bands, wordmark, branded buttons, dark mode ---------------------------------------------------------
+
+BRAND_CONFIG = {
+    "accent": "#1A1615", "text": "#1A1615", "background": "#F5F1EA", "surface": "#FFFFFF", "muted": "#5E5752",
+    "fontFamily": "Archivo, Arial, Helvetica, sans-serif",
+    "headerBand": "#C6F432", "headerText": "#1A1615",
+    "buttonFill": "#C6F432", "buttonText": "#1A1615", "buttonBorder": "#1A1615",
+    "footerBand": "#C6F432", "footerText": "#1A1615",
+    "wordmarkImageUrl": "https://example.com/assets/wordmark-2x.png", "wordmarkAlt": "Example Times",
+    "wordmarkWidth": 168, "wordmarkHeight": 40,
+    "labelFont": "'JetBrains Mono', 'Courier New', monospace",
+}
+BRAND = theme_from_config(BRAND_CONFIG, "Example Times")
+
+
+def test_default_theme_renders_exactly_as_before():
+    """Hashes taken from develop before the branding fields existed."""
+    import hashlib
+
+    def digest(value: str) -> str:
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    mail = issue(theme=THEME, subject="Hello")
+    assert digest(mail.html) == "dcfc692808c0062398e3b9a10f5a250664a18abf14bc7a2076bb47c9a890b9a9"
+    assert digest(mail.text) == "ffd2392f22187b49406efba783635c701b33dee6cb5a65cdc0eb488508f9bcf3"
+    conf = render_transactional(
+        subject="Confirm", markus="Please confirm.", theme=THEME, site_name="Example Times", site_url=SITE,
+        preheader="p", action_url=f"{SITE}/c?t=1", action_label="Confirm subscription",
+    )
+    assert digest(conf.html) == "321635f79cc2dc49942cc2d41e84c93b81b896692d7fb8ec9e1d3c19ffe2ca39"
+    assert digest(conf.text) == "87c5efe1080e98055a90ad14449dde8cc6fc669a3a8fa4c1d581edabba0cabe2"
+    assert "em-hband" not in mail.html and "em-fband" not in mail.html and "em-btn" not in conf.html
+
+
+def test_theme_from_config_reads_the_branding_fields():
+    t = BRAND
+    assert (t.header_band, t.header_text, t.footer_band, t.footer_text) == ("#C6F432", "#1A1615", "#C6F432", "#1A1615")
+    assert (t.button_fill, t.button_text, t.button_border) == ("#C6F432", "#1A1615", "#1A1615")
+    assert (t.wordmark_image_url, t.wordmark_alt, t.wordmark_width, t.wordmark_height) == (
+        "https://example.com/assets/wordmark-2x.png", "Example Times", 168, 40,
+    )
+    assert t.label_font.startswith("'JetBrains Mono'")
+    plain = theme_from_config({"accent": "#111", "text": "#222", "background": "#333"}, "S")
+    assert plain.header_band is None and plain.wordmark_image_url is None and not plain.is_branded
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"headerBand": "red;"}, {"footerBand": "#fff\"><script>"}, {"buttonFill": "url(x)"}, {"buttonBorder": "a{b}"},
+        {"labelFont": "x; y"}, {"wordmarkImageUrl": "http://example.com/w.png"}, {"wordmarkImageUrl": "//example.com/w.png"},
+        {"wordmarkImageUrl": "https://example.com/w.png\"onerror=x"}, {"wordmarkWidth": None}, {"wordmarkHeight": 0},
+        {"wordmarkWidth": "168"}, {"wordmarkAlt": "bad\nalt"},
+    ],
+)
+def test_branding_values_are_validated(change):
+    with pytest.raises(ValueError):
+        theme_from_config({**BRAND_CONFIG, **change}, "S")
+
+
+def test_issue_has_header_band_wordmark_and_label():
+    html = issue(theme=BRAND, list_name="The Shipped roundup").html
+    assert re.search(r'<td class="em-hband em-pad" bgcolor="#C6F432"', html)
+    img = next(a for t, a in tags(html) if t == "img" and "wordmark" in a.get("src", ""))
+    assert img["src"] == "https://example.com/assets/wordmark-2x.png"
+    assert img["alt"] == "Example Times" and img["width"] == "168" and img["height"] == "40"
+    assert "display:block" in img["style"]
+    assert "The Shipped roundup" in html and "text-transform:uppercase" in html
+    assert "'JetBrains Mono', 'Courier New', monospace" in html
+
+
+def test_header_without_an_image_uses_the_site_name_and_the_subject_label():
+    t = theme_from_config({**BRAND_CONFIG, "wordmarkImageUrl": None, "wordmarkWidth": None, "wordmarkHeight": None}, "S")
+    mail = issue(theme=t, footer=footer(), subject="Subject line")
+    assert 'class="em-hband' in mail.html and "<img" in mail.html  # the body image remains
+    assert "wordmark" not in mail.html
+    assert "Subject line" in mail.html.split("em-card")[0]  # label in the band, above the card
+    assert mail.text.startswith("Example Times\nSUBJECT LINE\n\n")
+
+
+def test_footer_band_has_links_reason_and_address():
+    html = issue(theme=BRAND, list_name="L").html
+    band = html[html.index('class="em-fband'):]
+    assert 'bgcolor="#C6F432"' in band
+    assert 'src="https://example.com/assets/wordmark-2x.png"' in band
+    for label, url in (("Unsubscribe", f"{SITE}/unsubscribe?t=abc"), ("Email preferences", f"{SITE}/manage?t=abc")):
+        assert f'<a href="{url}" style="color:#1A1615;text-decoration:underline;">{label}</a>' in band
+    assert "You get this because you subscribed." in band and "1 Example Way<br />Example City" in band
+
+
+def test_wordmark_alt_text_leads_the_plain_text():
+    mail = issue(theme=BRAND, list_name="The Shipped roundup")
+    assert mail.text.startswith("Example Times\nTHE SHIPPED ROUNDUP\n\nBIG TITLE")
+    assert "<img" not in mail.text
+
+
+def test_branded_button_has_fill_text_and_a_border():
+    mail = render_transactional(
+        subject="Confirm", markus="Please confirm.", theme=BRAND, site_name="Example Times", site_url=SITE,
+        action_url=f"{SITE}/c?t=1", action_label="Confirm subscription",
+    )
+    assert 'bgcolor="#C6F432"' in mail.html and "border:1.5px solid #1A1615" in mail.html
+    assert "padding:11px 18px" in mail.html and "font-size:15px" in mail.html and "border-radius" not in mail.html
+    assert "Confirm subscription" in mail.html and "Confirm subscription: " in mail.text
+    assert 'class="em-hband' in mail.html and 'class="em-fband' in mail.html
+    assert "Unsubscribe" not in mail.html
+    assert mail.text.startswith("Example Times\n\n")
+
+
+def test_links_stay_underlined_in_a_branded_theme():
+    html = issue(theme=BRAND).html
+    body = html[html.index('class="em-card'):html.index('class="em-fband')]
+    body_links = [a for t, a in tags(body) if t == "a"]
+    assert body_links and all("text-decoration:underline" in a["style"] for a in body_links)
+    assert "color:#1A1615;text-decoration:underline;" in html
+
+
+def test_dark_mode_keeps_the_bands_and_swaps_the_page():
+    html = issue(theme=BRAND).html
+    dark = html[html.index("@media (prefers-color-scheme: dark)"):html.index("</style>")]
+    assert ".em-bg { background-color: #1A1615 !important; }" in dark
+    assert ".em-card { background-color: #26211F !important; }" in dark
+    assert "color: #F5F1EA !important" in dark
+    assert ".em-hband { background-color: #C6F432 !important; }" in dark and "color: #1A1615 !important" in dark
+    assert ".em-fband { background-color: #C6F432 !important; }" in dark
+    assert "color-scheme: light dark" in html and 'name="color-scheme"' in html
+    conf = render_transactional(subject="c", markus="x", theme=BRAND, site_name="S", site_url=SITE, action_url=SITE, action_label="Go")
+    assert "a.em-btn { color: #1A1615 !important" in conf.html and ".em-btn-cell { background-color: #C6F432 !important; }" in conf.html
+
+
+def test_a_wordmark_alone_replaces_the_brand_line():
+    t = theme_from_config({k: v for k, v in BRAND_CONFIG.items() if k not in ("headerBand", "footerBand", "buttonFill", "buttonBorder")}, "S")
+    html = issue(theme=t).html
+    assert "em-hband" not in html and "em-fband" not in html
+    assert 'src="https://example.com/assets/wordmark-2x.png"' in html

@@ -45,13 +45,31 @@ Initiative PPY-31455f plans sending. Its milestones, with what is built:
 
 `papyrus_content.email_render` (pure Python, no network) turns Markus source into a responsive email: HTML with inline styles plus a plain-text alternative.
 
-- `render_issue(subject=, markus=, theme=, footer=, preheader="", site_url=)` renders a marketing issue. The footer carries the reason sentence, a manage link, an unsubscribe link, the site and the postal address. A blank address raises `PostalAddressMissing`.
+- `render_issue(subject=, markus=, theme=, footer=, preheader="", site_url=, list_name="")` renders a marketing issue. The footer carries the reason sentence, a manage link, an unsubscribe link, the site and the postal address. A blank address raises `PostalAddressMissing`. `list_name` (else the subject) is the label under the wordmark in a header band.
 - `render_transactional(subject=, markus=, theme=, site_name=, site_url=, preheader="", action_url=None, action_label=None)` renders confirmation-style mail with a bulletproof button and a short footer. No address required.
-- `theme_from_config(cfg, site_name)` builds an `EmailTheme` from `accent`, `text`, `background` and optional `surface`, `muted`, `fontFamily`, `logoUrl`.
+- `theme_from_config(cfg, site_name)` builds an `EmailTheme` from the theme fields below.
 - Markus runs with raw HTML disabled. Relative links and image sources become absolute against `site_url`; links with other schemes than http, https, mailto and tel are unlinked. A fixed tag-to-style map is inlined. The only `<style>` block holds a narrow-screen media query and a dark-mode override. No scripts, external CSS, web fonts or tracking pixels.
 - Everything that is not Markus output (subject, preheader, footer fields) is escaped. The subject is collapsed to one line.
 - Keep issues under 100 KB of HTML: Gmail clips at 102 KB. A test renders a long sample to guard the markup overhead.
 - Preview: `poetry run python -m papyrus_content.email_render out.html` writes `out.html` and `out.txt` for a sample issue.
+
+### Email theme fields
+
+The `theme` block of the plugin config (`papyrus.config.ts`) is validated at synth time and again by `theme_from_config`. Colour and font values are CSS values: no `<`, `>`, `{`, `}`, `;`, quotes, backslash, backtick, `url(`, `expression(` or `@import`.
+
+| Field | Meaning |
+| --- | --- |
+| `accent` (required) | Links, quote and callout rules, and the button fill unless `buttonFill` is set. |
+| `text`, `background` (required) | Body text, and the page behind the email. |
+| `surface`, `muted`, `fontFamily` | The content panel (default `#ffffff`), secondary text and rules (`#555555`), and the font stack. |
+| `logoUrl` | An https image shown above the card in place of the site name, when there is no header band. |
+| `headerBand`, `headerText` | A full-width band above the card holding the wordmark and, for issues, the list name in `labelFont`. `headerText` defaults to black or white, whichever reads on the band. |
+| `buttonFill`, `buttonText`, `buttonBorder` | The bulletproof button: fill, label colour and a 1.5px border in this colour. Setting `buttonFill` or `buttonBorder` makes the button square with `11px 18px` padding and a 15px label; `buttonText` defaults to whichever of black or white reads on the fill. Without either the button is the plain rounded accent one. |
+| `footerBand`, `footerText` | A band under the card with the wordmark, the underlined site, Unsubscribe and Email preferences links, the reason sentence and the postal address. |
+| `wordmarkImageUrl`, `wordmarkAlt`, `wordmarkWidth`, `wordmarkHeight` | The brand mark as an image, since mail clients drop web fonts and `font-stretch`. The URL must be absolute https. Width and height (whole pixels, 1 to 2000, the size to display; supply a 2x image) are required with the URL and become `width` and `height` attributes. `wordmarkAlt` (default: the site name) is the image's alt text and the first line of the plain-text part. Without an image the bands show the site name as text. |
+| `labelFont` | Font stack for the uppercase labels in the bands (default Menlo, Consolas, Courier New). |
+
+A theme with none of the branding fields renders exactly as before (a test pins the markup). Links are always underlined and a button always has a text label, so nothing depends on colour. Dark mode, for a branded theme only: a `color-scheme: light dark` declaration and one `prefers-color-scheme: dark` block turn the page to `#1A1615`, the panels to `#26211F` and the text to `#F5F1EA`, while the bands and the button keep their own colours and text colours. Clients that invert colours themselves (some Gmail apps) may still shift a band.
 
 ## Sending stack
 
@@ -82,7 +100,7 @@ backend: {
       fromAddress: "newsletter@<sendingDomain>",              // a mailbox name at sendingDomain
       fromName: "Shipped",
       instantAlerts: false,                                // must be true before any alert list may use approval: "none"
-      theme: { accent: "#...", text: "#...", background: "#...", fontFamily: "...", logoUrl: "https://..." },
+      theme: { accent: "#...", text: "#...", background: "#...", fontFamily: "...", logoUrl: "https://..." }, // branding keys: see "Email theme fields"
       lists: [
         { id: "weekly", name: "...", description: "...", kind: "roundup",
           schedule: { draft: "cron(0 13 ? * FRI *)", timezone: "America/New_York" }, issueType: "newsletter_issue", archivePath: "/roundup/" },
