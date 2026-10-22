@@ -1014,6 +1014,7 @@ of `ConsentModeSettings` fields; `{}` takes every default.
   `<a href="#" data-papyrus-consent-reopen hidden>Cookie settings</a>` in
   `footer_html` (the script unhides it, so it never shows without JS), or add a footer link whose href is `#cookie-settings` (for the standard front end's `footer.columns`, which cannot carry attributes), or call
   `window.papyrusOpenConsentChoices()`.
+- `analytics_only: true` (off by default) keeps `ad_storage`, `ad_user_data` and `ad_personalization` denied after every choice: Accept all grants only `analytics_storage`, and the default banner text says the cookies are not used for advertising. Use it for sites that run no advertising.
 - Banner wording (`banner_heading`, `banner_message`, `accept_label`,
   `reject_label`, `banner_region_label`, `privacy_policy_url`,
   `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped
