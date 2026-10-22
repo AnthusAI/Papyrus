@@ -95,10 +95,10 @@ def _written(day: str, date_format: str) -> str:
 
 
 def stamp_text(review: Review | None, date_format: str = "") -> str:
-    """The words readers see: who last put the page in front of them, and when."""
+    """The words readers see. Text an AI agent edited is a draft until a person reviews it, so it never reads as attested."""
     if review is None:
         return UNREVIEWED_TEXT
     when = _written(review.on, date_format)
     if review.actor == ACTOR_AI:
-        return f"Edited by AI on {when}"
+        return f"{UNREVIEWED_TEXT}. Edited by AI on {when}"
     return f"Reviewed by {review.name} on {when}" if review.name else f"Reviewed by an editor on {when}"

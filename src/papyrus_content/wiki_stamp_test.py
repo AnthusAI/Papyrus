@@ -5,8 +5,8 @@ import pytest
 from .wiki_stamp import Review, parse_review, review_mapping, stamp_problems, stamp_text
 
 
-def test_an_ai_stamp_says_edited_by_ai_and_a_human_stamp_says_reviewed():
-    assert stamp_text(Review("ai", None, "2026-10-22")) == "Edited by AI on 2026-10-22"
+def test_an_ai_stamp_says_draft_and_edited_by_ai_and_a_human_stamp_says_reviewed():
+    assert stamp_text(Review("ai", None, "2026-10-22")) == "Draft, not yet reviewed. Edited by AI on 2026-10-22"
     assert stamp_text(Review("human", "Ada Reader", "2026-10-22")) == "Reviewed by Ada Reader on 2026-10-22"
     assert stamp_text(Review("human", None, "2026-10-22")) == "Reviewed by an editor on 2026-10-22"
 
@@ -18,7 +18,7 @@ def test_no_stamp_says_draft_and_never_uses_the_word_desk():
 
 
 def test_dates_follow_the_sites_date_format():
-    assert stamp_text(Review("ai", None, "2026-10-22"), "%B %d, %Y") == "Edited by AI on October 22, 2026"
+    assert stamp_text(Review("ai", None, "2026-10-22"), "%B %d, %Y") == "Draft, not yet reviewed. Edited by AI on October 22, 2026"
 
 
 def test_yaml_dates_and_strings_both_parse():
