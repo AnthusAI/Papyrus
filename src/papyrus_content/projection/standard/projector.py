@@ -28,6 +28,7 @@ from collections.abc import Callable, Collection
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 
+from ...markus_export import EXPORTED_TYPES
 from ...markus_renderer.convert import convert_text_in_process
 from ...markus_renderer.shell import BodyParts, PageContext, SiteChrome, render_page
 from ...renditions import RenditionCatalog
@@ -152,6 +153,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._shared_fingerprint = digest_of(
             [dataclasses.asdict(standard), self.environment.fingerprint(), repr(settings.chrome), hooks.fingerprint, self.version, prerendered_bytes.decode("utf-8", "replace")]
         )
+
+    @property
+    def projectable_types(self) -> tuple[str, ...]:
+        """Item types the site lists (``listings.types``) beyond the ``article`` and ``page`` every site projects."""
+        return tuple(name for name in self.standard.listings.types if name not in EXPORTED_TYPES)
 
     @classmethod
     def from_static_directory(cls, static_directory, *, renditions=None, plugins=(), environ=None):  # type: ignore[override]
