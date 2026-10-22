@@ -18,7 +18,7 @@ Each stage is one ECS Fargate task (ARM64, CPU, 4 vCPU and 16 GB to start) from 
 
 | Stage | What it does (the runbook step) |
 | --- | --- |
-| `corpus-sync` | Fresh clone of the site repository, `corpus export`, `reindex`, extraction snapshot (steps 1-3) |
+| `corpus-sync` | Checkout of the site repository at the commit of the Amplify app's latest successful deploy (see below), `corpus export`, `reindex`, extraction snapshot (steps 1-3) |
 | `topic-model` | BERTopic, weekly trends, topic identity against the previous run kept in S3 (steps 4-6) |
 | `typed-extraction` | Front-matter import, registry, GLiNER2 typed entities (steps 7-8) |
 | `publish-run` | Import clusters, entities and relations; then record the run as next week's `previousRunId` (steps 9-10) |
@@ -61,6 +61,8 @@ Every stage is idempotent. Within one execution a stage that already succeeded i
 ## Failure behaviour
 
 A stage that fails after its retries ends the execution in a `Failed-<stage>` state. `projection` is the last stage, so nothing is projected, no page is deleted and the site keeps serving the last good projection. Records the earlier stages wrote (accepted entities, clusters) stay in the backend. The deletion guard of the projection engine refuses a projection that would delete a large share of the site's pages; the cloud run never passes `--allow-deletions`.
+
+**Site code.** Every stage that needs the site (`web/` templates and hooks, the beats config) checks out the commit of the CMS Amplify app's latest successful deploy of the branch (`amplify:ListJobs`), not whatever `main` is by then, so the pages a run renders are the pages the live site was built from. If the app has no successful deploy, the fetch fails or the checkout is another commit, the stage fails before it writes. The `projection` stage then installs the Papyrus release the site pins in its `requirements-publication.txt` (`pip install --no-deps --target`, first on `PYTHONPATH`), the release its Lambda runs, and refuses to project if that release lacks the projection lease.
 
 **The run only writes.** No stage runs `project --reconcile`, passes `--allow-deletions` or `--replace`, or cleans anything up. The snapshot stage rewrites the knowledge JSON and drops only the entity files of entities that no longer exist.
 

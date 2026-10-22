@@ -32,7 +32,9 @@ ENVIRONMENT = {
     "AWS_REGION": "us-east-1",
     "PAPYRUS_PLUGINS": "newsletter,reader-steering",
     "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION": "content-actions-fn",
+    "KNOWLEDGE_AMPLIFY_APP_ID": "dapp123",
 }
+DEPLOYED_COMMIT = "d" * 40
 
 
 class FakeSite:
@@ -40,6 +42,10 @@ class FakeSite:
 
     def __init__(self, plugins: str = "reader-steering,newsletter") -> None:
         self.variables = {"PAPYRUS_PLUGINS": plugins}
+
+    def deployed_commit(self, app_id: str, branch: str) -> str:
+        assert (app_id, branch) == ("dapp123", "main")
+        return DEPLOYED_COMMIT
 
     def deployed_environment(self, function: str) -> dict[str, str]:
         assert function == "content-actions-fn"
@@ -52,22 +58,29 @@ class FakeShell:
     def __init__(self, work: Path) -> None:
         self.work = work
         self.calls: list[list[str]] = []
+        self.envs: list[Mapping[str, str]] = []
         self.fail_on: str | None = None
-        self.head = "a" * 40
-        self.tip = "a" * 40
+        self.head = DEPLOYED_COMMIT
+        self.tip = DEPLOYED_COMMIT
         self.current = "cur" + "0" * 61
         self.trends = "trd" + "0" * 61
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
         self.calls.append(list(args))
+        self.envs.append(dict(env))
         text = " ".join(args)
         if self.fail_on and self.fail_on in text:
             raise StageFailed(f"`{args[0]}` exited with 1")
         out = ""
-        if args[:2] == ["git", "clone"]:
+        if args[:2] in (["git", "clone"], ["git", "init"]):
             site = Path(args[-1])
             (site / "web").mkdir(parents=True, exist_ok=True)
             (site / "web" / "scoring.json").write_text("{}")
+            (site / "requirements-publication.txt").write_text("papyrus-newsroom[markus]==5.28.0\n")
+        elif args[:2] == ["pip", "install"]:
+            Path(args[args.index("--target") + 1]).mkdir(parents=True, exist_ok=True)
+        elif args[:2] == ["python", "-c"]:
+            pass
         elif args[:2] == ["git", "ls-remote"]:
             out = f"{self.tip}\trefs/heads/main\n"
         elif "rev-parse" in args:

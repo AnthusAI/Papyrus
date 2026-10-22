@@ -14,17 +14,18 @@ COPY infra/knowledge-run/constraints.txt /tmp/constraints.txt
 # PyPI's aarch64 torch pulls the CUDA libraries (gigabytes, no GPU here), so torch comes from the CPU index first.
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.14.1"
 ARG BIBLICUS_REF=b433d5133287064221d82899206034a310ee1af9
+RUN pip install -c /tmp/constraints.txt \
+        "biblicus[typed-extraction,topic-modeling] @ git+https://github.com/AnthusAI/Biblicus@${BIBLICUS_REF}" boto3 \
+    && rm -rf /root/.cache
+
+# The models come before the Papyrus source, so a code change rebuilds only the last small layer.
+COPY infra/knowledge-run/bake_models.py /tmp/bake_models.py
+RUN python /tmp/bake_models.py && rm /tmp/bake_models.py
+
 COPY pyproject.toml README.md LICENSE* /opt/papyrus/
 COPY src /opt/papyrus/src
 COPY corpora /opt/papyrus/corpora
-RUN pip install -c /tmp/constraints.txt \
-        "biblicus[typed-extraction,topic-modeling] @ git+https://github.com/AnthusAI/Biblicus@${BIBLICUS_REF}" \
-        "/opt/papyrus[markus]" boto3 \
-    && rm -rf /root/.cache
-
-# Models are baked in at pinned revisions, so a run never downloads (HF_HUB_OFFLINE=1 is set by the stack).
-COPY infra/knowledge-run/bake_models.py /tmp/bake_models.py
-RUN python /tmp/bake_models.py && rm /tmp/bake_models.py
+RUN pip install -c /tmp/constraints.txt "/opt/papyrus[markus]" && rm -rf /root/.cache
 
 ENV PAPYRUS_ROOT=/opt/papyrus PAPYRUS_ALLOW_CROSS_ROOT=1 PAPYRUS_GRAPHQL_AUTH=iam HOME=/tmp
 WORKDIR /work

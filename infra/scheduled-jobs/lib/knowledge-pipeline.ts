@@ -51,6 +51,7 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     // The projection stages check this list against the deployed content-actions Lambda's before they write.
     PAPYRUS_PLUGINS: config.plugins.join(","),
     KNOWLEDGE_CONTENT_ACTIONS_FUNCTION: config.contentActionsFunction,
+    KNOWLEDGE_AMPLIFY_APP_ID: config.amplifyAppId,
     AWS_REGION: config.region,
     HF_HOME: "/opt/hf",
     HF_HUB_OFFLINE: "1",
@@ -83,6 +84,11 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
       sid: "ReadContentActionsConfiguration",
       actions: ["lambda:GetFunctionConfiguration"],
       resources: [`arn:aws:lambda:${config.region}:${config.account}:function:${config.contentActionsFunction}`],
+    }),
+    new iam.PolicyStatement({
+      sid: "ReadDeployedCommit",
+      actions: ["amplify:ListJobs"],
+      resources: [`arn:aws:amplify:${config.region}:${config.account}:apps/${config.amplifyAppId}/branches/${config.siteBranch}`],
     }),
     new iam.PolicyStatement({
       sid: "SignAppSyncRequests",

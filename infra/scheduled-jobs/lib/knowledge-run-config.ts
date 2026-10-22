@@ -35,6 +35,8 @@ export type KnowledgeRunSettings = {
   redirectsKvsArn: string;
   appSyncApiId: string;
   /** Name of the site's deployed content-actions Lambda: the projection stage checks its plugin list against `plugins`. */
+  /** The CMS Amplify app: the stages check out the commit of its latest successful deploy of `siteBranch`. */
+  amplifyAppId: string;
   contentActionsFunction: string;
   /** The site's enabled plugins (what `PAPYRUS_PLUGINS` holds on that Lambda); without them a projection omits plugin pages. */
   plugins?: string[];
@@ -64,6 +66,7 @@ export type KnowledgeRunConfig = {
   edgeDistributionId: string;
   redirectsKvsArn: string;
   appSyncApiId: string;
+  amplifyAppId: string;
   contentActionsFunction: string;
   plugins: string[];
   siteRepo: string;
@@ -81,6 +84,7 @@ export type KnowledgeRunConfig = {
 const SITE_BUCKET_PATTERN = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 const DISTRIBUTION_ID_PATTERN = /^E[A-Z0-9]{8,}$/;
 const KVS_ARN_PATTERN = /^arn:aws:cloudfront::\d{12}:key-value-store\/[0-9a-f-]{36}$/;
+const AMPLIFY_APP_ID_PATTERN = /^d[a-z0-9]{8,20}$/;
 const LAMBDA_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const PLUGIN_PATTERN = /^[a-z][a-z0-9-]*$/;
 const APPSYNC_API_ID_PATTERN = /^[a-z0-9]{20,32}$/;
@@ -133,7 +137,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   const record = raw as Record<string, unknown>;
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
-    "redirectsKvsArn", "appSyncApiId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
+    "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
     "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
@@ -185,6 +189,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     edgeDistributionId: requireString(record.edgeDistributionId, "edgeDistributionId", DISTRIBUTION_ID_PATTERN, "CloudFront distribution id"),
     redirectsKvsArn: requireString(record.redirectsKvsArn, "redirectsKvsArn", KVS_ARN_PATTERN, "CloudFront KeyValueStore ARN"),
     appSyncApiId: requireString(record.appSyncApiId, "appSyncApiId", APPSYNC_API_ID_PATTERN, "AppSync API id"),
+    amplifyAppId: requireString(record.amplifyAppId, "amplifyAppId", AMPLIFY_APP_ID_PATTERN, "Amplify app id"),
     contentActionsFunction: requireString(record.contentActionsFunction, "contentActionsFunction", LAMBDA_NAME_PATTERN, "Lambda function name"),
     plugins: optionalPlugins(record.plugins),
     siteRepo: optionalString(record.siteRepo, "siteRepo", GIT_URL_PATTERN, "https git URL"),
@@ -224,6 +229,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     edgeDistributionId: settings.edgeDistributionId,
     redirectsKvsArn: settings.redirectsKvsArn,
     appSyncApiId: settings.appSyncApiId,
+    amplifyAppId: settings.amplifyAppId,
     contentActionsFunction: settings.contentActionsFunction,
     plugins: settings.plugins ?? [],
     siteRepo: settings.siteRepo ?? site.repository,

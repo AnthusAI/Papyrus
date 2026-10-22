@@ -91,6 +91,10 @@ Feature: Scheduled container jobs
     Then the container environment carries PAPYRUS_PLUGINS from the site config
     And the task role may read the configuration of the site's content-actions Lambda and nothing else of Lambda
 
+  Scenario: the stages check out the commit the site runs
+    Then the container environment names the CMS Amplify app
+    And the task role may list the jobs of that app's branch and nothing else of Amplify
+
   Scenario: the shared lock table has its own stack
     Then stack "papyrus-projection-lock" holds table "papyrus-projection-locks" keyed by "publication" with TTL "expiresAt", on demand and retained
     And an SSM String parameter "/papyrus/projection-lock/table-name" holds the table name

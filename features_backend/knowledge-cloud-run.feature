@@ -53,11 +53,26 @@ Feature: The scheduled cloud knowledge run
     Then the stage succeeded
     And no command was given "--allow-deletions"
 
-  Scenario: A stale site checkout stops the stage
-    Given the site repository has moved on since the clone
+  Scenario: The site code is the commit the live site runs
+    When the stage "snapshot" runs
+    Then the site was fetched at the deployed commit of the Amplify app
+
+  Scenario: A checkout that is not the deployed commit stops the stage
+    Given the checkout comes out at a different commit
     When the stage "snapshot" runs
     Then the stage failed
     And no command was given "knowledge snapshot"
+
+  Scenario: Projection runs the Papyrus release the site pins
+    When the stage "projection" runs
+    Then the pinned release from requirements-publication.txt was installed before the project command
+    And the project command ran with the pinned release first on the Python path
+
+  Scenario: A pin without the projection lease stops the projection before it writes
+    Given the pinned release lacks the projection lease
+    When the stage "projection" runs
+    Then the stage failed
+    And no command was given "ops content project"
 
   Scenario: Every stage is recorded in the ledger by publication, week and execution
     When the stage "snapshot" runs

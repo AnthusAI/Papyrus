@@ -20,6 +20,7 @@ class AwsServices:
 
         self._ssm = boto3.client("ssm", region_name=region)
         self._lambda = boto3.client("lambda", region_name=region)
+        self._amplify = boto3.client("amplify", region_name=region)
         self._max_calls = max_calls
 
     def api_key(self, parameter: str) -> str:
@@ -28,6 +29,14 @@ class AwsServices:
     def deployed_environment(self, function: str) -> dict[str, str]:
         configuration = self._lambda.get_function_configuration(FunctionName=function)
         return dict((configuration.get("Environment") or {}).get("Variables") or {})
+
+    def deployed_commit(self, app_id: str, branch: str) -> str:
+        """The commit of the app's latest successful deploy of the branch."""
+        jobs = self._amplify.list_jobs(appId=app_id, branchName=branch, maxResults=50)["jobSummaries"]
+        for job in jobs:
+            if job.get("status") == "SUCCEED" and job.get("commitId"):
+                return job["commitId"]
+        raise ValueError(f"No successful Amplify deploy of {branch} found for app {app_id}.")
 
     def record_client(self, options: dict):
         from ..knowledge_snapshot.commands import authoring_client
