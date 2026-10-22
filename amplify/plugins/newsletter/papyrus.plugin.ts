@@ -1,7 +1,11 @@
 import { Duration, RemovalPolicy, Stack } from "aws-cdk-lib";
+import { Alarm, ComparisonOperator, MathExpression, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions";
 import { AttributeType, BillingMode, ProjectionType, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
 import { ArnPrincipal, Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { Key } from "aws-cdk-lib/aws-kms";
+import { Topic } from "aws-cdk-lib/aws-sns";
+import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions";
 import { Architecture, type Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -50,6 +54,19 @@ export function newsletterSesResources(stack: Stack, config: Pick<NewsletterConf
   ];
 }
 
+export const BOUNCE_RATE_THRESHOLD = 0.04;
+export const COMPLAINT_RATE_THRESHOLD = 0.0008;
+export const ALARM_MINIMUM_SENDS = 50;
+
+export function newsletterAlarmTopicName(siteId: string): string {
+  return `papyrus-newsletter-alarms-${siteId}`;
+}
+
+/** The two alarm names; the function pauses sending only for these (python: `events.alarm_names`). */
+export function newsletterAlarmNames(siteId: string): { bounce: string; complaint: string } {
+  return { bounce: `papyrus-newsletter-${siteId}-bounce-rate`, complaint: `papyrus-newsletter-${siteId}-complaint-rate` };
+}
+
 /** What the function reads from its environment. Lists carry only what it needs to name them in the email. */
 export function newsletterEnvironment(config: NewsletterConfig, tableName: string, keyParameter: string): Record<string, string> {
   return {
@@ -63,6 +80,7 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
     CONFIGURATION_SET: config.configurationSet,
     LISTS_JSON: JSON.stringify(config.lists.map(({ id, name, description, kind }) => ({ id, name, description, kind }))),
     THEME_JSON: JSON.stringify(config.theme),
+    ALARM_NAMES: Object.values(newsletterAlarmNames(config.siteId)).join(","),
   };
 }
 
@@ -100,6 +118,13 @@ export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, Record<never, nev
       indexName: "byList",
       partitionKey: { name: "gsiList", type: AttributeType.STRING },
       sortKey: { name: "sk", type: AttributeType.STRING },
+      projectionType: ProjectionType.KEYS_ONLY,
+    });
+
+    // Sparse: only send-ledger rows carry `gsiHid`, so erasing a subscriber finds their rows with one query, not a scan.
+    table.addGlobalSecondaryIndex({
+      indexName: "byHid",
+      partitionKey: { name: "gsiHid", type: AttributeType.STRING },
       projectionType: ProjectionType.KEYS_ONLY,
     });
 
@@ -151,6 +176,59 @@ export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, Record<never, nev
         conditions: { StringEquals: { "ses:FromAddress": config.fromAddress } },
       }),
     );
+    // The SES configuration set's own sending switch, for the alarm pause. Nothing else of SES is writable.
+    lambda.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["ses:PutConfigurationSetSendingOptions"],
+        resources: [newsletterSesResources(stack, config)[1]],
+      }),
+    );
+    // Lifting a suppression after a deliberate re-subscribe. IAM has no resource-level scope for the account list.
+    lambda.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["ses:DeleteSuppressedDestination"], resources: ["*"] }));
+
+    // SES delivery events: the topic belongs to the sending stack and is named literally.
+    const eventTopic = Topic.fromTopicArn(
+      stack,
+      "SesEventTopic",
+      `arn:${stack.partition}:sns:${stack.region}:${stack.account}:${config.eventTopicName}`,
+    );
+    eventTopic.addSubscription(new LambdaSubscription(lambda));
+
+    // Bounce and complaint rate alarms over the CloudWatch event destination, 24 h period, at least 50 sends.
+    const alarmTopic = new Topic(stack, "AlarmTopic", { topicName: newsletterAlarmTopicName(config.siteId) });
+    alarmTopic.addSubscription(new LambdaSubscription(lambda));
+    const metric = (metricName: string) =>
+      new Metric({
+        namespace: "AWS/SES",
+        metricName,
+        dimensionsMap: { "ses:configuration-set": config.configurationSet },
+        statistic: "Sum",
+        period: Duration.hours(24),
+      });
+    const names = newsletterAlarmNames(config.siteId);
+    for (const [id, alarmName, metricName, threshold] of [
+      ["BounceRateAlarm", names.bounce, "Bounce", BOUNCE_RATE_THRESHOLD],
+      ["ComplaintRateAlarm", names.complaint, "Complaint", COMPLAINT_RATE_THRESHOLD],
+    ] as const) {
+      const rate = new MathExpression({
+        expression: `IF(sent >= ${ALARM_MINIMUM_SENDS}, FILL(events, 0) / sent, 0)`,
+        usingMetrics: { sent: metric("Send"), events: metric(metricName) },
+        period: Duration.hours(24),
+        label: `${metricName} rate`,
+      });
+      const alarm = new Alarm(stack, id, {
+        alarmName,
+        alarmDescription: `${metricName} rate above ${threshold * 100}% of sends in 24 hours (at least ${ALARM_MINIMUM_SENDS} sends): pauses ${config.siteId} newsletter sending`,
+        metric: rate,
+        threshold,
+        evaluationPeriods: 1,
+        comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      });
+      alarm.addAlarmAction(new SnsAction(alarmTopic));
+    }
+
     lambda.addPermission("InvokeFromCmsCompute", {
       principal: new ArnPrincipal(config.computeRoleArn),
       action: "lambda:InvokeFunction",
