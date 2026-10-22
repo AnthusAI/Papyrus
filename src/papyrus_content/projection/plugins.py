@@ -34,11 +34,12 @@ def plugin_static_files(names: Iterable[str]) -> dict[str, bytes]:
     return files
 
 
-PLUGIN_RUNTIME_DIRECTORIES = (READER_DATA_DIRECTORY + "/",)
+KNOWLEDGE_DATA_DIRECTORY = "_data/knowledge"
+PLUGIN_RUNTIME_DIRECTORIES = (READER_DATA_DIRECTORY + "/", KNOWLEDGE_DATA_DIRECTORY + "/")
 
 
 def is_plugin_runtime_key(key: str) -> bool:
-    """A file a plugin's own task writes (the reader snapshot), at the site root or under ``urls.basePath``.
+    """A file a task writes (the reader snapshot, the knowledge snapshot), at the site root or under ``urls.basePath``.
 
     The projector's page reconcile must never call such a file an orphan: no page expects it, a task owns it.
     """
