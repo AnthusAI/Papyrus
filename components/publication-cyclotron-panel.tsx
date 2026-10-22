@@ -43,7 +43,7 @@ function PublicationControls({mode,status,history,onReview,onSteer}:PublicationP
    <CyclotronStatusView status={status.classifiers[output.id]} classifierName={output.question} variant="card"/>
    {onSteer?(steeringAvailable(status)
     ?<button type="button" disabled={Boolean(busy)} onClick={()=>onSteer(output.id)}>Test a rule change</button>
-    :<div><button type="button" disabled aria-describedby={`steer-unavailable:${output.id}`}>Test a rule change · Not available yet</button><p id={`steer-unavailable:${output.id}`} className="text-sm text-muted-foreground">Rule changes can't be tested on this service yet.</p></div>):null}
+    :<div><button type="button" disabled aria-describedby={`steer-unavailable:${output.id}`}>Test a rule change · Not available yet</button><p id={`steer-unavailable:${output.id}`} className="text-sm text-muted-foreground">Rule changes cannot be tested on this service yet.</p></div>):null}
    {history.history.map(row=>{
     const prediction=row.decision.classifiers[output.id];if(!prediction)return null;
     const key=`${context}:${row.decision.decisionId}:${output.id}:${row.context?.contextId??'legacy'}`;const saved=row.reviews[output.id];const historical=Boolean(row.historicalContext||row.provenanceUnavailable||row.feedbackReconciliationRequired);
