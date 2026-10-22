@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import atexit
 import json
 import os
+from contextlib import ExitStack
+from importlib import resources
 from pathlib import Path
 
 _STEERING_CONFIG_RELATIVE = Path("corpora") / "papyrus-steering.yml"
@@ -19,6 +22,28 @@ def resolve_papyrus_root() -> Path:
 
 
 PAPYRUS_ROOT = resolve_papyrus_root()
+
+_PACKAGED_CORPORA = ("data", "corpora")
+_resource_files = ExitStack()
+atexit.register(_resource_files.close)
+
+
+def packaged_corpora_file(name: str) -> Path | None:
+    """A default config shipped inside the wheel (``papyrus_content/data/corpora/``), or None if it is not packaged."""
+    reference = resources.files(__package__).joinpath(*_PACKAGED_CORPORA, name)
+    if not reference.is_file():
+        return None
+    return Path(_resource_files.enter_context(resources.as_file(reference)))
+
+
+def resolve_corpora_file(relative: str | Path) -> Path:
+    """``<PAPYRUS_ROOT>/<relative>`` when it exists (a checkout, the Lambda task root or PAPYRUS_ROOT),
+    else the copy packaged in the wheel for a ``corpora/<name>`` path, else the root path (which may not exist)."""
+    relative = Path(relative)
+    rooted = PAPYRUS_ROOT / relative
+    if rooted.exists() or len(relative.parts) != 2 or relative.parts[0] != "corpora":
+        return rooted
+    return packaged_corpora_file(relative.name) or rooted
 
 
 def required_environment_value(name: str) -> str:

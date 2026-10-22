@@ -1,0 +1,17 @@
+schemaVersion: 1
+doctrine:
+  - kind: mission
+    body:
+      - Anthus Threat Intelligence publishes practical AI/ML security analysis for teams responsible for defending systems, data, and operational workflows.
+      - Connect incidents, research findings, architectural mistakes, and near misses into patterns that explain how risk is moving across the AI/ML security landscape.
+      - Every piece should leave readers with something to inspect, verify, or change—not just something to remember.
+
+  - kind: policy
+    body:
+      - This is not a vulnerability feed. Prioritize behavior-changing checks over novelty, drama, or vendor marketing.
+      - Follow the editorial pattern trend → failure mode → defensive lesson → translatable checks readers can run against their own environment.
+      - Separate confidence from urgency. Some threats are real but poorly understood; some are mundane but already active. Label both honestly.
+      - Label control strength honestly. Distinguish nuisance-reducing controls from boundaries that can survive a capable adversary.
+      - Pull quotes must be sentences that appear verbatim in the article body; not every article needs one.
+      - Prefer primary evidence—vendor documentation, incident reports, advisories, empirical research, and official guidance. Flag uncertainty, missing evidence, and speculative claims explicitly.
+      - Publication doctrine is the global inclusion standard; desk doctrine sets local source priorities, asset focus, and framing for each section.

@@ -1,0 +1,89 @@
+schemaVersion: 1
+sections:
+  - id: mission
+    title: Mission
+    shortTitle: Foundational Framing
+    type: canonical
+    editorialMission: Explain how AI/ML is shifting the balance of power between attackers and defenders, and why old scarcity assumptions still shape modern defenses.
+    editorialPolicy: Publish foundational framing pieces about capability shifts, threat-model changes, and the operating assumptions defenders should revisit. Prioritize clarity over novelty. Every mission piece should help readers understand what changed in the threat landscape and why their existing controls may need re-evaluation.
+    assignmentGuidance: Focus on durable shifts in attacker capability, defensive assumptions, and the gap between intended and actual control strength. End with concrete "what to check now" items.
+    killCriteria: Reject pieces that restate generic AI hype, fear-mongering, or vendor positioning without a defensible threat-model change.
+    enabled: true
+    sortOrder: 1
+
+  - id: cloud
+    title: Cloud
+    shortTitle: Platform Exposure
+    type: canonical
+    editorialMission: Cover cloud platform security for AI/ML workloads—storage exposure, identity boundaries, encryption posture, data discovery, and cross-account sharing.
+    editorialPolicy: Prioritize vendor documentation, official security guidance, and exposure-audit workflows over generic cloud news. Focus on what defenders can inspect in AWS, Azure, GCP, and adjacent managed services. Translate platform features into practical checks.
+    assignmentGuidance: Start from a specific cloud service or control family. Connect configuration settings to blast radius. Prefer exposure audits over feature announcements.
+    killCriteria: Reject cloud product launch coverage unless it materially changes a defender's exposure or control options.
+    enabled: true
+    sortOrder: 2
+
+  - id: data-ai-assets
+    title: Data & AI Assets
+    shortTitle: Sensitive Estate
+    type: canonical
+    editorialMission: Cover the sensitive data estate created by AI/ML work—training sets, embeddings, prompts, outputs, evaluations, logs, notebooks, and operational traces.
+    editorialPolicy: Treat artifacts by what they can reveal, not by file extension or team boundary. Cover inventory, access-by-task, retention, and silent data multiplication. Favor governance and exposure patterns over model-behavior speculation.
+    assignmentGuidance: Map a class of AI/ML artifact to its blast radius, typical access paths, and retention risks. Include inventory and ownership checks.
+    killCriteria: Reject pieces about model quality or performance unless the security exposure of the underlying data estate is the central subject.
+    enabled: true
+    sortOrder: 3
+
+  - id: identity-access
+    title: Identity & Access
+    shortTitle: Blast Radius
+    type: canonical
+    editorialMission: Cover authentication, authorization, service accounts, MFA, session management, and blast-radius separation for AI/ML and security environments.
+    editorialPolicy: Focus on practical identity boundaries—who can reach what, with what credentials, and what happens when those credentials are compromised. Prioritize separation patterns that limit cross-domain damage.
+    assignmentGuidance: Identify a trust boundary or credential path. Explain what an attacker gains by crossing it and what separation would contain the damage.
+    killCriteria: Reject generic password-hygiene advice without connection to AI/ML-specific identity paths or blast-radius design.
+    enabled: true
+    sortOrder: 4
+
+  - id: incidents-research
+    title: Incidents & Research
+    shortTitle: Evidence Base
+    type: canonical
+    editorialMission: Cover attack patterns, incident writeups, CVEs, research findings, and near misses that reveal how AI/ML security risk is moving.
+    editorialPolicy: Prioritize primary incident reports, advisories, empirical research, and reproducible findings. Extract the failure mode and asset class, not just the headline. Distinguish verified facts from vendor claims and speculation.
+    assignmentGuidance: Start from a specific incident or research finding. Identify the asset class, failure mode, and whether the lesson applies beyond the named product.
+    killCriteria: Reject breathless breach reporting without a defensible defensive lesson or checkable claim.
+    enabled: true
+    sortOrder: 5
+
+  - id: controls-checks
+    title: Controls & Checks
+    shortTitle: Defensive Practice
+    type: canonical
+    editorialMission: Publish defensive practices, lessons registers, and recurring checks that teams can run against their own AI/ML and security environments.
+    editorialPolicy: Every piece must translate a lesson into inspectable controls. Maintain the pattern trend → failure mode → defensive lesson → checks. Tag checks by asset class, control family, cloud service, and use case where possible.
+    assignmentGuidance: Build from a real failure mode or recurring gap. Provide checks with enough specificity that a team can assign an owner and verification date.
+    killCriteria: Reject awareness-only content that cannot be assigned, verified, or retired.
+    enabled: true
+    sortOrder: 6
+
+  - id: supply-chain
+    title: Supply Chain
+    shortTitle: Dependencies & Artifacts
+    type: floating
+    editorialMission: Cover dependencies, model artifacts, third-party integrations, package ecosystems, and trust boundaries in AI/ML supply chains.
+    editorialPolicy: Focus on provenance, integrity, update channels, and the blast radius of compromised or misconfigured third-party components. Include model weights, fine-tuning pipelines, agent toolchains, and data providers.
+    assignmentGuidance: Trace a supply-chain path from external input to production use. Identify where trust is assumed without verification.
+    killCriteria: Reject generic SBOM advocacy without AI/ML-specific supply-chain paths or inspectable checks.
+    enabled: true
+    sortOrder: 7
+
+  - id: gaming-consumer
+    title: Gaming & Consumer
+    shortTitle: Personal Blast Radius
+    type: rotating
+    editorialMission: Cover personal and consumer security where AI/ML intersects with gaming, launchers, mods, anti-cheat, and everyday software trust boundaries.
+    editorialPolicy: Focus on blast-radius separation for non-enterprise readers. Treat games, launchers, mods, and community downloads as software from strangers. Prioritize practical isolation over enterprise control frameworks.
+    assignmentGuidance: Start from a consumer scenario with high blast radius if compromised. Recommend separation patterns that are cheap to adopt and rebuild if needed.
+    killCriteria: Reject enterprise-only guidance that assumes centralized IT control for a consumer audience.
+    enabled: true
+    sortOrder: 8

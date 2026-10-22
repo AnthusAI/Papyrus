@@ -6,9 +6,9 @@ from typing import Any
 
 import yaml
 
-from .env import PAPYRUS_ROOT
+from .env import PAPYRUS_ROOT, resolve_corpora_file
 
-DEFAULT_PUBLICATION_DOCTRINE_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-publication-doctrine.yml"
+DEFAULT_PUBLICATION_DOCTRINE_PATH = resolve_corpora_file("corpora/papyrus-publication-doctrine.yml")
 DOCTRINE_KINDS = frozenset({"mission", "policy"})
 DOCTRINE_DEFINITION_BY_KIND = {
     "mission": {

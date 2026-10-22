@@ -1,0 +1,48 @@
+schemaVersion: 1
+keywordDisplay:
+  previewCount: 6
+  defaultLimit: 30
+  expandedLimit: 120
+ignoredTerms:
+  - term: et
+    scope: publication
+    note: Citation/header noise from "et al."
+  - term: al
+    scope: publication
+    note: Citation/header noise from "et al."
+  - term: fig
+    scope: publication
+    note: Figure label noise.
+  - term: figure
+    scope: publication
+    note: Figure label noise.
+  - term: table
+    scope: publication
+    note: Table label noise.
+  - term: appendix
+    scope: publication
+    note: Section-heading noise.
+  - term: references
+    scope: publication
+    note: Bibliography heading noise.
+  - term: abstract
+    scope: publication
+    note: Common document section heading.
+  - term: introduction
+    scope: publication
+    note: Common document section heading.
+  - term: preprint
+    scope: publication
+    note: Publication-status boilerplate.
+  - term: arxiv
+    scope: publication
+    note: Source/platform boilerplate.
+  - term: doi
+    scope: publication
+    note: Citation identifier boilerplate.
+  - term: http
+    scope: publication
+    note: URL boilerplate.
+  - term: https
+    scope: publication
+    note: URL boilerplate.

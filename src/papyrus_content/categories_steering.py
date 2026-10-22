@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import yaml
 
 from .biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner
-from .env import PAPYRUS_ROOT
+from .env import resolve_corpora_file
 from .ids import (
     category_lineage_id_for,
     category_set_id_for,
@@ -27,8 +27,8 @@ from .ids import (
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .papyrus_config import resolve_topics_ignore_terms, resolve_topics_lexical_config_path
 
-DEFAULT_SEMANTIC_CONCEPTS_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-semantic-concepts.yml"
-DEFAULT_LEXICAL_STEERING_PATH = PAPYRUS_ROOT / resolve_topics_lexical_config_path()
+DEFAULT_SEMANTIC_CONCEPTS_PATH = resolve_corpora_file("corpora/papyrus-semantic-concepts.yml")
+DEFAULT_LEXICAL_STEERING_PATH = resolve_corpora_file(resolve_topics_lexical_config_path())
 GRAPH_PROPOSAL_KINDS = frozenset(
     {
         "topic-becomes-graph-entity",
