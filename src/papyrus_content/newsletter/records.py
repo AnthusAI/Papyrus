@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .store import Store, _de, _ser, iso, list_key, profile_key
+from .store import SITE_COUNT_ID, Deltas, Store, _de, _ser, iso, list_key, profile_key, removal_deltas
 
 LEDGER_HID_ATTRIBUTE = "gsiHid"
 BY_HID_INDEX = "byHid"
@@ -38,11 +38,21 @@ def put_suppression(store: Store, hid: str, reason: str, now: float, issue: str 
     if reason not in SUPPRESSION_REASONS:
         raise ValueError(f"Unknown suppression reason {reason!r}")
     item = {**suppression_key(hid), "reason": reason, "at": iso(now), "issue": issue or None}
-    store.client.put_item(TableName=store.table_name, Item=_ser(item))
+    previous = store.client.put_item(TableName=store.table_name, Item=_ser(item), ReturnValues="ALL_OLD")
+    if "Attributes" not in previous:  # a repeat event overwrites the row and counts once
+        _count_suppressed(store, 1)
 
 
 def delete_suppression(store: Store, hid: str) -> None:
-    store.client.delete_item(TableName=store.table_name, Key=_ser(suppression_key(hid)))
+    previous = store.client.delete_item(TableName=store.table_name, Key=_ser(suppression_key(hid)), ReturnValues="ALL_OLD")
+    if "Attributes" in previous:
+        _count_suppressed(store, -1)
+
+
+def _count_suppressed(store: Store, amount: int) -> None:
+    deltas = Deltas()
+    deltas.add(SITE_COUNT_ID, "suppressed", amount)
+    store.apply_deltas(deltas)
 
 
 def get_state(store: Store) -> dict[str, Any]:
@@ -87,10 +97,14 @@ def batch_delete(store: Store, keys: list[dict[str, str]]) -> None:
 
 def erase_subscriber(store: Store, hid: str) -> int:
     """Remove the profile, every list row, the suppression row and every ledger row. Returns the number of rows removed."""
-    keys = [list_key(hid, list_id) for list_id in store.memberships(hid)]
+    profile = store.get_profile(hid)
+    memberships = store.memberships(hid)
+    suppressed = get_suppression(store, hid) is not None
+    keys = [list_key(hid, list_id) for list_id in memberships]
     keys += ledger_row_keys(store, hid)
     keys += [suppression_key(hid), profile_key(hid)]
     batch_delete(store, keys)
+    store.apply_deltas(removal_deltas(profile, memberships, suppressed))
     return len(keys)
 
 

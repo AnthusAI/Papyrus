@@ -124,7 +124,7 @@ assert.equal(editorialChecksSecretParameters("us-east-1", "123456789012", "").le
 
 // The newsletter plugin's operations are in its manifest and its schema; none is open to guests.
 const newsletterOperations = [...(KNOWN_PLUGINS.newsletter.manifest.queries ?? []), ...KNOWN_PLUGINS.newsletter.manifest.mutations];
-assert.equal(newsletterOperations.length, 8);
+assert.equal(newsletterOperations.length, 14);
 assert.deepEqual(Object.keys(KNOWN_PLUGINS.newsletter.schemaDefinitions()).sort(), [...newsletterOperations].sort());
 assert.deepEqual(KNOWN_PLUGINS.newsletter.manifest.guest.mutations, []);
 

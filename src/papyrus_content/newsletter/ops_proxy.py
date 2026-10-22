@@ -20,6 +20,12 @@ FIELD_ACTIONS = {
     "newsletterTestSend": "issue_test_send",
     "newsletterCreateDraft": "issue_create_draft",
     "newsletterPreview": "issue_preview",
+    "newsletterOverview": "panel_overview",
+    "newsletterSubscribers": "panel_subscribers",
+    "newsletterExport": "panel_export",
+    "newsletterErase": "panel_erase",
+    "newsletterResume": "panel_resume",
+    "newsletterIssueDeliveries": "panel_deliveries",
 }
 
 

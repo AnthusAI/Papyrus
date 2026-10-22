@@ -55,8 +55,9 @@ assert.deepEqual(newsletterManifest.guest.mutations, [], "no guest access");
 assert.deepEqual(newsletterManifest.models, []);
 const operations = [...NEWSLETTER_QUERIES, ...NEWSLETTER_MUTATIONS].sort();
 assert.deepEqual(operations, [
-  "newsletterApproveIssue", "newsletterCancelIssue", "newsletterCreateDraft", "newsletterIssue", "newsletterIssues",
-  "newsletterPreview", "newsletterStopIssue", "newsletterTestSend",
+  "newsletterApproveIssue", "newsletterCancelIssue", "newsletterCreateDraft", "newsletterErase", "newsletterExport",
+  "newsletterIssue", "newsletterIssueDeliveries", "newsletterIssues", "newsletterOverview", "newsletterPreview",
+  "newsletterResume", "newsletterStopIssue", "newsletterSubscribers", "newsletterTestSend",
 ]);
 assert.deepEqual([...(newsletterManifest.queries ?? []), ...newsletterManifest.mutations].sort(), operations);
 assert.deepEqual(Object.keys(newsletterSchemaDefinitions()).sort(), operations, "the plugin defines operations and no model");
@@ -77,12 +78,19 @@ for (const name of operations) {
   for (const group of groups) assert.match(line, new RegExp(`"${group}"`), `${name} admits ${group}`);
   assert.ok(!/@aws_(api_key|iam)/.test(line) && !line.includes("@aws_cognito_user_pools(cognito_groups: [\"user"), `${name} is closed to guests`);
 }
-for (const name of ["newsletterApproveIssue", "newsletterCancelIssue", "newsletterStopIssue"]) {
+// Approving, cancelling, stopping, and everything that shows a full address or changes subscriber data or the pause is admin only.
+for (const name of [
+  "newsletterApproveIssue", "newsletterCancelIssue", "newsletterStopIssue",
+  "newsletterSubscribers", "newsletterExport", "newsletterErase", "newsletterResume",
+]) {
   assert.deepEqual(NEWSLETTER_OPERATION_GROUPS[name], ["admin"], `${name} is admin only`);
   const line = withPlugin.split("\n").find((entry) => entry.includes(`${name}(`)) ?? "";
   assert.ok(!line.includes('"editor"'), `${name} does not admit editors`);
 }
-for (const name of ["newsletterIssues", "newsletterIssue", "newsletterPreview", "newsletterTestSend", "newsletterCreateDraft"]) {
+for (const name of [
+  "newsletterIssues", "newsletterIssue", "newsletterPreview", "newsletterTestSend", "newsletterCreateDraft",
+  "newsletterOverview", "newsletterIssueDeliveries",
+]) {
   assert.deepEqual(NEWSLETTER_OPERATION_GROUPS[name], ["editor", "admin"]);
 }
 assert.deepEqual(withoutPlugins.includes("newsletter"), false);
