@@ -376,3 +376,19 @@ def step_key_resolved(context, name):
 @then('"{name}" is not set, so rewrite suggestions report that they are not configured')
 def step_key_unset(context, name):
     assert name not in context.function_env, context.function_env
+
+
+@when('AppSync invokes the function with the field in "{place}"')
+def step_event_shape(context, place):
+    event = {"arguments": {"itemId": "x"}}
+    if place == "the info object":
+        event["info"] = {"fieldName": "checkItemVersion"}
+    else:
+        event["typeName"] = "Mutation"
+        event["fieldName"] = "checkItemVersion"
+    context.routed_field = editorial.event_field_name(event)
+
+
+@then('the function routes to "{field}"')
+def step_routes(context, field):
+    assert context.routed_field == field, context.routed_field
