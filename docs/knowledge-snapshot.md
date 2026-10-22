@@ -111,11 +111,11 @@ A beat is a site topic. There is no beat unless you choose a source: `--beats-co
 
 Output is deterministic: keys sorted, no timestamps, `asOf` is the given date. A test pins the exact field set of each file and fails when a field is added.
 
-`index.json`: `schemaVersion`, `asOf`, `entityCount`, `topicCount`, `kinds` (`key`, `label`, `count`), `beats` (`key`, `name`, `href`, `itemCount`, `series8`), `entities` (`key`, `kind`, `name`, `href`, `acceptedBy`, `itemCount`, `weeksOfHistory`, `series8`, `change`, `isNew`), `trending` (entity keys), `conceptOfTheWeek` (`key`, `name`, `href`, `lede`, `editedBy`, `itemCount`, `makerCount`, or `null`).
+`index.json`: `schemaVersion`, `asOf`, `entityCount`, `topicCount`, `kinds` (`key`, `label`, `count`), `beats` (`key`, `name`, `href`, `itemCount`, `series8`, `topEntities`: entity keys, the accepted entities linked to the most of the beat's items, at most 12), `entities` (`key`, `kind`, `name`, `aliases`, `href`, `acceptedBy`, `itemCount`, `weeksOfHistory`, `series8`, `change`, `isNew`), `trending` (entity keys), `conceptOfTheWeek` (`key`, `name`, `href`, `lede`, `editedBy`, `itemCount`, `makerCount`, or `null`).
 
 `entities/<key>.json`: `schemaVersion`, `key`, `kind`, `name`, `aliases`, `acceptedBy`, `description` (`state` `reviewed|ai_edited|draft|none`, `editedBy`), `href`, `itemCount`, `weeksOfHistory`, `series8`, `series26`, `change`, `neighbours` (`relation`, `key`, `name`, `kind`, `weight`), `relatedItems` (`title`, `url`, `publishedAt`, `reason`).
 
-`clusters.json`: `schemaVersion`, `asOf`, `runId`, `unacceptedClusters`, `clusters` (`uid`, `name`, `acceptedBy`, `state` `new|growing|cooling|null`, `itemCount`, `topTerms`, `series8`, `weeksOfData`, `href`).
+`clusters.json`: `schemaVersion`, `asOf`, `runId`, `unacceptedClusters`, `clusters` (`uid`, `beats` (keys of the beats that share published member items with the cluster), `name`, `acceptedBy`, `state` `new|growing|cooling|null`, `itemCount`, `topTerms`, `series8`, `weeksOfData`, `href`).
 
 `change` is `{last4, prior4, percent}`. `acceptedBy` and `editedBy` are `{actor: "ai" | "human", name: string | null, on: "YYYY-MM-DD"}`, or `null` when nothing is recorded (an unnamed cluster never claims an acceptance).
 

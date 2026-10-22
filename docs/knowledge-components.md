@@ -28,10 +28,11 @@ Place a block in a page file, or in an item after a `::band` line, with `::inclu
 | Block | Attributes | Reads | Output |
 |---|---|---|---|
 | `knowledge-trending-strip` | `limit` (5) | index | `ul.papyrus-knowledge-trending-strip`: for each entity of `trending`, in the snapshot's order, a chip and its trend |
-| `knowledge-trending-list` | `limit` (6), `entityKind` (all kinds) | index | `div.papyrus-knowledge-trending-list > ol`: rank, chip, trend, `N items` and `N in the last 4 weeks`. Entities marked `isNew` are left out. With `entityKind` the list holds only that kind. Without it, and with more than one kind present, a `nav.papyrus-knowledge-kindfilter` of links filters the list by `:target` with no script (an inline `<style>` of one rule per kind); the "All" link clears it |
-| `knowledge-clusters` | `limit` (3) | clusters | `ul.papyrus-knowledge-clusters`: name (linked when the cluster has an `href`), item count, top terms, sparkline, a New, ▲ Growing or ▼ Cooling label, and who accepted it ("Accepted by AI"). A cluster with a `name` is shown. Without one it is hidden, or "Unnamed theme" with its item count when `unacceptedClusters` is `unnamed`. A cluster with fewer than 4 `weeksOfData` has no label and no sparkline |
+| `knowledge-trending-list` | `limit` (6), `entityKind` (all kinds), `filter` (`true`) | index | `div.papyrus-knowledge-trending-list > ol`: rank, chip, trend, `N items` and `N in the last 4 weeks`. Entities marked `isNew` are left out. With `entityKind` the list holds only that kind. Without it, and with more than one kind present, a `nav.papyrus-knowledge-kindfilter` of links filters the list by `:target` with no script (an inline `<style>` of one rule per kind); the "All" link clears it. `filter=false` leaves the kind filter out, whatever the kinds present |
+| `knowledge-clusters` | `limit` (3), `terms` (5) | clusters | `ul.papyrus-knowledge-clusters`: name (linked when the cluster has an `href`), item count, top terms (at most `terms` of them; `terms=0` shows none), sparkline, a New, ▲ Growing or ▼ Cooling label, and who accepted it ("Accepted by AI"). A cluster with a `name` is shown. Without one it is hidden, or "Unnamed theme" with its item count when `unacceptedClusters` is `unnamed`. A cluster with fewer than 4 `weeksOfData` has no label and no sparkline |
 | `knowledge-concept-of-the-week` | none | index | `article.papyrus-knowledge-cotw`: name, lede, who edited the description ("Edited by AI on 2026-10-21", or "Reviewed by Ada on 2026-10-21" for a person), item and maker counts; nothing when `conceptOfTheWeek` is null |
-| `knowledge-topic-count` | none | index | `span.papyrus-knowledge-count` with `topicCount` |
+| `knowledge-topic-count` | `count` (`beats` or `entities`, default `beats`), `href`, `label` | index | `span.papyrus-knowledge-count` with `topicCount` (`count=beats`) or `entityCount` (`count=entities`). With `href` it is `a.papyrus-knowledge-count` linking there; with `label`, a template in which `{n}` is the number (`label="All {n} topics"`), the text of the link or span. `href` is written as it is served (a site path or an https URL; anything else is a build error). Nothing is drawn when the snapshot lacks the count, and the link or labelled form draws nothing when the count is 0, so a page never says "All 0 topics" |
+| `knowledge-beat` | `key` (a beat key of `index.json`), `part` (`trend`, `entities` or `clusters`), `limit` (12 for `entities`, 3 for `clusters`) | index (`trend`, `entities`), clusters (`clusters`) | `trend`: `div.papyrus-knowledge-beat-trend`, a sparkline of the beat's `series8` with the item counts as text ("36 items in the last 8 weeks", "7 items in the latest week", and the eight weekly counts for assistive technology); nothing when the beat has no items in those weeks. `entities`: `ul.papyrus-knowledge-beat-entities` of chips (linked when the entity has a page) for the beat's `topEntities`, the accepted entities linked to the most of its items. `clusters`: the accepted clusters whose member items overlap the beat (`clusters[].beats`), rendered as in `knowledge-clusters`. An unknown `key` draws nothing |
 | `knowledge-entity` | `key`, `part` (`trend`, `neighbourhood`, `related` or `provenance`), for `trend`: `annotate` (a date), `annotateLabel` | entity, and index for the kind labels, links and `asOf` | `trend`: the sparkline and percent, and the chart after 12 weeks. `neighbourhood`: one column per relation type. `related`: a list of linked titles with their dates. `provenance`: who accepted the entity and who edited its description |
 | `knowledge-score` | `value` (0 to 1), `n`, `threshold` (0.5), `label` | none | a score readout for a value the author gives |
 
@@ -42,6 +43,8 @@ Place a block in a page file, or in an item after a `::band` line, with `::inclu
 ::include{kind="block" name="knowledge-trending-list" limit=6 entityKind=""}
 ::include{kind="block" name="knowledge-clusters" limit=3}
 ::include{kind="block" name="knowledge-concept-of-the-week"}
+::include{kind="block" name="knowledge-topic-count" count="beats" href="/topics/" label="All {n} topics"}
+::include{kind="block" name="knowledge-beat" key="weaving" part="trend"}
 ::include{kind="block" name="knowledge-entity" key="acme-loom" part="trend" annotate="2026-09-24" annotateLabel="Launch"}
 ```
 
@@ -65,6 +68,21 @@ The blocks are built from pure functions in `papyrus_content.projection.standard
 - `trend_chart(series, weeks, as_of, annotate=, annotate_label=)`: an inline SVG with two series, bars for the items per week and a dashed line for their trailing four-week average, both computed from the one weekly series of the snapshot. A text summary is the SVG's label and the figure's caption. The annotated week gets a vertical marker and the label.
 - `neighbourhood(neighbours, kinds, links)`: one column per relation type (the heavier relation first, and its label made readable: `built_on` is "Built on"), entries by weight (the number of items linking both ends) with a bar and the number. The snapshot holds only accepted relations.
 - `score_readout(value, n, threshold=, label=)`: a 5-segment meter, the value and `n` as text, dimmed below the threshold with "(below threshold)" for assistive technology.
+
+## Linking entities from a site hook
+
+A site's `item_decorator` (or `source`, `page_inputs`, `redirects`) can link its own entity chips to the wiki. The hook is handed the `HookSite`, whose `knowledge` is a lookup over `index.json`. `item_decorator(html, summary)` may take a third parameter named `site` (a hook without it is called as before):
+
+```python
+def item_decorator(html, summary, site):
+    entity = site.knowledge.entity_for("maker", summary.front_matter.get("maker", ""))
+    return html + site.knowledge.chip_html(entity)
+```
+
+- `site.knowledge.entity_for(kind, name) -> {key, name, kind, href, state} | None`: the accepted entity of that kind whose name or alias matches `name` without regard to case or white space, the way the snapshot matches names. `kind` is a kind key (`"maker"`) or label (`"Maker"`); `None` or `""` searches every kind, and a name two kinds share then returns `None`. `href` is the entity's page, or `None` when the snapshot has none. `state` is always `"accepted"`: the snapshot holds only accepted entities, so a proposed one is never found. `None` also when the site has no snapshot.
+- `site.knowledge.chip_html(entity) -> str`: the standard `papyrus-knowledge-chip` markup (kind label, name, linked when `href` is set) for what `entity_for` returned; `""` for `None`.
+
+The lookup reads only `index.json`, and every page is rendered again when the snapshot changes, so the hook needs no `DEPENDS_ON` for it. Aliases are listed in `index.json` under `entities[].aliases`.
 
 ## Concept directives in a static build
 

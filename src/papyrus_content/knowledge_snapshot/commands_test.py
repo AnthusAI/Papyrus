@@ -371,7 +371,7 @@ def test_beats_from_a_scoring_style_config(client, tmp_path, monkeypatch):
     out = tmp_path / "site"
     run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--beats-config", str(config))
     beats = json.loads((out / INDEX_FILE).read_text())["beats"]
-    assert beats == [{"key": "decision-models", "name": "Decision models", "href": "/topics/decision-models/", "itemCount": 1, "series8": [0, 0, 0, 0, 0, 0, 1, 0]}]
+    assert beats == [{"key": "decision-models", "name": "Decision models", "href": "/topics/decision-models/", "itemCount": 1, "series8": [0, 0, 0, 0, 0, 0, 1, 0], "topEntities": ["maker--some-lab", "task--voice-cloning"]}]
 
 
 def test_offline_records_snapshot(tmp_path):

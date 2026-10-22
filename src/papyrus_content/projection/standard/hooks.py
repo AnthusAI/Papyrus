@@ -10,7 +10,8 @@ do nothing. Anything that needs more than a slot is a signal to add a core optio
 ``card(entry, page) -> str``        one entry in a listing
 ``head_extra(page) -> str``         raw markup appended to ``<head>``
 ``body_class(page) -> str``         classes added to ``<body>`` after the site's ``chrome.body_class``
-``item_decorator(html, summary) -> str``   the converted article fragment, before it is placed in the page
+``item_decorator(html, summary) -> str``   the converted article fragment, before it is placed in the page; it may also take ``site``
+                                    (a :class:`HookSite`, by that name), for example to link entities with ``site.knowledge``
 ``main(page) -> str | None``        the inside of ``<main>`` (after the breadcrumbs), for any page kind; the standard skip link,
                                     masthead and footer stay. ``None`` keeps the default.
 ``page_body(page) -> str | None``   the whole body of a page (everything between ``<body>`` and the scripts);
@@ -57,6 +58,8 @@ import importlib.util
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from .knowledge_lookup import KnowledgeLookup
 
 HOOK_NAMES = (
     "masthead", "footer", "card", "head_extra", "body_class", "item_decorator", "main", "page_body", "derive",
@@ -140,10 +143,15 @@ class HookSite:
 
     One instance belongs to one version of the site (the same ``items``); a hook that derives something from the whole
     site (a table of every page, the images the site has) builds it once with :meth:`memo`.
+
+    ``knowledge`` is the :class:`~papyrus_content.projection.standard.knowledge_lookup.KnowledgeLookup` of the site's knowledge
+    snapshot: ``knowledge.entity_for(kind, name)`` and ``knowledge.chip_html(entity)``. Every page is rendered again when the
+    snapshot changes, so a hook that reads only it needs no ``DEPENDS_ON``.
     """
 
-    def __init__(self, items, *, static_directory: Path | None, records) -> None:
+    def __init__(self, items, *, static_directory: Path | None, records, knowledge: KnowledgeLookup | None = None) -> None:
         self.items = items
+        self.knowledge = knowledge or KnowledgeLookup()
         self.static_directory = static_directory
         self._records = records
         self._memo: dict = {}

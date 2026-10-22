@@ -1,6 +1,6 @@
 """The standard knowledge blocks (``::include{kind="block" name="knowledge-..."}``) and the wiki directives, from the snapshot.
 
-``trending-strip``, ``trending-list``, ``clusters``, ``concept-of-the-week``, ``topic-count``, ``entity`` and ``score`` are
+``trending-strip``, ``trending-list``, ``clusters``, ``concept-of-the-week``, ``topic-count``, ``entity``, ``beat`` and ``score`` are
 rendered here, ahead of the site's ``block`` hook. A block whose data file is absent renders nothing, so the page keeps
 its own placeholder. Nothing is computed that the snapshot does not hold.
 """
@@ -18,15 +18,20 @@ PREFIX = "knowledge-"
 COMMON = {"kind", "name", "depends"}
 BLOCKS: dict[str, set[str]] = {
     "knowledge-trending-strip": {"limit"},
-    "knowledge-trending-list": {"limit", "entityKind"},
-    "knowledge-clusters": {"limit"},
+    "knowledge-trending-list": {"limit", "entityKind", "filter"},
+    "knowledge-clusters": {"limit", "terms"},
     "knowledge-concept-of-the-week": set(),
-    "knowledge-topic-count": set(),
+    "knowledge-topic-count": {"count", "href", "label"},
+    "knowledge-beat": {"key", "part", "limit"},
     "knowledge-entity": {"key", "part", "annotate", "annotateLabel"},
     "knowledge-score": {"value", "n", "threshold", "label"},
 }
 PARTS = ("trend", "neighbourhood", "related", "provenance")
+BEAT_PARTS = ("trend", "entities", "clusters")
+COUNTS = ("beats", "entities")
 DEFAULT_LIMITS = {"knowledge-trending-strip": 5, "knowledge-trending-list": 6, "knowledge-clusters": 3}
+DEFAULT_TERMS = 5
+BEAT_DEFAULT_LIMITS = {"entities": 12, "clusters": 3}
 CLUSTER_LABELS = {"new": "New", "growing": "▲ Growing", "cooling": "▼ Cooling"}
 PLACEHOLDER = '<div class="papyrus-dynamic" data-papyrus-dynamic="{name}"></div>'
 
@@ -56,6 +61,11 @@ def _number(attributes: Mapping, name: str, source: str) -> float | None:
         raise ValueError(f"{source}: ::include {attributes.get('name')} {name} must be a number, got {attributes[name]!r}") from None
 
 
+def _choice(attributes: Mapping, name: str, allowed: tuple[str, ...], source: str) -> None:
+    if name in attributes and attributes[name] not in allowed:
+        raise ValueError(f"{source}: ::include {attributes.get('name')} {name} must be one of {', '.join(allowed)}, got {attributes[name]!r}")
+
+
 def check(attributes: Mapping, source: str) -> None:
     """Validate one knowledge block include; a build error names the file."""
     name = attributes.get("name", "")
@@ -65,6 +75,16 @@ def check(attributes: Mapping, source: str) -> None:
     if unknown:
         raise ValueError(f"{source}: ::include {name} has unknown attributes: {', '.join(sorted(unknown))}")
     _whole(attributes, "limit", source)
+    _whole(attributes, "terms", source)
+    _choice(attributes, "filter", ("true", "false"), source)
+    _choice(attributes, "count", COUNTS, source)
+    if name == "knowledge-topic-count" and "href" in attributes and not parts.safe_href(attributes["href"]):
+        raise ValueError(f"{source}: ::include knowledge-topic-count href must be a site path or an https URL, got {attributes['href']!r}")
+    if name == "knowledge-beat":
+        if not attributes.get("key"):
+            raise ValueError(f"{source}: ::include knowledge-beat needs key")
+        if attributes.get("part") not in BEAT_PARTS:
+            raise ValueError(f"{source}: ::include knowledge-beat needs part to be one of {', '.join(BEAT_PARTS)}")
     if name == "knowledge-entity":
         if not attributes.get("key"):
             raise ValueError(f"{source}: ::include knowledge-entity needs key")
@@ -128,7 +148,7 @@ def _filter_nav(identifier: str, kinds_present: list[tuple[str, str]]) -> str:
     )
 
 
-def _list(index: Mapping, limit: int, entity_kind: str) -> str:
+def _list(index: Mapping, limit: int, entity_kind: str, filtered: bool = True) -> str:
     by_key = _by_key(index)
     ranked = [by_key[key] for key in index.get("trending") or [] if key in by_key and not by_key[key].get("isNew")]
     if entity_kind:
@@ -146,7 +166,7 @@ def _list(index: Mapping, limit: int, entity_kind: str) -> str:
             f'{parts.trend(entity)}<span class="papyrus-knowledge-count-text">{_item_count(entity.get("itemCount"))}</span>{recent}</li>'
         )
     nav = ""
-    if not entity_kind:
+    if not entity_kind and filtered:
         present = []
         for entity in ranked:
             key = parts.token(entity.get("kind"))
@@ -158,7 +178,7 @@ def _list(index: Mapping, limit: int, entity_kind: str) -> str:
     return f'<div class="papyrus-knowledge-trending-list">{nav}<ol>{"".join(rows)}</ol></div>'
 
 
-def _clusters(clusters: Mapping, limit: int) -> str:
+def _clusters(clusters: Mapping, limit: int, terms: int = DEFAULT_TERMS) -> str:
     show_unnamed = clusters.get("unacceptedClusters") == "unnamed"
     cards = []
     for cluster in clusters.get("clusters") or []:
@@ -177,8 +197,8 @@ def _clusters(clusters: Mapping, limit: int) -> str:
         title = f'<a href="{escape(link)}">{name}</a>' if link else name
         label = CLUSTER_LABELS.get(str(cluster.get("state"))) if weeks >= parts.NEW_BELOW else None
         badge = f'<span class="papyrus-knowledge-cluster-label">{label}</span>' if label else ""
-        terms = ", ".join(escape(str(term)) for term in cluster.get("topTerms") or [])
-        terms_html = f'<span class="papyrus-knowledge-terms">{terms}</span>' if terms else ""
+        shown = ", ".join(escape(str(term)) for term in (cluster.get("topTerms") or [])[:terms])
+        terms_html = f'<span class="papyrus-knowledge-terms">{shown}</span>' if shown else ""
         series = list(cluster.get("series8") or [])
         spark = parts.sparkline(series[-min(len(series), weeks):]) if weeks >= parts.NEW_BELOW else ""
         state = escape(str(cluster.get("state") or "")) if label else ""
@@ -236,6 +256,62 @@ def _entity(knowledge: KnowledgeSource, index: Mapping | None, attributes: Mappi
     return f'<ul class="papyrus-knowledge-related">{"".join(related)}</ul>' if related else ""
 
 
+def _topic_count(index: Mapping, attributes: Mapping) -> str:
+    value = index.get("entityCount" if attributes.get("count") == "entities" else "topicCount")
+    if value is None:
+        return ""
+    number = int(value)
+    link = parts.safe_href(attributes.get("href"))
+    label = attributes.get("label")
+    if not link and label is None:
+        return f'<span class="papyrus-knowledge-count">{number}</span>'
+    if number == 0:
+        return ""
+    text = escape(str(number) if label is None else str(label).replace("{n}", str(number)))
+    return f'<a class="papyrus-knowledge-count" href="{escape(link)}">{text}</a>' if link else f'<span class="papyrus-knowledge-count">{text}</span>'
+
+
+def _beat_trend(beat: Mapping) -> str:
+    series = [max(0, int(value)) for value in beat.get("series8") or []]
+    total = sum(series)
+    if not total:
+        return ""
+    weekly = ", ".join(str(value) for value in series)
+    return (
+        '<div class="papyrus-knowledge-beat-trend">'
+        f'{parts.sparkline(series)}'
+        f'<span class="papyrus-knowledge-count-text">{_item_count(total)} in the last {len(series)} weeks</span>'
+        f'<span class="papyrus-knowledge-recent">{_item_count(series[-1])} in the latest week</span>'
+        f'<span class="papyrus-knowledge-sr"> Items per week, oldest first: {weekly}.</span></div>'
+    )
+
+
+def _beat_entities(index: Mapping, beat: Mapping, limit: int) -> str:
+    by_key = _by_key(index)
+    chosen = [by_key[key] for key in beat.get("topEntities") or [] if key in by_key][:limit]
+    if not chosen:
+        return ""
+    kinds = _kinds(index)
+    rows = "".join(f"<li>{_chip(entity, kinds)}</li>" for entity in chosen)
+    return f'<ul class="papyrus-knowledge-beat-entities">{rows}</ul>'
+
+
+def _beat(knowledge: KnowledgeSource, index: Mapping | None, attributes: Mapping, limit: int | None) -> str:
+    part = attributes["part"]
+    if part == "clusters":
+        clusters = knowledge.clusters()
+        if not clusters:
+            return ""
+        chosen = {**clusters, "clusters": [row for row in clusters.get("clusters") or [] if attributes["key"] in (row.get("beats") or [])]}
+        return _clusters(chosen, BEAT_DEFAULT_LIMITS["clusters"] if limit is None else limit)
+    beat = next((row for row in (index or {}).get("beats") or [] if row.get("key") == attributes["key"]), None)
+    if beat is None:
+        return ""
+    if part == "trend":
+        return _beat_trend(beat)
+    return _beat_entities(index, beat, BEAT_DEFAULT_LIMITS["entities"] if limit is None else limit)
+
+
 def render_block(attributes: Mapping, knowledge: KnowledgeSource, source: str) -> str:
     """The markup of one knowledge block; empty when the data it reads is absent."""
     check(attributes, source)
@@ -248,8 +324,11 @@ def render_block(attributes: Mapping, knowledge: KnowledgeSource, source: str) -
         return parts.score_readout(_number(attributes, "value", source) or 0.0, count, threshold=0.5 if threshold is None else threshold, label=attributes.get("label", ""))
     if name == "knowledge-clusters":
         clusters = knowledge.clusters()
-        return _clusters(clusters, limit) if clusters else ""
+        terms = _whole(attributes, "terms", source)
+        return _clusters(clusters, limit, DEFAULT_TERMS if terms is None else terms) if clusters else ""
     index = knowledge.index()
+    if name == "knowledge-beat":
+        return _beat(knowledge, index, attributes, _whole(attributes, "limit", source))
     if name == "knowledge-entity":
         return _entity(knowledge, index, attributes)
     if not index:
@@ -257,10 +336,10 @@ def render_block(attributes: Mapping, knowledge: KnowledgeSource, source: str) -
     if name == "knowledge-trending-strip":
         return _strip(index, limit)
     if name == "knowledge-trending-list":
-        return _list(index, limit, attributes.get("entityKind", ""))
+        return _list(index, limit, attributes.get("entityKind", ""), attributes.get("filter", "true") != "false")
     if name == "knowledge-concept-of-the-week":
         return _concept_of_the_week(index)
-    return f'<span class="papyrus-knowledge-count">{int(index.get("topicCount") or 0)}</span>'
+    return _topic_count(index, attributes)
 
 
 def render_directive(directive: str, attributes: Mapping, knowledge: KnowledgeSource) -> str:
