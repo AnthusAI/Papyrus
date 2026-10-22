@@ -112,6 +112,7 @@ from .item_content_commands import (
 )
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
 from .form_submissions_commands import messages_handle, messages_list
+from .proposals_commands import proposals_command
 from .reader_commands import reader_feedback
 from .messages_commands import (
     messages_backfill_message_body,
@@ -382,6 +383,11 @@ PORTED_COMMANDS = frozenset(
         "ontology:recompute-authority",
         "ontology:doctor",
         "reader:feedback",
+        "proposals:create",
+        "proposals:list",
+        "proposals:show",
+        "proposals:transition",
+        "proposals:publish",
         "messages:list",
         "messages:handle",
         "messages:export-legacy-comments",
@@ -805,6 +811,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
             raise ValueError(f"Unsupported ontology command: {route}")
     elif route == "reader:feedback":
         reader_feedback(flags)
+    elif route.startswith("proposals:"):
+        proposals_command(command, flags)
     elif route == "messages:list":
         messages_list(flags)
     elif route == "messages:handle":

@@ -3,7 +3,7 @@
   "title": "4. Proposal record (L)",
   "description": "Shipped story: ship-37026d (Proposals). Size L. Depends on story 3 (votes on any subject, including proposals).\n\nAs a reader or AI drafter, I want changes to the map expressed as Proposals, so that steering and editor review happen on a visible record.\n\nAcceptance criteria:\n- Proposal kinds: story draft, new concept, rename, merge, split, new column, element symbol.\n- States: Draft, In steering, Editor review, Approved, Declined, Overridden by editor; transitions are enforced.\n- Drafts are publicly readable and labelled as drafts, and are published via the snapshot.\n- Proposals can be voted on using story 3.\n- Attribution of machine-written proposals reads AI.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -19,10 +19,18 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "7cb36195-0f39-4fe7-843a-9d459014091f",
+      "author": "home",
+      "text": "Landed in develop via PR #612 (merge 27fa60ec0ee0221bf3c6e586b168b01ec9e8243b): Proposal model, fileProposal/transitionProposal, public _data/proposals files with votes from the subjects snapshot, papyrus proposals CLI, Gherkin specs and tests. Docs: docs/reader-steering.md#proposals. Not promoted to main.",
+      "created_at": "2026-10-22T22:16:38.056815Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T15:31:25.931223Z",
-  "updated_at": "2026-10-22T15:31:57.529453Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T22:16:38.096985Z",
+  "closed_at": "2026-10-22T22:16:38.096935Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5",

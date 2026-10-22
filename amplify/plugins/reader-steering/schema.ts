@@ -4,7 +4,7 @@ import { readerActions } from "./function/resource";
 /**
  * Staff and IAM only: no guest, API key or reader rule on any model. The reader-actions function writes the
  * tables directly with its own role, and editors may list them; admins may delete. `id` is the lookup key:
- * the siteSubject for a profile, the lowercase handle for a claim, `subjectKey#readerId#dimension` for a vote and
+ * the siteSubject for a profile, the lowercase handle for a claim, `subjectKey#readerId#dimension` for a vote (`subjectKey#readerId#kind` for a flag; the key is the bare id for items and submissions and `type:id` for the rest) and
  * `sub-<sha256 of the canonical URL>` for a submission (so a canonical URL is one submission).
  */
 const staffOnly = (allow: any) => [allow.group("editor").to(["read"]), allow.group("admin").to(["read", "delete"])];
@@ -34,10 +34,26 @@ export function readerSteeringSchemaDefinitions() {
       .model({
         id: a.id().required(),
         subjectKey: a.string().required(),
+        subjectType: a.string(),
         readerId: a.string().required(),
         dimension: a.string().required(),
         value: a.integer().required(),
         voterRole: a.string().required(),
+      })
+      .disableOperations(["subscriptions"])
+      .authorization(staffOnly),
+    ReaderFlag: a
+      .model({
+        id: a.id().required(),
+        subjectKey: a.string().required(),
+        subjectType: a.string().required(),
+        readerId: a.string().required(),
+        kind: a.string().required(),
+        reason: a.string().required(),
+        targetKey: a.string(),
+        suggestedName: a.string(),
+        voterRole: a.string().required(),
+        createdAt: a.datetime().required(),
       })
       .disableOperations(["subscriptions"])
       .authorization(staffOnly),
@@ -120,6 +136,54 @@ export function readerSteeringSchemaDefinitions() {
       .disableOperations(["subscriptions"])
       .secondaryIndexes((index) => [index("target").sortKeys(["at"]).name("actionsByTarget").queryField("listModerationActionsByTargetAndAt")])
       .authorization(staffOnly),
+    Proposal: a
+      .model({
+        id: a.id().required(),
+        kind: a.string().required(),
+        title: a.string().required(),
+        summary: a.string(),
+        body: a.string().required(),
+        targets: a.json().required(),
+        evidence: a.json(),
+        proposer: a.string().required(),
+        state: a.string().required(),
+        history: a.json().required(),
+        communityResult: a.json(),
+        createdAt: a.datetime().required(),
+      })
+      .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("state").sortKeys(["createdAt"]).name("proposalsByState").queryField("listProposalsByStateAndCreatedAt")])
+      .authorization(staffOnly),
+    ProposalReceipt: a.customType({
+      status: a.string().required(),
+      id: a.string(),
+      error: a.string(),
+      message: a.string(),
+    }),
+    fileProposal: a
+      .mutation()
+      .arguments({
+        kind: a.string().required(),
+        title: a.string().required(),
+        body: a.string().required(),
+        summary: a.string(),
+        targets: a.json(),
+        evidence: a.json(),
+      })
+      .returns(a.ref("ProposalReceipt"))
+      .authorization((allow) => [allow.group("editor"), allow.group("admin")])
+      .handler(a.handler.function(readerActions)),
+    transitionProposal: a
+      .mutation()
+      .arguments({
+        proposalId: a.string().required(),
+        state: a.string().required(),
+        reason: a.string(),
+        result: a.string(),
+      })
+      .returns(a.ref("ProposalReceipt"))
+      .authorization((allow) => [allow.group("editor"), allow.group("admin")])
+      .handler(a.handler.function(readerActions)),
     ModerationReceipt: a.customType({
       status: a.string().required(),
       id: a.string(),

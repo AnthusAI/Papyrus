@@ -24,6 +24,8 @@ from papyrus_content.reader_steering.task import (
     SETTINGS_ENV,
     STATE_TABLE_ENV,
     COMMENT_TABLE_ENV,
+    PROPOSAL_TABLE_ENV,
+    FLAG_TABLE_ENV,
     SUBMISSION_TABLE_ENV,
     VOTE_TABLE_ENV,
     run_reader_snapshot,
@@ -47,8 +49,10 @@ TABLE_NAMES = {
     "submission": "ReaderSubmission-test",
     "comment": "ReaderComment-test",
     "report": "ReaderReport-test",
+    "flag": "ReaderFlag-test",
     "action": "ModerationAction-test",
     "item": "Item-test",
+    "proposal": "Proposal-test",
 }
 
 
@@ -143,6 +147,8 @@ class ReaderBackend:
             report_table=TABLE_NAMES["report"],
             action_table=TABLE_NAMES["action"],
             item_table=TABLE_NAMES["item"],
+            proposal_table=TABLE_NAMES["proposal"],
+            flag_table=TABLE_NAMES["flag"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -179,6 +185,9 @@ class ReaderBackend:
     def comments(self) -> list[dict]:
         return self.table("comment").scan()["Items"]
 
+    def flags(self) -> list[dict]:
+        return self.table("flag").scan()["Items"]
+
     def reports(self) -> list[dict]:
         return self.table("report").scan()["Items"]
 
@@ -196,6 +205,15 @@ class ReaderBackend:
             "info": {"fieldName": "moderateReader"},
         }
         return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+
+
+    def proposal_call(self, field: str, arguments: dict, *, groups=("editor",), sub: str = "staff-sub-1") -> dict:
+        """``fileProposal`` or ``transitionProposal`` as AppSync delivers it to the function."""
+        event = {"arguments": arguments, "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}}, "info": {"fieldName": field}}
+        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+
+    def proposals(self) -> list[dict]:
+        return sorted(self.table("proposal").scan()["Items"], key=lambda row: row["createdAt"])
 
 
 def iso_at(seconds: float) -> str:
@@ -223,6 +241,7 @@ def run_snapshot(
     comment_signals: Any = None,
     section_of: dict | None = None,
     ranking: dict | None = None,
+    subject_types: tuple[str, ...] | None = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -241,13 +260,15 @@ def run_snapshot(
     projector = SimpleNamespace(policy=policy, item_page_paths=lambda summary: (policy.item_key(None, summary.slug),))
     context = SimpleNamespace(projector=projector, writer=writer, invalidate=invalidate)
     environment = {
-        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": ranking or {}, "limits": {"newAccountHours": 24}, "hypeMinimum": 5, "retirementPoll": retirement_poll is not None, **({"hypeGap": hype_gap} if hype_gap else {})}),
+        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": ranking or {}, "limits": {"newAccountHours": 24}, "hypeMinimum": 5, "retirementPoll": retirement_poll is not None, **({"subjects": {"types": list(subject_types)}} if subject_types else {}), **({"hypeGap": hype_gap} if hype_gap else {})}),
         VOTE_TABLE_ENV: TABLE_NAMES["vote"],
         PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
         HANDLE_TABLE_ENV: TABLE_NAMES["handle"],
         STATE_TABLE_ENV: TABLE_NAMES["rate"],
         SUBMISSION_TABLE_ENV: TABLE_NAMES["submission"],
         COMMENT_TABLE_ENV: TABLE_NAMES["comment"],
+        PROPOSAL_TABLE_ENV: TABLE_NAMES["proposal"],
+        FLAG_TABLE_ENV: TABLE_NAMES["flag"],
     }
     return run_reader_snapshot(
         context,

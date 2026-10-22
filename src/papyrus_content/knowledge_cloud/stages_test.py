@@ -299,3 +299,31 @@ def test_a_site_without_a_pin_cannot_be_projected(tmp_path):
     (run.site / "requirements-publication.txt").write_text("boto3\n")
     assert run_stage("projection", run) == 1
     assert not commands(shell, ["papyrus", "ops", "content", "project"])
+
+
+ENTRY = "_data/knowledge/history/2026-10-26.json"
+
+
+def test_an_already_archived_week_is_kept_recorded_in_the_ledger_and_the_command_is_not_run(tmp_path):
+    run, shell = make_run(tmp_path)
+    run.services.objects[ENTRY] = json.dumps({"asOf": "2026-10-26", "runId": "run9da9"}).encode()
+    assert run_stage("archive", run) == 0
+    assert not commands(shell, ["papyrus", "knowledge", "archive"])
+    details = run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#archive"})["Item"]["details"]
+    assert details["archive"] == "kept-existing (run run9da9)"
+
+
+@pytest.mark.parametrize("stored", [b"{not json", b"[]", b"{}", json.dumps({"asOf": "2026-10-19", "runId": "x"}).encode()])
+def test_an_unreadable_or_mismatched_entry_fails_the_stage_and_is_never_replaced(tmp_path, stored):
+    run, shell = make_run(tmp_path)
+    run.services.objects[ENTRY] = stored
+    assert run_stage("archive", run) == 1
+    assert not commands(shell, ["papyrus", "knowledge", "archive"])
+    assert run.ledger.status("archive") == FAILED
+
+
+def test_a_week_without_an_entry_is_archived(tmp_path):
+    run, shell = make_run(tmp_path)
+    assert run_stage("archive", run) == 0
+    assert commands(shell, ["papyrus", "knowledge", "archive"])
+    assert "--replace" not in commands(shell, ["papyrus", "knowledge", "archive"])[0]
