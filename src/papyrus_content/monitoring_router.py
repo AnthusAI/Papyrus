@@ -612,6 +612,39 @@ def source_name_for(source_url: str) -> str:
     return next((source["name"] for source in SOURCE_TYPES.values() if source["host"] == host), "Monitor")
 
 
+def lab_decision_records(client, publication: dict, decision: dict, config: dict, reference: dict, disc: dict) -> list[dict]:
+    """The `relevance_decision_is` records for one lab decision, shaped by the same builder the sweep uses.
+
+    The References tab builds its Suggestion row, Agree/Overrule and status from this relation. Any current
+    decision relation for the Reference is superseded in the same batch (`current_relevance_decision`
+    raises on two). The relation id derives from the decision id, so re-delivering the same decision finds
+    it already current and writes nothing. Cost per item: one index query, then the builder's
+    get-before-write on the node and relation (plus one get and one update per superseded relation).
+    """
+    from .relevance_decisions import RELEVANCE_RELATION, relevance_decision_records
+    lineage_id = reference.get("lineageId") or reference["id"]
+    current = [relation for relation in client.list_by_index("semanticRelationsBySubjectState", f"reference#{lineage_id}#current")
+               if relation.get("predicate") == RELEVANCE_RELATION and relation.get("relationState") == "current"]
+    if any(json.loads(relation.get("metadata") or "{}").get("decisionId") == decision["decisionId"] for relation in current):
+        return []
+    output = decision["output"]
+    cyclotron = config["cyclotron"]
+    confidence = decision.get("confidence")
+    result = {"label": decision["label"], "version": decision["version"], "fingerprint": decision["fingerprint"],
+              **({"confidence": float(confidence)} if confidence is not None else {})}   # GraphQL takes JSON floats
+    lab_decision = {"decisionId": decision["decisionId"], "createdAt": decision.get("decidedAt"),
+                    "classifiers": {output: result}, "review": {"selected": False}}
+    labels = [publication["positiveLabel"], publication["negativeLabel"]]
+    provenance = {"system": "cyclotron-lab", "accountId": cyclotron["accountId"], "runId": cyclotron["runId"],
+                  "bindingRevision": cyclotron["bindingRevision"], "publicationId": publication["publicationId"],
+                  "output": output, "decisionId": decision["decisionId"], "fingerprint": decision["fingerprint"],
+                  "version": decision["version"], "labelSet": labels, "sourceId": disc["sourceId"]}
+    return relevance_decision_records(
+        reference, lab_decision, cyclotron_id=output, positive_label=publication["positiveLabel"],
+        now=decision.get("decidedAt") or disc["observedAt"], current_relations=current, labels=labels,
+        review_control="thumbs", provenance=provenance)
+
+
 def deliver_reference(client, publication: dict, disc: dict, decision: dict, config: dict) -> dict:
     """The existing ReferenceIntake: pending Reference + provenance Message recording how it was chosen."""
     from .monitoring_intake import ReferenceIntake
@@ -636,7 +669,10 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     provenance = {**monitor.binding, "sourceId": item.source_id, "sourceItemUrl": item.source_item_url,
                   "fingerprint": item.fingerprint, "observedAt": disc["observedAt"], "revision": int(disc["revision"]),
                   "machineDecision": chosen}
-    return ReferenceIntake(client, monitor, auth_mode="iam")(item, provenance)
+    extra = None
+    if config.get("decisions") != "direct":
+        extra = lambda reference: lab_decision_records(client, publication, decision, config, reference, disc)
+    return ReferenceIntake(client, monitor, auth_mode="iam")(item, provenance, extra)
 
 
 # --- the run ----------------------------------------------------------------------------------------
@@ -932,7 +968,8 @@ class Router:
             try:
                 if publication is None:
                     raise ItemInvalid("publication is no longer configured")
-                receipt = {"decisionId": decision["decisionId"], **decision["publications"][pub_id]}
+                receipt = {"decisionId": decision["decisionId"], "decidedAt": decision.get("decidedAt"),
+                           **decision["publications"][pub_id]}
                 result = self.deliver(self.client(publication), publication, disc, receipt, self.config)
                 state.update(delivered=True, deliveredAt=_iso(self.now), referenceId=result["referenceId"],
                              referenceLineageId=result.get("referenceLineageId"),

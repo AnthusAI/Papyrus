@@ -662,6 +662,16 @@ def test_router_role_is_least_privilege():
     distinctive_resources = [r[1] for r in statement["Resource"]]
     assert {r.split("apis/")[1].split("/")[0] for r in distinctive_resources} == {"${DistinctiveApiId}"}
     assert {r.rsplit("/", 1)[1] for r in distinctive_resources} == fields and "*" not in "".join(distinctive_resources)
+    # Lab decisions are written as relevance_decision_is relations (a SemanticNode per label; the old relation is superseded).
+    # Only the cyclotron-decided publications get those grants; Distinctive is a `direct` monitor with no machine decision.
+    relations = _template()["Resources"]["RouterDecisionRelationPolicy"]["Properties"]
+    assert relations["Roles"] == [("Ref", "RouterRole")]
+    (relation_statement,) = relations["PolicyDocument"]["Statement"]
+    relation_resources = [r[1] for r in relation_statement["Resource"]]
+    assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
+    assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
+        "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}"}
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
@@ -780,3 +790,194 @@ def test_resumed_route_with_a_stored_confidence_saves_without_float_errors(table
     resumed = go(table, store, cyclotron, now=2900)
     assert resumed["status"] == "complete" and resumed["errors"] == []
     assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["decision"]["publications"]["anth-us"]["confidence"] == Decimal("0.55")
+
+
+# --- lab decisions become relevance_decision_is relations (PPY-e987f2) -----------------------------------------
+
+class LabAppSync:
+    """An in-memory AppSync client for the real ReferenceIntake: records every operation it is asked to make."""
+
+    tenant_id = None
+
+    def __init__(self, endpoint, corpus_id):
+        self.endpoint, self.corpus_id = endpoint, corpus_id
+        self.rows, self.ops = {}, []
+
+    def list_records(self, model):
+        self.ops.append(("list", model))
+        if model == "KnowledgeCorpus":
+            return [{"id": self.corpus_id, "role": "canonical"}]
+        return [dict(r) for (m, _), r in self.rows.items() if m == model]
+
+    def get_record(self, model, record_id):
+        self.ops.append(("get", model))
+        row = self.rows.get((model, record_id))
+        return dict(row) if row else None
+
+    def create_record(self, model, payload):
+        self.ops.append(("create", model, payload.get("predicate")))
+        if (model, payload["id"]) in self.rows:
+            raise RuntimeError("ConditionalCheckFailed")
+        json.dumps(payload)    # AppSync takes JSON: a Decimal anywhere in a write fails here
+        self.rows[(model, payload["id"])] = dict(payload)
+
+    def update_record(self, model, payload):
+        self.ops.append(("update", model, payload.get("predicate")))
+        json.dumps(payload)
+        self.rows[(model, payload["id"])] = dict(payload)
+
+    def list_by_index(self, index, key):
+        self.ops.append(("index", index))
+        return [dict(r) for (m, _), r in self.rows.items() if m == "SemanticRelation" and r.get("subjectStateKey") == key]
+
+    def relations(self, state="current"):
+        return [r for (m, _), r in self.rows.items() if m == "SemanticRelation" and r["predicate"] == "relevance_decision_is"
+                and r["relationState"] == state]
+
+    def writes(self):
+        return [op for op in self.ops if op[0] in ("create", "update")]
+
+
+@pytest.fixture
+def lab(table, monkeypatch):
+    monkeypatch.setattr("papyrus_content.records.upload_attachment_body", lambda client, expected, body: None)
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    clients = {}
+
+    def appsync(endpoint):
+        config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+        pub = next(p for p in config["publications"] if p["appsyncEndpoint"] == endpoint)
+        return clients.setdefault(pub["publicationId"], LabAppSync(endpoint, pub["corpusId"]))
+
+    def run(now=2000, **kwargs):
+        return go(table, store, cyclotron, now=now, deliver=mr.deliver_reference, appsync=appsync, **kwargs)
+
+    return type("Lab", (), {"table": table, "store": store, "cyclotron": cyclotron, "clients": clients, "run": staticmethod(run)})
+
+
+def test_delivery_writes_one_current_relation_with_the_lab_metadata(lab):
+    lab.cyclotron.confidence = {("hn-101", "anth-us"): 0.91234}
+    lab.cyclotron.labels = {("hn-101", "p-apyr-us"): "exclude"}
+    result = lab.run()
+    assert result["status"] == "complete" and result["counts"]["delivered"] == 2 and result["counts"]["deliveryFailed"] == 0
+    client = lab.clients["anth-us"]
+    (relation,) = client.relations()
+    reference = next(r for (m, _), r in client.rows.items() if m == "Reference")
+    assert (relation["subjectKind"], relation["subjectId"], relation["subjectLineageId"]) == (
+        "reference", reference["id"], reference["lineageId"])
+    assert relation["objectLineageId"] == "semantic-node-relevance-include" and relation["rank"] == 1
+    assert relation["classifierId"] == "anth-us-relevance/anth-us-relevance" and relation["modelVersion"] == "3"
+    assert relation["confidence"] == 0.9123 and relation["reviewRecommended"] is False
+    metadata = json.loads(relation["metadata"])
+    assert metadata["cyclotronId"] == "anth-us-relevance" and metadata["classifier"] == "anth-us-relevance"
+    assert metadata["decisionId"] == "dec-hn-101" and metadata["label"] == "include" and metadata["version"] == 3
+    assert metadata["fingerprint"] == "fp-anth-us" and metadata["labels"] == ["include", "exclude"]
+    assert metadata["positiveLabel"] == "include" and metadata["reviewControl"] == "thumbs"
+    assert metadata["provenance"] == {
+        "system": "cyclotron-lab", "accountId": "acct-1", "runId": "run-1", "bindingRevision": "1",
+        "publicationId": "anth-us", "output": "anth-us-relevance", "decisionId": "dec-hn-101", "fingerprint": "fp-anth-us",
+        "version": 3, "labelSet": ["include", "exclude"], "sourceId": "101"}
+    assert ("SemanticNode", "semantic-node-relevance-include-v1") in client.rows
+    assert "p-apyr-us" not in lab.clients      # an exclude decision delivers nothing, so no suggestion either
+
+
+def test_each_publication_gets_its_own_relation_naming_its_own_lab_output(lab):
+    lab.run()
+    assert {p: json.loads(lab.clients[p].relations()[0]["metadata"])["cyclotronId"] for p in PUBS} == {
+        p: f"{p}-relevance" for p in PUBS}
+
+
+def redeliver(lab, pub, **receipt_changes):
+    """Call the real deliver_reference again for item 101, with the stored discovery and the stored decision receipt."""
+    config = validate_router_config(lab.table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    publication = next(p for p in config["publications"] if p["publicationId"] == pub)
+    disc = lab.store.get_any("hn", "DISC#101#000001")
+    decision = lab.store.get_any("hn", "ROUTE#101#000001")["decision"]
+    receipt = {"decisionId": decision["decisionId"], "decidedAt": decision["decidedAt"], **decision["publications"][pub],
+               **receipt_changes}
+    return mr.deliver_reference(lab.clients[pub], publication, disc, receipt, config)
+
+
+def test_redelivering_the_same_decision_writes_nothing_new(lab):
+    lab.run()
+    client = lab.clients["anth-us"]
+    before = dict(client.rows)
+    client.ops.clear()
+    result = redeliver(lab, "anth-us")
+    assert result["referenceId"] == next(r["id"] for (m, _), r in before.items() if m == "Reference")
+    assert client.rows == before and not client.writes()
+    assert len(client.relations()) == 1 and not client.relations("superseded")
+
+
+def test_a_changed_decision_supersedes_the_old_relation_in_the_same_batch(lab):
+    lab.run()
+    client = lab.clients["anth-us"]
+    (first,) = client.relations()
+    client.ops.clear()
+    redeliver(lab, "anth-us", decisionId="dec-hn-101-v2", decidedAt="2026-10-22T02:00:00Z", fingerprint="fp-new", version=4,
+              confidence=Decimal("0.62"))
+    (second,) = client.relations()
+    assert second["id"] != first["id"] and json.loads(second["metadata"])["decisionId"] == "dec-hn-101-v2"
+    assert second["confidence"] == 0.62 and second["modelVersion"] == "4"
+    assert [r["id"] for r in client.relations("superseded")] == [first["id"]]
+    from papyrus_content.relevance_decisions import current_relevance_decision
+    current = current_relevance_decision([r for (m, _), r in client.rows.items() if m == "SemanticRelation"], first["subjectLineageId"])
+    assert current["id"] == second["id"]    # does not raise: exactly one current
+
+
+def test_a_sweep_relation_for_the_reference_is_superseded_by_the_lab_decision(lab):
+    lab.run()
+    client = lab.clients["anth-us"]
+    (lab_first,) = client.relations()
+    # a Mac-sweep relation that was current for the same Reference (as the references tab saw it before the lab delivered)
+    sweep = {**lab_first, "id": "semantic-relation-sweep", "classifierId": "papyrus-relevance/relevance", "modelVersion": "9",
+             "metadata": json.dumps({"decisionId": "sweep-1", "cyclotronId": "papyrus-relevance"})}
+    client.rows[("SemanticRelation", sweep["id"])] = sweep
+    del client.rows[("SemanticRelation", lab_first["id"])]
+    redeliver(lab, "anth-us")
+    assert [json.loads(r["metadata"])["decisionId"] for r in client.relations()] == ["dec-hn-101"]
+    assert [r["id"] for r in client.relations("superseded")] == ["semantic-relation-sweep"]
+
+
+def test_the_relation_adds_a_bounded_number_of_operations_and_no_cyclotron_calls(lab):
+    lab.run()
+    client = lab.clients["anth-us"]
+    reads = [op for op in client.ops if op[0] == "index"]
+    assert len(reads) == 1                                     # one query per delivered item, no whole-table list for relations
+    assert ("list", "SemanticRelation") not in client.ops and ("list", "SemanticNode") not in client.ops
+    decision_writes = [op for op in client.writes() if op[1] == "SemanticNode" or op[2] == "relevance_decision_is"]
+    assert sorted(decision_writes) == [("create", "SemanticNode", None), ("create", "SemanticRelation", "relevance_decision_is")]
+    assert len(lab.cyclotron.posts()) == 3                     # unchanged: one decide per binding, nothing for the relation
+
+
+def test_a_parked_binding_gets_no_relation_and_the_others_still_do(lab):
+    lab.cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
+    result = lab.run()
+    assert result["status"] == "complete" and result["waitingForClassifier"] == ["threat-intelligence"]
+    assert ("MONITOR#hn", "PARK#threat-intelligence") in lab.table.items
+    assert len(lab.clients["anth-us"].relations()) == 1 and len(lab.clients["p-apyr-us"].relations()) == 1
+    assert "threat-intelligence" not in lab.clients or not lab.clients["threat-intelligence"].relations()
+
+
+def test_relation_confidence_is_json_safe_while_the_route_keeps_a_decimal(lab):
+    lab.cyclotron.confidence = {("hn-101", p): 0.55 for p in PUBS}
+    lab.cyclotron.post_override["threat-intelligence"] = (429, {"code": "rate_limited"})
+    assert lab.run()["status"] == "stopped"
+    lab.cyclotron.post_override.clear()
+    resumed = lab.run(now=2900)               # confidence comes back from the table as a float, then a write must still serialise
+    assert resumed["status"] == "complete" and resumed["errors"] == [] and resumed["counts"]["deliveryFailed"] == 0
+    assert table_confidence(lab) == Decimal("0.55")
+    assert [r["confidence"] for r in lab.clients["anth-us"].relations()] == [0.55]
+
+
+def table_confidence(lab):
+    return lab.table.items[("MONITOR#hn", "ROUTE#101#000001")]["decision"]["publications"]["anth-us"]["confidence"]
+
+
+def test_a_direct_monitor_writes_no_decision_relation(lab):
+    lab.table.put_item(router_config(maxItemsPerRun=1, decisions="direct", cyclotron=None))
+    mr_result = go(lab.table, lab.store, None, now=2000, deliver=mr.deliver_reference,
+                   appsync=lambda endpoint: lab.clients.setdefault(endpoint, LabAppSync(endpoint, "knowledge-corpus-" + (
+                       "ai-ml-research" if "api1" in endpoint else "anth-us" if "api0" in endpoint else "threat-intelligence"))))
+    assert mr_result["counts"]["delivered"] == 3
+    assert not any(c.relations() for c in lab.clients.values())
