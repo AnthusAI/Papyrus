@@ -928,3 +928,13 @@ def not_rising(context, name: str, subject: str) -> None:
 def public_up_down_on(context, key: str, up: int, down: int, subject: str) -> None:
     entry = public_file(context, key)["items"][subject]
     assert (entry["up"], entry["down"], entry["comments"]) == (up, down, 0), entry
+
+
+@then('"{name}" asking about "{a}", "{b}", "{c}" and "{d}" is told her votes are "{k1}" {v1:d} and "{k2}" {v2:d}')
+def asking_about_four(context, name: str, a: str, b: str, c: str, d: str, k1: str, v1: int, k2: str, v2: int) -> None:
+    assert reader_state(context, name, [a, b, c, d])["subjectVotes"] == {k1: v1, k2: v2}
+
+
+@then('"{name}" asking about nothing is told she has no votes')
+def asking_about_nothing(context, name: str) -> None:
+    assert reader_state(context, name, [])["subjectVotes"] == {}
