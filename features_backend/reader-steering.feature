@@ -75,15 +75,34 @@ Feature: Reader steering for a signed-in reader
     And the public file "_data/reader/board.json" ranks "item-one" first on the front
     And the public file "_data/reader/board.json" lists "item-one" as rising with 1 upvote
 
-  Scenario: The hype gap appears only when five readers have rated every dimension involved
+  Scenario: The hype gap compares two groups of dimensions, for readers and for editors separately
+    Given the publication also rates "notable" and "novel"
+    And the hype gap adds "notable" and "novel" and subtracts "real" and "useful"
+    And "bob" is also on the staff
+    When "bob" rates "item-one" "notable" 5
+    And "bob" rates "item-one" "novel" 4
+    And "bob" rates "item-one" "real" 2
+    And "bob" rates "item-one" "useful" 2
+    And 4 extra readers rate "item-one" "notable" 3
+    And 4 extra readers rate "item-one" "novel" 3
+    And 4 extra readers rate "item-one" "real" 4
+    And 4 extra readers rate "item-one" "useful" 4
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows no reader hype gap on "item-one"
+    And the public file "_data/reader/items.json" shows the editor hype gap at 2.5 on "item-one"
+    When 5 extra readers rate "item-one" "notable" 3
+    And 5 extra readers rate "item-one" "novel" 3
+    And 5 extra readers rate "item-one" "real" 4
+    And 5 extra readers rate "item-one" "useful" 4
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows the reader hype gap at -1.0 on "item-one"
+
+  Scenario: A publication that sets no hype gap groups publishes no hype gap
     Given "bob" is also on the staff
     When "bob" rates "item-one" "real" 5
-    And 4 more readers rate "item-one" "real" 3
+    And 5 extra readers rate "item-one" "real" 3
     And the snapshot runs
     Then the public file "_data/reader/items.json" shows no hype gap on "item-one"
-    When 1 more readers rate "item-one" "real" 3
-    And the snapshot runs
-    Then the public file "_data/reader/items.json" shows a hype gap of 2.0 on "item-one"
 
   Scenario: Until submissions exist nobody has karma
     When "alice" picks the handle "quiet-fox"

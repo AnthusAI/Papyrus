@@ -47,7 +47,8 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `ranking.editorWeight` | 0.5 | Weight of the editor composite in Front once readers have rated; readers get the rest. |
 | `snapshot.schedule` | `false` | Create the EventBridge rule that runs the snapshot every `snapshot.intervalHours`. |
 | `snapshot.intervalHours` | 6 | 1 to 24. Four runs a day was approved for the pilot. |
-| `snapshot.hypeMinimum` | 5 | Reader ratings every dimension needs before a hype gap is published. |
+| `hypeGap` | unset | `{ plus: [...], minus: [...] }`: the dimensions whose mean is added and subtracted to make the hype gap (Shipped: plus `notable`, `novel`; minus `real`, `useful`). Both lists are required, must be rated dimensions and cannot overlap. Without it no hype gap is published. |
+| `snapshot.hypeMinimum` | 5 | Reader ratings every dimension in `hypeGap` needs before the reader hype gap is published. |
 | `retirementPoll` | `false` | Reserved for Prospectus's retired-subject poll. `true` is refused until the route exists. |
 
 The deployed backend publishes `custom.readerSteering.actionsFunction` (the function name the CMS routes invoke) and
@@ -137,15 +138,18 @@ Every file has a top-level `generatedAt` (UTC, seconds). Means are rounded to fo
           "editor": { "mean": 4.0, "n": 1, "hist": [0, 0, 0, 1, 0] }
         }
       },
-      "editor": 4.0, "reader": 4.2, "hypeGap": null
+      "editor": 4.0, "reader": 4.2, "hypeGap": { "reader": -1.0, "editor": 2.5 }
     }
   }
 }
 ```
 
 `hist[i]` counts the ratings of `i + 1`. `editor` and `reader` are the composites: the mean of the dimension means that exist.
-`hypeGap` is the editor composite minus the reader composite over the dimensions the editor rated, and `null` unless every one
-of those dimensions has at least `snapshot.hypeMinimum` reader ratings.
+`hypeGap` is `null` when the site sets no `hypeGap` groups. Otherwise it is `{reader, editor}`, each `mean(plus
+dimensions) - mean(minus dimensions)` over the dimension means of that group of voters (a negative gap is possible).
+The reader gap is `null` unless every dimension in either group has at least `snapshot.hypeMinimum` reader ratings; the
+editor gap is `null` unless an editor rated every dimension in either group. The two gaps are computed separately, so
+the editor gap shows as soon as an editor has rated, before readers have.
 
 `_data/reader/board.json`:
 
