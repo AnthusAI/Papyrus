@@ -24,8 +24,12 @@ BAND = '::band{size="bare"}\n'
 MAIN = re.compile(r"<main id=\"main\">\n(.*?)\n  </main>", re.S)
 
 
+ACTIONS = re.compile(r'<div class="markus-page-actions.*?</span></div>', re.S)
+
+
 def main_of(page: str) -> str:
-    return MAIN.search(page).group(1)
+    """The page's main content without the page actions an authored page also gets (these tests are about the includes)."""
+    return ACTIONS.sub("", MAIN.search(page).group(1))
 
 
 def page_entry(name: str, path: str | None = None, **extra) -> dict:
@@ -486,7 +490,7 @@ def changed_inputs(site, page_file: str, text: str) -> set[str]:
 
 def test_editing_the_page_file_changes_the_inputs_of_that_page_only(depending):
     revised = f'{BAND}# Landing, revised\n\n::include{{kind="listing" tags="featured" sections="posts" sort="title"}}\n'
-    assert changed_inputs(depending, "landing.md", revised) == {"landing/index.html", "landing/index.md"}
+    assert changed_inputs(depending, "landing.md", revised) == {"landing/index.html", "landing/index.md", "llms-full.txt"}    # llms-full.txt carries the authored page's twin text
 
 
 def test_changing_an_include_attribute_changes_the_inputs_even_when_the_entries_are_the_same(depending):

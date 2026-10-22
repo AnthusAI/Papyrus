@@ -92,7 +92,7 @@ class CollectionsIncrementalEqualsFullTests(unittest.TestCase):
                     state = read_item_state(site.store, item_id)
                     own = set(state.page_keys) | set(state.former_page_keys) if state else set()
                     if name != "rename":   # a rename is two projections; pages the in-between state rewrote and the end state restored are legitimate
-                        # The Markdown twin of an authored page says only its title and description, but its input digest is the page's,
+                        # The Markdown twin of an authored page leaves out its includes, but its input digest is the page's,
                         # so it is rewritten (with the same bytes) together with the page whose include changed.
                         twins = {key for key in touched if key.endswith(".md") and key[:-3] + ".html" in changed}
                         rewritten = touched - changed - own - twins - {"llms-full.txt"}

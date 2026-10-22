@@ -532,10 +532,24 @@ class StandardMarkusProjector(MarkusSiteProjector):
             groups = [("Articles", visible[:limit])]
         pages = [entry for entry in entries if not entry.listed and entry.key and not entry.noindex]
         pages += [
+            SimpleNamespace(title=custom.title, key=self.policy.listing_key(custom.path), link=None, summary_text=custom.description or "", date="")
+            for custom in self._authored_pages()
+        ]
+        pages += [
             SimpleNamespace(title=title, key=None, link=(self.environment.origin or "") + path, summary_text="", date="")
             for title, path, _text in self._static_twin_documents()
         ]
         return [*groups, ("Pages", pages[:limit])]
+
+    def _authored_pages(self) -> list[CustomPage]:
+        """The ``pages`` entries written as a file (``source``) that have a Markdown twin: not ``noindex``."""
+        return [custom for custom in self.standard.pages if custom.source and not custom.noindex]
+
+    def _authored_markdown(self, custom: CustomPage) -> str:
+        """The twin of an authored page: its title, description and canonical URL, then the page file's Markus source."""
+        path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
+        facts = SimpleNamespace(title=custom.title, authors=(), date="", updated="", summary_text=custom.description or "")
+        return item_markdown(facts, self._twin(self._page_text(custom.source, f"pages.{custom.id}"), custom.source), self.head.absolute(path))
 
     def _static_twin_documents(self) -> list[tuple[str, str, str]]:
         """``(title, twin path, text)`` for each ``sitemap.extra`` route whose Markdown twin the site publishes by hand (``static.copy``)."""
@@ -560,7 +574,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         full_entries = self._llms_full_entries(entries)
         static_documents = self._static_twin_documents()
-        full_enabled = agents.llms_full and 0 < len(full_entries) + len(static_documents) <= agents.llms_full_max_items
+        authored = [self._authored_markdown(custom) for custom in self._authored_pages()]
+        full_enabled = agents.llms_full and 0 < len(full_entries) + len(authored) + len(static_documents) <= agents.llms_full_max_items
         if agents.llms_txt:
             optional = []
             if "rss" in self.standard.feeds.formats:
@@ -575,14 +590,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if full_enabled:
             identity = self.standard.identity
             versions = [[entry.item_id, entry.summary.version_number] for entry in full_entries]
-            digest = digest_of([self._shared_fingerprint, versions, agents.llms_full_max_bytes, [text for _title, _path, text in static_documents]])
+            digest = digest_of([self._shared_fingerprint, versions, agents.llms_full_max_bytes, authored, [text for _title, _path, text in static_documents]])
 
             def render() -> bytes:
                 documents = (
                     item_markdown(entry, self._twin(site.load_item(entry.item_id).source_text, entry.summary.output_path), entry.canonical or self.head.absolute(entry.url))
                     for entry in full_entries
                 )
-                return llms_full_txt(identity, itertools.chain(documents, (text for _title, _path, text in static_documents)), agents.llms_full_max_bytes).encode("utf-8")
+                return llms_full_txt(identity, itertools.chain(documents, authored, (text for _title, _path, text in static_documents)), agents.llms_full_max_bytes).encode("utf-8")
 
             plan[self.policy.key(LLMS_FULL_KEY)] = (digest, render)
 
@@ -608,6 +623,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 for site in page.showcase
             ]
             return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else []), *wall]).rstrip() + "\n"
+        custom = next((c for c in self.standard.pages if c.id == page.custom_id and c.source), None) if page.kind == "custom" else None
+        if custom is not None:
+            return self._authored_markdown(custom)
         return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else [])]).rstrip() + "\n"
 
     def _section_links(self) -> list:
@@ -856,7 +874,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             site=self._hook_site(site),
             **extra,
         )
-        return dataclasses.replace(page, page_actions=self._page_actions(page)) if kind == "item" else page
+        return dataclasses.replace(page, page_actions=self._page_actions(page)) if kind in ("item", "custom") else page
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome
@@ -956,12 +974,23 @@ class StandardMarkusProjector(MarkusSiteProjector):
         """Copy / view / open-in actions on an article's page; only where the page has a Markdown twin."""
         settings = self.standard.page_actions
         entry = page.entry
+        if page.kind == "custom":
+            return self._authored_page_actions(page)
         if not (settings.enabled and self.standard.agents.markdown) or entry is None or entry.noindex or not (entry.type in self.standard.listings.types or entry.type in (settings.types or ())):
             return ""
         twin = md_path(entry.key)
         if twin is None:
             return ""
         return render_page_actions(settings, markdown_path=twin, title=entry.title, canonical=entry.canonical or self.head.absolute(entry.url))
+
+    def _authored_page_actions(self, page: StandardPage) -> str:
+        """The same actions for an authored page (``pages`` entry with ``source``), under the same eligibility: not ``noindex``."""
+        settings = self.standard.page_actions
+        custom = next((c for c in self.standard.pages if c.id == page.custom_id), None)
+        if not (settings.enabled and self.standard.agents.markdown) or custom is None or not custom.source or custom.noindex:
+            return ""
+        twin = md_path(self.policy.listing_key(custom.path))
+        return render_page_actions(settings, markdown_path=twin, title=custom.title, canonical=self.head.absolute(page.path))
 
     def _grouped_html(self, page: StandardPage, view: ListingView, heading: str) -> str:
         groups = view.groups or ((view.group or "", heading, view.entries),)
@@ -1071,6 +1100,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = self._page_actions(page)
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after + ("\n" + "\n".join(extras) if extras else "")
+        if page.kind == "custom" and page.fragment and page.page_actions:
+            actions = page.page_actions
+            before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
+            return before + page.fragment + after
         if page.kind in ("home", "custom") and page.fragment:
             return page.fragment
         if page.kind == "home":
