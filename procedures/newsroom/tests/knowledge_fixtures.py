@@ -10,15 +10,15 @@ BY_AI = {"actor": "ai", "name": None, "on": "2026-10-01"}
 BY_ADA = {"actor": "human", "name": "Ada", "on": "2026-10-12"}
 
 
-def entity(key, kind, name, weeks, series8, last4, prior4, percent, *, href="", is_new=False, count=None):
+def entity(key, kind, name, weeks, series8, last4, prior4, percent, *, href="", is_new=False, count=None, aliases=()):
     return {
-        "key": key, "kind": kind, "name": name, "href": href or None, "acceptedBy": BY_AI, "itemCount": count if count is not None else sum(series8),
+        "key": key, "kind": kind, "name": name, "aliases": list(aliases), "href": href or None, "acceptedBy": BY_AI, "itemCount": count if count is not None else sum(series8),
         "weeksOfHistory": weeks, "series8": series8, "change": {"last4": last4, "prior4": prior4, "percent": percent}, "isNew": is_new,
     }
 
 
 ENTITIES = [
-    entity("acme-loom", "maker", "Acme Loom", 12, [1, 1, 2, 2, 3, 4, 5, 6], 18, 6, 200, href="/wiki/acme-loom/"),
+    entity("acme-loom", "maker", "Acme Loom", 12, [1, 1, 2, 2, 3, 4, 5, 6], 18, 6, 200, href="/wiki/acme-loom/", aliases=["Acme", "Loom Co"]),
     entity("beta-spool", "tool", "Beta Spool", 6, [0, 0, 1, 1, 2, 2, 3, 3], 10, 2, None, href="/wiki/beta-spool/"),
     entity("gamma-new", "maker", "Gamma New", 2, [0, 0, 0, 0, 0, 0, 1, 2], 3, 0, None, is_new=True),
     entity("delta-fade", "maker", "Delta Fade", 20, [6, 6, 5, 5, 3, 2, 1, 1], 7, 22, -68, href="/wiki/delta-fade/"),
@@ -27,7 +27,10 @@ ENTITIES = [
 INDEX = {
     "schemaVersion": 1, "asOf": AS_OF, "entityCount": 4, "topicCount": 7,
     "kinds": [{"key": "maker", "label": "Maker", "count": 3}, {"key": "tool", "label": "Tool", "count": 1}],
-    "beats": [],
+    "beats": [
+        {"key": "weaving", "name": "Weaving", "href": "/topics/weaving/", "itemCount": 36, "series8": [2, 3, 4, 4, 5, 5, 6, 7], "topEntities": ["acme-loom", "beta-spool", "unlisted", "delta-fade"]},
+        {"key": "quiet", "name": "Quiet", "href": None, "itemCount": 0, "series8": [0] * 8, "topEntities": []},
+    ],
     "entities": ENTITIES,
     "trending": ["acme-loom", "delta-fade", "beta-spool"],
     "conceptOfTheWeek": {"key": "acme-loom", "name": "Acme Loom", "href": "/wiki/acme-loom/", "lede": "A loom maker that doubled its output.", "editedBy": BY_AI, "itemCount": 36, "makerCount": 3},
@@ -57,9 +60,9 @@ NEW_ENTITY = {
 CLUSTERS = {
     "schemaVersion": 1, "asOf": AS_OF, "runId": "run-1", "unacceptedClusters": "hide",
     "clusters": [
-        {"uid": "c-1", "name": "Wearable looms", "acceptedBy": BY_AI, "state": "growing", "itemCount": 14, "topTerms": ["loom", "wearable", "textile"], "series8": [1, 1, 2, 2, 3, 3, 4, 5], "weeksOfData": 10, "href": "/topics/wearable-looms/"},
-        {"uid": "c-2", "name": "Fresh theme", "acceptedBy": BY_ADA, "state": "new", "itemCount": 3, "topTerms": ["fresh"], "series8": [0, 0, 0, 0, 0, 1, 1, 1], "weeksOfData": 3, "href": None},
-        {"uid": "c-3", "name": None, "acceptedBy": None, "state": None, "itemCount": 6, "topTerms": ["secret"], "series8": [0, 0, 1, 1, 1, 1, 1, 1], "weeksOfData": 6, "href": None},
+        {"uid": "c-1", "beats": ["weaving"], "name": "Wearable looms", "acceptedBy": BY_AI, "state": "growing", "itemCount": 14, "topTerms": ["loom", "wearable", "textile"], "series8": [1, 1, 2, 2, 3, 3, 4, 5], "weeksOfData": 10, "href": "/topics/wearable-looms/"},
+        {"uid": "c-2", "beats": [], "name": "Fresh theme", "acceptedBy": BY_ADA, "state": "new", "itemCount": 3, "topTerms": ["fresh"], "series8": [0, 0, 0, 0, 0, 1, 1, 1], "weeksOfData": 3, "href": None},
+        {"uid": "c-3", "beats": ["weaving"], "name": None, "acceptedBy": None, "state": None, "itemCount": 6, "topTerms": ["secret"], "series8": [0, 0, 1, 1, 1, 1, 1, 1], "weeksOfData": 6, "href": None},
     ],
 }
 

@@ -213,7 +213,7 @@ error (prefix helpers with `_`):
 | `card(entry, page)` | an entry | one card in a listing |
 | `head_extra(page)` | the page | raw markup appended to `<head>` |
 | `body_class(page)` | the page | classes added to `<body>` after `chrome.body_class` |
-| `item_decorator(html, summary)` | the converted article, the item summary | the article HTML |
+| `item_decorator(html, summary)` | the converted article, the item summary; it may also take `site` (a `HookSite`), by that name | the article HTML. With `site`, `site.knowledge.entity_for(kind, name)` and `site.knowledge.chip_html(entity)` link a site's own entity chips to the wiki (see [Knowledge components](knowledge-components.md#linking-entities-from-a-site-hook)) |
 | `derive(summary)` | the item summary | a dict of derived fields (a tier, a week, a shape); available as `entry.derived`, part of every fingerprint, and how a site picks which row or card component renders |
 | `main(page)` | the page | the inside of `<main>` (any page kind), or `None` for the default; the standard skip link, masthead and footer stay. For pages whose content a site's own build renders (a data-driven results page) |
 | `page_body(page)` | the page | the whole body, or `None` for the default |
@@ -228,7 +228,7 @@ error (prefix helpers with `_`):
 | `block(name, attributes, page)` | the name of an `::include{kind="block"}`, its other attributes (without `kind`, `name`, `depends`), the page | the markup of the block (see "Authored page files") |
 
 `card` may also take `variant` (the `card` attribute of an `::include` listing, otherwise `None`) and `index` (the card's place in its list, from 0) as parameters of those names; a hook without `variant` rejects an include that names one.
-`HookSite` (also `page.site`) is the site-wide view the item-level hooks get: `items` (every published `ItemSummary`), `static_directory`, `rendition_records()` (the `meta.json` records of the site's image store; empty without `images`) and `memo(name, build)`, which calls `build()` once per name for one version of the site, so a table built from every item is built once per projection.
+`HookSite` (also `page.site`) is the site-wide view the item-level hooks get: `knowledge` (the lookup over the knowledge snapshot: `entity_for(kind, name)` returns `{key, name, kind, href, state}` or `None`, `chip_html(entity)` the standard chip), `items` (every published `ItemSummary`), `static_directory`, `rendition_records()` (the `meta.json` records of the site's image store; empty without `images`) and `memo(name, build)`, which calls `build()` once per name for one version of the site, so a table built from every item is built once per projection.
 `masthead`, `footer`, `card`, `head_extra`, `body_class`, `page_body`, `page_head`, `page_finish` and `block` are handed `page`, so they make every page depend on all entries (narrow it with `DEPENDS_ON`, below); `item_filter`, `source`, `item_transform`, `image_pipeline`, `page_inputs` and `redirects` do not.
 
 `page` is a `StandardPage` (on a section's first listing page `fragment` is the introduction, converted and not decorated; `fragments.with_listing` places a listing in it): `kind` (`item`, `home`, `listing`, `archive`, `tags`, `tag`, `custom`, `showcase`, `not_found`), `path`, `title`,

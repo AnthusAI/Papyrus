@@ -294,6 +294,37 @@ def test_beats_count_member_items_per_week():
     assert files[INDEX_FILE]["topicCount"] == 1
 
 
+def test_a_beat_lists_its_top_entities_by_the_beats_items_and_a_cluster_lists_the_beats_it_overlaps():
+    data, voice, completion, maker = two_tasks()
+    beat = Beat(key="voices", name="Voices", href=None, item_keys=frozenset({"lineage-v0", "lineage-v1", "lineage-v2", "lineage-c0", "lineage-gone"}))
+    other = Beat(key="elsewhere", name="Elsewhere", href=None, item_keys=frozenset({"lineage-p0"}))
+    unrelated = Beat(key="unrelated", name="Unrelated", href=None, item_keys=frozenset({"lineage-gone"}))
+    clusters = (
+        cluster("c", member_item_keys=("lineage-v0", "lineage-p0"), weekly_series=weekly(1, 1, 1, 1, 1, 1, 1, 1)),
+        cluster("d", member_item_keys=(), member_count=1, weekly_series=weekly(1, 1, 1, 1, 1, 1, 1, 1)),
+    )
+    files = build_files(KnowledgeData(items=data.items, nodes=data.nodes, links=data.links, beats=(beat, other, unrelated), clusters=clusters), OPTIONS)
+    rows = {row["key"]: row for row in files[INDEX_FILE]["beats"]}
+    assert rows["voices"]["topEntities"] == ["task--voice-cloning", "maker--some-lab", "task--code-completion"]
+    assert rows["elsewhere"]["topEntities"] == ["task--voice-cloning"] and rows["unrelated"]["topEntities"] == []
+    by_uid = {row["uid"]: row for row in files[CLUSTERS_FILE]["clusters"]}
+    assert by_uid["c"]["beats"] == ["elsewhere", "voices"] and by_uid["d"]["beats"] == []
+
+
+def test_a_beat_keeps_at_most_twelve_top_entities():
+    nodes = tuple(node("tool", f"Tool {index:02d}") for index in range(15))
+    items = (item("a", 0),)
+    data = KnowledgeData(items=items, nodes=nodes, links=tuple(link("a", one) for one in nodes), beats=(Beat("b", "B", None, frozenset({"lineage-a"})),))
+    top = build_files(data, OPTIONS)[INDEX_FILE]["beats"][0]["topEntities"]
+    assert top == [f"tool--tool-{index:02d}" for index in range(12)]
+
+
+def test_an_entity_carries_its_public_aliases_in_the_index():
+    named = node("task", "Safe task", aliases=("secret@example.org", "Fine alias"))
+    data = KnowledgeData(items=(item("a", 0),), nodes=(named,), links=(link("a", named),))
+    assert build_files(data, OPTIONS)[INDEX_FILE]["entities"][0]["aliases"] == ["Fine alias"]
+
+
 def test_no_beats_without_a_beat_source():
     data, *_ = two_tasks()
     assert build_files(data, OPTIONS)[INDEX_FILE]["beats"] == []
@@ -379,8 +410,8 @@ def test_public_safe_output_has_no_email_or_private_text():
 
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
-BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
+BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8", "topEntities"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
 CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
 ACTOR_FIELDS = {"actor", "name", "on"}
@@ -392,7 +423,7 @@ DESCRIPTION_FIELDS = {"state", "editedBy"}
 NEIGHBOUR_FIELDS = {"relation", "key", "name", "kind", "weight"}
 RELATED_FIELDS = {"title", "url", "publishedAt", "reason"}
 CLUSTERS_FIELDS = {"schemaVersion", "asOf", "runId", "unacceptedClusters", "clusters"}
-CLUSTER_FIELDS = {"uid", "name", "acceptedBy", "state", "itemCount", "topTerms", "series8", "weeksOfData", "href"}
+CLUSTER_FIELDS = {"uid", "beats", "name", "acceptedBy", "state", "itemCount", "topTerms", "series8", "weeksOfData", "href"}
 
 
 def test_guest_surface_pins_the_exact_field_set_of_every_file():

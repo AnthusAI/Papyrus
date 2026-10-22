@@ -12,6 +12,7 @@ from papyrus_content.projection.engine import ProjectionContext, project_all, pr
 from papyrus_content.projection.directory_source import DirectoryContentSource
 from papyrus_content.projection.standard import knowledge_blocks, knowledge_components as parts
 from papyrus_content.projection.standard.knowledge import KnowledgeSource
+from papyrus_content.projection.standard.knowledge_lookup import KnowledgeLookup
 from papyrus_content.projection.standard.projector import ASSET_DIRECTORY, StandardMarkusProjector
 from papyrus_content.projection.writers import LocalDirectoryWriter
 from procedures.newsroom.tests import knowledge_fixtures as data
@@ -426,5 +427,193 @@ def test_a_based_site_reads_the_snapshot_under_its_base_path_and_does_not_own_it
         assert not any(key.startswith("_data/") for key in created.keys())
         for key in ("posts/_data/knowledge/index.json", "posts/_data/knowledge/entities/acme-loom.json"):
             assert not context.projector.owns_page_key(key)
+    finally:
+        created.cleanup()
+
+
+# ------------------------------------------------------------------ block options (PPY-ddbb84)
+
+def test_clusters_show_at_most_terms_top_terms_and_default_to_five(tmp_path):
+    source = source_for(tmp_path)
+    assert "loom, wearable, textile" in block("knowledge-clusters", source)
+    assert "loom, wearable<" in block("knowledge-clusters", source, terms="2") and "textile" not in block("knowledge-clusters", source, terms="2")
+    assert "papyrus-knowledge-terms" not in block("knowledge-clusters", source, terms="0")
+    many = copy.deepcopy(data.CLUSTERS)
+    many["clusters"][0]["topTerms"] = ["a", "b", "c", "d", "e", "f", "g"]
+    assert "a, b, c, d, e<" in block("knowledge-clusters", source_for(tmp_path / "many", clusters=many))
+
+
+def test_the_trending_list_drops_its_kind_filter_with_filter_false(tmp_path):
+    source = source_for(tmp_path)
+    assert "kindfilter" in block("knowledge-trending-list", source, filter="true")
+    plain = block("knowledge-trending-list", source, filter="false")
+    assert "kindfilter" not in plain and "<style" not in plain and "Delta Fade" in plain and "Beta Spool" in plain
+
+
+def test_the_topic_count_counts_beats_or_entities_and_can_be_a_labelled_link(tmp_path):
+    source = source_for(tmp_path)
+    assert block("knowledge-topic-count", source, count="beats") == '<span class="papyrus-knowledge-count">7</span>'
+    assert block("knowledge-topic-count", source, count="entities") == '<span class="papyrus-knowledge-count">4</span>'
+    assert block("knowledge-topic-count", source, href="/topics/", label="All {n} topics") == '<a class="papyrus-knowledge-count" href="/topics/">All 7 topics</a>'
+    assert block("knowledge-topic-count", source, count="entities", href="/wiki/", label="{n} concepts") == '<a class="papyrus-knowledge-count" href="/wiki/">4 concepts</a>'
+    assert block("knowledge-topic-count", source, href="/topics/") == '<a class="papyrus-knowledge-count" href="/topics/">7</a>'
+    assert block("knowledge-topic-count", source, label="<b>{n}</b>") == '<span class="papyrus-knowledge-count">&lt;b&gt;7&lt;/b&gt;</span>'
+
+
+def test_the_topic_count_link_shows_no_number_when_the_count_is_absent_or_zero(tmp_path):
+    empty = KnowledgeSource()
+    empty.use_directory(tmp_path / "nothing")
+    assert block("knowledge-topic-count", empty, href="/topics/", label="All {n} topics") == ""
+    without = {key: value for key, value in data.INDEX.items() if key != "topicCount"}
+    assert block("knowledge-topic-count", source_for(tmp_path / "without", index=without), href="/topics/", label="All {n} topics") == ""
+    zero = {**data.INDEX, "topicCount": 0}
+    assert block("knowledge-topic-count", source_for(tmp_path / "zero", index=zero), href="/topics/", label="All {n} topics") == ""
+
+
+def test_the_beat_trend_is_the_weekly_series_with_its_counts_as_text(tmp_path):
+    markup = block("knowledge-beat", source_for(tmp_path), key="weaving", part="trend")
+    assert "<svg" in markup and 'aria-hidden="true"' in markup and len(re.search(r'points="([^"]+)"', markup).group(1).split()) == 8
+    assert "36 items in the last 8 weeks" in markup and "7 items in the latest week" in markup and "2, 3, 4, 4, 5, 5, 6, 7" in markup
+    assert block("knowledge-beat", source_for(tmp_path), key="quiet", part="trend") == ""
+    assert block("knowledge-beat", source_for(tmp_path), key="missing", part="trend") == ""
+
+
+def test_the_beat_entities_are_its_top_accepted_entities_in_the_snapshots_order(tmp_path):
+    source = source_for(tmp_path)
+    markup = block("knowledge-beat", source, key="weaving", part="entities")
+    assert re.findall(r"chip-name\">([^<]+)<", markup) == ["Acme Loom", "Beta Spool", "Delta Fade"]      # a key the index does not hold is skipped
+    assert 'href="/wiki/acme-loom/"' in markup
+    assert re.findall(r"chip-name\">([^<]+)<", block("knowledge-beat", source, key="weaving", part="entities", limit="1")) == ["Acme Loom"]
+    assert block("knowledge-beat", source, key="quiet", part="entities") == ""
+
+
+def test_the_beat_clusters_are_the_accepted_clusters_that_overlap_the_beat(tmp_path):
+    source = source_for(tmp_path)
+    markup = block("knowledge-beat", source, key="weaving", part="clusters")
+    assert "Wearable looms" in markup and "Fresh theme" not in markup and "secret" not in markup        # c-3 is unaccepted: hidden
+    assert "loom, wearable, textile" in markup
+    assert block("knowledge-beat", source, key="quiet", part="clusters") == ""
+    absent = KnowledgeSource()
+    absent.use_directory(tmp_path / "nothing")
+    assert block("knowledge-beat", absent, key="weaving", part="trend") == block("knowledge-beat", absent, key="weaving", part="clusters") == ""
+
+
+@pytest.mark.parametrize("attributes", [
+    {"name": "knowledge-beat", "part": "trend"},
+    {"name": "knowledge-beat", "key": "weaving", "part": "graph"},
+    {"name": "knowledge-beat", "key": "weaving"},
+    {"name": "knowledge-trending-list", "filter": "maybe"},
+    {"name": "knowledge-clusters", "terms": "some"},
+    {"name": "knowledge-topic-count", "count": "everything"},
+    {"name": "knowledge-topic-count", "href": "javascript:alert(1)"},
+    {"name": "knowledge-topic-count", "colour": "red"},
+])
+def test_bad_option_values_are_build_errors(tmp_path, attributes):
+    with pytest.raises(ValueError, match="test.md"):
+        knowledge_blocks.render_block({"kind": "block", **attributes}, source_for(tmp_path), "test.md")
+
+
+# ------------------------------------------------------------------ the hooks API
+
+def lookup(tmp_path, **files):
+    return KnowledgeLookup(source_for(tmp_path, **files))
+
+
+def test_entity_for_finds_an_accepted_entity_by_name_or_alias_ignoring_case_and_spaces(tmp_path):
+    found = lookup(tmp_path)
+    expected = {"key": "acme-loom", "name": "Acme Loom", "kind": "maker", "href": "/wiki/acme-loom/", "state": "accepted"}
+    assert found.entity_for("maker", "Acme Loom") == expected
+    assert found.entity_for("Maker", "  acme   LOOM ") == expected                  # the kind label works too
+    assert found.entity_for("maker", "loom co") == expected                          # an alias
+    assert found.entity_for(None, "Acme") == expected and found.entity_for("", "Acme") == expected
+    assert found.entity_for("tool", "Acme Loom") is None                            # wrong kind
+    assert found.entity_for("maker", "Nobody") is None
+    assert found.entity_for("maker", "Gamma New")["href"] is None                    # no page: no link
+
+
+def test_entity_for_does_not_guess_between_kinds_and_is_empty_without_a_snapshot(tmp_path):
+    shared = copy.deepcopy(data.INDEX)
+    shared["entities"].append(data.entity("acme-tool", "tool", "Acme Loom", 12, [1] * 8, 4, 4, 0, href="/wiki/acme-tool/"))
+    both = lookup(tmp_path, index=shared)
+    assert both.entity_for(None, "acme loom") is None
+    assert both.entity_for("tool", "acme loom")["key"] == "acme-tool"
+    empty = KnowledgeSource()
+    empty.use_directory(tmp_path / "nothing")
+    assert KnowledgeLookup(empty).entity_for("maker", "Acme Loom") is None and KnowledgeLookup().entity_for("maker", "x") is None
+
+
+def test_chip_html_is_the_standard_chip(tmp_path):
+    found = lookup(tmp_path)
+    chip = found.chip_html(found.entity_for("maker", "Acme"))
+    assert chip == parts.entity_chip("Maker", "Acme Loom", kind="maker", href="/wiki/acme-loom/")
+    assert 'class="papyrus-knowledge-chip"' in chip and 'href="/wiki/acme-loom/"' in chip
+    assert found.chip_html(None) == ""
+    assert found.chip_html(found.entity_for("maker", "Gamma New")).startswith("<span ")
+
+
+HOOKS = '''
+def item_decorator(html, summary, site):
+    chip = site.knowledge.chip_html(site.knowledge.entity_for("maker", "acme"))
+    return html + '<p class="decorated">' + chip + "</p>"
+'''
+PLAIN_HOOKS = '''
+def item_decorator(html, summary):
+    return html + '<p class="plain-decorated"></p>'
+'''
+
+
+def decorated_site(hooks: str, **kwargs):
+    created = KnowledgeSite([item("loom-news", section="posts")], {"knowledge.md": PAGE, "hooks.py": hooks}, hooks="hooks.py", **kwargs)
+    return created
+
+
+def test_item_decorator_may_take_site_and_link_entities_from_the_snapshot():
+    created = decorated_site(HOOKS)
+    try:
+        assert project_all(created.context()).ok
+        page = created.text("loom-news.html")
+        assert '<p class="decorated"><a class="papyrus-knowledge-chip" data-kind="maker" href="/wiki/acme-loom/">' in page
+    finally:
+        created.cleanup()
+
+
+def test_item_decorator_without_site_is_called_as_before_and_without_a_snapshot_the_lookup_is_empty():
+    created = decorated_site(PLAIN_HOOKS)
+    try:
+        assert project_all(created.context()).ok
+        assert '<p class="plain-decorated"></p>' in created.text("loom-news.html")
+    finally:
+        created.cleanup()
+    bare = decorated_site(HOOKS, snapshot=False)
+    try:
+        assert project_all(bare.context()).ok
+        assert '<p class="decorated"></p>' in bare.text("loom-news.html")
+    finally:
+        bare.cleanup()
+
+
+def test_a_changed_snapshot_renders_the_decorated_item_again():
+    created = decorated_site(HOOKS)
+    try:
+        context = created.context()
+        assert project_all(context).ok
+        changed = copy.deepcopy(data.INDEX)
+        changed["entities"][0]["href"] = "/wiki/moved/"
+        data.write(created.out / "_data" / "knowledge", index=changed)
+        assert project_all(context).ok
+        assert 'href="/wiki/moved/"' in created.text("loom-news.html")
+    finally:
+        created.cleanup()
+
+
+# ------------------------------------------------------------------ the wiki listing page size
+
+def test_a_site_sets_the_wiki_listing_page_size_in_urls_sections():
+    pages = [item(f"page-{number}", section="wiki", type="wiki_page") for number in range(5)]
+    created = DirectorySite(settings(urls={"style": "directory", "sections": {"wiki": {"label": "Wiki", "pageSize": 2}}}, listings={"types": ["article", "wiki_page"], "pageSize": 10}), pages)
+    try:
+        assert created.project_all().ok
+        keys = created.keys()
+        assert "wiki/index.html" in keys and "wiki/page/2/index.html" in keys and "wiki/page/3/index.html" in keys and "wiki/page/4/index.html" not in keys
     finally:
         created.cleanup()
