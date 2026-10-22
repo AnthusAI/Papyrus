@@ -10,9 +10,17 @@
   "parent": "PPY-a45fd1e5-60fe-4068-981f-1ca5851ba3d0",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "fce9b2e5-0c73-4b7d-a6da-23de50c195f4",
+      "author": "home",
+      "text": "Branch feature/PPY-aaa702-knowledge-components, PR https://github.com/AnthusAI/Papyrus/pull/527. Verification: procedures/newsroom/tests/test_standard_frontend_knowledge.py (38 tests, one per scenario) and the standard front end, projection and Markus suites, 684 passed locally with anthus-markus 0.7.0. Docs: docs/knowledge-components.md.",
+      "created_at": "2026-10-22T03:58:16.810818Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:50:05.734667Z",
-  "updated_at": "2026-10-22T03:32:31.194510Z",
+  "updated_at": "2026-10-22T03:58:16.810857Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
