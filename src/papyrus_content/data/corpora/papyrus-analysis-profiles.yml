@@ -1,0 +1,135 @@
+schemaVersion: 1
+profiles:
+  - key: global-topic-granularity
+    title: Global Topic Granularity Sweep
+    description: Compare BERTopic granularity profiles for the canonical corpus before proposing top-level taxonomy changes.
+    scope: global-topic-model
+    defaultMode: generated-analysis-rebuild
+    corpusKey: threat-intelligence
+    configurationName: threat-intelligence-global-granularity
+    biblicus:
+      configurations:
+        - configurations/topic-modeling/threat-intelligence-fine.yml
+    defaults:
+      extractionSnapshot: pipeline:<canonical-topic-abstracts-snapshot>
+      targetTopicRange: "8:16"
+      bertopic_analysis:
+        representation_model: null
+    execution:
+      maxRuntimeSeconds: 3600
+    allowedOverrides:
+      - bertopic_analysis.parameters.nr_topics
+      - bertopic_analysis.parameters.min_topic_size
+      - bertopic_analysis.vectorizer.ngram_range
+      - bertopic_analysis.vectorizer.stop_words
+      - bertopic_analysis.umap_model.parameters.n_neighbors
+      - bertopic_analysis.umap_model.parameters.n_components
+      - bertopic_analysis.umap_model.parameters.min_dist
+      - bertopic_analysis.umap_model.parameters.metric
+      - bertopic_analysis.hdbscan_model.parameters.min_cluster_size
+      - bertopic_analysis.hdbscan_model.parameters.min_samples
+      - bertopic_analysis.hdbscan_model.parameters.cluster_selection_method
+      - bertopic_analysis.representation_model.nr_docs
+      - bertopic_analysis.representation_model.delay_in_seconds
+      - bertopic_analysis.representation_model
+      - extractionSnapshot
+      - text_source.sample_size
+      - targetTopicRange
+    expectedOutputs:
+      - topic-granularity-sweep
+      - steering-proposals
+
+  - key: canonical-topic-classifier
+    title: Canonical Topic Classifier Retrain
+    description: Train the semi-supervised canonical topic classifier from accepted references and authoritative labels.
+    scope: topic-classifier-train
+    defaultMode: classifier-retrain
+    corpusKey: threat-intelligence
+    classifierId: threat-intelligence
+    configurationName: threat-intelligence
+    biblicus:
+      configurations:
+        - configurations/topic-classifier.yml
+    defaults:
+      extractionSnapshot: pipeline:<canonical-topic-text-snapshot>
+      seedManifestPath: corpora/threat-intelligence/metadata/topic-classifiers/threat-intelligence/seed-manifest.json
+    execution:
+      maxRuntimeSeconds: 3600
+    allowedOverrides:
+      - text_source.min_text_characters
+      - entity_removal.enabled
+      - entity_removal.model
+      - entity_removal.entity_types
+      - entity_removal.regex_patterns
+      - lexical_processing.lowercase
+      - lexical_processing.strip_punctuation
+      - bertopic_analysis.parameters.nr_topics
+      - bertopic_analysis.parameters.min_topic_size
+      - bertopic_analysis.vectorizer.ngram_range
+      - bertopic_analysis.vectorizer.stop_words
+      - extractionSnapshot
+      - seedManifestPath
+    expectedOutputs:
+      - topic-classifier-model
+      - topic-map
+      - holdout-evaluation
+
+  - key: desk-child-topic-discovery
+    title: Desk Child Topic Discovery
+    description: Discover candidate child topics under accepted root desks and emit steering proposals.
+    scope: scoped-topic-model
+    defaultMode: scoped-topic-rebuild
+    corpusKey: threat-intelligence
+    classifierId: threat-intelligence
+    configurationName: desk-child-topic-discovery
+    defaults:
+      extractionSnapshot: pipeline:<canonical-topic-text-snapshot>
+      steeringFeedbackPath: .papyrus-runs/<run-id>/threat-intelligence-steering-feedback.json
+    execution:
+      maxRuntimeSeconds: 3600
+    allowedOverrides:
+      - extractionSnapshot
+      - steeringFeedbackPath
+    expectedOutputs:
+      - taxonomy-discovery
+      - steering-proposals
+
+  - key: reference-entity-graph
+    title: Reference Entity Graph
+    description: Rebuild generated entity graph signals for accepted references.
+    scope: entity-graph
+    defaultMode: entity-graph-rebuild
+    corpusKey: threat-intelligence
+    configurationName: reference-entity-graph
+    biblicus:
+      extractor: ner-entities
+      configurations:
+        - configurations/graph/ner-entities.yml
+    defaults:
+      extractionSnapshot: pipeline:<canonical-topic-text-snapshot>
+    execution:
+      maxRuntimeSeconds: 3600
+      successCriteria:
+        minNodes: 1
+        minEdges: 1
+        maxErrorRate: 0.25
+    allowedOverrides:
+      - graph.extractor
+      - graph.configurationName
+      - graph.model
+      - graph.min_entity_length
+      - graph.max_entity_length
+      - graph.entity_labels
+      - graph.include_item_node
+      - graph.include_relation_edges
+      - graph.max_relation_entities_per_sentence
+      - graph.min_relation_weight
+      - graph.max_items
+      - graph.item_timeout_seconds
+      - graph.item_retry_attempts
+      - graph.heartbeat_interval_seconds
+      - extractionSnapshot
+    expectedOutputs:
+      - graph-snapshot
+      - semantic-nodes
+      - semantic-relations

@@ -9,10 +9,10 @@ from typing import Any
 
 import yaml
 
-from .env import PAPYRUS_ROOT
+from .env import resolve_corpora_file
 from .ids import safe_id
 
-DEFAULT_RELATION_TYPES_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-semantic-relation-types.yml"
+DEFAULT_RELATION_TYPES_PATH = resolve_corpora_file("corpora/papyrus-semantic-relation-types.yml")
 
 RELATION_DOMAINS = frozenset(
     {

@@ -18,6 +18,7 @@ from papyrus_content.knowledge_snapshot.archive import (  # noqa: E402
     ArchiveError, HISTORY_INDEX_FILE, archive_entry, build_entry, entry_file,
 )
 from papyrus_content.knowledge_snapshot.builder import build_files  # noqa: E402
+from papyrus_content.knowledge_snapshot.commands import KNOWLEDGE_COMMANDS  # noqa: E402
 from papyrus_content.knowledge_snapshot.model import Cluster, KnowledgeData, SnapshotOptions  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 
@@ -182,3 +183,30 @@ def step_no_cluster_run(context):
 @then("the archive store is empty")
 def step_nothing_archived(context):
     assert _writer(context).list("") == []
+
+
+@when('the operator runs "papyrus knowledge archive {arguments}" on the command line')
+def step_cli_archive(context, arguments):
+    from unittest import mock
+
+    from papyrus import cli
+
+    received = []
+    with mock.patch.dict(KNOWLEDGE_COMMANDS, {"archive": lambda flags: received.append(flags)}), \
+            mock.patch.object(cli.content_cli, "load_dotenv", lambda: None):
+        code = cli.main(["knowledge", "archive", *arguments.split()])
+    _state(context)["cli"] = {"code": code, "received": received}
+
+
+@then('the knowledge archive command receives "{arguments}"')
+def step_cli_received(context, arguments):
+    cli_run = _state(context)["cli"]
+    assert cli_run["code"] == 0
+    assert cli_run["received"] == [arguments.split()]
+
+
+@then("the knowledge help lists the archive command")
+def step_cli_help(context):
+    from papyrus.operator import help_text
+
+    assert "archive" in help_text.build_knowledge_parser().format_help()

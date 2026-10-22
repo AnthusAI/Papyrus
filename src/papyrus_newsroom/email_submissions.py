@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from papyrus_content.assignments_workflow import build_research_proposal_catalog_items
-from papyrus_content.env import PAPYRUS_ROOT
+from papyrus_content.env import PAPYRUS_ROOT, resolve_corpora_file
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient
 from papyrus_content.message_contract import build_canonical_message_expected
 from papyrus_content.records import apply_record_changes, build_record_changes
@@ -131,7 +131,7 @@ def release_inbound_mime_after_success(client: PapyrusGraphQLAuthoringClient, *,
             },
         )
         return {"released": False, "error": str(error)}
-DEFAULT_STEERING_CONFIG = PAPYRUS_ROOT / "corpora" / "papyrus-steering.yml"
+DEFAULT_STEERING_CONFIG = resolve_corpora_file("corpora/papyrus-steering.yml")
 
 _URL_PATTERN = re.compile(
     r"https?://[^\s<>\"')\]]+",
