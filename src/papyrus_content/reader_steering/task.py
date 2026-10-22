@@ -40,6 +40,8 @@ from .snapshot import (
     comments_key,
     encoded,
     settings_from_mapping,
+    vote_subject_type,
+    votes_key,
 )
 
 SETTINGS_ENV = "PAPYRUS_READER_SNAPSHOT_SETTINGS"
@@ -48,6 +50,7 @@ VOTE_TABLE_ENV = "PAPYRUS_READER_VOTE_TABLE"
 HANDLE_TABLE_ENV = "PAPYRUS_READER_HANDLE_TABLE"
 SUBMISSION_TABLE_ENV = "PAPYRUS_READER_SUBMISSION_TABLE"
 COMMENT_TABLE_ENV = "PAPYRUS_READER_COMMENT_TABLE"
+FLAG_TABLE_ENV = "PAPYRUS_READER_FLAG_TABLE"
 STATE_TABLE_ENV = "PAPYRUS_READER_RATE_TABLE"
 POLL_URL_ENV = "PAPYRUS_READER_POLL_URL"
 POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER"
@@ -259,6 +262,7 @@ def run_reader_snapshot(
     votes = [plain_row(row) for row in scan_table(resource, environment[VOTE_TABLE_ENV])]
     profiles = [plain_row(row) for row in scan_table(resource, environment[PROFILE_TABLE_ENV])]
     submissions = [plain_row(row) for row in scan_table(resource, environment[SUBMISSION_TABLE_ENV])] if environment.get(SUBMISSION_TABLE_ENV) else []
+    flags = [plain_row(row) for row in scan_table(resource, environment[FLAG_TABLE_ENV])] if environment.get(FLAG_TABLE_ENV) else []
     now = time.time() if now_seconds is None else now_seconds
     comments = [plain_row(row) for row in scan_table(resource, environment[COMMENT_TABLE_ENV])] if environment.get(COMMENT_TABLE_ENV) else []
     review = ReviewReport()
@@ -272,13 +276,14 @@ def run_reader_snapshot(
     snapshot = build_snapshot(
         votes,
         profiles,
-        published_at=published_times(client, {vote["subjectKey"] for vote in votes} | {comment["subjectKey"] for comment in comments}),
+        published_at=published_times(client, {vote["subjectKey"] for vote in votes if vote_subject_type(vote) == "item"} | {comment["subjectKey"] for comment in comments}),
         now_seconds=now,
         settings=settings,
         submitter_of=submitter_of,
         submissions=submissions,
         comments=comments,
         published_items=published_entries(client, context.projector),
+        flags=flags,
     )
     keys: list[str] = []
     files = [(ITEMS_FILE, snapshot.items), (BOARD_FILE, snapshot.board), (READERS_FILE, snapshot.readers), (SUBJECTS_FILE, snapshot.subjects)]
@@ -286,6 +291,10 @@ def run_reader_snapshot(
         files.append((SUBMISSIONS_FILE, snapshot.submissions))
     for site_key, payload in files:
         key = snapshot_key(context.projector, site_key)
+        context.writer.put(key, encoded(payload))
+        keys.append(key)
+    for kind, payload in snapshot.votes.items():
+        key = snapshot_key(context.projector, votes_key(kind))
         context.writer.put(key, encoded(payload))
         keys.append(key)
     comment_keys = write_comment_files(context, snapshot.comments, snapshot.items["generatedAt"])

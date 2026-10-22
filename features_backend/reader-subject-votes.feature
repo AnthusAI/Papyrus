@@ -106,3 +106,53 @@ Feature: Votes and flags on any subject type
     When "alice" votes up on the proposal "prop-1"
     And "alice" flags the proposal "prop-1" as "wrong" because "Checked it."
     Then no stored vote or flag contains the site subject of "alice"
+
+  Scenario: The snapshot publishes up, down and net per subject type
+    Given the publication has adopted the shrinkage combination
+    When "alice" votes up on the proposal "prop-1"
+    And "bob" votes down on the proposal "prop-1"
+    And "alice" votes down on the story "weekly-42"
+    And the account of "alice" is more than a day old
+    And the snapshot runs
+    Then the proposal "prop-1" has 1 up and 1 down in its public votes file
+    And the story "weekly-42" has 0 up and 1 down in its public votes file
+    And the public file "_data/reader/subjects.json" lists the subject types "item", "story", "proposal" and "concept"
+
+  Scenario: A new account's vote counts for a third in the net score
+    Given the publication has adopted the shrinkage combination
+    When "alice" votes up on the proposal "prop-1"
+    And "bob" votes up on the proposal "prop-1"
+    And the account of "alice" is more than a day old
+    And the snapshot runs
+    Then the proposal "prop-1" has 2 up and 0 down in its public votes file
+    And the proposal "prop-1" has a net of 1.3333 in its public votes file
+
+  Scenario: The score shrinks toward zero until many readers agree
+    Given the publication has adopted the shrinkage combination
+    When "alice" votes up on the proposal "prop-1"
+    And the account of "alice" is more than a day old
+    And the snapshot runs
+    Then the proposal "prop-1" has a score of 0.0476 in its public votes file
+
+  Scenario: Flags reach the snapshot as counts with no reader and no reason
+    When "alice" flags the proposal "prop-1" as "wrong" because of the secret reason
+    And "bob" suggests the name "Edge inference" for the proposal "prop-1" because "Clearer."
+    And the snapshot runs
+    Then the proposal "prop-1" has 1 "wrong" flag in its public votes file
+    And the proposal "prop-1" has 1 "better_name" flag in its public votes file
+    And the proposal "prop-1" has 0 "belongs_under" flag in its public votes file
+    And the public file "_data/reader/votes/proposal.json" holds no reason text
+    And the public files hold no site subject, person id or email address
+
+  Scenario: A downvote is not an upvote for Rising and the item keeps its old fields
+    When "bob" votes down on the item "item-one"
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows 0 upvote on "item-one"
+    And "bob" is not counted as rising on "item-one"
+    And the item "item-one" has 0 up and 1 down in its public votes file
+
+  Scenario: Subjects of other types are also in items.json under their subject key
+    When "alice" votes up on the proposal "prop-1"
+    And "bob" votes down on the proposal "prop-1"
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows 1 up and 1 down on "proposal:prop-1"

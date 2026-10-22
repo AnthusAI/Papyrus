@@ -296,7 +296,7 @@ class SnapshotTaskTests(unittest.TestCase):
             store = LocalDirectoryWriter(Path(directory))
             purged: list[list[str]] = []
             report = self.run_task(backend, store, base_path="posts", invalidate=lambda keys: purged.append(list(keys)) or keys)
-            self.assertEqual(report.written, ["posts/_data/reader/items.json", "posts/_data/reader/board.json", "posts/_data/reader/readers.json", "posts/_data/reader/subjects.json", "posts/_data/reader/submissions.json"])
+            self.assertEqual(report.written, ["posts/_data/reader/items.json", "posts/_data/reader/board.json", "posts/_data/reader/readers.json", "posts/_data/reader/subjects.json", "posts/_data/reader/submissions.json", "posts/_data/reader/votes/item.json", "posts/_data/reader/votes/submission.json"])
             items = json.loads(store.get("posts/_data/reader/items.json"))
             self.assertEqual(items["items"]["item-one"]["up"], 2)
             self.assertEqual(items["items"]["item-one"]["ratings"]["real"]["editor"]["mean"], 4.0)
