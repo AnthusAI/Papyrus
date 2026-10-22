@@ -269,7 +269,10 @@ assert.deepEqual(
   "arn:aws:lambda:us-east-1:712236451410:function:amplify-dkycd9pntgo6d-mai-papyruscontentactionsE8B-p01l4veHquVE",
 );
 assert.deepEqual(statementBySid("ReadContentActionsConfiguration").Action, "lambda:GetFunctionConfiguration");
-assert.deepEqual(statementBySid("ReadDeployedCommit").Resource, "arn:aws:amplify:us-east-1:712236451410:apps/dkycd9pntgo6d/branches/main");
+assert.deepEqual(statementBySid("ReadDeployedCommit").Resource, [
+  "arn:aws:amplify:us-east-1:712236451410:apps/dkycd9pntgo6d/branches/main",
+  "arn:aws:amplify:us-east-1:712236451410:apps/dkycd9pntgo6d/branches/main/jobs/*",
+]);
 assert.deepEqual(statementBySid("SiteBucketObjects").Resource, `arn:aws:s3:::${config.siteBucket}/*`);
 assert.deepEqual(statementBySid("SiteBucketList").Resource, `arn:aws:s3:::${config.siteBucket}`);
 assert.deepEqual(statementBySid("InvalidateEdge").Resource, "arn:aws:cloudfront::712236451410:distribution/EUQZ249T4OKXH");

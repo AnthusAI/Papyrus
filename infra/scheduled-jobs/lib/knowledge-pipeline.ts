@@ -88,7 +88,7 @@ export function knowledgeTaskStatements(config: KnowledgeRunConfig): iam.PolicyS
     new iam.PolicyStatement({
       sid: "ReadDeployedCommit",
       actions: ["amplify:ListJobs"],
-      resources: [`arn:aws:amplify:${config.region}:${config.account}:apps/${config.amplifyAppId}/branches/${config.siteBranch}`],
+      resources: ["", "/jobs/*"].map((suffix) => `arn:aws:amplify:${config.region}:${config.account}:apps/${config.amplifyAppId}/branches/${config.siteBranch}${suffix}`),
     }),
     new iam.PolicyStatement({
       sid: "SignAppSyncRequests",
