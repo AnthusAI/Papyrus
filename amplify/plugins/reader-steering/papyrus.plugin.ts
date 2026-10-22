@@ -21,7 +21,7 @@ export const READER_POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARA
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
-  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission"],
+  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment"],
   mutations: [],
   guest: { mutations: [] },
   newsroomPanels: [],
@@ -34,6 +34,7 @@ export function readerActionsSettings(config: ReaderSteeringConfig, allowInterim
     dimensions: config.dimensions,
     limits: config.limits,
     submissions: config.submissions,
+    comments: config.comments,
     reservedHandles: config.reservedHandles,
     allowInterimSubjects,
     snapshotDebounceSeconds: 60,
@@ -104,6 +105,7 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       ["PAPYRUS_READER_HANDLE_TABLE", "ReaderHandle"],
       ["PAPYRUS_READER_VOTE_TABLE", "ReaderVote"],
       ["PAPYRUS_READER_SUBMISSION_TABLE", "ReaderSubmission"],
+      ["PAPYRUS_READER_COMMENT_TABLE", "ReaderComment"],
     ] as const) {
       tables[model].grantReadWriteData(lambda);
       lambda.addEnvironment(variable, tables[model].tableName);
@@ -115,6 +117,7 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     tables.ReaderProfile.grantReadWriteData(contentActions);
     // The snapshot reads submissions, and the review step writes their signals and moderation state.
     tables.ReaderSubmission.grantReadWriteData(contentActions);
+    tables.ReaderComment.grantReadWriteData(contentActions);
 
     lambda.addEnvironment("PAPYRUS_READER_SETTINGS", JSON.stringify(readerActionsSettings(config, interimSubjectsAllowedAtSynth())));
     if (config.reservedConcurrency !== undefined) {

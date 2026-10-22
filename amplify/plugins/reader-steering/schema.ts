@@ -39,6 +39,23 @@ export function readerSteeringSchemaDefinitions() {
       })
       .disableOperations(["subscriptions"])
       .authorization(staffOnly),
+    ReaderComment: a
+      .model({
+        id: a.id().required(),
+        subjectKey: a.string().required(),
+        readerId: a.string().required(),
+        body: a.string().required(),
+        parentId: a.string(),
+        ratingContext: a.json(),
+        state: a.string().required(),
+        signals: a.json(),
+        reviewedAt: a.datetime(),
+        editedAt: a.datetime(),
+        deletedAt: a.datetime(),
+        createdAt: a.datetime().required(),
+      })
+      .disableOperations(["subscriptions"])
+      .authorization(staffOnly),
     ReaderSubmission: a
       .model({
         id: a.id().required(),

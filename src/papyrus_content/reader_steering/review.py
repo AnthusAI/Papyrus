@@ -14,7 +14,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from .signals import submission_signals
+from .signals import humanus_signals, submission_signals
 
 REVIEW_BATCH = 50
 
@@ -22,10 +22,11 @@ REVIEW_BATCH = 50
 @dataclass
 class ReviewReport:
     submissions: int = 0
+    comments: int = 0
     error: str | None = None
 
     def to_dict(self) -> dict:
-        return {"submissions": self.submissions, "error": self.error}
+        return {"submissions": self.submissions, "comments": self.comments, "error": self.error}
 
 
 def parsed_signals(value: Any) -> list[dict]:
@@ -58,6 +59,32 @@ def review_submissions(
             UpdateExpression="SET signals = :signals, reviewedAt = :now, updatedAt = :now",
             ConditionExpression="attribute_exists(id)",
             ExpressionAttributeValues={":signals": json.dumps(found, separators=(",", ":")), ":now": now_iso},
+        )
+        reviewed += 1
+    return reviewed
+
+
+def review_comments(
+    resource: Any,
+    comment_table: str,
+    comments: list[Mapping],
+    *,
+    now_iso: str,
+    signals: Callable[[str], list[dict]] = humanus_signals,
+    limit: int = REVIEW_BATCH,
+) -> int:
+    """Adds ``signals`` and ``reviewedAt`` to up to ``limit`` visible comments that have not been reviewed. Returns how many."""
+    table = resource.Table(comment_table)
+    reviewed = 0
+    for comment in sorted(comments, key=lambda row: row["createdAt"]):
+        if comment.get("reviewedAt") or comment.get("state") != "visible" or reviewed >= limit:
+            continue
+        table.update_item(
+            Key={"id": comment["id"]},
+            UpdateExpression="SET signals = :signals, reviewedAt = :now, updatedAt = :now",
+            ConditionExpression="attribute_exists(id) AND #state = :visible",
+            ExpressionAttributeNames={"#state": "state"},
+            ExpressionAttributeValues={":signals": json.dumps(signals(comment["body"]), separators=(",", ":")), ":now": now_iso, ":visible": "visible"},
         )
         reviewed += 1
     return reviewed

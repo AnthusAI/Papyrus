@@ -3,17 +3,25 @@
   "title": "Solicit a rationale: invite a comment when someone votes or rates",
   "description": "As the publication, I want to invite a short reason with each vote or rating, so that signals come with explanations.\n\n```gherkin\nFeature: Rationale prompt\n  Scenario: Prompt after rating\n    Given a reader just rated an item\n    Then an optional \"why?\" field is offered\n    And skipping it does not undo the rating\n\n  Scenario: Rationale is linked\n    When the reader submits a rationale\n    Then it is stored as a comment linked to that vote\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-739cb425-c6b0-41c7-ab90-c51f4b2cb00d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1707d5b2-79da-47af-bb7c-8c7c5c5f3962",
+      "author": "home",
+      "text": "Built: the Rating island asks Why? (optional, public) after a rating and posts a comment carrying the rating context, which the server checks against the reader's own current vote.",
+      "created_at": "2026-10-22T04:33:49.104978Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.319092Z",
-  "updated_at": "2026-10-21T12:49:28.319121Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T04:33:49.161382Z",
+  "closed_at": "2026-10-22T04:33:49.161343Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",
