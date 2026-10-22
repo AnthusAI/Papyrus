@@ -99,6 +99,17 @@ function assertCleared(response: Response, cookieName: string, label: string) {
   assert.match(header!, /Path=\//, `${label}: __Host- cookies are cleared at Path=/`);
 }
 
+/** A failed sign-in answers 303 to a clean site page with `sign_in_error`, never JSON on /api. */
+function assertFailureRedirect(response: Response, path: string, code: string, label = code) {
+  assert.equal(response.status, 303, `${label}: a redirect, not an /api error`);
+  const location = new URL(response.headers.get("location")!);
+  assert.equal(location.origin, siteOrigin, `${label}: stays on the site`);
+  assert.equal(location.pathname, path, label);
+  assert.equal(location.searchParams.get("sign_in_error"), code, label);
+  assert.ok(!location.pathname.startsWith("/api"), `${label}: never ends on /api`);
+  assert.equal(setCookie(response, PROSPECTUS_SESSION_COOKIE), undefined, `${label}: no session`);
+}
+
 function sealedCookieTests() {
   const sealed = sealProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, { personId: "person-1" }, 2_000);
   assert.deepEqual(openProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, sealed, nowInSeconds), { personId: "person-1" });
@@ -194,6 +205,20 @@ async function signInRouteTests() {
   assert.equal(authorization.searchParams.get("identity_provider"), "Google");
   assert.equal(authorization.searchParams.get("nonce"), "prospectus-nonce");
   assert.equal(authorization.searchParams.get("redirect_uri"), "https://p.apyr.us/api/auth/prospectus/callback");
+  // The reader plugin's "Sign in" button POSTs the return path, so people are never sent to an /api URL.
+  const posted = await handleProspectusSignInStart(
+    new NextRequest(new URL("/api/auth/prospectus/sign-in", siteOrigin), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "returnTo=%2Fsign-in%2F" }),
+    routeOptions(runtime),
+  );
+  assert.equal(posted.status, 303);
+  assert.equal(new URL(posted.headers.get("location")!).pathname, "/oauth2/authorize");
+  const postedPending = openProspectusCookie<{ returnPath: string }>(sealingSecret, PROSPECTUS_PENDING_SIGN_IN_COOKIE, cookieValue(setCookie(posted, PROSPECTUS_PENDING_SIGN_IN_COOKIE)), nowInSeconds);
+  assert.equal(postedPending?.returnPath, "/sign-in/", "the POST body names where to come back to");
+  const hostile = await handleProspectusSignInStart(
+    new NextRequest(new URL("/api/auth/prospectus/sign-in", siteOrigin), { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "returnTo=https%3A%2F%2Fevil.example%2F" }),
+    routeOptions(runtime),
+  );
+  assert.equal(openProspectusCookie<{ returnPath: string }>(sealingSecret, PROSPECTUS_PENDING_SIGN_IN_COOKIE, cookieValue(setCookie(hostile, PROSPECTUS_PENDING_SIGN_IN_COOKIE)), nowInSeconds)?.returnPath, "/", "an off-site return path is dropped");
   const pendingHeader = setCookie(start, PROSPECTUS_PENDING_SIGN_IN_COOKIE);
   assert.ok(pendingHeader, "start seals the pending sign-in into a cookie");
   for (const attribute of [/HttpOnly/, /Secure/, /SameSite=lax/i, /Path=\//, /Max-Age=300/]) assert.match(pendingHeader!, attribute);
@@ -212,8 +237,7 @@ async function signInRouteTests() {
     browserRequest(`/api/auth/prospectus/callback?code=code-1&state=forged`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
     routeOptions(runtime, { completionOverrides }),
   );
-  assert.equal(forged.status, 401);
-  assert.equal((await forged.json()).error, "state_mismatch");
+  assertFailureRedirect(forged, "/newsroom/board", "state_mismatch");
   assert.equal(setCookie(forged, PROSPECTUS_SESSION_COOKIE), undefined, "a forged state signs no one in");
   assertCleared(forged, PROSPECTUS_PENDING_SIGN_IN_COOKIE, "forged callback");
 
@@ -221,20 +245,19 @@ async function signInRouteTests() {
     browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${state}`),
     routeOptions(runtime, { completionOverrides }),
   );
-  assert.equal(withoutPending.status, 401);
-  assert.equal((await withoutPending.json()).error, "sign_in_expired", "a callback in another browser is refused");
+  assertFailureRedirect(withoutPending, "/", "sign_in_expired", "a callback in another browser is refused, and lands on the home page");
 
   const lateCallback = await handleProspectusSignInCallback(
     browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${state}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
     routeOptions(runtime, { completionOverrides, nowInSeconds: () => 1_300 }),
   );
-  assert.equal((await lateCallback.json()).error, "sign_in_expired", "a callback after the challenge expires is refused");
+  assertFailureRedirect(lateCallback, "/", "sign_in_expired", "a callback after the challenge expires is refused");
 
   const declined = await handleProspectusSignInCallback(
     browserRequest(`/api/auth/prospectus/callback?error=access_denied&state=${state}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
     routeOptions(runtime, { completionOverrides }),
   );
-  assert.equal((await declined.json()).error, "sign_in_declined");
+  assertFailureRedirect(declined, "/newsroom/board", "sign_in_declined");
 
   const callback = await handleProspectusSignInCallback(
     browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${state}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),

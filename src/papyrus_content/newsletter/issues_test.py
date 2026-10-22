@@ -6,6 +6,7 @@ Placeholders only: reader addresses are @example.com and the postal address is a
 from __future__ import annotations
 
 import json
+import re
 from contextlib import contextmanager
 from typing import Any, Iterator
 
@@ -540,8 +541,12 @@ def test_each_subscriber_gets_one_mail_with_unsubscribe_headers_and_tags(rig: Ri
         headers = {entry["Name"]: entry["Value"] for entry in simple["Headers"]}
         assert headers["List-Unsubscribe-Post"] == "List-Unsubscribe=One-Click"
         link = headers["List-Unsubscribe"]
-        assert link.startswith("<https://news.example.com/api/newsletter/unsubscribe?t=") and link.endswith(">")
-        assert link[1:-1] in simple["Body"]["Html"]["Data"] and link[1:-1] in simple["Body"]["Text"]["Data"]
+        assert link.startswith("<https://news.example.com/api/newsletter/unsubscribe?t=") and link.endswith("&l=weekly>")
+        # People get clean pages in the body; the machine URL is only in the header.
+        for body in (simple["Body"]["Html"]["Data"], simple["Body"]["Text"]["Data"]):
+            assert link[1:-1] not in body and "/api/" not in body
+            assert re.search(r"https://news\.example\.com/newsletter/unsubscribe/\?token=v1\.[A-Za-z0-9_.-]+&(amp;)?list=weekly", body)
+            assert re.search(r"https://news\.example\.com/newsletter/preferences/\?token=v1\.", body)
         assert "newsletter.invalid" not in simple["Body"]["Html"]["Data"]
         assert ADDRESS in simple["Body"]["Text"]["Data"]
         assert "You get this because you subscribed to Weekly roundup on Example News." in simple["Body"]["Text"]["Data"]

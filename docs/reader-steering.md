@@ -491,7 +491,7 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 
 | Island | Props | Shows |
 |---|---|---|
-| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" link to `/api/auth/prospectus/sign-in?returnTo=<path>`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
+| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words and then removes from the address; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
 | `UsedIt` | `subject`, `usedIt` | "I used it" toggle with a count. |
 | `Rating` | `subject`, `dimensions`, optional `ratings` | One to five per dimension, the reader's own value (optimistic), the reader and editor numbers. Selecting the current value clears it. After a rating it asks "Why? (optional, public)" and posts the answer as a comment that carries the rating. |

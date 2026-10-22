@@ -12,17 +12,18 @@ from .store import Store
 
 
 class Compliance:
-    def __init__(self, *, store: Store, keys: Keys, site_origin: str) -> None:
+    def __init__(self, *, store: Store, keys: Keys, site_origin: str, base_path: str = "") -> None:
         self.store = store
         self.keys = keys
         self.site_origin = site_origin.rstrip("/")
+        self.base_path = base_path
 
     def make_manage_token(self, hid: str) -> str:
         return links.make_manage_token(hid, self.keys)
 
     def manage_urls(self, hid: str, list_id: str | None = None) -> dict[str, str]:
-        """``{"manage_url", "unsubscribe_url"}``; the unsubscribe URL names the list when ``list_id`` is given."""
-        return links.manage_urls(hid, list_id, self.keys, self.site_origin)
+        """``{"manage_url", "unsubscribe_url", "one_click_url"}``; the unsubscribe URLs name the list when ``list_id`` is given."""
+        return links.manage_urls(hid, list_id, self.keys, self.site_origin, self.base_path)
 
     def is_suppressed(self, hid: str) -> bool:
         return suppression.is_suppressed(hid, self.store)

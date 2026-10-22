@@ -74,7 +74,7 @@ function fake(changes: Partial<Fake> = {}): Fake {
   };
 }
 
-async function open(context: BrowserContext, state: Fake, options: { clock?: boolean; page?: string } = {}): Promise<Page> {
+async function open(context: BrowserContext, state: Fake, options: { clock?: boolean; page?: string; query?: string } = {}): Promise<Page> {
   await context.route("**/*", async (route: Route) => {
     const url = new URL(route.request().url());
     const json = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
@@ -108,7 +108,7 @@ async function open(context: BrowserContext, state: Fake, options: { clock?: boo
   });
   const page = await context.newPage();
   if (options.clock) await page.clock.install();
-  await page.goto(`${ORIGIN}/article.html`);
+  await page.goto(`${ORIGIN}/article.html${options.query ?? ""}`);
   return page;
 }
 
@@ -126,15 +126,31 @@ test("while the API answers 503 reader_identity_unavailable every control is dis
   await context.close();
 });
 
-test("signed out: a Sign in link returns to this page and the controls say why they are off", async () => {
+test("signed out: a Sign in button posts the way back to this page (people are never sent to an /api link) and the controls say why they are off", async () => {
   const context = await browser.newContext();
   const page = await open(context, fake({ me: { status: 401, body: { error: "signed_out" } } }));
-  const link = page.getByRole("link", { name: "Sign in" });
-  await link.waitFor();
-  assert.equal(await link.getAttribute("href"), "/api/auth/prospectus/sign-in?returnTo=%2Farticle.html");
+  const button = page.locator("#signin").getByRole("button", { name: "Sign in" });
+  await button.waitFor();
+  assert.equal(await page.locator("#signin a").count(), 0, "no link to /api");
+  assert.equal(await page.locator("#signin form").getAttribute("method"), "post");
+  assert.equal(await page.locator("#signin form").getAttribute("action"), "/api/auth/prospectus/sign-in");
+  assert.equal(await page.locator('#signin input[name="returnTo"]').getAttribute("value"), "/article.html");
   await page.locator("#vote .papyrus-reader-status").getByText("Sign in to vote and rate").waitFor();
   assert.equal(await page.getByRole("button", { name: "Upvote" }).isDisabled(), true);
   await context.close();
+});
+
+test("a failed sign-in comes back with ?sign_in_error=, says so in words once, and tidies the address", async () => {
+  const context = await browser.newContext();
+  const page = await open(context, fake({ me: { status: 401, body: { error: "signed_out" } } }), { query: "?x=1&sign_in_error=sign_in_declined" });
+  await page.locator("#signin").getByText("Sign-in was cancelled.").waitFor();
+  assert.equal(new URL(page.url()).search, "?x=1", "the error is removed from the address");
+  assert.equal(await page.locator('#signin input[name="returnTo"]').getAttribute("value"), "/article.html?x=1");
+  await context.close();
+  const other = await browser.newContext();
+  const failed = await open(other, fake({ me: { status: 401, body: { error: "signed_out" } } }), { query: "?sign_in_error=state_mismatch" });
+  await failed.locator("#signin").getByText("Sign-in did not complete. Try again.").waitFor();
+  await other.close();
 });
 
 test("the islands prerender their props before any request answers, and the page's text fallback is replaced", async () => {
@@ -248,7 +264,7 @@ test("a vote the server says needs a sign-in turns the controls into the signed-
   const page = await open(context, state);
   await page.locator("#vote button:not([disabled])").waitFor();
   await page.locator("#vote button").click();
-  await page.getByRole("link", { name: "Sign in" }).waitFor();
+  await page.locator("#signin").getByRole("button", { name: "Sign in" }).waitFor();
   await page.locator("#vote .papyrus-reader-status").getByText("Sign in to vote and rate").waitFor();
   await context.close();
 });
