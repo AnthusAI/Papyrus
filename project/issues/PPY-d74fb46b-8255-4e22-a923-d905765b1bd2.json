@@ -53,10 +53,22 @@
       "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Mostly done. Live: https://dataparade.anth.us/ 200, /posts/ 200, https://dataparade.io/posts/ 200 and /posts/_data/latest.json 200. Eight child tasks closed. Doctrine (mission and policy) saved 2026-10-22. Remaining: cad5f6 (binding into monitoring and the shared relevance Cyclotron), blocked on Ryan.",
       "created_at": "2026-10-22T10:45:27.615420Z",
       "comment_type": "default"
+    },
+    {
+      "id": "874c6d44-a652-4d5b-ae25-eaa2273d4286",
+      "author": "home",
+      "text": "2026-10-22: six judgment policies loaded (Ryan approved the wording from his doc 'Data Parade accepted references'): pack dataparade-judgments 1.1.0 via papyrus editorial policies add (Papyrus 5.23.0, IAM, --actor ryan-approved), all six created at version 1; a second dry run changes nothing; 30 policies total. Judgment lane still does not run: the Amplify app d35q7zv4zad2we has no TYPESAFE_API_KEY or OPENAI_API_KEY secret (only the Google sign-in pair), so the check reports the classifier lane 'unavailable: no decision model is configured'. Ryan to add both secrets on the main branch; then rerun checkItemVersion.",
+      "created_at": "2026-10-22T11:51:14.875760Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
     }
   ],
   "created_at": "2026-10-21T16:54:14.133658Z",
-  "updated_at": "2026-10-22T10:45:27.615450Z",
+  "updated_at": "2026-10-22T11:51:14.875792Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
