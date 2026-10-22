@@ -156,3 +156,10 @@ Feature: Votes and flags on any subject type
     And "bob" votes down on the proposal "prop-1"
     And the snapshot runs
     Then the public file "_data/reader/items.json" shows 1 up and 1 down on "proposal:prop-1"
+
+  Scenario: The reader state lists the reader's own votes for the subjects the page asks about
+    When "alice" votes down on the proposal "prop-1"
+    And "alice" votes up on the item "item-one"
+    And "bob" votes up on the concept "c1"
+    Then "alice" asking about "proposal:prop-1", "item-one", "concept:c1" and "item-two" is told her votes are "proposal:prop-1" -1 and "item-one" 1
+    And "alice" asking about nothing is told she has no votes
