@@ -11,9 +11,27 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | `threat-intelligence-reader-cache.yaml` | `papyrus-edge-threat-intelligence` (proposed) | The deployed template plus a `ReaderPagesCachePolicy` on the main distribution's default behavior (honours the origin `s-maxage` and `stale-while-revalidate`, keys on the Next RSC headers, ignores cookies and query strings). `/newsroom*`, `/api/*` and `/_next/image*` keep CachingDisabled. The staging distribution is unchanged because staging serves drafts. Not deployed (PPY-79e668) |
 | `p-apyr-us-reader-cache.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The same change for the p.apyr.us production distribution. Not deployed (PPY-79e668) |
 | `../../docs/hosting/p-apyr-us-edge.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The full intended p.apyr.us edge: the stack's own production and staging distributions, plus the two live distributions that sit outside the stack today (`E17ZRAI87DN065` marketing, `E2EM0JLBC2W9WW` reader) and the `papyrus-reader-edge` function. The reader function only redirects `/newsroom` to the CMS host and forwards the host header; the legacy `/information` redirect function is gone and the marketing default behavior uses the stack's forward-host function for the apex redirect. Not deployed |
+| `s3-projection-cms.yaml` | `papyrus-edge-<site>` (reference) | An S3 projection bucket (OAC) on the default behavior and the site's CMS Amplify app on `/newsroom*`, `/_next/*` and `/api/*`, on one host. The shape of the Shipped, Distinctive Mark, DataParade and Threat Intelligence edges. Carries the 404 handling described below |
 | `anth-us.yaml` | `papyrus-edge-anth-us` (rollback) | The retired Anth.us Amplify reader. Updating the stack with this template moves the origin back, and only works while the Amplify reader app exists |
 
 Update a stack with a change set, never in place, and read the change set before executing it.
+
+## The 404 page and the CMS behaviors
+
+CloudFront `CustomErrorResponses` are distribution-wide: they cannot be scoped to one cache behavior. A distribution that maps 403 and 404 to `/404.html` (the S3 projection answers a missing key with 403) therefore also replaces every 403 and 404 that the CMS origin sends on `/api/*`, `/newsroom*` and `/_next/*` with the site's 404 page. The visible damage: a same-origin rejection from `/api/newsletter/subscribe` (403 JSON) showed the 404 page, and `/api/reader/*` and `/api/auth/prospectus/*` had the same exposure.
+
+A distribution with CMS behaviors must have **no** `CustomErrorResponses`. `s3-projection-cms.yaml` serves the 404 page from the default behavior instead, with a Lambda@Edge `origin-response` function associated with the default behavior only:
+
+- The function runs when the S3 origin answers 403 or 404 (an origin response that CloudFront has not cached). Any other status passes through untouched.
+- It fetches `/404.html` from the distribution's own domain and returns it with status 404 and `Content-Type: text/html`. If that fetch fails, or `/404.html` itself is missing, it returns a plain `Not found` with status 404, so a miss never loops.
+- CloudFront caches the generated 404 under the default error-caching TTL (10 seconds) for that URL, as the error responses did. The page is fetched through the distribution, so it passes through the default behavior's viewer-response function, if the stack has one, like any other page.
+- The CMS behaviors have no origin-response function, so their statuses and bodies reach the client as the origin sent them.
+
+Why Lambda@Edge, not a CloudFront Function: a CloudFront Function cannot read or fetch the response body, and the styled 404 page is an object in the bucket. The function is cheap: it runs only on a cache miss that S3 answers with 403 or 404.
+
+Changing the function code needs a new immutable version: edit the `Description` of `NotFoundPageVersion` along with the code. The version resources are `Retain`, because Lambda cannot delete a replicated version for some hours after it is detached. Apply to an existing stack with a change set: the diff must show the removal of `CustomErrorResponses` and the addition of the role, function, version and the default behavior's `LambdaFunctionAssociations`, and nothing else.
+
+A pure S3 distribution without CMS behaviors (`anth-us-s3.yaml`, `pilobol-us.yaml`, the distribution the site backend creates) has nothing to mask, and keeps its error responses.
 
 ## New sites
 

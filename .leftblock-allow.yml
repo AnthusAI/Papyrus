@@ -123,3 +123,21 @@ allow:
     kind: "Personal email address"
     reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
     added: 2026-10-22
+  - id: "3a67dba561b96f06"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/s3-projection-cms.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: these are the public AWS managed CloudFront cache policy and origin request policy ids (CachingOptimized, CachingDisabled, AllViewer), the same ids the other edge templates use. They are not session identifiers."
+    added: 2026-10-22
+  - id: "f641aad1432598a1"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/s3-projection-cms.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: these are the public AWS managed CloudFront cache policy and origin request policy ids (CachingOptimized, CachingDisabled, AllViewer), the same ids the other edge templates use. They are not session identifiers."
+    added: 2026-10-22
+  - id: "d54f26bd0a1cd1f6"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/s3-projection-cms.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: these are the public AWS managed CloudFront cache policy and origin request policy ids (CachingOptimized, CachingDisabled, AllViewer), the same ids the other edge templates use. They are not session identifiers."
+    added: 2026-10-22
