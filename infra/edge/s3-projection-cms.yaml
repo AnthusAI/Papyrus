@@ -77,14 +77,13 @@ Resources:
             });
           }
 
-          function notFound(contentType, body) {
-            return {
-              status: "404",
-              statusDescription: "Not Found",
-              headers: { "content-type": [{ key: "Content-Type", value: contentType }] },
-              bodyEncoding: "text",
-              body,
-            };
+          function notFound(response, contentType, body) {
+            response.status = "404";
+            response.statusDescription = "Not Found";
+            response.headers["content-type"] = [{ key: "Content-Type", value: contentType }];
+            response.bodyEncoding = "text";
+            response.body = body;
+            return response;
           }
 
           exports.handler = async (event) => {
@@ -93,17 +92,17 @@ Resources:
               return response;
             }
             if (request.uri === ERROR_PAGE_PATH) {
-              return notFound("text/plain", "Not found");
+              return notFound(response, "text/plain", "Not found");
             }
             try {
               const page = await fetchErrorPage(config.distributionDomainName);
               if (page.status === 200) {
-                return notFound("text/html", page.body);
+                return notFound(response, "text/html", page.body);
               }
             } catch (error) {
-              return notFound("text/plain", "Not found");
+              return notFound(response, "text/plain", "Not found");
             }
-            return notFound("text/plain", "Not found");
+            return notFound(response, "text/plain", "Not found");
           };
   NotFoundPageVersion:
     Type: AWS::Lambda::Version
@@ -111,7 +110,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       FunctionName: !Ref NotFoundPageFunction
-      Description: 'revision 1: change this text whenever the function code changes, so a new immutable version is published'
+      Description: 'revision 2: change this text whenever the function code changes, so a new immutable version is published'
   SiteBucketOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:

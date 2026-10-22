@@ -23,7 +23,7 @@ CloudFront `CustomErrorResponses` are distribution-wide: they cannot be scoped t
 A distribution with CMS behaviors must have **no** `CustomErrorResponses`. `s3-projection-cms.yaml` serves the 404 page from the default behavior instead, with a Lambda@Edge `origin-response` function associated with the default behavior only:
 
 - The function runs when the S3 origin answers 403 or 404 (an origin response that CloudFront has not cached). Any other status passes through untouched.
-- It fetches `/404.html` from the distribution's own domain and returns it with status 404 and `Content-Type: text/html`. If that fetch fails, or `/404.html` itself is missing, it returns a plain `Not found` with status 404, so a miss never loops.
+- It fetches `/404.html` from the distribution's own domain and rewrites the S3 response in place: status 404, that body, `Content-Type: text/html`. It keeps the other response headers, because CloudFront answers 502 (`LambdaValidationError`) when a function drops a read-only header such as `Transfer-Encoding`, which a freshly built response does. If that fetch fails, or `/404.html` itself is missing, it returns a plain `Not found` with status 404, so a miss never loops.
 - CloudFront caches the generated 404 under the default error-caching TTL (10 seconds) for that URL, as the error responses did. The page is fetched through the distribution, so it passes through the default behavior's viewer-response function, if the stack has one, like any other page.
 - The CMS behaviors have no origin-response function, so their statuses and bodies reach the client as the origin sent them.
 
