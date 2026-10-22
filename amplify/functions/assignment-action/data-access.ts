@@ -11,6 +11,8 @@ export const ASSIGNMENT_DATA_FIELDS = [
   "Query/fields/getProcedureDefinition",
   "Query/fields/getModelAttachment",
   "Query/fields/getNewsroomSection",
+  "Query/fields/listNewsroomSections",
+  "Query/fields/listNewsroomSectionsByTenantAndSortOrder",
   "Query/fields/getKnowledgeCorpus",
   "Query/fields/getKnowledgeImportRun",
   "Query/fields/getReference",

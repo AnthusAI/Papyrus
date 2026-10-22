@@ -10,9 +10,17 @@
   "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "594b62b3-117c-4aed-b349-f6c090126d97",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Mostly done, kept open for one gap. Exists: vote model with voterRole (editor or reader, set at write time), one vote per reader and item, idempotent upvote and removal via POST /api/reader/vote, guests rejected, only published items votable (Papyrus #512, amplify/plugins/reader-steering/function/handler.py, schema.ts); materialised public counts via the reader snapshot, _data/reader/items.json (#516, debounce #520). Remains: the upvote count in the snapshot ('up') mixes editors and readers; the scenario 'editor votes are tallied separately' needs a separate editor upvote tally.",
+      "created_at": "2026-10-22T04:02:21.709977Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:27.883079Z",
-  "updated_at": "2026-10-21T12:49:27.883105Z",
+  "updated_at": "2026-10-22T04:02:21.710007Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

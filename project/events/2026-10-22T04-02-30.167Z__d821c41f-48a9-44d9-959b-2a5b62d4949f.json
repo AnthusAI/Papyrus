@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "d821c41f-48a9-44d9-959b-2a5b62d4949f",
+  "issue_id": "PPY-244932eb-ce16-45b3-98d0-236506652242",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T04:02:30.167Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us documentation: comments",
+    "description": "Final story of the epic. Document comments and rationale as a steering signal on p.apyr.us.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-739cb425-c6b0-41c7-ab90-c51f4b2cb00d",
+    "labels": []
+  }
+}

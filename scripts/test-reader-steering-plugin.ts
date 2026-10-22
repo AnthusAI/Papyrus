@@ -79,6 +79,8 @@ for (const bad of [
   { snapshot: { intervalHours: 0 } },
   { reservedHandles: ["Bad Handle"] },
   { retirementPoll: true },
+  { retirementPoll: true, snapshot: { schedule: false } },
+  { retirementPoll: "yes" },
   { waf: true },
 ]) {
   assert.throws(() => resolveReaderSteeringConfig({ ...base, ...bad } as never), /reader-steering/, JSON.stringify(bad));
@@ -114,6 +116,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   const stack = new Stack(app, "Data", { env: awsEnvironment });
   const lambdaFor = (id: string) => new Function(stack, id, { runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x") });
   const readerLambda = lambdaFor("ReaderActions");
+  new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
     ["ReaderProfile", "ReaderHandle", "ReaderVote", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
@@ -211,6 +214,41 @@ const developmentSettings = Object.values(development.template.findResources("AW
   .map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables?.PAPYRUS_READER_SETTINGS)
   .find(Boolean) as string;
 assert.equal(JSON.parse(developmentSettings).allowInterimSubjects, true, "a development synth allows interim subjects");
+
+// The retirement poll: off by default; when on, the scheduled run asks for it and the backend can reach the CMS route.
+assert.deepEqual(JSON.parse(rule.Properties.Targets[0].Input), { projectionTask: { task: "reader-snapshot" } }, "no poll unless the site enables it");
+const pollConfig = resolveReaderSteeringConfig({ ...base, dimensions: ["real"], snapshot: { schedule: true }, retirementPoll: true });
+assert.equal(pollConfig.retirementPoll, true);
+const pollEnvironment = { PAPYRUS_SITE_ORIGIN: "https://reader.example.test", PAPYRUS_READER_POLL_SECRET_PARAMETER: "/papyrus/reader/reader-poll-secret", SITE_ENV: "production" };
+assert.throws(() => synthesize(pollConfig, { SITE_ENV: "production" }), /PAPYRUS_READER_POLL_SECRET_PARAMETER/, "no poll without the secret parameter and origin");
+assert.throws(() => synthesize(pollConfig, { ...pollEnvironment, PAPYRUS_SITE_ORIGIN: "http://reader.example.test" }), /https origin/);
+const polled = synthesize(pollConfig, pollEnvironment);
+const polledRule = eventRules(polled)[0] as { Properties: { Targets: Array<{ Input: string }> } };
+assert.deepEqual(JSON.parse(polledRule.Properties.Targets[0].Input), { projectionTask: { task: "reader-snapshot", retirementPoll: true } }, "only the scheduled run polls");
+const polledFunctions = Object.values(polled.template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
+const polledVariables = polledFunctions.find((variables) => variables.PAPYRUS_READER_SNAPSHOT_SETTINGS) as Record<string, string>;
+assert.equal(polledVariables.PAPYRUS_READER_POLL_URL, "https://reader.example.test");
+assert.equal(polledVariables.PAPYRUS_READER_POLL_SECRET_PARAMETER, "/papyrus/reader/reader-poll-secret");
+assert.ok(polledVariables.PAPYRUS_READER_RATE_TABLE, "the cursor lives in the rate table");
+assert.equal(JSON.parse(polledVariables.PAPYRUS_READER_SNAPSHOT_SETTINGS).retirementPoll, true);
+const statementsOf = (template: Template, rolePrefix: string) =>
+  Object.values(template.findResources("AWS::IAM::Policy"))
+    .filter((policy) => ((policy as { Properties: { Roles: Array<{ Ref: string }> } }).Properties.Roles ?? []).some((role) => role.Ref.startsWith(rolePrefix)))
+    .flatMap((policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement);
+const actionsOn = (statements: ReturnType<typeof statementsOf>, table: string) =>
+  statements.filter((statement) => JSON.stringify(statement.Resource).includes(table)).flatMap((statement) => ([] as string[]).concat(statement.Action));
+const polledStatements = statementsOf(polled.template, "ContentActionsServiceRole");
+const secretReads = polledStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("ssm:GetParameter"));
+assert.equal(secretReads.length, 1);
+assert.match(JSON.stringify(secretReads[0].Resource), /parameter\/papyrus\/reader\/reader-poll-secret/, "the read is scoped to the one parameter");
+assert.equal(actionsOn(polledStatements, "ReaderVote").includes("dynamodb:DeleteItem"), true, "the poll may delete votes");
+assert.equal(actionsOn(polledStatements, "ReaderHandle").includes("dynamodb:DeleteItem"), true, "the poll may free handles");
+assert.equal(actionsOn(polledStatements, "PapyrusReaderRateWindows").includes("dynamodb:PutItem"), true, "the poll keeps its cursor in the rate table");
+const unpolled = synthesize({ ...shipped, snapshot: { ...shipped.snapshot, schedule: true } }, { SITE_ENV: "production" });
+const unpolledStatements = statementsOf(unpolled.template, "ContentActionsServiceRole");
+assert.equal(unpolledStatements.some((statement) => ([] as string[]).concat(statement.Action).includes("ssm:GetParameter")), false, "no secret read without the poll");
+assert.equal(actionsOn(unpolledStatements, "ReaderVote").includes("dynamodb:DeleteItem"), false, "the snapshot alone never deletes votes");
+assert.equal(actionsOn(unpolledStatements, "ReaderHandle").length, 0, "the snapshot alone never touches handles");
 
 console.log("reader steering plugin ok");
 

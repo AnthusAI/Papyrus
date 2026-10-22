@@ -10,9 +10,17 @@
   "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "073b7ed7-6f4c-4a00-a1d7-56f0bb17fd9e",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Partly done. Exists: POST /api/reader/rating, 1 to 5 per configured dimension, replace and clear, partial ratings (Papyrus #512); per-dimension reader and editor mean, n and 5-bucket histogram in _data/reader/items.json, editor tallied separately (#516, snapshot.py); the Rating island shows the reader's own value, mean with n, and the editor mean (#516). Remains: histograms are in the JSON but no component renders them, and the island does not label upvote count versus number who rated.",
+      "created_at": "2026-10-22T04:02:21.804165Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:27.954607Z",
-  "updated_at": "2026-10-21T12:49:27.954634Z",
+  "updated_at": "2026-10-22T04:02:21.804187Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

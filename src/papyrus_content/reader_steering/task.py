@@ -15,7 +15,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..publishing import published_item_id_for
-from .retirement import DisabledRetirementPoll, RetirementPoll
+from .retirement import (
+    DisabledRetirementPoll,
+    HttpRetirementPoll,
+    ReaderTableNames,
+    RetirementPoll,
+    RetirementReport,
+    run_retirement_poll,
+)
 from .snapshot import (
     BOARD_FILE,
     ITEMS_FILE,
@@ -29,6 +36,10 @@ from .snapshot import (
 SETTINGS_ENV = "PAPYRUS_READER_SNAPSHOT_SETTINGS"
 PROFILE_TABLE_ENV = "PAPYRUS_READER_PROFILE_TABLE"
 VOTE_TABLE_ENV = "PAPYRUS_READER_VOTE_TABLE"
+HANDLE_TABLE_ENV = "PAPYRUS_READER_HANDLE_TABLE"
+STATE_TABLE_ENV = "PAPYRUS_READER_RATE_TABLE"
+POLL_URL_ENV = "PAPYRUS_READER_POLL_URL"
+POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER"
 TASK_NAME = "reader-snapshot"
 
 
@@ -44,7 +55,7 @@ class ReaderSnapshotReport:
     karma_updated: int
     purged: list[str]
     purge_error: str | None
-    retirement_poll: str
+    retirement_poll: RetirementReport
 
     def to_dict(self) -> dict:
         return {
@@ -55,7 +66,7 @@ class ReaderSnapshotReport:
             "karmaUpdated": self.karma_updated,
             "purged": self.purged,
             "purgeError": self.purge_error,
-            "retirementPoll": self.retirement_poll,
+            "retirementPoll": self.retirement_poll.to_dict(),
         }
 
 
@@ -64,6 +75,20 @@ def snapshot_settings_from_environment(environment: Mapping[str, str]) -> Snapsh
     if not raw:
         raise ReaderSnapshotNotEnabled(f"{SETTINGS_ENV} is not set; this site does not enable the reader-steering plugin.")
     return settings_from_mapping(json.loads(raw))
+
+
+def retirement_poll_from_environment(environment: Mapping[str, str], ssm_client: Any = None) -> RetirementPoll:
+    """The HTTP poll when the site enabled it and the run asked for it; the secret is read from SSM at run time."""
+    parameter = environment.get(POLL_SECRET_PARAMETER_ENV, "")
+    origin = environment.get(POLL_URL_ENV, "")
+    if not parameter or not origin:
+        return DisabledRetirementPoll()
+    if ssm_client is None:
+        import boto3
+
+        ssm_client = boto3.client("ssm")
+    secret = ssm_client.get_parameter(Name=parameter, WithDecryption=True)["Parameter"]["Value"].strip()
+    return HttpRetirementPoll(origin, secret)
 
 
 def scan_table(resource: Any, table_name: str) -> list[dict]:
@@ -123,6 +148,7 @@ def run_reader_snapshot(
     resource: Any = None,
     now_seconds: float | None = None,
     retirement_poll: RetirementPoll | None = None,
+    poll_retirements: bool = False,
     submitter_of: Callable[[str], str | None] = lambda subject: None,
 ) -> ReaderSnapshotReport:
     environment = os.environ if environment is None else environment
@@ -131,8 +157,22 @@ def run_reader_snapshot(
         import boto3
 
         resource = boto3.resource("dynamodb")
-    poll = retirement_poll or DisabledRetirementPoll()
-    poll.fetch(None)
+    retirement = RetirementReport()
+    if poll_retirements and settings.retirement_poll:
+        try:
+            poll = retirement_poll or retirement_poll_from_environment(environment)
+            retirement = run_retirement_poll(
+                poll,
+                resource,
+                ReaderTableNames(
+                    profile=environment[PROFILE_TABLE_ENV],
+                    handle=environment[HANDLE_TABLE_ENV],
+                    vote=environment[VOTE_TABLE_ENV],
+                    state=environment[STATE_TABLE_ENV],
+                ),
+            )
+        except Exception as error:  # noqa: BLE001 - a poll that cannot start must not stop the numbers
+            retirement = RetirementReport(enabled=True, error=type(error).__name__)
     votes = [plain_row(row) for row in scan_table(resource, environment[VOTE_TABLE_ENV])]
     profiles = [plain_row(row) for row in scan_table(resource, environment[PROFILE_TABLE_ENV])]
     now = time.time() if now_seconds is None else now_seconds
@@ -164,5 +204,5 @@ def run_reader_snapshot(
         karma_updated=karma_updated,
         purged=purged,
         purge_error=purge_error,
-        retirement_poll="enabled" if getattr(poll, "enabled", True) else "disabled",
+        retirement_poll=retirement,
     )

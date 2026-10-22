@@ -18,7 +18,8 @@ source) says where generated blocks go::
 ``showcase``  the logo wall of the ``showcase`` settings.
 ``form``      a ``forms`` entry of ``projection.json``.
 ``block``     the markup the site's ``block`` hook returns for ``name``; the remaining attributes are passed to it.
-              ``depends`` lists the sections (``@root`` for items without one, ``*`` for all) it reads.
+              ``depends`` lists the sections (``@root`` for items without one, ``*`` for all) it reads. The names that start
+              with ``knowledge-`` are the standard knowledge blocks (see ``knowledge_blocks.py``), rendered without a hook.
 
 Dependencies are not written anywhere else: the selection an include renders from is the selection the page depends
 on. :func:`include_inputs` is the digest of exactly the entries the page's includes show, so saving an item the
@@ -29,6 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from . import knowledge_blocks
 from .config import StandardSettings
 from .entries import StandardEntry, sorted_by
 from .select import Selection, selection_from_mapping
@@ -79,6 +81,8 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
     elif kind == "block":
         if not attributes.get("name"):
             raise ValueError(f"{source}: ::include block needs a name")
+        if attributes["name"].startswith(knowledge_blocks.PREFIX):
+            knowledge_blocks.check(attributes, source)
     elif set(attributes) - {"kind"}:
         raise ValueError(f"{source}: ::include {kind} takes no attributes")
     return kind

@@ -220,6 +220,7 @@ from .markus_import_commands import content_import_markus
 from .tenant_adoption_commands import content_adopt_tenant_data
 from .preview_upload_commands import content_upload_preview
 from .project_commands import content_project
+from .knowledge_snapshot.commands import KNOWLEDGE_COMMANDS
 from .renditions_commands import content_renditions
 from .publish_commands import content_publish, content_rebuild, content_unpublish
 from .markus_renderer.commands import markus_build
@@ -244,6 +245,7 @@ PORTED_COMMANDS = frozenset(
         "content:copy-backend",
         "content:upload-preview",
         "content:project",
+        *(f"knowledge:{name}" for name in KNOWLEDGE_COMMANDS),
         "content:renditions",
         "corpora:status",
         "corpora:worker-bootstrap",
@@ -483,6 +485,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         content_upload_preview(flags)
     elif route == "content:project":
         content_project(flags)
+    elif group == "knowledge":
+        KNOWLEDGE_COMMANDS[command](flags)
     elif route == "content:renditions":
         content_renditions(flags)
     elif route == "corpora:status":
@@ -1638,7 +1642,7 @@ def print_usage() -> None:
     print("  content convert-bodies [--models Item,PublishedItem] [--dry-run | --apply] [--json],")
     print("  content export-published --out DIR [--tenant ID] [--drafts] [--clean] [--allow-empty] [--bucket B] [--auth guest] [--json],")
     print("  content upload-preview --dir DIR [--bucket B] [--prefix preview/] [--json],")
-    print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--from-dir CONTENT_DIR (with --all and --out: read Markdown files, no CMS)] [--out DIR] [--static-dir DIR] [--bucket B] [--json],")
+    print("  content project (--all | --listings | --item-pages | --reconcile [--dry-run] | --item <item-id> [--unpublished]) [--from-dir CONTENT_DIR (with --all and --out: read Markdown files, no CMS)] [--out DIR] [--static-dir DIR] [--knowledge-dir DIR (read the knowledge snapshot from DIR, not the site store)] [--bucket B] [--json],")
     print("  content renditions (--backfill | --source <srcPath>) [--dry-run] [--media-bucket B] [--function-name F] [--workers N] [--json],")
     print("  content markus-derive (--file article.md | --stdin) [--emit-ir],")
     print("  content adopt-tenant-data --tenant ID [--apply] [--json]  (dry run unless --apply; adopts pre-tenant rows),")

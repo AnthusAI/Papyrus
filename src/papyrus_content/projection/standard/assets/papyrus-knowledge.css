@@ -1,0 +1,54 @@
+/* Knowledge components: chips, sparklines, charts, neighbourhoods, score readouts. Works with no script.
+   Marks carry meaning (dashed outline, ▲/▼ and a sign, the number beside a meter); colour only supports them.
+   Theme with the custom properties below; every one has a fallback. */
+.papyrus-knowledge-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+.papyrus-knowledge-chip { display: inline-flex; align-items: baseline; gap: .4em; padding: .1em .6em; border: 1px solid var(--papyrus-knowledge-rule, currentColor); border-radius: var(--papyrus-knowledge-radius, 999px); color: var(--papyrus-knowledge-ink, inherit); background: var(--papyrus-knowledge-chip-bg, transparent); font-size: var(--papyrus-knowledge-chip-size, .875rem); line-height: 1.5; text-decoration: none; }
+a.papyrus-knowledge-chip:hover { border-color: var(--papyrus-knowledge-accent, currentColor); }
+.papyrus-knowledge-chip-kind { font-size: .75em; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--papyrus-knowledge-muted, color-mix(in srgb, currentColor 70%, transparent)); }
+.papyrus-knowledge-chip--proposed { border-style: dashed; }
+.papyrus-knowledge-trending-strip, .papyrus-knowledge-trending-list ol, .papyrus-knowledge-clusters, .papyrus-knowledge-concepts, .papyrus-knowledge-related, .papyrus-knowledge-kindfilter ul { list-style: none; padding: 0; margin: 0; }
+.papyrus-knowledge-trending-strip { display: flex; flex-wrap: wrap; gap: var(--papyrus-knowledge-gap, .75rem 1.25rem); }
+.papyrus-knowledge-trending-item, .papyrus-knowledge-concepts li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; padding: .35rem 0; }
+.papyrus-knowledge-trending-list ol { counter-reset: knowledge-rank; border-top: 1px solid var(--papyrus-knowledge-rule, currentColor); }
+.papyrus-knowledge-trending-list ol > li { counter-increment: knowledge-rank; border-bottom: 1px solid var(--papyrus-knowledge-rule, currentColor); }
+.papyrus-knowledge-trending-list ol > li::before { content: counter(knowledge-rank); min-width: 1.5em; font-variant-numeric: tabular-nums; color: var(--papyrus-knowledge-muted, inherit); }
+.papyrus-knowledge-trend { display: inline-flex; align-items: center; gap: .5rem; }
+.papyrus-knowledge-sparkline { display: block; }
+.papyrus-knowledge-sparkline-line { stroke: var(--papyrus-knowledge-line, currentColor); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.papyrus-knowledge-sparkline-end { fill: var(--papyrus-knowledge-line, currentColor); }
+.papyrus-knowledge-change { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.papyrus-knowledge-new { padding: 0 .4em; border: 1px solid currentColor; border-radius: .25em; font-size: .75em; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.papyrus-knowledge-count-text, .papyrus-knowledge-recent, .papyrus-knowledge-terms, .papyrus-knowledge-cotw-meta { font-size: .875em; color: var(--papyrus-knowledge-muted, inherit); }
+.papyrus-knowledge-kindfilter ul { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .75rem; }
+.papyrus-knowledge-kindfilter a { display: inline-block; padding: .1em .7em; border: 1px solid var(--papyrus-knowledge-rule, currentColor); border-radius: var(--papyrus-knowledge-radius, 999px); text-decoration: none; color: inherit; }
+.papyrus-knowledge-kindfilter a:target, .papyrus-knowledge-kindfilter a:hover { border-color: var(--papyrus-knowledge-accent, currentColor); }
+.papyrus-knowledge-clusters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: var(--papyrus-knowledge-gap, 1rem); }
+.papyrus-knowledge-cluster { display: grid; gap: .35rem; align-content: start; padding: 1rem; border: 1px solid var(--papyrus-knowledge-rule, currentColor); border-radius: var(--papyrus-knowledge-card-radius, .5rem); }
+.papyrus-knowledge-cluster[data-state="unnamed"] { border-style: dashed; }
+.papyrus-knowledge-cluster-name, .papyrus-knowledge-cotw-name { margin: 0; font-weight: 700; }
+.papyrus-knowledge-cluster-label { justify-self: start; font-size: .75em; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.papyrus-knowledge-cotw { padding: 1rem 0; }
+.papyrus-knowledge-cotw-lede { margin: .5rem 0; }
+.papyrus-knowledge-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.papyrus-knowledge-neighbourhood { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: var(--papyrus-knowledge-gap, 1.5rem); }
+.papyrus-knowledge-neighbourhood-heading { margin: 0 0 .5rem; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.papyrus-knowledge-neighbourhood ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.papyrus-knowledge-neighbourhood li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+.papyrus-knowledge-weightbar { flex: none; }
+.papyrus-knowledge-weightbar-track { fill: var(--papyrus-knowledge-track, color-mix(in srgb, currentColor 15%, transparent)); }
+.papyrus-knowledge-weightbar-fill { fill: var(--papyrus-knowledge-line, currentColor); }
+.papyrus-knowledge-weight { font-variant-numeric: tabular-nums; font-size: .875em; }
+.papyrus-knowledge-score { display: inline-flex; align-items: center; gap: .5rem; }
+.papyrus-knowledge-score--dimmed { opacity: var(--papyrus-knowledge-dim, .55); }
+.papyrus-knowledge-score-segment { fill: none; stroke: var(--papyrus-knowledge-line, currentColor); stroke-width: 1; }
+.papyrus-knowledge-score-segment--filled { fill: var(--papyrus-knowledge-line, currentColor); }
+.papyrus-knowledge-score-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.papyrus-knowledge-score-n, .papyrus-knowledge-score-label { font-size: .875em; }
+.papyrus-knowledge-chart { margin: 0; max-width: 40rem; }
+.papyrus-knowledge-chart svg { width: 100%; height: auto; }
+.papyrus-knowledge-chart-bar { fill: var(--papyrus-knowledge-bar, color-mix(in srgb, currentColor 35%, transparent)); }
+.papyrus-knowledge-chart-average { stroke: var(--papyrus-knowledge-line, currentColor); stroke-width: 2; stroke-dasharray: 5 3; stroke-linejoin: round; }
+.papyrus-knowledge-chart-axis { stroke: var(--papyrus-knowledge-rule, currentColor); stroke-width: 1; }
+.papyrus-knowledge-chart-marker { stroke: var(--papyrus-knowledge-accent, currentColor); stroke-width: 1.5; }
+.papyrus-knowledge-chart-label, .papyrus-knowledge-chart-note { fill: currentColor; font-size: 9px; }
+.papyrus-knowledge-chart-caption { font-size: .8125rem; color: var(--papyrus-knowledge-muted, inherit); }

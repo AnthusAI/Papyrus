@@ -10,9 +10,17 @@
   "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "22346928-50dd-44d3-87eb-c39d6044ec98",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Partly done. Exists: snapshot.hypeMinimum (default 5): the hype gap is null unless every dimension has enough reader ratings, computed in the snapshot job, not the browser (#516); the hype gap computed from config groups, readers and editors separately (#521); ranking.readerMinimum floor before the reader composite counts in Front (#516, ranking.py); partially rated items are not ranked by a composite. Remains: the 'too few' flag on a dimension mean in the components, the em dash display for a null derived value, and a 'New' queue for items below the ranking floor.",
+      "created_at": "2026-10-22T04:02:21.943553Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.023400Z",
-  "updated_at": "2026-10-21T12:49:28.023431Z",
+  "updated_at": "2026-10-22T04:02:21.943586Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

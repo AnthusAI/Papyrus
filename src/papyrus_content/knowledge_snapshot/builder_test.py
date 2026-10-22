@@ -1,0 +1,378 @@
+from __future__ import annotations
+
+import json
+from datetime import date, timedelta
+
+from papyrus_content.reader_steering.snapshot import encoded
+
+from .builder import CLUSTERS_FILE, INDEX_FILE, build_files, entity_file
+from .model import (
+    Beat,
+    Cluster,
+    EntityNode,
+    FrontMatterEntity,
+    ItemLink,
+    KnowledgeData,
+    NodeRelation,
+    PublishedItem,
+    SnapshotOptions,
+)
+from .trends import change_of, percent_change
+from .weeks import week_label, week_number
+
+AS_OF = date(2026, 10, 19)
+MONDAY_WEEK = week_number(AS_OF)
+
+
+def published_in_week(offset: int, name: str, day: int = 0) -> str:
+    return (AS_OF - timedelta(weeks=offset) + timedelta(days=day)).isoformat() + "T09:30:00Z"
+
+
+def item(name: str, offset: int, **overrides) -> PublishedItem:
+    return PublishedItem(
+        key=f"lineage-{name}",
+        item_id=f"item-{name}",
+        title=overrides.pop("title", f"Title {name}"),
+        url=overrides.pop("url", f"/items/{name}/"),
+        published_at=overrides.pop("published_at", published_in_week(offset, name)),
+        **overrides,
+    )
+
+
+def node(kind: str, name: str, **overrides) -> EntityNode:
+    key = f"{kind}--{name.lower().replace(' ', '-')}"
+    values = {"lineage_id": f"semantic-node-{key}", "node_key": key, "kind": kind, "name": name, "status": "accepted"}
+    values.update(overrides)
+    return EntityNode(**values)
+
+
+def link(item_name: str, target: EntityNode, confirmed: bool = True) -> ItemLink:
+    return ItemLink(item_key=f"lineage-{item_name}", node_lineage_id=target.lineage_id, confirmed=confirmed)
+
+
+OPTIONS = SnapshotOptions(as_of=AS_OF)
+
+
+def two_tasks():
+    voice = node("task", "Voice cloning", description="Copying a voice from a short sample.", description_state="reviewed", reviewed_on="2026-10-12")
+    completion = node("task", "Code completion")
+    maker = node("maker", "Some Lab")
+    items = []
+    links = []
+    for index in range(12):
+        items.append(item(f"v{index}", offset=index % 4))
+        links.append(link(f"v{index}", voice))
+    for index in range(6):
+        items.append(item(f"p{index}", offset=4 + index % 4))
+        links.append(link(f"p{index}", voice))
+    for index in range(3):
+        items.append(item(f"c{index}", offset=index))
+        links.append(link(f"c{index}", completion))
+    links.append(link("v0", maker))
+    links.append(link("v1", maker))
+    return KnowledgeData(items=tuple(items), nodes=(voice, completion, maker), links=tuple(links)), voice, completion, maker
+
+
+def test_change_definition_twelve_against_six_is_plus_one_hundred():
+    assert percent_change(12, 6) == 100
+    assert change_of([0, 0, 0, 0, 1, 1, 1, 3]).percent is None
+    assert change_of([0] * 8).to_dict() == {"last4": 0, "prior4": 0, "percent": None}
+
+
+def test_percent_needs_a_base_of_five():
+    assert percent_change(9, 4) is None
+    assert percent_change(9, 5) == 80
+    assert percent_change(2, 5) == -60
+    assert percent_change(1, 8) == -88
+
+
+def test_weekly_series_and_change_for_an_entity():
+    data, voice, _completion, _maker = two_tasks()
+    files = build_files(data, OPTIONS)
+    entity = files[entity_file("task--voice-cloning")]
+    assert entity["itemCount"] == 18
+    assert entity["series8"] == [1, 1, 2, 2, 3, 3, 3, 3]
+    assert len(entity["series26"]) == 26
+    assert entity["series26"][-8:] == entity["series8"]
+    assert entity["change"] == {"last4": 12, "prior4": 6, "percent": 100}
+    assert entity["weeksOfHistory"] == 8
+    index = files[INDEX_FILE]
+    row = next(row for row in index["entities"] if row["key"] == "task--voice-cloning")
+    assert row["change"] == entity["change"] and row["isNew"] is False
+
+
+def test_an_entity_first_linked_two_weeks_ago_is_new_and_not_trending():
+    data, _voice, completion, _maker = two_tasks()
+    files = build_files(data, OPTIONS)
+    row = next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "task--code-completion")
+    assert row["isNew"] is True and row["weeksOfHistory"] == 3
+    assert "task--code-completion" not in files[INDEX_FILE]["trending"]
+    assert "task--voice-cloning" in files[INDEX_FILE]["trending"]
+
+
+def test_only_confirmed_links_to_published_dated_items_count():
+    voice = node("task", "Voice cloning")
+    data = KnowledgeData(
+        items=(
+            item("a", 0),
+            item("undated", 0, published_at=None),
+            item("future", 0, published_at="2026-12-01T00:00:00Z"),
+        ),
+        nodes=(voice,),
+        links=(
+            link("a", voice),
+            link("a", voice, confirmed=False),
+            link("undated", voice),
+            link("future", voice),
+            link("unpublished", voice),
+        ),
+    )
+    files = build_files(data, OPTIONS)
+    assert files[entity_file("task--voice-cloning")]["itemCount"] == 1
+
+
+def test_unaccepted_entities_and_entities_without_links_are_left_out():
+    generated = node("task", "Generated one", status="generated")
+    rejected = node("task", "Rejected one", status="rejected")
+    unlinked = node("task", "Unlinked")
+    data = KnowledgeData(
+        items=(item("a", 0),),
+        nodes=(generated, rejected, unlinked),
+        links=(link("a", generated), link("a", rejected)),
+    )
+    files = build_files(data, OPTIONS)
+    assert files[INDEX_FILE]["entities"] == []
+    assert [key for key in files if key.startswith("_data/knowledge/entities/")] == []
+
+
+def test_trending_order_percent_then_null_percent_by_growth_then_key():
+    entities = []
+    links = []
+    items = []
+
+    def add(name: str, last: int, prior: int):
+        target = node("task", name)
+        entities.append(target)
+        for index in range(last):
+            items.append(item(f"{name}-l{index}", offset=index % 4))
+            links.append(link(f"{name}-l{index}", target))
+        for index in range(prior):
+            items.append(item(f"{name}-p{index}", offset=4 + index % 4))
+            links.append(link(f"{name}-p{index}", target))
+
+    add("alpha", 12, 6)
+    add("bravo", 7, 5)
+    add("charlie", 9, 3)
+    add("delta", 5, 1)
+    add("echo", 8, 6)
+    data = KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
+    files = build_files(data, OPTIONS)
+    order = files[INDEX_FILE]["trending"]
+    percents = {row["key"]: row["change"]["percent"] for row in files[INDEX_FILE]["entities"]}
+    assert percents == {"task--alpha": 100, "task--bravo": 40, "task--charlie": None, "task--delta": None, "task--echo": 33}
+    assert order == ["task--alpha", "task--bravo", "task--echo", "task--charlie", "task--delta"]
+
+
+def test_concept_of_the_week_is_the_reviewed_entity_with_the_most_recent_items():
+    data, voice, completion, maker = two_tasks()
+    files = build_files(data, OPTIONS)
+    concept = files[INDEX_FILE]["conceptOfTheWeek"]
+    assert concept == {
+        "key": "task--voice-cloning",
+        "name": "Voice cloning",
+        "href": None,
+        "lede": "Copying a voice from a short sample.",
+        "itemCount": 18,
+        "makerCount": 1,
+    }
+    without_review = KnowledgeData(
+        items=data.items,
+        nodes=tuple(
+            EntityNode(**{**node.__dict__, "description_state": "draft"}) if node.lineage_id == voice.lineage_id else node
+            for node in data.nodes
+        ),
+        links=data.links,
+    )
+    assert build_files(without_review, OPTIONS)[INDEX_FILE]["conceptOfTheWeek"] is None
+
+
+def test_neighbours_are_confirmed_relations_and_shared_items():
+    data, voice, completion, maker = two_tasks()
+    related = KnowledgeData(
+        items=data.items,
+        nodes=data.nodes,
+        links=data.links,
+        relations=(
+            NodeRelation(voice.lineage_id, completion.lineage_id, "related_to", confirmed=True),
+            NodeRelation(voice.lineage_id, maker.lineage_id, "related_to", confirmed=False),
+        ),
+    )
+    entity = build_files(related, OPTIONS)[entity_file("task--voice-cloning")]
+    assert entity["neighbours"] == [
+        {"relation": "mentioned_with", "key": "maker--some-lab", "name": "Some Lab", "kind": "maker", "weight": 2},
+        {"relation": "related_to", "key": "task--code-completion", "name": "Code completion", "kind": "task", "weight": 0},
+    ]
+    assert [row["reason"] for row in entity["relatedItems"]] == ["task--voice-cloning"] * 12
+    assert entity["relatedItems"][0]["publishedAt"] >= entity["relatedItems"][-1]["publishedAt"]
+
+
+def test_description_state_is_reported_without_the_text():
+    data, _voice, _completion, _maker = two_tasks()
+    entity = build_files(data, OPTIONS)[entity_file("task--voice-cloning")]
+    assert entity["description"] == {"state": "reviewed", "reviewedOn": "2026-10-12"}
+    other = build_files(data, OPTIONS)[entity_file("task--code-completion")]
+    assert other["description"] == {"state": "none", "reviewedOn": None}
+
+
+def test_beats_count_member_items_per_week():
+    data, voice, _completion, _maker = two_tasks()
+    beat = Beat(key="decision-models", name="Decision models", href="/topics/decision-models/", item_keys=frozenset({"lineage-v0", "lineage-v1", "lineage-p0", "lineage-gone"}))
+    files = build_files(KnowledgeData(items=data.items, nodes=data.nodes, links=data.links, beats=(beat,)), OPTIONS)
+    row = files[INDEX_FILE]["beats"][0]
+    assert row["itemCount"] == 3 and sum(row["series8"]) == 3
+    assert files[INDEX_FILE]["topicCount"] == 1
+
+
+def test_no_beats_without_a_beat_source():
+    data, *_ = two_tasks()
+    assert build_files(data, OPTIONS)[INDEX_FILE]["beats"] == []
+
+
+def cluster(uid: str, **overrides) -> Cluster:
+    values = {
+        "uid": uid,
+        "accepted": True,
+        "name": f"Cluster {uid}",
+        "event": "continued",
+        "top_terms": ("agent", "tool"),
+        "weekly_series": {},
+        "first_seen": "2026-06-01",
+        "member_item_keys": ("lineage-a", "lineage-b"),
+        "member_count": 2,
+        "run_id": "run-1",
+        "run_as_of": "2026-10-19",
+    }
+    values.update(overrides)
+    return Cluster(**values)
+
+
+def weekly(*counts: int) -> dict[str, int]:
+    last = len(counts)
+    return {week_label(MONDAY_WEEK - (last - 1 - index)): count for index, count in enumerate(counts)}
+
+
+def test_clusters_hide_unaccepted_by_default_and_label_state_by_the_change_rule():
+    data = KnowledgeData(
+        items=(item("a", 0), item("b", 1)),
+        clusters=(
+            cluster("growing", weekly_series=weekly(5, 5, 5, 5, 8, 8, 8, 8)),
+            cluster("cooling", weekly_series=weekly(8, 8, 8, 8, 5, 5, 5, 5)),
+            cluster("flat", weekly_series=weekly(5, 5, 5, 5, 5, 5, 5, 5)),
+            cluster("young", first_seen="2026-10-05", event="continued", weekly_series=weekly(0, 0, 0, 0, 0, 3, 4, 5)),
+            cluster("fresh", first_seen="2026-10-12", event="new", weekly_series=weekly(0, 0, 0, 0, 0, 0, 2, 3)),
+            cluster("proposed", accepted=False, name=None),
+        ),
+    )
+    clusters = build_files(data, OPTIONS)[CLUSTERS_FILE]
+    states = {row["uid"]: row["state"] for row in clusters["clusters"]}
+    assert states == {"growing": "growing", "cooling": "cooling", "flat": None, "young": None, "fresh": "new"}
+    assert clusters["unacceptedClusters"] == "hide" and clusters["runId"] == "run-1"
+    grown = next(row for row in clusters["clusters"] if row["uid"] == "growing")
+    assert grown["series8"] == [5, 5, 5, 5, 8, 8, 8, 8] and grown["weeksOfData"] > 8 and grown["itemCount"] == 2
+
+
+def test_unnamed_mode_shows_proposed_clusters_without_a_name():
+    data = KnowledgeData(items=(item("a", 0),), clusters=(cluster("proposed", accepted=False, name=None, member_item_keys=("lineage-a",)),))
+    shown = build_files(data, SnapshotOptions(as_of=AS_OF, unaccepted_clusters="unnamed"))[CLUSTERS_FILE]
+    assert [(row["uid"], row["name"], row["href"]) for row in shown["clusters"]] == [("proposed", None, None)]
+
+
+def test_cluster_items_that_are_not_published_do_not_count():
+    data = KnowledgeData(items=(item("a", 0),), clusters=(cluster("x", member_item_keys=("lineage-a", "lineage-secret")),))
+    assert build_files(data, OPTIONS)[CLUSTERS_FILE]["clusters"][0]["itemCount"] == 1
+
+
+def test_same_records_and_as_of_give_byte_identical_output():
+    data, *_ = two_tasks()
+    first = {key: encoded(value) for key, value in build_files(data, OPTIONS).items()}
+    second = {key: encoded(value) for key, value in build_files(data, OPTIONS).items()}
+    assert first == second
+    assert b"generatedAt" not in b"".join(first.values())
+
+
+def test_public_safe_output_has_no_email_or_private_text():
+    leaky = node("maker", "Ann <ann@example.org>")
+    named = node("task", "Safe task", aliases=("secret@example.org", "Fine alias"), description="Mail ann@example.org", description_state="reviewed", reviewed_on="2026-10-01")
+    data = KnowledgeData(
+        items=(item("a", 0, title="Contact ann@example.org"), item("b", 0, title="A clean title")),
+        nodes=(leaky, named),
+        links=(link("a", leaky), link("a", named), link("b", named)),
+    )
+    files = build_files(data, OPTIONS)
+    text = "\n".join(encoded(value).decode() for value in files.values())
+    assert "@" not in text
+    assert files[entity_file("task--safe-task")]["aliases"] == ["Fine alias"]
+    assert [row["title"] for row in files[entity_file("task--safe-task")]["relatedItems"]] == ["A clean title"]
+    assert files[INDEX_FILE]["conceptOfTheWeek"] is None
+
+
+INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
+KIND_FIELDS = {"key", "label", "count"}
+BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "href", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
+CHANGE_FIELDS = {"last4", "prior4", "percent"}
+CONCEPT_FIELDS = {"key", "name", "href", "lede", "itemCount", "makerCount"}
+ENTITY_FIELDS = {
+    "schemaVersion", "key", "kind", "name", "aliases", "description", "href", "itemCount", "weeksOfHistory",
+    "series8", "series26", "change", "neighbours", "relatedItems",
+}
+DESCRIPTION_FIELDS = {"state", "reviewedOn"}
+NEIGHBOUR_FIELDS = {"relation", "key", "name", "kind", "weight"}
+RELATED_FIELDS = {"title", "url", "publishedAt", "reason"}
+CLUSTERS_FIELDS = {"schemaVersion", "asOf", "runId", "unacceptedClusters", "clusters"}
+CLUSTER_FIELDS = {"uid", "name", "state", "itemCount", "topTerms", "series8", "weeksOfData", "href"}
+
+
+def test_guest_surface_pins_the_exact_field_set_of_every_file():
+    data, voice, completion, maker = two_tasks()
+    data = KnowledgeData(
+        items=data.items,
+        nodes=data.nodes,
+        links=data.links,
+        relations=(NodeRelation(voice.lineage_id, completion.lineage_id, "related_to", confirmed=True),),
+        clusters=(cluster("c", member_item_keys=("lineage-v0",), weekly_series=weekly(1, 1, 1, 1, 1, 1, 1, 1)),),
+        beats=(Beat("b", "B", None, frozenset({"lineage-v0"})),),
+    )
+    files = build_files(data, OPTIONS)
+    index = files[INDEX_FILE]
+    assert set(index) == INDEX_FIELDS
+    assert all(set(row) == KIND_FIELDS for row in index["kinds"])
+    assert all(set(row) == BEAT_FIELDS for row in index["beats"])
+    assert all(set(row) == INDEX_ENTITY_FIELDS and set(row["change"]) == CHANGE_FIELDS for row in index["entities"])
+    assert set(index["conceptOfTheWeek"]) == CONCEPT_FIELDS
+    entity_files = [value for key, value in files.items() if key.startswith("_data/knowledge/entities/")]
+    assert len(entity_files) == 3
+    for entity in entity_files:
+        assert set(entity) == ENTITY_FIELDS
+        assert set(entity["description"]) == DESCRIPTION_FIELDS
+        assert set(entity["change"]) == CHANGE_FIELDS
+        assert all(set(row) == NEIGHBOUR_FIELDS for row in entity["neighbours"])
+        assert all(set(row) == RELATED_FIELDS for row in entity["relatedItems"])
+    assert sum(len(entity["neighbours"]) for entity in entity_files) > 0
+    clusters = files[CLUSTERS_FILE]
+    assert set(clusters) == CLUSTERS_FIELDS
+    assert clusters["clusters"] and all(set(row) == CLUSTER_FIELDS for row in clusters["clusters"])
+    assert set(files) == {INDEX_FILE, CLUSTERS_FILE, *(f"_data/knowledge/entities/{key}.json" for key in ("task--voice-cloning", "task--code-completion", "maker--some-lab"))}
+    json.dumps(files)
+
+
+def test_only_clusters_of_the_latest_run_are_published():
+    data = KnowledgeData(
+        items=(item("a", 0),),
+        clusters=(
+            cluster("old", member_item_keys=("lineage-a",), run_id="run-1", run_as_of="2026-10-12"),
+            cluster("current", member_item_keys=("lineage-a",), run_id="run-2", run_as_of="2026-10-19"),
+        ),
+    )
+    clusters = build_files(data, OPTIONS)[CLUSTERS_FILE]
+    assert [row["uid"] for row in clusters["clusters"]] == ["current"] and clusters["runId"] == "run-2"

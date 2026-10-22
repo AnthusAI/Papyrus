@@ -6,6 +6,7 @@ one with a live list; a static build renders only an empty placeholder because t
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from html import escape
 from typing import Any
 
@@ -33,16 +34,21 @@ def _render_dynamic_placeholder(directive: Directive, inner: str, attrs: dict[st
     return f'<div class="papyrus-dynamic" data-papyrus-dynamic="{escape(directive.name)}"></div>'
 
 
-def wiki_directive_specs() -> list[DirectiveSpec]:
+def wiki_directive_specs(render: Callable[[str, dict[str, Any]], str] | None = None) -> list[DirectiveSpec]:
+    """The wiki directives. ``render(name, attributes)`` fills them in a static build; without it each is an empty placeholder."""
+
+    def renderer(directive: Directive, inner: str, attrs: dict[str, Any]) -> str:
+        return render(directive.name, attrs) if render is not None else _render_dynamic_placeholder(directive, inner, attrs)
+
     return [
-        DirectiveSpec(name="recent-concepts", schema=RecentConceptsAttrs, renderer=_render_dynamic_placeholder, leaf=True),
-        DirectiveSpec(name="concept-list", schema=ConceptListAttrs, renderer=_render_dynamic_placeholder, leaf=True),
-        DirectiveSpec(name="concept-count", schema=ConceptCountAttrs, renderer=_render_dynamic_placeholder, leaf=True),
+        DirectiveSpec(name="recent-concepts", schema=RecentConceptsAttrs, renderer=renderer, leaf=True),
+        DirectiveSpec(name="concept-list", schema=ConceptListAttrs, renderer=renderer, leaf=True),
+        DirectiveSpec(name="concept-count", schema=ConceptCountAttrs, renderer=renderer, leaf=True),
     ]
 
 
-def papyrus_registry() -> Registry:
+def papyrus_registry(render: Callable[[str, dict[str, Any]], str] | None = None) -> Registry:
     registry = Registry.default()
-    for spec in wiki_directive_specs():
+    for spec in wiki_directive_specs(render):
         registry.register(spec)
     return registry
