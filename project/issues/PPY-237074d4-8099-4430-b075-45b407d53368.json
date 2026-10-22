@@ -3,16 +3,24 @@
   "title": "Offer ruling alerts to Distinctive Mark",
   "description": "Through the Distinctive session: sending stack in zone Z0290267H9H3GQTVF6SK (check apex DMARC and MX first), plugin config with weekly and alert lists, migrate the existing signup form to /api/newsletter/subscribe.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f5f899de-ec3b-4eab-a384-adac13627984",
+      "author": "home",
+      "text": "Sending stack papyrus-newsletter-sending-distinctive deployed: distinctive-mark.com verified with DKIM, MAIL FROM bounce.distinctive-mark.com and SPF, and _dmarc p=none, all in zone Z0290267H9H3GQTVF6SK; configuration set papyrus-distinctive (siteId distinctive). Compliance footer uses the shared default postal address. Enablement instructions offered to the Distinctive session, which owns Distinctive-web and decides when to enable; use Papyrus 5.22.0 or later.",
+      "created_at": "2026-10-22T10:15:42.458251Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:41.808186Z",
-  "updated_at": "2026-10-22T02:43:41.808212Z",
+  "updated_at": "2026-10-22T10:15:42.458279Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
