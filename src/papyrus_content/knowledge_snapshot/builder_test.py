@@ -176,6 +176,29 @@ def test_trending_order_percent_then_null_percent_by_growth_then_key():
     assert order == ["task--alpha", "task--bravo", "task--echo", "task--charlie", "task--delta"]
 
 
+def test_percent_is_null_under_eight_weeks_of_history_and_trending_follows_it():
+    entities, links, items = [], [], []
+
+    def add(name: str, counts: dict[int, int]):
+        target = node("task", name)
+        entities.append(target)
+        for offset, amount in counts.items():
+            for index in range(amount):
+                items.append(item(f"{name}-{offset}-{index}", offset=offset))
+                links.append(link(f"{name}-{offset}-{index}", target))
+
+    add("young", {0: 3, 1: 3, 2: 3, 3: 3, 4: 1, 5: 1})
+    add("mature", {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2})
+    add("zshort", {0: 4, 1: 4, 2: 1, 3: 1, 4: 1, 5: 1})
+    data = KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
+    index = build_files(data, OPTIONS)[INDEX_FILE]
+    rows = {row["key"]: row for row in index["entities"]}
+    assert rows["task--young"]["weeksOfHistory"] == 6
+    assert rows["task--young"]["change"] == {"last4": 12, "prior4": 2, "percent": None}
+    assert rows["task--mature"]["change"]["percent"] == 0
+    assert index["trending"] == ["task--mature", "task--young", "task--zshort"]
+
+
 def test_concept_of_the_week_is_the_reviewed_entity_with_the_most_recent_items():
     data, voice, completion, maker = two_tasks()
     files = build_files(data, OPTIONS)

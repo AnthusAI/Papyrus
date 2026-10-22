@@ -140,7 +140,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 history=history,
                 values8=values8,
                 values26=values26,
-                change=change_of(values8),
+                change=change_of(values8, history),
                 new=is_new(history),
                 href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template else None,
             )
