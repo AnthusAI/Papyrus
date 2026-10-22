@@ -735,3 +735,127 @@ def ai_saw_no_identity(context) -> None:
     reader_ids = [item["readerId"] for item in backend.table("profile").scan()["Items"]]
     handles = [item.get("handle") for item in backend.table("profile").scan()["Items"] if item.get("handle")]
     assert not any(secret in text for secret in [*reader_ids, *handles, *[subject_for(name) for name in ("alice", "bob")]]), text
+
+
+# Votes and flags on any subject type (features_backend/reader-subject-votes.feature)
+
+SUBJECT_TYPE_WORDS = {"item": "item", "submission": "submission", "story": "story", "proposal": "proposal", "concept": "concept", "person": "person"}
+
+
+@given("the publication lets readers vote on items, stories, proposals and concepts")
+def types_all(context) -> None:
+    context.reader_options["subject_types"] = ("item", "story", "proposal", "concept")
+
+
+@given("the publication lets readers vote on items only")
+def types_items_only(context) -> None:
+    close_backend(context)
+    context.reader_options["subject_types"] = ("item",)
+
+
+@when('"{name}" votes up on the {subject_type} "{subject_id}"')
+def votes_up(context, name: str, subject_type: str, subject_id: str) -> None:
+    call(context, name, "vote", {"subject": {"type": subject_type, "id": subject_id}, "value": 1})
+
+
+@when('"{name}" votes down on the {subject_type} "{subject_id}"')
+def votes_down(context, name: str, subject_type: str, subject_id: str) -> None:
+    call(context, name, "vote", {"subject": {"type": subject_type, "id": subject_id}, "value": -1})
+
+
+@when('"{name}" removes the vote on the {subject_type} "{subject_id}"')
+def removes_vote(context, name: str, subject_type: str, subject_id: str) -> None:
+    call(context, name, "vote", {"subject": {"type": subject_type, "id": subject_id}, "value": None})
+
+
+@when('"{name}" sends a vote of {value:d} on the {subject_type} "{subject_id}"')
+def sends_vote(context, name: str, value: int, subject_type: str, subject_id: str) -> None:
+    call(context, name, "vote", {"subject": {"type": subject_type, "id": subject_id}, "value": value})
+
+
+def flag_payload(subject_type: str, subject_id: str, kind: str, reason, **extra) -> dict:
+    return {"subject": {"type": subject_type, "id": subject_id}, "kind": kind, "reason": reason, **extra}
+
+
+@when('"{name}" flags the {subject_type} "{subject_id}" as "{kind}" because "{reason}"')
+def flags_subject(context, name: str, subject_type: str, subject_id: str, kind: str, reason: str) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, kind, reason))
+
+
+@when('"{name}" flags the {subject_type} "{subject_id}" as "{kind}" because a reason of {length:d} characters')
+def flags_with_long_reason(context, name: str, subject_type: str, subject_id: str, kind: str, length: int) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, kind, "x" * length))
+
+
+@when('"{name}" flags the {subject_type} "{subject_id}" as belonging under the {target_type} "{target_id}" because "{reason}"')
+def flags_belongs_under(context, name: str, subject_type: str, subject_id: str, target_type: str, target_id: str, reason: str) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, "belongs_under", reason, target={"type": target_type, "id": target_id}))
+
+
+@when('"{name}" flags the {subject_type} "{subject_id}" as belonging under nothing because "{reason}"')
+def flags_belongs_under_nothing(context, name: str, subject_type: str, subject_id: str, reason: str) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, "belongs_under", reason))
+
+
+@when('"{name}" suggests the name "{suggested}" for the {subject_type} "{subject_id}" because "{reason}"')
+def suggests_name(context, name: str, suggested: str, subject_type: str, subject_id: str, reason: str) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, "better_name", reason, name=suggested))
+
+
+@when('"{name}" suggests no name for the {subject_type} "{subject_id}" because "{reason}"')
+def suggests_no_name(context, name: str, subject_type: str, subject_id: str, reason: str) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, "better_name", reason))
+
+
+@then('"{name}" sees the vote {value:d} on "{key}" in the reader state')
+def sees_typed_vote(context, name: str, value: int, key: str) -> None:
+    assert reader_state(context, name, [key])["votes"][key]["up"] == value
+
+
+@then('every stored vote on "{key}" has the subject type "{subject_type}"')
+def stored_votes_have_type(context, key: str, subject_type: str) -> None:
+    rows = [vote for vote in ensure_started(context).votes() if vote["subjectKey"] == key]
+    assert rows and all(vote["subjectType"] == subject_type for vote in rows), rows
+
+
+@then('"{name}" has karma {karma:d}')
+def has_karma(context, name: str, karma: int) -> None:
+    assert reader_state(context, name, [])["karma"] == karma
+
+
+@then('there is {count:d} stored flag of kind "{kind}" on "{key}"')
+def stored_flag_count(context, count: int, kind: str, key: str) -> None:
+    rows = [flag for flag in ensure_started(context).flags() if flag["kind"] == kind and flag["subjectKey"] == key]
+    assert len(rows) == count, rows
+
+
+@then("there are {count:d} stored flags")
+def stored_flags(context, count: int) -> None:
+    assert len(ensure_started(context).flags()) == count, ensure_started(context).flags()
+
+
+@then('the stored flag points at "{key}"')
+def flag_points_at(context, key: str) -> None:
+    assert ensure_started(context).flags()[0]["targetKey"] == key
+
+
+@then('the stored flag suggests the name "{suggested}"')
+def flag_suggests(context, suggested: str) -> None:
+    assert ensure_started(context).flags()[0]["suggestedName"] == suggested
+
+
+@then('the stored flag reason is "{reason}"')
+def flag_reason(context, reason: str) -> None:
+    assert [flag["reason"] for flag in ensure_started(context).flags()] == [reason]
+
+
+@then('no stored vote or flag contains the site subject of "{name}"')
+def no_site_subject_stored(context, name: str) -> None:
+    backend = ensure_started(context)
+    text = json.dumps([*backend.votes(), *backend.flags()], default=str)
+    assert subject_for(name) not in text and subject_for(name)[4:] not in text
+
+
+@when('"{name}" flags the {subject_type} "{subject_id}" as "{kind}" without a reason')
+def flags_without_reason(context, name: str, subject_type: str, subject_id: str, kind: str) -> None:
+    call(context, name, "flag", flag_payload(subject_type, subject_id, kind, ""))
