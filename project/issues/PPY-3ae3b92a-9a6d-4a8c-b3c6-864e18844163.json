@@ -1,0 +1,20 @@
+{
+  "id": "PPY-3ae3b92a-9a6d-4a8c-b3c6-864e18844163",
+  "title": "Roundup issues: weekly draft, admin approval for a time, idempotent batched send, web archive",
+  "description": "Per-list schedule assembles a draft Item from the week's published items; admin approval creates a one-time EventBridge Scheduler send; start-send re-checks the content hash and postal address; SQS-paced worker with an at-most-once ledger per subscriber per issue and a stop flag; on completion the issue Item is published (archive page, Markus twin, llms.txt).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T02:43:38.443270Z",
+  "updated_at": "2026-10-22T02:43:38.443305Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

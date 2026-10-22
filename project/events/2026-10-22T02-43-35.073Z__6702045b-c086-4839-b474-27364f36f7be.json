@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "6702045b-c086-4839-b474-27364f36f7be",
+  "issue_id": "PPY-4158a23f-cb3d-4e9c-87cc-a16a9f93eb9f",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:43:35.073Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Request SES production access for papyrus-production",
+    "description": "Written use case (double opt-in, bounce and complaint handling, volume) submitted with aws sesv2 put-account-details. Track AWS follow-up questions.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+    "labels": []
+  }
+}

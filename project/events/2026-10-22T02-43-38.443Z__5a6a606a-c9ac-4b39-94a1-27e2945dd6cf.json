@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5a6a606a-c9ac-4b39-94a1-27e2945dd6cf",
+  "issue_id": "PPY-3ae3b92a-9a6d-4a8c-b3c6-864e18844163",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:43:38.443Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Roundup issues: weekly draft, admin approval for a time, idempotent batched send, web archive",
+    "description": "Per-list schedule assembles a draft Item from the week's published items; admin approval creates a one-time EventBridge Scheduler send; start-send re-checks the content hash and postal address; SQS-paced worker with an at-most-once ledger per subscriber per issue and a stop flag; on completion the issue Item is published (archive page, Markus twin, llms.txt).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
+    "labels": []
+  }
+}

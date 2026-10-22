@@ -1,0 +1,20 @@
+{
+  "id": "PPY-874ad450-e686-4e94-9549-91b16a8df17b",
+  "title": "Per-site SES sending stack: domain identity, Easy DKIM, MAIL FROM, SPF, DMARC, configuration set and event topic",
+  "description": "infra/newsletter/papyrus-newsletter-sending.yaml, one stack per site (papyrus-newsletter-sending-<siteId>). Route 53 records in our zones. Configuration set papyrus-<siteId> with SNS and CloudWatch event destinations. First deployed for Shipped (shipped.anth.us, zone Z04979341DPRV5BDQNZMG). Done when the identity is verified, DKIM and MAIL FROM show SUCCESS, and dig shows SPF and DMARC.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T02:43:34.219746Z",
+  "updated_at": "2026-10-22T02:43:34.219782Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

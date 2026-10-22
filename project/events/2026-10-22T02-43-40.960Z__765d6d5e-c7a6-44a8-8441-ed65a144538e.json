@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "765d6d5e-c7a6-44a8-8441-ed65a144538e",
+  "issue_id": "PPY-64f38a5c-ebba-46fa-85ec-fcffc4c10f7b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:43:40.960Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Enable newsletters on Shipped end to end",
+    "description": "Shipped-web: pin bump, newsletter plugin config, signup component on the roundup page, roundup archive at /roundup/. Verify with a test inbox Ryan controls. Tracks ship-7e99a6.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
+    "labels": []
+  }
+}

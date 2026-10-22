@@ -1,0 +1,20 @@
+{
+  "id": "PPY-93b135f2-a0b7-4765-bb75-3d7a356eb8bb",
+  "title": "Document newsletters on the Papyrus marketing site",
+  "description": "p.apyr.us: double opt-in, unsubscribe and suppression, roundup approval, alerts, agent-readable archive. Add to the features list (PPY-b9b038).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T02:43:42.690332Z",
+  "updated_at": "2026-10-22T02:43:42.690357Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
