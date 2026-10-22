@@ -173,6 +173,11 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
             raise ValueError(f"papyrus knowledge {command} requires <command>: {allowed}.")
         _delegate_content("knowledge", f"{command}-{flags[0]}", flags[1:])
         return 0
+    if command == "wiki":
+        if not flags or flags[0].startswith("-"):
+            raise ValueError("papyrus knowledge wiki requires <command>: sync or publish.")
+        _delegate_content("knowledge", f"wiki-{flags[0]}", flags[1:])
+        return 0
     raise ValueError(f"Unsupported papyrus knowledge command: {command}")
 
 

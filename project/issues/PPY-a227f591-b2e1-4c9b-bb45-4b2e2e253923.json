@@ -3,7 +3,7 @@
   "title": "Suggest an edit (replaces public edit controls)",
   "description": "As a reader, I want to suggest a correction to a wiki page, so that errors reach the desk without public editing.\n\nUses the existing public form endpoint (stores a private message for the desk). Shows \"Updated DATE\" and a link to the entity's graph JSON.\n\n```gherkin\nFeature: Suggest an edit\n  Scenario: Submit a suggestion\n    When a reader submits a suggestion on a page\n    Then the desk receives a message that names the page\n    And nothing changes on the public page\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-21T12:50:05.012940Z",
-  "updated_at": "2026-10-21T12:50:05.012973Z",
+  "updated_at": "2026-10-22T04:54:43.160887Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

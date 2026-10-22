@@ -50,6 +50,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
 | `pageActions` | copy / view / open-in actions on article pages: `{enabled, placement (header\|aside), actions (copy, view), ai (chatgpt, claude, perplexity), prompt}` |
+| `wiki` | public wiki pages (see [public-wiki.md](public-wiki.md)): `{types (default ["wiki_page"]), suggestForm (the id of a forms entry), dataLink (default true)}` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
 | `values` | `{ "name": "text or number" }`: the `{{name}}` tokens of page blocks (see "Page blocks") |
 | `islands` | `{script, stylesheet, prerender}`: the site bundle that mounts islands, an optional stylesheet linked on every page, and an optional file of server-rendered island HTML (see "Islands") |

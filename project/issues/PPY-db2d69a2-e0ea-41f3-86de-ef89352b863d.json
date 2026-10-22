@@ -3,7 +3,7 @@
   "title": "Topic and beat pages from accepted categories and subtopics",
   "description": "As a reader, I want a page per beat (root topic) and subtopic, so that I can browse by subject.\n\nA page Item in a topics section for each accepted beat or subtopic (same sync as entity pages), plus the existing published category tree. Beats are accepted root categories (roughly 8 to 12); the index lists beats and accepted entities. Subtopics are shown only for beats with enough items (default 30). Subtopics come from Biblicus child-topic discovery through steering proposals.\n\n```gherkin\nFeature: Topic pages\n  Scenario: Beat page\n    Given an accepted root category\n    Then a draft topic page exists and, once published, lists the beat's items\n\n  Scenario: Small beats\n    Given a beat with fewer items than the subtopic minimum\n    Then no subtopic list is shown\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-21T12:50:05.090949Z",
-  "updated_at": "2026-10-21T12:50:05.090985Z",
+  "updated_at": "2026-10-22T04:54:43.231271Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

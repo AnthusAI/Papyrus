@@ -62,7 +62,7 @@ def _link(origin: str | None, path: str) -> str:
     return (origin or "") + path
 
 
-def item_markdown(entry, source_text: str, canonical: str | None) -> str:
+def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[str, ...] = ()) -> str:
     body = body_of(source_text)
     lines = []
     if not _opens_with_heading(body):
@@ -78,6 +78,8 @@ def item_markdown(entry, source_text: str, canonical: str | None) -> str:
         lines += [f"> {entry.summary_text}", ""]
     if facts:
         lines += [" · ".join(facts), ""]
+    for note in notes:
+        lines += [f"> {note}", ""]
     if canonical:
         lines += [f"Canonical: {canonical}", ""]
     lines.append(body)

@@ -3,7 +3,7 @@
   "title": "Sync accepted entities into draft wiki page Items",
   "description": "As an editor, I want a draft page created for each accepted entity, so that I only review and publish rather than author each page.\n\nFront matter: entity id, kind, aliases, beat, related keys, optional pin and annotations. Body: the approved description in Markus (descriptions may be LLM-drafted but are published only after a human accepts; default model for language-model tasks is GPT-6 Luna unless stated otherwise). The node remains the system of record.\n\n```gherkin\nFeature: Entity page sync\n  Scenario: New accepted entity\n    Given an entity newly accepted by the desk\n    When the sync runs\n    Then a draft page Item exists for it and is not public\n\n  Scenario: Publish\n    When an editor publishes the draft\n    Then the page appears in the wiki listing, sitemap and search index\n\n  Scenario: Never auto-publish\n    Then the sync never sets a page to published\n\n  Scenario: Description changed\n    Given a published page whose entity description changed\n    Then the sync creates a pending revision for review rather than altering the live page\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -12,7 +12,7 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-21T12:50:04.861270Z",
-  "updated_at": "2026-10-21T12:50:04.861303Z",
+  "updated_at": "2026-10-22T04:54:43.038388Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
