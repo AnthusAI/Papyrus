@@ -80,6 +80,9 @@ assert.deepEqual(feedbackFor(result, body, classifierFinding, "dismissed", null,
 });
 assert.equal(feedbackFor(result, body, warn, "fixed", "item-1").text, null, "rule findings carry no example text");
 assert.match(laneNotice(result) ?? "", /not judged: 3 segment/);
+// PPY-2c4b56: a publication without a mission gets its rule checks; the skipped judgments are explained, not a failure.
+const skipped = { ...result, lanes: { ...result.lanes, classifier: { status: "skipped" as const, reason: "this publication has no mission yet" } } };
+assert.equal(laneNotice(skipped), "Mission-based checks skipped: this publication has no mission yet.");
 
 // --- findings on the rendered preview -------------------------------------------
 import("../lib/editorial-preview").then(({ inlineLeaves, locate, planPreview, proseBlocks, selectionToSource, splitByMarks }) => {

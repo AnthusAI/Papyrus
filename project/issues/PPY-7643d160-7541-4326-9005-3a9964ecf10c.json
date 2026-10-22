@@ -3,17 +3,25 @@
   "title": "Email renderer: Markus to responsive email HTML and plain text, per-site theme, compliance footer",
   "description": "src/papyrus_content/email_render: table-based HTML with inlined styles plus text part, theme tokens from plugin config, footer with why-you-get-this, manage and unsubscribe links and the postal address (issues refuse to render while it is unset). No tracking.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-19a098f4-0ad8-49f5-9c00-40d0fb330d4d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "8802f50f-39c9-4f78-a0ef-43e4a5c5a38d",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/523 MERGED to develop (had docs/newsletter.md conflicts, resolved by merging develop; CI python/ts/smoke green). Verification: 11 pytest tests in src/papyrus_content/email_render/email_render_test.py pass; preview screenshots checked at 600 and 375 px, light and dark. Not promoted to main.",
+      "created_at": "2026-10-22T03:42:43.349123Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:37.585826Z",
-  "updated_at": "2026-10-22T02:43:37.585857Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T03:42:59.791344Z",
+  "closed_at": "2026-10-22T03:42:59.791300Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
