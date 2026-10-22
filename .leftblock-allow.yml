@@ -249,3 +249,9 @@ allow:
     kind: "Personal email address"
     reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
     added: 2026-10-22
+  - id: "f3d02f9dafe5eed2"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/shipped.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "CloudFront KeyValueStore ARN in an example site config; resource identifier, not a session id or secret"
+    added: 2026-10-22
