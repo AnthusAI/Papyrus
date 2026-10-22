@@ -24,6 +24,7 @@ from papyrus_content.reader_steering.task import (
     SETTINGS_ENV,
     STATE_TABLE_ENV,
     COMMENT_TABLE_ENV,
+    PROPOSAL_TABLE_ENV,
     SUBMISSION_TABLE_ENV,
     VOTE_TABLE_ENV,
     run_reader_snapshot,
@@ -49,6 +50,7 @@ TABLE_NAMES = {
     "report": "ReaderReport-test",
     "action": "ModerationAction-test",
     "item": "Item-test",
+    "proposal": "Proposal-test",
 }
 
 
@@ -143,6 +145,7 @@ class ReaderBackend:
             report_table=TABLE_NAMES["report"],
             action_table=TABLE_NAMES["action"],
             item_table=TABLE_NAMES["item"],
+            proposal_table=TABLE_NAMES["proposal"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -198,6 +201,15 @@ class ReaderBackend:
         return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
 
 
+    def proposal_call(self, field: str, arguments: dict, *, groups=("editor",), sub: str = "staff-sub-1") -> dict:
+        """``fileProposal`` or ``transitionProposal`` as AppSync delivers it to the function."""
+        event = {"arguments": arguments, "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}}, "info": {"fieldName": field}}
+        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+
+    def proposals(self) -> list[dict]:
+        return sorted(self.table("proposal").scan()["Items"], key=lambda row: row["createdAt"])
+
+
 def iso_at(seconds: float) -> str:
     return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -248,6 +260,7 @@ def run_snapshot(
         STATE_TABLE_ENV: TABLE_NAMES["rate"],
         SUBMISSION_TABLE_ENV: TABLE_NAMES["submission"],
         COMMENT_TABLE_ENV: TABLE_NAMES["comment"],
+        PROPOSAL_TABLE_ENV: TABLE_NAMES["proposal"],
     }
     return run_reader_snapshot(
         context,

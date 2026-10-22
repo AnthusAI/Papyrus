@@ -120,6 +120,54 @@ export function readerSteeringSchemaDefinitions() {
       .disableOperations(["subscriptions"])
       .secondaryIndexes((index) => [index("target").sortKeys(["at"]).name("actionsByTarget").queryField("listModerationActionsByTargetAndAt")])
       .authorization(staffOnly),
+    Proposal: a
+      .model({
+        id: a.id().required(),
+        kind: a.string().required(),
+        title: a.string().required(),
+        summary: a.string(),
+        body: a.string().required(),
+        targets: a.json().required(),
+        evidence: a.json(),
+        proposer: a.string().required(),
+        state: a.string().required(),
+        history: a.json().required(),
+        communityResult: a.json(),
+        createdAt: a.datetime().required(),
+      })
+      .disableOperations(["subscriptions"])
+      .secondaryIndexes((index) => [index("state").sortKeys(["createdAt"]).name("proposalsByState").queryField("listProposalsByStateAndCreatedAt")])
+      .authorization(staffOnly),
+    ProposalReceipt: a.customType({
+      status: a.string().required(),
+      id: a.string(),
+      error: a.string(),
+      message: a.string(),
+    }),
+    fileProposal: a
+      .mutation()
+      .arguments({
+        kind: a.string().required(),
+        title: a.string().required(),
+        body: a.string().required(),
+        summary: a.string(),
+        targets: a.json(),
+        evidence: a.json(),
+      })
+      .returns(a.ref("ProposalReceipt"))
+      .authorization((allow) => [allow.group("editor"), allow.group("admin")])
+      .handler(a.handler.function(readerActions)),
+    transitionProposal: a
+      .mutation()
+      .arguments({
+        proposalId: a.string().required(),
+        state: a.string().required(),
+        reason: a.string(),
+        result: a.string(),
+      })
+      .returns(a.ref("ProposalReceipt"))
+      .authorization((allow) => [allow.group("editor"), allow.group("admin")])
+      .handler(a.handler.function(readerActions)),
     ModerationReceipt: a.customType({
       status: a.string().required(),
       id: a.string(),

@@ -154,11 +154,11 @@ for (const bad of [
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
 assert.deepEqual(
   Object.keys(definitions).sort(),
-  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt"].sort(),
-  "the schema defines exactly the manifest's models and mutations, plus the receipt type",
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt", "ProposalReceipt"].sort(),
+  "the schema defines exactly the manifest's models and mutations, plus the receipt types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"]);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal"]);
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -196,7 +196,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
-    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Proposal", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
   const outputs: unknown[] = [];
   const backend = {
@@ -308,8 +308,9 @@ assert.equal(polledVariables.PAPYRUS_READER_POLL_URL, "https://reader.example.te
 assert.equal(polledVariables.PAPYRUS_READER_POLL_SECRET_PARAMETER, "/papyrus/reader/reader-poll-secret");
 assert.ok(polledVariables.PAPYRUS_READER_RATE_TABLE, "the cursor lives in the rate table");
 assert.equal(JSON.parse(polledVariables.PAPYRUS_READER_SNAPSHOT_SETTINGS).retirementPoll, true);
+// CDK moves statements past its policy size limit into an overflow managed policy on the same role, so read both.
 const statementsOf = (template: Template, rolePrefix: string) =>
-  Object.values(template.findResources("AWS::IAM::Policy"))
+  [...Object.values(template.findResources("AWS::IAM::Policy")), ...Object.values(template.findResources("AWS::IAM::ManagedPolicy"))]
     .filter((policy) => ((policy as { Properties: { Roles: Array<{ Ref: string }> } }).Properties.Roles ?? []).some((role) => role.Ref.startsWith(rolePrefix)))
     .flatMap((policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement);
 const actionsOn = (statements: ReturnType<typeof statementsOf>, table: string) =>
@@ -373,4 +374,13 @@ assert.match(mutation, /@function/);
 assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
 assert.match(mutation, /groups: \["editor"\]/);
 assert.match(mutation, /groups: \["admin"\]/);
+for (const name of ["fileProposal", "transitionProposal"]) {
+  const start = transformed.indexOf(`${name}(`);
+  assert.ok(start > 0, `${name} is in the deployed schema`);
+  const proposalMutation = transformed.slice(start, start + 400).split("\n\n")[0];
+  assert.match(proposalMutation, /@function/);
+  assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(proposalMutation), false, `${name} is open to groups only: ${proposalMutation}`);
+  assert.match(proposalMutation, /groups: \["editor"\]/);
+  assert.match(proposalMutation, /groups: \["admin"\]/);
+}
 console.log("reader steering schema ok");

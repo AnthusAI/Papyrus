@@ -30,6 +30,7 @@ if _FUNCTION_DIRECTORY not in sys.path:  # a Lambda already has its code directo
     sys.path.insert(0, _FUNCTION_DIRECTORY)
 import ai_moderation  # noqa: E402
 import moderation as moderation_rules  # noqa: E402
+import proposals as proposal_rules  # noqa: E402
 
 SITE_SUBJECT = re.compile(r"ss1_[A-Za-z0-9_-]{43}")
 INTERIM_SUBJECT = re.compile(r"ssdev_[A-Za-z0-9_-]{43}")
@@ -832,6 +833,7 @@ class DynamoReaderStore:
         report_table: str = "",
         action_table: str = "",
         item_table: str = "",
+        proposal_table: str = "",
     ) -> None:
         self._resource = resource
         self._names = {
@@ -845,10 +847,43 @@ class DynamoReaderStore:
             "report": report_table,
             "action": action_table,
             "item": item_table,
+            "proposal": proposal_table,
         }
 
     def _table(self, key: str) -> Any:
         return self._resource.Table(self._names[key])
+
+    def get_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        item = self._table("proposal").get_item(Key={"id": proposal_id}, ConsistentRead=True).get("Item")
+        return plain(item) if item else None
+
+    def create_proposal(self, row: dict[str, Any]) -> bool:
+        item = {**_without_none(row), "__typename": "Proposal", "updatedAt": row["createdAt"]}
+        try:
+            self._table("proposal").put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
+
+    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool:
+        names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
+        assignments = ", ".join(f"#c{index} = :c{index}" for index in range(len(changes)))
+        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values())}}
+        try:
+            self._table("proposal").update_item(
+                Key={"id": proposal_id},
+                UpdateExpression=f"SET {assignments}, #u = :now",
+                ConditionExpression="#st = :expected",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
 
     def get_profile(self, site_subject: str) -> dict[str, Any] | None:
         item = self._table("profile").get_item(Key={"id": site_subject}, ConsistentRead=True).get("Item")
@@ -1259,6 +1294,7 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         report_table=environment.get("PAPYRUS_READER_REPORT_TABLE", ""),
         action_table=environment.get("PAPYRUS_READER_ACTION_TABLE", ""),
         item_table=environment.get("PAPYRUS_READER_ITEM_TABLE", ""),
+        proposal_table=environment.get("PAPYRUS_READER_PROPOSAL_TABLE", ""),
     )
 
 
@@ -1312,6 +1348,8 @@ def run_ai_worker(
 
 def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float) -> dict[str, Any]:
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
+    if (event.get("info") or {}).get("fieldName") in proposal_rules.MUTATIONS:
+        return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds))
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []
