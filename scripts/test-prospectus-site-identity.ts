@@ -147,6 +147,36 @@ async function main() {
   assert.equal(signedHeaders["x-amz-security-token"], "session");
   assert.equal(signedRequests[0].init.redirect, "error");
 
+  // The retired-subjects poll sends a query string; it must be inside the signature API Gateway verifies.
+  const pollRequests: Array<{ url: string; headers: Record<string, string> }> = [];
+  const pollCredentials = { accessKeyId: "ASIASYNTHETIC", secretAccessKey: "synthetic", sessionToken: "session" };
+  const pollAccounts = new ProspectusSiteAccounts(signedProspectusTransport({
+    endpoint: "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/",
+    region: "us-east-1",
+    runtimeCredentials: async () => pollCredentials,
+    fetcher: (async (url: URL, init: RequestInit) => {
+      pollRequests.push({ url: url.toString(), headers: init.headers as Record<string, string> });
+      return new Response(JSON.stringify({ retired: [], cursor: "c2", more: false }), { status: 200 });
+    }) as unknown as typeof fetch,
+  }));
+  assert.deepEqual(await pollAccounts.retiredSiteSubjects("cursor=/1+"), { retired: [], cursor: "c2", more: false });
+  await pollAccounts.retiredSiteSubjects();
+  assert.equal(pollRequests[0].url, "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/v1/accounts/site-subjects/retired?since=cursor%3D%2F1%2B");
+  assert.equal(pollRequests[1].url, "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/v1/accounts/site-subjects/retired");
+  {
+    const { SignatureV4 } = await import("@smithy/signature-v4");
+    const { HttpRequest } = await import("@smithy/protocol-http");
+    const { Sha256 } = await import("@aws-crypto/sha256-js");
+    const sentAt = pollRequests[0].headers["x-amz-date"];
+    const signingDate = new Date(`${sentAt.slice(0, 4)}-${sentAt.slice(4, 6)}-${sentAt.slice(6, 8)}T${sentAt.slice(9, 11)}:${sentAt.slice(11, 13)}:${sentAt.slice(13, 15)}Z`);
+    const signer = new SignatureV4({ service: "execute-api", region: "us-east-1", credentials: pollCredentials, sha256: Sha256 });
+    const base = { protocol: "https:", hostname: "abc123defg.execute-api.us-east-1.amazonaws.com", path: "/api/v1/accounts/site-subjects/retired", method: "GET", headers: { host: "abc123defg.execute-api.us-east-1.amazonaws.com" } };
+    const withQuery = await signer.sign(new HttpRequest({ ...base, query: { since: "cursor=/1+" } }), { signingDate });
+    const withoutQuery = await signer.sign(new HttpRequest(base), { signingDate });
+    assert.equal(pollRequests[0].headers.authorization, withQuery.headers.authorization, "the signature covers the query string");
+    assert.notEqual(pollRequests[0].headers.authorization, withoutQuery.headers.authorization);
+  }
+
   const staticKeyTransport = signedProspectusTransport({
     endpoint: "https://abc123defg.execute-api.us-east-1.amazonaws.com/api/",
     region: "us-east-1",

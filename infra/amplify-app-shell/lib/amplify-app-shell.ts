@@ -5,7 +5,7 @@ import * as amplify from "aws-cdk-lib/aws-amplify";
 import { SecureStringParameter } from "./secure-string-parameter";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -133,6 +133,22 @@ export class AmplifyAppShellStack extends Stack {
           sid: "ReadProspectusSessionSealingSecret",
           actions: ["ssm:GetParameter"],
           resources: [prospectusSessionSealing.parameterArn],
+        }),
+      );
+    }
+    if (prospectusAccountsApiStageArn && config.cms.readerRetirementPoll) {
+      // Prospectus admits one caller per site, this compute role, so the scheduled snapshot run reaches the retired-subject
+      // route through the CMS route /api/reader/retired, which it authenticates with this secret.
+      const readerPollSecret = new SecureStringParameter(this, "ReaderPollSecretParameter", {
+        parameterName: resolveReaderPollSecretParameterName(config),
+        description: `Authorizes the scheduled reader snapshot run to call the retired-subject route of ${cmsAppName}`,
+      });
+      prospectusEnvironment.PAPYRUS_READER_POLL_SECRET_PARAMETER = readerPollSecret.parameterName;
+      computeRole.addToPolicy(
+        new iam.PolicyStatement({
+          sid: "ReadReaderPollSecret",
+          actions: ["ssm:GetParameter"],
+          resources: [readerPollSecret.parameterArn],
         }),
       );
     }

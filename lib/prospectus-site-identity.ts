@@ -37,6 +37,20 @@ export interface ProspectusAccountAuthorization {
   revision: number;
 }
 
+/** One retired reader site subject, from `GET /v1/accounts/site-subjects/retired` (reader sites only). */
+export interface ProspectusRetiredSiteSubject {
+  siteSubject: string;
+  reason: "deleted" | "merged";
+  survivingSiteSubject?: string;
+  retiredAt: string;
+}
+
+export interface ProspectusRetiredSiteSubjectsPage {
+  retired: ProspectusRetiredSiteSubject[];
+  cursor: string;
+  more: boolean;
+}
+
 export interface ProspectusDirectoryAccount {
   id: string;
   name: string;
@@ -101,8 +115,10 @@ export function signedProspectusTransport(options: SignedProspectusTransportOpti
       ...(payload ? { "content-type": "application/json" } : {}),
     };
     const signer = new SignatureV4({ service: "execute-api", region: options.region, credentials, sha256: Sha256 });
+    // The query string is part of what API Gateway verifies, so it has to be signed as well as sent.
+    const query: Record<string, string> = Object.fromEntries(url.searchParams.entries());
     const signed = await signer.sign(
-      new HttpRequest({ protocol: url.protocol, hostname: url.hostname, path: url.pathname, method, headers, body: payload }),
+      new HttpRequest({ protocol: url.protocol, hostname: url.hostname, path: url.pathname, method, headers, body: payload, query }),
     );
     const response = await fetcher(url, { method, headers: signed.headers, body: payload, cache: "no-store", redirect: "error" });
     const responseBody = await response.json().catch(() => ({}));
@@ -155,6 +171,12 @@ export class ProspectusSiteAccounts {
       humanAccessToken,
       idempotencyKey,
     }) as Promise<{ account: { id: string; name: string; role: ProspectusRole } }>;
+  }
+
+  /** The calling site's retired reader subjects since `since` (omit it the first time): at most 100, oldest first. */
+  retiredSiteSubjects(since?: string): Promise<ProspectusRetiredSiteSubjectsPage> {
+    const query = since ? `?since=${encodeURIComponent(since)}` : "";
+    return this.transport({ path: `/v1/accounts/site-subjects/retired${query}`, method: "GET" }) as Promise<ProspectusRetiredSiteSubjectsPage>;
   }
 
   accountDirectory(humanAccessToken: string): Promise<{ person: ProspectusPerson | null; accounts: ProspectusDirectoryAccount[] }> {

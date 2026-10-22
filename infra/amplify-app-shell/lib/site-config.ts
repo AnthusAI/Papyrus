@@ -44,6 +44,12 @@ export type CmsConfig = {
   stagingDomainPrefix?: string;
   redirects?: CmsRedirect[];
   prospectusAccountsApiStageArn?: string;
+  /**
+   * The site is a public-reader site that polls Prospectus for retired reader subjects. The template then generates a
+   * shared secret that the scheduled snapshot run presents to the CMS route `/api/reader/retired` (requires
+   * `prospectusAccountsApiStageArn`; docs/reader-steering.md).
+   */
+  readerRetirementPoll?: boolean;
   deployStackInBuild?: boolean;
 };
 
@@ -146,7 +152,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_SITE_ORIGIN"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -175,6 +181,10 @@ function originOfRedirectUrl(value: string): string {
 
 export function resolveProspectusSessionSealingParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
   return `/papyrus/${config.siteId}/prospectus-session-sealing`;
+}
+
+export function resolveReaderPollSecretParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
+  return `/papyrus/${config.siteId}/reader-poll-secret`;
 }
 
 export function resolveRevalidateSecretParameterName(config: Pick<AmplifyAppShellSiteConfig, "siteId">): string {
@@ -336,7 +346,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "deployStackInBuild"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "deployStackInBuild"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -346,6 +356,12 @@ function parseCms(value: unknown): CmsConfig {
   }
   if (cmsRecord.applyCognitoDomainPrefix !== undefined && typeof cmsRecord.applyCognitoDomainPrefix !== "boolean") {
     fail("cms.applyCognitoDomainPrefix", `must be a boolean, got ${JSON.stringify(cmsRecord.applyCognitoDomainPrefix)}`);
+  }
+  if (cmsRecord.readerRetirementPoll !== undefined && typeof cmsRecord.readerRetirementPoll !== "boolean") {
+    fail("cms.readerRetirementPoll", `must be a boolean, got ${JSON.stringify(cmsRecord.readerRetirementPoll)}`);
+  }
+  if (cmsRecord.readerRetirementPoll === true && cmsRecord.prospectusAccountsApiStageArn === undefined) {
+    fail("cms.readerRetirementPoll", "requires cms.prospectusAccountsApiStageArn: the poll calls Prospectus as the site");
   }
   if (cmsRecord.deployStackInBuild !== undefined && typeof cmsRecord.deployStackInBuild !== "boolean") {
     fail("cms.deployStackInBuild", `must be a boolean, got ${JSON.stringify(cmsRecord.deployStackInBuild)}`);
@@ -369,6 +385,7 @@ function parseCms(value: unknown): CmsConfig {
     stagingDomainPrefix: optionalString(cmsRecord.stagingDomainPrefix, "cms.stagingDomainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     redirects: parseRedirects(cmsRecord.redirects),
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
+    readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
     prospectusAccountsApiStageArn: optionalString(
       cmsRecord.prospectusAccountsApiStageArn,
