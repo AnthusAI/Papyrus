@@ -627,3 +627,65 @@ test("rating: after rating, a public rationale can be posted with the rating it 
   await page.waitForFunction(() => document.querySelectorAll("#rating .papyrus-reader-why:not([hidden])").length === 0);
   await context.close();
 });
+
+test("report: another reader's comment can be reported with a reason, your own cannot", async () => {
+  const context = await browser.newContext();
+  const state = fake({
+    comments: commentFile([entry("cmt-theirs", "Buy my thing"), entry("cmt-mine", "Mine", { readerId: READER_ID, handle: "quiet-fox", createdAt: minutesAgo(30) })]),
+    writeAnswer: () => ({ status: 200, body: { reported: true } }),
+  });
+  const page = await open(context, state, { page: COMMENTS_PAGE });
+  await page.locator('[data-comment-id="cmt-theirs"]').getByRole("button", { name: "Report" }).waitFor();
+  assert.equal(await page.locator('[data-comment-id="cmt-mine"]').getByRole("button", { name: "Report" }).count(), 0);
+  await page.locator('[data-comment-id="cmt-theirs"]').getByRole("button", { name: "Report" }).click();
+  await page.getByLabel("Why are you reporting this?").fill("An advert");
+  await page.getByRole("button", { name: "Send report" }).click();
+  await page.locator('[data-comment-id="cmt-theirs"]').getByText("Reported. A moderator will look at it.").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/report", body: { target: "cmt-theirs", reason: "An advert" } }]);
+  await context.close();
+});
+
+test("report: the Report island reports a submission and is off while sign-in is not open", async () => {
+  const page_ = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>R</title>
+<link rel="stylesheet" href="/_plugins/papyrus-reader@1.css"><script src="/_plugins/papyrus-reader@1.js" defer></script></head><body>
+<header><div id="signin" data-island="ReaderSignIn"></div></header><main><div id="report" data-island="Report" data-props='{"target":"sub-0123456789abcdef01234567"}'></div></main></body></html>`;
+  let context = await browser.newContext();
+  const state = fake({ writeAnswer: () => ({ status: 200, body: { reported: true } }) });
+  let page = await open(context, state, { page: page_ });
+  await page.waitForFunction(() => !(document.querySelector("#report button") as HTMLButtonElement).disabled);
+  await page.getByRole("button", { name: "Report" }).click();
+  await page.getByLabel("Why are you reporting this?").fill("Spam");
+  await page.getByLabel("Why are you reporting this?").press("Enter");
+  await page.locator("#report").getByText("Reported. A moderator will look at it.").waitFor();
+  assert.deepEqual(state.writes, [{ path: "/api/reader/report", body: { target: "sub-0123456789abcdef01234567", reason: "Spam" } }]);
+  await context.close();
+  context = await browser.newContext();
+  page = await open(context, fake({ me: unavailable }), { page: page_ });
+  await page.locator("#signin").getByText("Reader sign-in is not open yet").waitFor();
+  assert.equal(await page.getByRole("button", { name: "Report" }).isDisabled(), true);
+  await context.close();
+});
+
+test("a held submission or comment is shown as held for review, not as public", async () => {
+  const context = await browser.newContext();
+  const heldSubmit = fake({ writeAnswer: (path, body) => ({ status: 201, body: { subject: "sub-abc", url: body.url, title: body.title, kind: body.kind, state: "held", extraction: "pending", similar: [] } }) });
+  const page = await open(context, heldSubmit, { page: SUBMIT_PAGE });
+  await page.waitForFunction(() => !(document.querySelector("#submit input") as HTMLInputElement).disabled);
+  await fillSubmit(page, "https://example.com/held", "Held one");
+  await page.getByRole("button", { name: "Submit link" }).click();
+  await page.locator("#submit").getByText("Held for review \u2014 a moderator reads it before it is public.").waitFor();
+  assert.equal(await page.locator("#submit").getByText(/Pending/).count(), 0);
+  await context.close();
+
+  const context2 = await browser.newContext();
+  const heldComment = fake({
+    comments: commentFile([]),
+    writeAnswer: (path, body) => ({ status: 201, body: { id: "cmt-held", subject: body.subject, parent: null, body: body.body, createdAt: new Date().toISOString(), ratingContext: null, state: "held" } }),
+  });
+  const page2 = await open(context2, heldComment, { page: COMMENTS_PAGE });
+  await page2.waitForFunction(() => !(document.querySelector("#comments textarea") as HTMLTextAreaElement).disabled);
+  await page2.getByLabel("Add a comment").fill("Waiting");
+  await page2.getByRole("button", { name: "Post comment" }).click();
+  await page2.locator("#comments").getByText(/held for review, only you can see it/).waitFor();
+  await context2.close();
+});

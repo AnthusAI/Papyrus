@@ -46,6 +46,9 @@ TABLE_NAMES = {
     "rate": "RateWindows-test",
     "submission": "ReaderSubmission-test",
     "comment": "ReaderComment-test",
+    "report": "ReaderReport-test",
+    "action": "ModerationAction-test",
+    "item": "Item-test",
 }
 
 
@@ -92,6 +95,24 @@ class ReaderBackend:
             attribute = "pk" if key == "rate" else "id"
             definitions = [{"AttributeName": attribute, "AttributeType": "S"}]
             indexes = {}
+            if key == "profile":
+                definitions += [{"AttributeName": "readerId", "AttributeType": "S"}]
+                indexes = {
+                    "GlobalSecondaryIndexes": [
+                        {"IndexName": reader_handler.PROFILE_READER_INDEX, "KeySchema": [{"AttributeName": "readerId", "KeyType": "HASH"}], "Projection": {"ProjectionType": "ALL"}}
+                    ]
+                }
+            if key == "report":
+                definitions += [{"AttributeName": "target", "AttributeType": "S"}, {"AttributeName": "createdAt", "AttributeType": "S"}]
+                indexes = {
+                    "GlobalSecondaryIndexes": [
+                        {
+                            "IndexName": reader_handler.REPORT_TARGET_INDEX,
+                            "KeySchema": [{"AttributeName": "target", "KeyType": "HASH"}, {"AttributeName": "createdAt", "KeyType": "RANGE"}],
+                            "Projection": {"ProjectionType": "ALL"},
+                        }
+                    ]
+                }
             if key == "submission":
                 definitions += [{"AttributeName": "domain", "AttributeType": "S"}, {"AttributeName": "createdAt", "AttributeType": "S"}]
                 indexes = {
@@ -119,6 +140,9 @@ class ReaderBackend:
             rate_table=TABLE_NAMES["rate"],
             submission_table=TABLE_NAMES["submission"],
             comment_table=TABLE_NAMES["comment"],
+            report_table=TABLE_NAMES["report"],
+            action_table=TABLE_NAMES["action"],
+            item_table=TABLE_NAMES["item"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -154,6 +178,24 @@ class ReaderBackend:
 
     def comments(self) -> list[dict]:
         return self.table("comment").scan()["Items"]
+
+    def reports(self) -> list[dict]:
+        return self.table("report").scan()["Items"]
+
+    def actions(self) -> list[dict]:
+        return sorted(self.table("action").scan()["Items"], key=lambda row: (row["at"], row["id"]))
+
+    def items(self) -> list[dict]:
+        return self.table("item").scan()["Items"]
+
+    def staff_call(self, action: str, target_type: str, target: str, *, reason: str | None = None, undo_of: str | None = None, groups=("editor",), sub: str = "staff-sub-1") -> dict:
+        """The moderateReader mutation as AppSync delivers it to the function."""
+        event = {
+            "arguments": {"action": action, "targetType": target_type, "target": target, **({"reason": reason} if reason is not None else {}), **({"undoOf": undo_of} if undo_of else {})},
+            "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}},
+            "info": {"fieldName": "moderateReader"},
+        }
+        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
 
 
 def iso_at(seconds: float) -> str:

@@ -2,7 +2,7 @@
 
 Readers sign in, pick a handle, upvote, mark "I used it", rate the items of a publication and submit links. Editors and
 readers steer ranking together. The `reader-steering` plugin (initiative PPY-77bb3b) builds the reader identity, the reader
-API, votes and ratings, public link submissions (see [Submissions](#submissions)), comments as a steering signal (see [Comments](#comments)), the snapshot that puts live numbers on
+API, votes and ratings, public link submissions (see [Submissions](#submissions)), comments as a steering signal (see [Comments](#comments)), moderation after the fact (see [Moderation](#moderation)), the snapshot that puts live numbers on
 static pages and the page components that show them.
 
 **Production switch.** Everything here is built and tested but stays off in production until Prospectus returns a
@@ -28,7 +28,7 @@ export default defineSite({
 });
 ```
 
-Enabling it is a backend deploy: five models, the `reader-actions` function, a rate-window table and, when
+Enabling it is a backend deploy: seven models, one staff mutation, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
 `computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
@@ -58,6 +58,10 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `comments.editWindowMinutes` | 10 | The author may edit a comment this long after posting it. `0` turns editing off. |
 | `comments.maximumLength` | 2000 | Characters in a comment. |
 | `comments.maximumLinks` | 3 | Links (`http://`, `https://` or `www.`) in a comment. |
+| `submissions.itemType`, `submissions.section` | `brief`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
+| `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. See [Moderation](#moderation). |
+| `moderation.preModeration` | `false` | Hold new submissions and comments hidden until a moderator approves them. Needs a mode other than `off`. |
+| `moderation.reportsPerDay` | 20 | Reports one reader may file in a UTC day (a third for a new account). |
 | `retirementPoll` | `false` | Poll Prospectus for retired reader subjects in each scheduled run. Needs `snapshot.schedule: true`, and `cms.readerRetirementPoll: true` in the site's app-shell `site.json` (see [the retirement poll](#the-prospectus-retirement-poll)). |
 
 The deployed backend publishes `custom.readerSteering.actionsFunction` (the function name the CMS routes invoke) and
@@ -76,7 +80,7 @@ The deployed backend publishes `custom.readerSteering.actionsFunction` (the func
   reader's chosen handle, so not even the siteSubject is public.
 - Public text (a submission's title and note, its URL) cannot contain an email address: the function answers `422` and the
   reader is asked to remove it. A reader's text is shown only with their handle and `readerId`.
-- No model has a guest, API key or custom rule. Editors may list the five models and admins may delete; the function
+- No model has a guest, API key or custom rule. Editors may list the seven models and admins may delete; the function
   writes the tables with its own role.
 - The privacy scan test renders the snapshot and the projected pages of a fixture site with votes and profiles and fails
   if any person id pattern, `ss1_` or `ssdev_` value or email address appears.
@@ -97,6 +101,7 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 | `POST /api/reader/handle` | `{handle}` | Sets the handle once: 3 to 24 characters of `[a-z0-9_-]`, case-insensitive (stored lowercase). `409 handle_taken`, `409 handle_already_set`, `422 reserved_handle`, `422 invalid_handle`. |
 | `POST /api/reader/vote` | `{subject, dimension: "up" \| "used-it", on: boolean}` | `on: true` stores the vote (idempotent), `on: false` removes it. |
 | `POST /api/reader/rating` | `{subject, dimension, value: 1..5 \| null}` | A new value replaces the old one; `null` removes it. |
+| `POST /api/reader/report` | `{target, reason}` | `200 {reported: true}` for a visible submission or comment; one report per reader and target; `404 unknown_target`. See [Moderation](#moderation). |
 | `POST /api/reader/comment` | `{subject, body, parent?, ratingContext?}` | `201 {id, subject, parent, body, createdAt, ratingContext}`. See [Comments](#comments). |
 | `POST /api/reader/comment/edit` | `{id, body}` | `200 {id, body, editedAt}`; `403 edit_window_closed`; `404` for a comment that is not the caller's. |
 | `POST /api/reader/comment/delete` | `{id}` | `200 {id, state: "deleted"}`; idempotent. |
@@ -136,10 +141,12 @@ role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` 
 | `ReaderHandle` | the lowercase handle | `readerId`. A claim written together with the profile's handle in one transaction, which is what makes a handle unique. |
 | `ReaderSubmission` | `sub-` + the first 24 hex characters of the SHA-256 of the canonical URL | `canonicalUrl`, `domain`, `title`, `kind`, `note`, `readerId`, `state` (`pending`, `promoted`, `hidden`), `similar` (submission ids), `signals` (JSON string), `extractionState`, `itemId`, `reviewedAt`, `createdAt`. A secondary index `submissionsByDomain` (`domain`, `createdAt`) finds recent items from one site. |
 | `ReaderComment` | `cmt-` + 32 hex characters | `subjectKey`, `readerId`, `body` (empty once deleted), `parentId`, `ratingContext` (JSON string `{dimension, value}`), `state` (`visible`, `hidden`, `deleted`), `signals`, `reviewedAt`, `editedAt`, `deletedAt`, `createdAt` |
+| `ReaderReport` | `rep-` + 24 hex characters of the SHA-256 of `readerId#target` | `targetType`, `target`, `reporterReaderId`, `reason`, `state` (`open`, `closed`), `closedAt`, `createdAt`. An index `reportsByTarget`. |
+| `ModerationAction` | `mod-` + 32 hex characters | `by` (`human`, `ai`), `actorSub` (the staff member's Cognito subject, or `ai`), `action`, `targetType` (`submission`, `comment`, `reader`), `target`, `reason`, `fromState`, `toState`, `fromModeration`, `toModeration`, `undoOf`, `undoneBy`, `at`. An index `actionsByTarget`. |
 | `ReaderVote` | `subjectKey#readerId#dimension` | `subjectKey`, `readerId`, `dimension`, `value` (1 for `up` and `used-it`, 1 to 5 for ratings), `voterRole` (`editor` or `reader`), `createdAt`, `updatedAt` |
 
-A revote overwrites and keeps `createdAt`; an unvote deletes. `ModerationAction` belongs to the moderation work; the profile `state`
-is where it lands.
+A revote overwrites and keeps `createdAt`; an unvote deletes. `ReaderProfile.state` is what a ban or limit changes; it has an index on `readerId` (`profilesByReader`), because moderators name readers by their public id.
+Submissions and comments also carry `moderation` (`new` or `approved`) and `reportCount`.
 
 ## The snapshot
 
@@ -393,6 +400,45 @@ or deleted comes out as `"status": "retracted"` with no `rationale` or `rating`,
 drop it. Attribution is the public `readerId` only, and `source: "reader"` keeps these records apart from editor signals, which come from
 editor votes and the curation reviews. The consumer keeps the greatest `updatedAt` it has seen as the next `--since`.
 
+## Moderation
+
+Submissions and comments are public the moment they are written. Moderation acts after the fact, unless a publication turns on
+pre-moderation. Staff (editors and admins) moderate in Administration, Moderation; readers can report.
+
+**Modes (`moderation.mode`).** `human` (the default for a pilot) puts every new submission and comment in a queue and leaves it
+public; `off` has no queue. Moving a site from `human` to `off` is "trust graduation": a configuration change and a backend deploy,
+nothing else. With `moderation.preModeration: true` new submissions and comments start `hidden` ("held": the reader is told `state:
+"held"` and the island says "Held for review") and become public when a moderator approves them.
+
+**Reports.** `POST /api/reader/report {target, reason}` (the target is a submission id or a comment id; `reason` is plain text, at most
+500 characters; `moderation.reportsPerDay` a day, a third for a new account, repeats count). A report is stored once per reader and
+target, raises the target's `reportCount` and puts it back in the queue (`moderation: "new"`) even if it was approved before. A
+moderator's decision closes the open reports of the target. The `Comments` island has a Report button on other readers' comments, and
+the `Report` island (`data-props='{"target": "<id>"}'`) goes beside a listed submission.
+
+**Actions.** Staff call the AppSync mutation `moderateReader(action, targetType, target, reason, undoOf)`, open to the `editor` and
+`admin` groups only (the function checks the groups again). It answers a receipt `{status: "ok" | "refused", id, error, message}`; it never throws.
+`target` is a submission id, a comment id or, for a reader, the public `readerId` (staff never see a siteSubject).
+
+| Action | Applies to | Effect |
+|---|---|---|
+| `approve` | submission, comment | Marks it reviewed (`moderation: approved`). A held item becomes public. Only while it is `new`. |
+| `hide` | submission, comment | `state: hidden`, reviewed. It leaves the next snapshot and its votes stop counting. |
+| `unhide` | submission, comment | Back to `pending`/`visible` (or `promoted` if it was promoted). |
+| `promote` | pending submission | Writes a draft `Item` (version 1, stage `idea`, type and section from `submissions.itemType`/`section`, the reader's note as the deck, `metadata` with the source URL, kind, submission id and `readerId`) and sets the submission `promoted` with its `itemId`. The editor works and publishes the draft as usual; upvotes and used-it reports on the item then earn the submitter karma. Not undoable. |
+| `ban` / `limit` / `unban` | reader | `ReaderProfile.state` to `banned` (every write answers `403 reader_banned`; the reader can still read their own state), `limited` (no votes, ratings, submissions or comments; `403 reader_limited`), or `active` again. Content a reader already wrote stays until a moderator hides it. |
+| `undo` | any of the above except `promote` | Restores the state the action replaced and marks the original `undoneBy`. |
+
+Each action is one `ModerationAction` row written in the same DynamoDB transaction as the change it records, conditioned on the
+state the moderator saw: if someone else changed the item first, the answer is `refused / target_changed` and nothing is written.
+An action can be undone once, and only while the item is still in the state the action left it (`target_changed` otherwise).
+`reason` is optional plain text. Reports about the item are closed when a moderator approves, hides or promotes it.
+
+**The panel.** Administration, Moderation (shown when the reader-steering plugin is on) has three views: the queue (new and reported
+items, newest first, with the automatic signals, the reports and Approve, Hide, Promote to a draft, Ban reader and Limit reader), Hidden
+(Show again) and Recent actions (Undo). It reads the staff-readable models through AppSync and calls `moderateReader`; reader text is
+rendered as text and links only if they are `http` or `https`. The plugin manifest declares it as a `newsroomPanels` entry.
+
 ## The page components
 
 Static assets shipped to the site bucket when the plugin is enabled: `_plugins/papyrus-reader@1.js` and
@@ -430,6 +476,9 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/reader-submissions.feature`: submit, the canonical URL
   parity with reference intake, dedupe, similar, validation, the daily limit, votes and karma, the snapshot file, the review signals
   (with real Humanus rules) and retirement of submissions, against moto.
+- `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/reader-moderation.feature`: reports, every transition, the stale-view guard,
+  undo, bans on every write route, promotion, pre-moderation, moderation off, and that hidden content leaves the files; `scripts/test-reader-moderation-panel.ts`:
+  the queue, hidden list, log and the escaped rendering of the panel.
 - `procedures/newsroom/tests/test_reader_comments.py`, `test_reader_feedback_export.py` and `features_backend/reader-comments.feature`: comments, threading, the
   edit window, delete stubs, rating context, limits, the snapshot files (only changed files written, stale ones emptied), signals,
   retirement and the feedback export, against moto.
