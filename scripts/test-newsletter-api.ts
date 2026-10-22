@@ -38,7 +38,7 @@ const outputs = {
 
 function request(method: string, path: string, options: { headers?: Record<string, string>; origin?: string | null; contentType?: string | null; body?: string } = {}): NextRequest {
   const headers: Record<string, string> = { ...options.headers };
-  if (method !== "GET") {
+  if (method !== "GET" && method !== "HEAD") {
     if (options.origin !== null) headers.origin = options.origin ?? siteOrigin;
     if (options.contentType !== null) headers["content-type"] = options.contentType ?? "application/json";
   }
@@ -233,6 +233,22 @@ async function humanPageTests() {
       }
     }
     assert.equal(h.calls.length, 0, "a GET never reaches the function");
+  }
+
+  // A mail scanner's HEAD on the legacy links answers exactly like GET, with no body, and never reaches the function.
+  {
+    const h = harness();
+    for (const path of ["/api/newsletter/confirm?t=v1.abc.def", `/api/newsletter/preferences?t=${manage}`, `/api/newsletter/unsubscribe?t=${manage}&l=alerts-x`, "/api/newsletter/confirm", "/api/newsletter/unsubscribe?t=%3Cscript%3E"]) {
+      const handler = path.includes("/confirm") ? handleNewsletterConfirm : path.includes("/preferences") ? handleNewsletterPreferences : handleNewsletterUnsubscribe;
+      const get = await handler(request("GET", path), h.options);
+      const head = await handler(request("HEAD", path), h.options);
+      assert.equal(head.status, 302, path);
+      assert.equal(head.headers.get("location"), get.headers.get("location"), path);
+      assert.deepEqual(redirect(head), redirect(get), path);
+      assert.equal(await head.text(), "", `HEAD has no body: ${path}`);
+    }
+    assert.equal(h.calls.filter((call) => ["confirm", "unsubscribe", "update_preferences", "delete_subscriber"].includes(String(call.event.action))).length, 0, "HEAD never mutates");
+    assert.equal(h.calls.length, 0, "HEAD never reaches the function");
   }
 
   // Confirm POST: 303 to confirmed, carrying the lists and the manage token.
