@@ -67,7 +67,7 @@ from .hooks import NO_HOOKS, HookSite, Hooks, load_hooks
 from .page import ListingView, StandardPage
 from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
-from .urls import NOT_FOUND_KEY, UrlPolicy, slugify_tag
+from .urls import NEWSLETTER_CONTENT_MARKER, NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
 def copy_directories(static_directory: Path | None, names, files: dict[str, bytes]) -> list[str]:
     """Add every file under the named directories of the static directory to ``files`` at its relative path."""
@@ -89,6 +89,7 @@ def copy_directories(static_directory: Path | None, names, files: dict[str, byte
 ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document"[^>]*>')
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
+NEWSLETTER_PLUGIN = "newsletter"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
 ISLANDS_RUNTIME_PATH = "_plugins/papyrus-islands-v1.js"
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
@@ -595,6 +596,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
             ),
         )
 
+        # the newsletter plugin's pages (confirm, preferences, ...) are server rendered inside this shell: head, header and footer
+        if NEWSLETTER_PLUGIN in self._settings.plugins:
+            shell_head = PageHead(
+                title=self.standard.identity.name,
+                path=self.policy.path(f"/{NEWSLETTER_SHELL_KEY.removesuffix('index.html')}"),
+                description=self.standard.identity.description,
+                noindex=True,
+            )
+            add(self.policy.key(NEWSLETTER_SHELL_KEY), "newsletter_shell", [], lambda: self._page("newsletter_shell", shell_head, site, entries=tuple(listed), fragment=NEWSLETTER_CONTENT_MARKER), markdown=False)
+
         # sitemap, feeds
         sitemap = sitemap_files(self.standard.sitemap_style, self.environment, self._sitemap_urls(site, entries, listed, plan), lastmod=self.standard.sitemap_lastmod, root=self.policy.root)
         selection = feed_selection(entries, self.standard)
@@ -903,7 +914,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     # ------------------------------------------------------------------ ownership, static files, redirects
 
     def owns_page_key(self, key: str) -> bool:
-        if key == NOT_FOUND_KEY:
+        if key == NOT_FOUND_KEY or (NEWSLETTER_PLUGIN in self._settings.plugins and key == self.policy.key(NEWSLETTER_SHELL_KEY)):
             return True
         relative = self.policy.relative_key(key)
         if relative is None or relative in self._passthrough:
@@ -1211,7 +1222,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_shell") and page.fragment:
             return page.fragment
         if page.kind == "home":
             view = page.listing

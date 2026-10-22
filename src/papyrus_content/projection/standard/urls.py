@@ -7,6 +7,8 @@ from .config import SectionConfig, StandardSettings
 
 NOT_FOUND_KEY = "404.html"
 HOME_KEY = "index.html"
+NEWSLETTER_SHELL_KEY = "_plugins/newsletter-shell/index.html"
+NEWSLETTER_CONTENT_MARKER = "<!--papyrus:newsletter-content-->"
 
 
 def slugify_tag(tag: str) -> str:

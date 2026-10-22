@@ -1,0 +1,30 @@
+/* A small stand-in for a real site theme: lime body, paper main, light and dark by prefers-color-scheme, like Shipped. */
+:root {
+  color-scheme: light dark;
+  --brand-fill: #C6F432;
+  --brand-on: #1A1615;
+  --paper: #FFFDF5;
+  --ink: #1A1615;
+  --rule: #1A1615;
+  --papyrus-button-bg: #C6F432;
+  --papyrus-button-ink: #1A1615;
+  --papyrus-rule: #1A1615;
+  --papyrus-focus: #1A1615;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #161412;
+    --ink: #F3EFE6;
+    --rule: #F3EFE6;
+    --papyrus-rule: #F3EFE6;
+    --papyrus-focus: #F3EFE6;
+  }
+}
+body { margin: 0; background: var(--brand-fill); color: var(--ink); font-family: Georgia, serif; }
+.markus-site-masthead { display: flex; gap: 2rem; align-items: center; padding: 1rem 1.5rem; color: var(--brand-on); }
+.markus-site-masthead a { color: var(--brand-on); }
+main { background: var(--paper); color: var(--ink); max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem; }
+.markus-button { background: var(--brand-fill); color: var(--brand-on); border-color: var(--brand-on); font-family: ui-monospace, monospace; font-weight: 700; }
+.markus-button[data-variant="secondary"] { background: transparent; color: var(--ink); border-color: var(--ink); }
+a { color: var(--ink); }
+.markus-site-footer { padding: 1rem 1.5rem; color: var(--brand-on); }

@@ -101,7 +101,7 @@ The plugin needs the CMS app's `/api/*` routes (`app/api/newsletter/*`). They sh
 
 ### Routes and form
 
-- `POST /api/newsletter/subscribe`: JSON `{email, lists, page, website, renderedAt, consent, formId}` (8 KB cap, same-origin `Origin` required; `lists` is an array or a comma string). Answers `202 {"status":"check_email"}` for any valid-looking request, `400 {"status":"invalid_email"}` or `{"status":"invalid_lists"}`. A signed-in reader's `siteSubject` is stored with the profile when present; it is never required or logged.
+- `POST /api/newsletter/subscribe`: JSON `{email, lists, page, website, renderedAt, consent, formId}` (8 KB cap, same-origin `Origin` required, or a same-origin `Referer` when there is no `Origin`; `lists` is an array or a comma string). Answers `202 {"status":"check_email"}` for any valid-looking request, `400 {"status":"invalid_email"}` or `{"status":"invalid_lists"}`. A signed-in reader's `siteSubject` is stored with the profile when present; it is never required or logged.
 - `GET /api/newsletter/confirm?t=<token>`: a small themed page with a "Confirm subscription" button. It changes nothing, so link scanners are harmless. `POST` (form field `t`) confirms and answers `303` to `GET /api/newsletter/confirm?done=1&l=<listIds>`, which names the lists. An expired or used link shows a page linking back to the site.
 - Web component `/_plugins/papyrus-newsletter@1.js` (written to the site bucket when the plugin is on):
 
@@ -112,6 +112,20 @@ The plugin needs the CMS app's `/api/*` routes (`app/api/newsletter/*`). They sh
 ```
 
 Attributes: `lists` (comma separated list ids), `data-lists` (JSON array of `{id,name,description}` taken from `custom.papyrusPlugins.newsletter.lists`, labels the checkboxes; or set `window.papyrusNewsletter = { lists }` once), `consent` (the sentence shown and stored as evidence), `endpoint` (default `/api/newsletter/subscribe`), `form-id`, `label`, `button`, `success`. One list: no checkbox. Several: unticked checkboxes, at least one required. No inline script or style attribute, so it works under a strict CSP.
+
+### The pages inside the site's chrome
+
+The confirm, confirmed, expired, preferences, unsubscribe and delete pages are server rendered by the CMS routes, and they look like pages of the site: its head (stylesheets, fonts, `theme-color`, light and dark by `prefers-color-scheme`), header and footer.
+
+- **The shell.** When `newsletter` is in `PAPYRUS_PLUGINS`, the standard projector (`src/papyrus_content/projection/standard/`) writes one more page, `_plugins/newsletter-shell/index.html`. It goes through the normal page template, so it has the site's full chrome, and its main area holds one marker, `<!--papyrus:newsletter-content-->`. It is `noindex`, has no Markdown twin and is in no sitemap, `llms.txt`, `llms-full.txt` or feed. A full projection (`project --all`, the post-deploy render that `reprojectOnDeploy` runs, `project_listings`) writes it; a site without the plugin has no such page. (`_papyrus/` is the projection's private state prefix, which is why it is not under that name.)
+- **The routes.** `lib/newsletter-pages.ts` fetches `SITE_ORIGIN/_plugins/newsletter-shell/index.html`, keeps it in memory for five minutes, takes out its scripts and canonical links, and puts the page body and `<title>` in. The body uses the standard front end's own classes (`markus-document`, `markus-button` with `data-variant="secondary"`, `markus-actions`, and small baseline classes in `markus-components.css`), so a site's theme styles it with no newsletter-specific CSS. If the shell cannot be fetched, has no marker or is too large, the page falls back to the self-contained page themed from the plugin's `theme` settings; a failed fetch is retried after 30 seconds and the last good shell is kept.
+- **Headers.** `Referrer-Policy: same-origin` (the pages carry tokens in their URLs and have no outside links in the body, but the shell's header may), `X-Robots-Tag: noindex`, `Cache-Control: no-store`, and a content security policy with no script source: these pages run no script.
+
+### Same-origin form posts and the edge
+
+The subscribe, confirm and preferences posts must come from the site's own pages: `Origin` equals the public site origin (`PAPYRUS_SITE_ORIGIN`), or, when the browser sent no `Origin`, `Referer` is on that origin. `Origin: null` is never accepted (RFC 8058 unsubscribe, which has no origin check, is the one exception). A refused request answers **400** with a page that says nothing was changed. It must not be 403 or 404: the CloudFront distribution replaces an origin 403 and 404 with the site's `/404.html` ("Page not found"), which hides the real answer. Use 400, 409, 410 or 422 for failures a reader can see.
+
+A page must not set `Referrer-Policy: no-referrer`, because a browser then sends `Origin: null` on its form posts. That was the cause of "Confirm subscription" landing on the site's 404 page (found on Shipped).
 
 ### What subscribing does
 

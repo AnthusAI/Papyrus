@@ -52,6 +52,8 @@ function harness(result: NewsletterResult | ((event: NewsletterEvent) => Newslet
       environment: environment as Record<string, string | undefined>,
       outputs: outputs as Record<string, unknown> | null,
       nowInSeconds,
+      fetchShell: async () => ({ status: 404, contentType: "text/html", text: "" }),
+      now: () => 0,
       loadSealingSecret: async () => sealingSecret as string | null,
       invoke: async (functionName: string, event: NewsletterEvent) => {
         calls.push({ functionName, event });
@@ -140,8 +142,8 @@ const subscribeBody = (changes: Record<string, unknown> = {}) =>
   {
     const { calls, options } = harness();
     const post = (init: Parameters<typeof request>[2]) => handleNewsletterSubscribe(request("POST", "/api/newsletter/subscribe", init), options);
-    assert.equal((await post({ body: subscribeBody(), origin: "https://evil.example" })).status, 403);
-    assert.equal((await post({ body: subscribeBody(), origin: null })).status, 403);
+    assert.equal((await post({ body: subscribeBody(), origin: "https://evil.example" })).status, 400);
+    assert.equal((await post({ body: subscribeBody(), origin: null })).status, 400);
     assert.equal((await post({ body: subscribeBody(), contentType: "text/plain" })).status, 415);
     assert.equal((await post({ body: "x".repeat(9000) })).status, 413);
     assert.equal((await post({ body: "x".repeat(9000), headers: { "content-length": "9000" } })).status, 413);
@@ -188,7 +190,7 @@ const subscribeBody = (changes: Record<string, unknown> = {}) =>
     const html = await page.text();
     assert.equal(page.status, 200);
     assert.deepEqual(calls.map((call) => call.event.action), ["confirm_page_state"], "the page only reads");
-    assert.match(html, /<form method="post" action="\/api\/newsletter\/confirm">/);
+    assert.match(html, /<form class="markus-newsletter-form" method="post" action="\/api\/newsletter\/confirm">/);
     assert.match(html, /name="t" value="v1.abc.def"/);
     assert.match(html, /Confirm subscription/);
     assert.match(html, /<meta name="robots" content="noindex">/);
@@ -254,8 +256,8 @@ const subscribeBody = (changes: Record<string, unknown> = {}) =>
     const expired = await post({ body: "t=v1.abc.def" });
     assert.equal(expired.status, 410);
     assert.match(await expired.text(), /expired/);
-    assert.equal((await post({ body: "t=v1.abc.def", origin: "https://evil.example" })).status, 403);
-    assert.equal((await post({ body: "t=v1.abc.def", origin: null })).status, 403);
+    assert.equal((await post({ body: "t=v1.abc.def", origin: "https://evil.example" })).status, 400);
+    assert.equal((await post({ body: "t=v1.abc.def", origin: null })).status, 400);
     assert.equal((await post({ body: "t=v1.abc.def", contentType: "application/json" })).status, 415);
     assert.equal((await post({ body: "t=" + "a".repeat(5000) })).status, 413);
     assert.equal((await post({ body: "x=1" })).status, 410);
@@ -305,7 +307,7 @@ async function manageTests() {
     const all = await handleNewsletterUnsubscribe(request("GET", `/api/newsletter/unsubscribe?t=${manage}`), options);
     const html = await all.text();
     assert.equal(all.status, 200);
-    assert.match(html, /<form method="post" action="\/api\/newsletter\/unsubscribe">/);
+    assert.match(html, /<form class="markus-newsletter-form" method="post" action="\/api\/newsletter\/unsubscribe">/);
     assert.match(html, /name="t" value="v1.manage.token"/);
     assert.match(html, /name="page" value="1"/);
     assert.match(html, /Unsubscribe from everything/);
@@ -428,8 +430,8 @@ async function manageTests() {
 
     const { calls, options } = harness(unsubscribed);
     const post = (init: ReturnType<typeof formInit>) => handleNewsletterPreferences(request("POST", "/api/newsletter/preferences", init), options);
-    assert.equal((await post(formInit(`t=${manage}&action=save`, { origin: "https://evil.example" }))).status, 403);
-    assert.equal((await post(formInit(`t=${manage}&action=save`, { origin: null }))).status, 403);
+    assert.equal((await post(formInit(`t=${manage}&action=save`, { origin: "https://evil.example" }))).status, 400);
+    assert.equal((await post(formInit(`t=${manage}&action=save`, { origin: null }))).status, 400);
     assert.equal((await post(formInit(`t=${manage}&action=save`, { contentType: "application/json" }))).status, 415);
     assert.equal((await post(formInit("t=" + manage + "&x=" + "a".repeat(5000)))).status, 413);
     assert.equal((await post(formInit(`t=${manage}&action=explode`))).status, 400);
