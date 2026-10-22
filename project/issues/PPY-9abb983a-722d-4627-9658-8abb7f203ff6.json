@@ -17,10 +17,17 @@
       "text": "Branch feature/PPY-9abb98-knowledge-snapshot. Builder, publish-run, entities review and snapshot commands with tests and docs/knowledge-snapshot.md; PR and verification follow.",
       "created_at": "2026-10-22T03:48:09.388742Z",
       "comment_type": "default"
+    },
+    {
+      "id": "dd53ab7a-a807-463d-ae24-45fcbfe66542",
+      "author": "home",
+      "text": "x",
+      "created_at": "2026-10-22T03:48:15.956096Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.234524Z",
-  "updated_at": "2026-10-22T03:48:09.388778Z",
+  "updated_at": "2026-10-22T03:48:15.956127Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
