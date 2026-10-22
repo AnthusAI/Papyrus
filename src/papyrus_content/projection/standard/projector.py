@@ -1002,7 +1002,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
     def _item_twin(self, entry: StandardEntry, text: str, canonical: str | None) -> str:
         notes = tuple(wiki.notes(entry.data, self.standard.identity.date_format, self.policy.path)) if wiki.is_wiki_entry(entry, self.standard) else ()
-        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes)
+        return item_markdown(entry, self._twin(text, entry.summary.output_path), canonical, notes, self.environment.origin)
 
     def _chrome(self, page: StandardPage) -> SiteChrome:
         base = self._settings.chrome

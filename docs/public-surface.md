@@ -11,16 +11,16 @@ publish time like any other generated page:
 
 | File | Content |
 |---|---|
-| `/_data/search-index.json` | Every listed page, newest first: `{title, url, summary, tags, date}`, plus `image` and `publication` when known (below). |
+| `/_data/search-index.json` | Every listed page, newest first: `{title, url, summary, tags, date}`, plus `image`, `publication` and `authors` when known (below). |
 | `/_data/latest.json` | The first `latestCount` entries of the same list (default 20). |
 | `/_plugins/papyrus-search@1.js` | The `<papyrus-search>` component (section 2). |
 
 They need no credentials, cost nothing per request, and cannot be abused. They
 carry only front matter fields (`title`, `description`/`summary`/`excerpt`,
-`tags`, `date`) and the page address: what the page HTML already shows. An item
+`tags`, `date`, `authors`) and the page address: what the page HTML already shows. An item
 with `feed: false` is left out.
 
-**`image` and `publication`** (optional keys on every entry of both files, for
+**`image`, `publication` and `authors`** (optional keys on every entry of both files, for
 sites that syndicate each other's articles as cards):
 
 - `image` is the entry's **absolute** Open Graph image URL: the front matter
@@ -34,8 +34,14 @@ sites that syndicate each other's articles as cards):
   page: set `image` in the front matter to have it syndicated.
 - `publication` is the site's name as the feeds title it (`feeds.title`, which
   defaults to `site.name`). It is omitted only when empty.
+- `authors` is a list of the item's author **names** (strings), in front matter
+  order, read from `authors` (or `author`) in any of its three forms: a string
+  (`Ann Lee, Bo Reed`), a list of strings, or a list of `{name, url}` objects.
+  Only the names are listed; a url is never written here. The key is
+  **omitted**, never `null` or `[]`, when the item has no authors.
 - The bare Markus projector (a `projection.json` with no `site` object) has no
-  identity and no URL, so it writes neither key.
+  identity and no URL, so it writes neither `image` nor `publication`; it does
+  write `authors`.
 
 Existing keys, their order and their values are unchanged, and
 `<papyrus-search>` reads only `title`, `url` and `summary`, so it ignores the

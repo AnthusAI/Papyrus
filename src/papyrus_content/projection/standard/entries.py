@@ -11,6 +11,7 @@ import datetime as dt
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
+from ...authors import Author, normalize_authors
 from ..model import ItemSummary
 from ..public_data import SUMMARY_FIELD_NAMES, clipped, tags_of
 from .config import SectionConfig, StandardSettings
@@ -39,12 +40,8 @@ def first_text(front_matter: dict, names) -> str:
     return ""
 
 
-def authors_of(front_matter: dict) -> tuple[str, ...]:
-    raw = front_matter.get("authors", front_matter.get("author"))
-    if raw is None:
-        return ()
-    values = raw if isinstance(raw, (list, tuple)) else str(raw).split(",")
-    return tuple(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+def authors_of(front_matter: dict) -> tuple[Author, ...]:
+    return normalize_authors(front_matter.get("authors", front_matter.get("author")))
 
 
 WRITTEN_DATE_FORMATS = ("%A, %B %d, %Y", "%B %d, %Y", "%A, %b %d, %Y", "%b %d, %Y", "%d %B %Y")
@@ -78,7 +75,7 @@ class StandardEntry:
     date: str
     updated: str
     image: str | None
-    authors: tuple[str, ...]
+    authors: tuple[Author, ...]   # names and optional urls; render ``.name``, never ``str()`` a raw front matter value
     type: str
     canonical: str | None
     feed_eligible: bool
@@ -111,7 +108,7 @@ class StandardEntry:
 
     def fingerprint(self, *, full: bool = False) -> list:
         """What a listing card renders from. ``full`` is for pages a hook composes: every field, plus the raw front matter."""
-        card = [self.key, self.title, self.summary_text, self.date, self.image, list(self.authors), self.link, self.derived]
+        card = [self.key, self.title, self.summary_text, self.date, self.image, [[author.name, author.url] for author in self.authors], self.link, self.derived]
         if not full:
             return card
         return card + [
