@@ -29,7 +29,7 @@ const fixture = path.join(process.cwd(), "procedures", "newsroom", "tests", "rea
 const output = execFileSync(process.env.PAPYRUS_PYTHON ?? "python3", [fixture], { encoding: "utf8" });
 const { readerIds, files } = JSON.parse(output) as { readerIds: string[]; files: Record<string, string> };
 
-assert.deepEqual(Object.keys(files).sort(), ["_data/reader/board.json", "_data/reader/items.json", "_data/reader/readers.json", "_data/reader/submissions.json"]);
+assert.deepEqual(Object.keys(files).sort(), ["_data/reader/board.json", "_data/reader/comments/item-one.json", "_data/reader/items.json", "_data/reader/readers.json", "_data/reader/submissions.json"]);
 for (const [name, body] of Object.entries(files)) {
   assert.deepEqual(identityLeaks(body, readerIds), [], `${name} identifies no one`);
   JSON.parse(body);
@@ -40,8 +40,11 @@ for (const row of readers) assert.deepEqual(Object.keys(row).sort(), ["handle", 
 const submissions = (JSON.parse(files["_data/reader/submissions.json"]) as { submissions: Array<Record<string, unknown>> }).submissions;
 assert.equal(submissions.length, 1);
 assert.deepEqual(Object.keys(submissions[0]).sort(), ["createdAt", "domain", "handle", "id", "kind", "note", "readerId", "similar", "state", "title", "url"], "a submission is public as these fields only: no signals, extraction state, siteSubject or email");
+const thread = (JSON.parse(files["_data/reader/comments/item-one.json"]) as { comments: Array<Record<string, unknown>> }).comments;
+assert.equal(thread.length, 1);
+assert.deepEqual(Object.keys(thread[0]).sort(), ["body", "createdAt", "edited", "handle", "id", "parent", "readerId"], "a comment is public as these fields only: no rating context, signals, siteSubject or email");
 for (const body of Object.values(files)) {
-  assert.equal(body.includes("siteSubject") || body.includes("email") || body.includes("personId") || body.includes("signals") || body.includes("extractionState"), false, "profile fields other than readerId, handle and karma never reach the files");
+  assert.equal(body.includes("siteSubject") || body.includes("email") || body.includes("personId") || body.includes("signals") || body.includes("extractionState") || body.includes("ratingContext"), false, "profile fields other than readerId, handle and karma never reach the files");
 }
 
 console.log("reader snapshot privacy ok");

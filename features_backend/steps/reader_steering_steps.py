@@ -452,3 +452,107 @@ def submits_given_link(context, name: str, url: str, title: str) -> None:
 @then('the public file "{key}" shows {count:d} upvote on the first submission')
 def public_upvotes_on_submission(context, key: str, count: int) -> None:
     assert public_file(context, key)["items"][first_submission_subject(context)]["up"] == count
+
+
+def last_comment_id(context, name: str) -> str:
+    answers = context.reader_answers[name]
+    return next(answer["body"]["id"] for answer in reversed(answers) if answer["statusCode"] == 201 and str(answer["body"].get("id", "")).startswith("cmt-"))
+
+
+@when('"{name}" comments "{body}" on "{subject}"')
+def comments_on(context, name: str, body: str, subject: str) -> None:
+    call(context, name, "comment", {"subject": subject, "body": body})
+
+
+@when('"{name}" comments "{body}" on "{subject}" explaining "{dimension}" {value:d}')
+def comments_explaining(context, name: str, body: str, subject: str, dimension: str, value: int) -> None:
+    call(context, name, "comment", {"subject": subject, "body": body, "ratingContext": {"dimension": dimension, "value": value}})
+
+
+@when('"{name}" replies "{body}" to the last comment of "{author}"')
+def replies_to(context, name: str, body: str, author: str) -> None:
+    call(context, name, "comment", {"subject": "item-one", "body": body, "parent": last_comment_id(context, author)})
+
+
+@when('"{name}" edits the last comment to "{body}"')
+def edits_last_comment(context, name: str, body: str) -> None:
+    call(context, name, "comment-edit", {"id": last_comment_id(context, name), "body": body})
+
+
+@when("{minutes:d} minutes pass")
+def minutes_pass(context, minutes: int) -> None:
+    ensure_started(context).now += minutes * 60
+
+
+@when('"{name}" deletes her last comment')
+def deletes_last_comment(context, name: str) -> None:
+    call(context, name, "comment-delete", {"id": last_comment_id(context, name)})
+
+
+@when('"{name}" posts {count:d} comments on "{subject}"')
+def posts_many_comments(context, name: str, count: int, subject: str) -> None:
+    for number in range(count):
+        call(context, name, "comment", {"subject": subject, "body": f"Comment {number}"})
+
+
+def comment_entries(context, subject: str) -> list[dict]:
+    return public_file(context, f"_data/reader/comments/{subject}.json")["comments"]
+
+
+@then('the comment file of "{subject}" lists "{body}" by "{handle}"')
+def comment_file_lists(context, subject: str, body: str, handle: str) -> None:
+    entries = comment_entries(context, subject)
+    assert any(entry.get("body") == body and entry.get("handle") == handle for entry in entries), entries
+
+
+@then('the comment file of "{subject}" marks "{body}" as edited')
+def comment_file_edited(context, subject: str, body: str) -> None:
+    assert any(entry.get("body") == body and entry["edited"] for entry in comment_entries(context, subject))
+
+
+@then('the comment file of "{subject}" nests "{reply}" under "{top}"')
+def comment_file_nests(context, subject: str, reply: str, top: str) -> None:
+    entries = comment_entries(context, subject)
+    parent = next(entry for entry in entries if entry.get("body") == top)
+    assert any(entry.get("body") == reply and entry["parent"] == parent["id"] for entry in entries), entries
+
+
+@then('the comment file of "{subject}" shows a removed comment with the reply "{reply}" under it')
+def comment_file_stub(context, subject: str, reply: str) -> None:
+    entries = comment_entries(context, subject)
+    stub = next(entry for entry in entries if entry.get("stub"))
+    assert "body" not in stub and "readerId" not in stub, stub
+    assert any(entry.get("body") == reply and entry["parent"] == stub["id"] for entry in entries), entries
+
+
+@then('the comment file of "{subject}" is empty')
+def comment_file_empty(context, subject: str) -> None:
+    body = context.reader_site.get(f"_data/reader/comments/{subject}.json")
+    assert body is None or json.loads(body)["comments"] == [], body
+
+
+@then('the public file "{key}" shows {count:d} comment on "{subject}"')
+def public_comment_count(context, key: str, count: int, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["comments"] == count
+
+
+def exported(context) -> list[dict]:
+    from papyrus_content.reader_steering.feedback_export import feedback_records
+
+    return list(feedback_records(ensure_started(context).comments()))
+
+
+@then('the reader feedback export holds a rationale "{text}" for "{dimension}" {value:d} by "{name}"')
+def export_holds_rationale(context, text: str, dimension: str, value: int, name: str) -> None:
+    reader_id = ensure_started(context).call(subject_for(name), "me")["body"]["readerId"]
+    records = [record for record in exported(context) if record.get("rationale") == text]
+    assert len(records) == 1, records
+    record = records[0]
+    assert (record["source"], record["status"], record["readerId"], record["rating"]) == ("reader", "active", reader_id, {"dimension": dimension, "value": value}), record
+
+
+@then('the reader feedback export retracts the last comment of "{name}"')
+def export_retracts(context, name: str) -> None:
+    comment_id = last_comment_id(context, name)
+    record = next(record for record in exported(context) if record["commentId"] == comment_id)
+    assert record["status"] == "retracted" and "rationale" not in record, record

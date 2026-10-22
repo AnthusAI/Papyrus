@@ -8,6 +8,7 @@ and never a siteSubject, a person id or an email.
 from __future__ import annotations
 
 import json
+import re
 from collections import defaultdict
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -20,6 +21,9 @@ ITEMS_FILE = f"{READER_DATA_DIRECTORY}/items.json"
 BOARD_FILE = f"{READER_DATA_DIRECTORY}/board.json"
 READERS_FILE = f"{READER_DATA_DIRECTORY}/readers.json"
 SUBMISSIONS_FILE = f"{READER_DATA_DIRECTORY}/submissions.json"
+COMMENTS_DIRECTORY = f"{READER_DATA_DIRECTORY}/comments"
+COMMENT_VISIBLE = "visible"
+SAFE_FILE_SUBJECT = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._:-]*")
 SNAPSHOT_FILES = (ITEMS_FILE, BOARD_FILE, READERS_FILE, SUBMISSIONS_FILE)
 SUBMISSIONS_LISTED = 200
 SUBMISSION_PENDING = "pending"
@@ -137,6 +141,8 @@ class Snapshot:
     readers: dict
     karma: dict[str, int]
     submissions: dict
+    comments: dict[str, dict]
+    """Subject key to the content of its comment file, for every subject with a visible comment or a stub."""
 
 
 def visible_submissions(submissions: Iterable[Mapping]) -> list[Mapping]:
@@ -153,6 +159,45 @@ def submitters(submissions: Iterable[Mapping]) -> dict[str, str]:
         if submission.get("itemId"):
             found[submission["itemId"]] = submission["readerId"]
     return found
+
+
+def comments_key(subject: str) -> str | None:
+    """The site key of a subject's comment file, or ``None`` for a subject that is not safe as a file name."""
+    return f"{COMMENTS_DIRECTORY}/{subject}.json" if SAFE_FILE_SUBJECT.fullmatch(subject) else None
+
+
+def comment_threads(comments: Iterable[Mapping], handles: Mapping[str, str], open_subjects: Collection[str]) -> dict[str, list[dict]]:
+    """Per subject, the public comment list: visible comments oldest first, and a stub for a deleted or hidden top-level comment that still has visible replies.
+
+    A stub is ``{id, stub: true, parent: null, createdAt}``: it keeps the thread readable and carries no author or text.
+    """
+    grouped: dict[str, list[Mapping]] = defaultdict(list)
+    for comment in comments:
+        if comment["subjectKey"] in open_subjects:
+            grouped[comment["subjectKey"]].append(comment)
+    threads: dict[str, list[dict]] = {}
+    for subject, rows in grouped.items():
+        ordered = sorted(rows, key=lambda comment: (comment["createdAt"], comment["id"]))
+        with_replies = {comment.get("parentId") for comment in ordered if comment.get("state") == COMMENT_VISIBLE and comment.get("parentId")}
+        entries: list[dict] = []
+        for comment in ordered:
+            if comment.get("state") == COMMENT_VISIBLE:
+                entries.append(
+                    {
+                        "id": comment["id"],
+                        "readerId": comment["readerId"],
+                        "handle": handles.get(comment["readerId"]),
+                        "body": comment["body"],
+                        "createdAt": comment["createdAt"],
+                        "parent": comment.get("parentId") or None,
+                        "edited": bool(comment.get("editedAt")),
+                    }
+                )
+            elif comment["id"] in with_replies and not comment.get("parentId"):
+                entries.append({"id": comment["id"], "stub": True, "parent": None, "createdAt": comment["createdAt"]})
+        if entries:
+            threads[subject] = entries
+    return threads
 
 
 def public_submission(submission: Mapping, handles: Mapping[str, str]) -> dict:
@@ -184,6 +229,7 @@ def build_snapshot(
     settings: SnapshotSettings,
     submitter_of: Callable[[str], str | None] | None = None,
     submissions: Iterable[Mapping] = (),
+    comments: Iterable[Mapping] = (),
 ) -> Snapshot:
     """``published_at`` holds exactly the published subjects (its values may be ``None``); votes on any other subject are ignored.
 
@@ -195,10 +241,17 @@ def build_snapshot(
     published_at = {**{submission["id"]: submission["createdAt"] for submission in submission_rows}, **published_at}
     if submitter_of is None:
         submitter_of = submitters(submission_rows).get
+    profile_rows = list(profiles)
+    handles = {profile["readerId"]: profile["handle"] for profile in profile_rows if profile.get("handle")}
+    threads = comment_threads(comments, handles, published_at)
+    comment_counts = {subject: sum(1 for entry in entries if not entry.get("stub")) for subject, entries in threads.items()}
     live_votes = [vote for vote in votes if vote["subjectKey"] in published_at]
     by_subject: dict[str, list[Mapping]] = defaultdict(list)
     for vote in live_votes:
         by_subject[vote["subjectKey"]].append(vote)
+    for subject, count in comment_counts.items():
+        if count:
+            by_subject.setdefault(subject, [])  # a subject with comments and no votes still gets its numbers (zeros) and its comment count
 
     items: dict[str, dict] = {}
     front_rows: list[dict] = []
@@ -220,6 +273,7 @@ def build_snapshot(
         items[subject] = {
             "up": len(upvotes),
             "usedIt": sum(1 for vote in subject_votes if vote["dimension"] == USED_IT),
+            "comments": comment_counts.get(subject, 0),
             "ratings": stats,
             "editor": None if editor_composite is None else rounded(editor_composite),
             "reader": None if reader_composite is None else rounded(reader_composite),
@@ -245,7 +299,7 @@ def build_snapshot(
             rising_rows.append({"subject": subject, "upvotes": recent})
 
     karma = karma_by_reader(live_votes, submitter_of, settings.karma)
-    profile_list = list(profiles)
+    profile_list = profile_rows
     karma_values = {profile["readerId"]: int(round(karma.get(profile["readerId"], 0))) for profile in profile_list}
     reader_rows = [
         {"readerId": profile["readerId"], "handle": profile["handle"], "karma": karma_values[profile["readerId"]]}
@@ -254,7 +308,6 @@ def build_snapshot(
     ]
     top_readers = sorted(reader_rows, key=lambda row: (-row["karma"], row["handle"]))[:TOP_READERS]
 
-    handles = {profile["readerId"]: profile["handle"] for profile in profile_list if profile.get("handle")}
     ranking = settings.ranking
     return Snapshot(
         items={"generatedAt": generated_at, "items": items},
@@ -274,6 +327,11 @@ def build_snapshot(
         submissions={
             "generatedAt": generated_at,
             "submissions": [public_submission(submission, handles) for submission in submission_rows[:SUBMISSIONS_LISTED]],
+        },
+        comments={
+            subject: {"generatedAt": generated_at, "subject": subject, "comments": entries}
+            for subject, entries in threads.items()
+            if comments_key(subject) is not None
         },
     )
 

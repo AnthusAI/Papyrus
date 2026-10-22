@@ -45,6 +45,20 @@ ACTION_HANDLE = "handle"
 ACTION_VOTE = "vote"
 ACTION_RATING = "rating"
 ACTION_SUBMIT = "submit"
+ACTION_COMMENT = "comment"
+ACTION_COMMENT_EDIT = "comment-edit"
+ACTION_COMMENT_DELETE = "comment-delete"
+RATE_BUCKET_COMMENT = "comment"
+COMMENT_ID_PREFIX = "cmt-"
+COMMENT_ID = re.compile(r"cmt-[0-9a-f]{32}")
+COMMENT_VISIBLE = "visible"
+COMMENT_HIDDEN = "hidden"
+COMMENT_DELETED = "deleted"
+COMMENT_PAYLOAD_KEYS = frozenset({"subject", "body", "parent", "ratingContext"})
+COMMENT_EDIT_KEYS = frozenset({"id", "body"})
+COMMENT_DELETE_KEYS = frozenset({"id"})
+LINK = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+TEXT_CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 RATE_BUCKET_REACTIONS = "react"
 RATE_BUCKET_HANDLE = "handle"
 RATE_BUCKET_SUBMIT = "submit"
@@ -85,6 +99,10 @@ class ReaderSettings:
     submissions_per_day: int = 10
     similar_hours: int = 48
     submission_kinds: tuple[str, ...] = ("link",)
+    comments_per_hour: int = 30
+    comment_edit_minutes: int = 10
+    comment_maximum_length: int = 2000
+    comment_maximum_links: int = 3
 
 
 def settings_from_environment(environment: dict[str, str] | None = None) -> ReaderSettings:
@@ -103,6 +121,10 @@ def settings_from_environment(environment: dict[str, str] | None = None) -> Read
         submissions_per_day=int((raw.get("submissions") or {}).get("perDay", defaults.submissions_per_day)),
         similar_hours=int((raw.get("submissions") or {}).get("similarHours", defaults.similar_hours)),
         submission_kinds=tuple((raw.get("submissions") or {}).get("kinds") or defaults.submission_kinds),
+        comments_per_hour=int((raw.get("comments") or {}).get("perHour", defaults.comments_per_hour)),
+        comment_edit_minutes=int((raw.get("comments") or {}).get("editWindowMinutes", defaults.comment_edit_minutes)),
+        comment_maximum_length=int((raw.get("comments") or {}).get("maximumLength", defaults.comment_maximum_length)),
+        comment_maximum_links=int((raw.get("comments") or {}).get("maximumLinks", defaults.comment_maximum_links)),
     )
 
 
@@ -127,6 +149,12 @@ class ReaderStore(Protocol):
 
     def recent_submissions_by_domain(self, domain: str, since_iso: str) -> list[dict[str, Any]]: ...
 
+    def get_comment(self, comment_id: str) -> dict[str, Any] | None: ...
+
+    def create_comment(self, comment: dict[str, Any]) -> None: ...
+
+    def update_comment(self, comment_id: str, changes: dict[str, Any], now_iso: str, *, expected_state: str) -> bool: ...
+
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool: ...
 
     def claim_snapshot_slot(self, now_seconds: float, debounce_seconds: int) -> int | None: ...
@@ -143,11 +171,13 @@ def refusal(status: int, error: str, message: str, **extra: Any) -> dict[str, An
 
 
 def iso(now_seconds: float) -> str:
-    return datetime.fromtimestamp(now_seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    """UTC with milliseconds, so rows written in the same second still sort in the order they were written."""
+    moment = datetime.fromtimestamp(now_seconds, tz=timezone.utc)
+    return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
 
 
 def seconds_of(iso_text: str) -> float:
-    return datetime.strptime(iso_text, "%Y-%m-%dT%H:%M:%S.000Z").replace(tzinfo=timezone.utc).timestamp()
+    return datetime.strptime(iso_text, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc).timestamp()
 
 
 def vote_id(subject_key: str, reader_id: str, dimension: str) -> str:
@@ -448,6 +478,165 @@ def submit_action(
     )
 
 
+def clean_comment_body(value: Any, settings: ReaderSettings) -> tuple[str | None, dict[str, Any] | None]:
+    """Plain text, trimmed, at most ``comment_maximum_length`` characters, ``comment_maximum_links`` links, no email address."""
+    if not isinstance(value, str):
+        return None, refusal(422, "invalid_body", "Send the comment as text.")
+    text = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return None, refusal(422, "invalid_body", "Write something first.")
+    if TEXT_CONTROL_CHARACTERS.search(text):
+        return None, refusal(422, "invalid_body", "A comment is plain text.")
+    if len(text) > settings.comment_maximum_length:
+        return None, refusal(422, "body_too_long", f"A comment is at most {settings.comment_maximum_length} characters.")
+    if len(LINK.findall(text)) > settings.comment_maximum_links:
+        return None, refusal(422, "too_many_links", f"A comment has at most {settings.comment_maximum_links} links.")
+    if EMAIL_ADDRESS.search(text):
+        return None, refusal(422, "invalid_body", "Public text cannot contain an email address. Remove it from the comment.")
+    return text, None
+
+
+def writes_comments(profile: dict[str, Any]) -> dict[str, Any] | None:
+    if profile.get("state") == STATE_LIMITED:
+        return refusal(403, "reader_limited", "This reader cannot comment right now.")
+    if not profile.get("handle"):
+        return refusal(422, "handle_required", "Choose a handle before commenting.")
+    return None
+
+
+def rating_context_for(store: ReaderStore, profile: dict[str, Any], subject: str, raw: Any, settings: ReaderSettings) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """The rating a comment explains must be the reader's own current vote, so a comment cannot claim a rating nobody gave."""
+    if raw is None:
+        return None, None
+    if not isinstance(raw, dict) or set(raw) != {"dimension", "value"}:
+        return None, refusal(422, "invalid_rating_context", "Send ratingContext as {dimension, value}.")
+    dimension, value = raw["dimension"], raw["value"]
+    if not isinstance(dimension, str) or dimension not in (*TOGGLE_DIMENSIONS, *settings.dimensions) or isinstance(value, bool) or not isinstance(value, int):
+        return None, refusal(422, "invalid_rating_context", "That rating context is not available.")
+    stored = store.get_vote_values([vote_id(subject, profile["readerId"], dimension)])
+    if stored.get(vote_id(subject, profile["readerId"], dimension)) != value:
+        return None, refusal(422, "rating_context_mismatch", "Rate or vote first; a comment can only explain your own current rating.")
+    return {"dimension": dimension, "value": value}, None
+
+
+def comment_action(
+    store: ReaderStore,
+    profile: dict[str, Any],
+    payload: dict[str, Any],
+    settings: ReaderSettings,
+    now_seconds: float,
+    schedule_snapshot: Callable[[], None],
+) -> dict[str, Any]:
+    problem = writes_comments(profile)
+    if problem:
+        return problem
+    if set(payload) - COMMENT_PAYLOAD_KEYS:
+        return refusal(422, "invalid_comment", "Send only subject, body, parent and ratingContext.")
+    subject = payload.get("subject")
+    if not isinstance(subject, str) or not SUBJECT_KEY.fullmatch(subject):
+        return refusal(422, "invalid_subject", "Send the key of a published item.")
+    body, problem = clean_comment_body(payload.get("body"), settings)
+    if problem:
+        return problem
+    parent_id = payload.get("parent")
+    if parent_id is not None and (not isinstance(parent_id, str) or not COMMENT_ID.fullmatch(parent_id)):
+        return refusal(422, "invalid_parent", "That comment cannot be replied to.")
+    context, problem = rating_context_for(store, profile, subject, payload.get("ratingContext"), settings)
+    if problem:
+        return problem
+    if context is not None and parent_id is not None:
+        return refusal(422, "invalid_rating_context", "A reply does not explain a rating.")
+    limited = within_rate_limit(store, profile, RATE_BUCKET_COMMENT, new_account_limit(profile, settings, now_seconds, settings.comments_per_hour), now_seconds)
+    if limited:
+        return limited
+    if not subject_is_open(store, subject):
+        return refusal(404, "unknown_subject", "That item is not published.")
+    if parent_id is not None:
+        parent = store.get_comment(parent_id)
+        if parent is None or parent.get("subjectKey") != subject or parent.get("parentId") or parent.get("state") != COMMENT_VISIBLE:
+            return refusal(422, "invalid_parent", "That comment cannot be replied to.")
+    comment_id = COMMENT_ID_PREFIX + uuid.uuid4().hex
+    created = iso(now_seconds)
+    comment = {
+        "id": comment_id,
+        "subjectKey": subject,
+        "readerId": profile["readerId"],
+        "body": body,
+        "state": COMMENT_VISIBLE,
+        "createdAt": created,
+    }
+    if parent_id is not None:
+        comment["parentId"] = parent_id
+    if context is not None:
+        comment["ratingContext"] = json.dumps(context, separators=(",", ":"))
+    store.create_comment(comment)
+    schedule_snapshot()
+    return reply(201, {"id": comment_id, "subject": subject, "parent": parent_id, "body": body, "createdAt": created, "ratingContext": context})
+
+
+def own_comment(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any], allowed: frozenset[str]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if set(payload) - allowed:
+        return None, refusal(422, "invalid_comment", "Send only " + ", ".join(sorted(allowed)) + ".")
+    comment_id = payload.get("id")
+    if not isinstance(comment_id, str) or not COMMENT_ID.fullmatch(comment_id):
+        return None, refusal(404, "unknown_comment", "That comment does not exist.")
+    comment = store.get_comment(comment_id)
+    if comment is None or comment.get("readerId") != profile["readerId"] or comment.get("state") == COMMENT_HIDDEN:
+        return None, refusal(404, "unknown_comment", "That comment does not exist.")
+    return comment, None
+
+
+def edit_comment_action(
+    store: ReaderStore,
+    profile: dict[str, Any],
+    payload: dict[str, Any],
+    settings: ReaderSettings,
+    now_seconds: float,
+    schedule_snapshot: Callable[[], None],
+) -> dict[str, Any]:
+    problem = writes_comments(profile)
+    if problem:
+        return problem
+    comment, problem = own_comment(store, profile, payload, COMMENT_EDIT_KEYS)
+    if problem:
+        return problem
+    if comment.get("state") != COMMENT_VISIBLE:
+        return refusal(409, "comment_deleted", "A deleted comment cannot be edited.")
+    if now_seconds - seconds_of(comment["createdAt"]) > settings.comment_edit_minutes * 60:
+        return refusal(403, "edit_window_closed", f"A comment can be edited for {settings.comment_edit_minutes} minutes after it is posted.")
+    body, problem = clean_comment_body(payload.get("body"), settings)
+    if problem:
+        return problem
+    limited = within_rate_limit(store, profile, RATE_BUCKET_COMMENT, new_account_limit(profile, settings, now_seconds, settings.comments_per_hour), now_seconds)
+    if limited:
+        return limited
+    edited = iso(now_seconds)
+    if not store.update_comment(comment["id"], {"body": body, "editedAt": edited, "reviewedAt": None, "signals": None}, edited, expected_state=COMMENT_VISIBLE):
+        return refusal(409, "comment_changed", "That comment changed. Reload and try again.")
+    schedule_snapshot()
+    return reply(200, {"id": comment["id"], "body": body, "editedAt": edited})
+
+
+def delete_comment_action(
+    store: ReaderStore,
+    profile: dict[str, Any],
+    payload: dict[str, Any],
+    settings: ReaderSettings,
+    now_seconds: float,
+    schedule_snapshot: Callable[[], None],
+) -> dict[str, Any]:
+    comment, problem = own_comment(store, profile, payload, COMMENT_DELETE_KEYS)
+    if problem:
+        return problem
+    if comment.get("state") == COMMENT_DELETED:
+        return reply(200, {"id": comment["id"], "state": COMMENT_DELETED})
+    deleted = iso(now_seconds)
+    if not store.update_comment(comment["id"], {"body": "", "deletedAt": deleted, "state": COMMENT_DELETED, "ratingContext": None}, deleted, expected_state=COMMENT_VISIBLE):
+        return refusal(409, "comment_changed", "That comment changed. Reload and try again.")
+    schedule_snapshot()
+    return reply(200, {"id": comment["id"], "state": COMMENT_DELETED})
+
+
 def vote_action(store, profile, payload, settings, is_staff, now_seconds, schedule_snapshot):
     on = payload.get("on")
     if not isinstance(on, bool):
@@ -494,6 +683,12 @@ def handle_event(
         return rating_action(store, profile, payload, settings, event["isStaff"], now_seconds, schedule_snapshot)
     if action == ACTION_SUBMIT:
         return submit_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
+    if action == ACTION_COMMENT:
+        return comment_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
+    if action == ACTION_COMMENT_EDIT:
+        return edit_comment_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
+    if action == ACTION_COMMENT_DELETE:
+        return delete_comment_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
     return refusal(400, "unknown_action", "Unknown action.")
 
 
@@ -524,6 +719,7 @@ class DynamoReaderStore:
         published_item_table: str,
         rate_table: str,
         submission_table: str = "",
+        comment_table: str = "",
     ) -> None:
         self._resource = resource
         self._names = {
@@ -533,6 +729,7 @@ class DynamoReaderStore:
             "published": published_item_table,
             "rate": rate_table,
             "submission": submission_table,
+            "comment": comment_table,
         }
 
     def _table(self, key: str) -> Any:
@@ -653,6 +850,42 @@ class DynamoReaderStore:
                 return rows
             kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
 
+    def get_comment(self, comment_id: str) -> dict[str, Any] | None:
+        item = self._table("comment").get_item(Key={"id": comment_id}, ConsistentRead=True).get("Item")
+        return plain(item) if item else None
+
+    def create_comment(self, comment: dict[str, Any]) -> None:
+        self._table("comment").put_item(
+            Item={**comment, "__typename": "ReaderComment", "updatedAt": comment["createdAt"]}, ConditionExpression="attribute_not_exists(id)"
+        )
+
+    def update_comment(self, comment_id: str, changes: dict[str, Any], now_iso: str, *, expected_state: str) -> bool:
+        """Sets the changed fields (``None`` removes one) while the comment is still in ``expected_state``."""
+        names = {"#state": "state"}
+        values: dict[str, Any] = {":expected": expected_state, ":now": now_iso}
+        sets, removes = ["updatedAt = :now"], []
+        for number, (field, value) in enumerate(changes.items()):
+            names[f"#f{number}"] = field
+            if value is None:
+                removes.append(f"#f{number}")
+            else:
+                values[f":v{number}"] = value
+                sets.append(f"#f{number} = :v{number}")
+        expression = "SET " + ", ".join(sets) + (" REMOVE " + ", ".join(removes) if removes else "")
+        try:
+            self._table("comment").update_item(
+                Key={"id": comment_id},
+                UpdateExpression=expression,
+                ConditionExpression="attribute_exists(id) AND #state = :expected",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
+
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool:
         try:
             self._table("rate").update_item(
@@ -765,6 +998,7 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         published_item_table=environment["PAPYRUS_READER_PUBLISHED_ITEM_TABLE"],
         rate_table=environment["PAPYRUS_READER_RATE_TABLE"],
         submission_table=environment.get("PAPYRUS_READER_SUBMISSION_TABLE", ""),
+        comment_table=environment.get("PAPYRUS_READER_COMMENT_TABLE", ""),
     )
 
 

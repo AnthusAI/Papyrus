@@ -23,6 +23,7 @@ from papyrus_content.reader_steering.task import (
     PROFILE_TABLE_ENV,
     SETTINGS_ENV,
     STATE_TABLE_ENV,
+    COMMENT_TABLE_ENV,
     SUBMISSION_TABLE_ENV,
     VOTE_TABLE_ENV,
     run_reader_snapshot,
@@ -44,6 +45,7 @@ TABLE_NAMES = {
     "published": "PublishedItem-test",
     "rate": "RateWindows-test",
     "submission": "ReaderSubmission-test",
+    "comment": "ReaderComment-test",
 }
 
 
@@ -116,6 +118,7 @@ class ReaderBackend:
             published_item_table=TABLE_NAMES["published"],
             rate_table=TABLE_NAMES["rate"],
             submission_table=TABLE_NAMES["submission"],
+            comment_table=TABLE_NAMES["comment"],
         )
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
@@ -149,6 +152,9 @@ class ReaderBackend:
     def submissions(self) -> list[dict]:
         return self.table("submission").scan()["Items"]
 
+    def comments(self) -> list[dict]:
+        return self.table("comment").scan()["Items"]
+
 
 def iso_at(seconds: float) -> str:
     return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -172,6 +178,7 @@ def run_snapshot(
     poll_retirements: bool = False,
     hype_gap: dict | None = None,
     review_signals: Any = None,
+    comment_signals: Any = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -187,6 +194,7 @@ def run_snapshot(
         HANDLE_TABLE_ENV: TABLE_NAMES["handle"],
         STATE_TABLE_ENV: TABLE_NAMES["rate"],
         SUBMISSION_TABLE_ENV: TABLE_NAMES["submission"],
+        COMMENT_TABLE_ENV: TABLE_NAMES["comment"],
     }
     return run_reader_snapshot(
         context,
@@ -196,6 +204,7 @@ def run_snapshot(
         now_seconds=now,
         submitter_of=submitter_of,
         review_signals=review_signals,
+        comment_signals=comment_signals,
         retirement_poll=retirement_poll,
         poll_retirements=poll_retirements,
     )
