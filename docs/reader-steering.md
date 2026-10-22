@@ -240,5 +240,11 @@ The sign-in callback stores it in the sealed session cookie; from then on `reade
 Nothing else changes: no flag, no deploy. Because production writes stay closed until then, no production row is ever
 keyed on a development value and no remap from `ssdev_` to `ss1_` is needed.
 
-Prospectus's `/session` route returns the person from the accounts directory to the browser. A reader site must not
-forward a global person id there; that is an open point for the Prospectus change (see the pull request notes).
+Prospectus now returns `person: { siteSubject }` (no id, no `createdAt`) for public-reader sites from resolve,
+`identities/me` and `GET /v1/accounts`; errors are `{error, message}` only and a missing secret on its side answers 503.
+`scripts/test-reader-sign-in-flow.ts` drives the sign-in callback with a stubbed Prospectus transport: a siteSubject in
+the response reaches `readerSubject` and the reader API, and a response without one leaves `readerSubject` null and the
+API at 503.
+
+`GET /api/auth/prospectus/session` answers the browser with `signedIn`, `cyclotronLabAccess`, `publishingAccounts` and
+`selectedAccountId` only. It never returns the person record (id, siteSubject, `createdAt`) or the raw account list.

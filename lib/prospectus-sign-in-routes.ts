@@ -199,11 +199,10 @@ async function handleProspectusSessionReadRoute(request: NextRequest, options: P
       return response;
     }
     const publishingAccounts = publishingAccountsForSite(directory.accounts, siteProductFor(options));
+    // Only what the UI reads: no person id, siteSubject or account list ever goes to the browser.
     return NextResponse.json(
       {
         signedIn: true,
-        person: directory.person,
-        accounts: directory.accounts,
         cyclotronLabAccess: directory.accounts.some((account) =>
           account.products.some((product) => product.product === CYCLOTRON_LAB_PRODUCT && product.status === "active"),
         ),
