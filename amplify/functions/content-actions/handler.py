@@ -8,6 +8,7 @@ from papyrus_content.edge_invalidation import distribution_ids_from_environment,
 from papyrus_content.graphql_authoring import create_authoring_client
 from papyrus_content.markus_renderer.derive import derive_body
 from papyrus_content.projection.deploy_render import deploy_render, drift_metric_line
+from papyrus_content.projection.lease import ProjectionLeaseHeld
 from papyrus_content.projection.engine import project, project_all, project_item_pages
 from papyrus_content.reader_steering.task import TASK_NAME as READER_SNAPSHOT_TASK, run_reader_snapshot
 from papyrus_content.projection.runtime import (
@@ -186,6 +187,13 @@ def run_deploy_render_task(client) -> dict:
 
 def run_projection_task(task: dict) -> dict:
     """An asynchronous projection task. Raising makes Lambda retry it, then send the event to the dead letter queue."""
+    try:
+        return _run_projection_task(task)
+    except ProjectionLeaseHeld as held:  # another projection of this publication outlasted the wait: retry later
+        raise ProjectionTaskFailed(str(held)) from held
+
+
+def _run_projection_task(task: dict) -> dict:
     client, _claims = create_authoring_client()
     if task.get("task") == "item-pages":
         report = project_item_pages(projection_context(client), except_item_id=task.get("exceptItemId"))

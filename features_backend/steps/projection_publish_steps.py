@@ -15,6 +15,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient  # noqa: E402
+from procedures.newsroom.tests.no_lock_parameter import NoLockParameter  # noqa: E402
 
 HANDLER_PATH = REPO_ROOT / "amplify/functions/content-actions/handler.py"
 PUBLICATION_ENVIRONMENT = {
@@ -113,7 +114,7 @@ def start_backend(context, *, publication: bool, rejects_writes: bool = False) -
 
 def call_action(context, field: str, payload: dict) -> dict:
     event = {"fieldName": field, "arguments": {"input": json.dumps(payload)}, "identity": {"username": "behave-editor"}}
-    clients = {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}
+    clients = {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client", side_effect=lambda name, **_kwargs: clients[name]
     ), mock.patch.dict("os.environ", context.environment, clear=False):
@@ -258,7 +259,7 @@ def run_scheduled_task(context) -> None:
     event = dict(task)
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client",
-        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}[name],
     ), mock.patch.dict("os.environ", context.environment, clear=False):
         context.task_result = context.handler_module.handler(event, None)
 
@@ -269,7 +270,7 @@ def run_failing_scheduled_task(context) -> None:
     context.task_error = None
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client",
-        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}[name],
     ), mock.patch.dict("os.environ", context.environment, clear=False):
         try:
             context.handler_module.handler(dict(task), None)
@@ -336,7 +337,7 @@ def remove_bucket_page(context, key: str) -> None:
 def run_named_projection_task(context, task_name: str) -> None:
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client",
-        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}[name],
     ), mock.patch.dict("os.environ", context.environment, clear=False):
         context.task_result = context.handler_module.handler({"projectionTask": {"task": task_name}}, None)
 
@@ -351,7 +352,7 @@ def run_invalidation_task(context) -> None:
     context.cloudfront.rejects_invalidations = False
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client",
-        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}[name],
     ), mock.patch.dict("os.environ", context.environment, clear=False):
         context.task_result = context.handler_module.handler(dict(task), None)
 
@@ -361,7 +362,7 @@ def run_named_projection_task_expecting_failure(context, task_name: str) -> None
     context.task_error = None
     with mock.patch.object(context.handler_module, "create_authoring_client", return_value=(context.client, {})), mock.patch(
         "boto3.client",
-        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client}[name],
+        side_effect=lambda name, **_kwargs: {"s3": context.s3, "cloudfront": context.cloudfront, "sqs": context.sqs, "lambda": context.lambda_client, "ssm": NoLockParameter()}[name],
     ), mock.patch.dict("os.environ", context.environment, clear=False):
         try:
             context.handler_module.handler({"projectionTask": {"task": task_name}}, None)

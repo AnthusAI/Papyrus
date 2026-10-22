@@ -14,6 +14,7 @@ import { resolveSitePublication } from "./publication/default-publication";
 import { REPROJECT_ON_DEPLOY_TIMEOUT_SECONDS, addReprojectOnDeploy, reprojectDeployToken } from "./publication/reproject-on-deploy";
 import { addProjectionRetries, addS3ProjectionPublication, type S3ProjectionPublication } from "./publication/s3-projection";
 import { planRenditions } from "./publication/renditions-settings";
+import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
 import { assertValidPublicationConfig } from "./site-backend-config";
@@ -456,6 +457,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   }
   if (s3ProjectionPublication !== undefined) {
     addProjectionRetries(contentActionsLambda, s3ProjectionPublication.deadLetterQueue);
+    addProjectionLeaseAccess(contentActionsLambda);
   }
   const publicationWiring = contentActionsPublicationWiring(s3ProjectionPublication);
   for (const [name, value] of Object.entries(publicationWiring.environment)) {

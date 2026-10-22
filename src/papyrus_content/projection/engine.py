@@ -22,12 +22,15 @@ idempotent.
 
 from __future__ import annotations
 
+import functools
 import logging
 import re
+from contextlib import contextmanager
 from urllib.parse import quote
 from dataclasses import dataclass, field
 from typing import Callable
 
+from .lease import ProjectionLease
 from .item_state import (
     ITEM_STATE_PREFIX,
     ItemState,
@@ -103,6 +106,20 @@ class ProjectionContext:
     maximum_rounds: int = MAXIMUM_ROUNDS
     defer_follow_up: bool = False
     deletion_guard: DeletionGuard | None = None
+    lease: ProjectionLease | None = None
+
+    @contextmanager
+    def leased(self):
+        """Hold the publication's projection lease, if it has one. Nested uses share one hold."""
+        if self.lease is None:
+            yield
+        else:
+            with self.lease.held():
+                yield
+
+    def renew_lease(self) -> None:
+        if self.lease is not None:
+            self.lease.renew()
 
     def __post_init__(self) -> None:
         types = tuple(getattr(self.projector, "projectable_types", ()))
@@ -111,6 +128,17 @@ class ProjectionContext:
         attach = getattr(self.projector, "attach_store", None)
         if attach is not None:
             attach(self.writer)
+
+
+def _leased(function):
+    """Run a public entry point under the context's projection lease (released on any exit, including errors)."""
+
+    @functools.wraps(function)
+    def wrapper(context: ProjectionContext, *args, **kwargs):
+        with context.leased():
+            return function(context, *args, **kwargs)
+
+    return wrapper
 
 
 def _page_order(keys) -> list[str]:
@@ -129,6 +157,7 @@ def _write_item_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], versions: dict[str, int | None]
 ) -> None:
     for key in _page_order(pages):
+        context.renew_lease()
         context.writer.put(key, pages[key], version=versions.get(key))
         report.written.append(key)
 
@@ -137,18 +166,21 @@ def _write_listing_pages(
     context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes], inputs: dict[str, str]
 ) -> None:
     for key in _page_order(pages):
+        context.renew_lease()
         context.writer.put(key, pages[key], inputs=inputs.get(key))
         report.written.append(key)
 
 
 def _write_static(context: ProjectionContext, report: ProjectionReport, pages: dict[str, bytes]) -> None:
     for key in sorted(pages):
+        context.renew_lease()
         context.writer.put(key, pages[key])
         report.written.append(key)
 
 
 def _delete_pages(context: ProjectionContext, report: ProjectionReport, keys) -> None:
     for key in sorted(keys):
+        context.renew_lease()
         context.writer.delete(key)
         report.deleted.append(key)
 
@@ -335,6 +367,7 @@ def _sibling_states(context: ProjectionContext, item_id: str) -> list[tuple[str,
     return found
 
 
+@_leased
 def project(context: ProjectionContext, item_id: str, *, unpublished: bool = False) -> ProjectionReport:
     """Project one item and the pages that depend on it.
 
@@ -484,12 +517,14 @@ def _converge(
         report.errors.append("published items kept changing during projection; retry")
 
 
+@_leased
 def project_static(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     _write_static(context, report, context.projector.static_files())
     return _finish(context, report)
 
 
+@_leased
 def project_listings(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     site = context.source.site_index()
@@ -498,6 +533,7 @@ def project_listings(context: ProjectionContext) -> ProjectionReport:
     return _finish(context, report)
 
 
+@_leased
 def project_all(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     projector = context.projector
@@ -547,6 +583,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     return _finish(context, report)
 
 
+@_leased
 def project_item_pages(
     context: ProjectionContext, *, except_item_id: str | None = None, finish: bool = True
 ) -> ProjectionReport:
@@ -625,6 +662,13 @@ def _stale_listing_keys(context: ProjectionContext, site: SiteIndex) -> list[str
 
 
 def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> ReconcileReport:
+    if dry_run:
+        return _reconcile(context, dry_run=True)  # read-only: no lease
+    with context.leased():
+        return _reconcile(context, dry_run=False)
+
+
+def _reconcile(context: ProjectionContext, *, dry_run: bool) -> ReconcileReport:
     """Find drift between the published data and the site store, and repair it.
 
     Drift is any item page whose ``papyrus-version`` is not the published version

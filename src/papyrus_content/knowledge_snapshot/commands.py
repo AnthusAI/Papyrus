@@ -12,6 +12,7 @@ import json
 import os
 import sys
 from collections import Counter
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -375,7 +376,8 @@ def knowledge_snapshot(flags: list[str]) -> None:
     options = parse_options(flags)
     context, data, snapshot_options = _snapshot_inputs(options)
     files = build_files(data, snapshot_options)
-    outcome = write_files(context, files, projector=context.projector)
+    with context.leased() if hasattr(context, "leased") else nullcontext():
+        outcome = write_files(context, files, projector=context.projector)
     entities = sum(1 for key in files if key.startswith(ENTITY_DIRECTORY + "/"))
     index = files[INDEX_FILE]
     result = {

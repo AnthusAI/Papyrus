@@ -935,6 +935,20 @@ A Pretext site is one Amplify `WEB_COMPUTE` app (Next.js), with no S3 site bucke
 - **Amplify domain APIs.** One hostname belongs to one Amplify app across accounts. Deleting an association deletes its distribution and certificate, and a new association gets new ones, so a delete-first cutover has real downtime and no undo. Associations can stick in `PENDING_VERIFICATION` for 30 minutes or more even with a correct validation record. Prefer not to use them for static sites at all (the `papyrus-edge-*` pattern above).
 - **Redirect and 404 rules are app config.** They reset if the app is recreated; keep them in the template (`reader.redirects`) for Amplify readers, and in the edge stack for the projection.
 
+### Projection lease (one projection at a time)
+
+Every projection that writes a site bucket (`project`, `project_all`, `project_listings`, `project_item_pages`, a non-dry-run `reconcile`, so also `papyrus ops content project`, `knowledge snapshot --reproject`, the deploy-time render and publish-time item projections) takes a lease first and gives it back in a `finally`. Dry-run reconciles, `--out` and `--from-dir` projections write nothing live and take none.
+
+- Table: `papyrus-projection-locks` (one per account, created by the cloud knowledge run stack). Partition key `publication` (string) is the site bucket name (`PAPYRUS_SITE_BUCKET` or `--bucket`). Attributes: `owner`, `acquiredAt` (ISO), `expiresAt` (epoch seconds, also the DynamoDB TTL attribute), `purpose`.
+- Discovery: env `PAPYRUS_PROJECTION_LOCK_TABLE`, else the SSM String parameter `/papyrus/projection-lock/table-name`. Neither found means no lease and projection runs as before. A parameter that exists but cannot be read (access denied) fails loudly.
+- Acquire is a conditional put (no item, or `expiresAt` in the past), so a crashed holder blocks nobody for more than the 30 minute TTL. Release and renew only touch an item the caller owns; long writes renew halfway through the TTL.
+- A held lease is retried with exponential backoff and jitter (1, 2, 4, 8, then 15 seconds) for `PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS` (default 120; the scheduled cloud run sets a longer wait). Then the projection raises `ProjectionLeaseHeld`. In the content-actions Lambda that becomes a failed projection task (Lambda retry, then the dead letter queue), and a publish-time projection schedules the same retry.
+- `PAPYRUS_PROJECTION_LEASE_PURPOSE` labels the holder (for example `cloud-run projection`).
+
+The error reads: `Projection lease for <bucket> is held by <owner> (<purpose>) until <time>; waited <n>s. Another projection of this publication is running. Retry when it finishes; if its holder crashed, the lease expires by itself. To clear it now: aws dynamodb delete-item --table-name <table> --key '{"publication":{"S":"<bucket>"}}'`.
+
+Inspect: `aws dynamodb get-item --table-name papyrus-projection-locks --key '{"publication":{"S":"<bucket>"}}'`. Clear a stuck lease only after confirming the holder is gone: the same command with `delete-item`.
+
 ## Anti-patterns
 
 | Anti-pattern | Why it fails |
