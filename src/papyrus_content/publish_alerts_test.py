@@ -20,6 +20,7 @@ from features_backend.steps.projection_publish_steps import (
 )
 from procedures.newsroom.tests.fake_client import FakeAuthoringClient
 from papyrus_content import publish_alerts
+from procedures.newsroom.tests.no_lock_parameter import NoLockParameter
 from papyrus_content.projection_trigger import item_task
 from papyrus_content.publish_alerts import NEWSLETTER_FUNCTION_ENV, announce_published, lineage_of
 
@@ -120,7 +121,7 @@ class Backend:
             self.environment[NEWSLETTER_FUNCTION_ENV] = NEWSLETTER
 
     def _patched(self):
-        clients = {"s3": self.s3, "cloudfront": self.cloudfront, "sqs": self.sqs, "lambda": self.lam}
+        clients = {"s3": self.s3, "cloudfront": self.cloudfront, "sqs": self.sqs, "lambda": self.lam, "ssm": NoLockParameter()}
         return (
             mock.patch.object(self.module, "create_authoring_client", return_value=(self.client, {})),
             mock.patch("boto3.client", side_effect=lambda name, **_kwargs: clients[name]),
