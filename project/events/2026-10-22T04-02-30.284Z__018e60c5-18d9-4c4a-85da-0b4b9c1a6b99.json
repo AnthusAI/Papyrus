@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "018e60c5-18d9-4c4a-85da-0b4b9c1a6b99",
+  "issue_id": "PPY-80952015-1cf7-4c06-ad7c-4d190f28794e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T04:02:30.284Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us documentation: live numbers for static sites",
+    "description": "Final story of the epic. The snapshot, the public JSON files, the islands and freshness are covered at https://p.apyr.us/reader-votes-and-ratings.html; the Markdown twins, llms.txt and page actions that make the site agent-readable are at https://p.apyr.us/agent-accessible.html. Extend when the ranked board component ships (PPY-e870bb).\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+    "labels": []
+  }
+}

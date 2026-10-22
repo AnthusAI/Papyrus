@@ -10,9 +10,17 @@
   "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "6b3fc949-801c-413d-8d9b-cc39ecba3c93",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Partly done. Exists: v1 formula (upvotes from others x karma.upvoteWeight + used-it reports x karma.usedItWeight; own votes excluded), materialised on ReaderProfile.karma by the snapshot, top-50 readers.json, and the ReaderSignIn island shows it (Papyrus #516, docs/reader-steering.md 'Karma'). Karma is 0 for everyone: its inputs (reader submissions, submitter_of) do not exist yet. Remains: record the full karma model on this story (earn and lose events, decay, caps, abuse resistance), implement it once submissions exist (PPY-5b8cdc), moderation penalties (PPY-af98c7), and the privilege gates.",
+      "created_at": "2026-10-22T04:02:22.062200Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.097268Z",
-  "updated_at": "2026-10-21T12:49:28.097301Z",
+  "updated_at": "2026-10-22T04:02:22.062224Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

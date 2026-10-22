@@ -10,9 +10,17 @@
   "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "19831ca5-b43a-4413-abf4-0705ae5ac79d",
+      "author": "home",
+      "text": "Reconciliation 2026-10-22. Partly done. Exists in the reader plugin assets (Papyrus #516): Vote, UsedIt, Rating (score readout with mean and n, editor mean, optimistic own value) and Freshness ('Updated N min ago') islands, refetching items.json every 60 seconds. Remains: the ranked board component (sortable table from board.json) and the 5-segment meter with grey below the minimum-n threshold.",
+      "created_at": "2026-10-22T04:02:22.148539Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.749659Z",
-  "updated_at": "2026-10-21T12:49:28.749684Z",
+  "updated_at": "2026-10-22T04:02:22.148570Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
