@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the knowledge-run image for arm64 and push it to the job stack's ECR repository (created by the CDK stack).
 # Usage: AWS_PROFILE=papyrus-production infra/knowledge-run/build_image.sh   (asserts the account first)
+# PAPYRUS_VERSION=5.29.0 pins a release; PAPYRUS_SPEC='papyrus-newsroom[markus] @ git+https://github.com/AnthusAI/Papyrus@<sha>' pins a commit.
 # Prints the pushed image tag; pass it to `cdk deploy -c imageTag=<tag>`.
 set -euo pipefail
 
@@ -18,5 +19,5 @@ aws ecr get-login-password --region "$REGION" | docker login --username AWS --pa
 PROVENANCE_FLAG=()
 docker buildx build --help 2>/dev/null | grep -q -- "--provenance" && PROVENANCE_FLAG=(--provenance=false)
 docker buildx build --platform linux/arm64 "${PROVENANCE_FLAG[@]}" \
-  -f "$ROOT_DIR/infra/knowledge-run/Dockerfile" -t "$REGISTRY/$REPOSITORY:$TAG" ${PAPYRUS_VERSION:+--build-arg PAPYRUS_VERSION=$PAPYRUS_VERSION} --push "$ROOT_DIR" >&2
+  -f "$ROOT_DIR/infra/knowledge-run/Dockerfile" -t "$REGISTRY/$REPOSITORY:$TAG" ${PAPYRUS_VERSION:+--build-arg PAPYRUS_VERSION=$PAPYRUS_VERSION} ${PAPYRUS_SPEC:+--build-arg "PAPYRUS_SPEC=$PAPYRUS_SPEC"} --push "$ROOT_DIR" >&2
 echo "$TAG"

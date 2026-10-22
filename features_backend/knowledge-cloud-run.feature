@@ -57,6 +57,10 @@ Feature: The scheduled cloud knowledge run
     When the stage "snapshot" runs
     Then the site was fetched at the deployed commit of the Amplify app
 
+  Scenario: The deployed commit is that of the successful deploy that ended last
+    Given the Amplify jobs "60" succeeded with commit "slow" at minute 10 and "61" succeeded with commit "fast" at minute 20
+    Then the deployed commit is "fast" in either order of listing
+
   Scenario: A checkout that is not the deployed commit stops the stage
     Given the checkout comes out at a different commit
     When the stage "snapshot" runs
