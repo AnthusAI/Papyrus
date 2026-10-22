@@ -33,7 +33,11 @@ export type KnowledgeRunSettings = {
   siteBucket: string;
   edgeDistributionId: string;
   redirectsKvsArn: string;
-  authoringRoleArn?: string;
+  appSyncApiId: string;
+  /** Name of the site's deployed content-actions Lambda: the projection stage checks its plugin list against `plugins`. */
+  contentActionsFunction: string;
+  /** The site's enabled plugins (what `PAPYRUS_PLUGINS` holds on that Lambda); without them a projection omits plugin pages. */
+  plugins?: string[];
   siteRepo?: string;
   siteBranch?: string;
   staticSubdir?: string;
@@ -59,7 +63,9 @@ export type KnowledgeRunConfig = {
   siteBucket: string;
   edgeDistributionId: string;
   redirectsKvsArn: string;
-  authoringRoleArn: string;
+  appSyncApiId: string;
+  contentActionsFunction: string;
+  plugins: string[];
   siteRepo: string;
   siteBranch: string;
   staticSubdir: string;
@@ -75,7 +81,9 @@ export type KnowledgeRunConfig = {
 const SITE_BUCKET_PATTERN = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
 const DISTRIBUTION_ID_PATTERN = /^E[A-Z0-9]{8,}$/;
 const KVS_ARN_PATTERN = /^arn:aws:cloudfront::\d{12}:key-value-store\/[0-9a-f-]{36}$/;
-const ROLE_ARN_PATTERN = /^arn:aws:iam::\d{12}:role\/[A-Za-z0-9+=,.@_\/-]+$/;
+const LAMBDA_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const PLUGIN_PATTERN = /^[a-z][a-z0-9-]*$/;
+const APPSYNC_API_ID_PATTERN = /^[a-z0-9]{20,32}$/;
 const GIT_URL_PATTERN = /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.\/-]+$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
 const REPO_PATH_PATTERN = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*$/;
@@ -106,6 +114,14 @@ function optionalInteger(value: unknown, field: string, min: number, max: number
   return value as number;
 }
 
+function optionalPlugins(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || !PLUGIN_PATTERN.test(entry))) {
+    fail("plugins", "must be an array of plugin names such as \"newsletter\"");
+  }
+  return [...new Set(value as string[])].sort();
+}
+
 function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[]): void {
   for (const key of Object.keys(record)) {
     if (!allowed.includes(key)) fail(key, `is not a known field (known: ${allowed.join(", ")})`);
@@ -117,7 +133,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   const record = raw as Record<string, unknown>;
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
-    "redirectsKvsArn", "authoringRoleArn", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
+    "redirectsKvsArn", "appSyncApiId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
     "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
@@ -168,7 +184,9 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     siteBucket: requireString(record.siteBucket, "siteBucket", SITE_BUCKET_PATTERN, "S3 bucket name"),
     edgeDistributionId: requireString(record.edgeDistributionId, "edgeDistributionId", DISTRIBUTION_ID_PATTERN, "CloudFront distribution id"),
     redirectsKvsArn: requireString(record.redirectsKvsArn, "redirectsKvsArn", KVS_ARN_PATTERN, "CloudFront KeyValueStore ARN"),
-    authoringRoleArn: optionalString(record.authoringRoleArn, "authoringRoleArn", ROLE_ARN_PATTERN, "IAM role ARN"),
+    appSyncApiId: requireString(record.appSyncApiId, "appSyncApiId", APPSYNC_API_ID_PATTERN, "AppSync API id"),
+    contentActionsFunction: requireString(record.contentActionsFunction, "contentActionsFunction", LAMBDA_NAME_PATTERN, "Lambda function name"),
+    plugins: optionalPlugins(record.plugins),
     siteRepo: optionalString(record.siteRepo, "siteRepo", GIT_URL_PATTERN, "https git URL"),
     siteBranch: optionalString(record.siteBranch, "siteBranch", BRANCH_PATTERN),
     staticSubdir: optionalString(record.staticSubdir, "staticSubdir", REPO_PATH_PATTERN, "relative path inside the site repository"),
@@ -205,7 +223,9 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     siteBucket: settings.siteBucket,
     edgeDistributionId: settings.edgeDistributionId,
     redirectsKvsArn: settings.redirectsKvsArn,
-    authoringRoleArn: settings.authoringRoleArn ?? `arn:aws:iam::${account}:role/${publication}-papyrus-authoring`,
+    appSyncApiId: settings.appSyncApiId,
+    contentActionsFunction: settings.contentActionsFunction,
+    plugins: settings.plugins ?? [],
     siteRepo: settings.siteRepo ?? site.repository,
     siteBranch: settings.siteBranch ?? "main",
     staticSubdir: settings.staticSubdir ?? "web",
