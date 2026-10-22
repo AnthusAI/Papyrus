@@ -40,6 +40,7 @@ class EmailTheme:
     wordmark_alt: str | None = None
     wordmark_width: int | None = None
     wordmark_height: int | None = None
+    footer_wordmark_width: int | None = None
     label_font: str | None = None
 
     def __post_init__(self) -> None:
@@ -56,6 +57,10 @@ class EmailTheme:
                 value = getattr(self, name)
                 if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 2000:
                     raise ValueError(f"Email theme value {name!r} is required with a wordmark image (1 to 2000 pixels)")
+        if self.footer_wordmark_width is not None:
+            value = self.footer_wordmark_width
+            if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 400:
+                raise ValueError("Email theme value 'footer_wordmark_width' must be a whole number of pixels from 1 to 400")
         if self.wordmark_alt is not None and (len(self.wordmark_alt) > 200 or _CONTROL.search(self.wordmark_alt)):
             raise ValueError("Email theme value 'wordmark_alt' is too long or has control characters")
 
@@ -119,7 +124,7 @@ def theme_from_config(cfg: Mapping[str, Any], site_name: str) -> EmailTheme:
     for key, attr in _OPTIONAL_KEYS:
         if cfg.get(key):
             kwargs[attr] = str(cfg[key])
-    for key, attr in (("wordmarkWidth", "wordmark_width"), ("wordmarkHeight", "wordmark_height")):
+    for key, attr in (("wordmarkWidth", "wordmark_width"), ("wordmarkHeight", "wordmark_height"), ("footerWordmarkWidth", "footer_wordmark_width")):
         if cfg.get(key) is not None:
             kwargs[attr] = cfg[key]
     return EmailTheme(**kwargs)
