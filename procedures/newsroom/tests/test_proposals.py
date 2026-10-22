@@ -182,6 +182,16 @@ class VoteCountsTests(unittest.TestCase):
         self.assertEqual(counts.votes("prop-2"), {"up": 1, "down": 4, "net": -3})
         self.assertEqual(counts.comments("prop-1"), 3)
 
+    def test_a_weighted_net_stays_fractional_and_up_and_down_stay_whole(self) -> None:
+        counts = public.VoteCounts({public.proposal_subject_key("prop-1"): {"up": 4, "down": 2, "net": 1.6667, "score": 1.2, "flags": 1}})
+        votes = counts.votes("prop-1")
+        self.assertEqual(votes, {"up": 4, "down": 2, "net": 1.6667})
+        self.assertIsInstance(votes["up"], int)
+        row = {"id": "prop-1", "kind": "rename", "title": "T", "body": "b", "state": "editor_review", "proposer": "ai", "createdAt": "2026-10-22T00:00:00Z", "history": "[]"}
+        self.assertEqual(public.public_proposal(row, counts)["communityResult"]["net"], 1.6667)
+        stored = {**row, "communityResult": json.dumps({"up": 4, "down": 2, "net": -0.3333, "at": "t"})}
+        self.assertEqual(public.public_proposal(stored, counts)["communityResult"]["net"], -0.3333)
+
     def test_a_snapshot_from_before_downvotes_has_only_up(self) -> None:
         counts = public.VoteCounts({public.proposal_subject_key("prop-1"): {"up": 5}})
         self.assertEqual(counts.votes("prop-1"), {"up": 5, "down": 0, "net": 5})

@@ -66,17 +66,21 @@ class VoteCounts:
         entry = self._subjects.get(proposal_subject_key(proposal_id)) or {}
         up, down = whole(entry.get("up")), whole(entry.get("down"))
         net = entry.get("net")
-        return {"up": up, "down": down, "net": up - down if net is None else whole(net, allow_negative=True)}
+        return {"up": up, "down": down, "net": float(up - down) if net is None else number(net)}
 
     def comments(self, proposal_id: str) -> int:
         return whole((self._subjects.get(proposal_subject_key(proposal_id)) or {}).get("comments"))
 
 
-def whole(value: Any, *, allow_negative: bool = False) -> int:
+def number(value: Any) -> float:
+    """A weighted count (net votes: a new account counts a third), kept as the float it is; a site rounds it for display."""
+    return 0.0 if isinstance(value, bool) or not isinstance(value, (int, float)) else float(value)
+
+
+def whole(value: Any) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return 0
-    number = int(value)
-    return number if allow_negative else max(number, 0)
+    return max(int(value), 0)
 
 
 def parsed(value: Any, fallback: Any) -> Any:
@@ -129,7 +133,7 @@ def community_result(row: Mapping[str, Any], votes: Mapping[str, int]) -> dict[s
         return None
     stored = parsed(row.get("communityResult"), None)
     if isinstance(stored, dict):
-        return {"up": whole(stored.get("up")), "down": whole(stored.get("down")), "net": whole(stored.get("net"), allow_negative=True), "at": stored.get("at")}
+        return {"up": whole(stored.get("up")), "down": whole(stored.get("down")), "net": number(stored.get("net")), "at": stored.get("at")}
     return {**votes, "at": None}
 
 

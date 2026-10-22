@@ -576,7 +576,9 @@ Cognito subject or an email.
 **Votes.** Votes on a proposal are keyed `{type: "proposal", id}`; the vote model (PPY-c97ce4) is the only place votes are cast or counted.
 `VoteCounts` in `proposals.py` reads `up`, `down`, `net` and `comments` for the proposal from the subjects snapshot
 (`_data/reader/items.json`, subject `proposal:<id>` from `proposal_subject_key`) and treats missing counts as zero (`net` defaults to up
-minus down), so proposals publish before votes on them do.
+minus down), so proposals publish before votes on them do. `up` and `down` are whole numbers; `net` is weighted (a new account counts a third), so it can
+be fractional and is published unrounded; a site rounds it to one decimal for display. To take votes on proposals a publication lists `"proposal"` in its
+`subjects.types`, and the page casts them with `POST /api/reader/vote {subject: {type: "proposal", id}, value: 1 | -1 | null}`.
 
 **The CLI.** Signed in as an editor or admin (`papyrus login`):
 
