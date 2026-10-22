@@ -130,8 +130,8 @@ class NewsroomClient:
     def __init__(self, *, status="published", source="attachment://code.tac", skills=()):
         self.version = {"id": "version-1", "status": status, "isCurrent": True, "versionNumber": 1, "tactusSource": source}
         self.attachments = [{"id": "a-code", "role": "code", "sortKey": "code", "status": "active", "body": PROCEDURE.encode()}]
-        self.attachments += [{"id": f"a-{n}", "role": "skill", "sortKey": f"skill:{path}", "status": "active", "body": body}
-                             for n, (path, body) in enumerate(skills)]
+        self.attachments = [{"id": f"a-{n}", "role": "code", "sortKey": f"skill:{path}", "status": "active", "body": body}
+                            for n, (path, body) in enumerate(skills)] + self.attachments
         self.started, self.updates = [], []
 
     def graphql(self, query, variables):
@@ -252,6 +252,9 @@ class RegistryClient:
         assert (model, payload["id"]) not in self.records
         self.records[(model, payload["id"])] = dict(payload)
 
+    def owner_exists(self, attachment):
+        return ("ProcedureVersion", attachment["ownerId"]) in self.records
+
     def update_record(self, model, payload):
         self.records[(model, payload["id"])].update(payload)
 
@@ -264,7 +267,8 @@ def test_registering_publishes_a_version_and_archives_the_previous_one(tmp_path,
     pytest.importorskip("tactus")
     client = RegistryClient()
     monkeypatch.setattr(model_attachments, "upload_attachment_body",
-                        lambda client_, attachment, body: client.uploads.append((attachment["sortKey"], body)) or attachment)
+                        lambda client_, attachment, body: client.owner_exists(attachment)
+                        and client.uploads.append((attachment["sortKey"], body)) or attachment)
     first_plan = sp.registration_plan(site(tmp_path), root=tmp_path, procedure_key="example.procedure")
 
     first = sp.register_site_procedure(client, first_plan, now="2026-10-21T00:00:00Z")
@@ -280,6 +284,7 @@ def test_registering_publishes_a_version_and_archives_the_previous_one(tmp_path,
     assert client.records[("ProcedureVersion", second["versionId"])]["status"] == "published"
     assert ("skill:.claude/skills/example-skill/SKILL.md", client.uploads[0][1]) == client.uploads[0]
     assert {sort_key for sort_key, _ in client.uploads} == {"code", "skill:.claude/skills/example-skill/SKILL.md"}
+    assert len(client.uploads) == 4
 
 
 # --- templates ---------------------------------------------------------------------------------------

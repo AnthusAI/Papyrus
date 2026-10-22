@@ -26,7 +26,8 @@ For each request, the runner does these steps:
 
 1. It loads the procedure's current version from the newsroom (`getNewsroomProcedureDefinition`). The
    version must be published.
-2. It downloads the version's `code` attachment and every `skill:<path>` attachment.
+2. It downloads the version's `code` attachment (sort key `code`) and its skill files (further `code`
+   attachments with sort key `skill:<path>`).
 3. It records a ProcedureRun in the newsroom through the external-execution path of
    `startNewsroomProcedureRun`. The run is created as `running`, and the newsroom's parameter schema
    checks the input.

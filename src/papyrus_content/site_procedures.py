@@ -1,7 +1,8 @@
 """A publication's own Tactus procedures, registered in its newsroom so the cloud runner can execute them.
 
 `papyrus procedures register <file.tac> --key <procedureKey>` stores the source as the version's `code`
-attachment and every file of every skill directory its agents name as a `skill:<relative path>` attachment.
+attachment (sort key `code`) and every file of every skill directory its agents name as a further `code`
+attachment with sort key `skill:<relative path>` (the newsroom accepts the `code` role on procedure versions).
 The version id is a digest of all of those files, so registering unchanged files is a no-op and any change
 publishes a new version, archiving the previous one.
 """
@@ -127,20 +128,26 @@ def register_site_procedure(client, plan: dict[str, Any], *, actor: str = "papyr
             "id": plan["procedureId"], "procedureKey": plan["procedureKey"], "title": plan["title"],
             "category": "site", "description": plan["description"], "enabled": True, "enabledStatus": "enabled",
             "createdBy": actor, "createdAt": now, "updatedBy": actor, "updatedAt": now, "newsroomFeedKey": "procedures"})
+    existing_version = next((version for version in versions if version.get("id") == plan["versionId"]), None)
     if not unchanged:
+        if existing_version is None:
+            client.create_record("ProcedureVersion", {
+                "id": plan["versionId"], "procedureId": plan["procedureId"], "procedureKey": plan["procedureKey"],
+                "versionNumber": version_number, "status": "draft", "isCurrent": False,
+                "label": f"{plan['contentDigest']}", "tactusSource": "attachment://code.tac",
+                "parameterSchema": json.dumps(plan["parameterSchema"]), "defaults": json.dumps(plan["defaults"]),
+                "changelog": f"Registered from {Path(plan['sourcePath']).name} with {len(plan['skills'])} skill file(s).",
+                "createdBy": actor, "createdAt": now, "updatedBy": actor, "updatedAt": now})
+        else:
+            version_number = int(existing_version.get("versionNumber") or version_number)
         for relative_path, body in plan["skills"]:
-            _upload_text_attachment(client, version_id=plan["versionId"], role="skill",
+            _upload_text_attachment(client, version_id=plan["versionId"], role="code",
                                     sort_key=f"{SKILL_SORT_KEY_PREFIX}{relative_path}",
                                     filename=relative_path.replace("/", "__"), body=body, now=now)
         _upload_text_attachment(client, version_id=plan["versionId"], role="code", sort_key="code",
                                 filename="code.tac", body=plan["source"].encode("utf-8"), now=now)
-        client.create_record("ProcedureVersion", {
-            "id": plan["versionId"], "procedureId": plan["procedureId"], "procedureKey": plan["procedureKey"],
-            "versionNumber": version_number, "status": "published", "isCurrent": True,
-            "label": f"{plan['contentDigest']}", "tactusSource": "attachment://code.tac",
-            "parameterSchema": json.dumps(plan["parameterSchema"]), "defaults": json.dumps(plan["defaults"]),
-            "changelog": f"Registered from {Path(plan['sourcePath']).name} with {len(plan['skills'])} skill file(s).",
-            "createdBy": actor, "createdAt": now, "updatedBy": actor, "updatedAt": now})
+        client.update_record("ProcedureVersion", {"id": plan["versionId"], "status": "published", "isCurrent": True,
+                                                  "updatedBy": actor, "updatedAt": now})
     for version in versions:
         if version.get("id") != plan["versionId"] and (version.get("isCurrent") or version.get("status") == "published"):
             client.update_record("ProcedureVersion", {"id": version["id"], "status": "archived", "isCurrent": False,
