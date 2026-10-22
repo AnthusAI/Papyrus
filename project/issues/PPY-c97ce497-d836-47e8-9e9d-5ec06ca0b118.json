@@ -21,10 +21,17 @@
       "text": "Landed on develop: part 1 data and handler PR #611 (5c8fe39), part 2 snapshot PR #613 (b9c381b), part 3 islands PR #614 (f4f9471b9398d58226a63137ded48dcd707efc56). Not promoted to main.",
       "created_at": "2026-10-22T22:19:44.569656Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5accf1db-4c1e-418b-82e8-ba1c4e7c0280",
+      "author": "home",
+      "text": "Landed on develop: part 1 data and handler PR 611 (5c8fe39), part 2 snapshot PR 613 (b9c381b), part 3 islands PR 614 (f4f9471). Not promoted to main.",
+      "created_at": "2026-10-22T22:19:56.104900Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T15:31:20.755225Z",
-  "updated_at": "2026-10-22T22:19:44.610871Z",
+  "updated_at": "2026-10-22T22:19:56.104926Z",
   "closed_at": "2026-10-22T22:19:44.610830Z",
   "agent": {
     "platform": "claude_code",
