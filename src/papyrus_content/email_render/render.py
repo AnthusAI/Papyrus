@@ -86,6 +86,7 @@ def _branded_dark(theme: EmailTheme) -> str:
         f".em-muted, .em-muted a {{ color: {DARK_MUTED} !important; }}",
         f".em-card a {{ color: {DARK_TEXT} !important; text-decoration: underline !important; }}",
         f".em-card pre, .em-card .em-callout {{ background-color: {DARK_CODE} !important; color: {DARK_TEXT} !important; }}",
+        f".em-card blockquote, .em-card .em-callout {{ border-left-color: {DARK_TEXT} !important; }}",
     ]
     if theme.header_band:
         rules.append(f".em-hband {{ background-color: {theme.header_band} !important; }}")
