@@ -1,7 +1,7 @@
 Feature: Reader steering for a signed-in reader
   A reader signed in to a publication has a per-site pairwise identity, a public handle, and can vote and rate
-  published items. Everything fails closed, every action is rate limited per reader, and a vote asks for one
-  debounced snapshot run.
+  published items. Everything fails closed, every action is rate limited per reader, and the first write in a
+  minute schedules one snapshot run for the end of that minute.
 
   Background:
     Given a publication whose readers rate "real" and "useful"
@@ -53,12 +53,15 @@ Feature: Reader steering for a signed-in reader
     Then "alice" was refused 2 times with status 429
     And the refusal says when to retry
 
-  Scenario: The next vote after a snapshot run asks for a new one only after a minute
+  Scenario: The first vote in a window schedules one run for the end of the window
     When "alice" upvotes "item-one" 3 times
-    Then 1 snapshot run was requested
-    When a minute passes
+    Then 1 snapshot run is scheduled for 60 seconds after the first vote
+    When 30 seconds pass
     And "bob" upvotes "item-one"
-    Then 2 snapshot runs were requested
+    Then 1 snapshot run is scheduled for 60 seconds after the first vote
+    When 31 seconds pass
+    And "bob" removes the upvote on "item-one"
+    Then 2 snapshot runs are scheduled
 
   Scenario: The reader state never exposes the reader's identity
     When "alice" upvotes "item-one"
@@ -75,15 +78,34 @@ Feature: Reader steering for a signed-in reader
     And the public file "_data/reader/board.json" ranks "item-one" first on the front
     And the public file "_data/reader/board.json" lists "item-one" as rising with 1 upvote
 
-  Scenario: The hype gap appears only when five readers have rated every dimension involved
+  Scenario: The hype gap compares two groups of dimensions, for readers and for editors separately
+    Given the publication also rates "notable" and "novel"
+    And the hype gap adds "notable" and "novel" and subtracts "real" and "useful"
+    And "bob" is also on the staff
+    When "bob" rates "item-one" "notable" 5
+    And "bob" rates "item-one" "novel" 4
+    And "bob" rates "item-one" "real" 2
+    And "bob" rates "item-one" "useful" 2
+    And 4 extra readers rate "item-one" "notable" 3
+    And 4 extra readers rate "item-one" "novel" 3
+    And 4 extra readers rate "item-one" "real" 4
+    And 4 extra readers rate "item-one" "useful" 4
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows no reader hype gap on "item-one"
+    And the public file "_data/reader/items.json" shows the editor hype gap at 2.5 on "item-one"
+    When 5 extra readers rate "item-one" "notable" 3
+    And 5 extra readers rate "item-one" "novel" 3
+    And 5 extra readers rate "item-one" "real" 4
+    And 5 extra readers rate "item-one" "useful" 4
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows the reader hype gap at -1.0 on "item-one"
+
+  Scenario: A publication that sets no hype gap groups publishes no hype gap
     Given "bob" is also on the staff
     When "bob" rates "item-one" "real" 5
-    And 4 more readers rate "item-one" "real" 3
+    And 5 extra readers rate "item-one" "real" 3
     And the snapshot runs
     Then the public file "_data/reader/items.json" shows no hype gap on "item-one"
-    When 1 more readers rate "item-one" "real" 3
-    And the snapshot runs
-    Then the public file "_data/reader/items.json" shows a hype gap of 2.0 on "item-one"
 
   Scenario: The scheduled run drops a deleted account's votes and frees its handle
     When "alice" picks the handle "quiet-fox"

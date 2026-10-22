@@ -38,13 +38,18 @@ export type ReaderSteeringConfig = {
     hypeMinimum: number;
   };
   /**
+   * Reserved concurrency for reader-actions. Unset by default, which reserves nothing: an account with a small total
+   * Lambda concurrency quota (papyrus-production has 10) cannot reserve any without dropping below its unreserved minimum.
+   */
+  reservedConcurrency?: number;
+  /**
    * Poll Prospectus for retired reader subjects in each scheduled snapshot run (requires `snapshot.schedule`, and a site
    * whose app-shell sets `cms.readerRetirementPoll`). Off by default.
    */
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -84,6 +89,19 @@ function names(raw: unknown, label: string, pattern: RegExp): string[] {
   return [...new Set(raw as string[])];
 }
 
+function resolveHypeGap(raw: unknown, dimensions: string[]): { plus: string[]; minus: string[] } | undefined {
+  if (raw === undefined) return undefined;
+  const groups = object(raw, "hypeGap", ["plus", "minus"]);
+  const plus = names(groups.plus, "hypeGap.plus", READER_DIMENSION_NAME);
+  const minus = names(groups.minus, "hypeGap.minus", READER_DIMENSION_NAME);
+  if (plus.length === 0 || minus.length === 0) throw new Error("reader-steering plugin hypeGap needs at least one plus and one minus dimension");
+  const unknown = [...plus, ...minus].filter((dimension) => !dimensions.includes(dimension));
+  if (unknown.length > 0) throw new Error(`reader-steering plugin hypeGap uses dimensions the site does not rate: ${unknown.join(", ")}`);
+  const both = plus.filter((dimension) => minus.includes(dimension));
+  if (both.length > 0) throw new Error(`reader-steering plugin hypeGap dimensions cannot be both plus and minus: ${both.join(", ")}`);
+  return { plus, minus };
+}
+
 export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteeringConfig {
   const raw = typeof request === "string" ? { name: request } : request;
   const unknown = Object.keys(raw).filter((key) => !KNOWN_KEYS.has(key));
@@ -99,6 +117,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const karma = object(raw.karma, "karma", ["upvoteWeight", "usedItWeight"]);
   const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
+  const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
   const retirementPoll = flag(raw.retirementPoll, "retirementPoll");
   if (retirementPoll && !flag(snapshot.schedule, "snapshot.schedule")) {
     throw new Error("reader-steering plugin retirementPoll runs inside the scheduled snapshot, so it needs snapshot.schedule: true");
@@ -128,5 +147,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       hypeMinimum: integer(snapshot.hypeMinimum, "snapshot.hypeMinimum", 5, 1, 10000),
     },
     retirementPoll,
+    ...(hypeGap ? { hypeGap } : {}),
+    ...(raw.reservedConcurrency === undefined ? {} : { reservedConcurrency: integer(raw.reservedConcurrency, "reservedConcurrency", 1, 1, 1000) }),
   };
 }

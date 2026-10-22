@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import ReaderBackend, ScriptedRetirementPoll, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import START_SECONDS, ReaderBackend, ScriptedRetirementPoll, run_snapshot, subject_for  # noqa: E402
 from reader_privacy import scan_files  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering.retirement import RetiredPage, RetiredSubject  # noqa: E402
@@ -40,6 +40,7 @@ def publication(context, first: str, second: str) -> None:
     context.reader_backend = None
     context.reader_published = []
     context.reader_names = []
+    context.reader_hype_gap = None
 
 
 def ensure_started(context) -> ReaderBackend:
@@ -106,9 +107,9 @@ def rate(context, name: str, subject: str, dimension: str, value: int) -> None:
     call(context, name, "rating", {"subject": subject, "dimension": dimension, "value": value})
 
 
-@when("a minute passes")
-def a_minute_passes(context) -> None:
-    ensure_started(context).now += 61
+@when("{seconds:d} seconds pass")
+def seconds_pass(context, seconds: int) -> None:
+    ensure_started(context).now += seconds
 
 
 def last_answer(context, name: str) -> dict:
@@ -176,11 +177,18 @@ def says_when_to_retry(context) -> None:
     assert 0 < context.reader_refusal["body"]["retryAfter"] <= 3600, context.reader_refusal
 
 
-@then("{count:d} snapshot run{suffix} requested")
+@then("{count:d} snapshot run{suffix} scheduled")
 def snapshot_runs(context, count: int, suffix: str) -> None:
-    invocations = ensure_started(context).lambda_client.invocations
-    assert len(invocations) == count, invocations
-    assert all(json.loads(invocation["Payload"]) == {"projectionTask": {"task": "reader-snapshot"}} for invocation in invocations)
+    schedules = ensure_started(context).schedules()
+    assert len(schedules) == count, schedules
+    assert all(json.loads(schedule["Target"]["Input"]) == {"projectionTask": {"task": "reader-snapshot"}} for schedule in schedules)
+
+
+@then("{count:d} snapshot run is scheduled for {seconds:d} seconds after the first vote")
+def snapshot_run_at_window_end(context, count: int, seconds: int) -> None:
+    schedules = ensure_started(context).schedules()
+    assert len(schedules) == count, schedules
+    assert schedules[0]["Name"] == f"papyrus-reader-snapshot-{int(START_SECONDS) + seconds}", schedules[0]["Name"]
 
 
 @then("the reader state of \"{name}\" contains neither her site subject nor her person id")
@@ -233,6 +241,13 @@ def has_no_profile(context, name: str) -> None:
     assert ensure_started(context).table("profile").get_item(Key={"id": subject_for(name)}).get("Item") is None
 
 
+@when('{count:d} extra readers rate "{subject}" "{dimension}" {value:d}')
+def extra_readers_rate(context, count: int, subject: str, dimension: str, value: int) -> None:
+    backend = ensure_started(context)
+    for number in range(count):
+        backend.call(subject_for(f"extra-{number}"), "rating", {"subject": subject, "dimension": dimension, "value": value})
+
+
 def run_the_snapshot(context, base_path: str = "", scheduled: bool = False) -> None:
     backend = ensure_started(context)
     if getattr(context, "reader_site_directory", None) is None:
@@ -251,6 +266,7 @@ def run_the_snapshot(context, base_path: str = "", scheduled: bool = False) -> N
         dimensions=context.reader_dimensions,
         retirement_poll=context.reader_poll if getattr(context, "reader_retired", None) is not None else None,
         poll_retirements=scheduled,
+        hype_gap=getattr(context, "reader_hype_gap", None),
     )
 
 
@@ -296,9 +312,24 @@ def no_hype_gap(context, key: str, subject: str) -> None:
     assert public_file(context, key)["items"][subject]["hypeGap"] is None
 
 
-@then('the public file "{key}" shows a hype gap of {gap:f} on "{subject}"')
-def hype_gap_of(context, key: str, gap: float, subject: str) -> None:
-    assert public_file(context, key)["items"][subject]["hypeGap"] == gap
+@then('the public file "{key}" shows no {who} hype gap on "{subject}"')
+def no_hype_gap_for(context, key: str, who: str, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["hypeGap"][who] is None
+
+
+@then('the public file "{key}" shows the {who} hype gap at {gap:f} on "{subject}"')
+def hype_gap_of(context, key: str, who: str, gap: float, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["hypeGap"][who] == gap
+
+
+@given('the publication also rates "{first}" and "{second}"')
+def also_rates(context, first: str, second: str) -> None:
+    context.reader_dimensions = (*context.reader_dimensions, first, second)
+
+
+@given('the hype gap adds "{plus_first}" and "{plus_second}" and subtracts "{minus_first}" and "{minus_second}"')
+def hype_gap_groups(context, plus_first: str, plus_second: str, minus_first: str, minus_second: str) -> None:
+    context.reader_hype_gap = {"plus": [plus_first, plus_second], "minus": [minus_first, minus_second]}
 
 
 @then("nobody is on the karma list")

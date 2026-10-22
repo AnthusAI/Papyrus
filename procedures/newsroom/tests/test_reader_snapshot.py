@@ -19,7 +19,7 @@ from papyrus_content.projection.standard.urls import UrlPolicy
 from papyrus_content.projection.writers import LocalDirectoryWriter
 from papyrus_content.publishing import published_item_id_for
 from papyrus_content.reader_steering import ranking
-from papyrus_content.reader_steering.ranking import RankingParameters
+from papyrus_content.reader_steering.ranking import HypeGapGroups, RankingParameters
 from papyrus_content.reader_steering.retirement import DisabledRetirementPoll
 from papyrus_content.reader_steering.snapshot import (
     BOARD_FILE,
@@ -47,6 +47,7 @@ from reader_privacy import identity_leaks, scan_files
 NOW = 1_800_000_000.0
 HOUR = 3600
 DIMENSIONS = ("real", "useful")
+HYPE_DIMENSIONS = ("notable", "novel", "real", "useful")
 
 
 def policy_for(base_path: str = "") -> UrlPolicy:
@@ -63,7 +64,7 @@ def vote(subject: str, reader: str, dimension: str, value: int = 1, role: str = 
 
 
 def settings(**changes) -> SnapshotSettings:
-    return SnapshotSettings(dimensions=DIMENSIONS, **changes)
+    return SnapshotSettings(**{"dimensions": DIMENSIONS, **changes})
 
 
 def snapshot(votes, profiles=(), published=None, **changes):
@@ -99,14 +100,26 @@ class RankingTests(unittest.TestCase):
         light = RankingParameters(editor_weight=0.0)
         self.assertEqual(ranking.front_score(4.0, 2.0, 9, 0, light), 2.0)
 
+    def test_hype_gap_is_the_plus_mean_minus_the_minus_mean(self) -> None:
+        groups = HypeGapGroups(plus=("notable", "novel"), minus=("real", "useful"))
+        means = {"notable": 5.0, "novel": 4.0, "real": 3.0, "useful": 2.0}
+        counts = {dimension: 5 for dimension in means}
+        self.assertEqual(ranking.hype_gap(groups, means, counts, 5), 2.0, "mean(5, 4) - mean(3, 2)")
+        self.assertEqual(ranking.hype_gap(HypeGapGroups(("notable",), ("real",)), means, counts, 5), 2.0)
+        self.assertEqual(ranking.hype_gap(HypeGapGroups(("real",), ("notable",)), means, counts, 5), -2.0, "a negative gap is a gap")
+
     def test_hype_gap_needs_the_minimum_on_every_dimension_involved(self) -> None:
-        editor = {"real": 5.0, "useful": 4.0}
-        reader = {"real": 3.0, "useful": 3.0}
-        self.assertEqual(ranking.hype_gap(editor, reader, {"real": 5, "useful": 5}, 5), 1.5)
-        self.assertIsNone(ranking.hype_gap(editor, reader, {"real": 5, "useful": 4}, 5), "one dimension at 4 ratings blocks the gap")
-        self.assertIsNone(ranking.hype_gap(editor, {"real": 3.0, "useful": None}, {"real": 9, "useful": 0}, 5))
-        self.assertIsNone(ranking.hype_gap({"real": None, "useful": None}, reader, {"real": 9, "useful": 9}, 5), "an item the editor never rated has no gap")
-        self.assertEqual(ranking.hype_gap({"real": 5.0, "useful": None}, reader, {"real": 5, "useful": 0}, 5), 2.0, "only dimensions the editor rated count")
+        groups = HypeGapGroups(plus=("notable",), minus=("real", "useful"))
+        means = {"notable": 4.0, "real": 3.0, "useful": 3.0, "extra": 1.0}
+        self.assertEqual(ranking.hype_gap(groups, means, {"notable": 5, "real": 5, "useful": 5}, 5), 1.0)
+        self.assertIsNone(ranking.hype_gap(groups, means, {"notable": 5, "real": 5, "useful": 4}, 5), "one dimension at 4 ratings blocks the gap")
+        self.assertIsNone(ranking.hype_gap(groups, {**means, "useful": None}, {"notable": 9, "real": 9, "useful": 0}, 5))
+        self.assertEqual(ranking.hype_gap(groups, means, {"notable": 1, "real": 1, "useful": 1}, 1), 1.0, "a minimum of one is enough for editors")
+
+    def test_without_both_groups_there_is_no_hype_gap(self) -> None:
+        means, counts = {"real": 3.0, "notable": 4.0}, {"real": 9, "notable": 9}
+        self.assertIsNone(ranking.hype_gap(HypeGapGroups((), ("real",)), means, counts, 1))
+        self.assertIsNone(ranking.hype_gap(HypeGapGroups(("notable",), ()), means, counts, 1))
 
     def test_rank_orders_by_score_then_subject_and_drops_unscored(self) -> None:
         rows = [{"subject": "b", "score": 2.0}, {"subject": "a", "score": 2.0}, {"subject": "c", "score": 3.0}, {"subject": "d", "score": None}]
@@ -139,15 +152,34 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual((item["up"], item["usedIt"]), (3, 1))
         self.assertEqual(sorted(item["ratings"]), ["real", "useful"])
 
-    def test_hype_gap_is_null_until_every_dimension_has_five_reader_ratings(self) -> None:
-        def votes(readers_on_useful: int) -> list[dict]:
-            rows = [vote("a", "e1", "real", 5, role="editor"), vote("a", "e1", "useful", 4, role="editor")]
-            rows += [vote("a", f"r{number}", "real", 3) for number in range(5)]
-            rows += [vote("a", f"r{number}", "useful", 3) for number in range(readers_on_useful)]
+    def test_hype_gap_is_reported_separately_for_readers_and_editors(self) -> None:
+        groups = HypeGapGroups(plus=("notable", "novel"), minus=("real", "useful"))
+
+        def votes(readers: int) -> list[dict]:
+            rows = [vote("a", "e1", dimension, value, role="editor") for dimension, value in (("notable", 5), ("novel", 4), ("real", 2), ("useful", 2))]
+            for dimension, value in (("notable", 3), ("novel", 3), ("real", 4), ("useful", 4)):
+                rows += [vote("a", f"r{number}", dimension, value) for number in range(readers)]
             return rows
 
-        self.assertIsNone(snapshot(votes(4)).items["items"]["a"]["hypeGap"])
-        self.assertEqual(snapshot(votes(5)).items["items"]["a"]["hypeGap"], 1.5)
+        item = snapshot(votes(5), dimensions=HYPE_DIMENSIONS, hype_gap=groups).items["items"]["a"]
+        self.assertEqual(item["hypeGap"], {"reader": -1.0, "editor": 2.5}, "readers: mean(3, 3) - mean(4, 4); editors: mean(5, 4) - mean(2, 2)")
+        short = snapshot(votes(4), dimensions=HYPE_DIMENSIONS, hype_gap=groups).items["items"]["a"]
+        self.assertEqual(short["hypeGap"], {"reader": None, "editor": 2.5}, "four readers are too few; the editor gap does not wait for them")
+
+    def test_the_editor_gap_needs_every_dimension_rated_by_an_editor(self) -> None:
+        groups = HypeGapGroups(plus=("notable",), minus=("real",))
+        votes = [vote("a", "e1", "notable", 5, role="editor")] + [vote("a", f"r{number}", dimension, 3) for number in range(5) for dimension in ("notable", "real")]
+        item = snapshot(votes, dimensions=HYPE_DIMENSIONS, hype_gap=groups).items["items"]["a"]
+        self.assertEqual(item["hypeGap"], {"reader": 0.0, "editor": None})
+
+    def test_no_hype_gap_configuration_means_no_hype_gap(self) -> None:
+        votes = [vote("a", f"r{number}", dimension, 3) for number in range(9) for dimension in DIMENSIONS]
+        self.assertIsNone(snapshot(votes).items["items"]["a"]["hypeGap"])
+
+    def test_hype_gap_groups_come_from_the_publication(self) -> None:
+        parsed = settings_from_mapping({"dimensions": ["real", "notable"], "hypeGap": {"plus": ["notable"], "minus": ["real"]}})
+        self.assertEqual(parsed.hype_gap, HypeGapGroups(plus=("notable",), minus=("real",)))
+        self.assertIsNone(settings_from_mapping({"dimensions": ["real"]}).hype_gap)
 
     def test_rising_counts_upvotes_in_the_window(self) -> None:
         votes = [vote("a", f"r{number}", "up", age_hours=1) for number in range(3)] + [vote("b", "r1", "up", age_hours=7), vote("b", "r2", "up", age_hours=5.9)]

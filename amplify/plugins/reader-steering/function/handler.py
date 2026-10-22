@@ -45,6 +45,7 @@ ACTION_RATING = "rating"
 RATE_BUCKET_REACTIONS = "react"
 RATE_BUCKET_HANDLE = "handle"
 SNAPSHOT_TASK = {"projectionTask": {"task": "reader-snapshot"}}
+SNAPSHOT_SCHEDULE_PREFIX = "papyrus-reader-snapshot-"
 RESERVED_HANDLES = frozenset(
     "admin administrator root system sysadmin moderator mod mods staff editor editors support help security "
     "official anonymous anon guest null undefined none me you everyone nobody deleted reader readers "
@@ -96,7 +97,9 @@ class ReaderStore(Protocol):
 
     def count_action(self, reader_id: str, bucket: str, window_start: int, limit: int, expires_at: int) -> bool: ...
 
-    def claim_snapshot_slot(self, now_seconds: float, debounce_seconds: int) -> bool: ...
+    def claim_snapshot_slot(self, now_seconds: float, debounce_seconds: int) -> int | None: ...
+
+    def release_snapshot_slot(self, locked_until: int) -> None: ...
 
 
 def reply(status: int, body: dict[str, Any]) -> dict[str, Any]:
@@ -431,34 +434,90 @@ class DynamoReaderStore:
             raise
         return True
 
-    def claim_snapshot_slot(self, now_seconds: float, debounce_seconds: int) -> bool:
+    def claim_snapshot_slot(self, now_seconds: float, debounce_seconds: int) -> int | None:
+        """Opens a debounce window and returns when it closes, or ``None`` when a window is already open."""
+        locked_until = int(now_seconds) + debounce_seconds
         try:
             self._table("rate").put_item(
-                Item={"pk": "snapshot-debounce", "lockedUntil": int(now_seconds) + debounce_seconds, "expiresAt": int(now_seconds) + 2 * debounce_seconds + HOUR_SECONDS},
+                Item={"pk": "snapshot-debounce", "lockedUntil": locked_until, "expiresAt": locked_until + debounce_seconds + HOUR_SECONDS},
                 ConditionExpression="attribute_not_exists(pk) OR lockedUntil <= :now",
                 ExpressionAttributeValues={":now": int(now_seconds)},
             )
         except Exception as error:
             if is_conditional_failure(error):
-                return False
+                return None
             raise
-        return True
+        return locked_until
+
+    def release_snapshot_slot(self, locked_until: int) -> None:
+        """Reopens the window this call opened, so the next write can schedule the run that failed to schedule."""
+        try:
+            self._table("rate").delete_item(
+                Key={"pk": "snapshot-debounce"},
+                ConditionExpression="lockedUntil = :until",
+                ExpressionAttributeValues={":until": locked_until},
+            )
+        except Exception as error:
+            if not is_conditional_failure(error):
+                raise
 
 
-def snapshot_scheduler(store: ReaderStore, settings: ReaderSettings, now_seconds: float, function_name: str, lambda_client: Any) -> Callable[[], None]:
-    """At most one asynchronous reader-snapshot invoke per debounce window; a failure never fails the vote."""
+def snapshot_schedule_name(locked_until: int) -> str:
+    return f"{SNAPSHOT_SCHEDULE_PREFIX}{locked_until}"
+
+
+def snapshot_scheduler(
+    store: ReaderStore, settings: ReaderSettings, now_seconds: float, target: "SnapshotTarget | None", scheduler_client: Any
+) -> Callable[[], None]:
+    """Trailing-edge debounce: the first write in a window schedules one run at the end of the window.
+
+    Later writes in the window schedule nothing, because the run at the end of the window reads them all. A failure never
+    fails the vote; it reopens the window so the next write tries again.
+    """
 
     def schedule() -> None:
-        if not function_name:
+        if target is None:
             return
+        locked_until = None
         try:
-            if not store.claim_snapshot_slot(now_seconds, settings.snapshot_debounce_seconds):
+            locked_until = store.claim_snapshot_slot(now_seconds, settings.snapshot_debounce_seconds)
+            if locked_until is None:
                 return
-            lambda_client.invoke(FunctionName=function_name, InvocationType="Event", Payload=json.dumps(SNAPSHOT_TASK).encode("utf-8"))
+            scheduler_client.create_schedule(
+                Name=snapshot_schedule_name(locked_until),
+                ScheduleExpression="at(" + time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(locked_until)) + ")",
+                ScheduleExpressionTimezone="UTC",
+                FlexibleTimeWindow={"Mode": "OFF"},
+                ActionAfterCompletion="DELETE",
+                Target={
+                    "Arn": target.function_arn,
+                    "RoleArn": target.role_arn,
+                    "Input": json.dumps(SNAPSHOT_TASK),
+                    "RetryPolicy": {"MaximumRetryAttempts": 0},
+                },
+            )
         except Exception as error:
             print(json.dumps({"readerSnapshotScheduleFailed": type(error).__name__}))
+            if locked_until is not None and type(error).__name__ != "ConflictException":
+                try:
+                    store.release_snapshot_slot(locked_until)
+                except Exception as release_error:
+                    print(json.dumps({"readerSnapshotReleaseFailed": type(release_error).__name__}))
 
     return schedule
+
+
+@dataclass(frozen=True)
+class SnapshotTarget:
+    function_arn: str
+    role_arn: str
+
+
+def snapshot_target_from_environment(environment: dict[str, str] | None = None) -> SnapshotTarget | None:
+    environment = os.environ if environment is None else environment
+    function_arn = environment.get("PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "")
+    role_arn = environment.get("PAPYRUS_READER_SCHEDULER_ROLE_ARN", "")
+    return SnapshotTarget(function_arn, role_arn) if function_arn and role_arn else None
 
 
 def store_from_environment(environment: dict[str, str] | None = None) -> DynamoReaderStore:
@@ -481,7 +540,5 @@ def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     settings = settings_from_environment()
     store = store_from_environment()
     now_seconds = time.time()
-    scheduler = snapshot_scheduler(
-        store, settings, now_seconds, os.environ.get("PAPYRUS_READER_SNAPSHOT_FUNCTION", ""), boto3.client("lambda")
-    )
+    scheduler = snapshot_scheduler(store, settings, now_seconds, snapshot_target_from_environment(), boto3.client("scheduler"))
     return handle_event(event, store=store, settings=settings, now_seconds=now_seconds, schedule_snapshot=scheduler)

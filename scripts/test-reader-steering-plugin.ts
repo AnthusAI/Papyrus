@@ -13,7 +13,6 @@ import {
   readerSteeringManifest,
   readerSteeringPlugin,
 } from "../amplify/plugins/reader-steering/papyrus.plugin";
-import { READER_ACTIONS_RESERVED_CONCURRENCY } from "../amplify/plugins/reader-steering/function/resource";
 import { readerSteeringSchemaDefinitions } from "../amplify/plugins/reader-steering/schema";
 import { wirePlugins } from "../amplify/plugins/wire";
 
@@ -52,7 +51,19 @@ assert.equal(shipped.karma.usedItWeight, 3);
 assert.equal(shipped.karma.upvoteWeight, 1);
 assert.equal(shipped.snapshot.schedule, true);
 
+const withHype = resolveReaderSteeringConfig({ ...base, dimensions: ["real", "useful", "notable", "novel"], hypeGap: { plus: ["notable", "novel"], minus: ["real", "useful"] } });
+assert.deepEqual(withHype.hypeGap, { plus: ["notable", "novel"], minus: ["real", "useful"] });
+assert.equal("hypeGap" in defaults, false, "no hypeGap configuration means no hype gap");
+assert.deepEqual(JSON.parse(JSON.stringify(readerSnapshotSettings(withHype))).hypeGap, { plus: ["notable", "novel"], minus: ["real", "useful"] }, "the snapshot task gets the groups");
+assert.equal("hypeGap" in readerSnapshotSettings(shipped), false);
+
 for (const bad of [
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: [], minus: ["real"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable"], minus: ["useful"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable", "real"], minus: ["real"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable"], minus: ["real"], extra: 1 } },
+  { dimensions: ["real", "notable"], hypeGap: "notable" },
   { dimensions: ["Real"] },
   { dimensions: ["up"] },
   { dimensions: ["used-it"] },
@@ -139,7 +150,7 @@ assert.equal(permissions.filter((permission) => permission.Properties.Principal 
 const readerEnvironments = Object.values(template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
 const readerVariables = readerEnvironments.find((variables) => variables.PAPYRUS_READER_SETTINGS) as Record<string, string>;
 assert.ok(readerVariables, "the function gets its settings");
-for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION"]) {
+for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
   assert.ok(name in readerVariables, `${name} is set`);
 }
 assert.equal(JSON.parse(readerVariables.PAPYRUS_READER_SETTINGS).allowInterimSubjects, false, "a production synth refuses interim subjects");
@@ -169,7 +180,34 @@ const rule = scheduled[0] as { Properties: { ScheduleExpression: string; Targets
 assert.equal(rule.Properties.ScheduleExpression, "rate(6 hours)");
 assert.deepEqual(JSON.parse(rule.Properties.Targets[0].Input), { projectionTask: { task: "reader-snapshot" } });
 
-assert.equal(READER_ACTIONS_RESERVED_CONCURRENCY, 10);
+// Reserved concurrency: none unless the site sets it.
+const reservedValues = (result: ReturnType<typeof synthesize>) =>
+  Object.values(result.template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { ReservedConcurrentExecutions?: number } }).Properties.ReservedConcurrentExecutions);
+assert.deepEqual(reservedValues(synthesize(shipped)).filter((value) => value !== undefined), [], "no reserved concurrency by default");
+assert.deepEqual(reservedValues(synthesize({ ...shipped, reservedConcurrency: 3 })).filter((value) => value !== undefined), [3], "a site may reserve some");
+for (const bad of [0, -1, 1.5, "10", null]) {
+  assert.throws(() => resolveReaderSteeringConfig({ name: "reader-steering", computeRoleArn, reservedConcurrency: bad }), /reservedConcurrency/, `rejects ${JSON.stringify(bad)}`);
+}
+assert.equal("reservedConcurrency" in resolveReaderSteeringConfig({ name: "reader-steering", computeRoleArn }), false);
+
+// Trailing-edge debounce: a scheduler role, exactly-scoped permissions, no direct invoke of content-actions.
+const debounceTemplates = synthesize(shipped).stacks.map((stack) => Template.fromStack(stack));
+const schedulerRoles = debounceTemplates.flatMap((candidate) => Object.values(candidate.findResources("AWS::IAM::Role"))).filter((role) =>
+  JSON.stringify((role as { Properties: { AssumeRolePolicyDocument: unknown } }).Properties.AssumeRolePolicyDocument).includes("scheduler.amazonaws.com"));
+assert.equal(schedulerRoles.length, 1, "one role for the Scheduler to assume");
+const debounceStatements = debounceTemplates.flatMap((candidate) => Object.values(candidate.findResources("AWS::IAM::Policy"))).flatMap(
+  (policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement,
+);
+const createSchedule = debounceStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("scheduler:CreateSchedule"));
+assert.equal(createSchedule.length, 1);
+assert.match(JSON.stringify(createSchedule[0].Resource), /schedule\/default\/papyrus-reader-snapshot-\*/, "only this feature's schedules");
+const passRole = debounceStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("iam:PassRole"));
+assert.equal(passRole.length, 1, "reader-actions may pass exactly the scheduler role");
+assert.equal(JSON.stringify(passRole[0].Resource).includes("*"), false);
+assert.equal(
+  debounceStatements.some((statement) => ([] as string[]).concat(statement.Action).includes("lambda:InvokeFunction") && JSON.stringify(statement.Resource).includes("ReaderActions")),
+  false,
+);
 
 const development = synthesize(shipped, { SITE_ENV: "development" });
 const developmentSettings = Object.values(development.template.findResources("AWS::Lambda::Function"))

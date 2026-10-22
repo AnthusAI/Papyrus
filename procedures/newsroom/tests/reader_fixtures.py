@@ -50,13 +50,8 @@ def subject_for(name: str, prefix: str = "ss1_") -> str:
     return prefix + base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
-class RecordingLambda:
-    def __init__(self) -> None:
-        self.invocations: list[dict[str, Any]] = []
-
-    def invoke(self, **arguments: Any) -> dict[str, Any]:
-        self.invocations.append(arguments)
-        return {"StatusCode": 202}
+SNAPSHOT_FUNCTION_ARN = "arn:aws:lambda:us-east-1:123456789012:function:content-actions-test"
+SCHEDULER_ROLE_ARN = "arn:aws:iam::123456789012:role/reader-snapshot-scheduler-test"
 
 
 class ScriptedRetirementPoll:
@@ -77,18 +72,18 @@ class ScriptedRetirementPoll:
 
 
 class ReaderBackend:
-    def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_function="content-actions-test") -> None:
+    def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_enabled=True) -> None:
         self.settings = reader_handler.ReaderSettings(
             dimensions=tuple(dimensions), actions_per_hour=actions_per_hour, allow_interim_subjects=allow_interim
         )
-        self.snapshot_function = snapshot_function
+        self.snapshot_target = reader_handler.SnapshotTarget(SNAPSHOT_FUNCTION_ARN, SCHEDULER_ROLE_ARN) if snapshot_enabled else None
         self.now = START_SECONDS
-        self.lambda_client = RecordingLambda()
         self._mock = mock_aws()
 
     def __enter__(self) -> "ReaderBackend":
         self._mock.start()
         self.resource = boto3.resource("dynamodb", region_name="us-east-1")
+        self.scheduler_client = boto3.client("scheduler", region_name="us-east-1")
         for key, table_name in TABLE_NAMES.items():
             attribute = "pk" if key == "rate" else "id"
             self.resource.create_table(
@@ -119,9 +114,14 @@ class ReaderBackend:
         self.table("published").put_item(Item={"id": reader_handler.PUBLISHED_ID_PREFIX + subject, "status": status})
 
     def call(self, subject: str, action: str, payload: dict | None = None, *, staff: bool = False, bypass_scheduling: bool = False) -> dict:
-        scheduler = reader_handler.snapshot_scheduler(self.store, self.settings, self.now, self.snapshot_function, self.lambda_client)
+        scheduler = reader_handler.snapshot_scheduler(self.store, self.settings, self.now, self.snapshot_target, self.scheduler_client)
         event = {"publication": "example.test", "siteSubject": subject, "isStaff": staff, "action": action, "payload": payload or {}}
         return reader_handler.handle_event(event, store=self.store, settings=self.settings, now_seconds=self.now, schedule_snapshot=scheduler)
+
+    def schedules(self) -> list[dict]:
+        """The one-off schedules that are waiting, each with its target, oldest first."""
+        names = sorted(entry["Name"] for entry in self.scheduler_client.list_schedules()["Schedules"])
+        return [self.scheduler_client.get_schedule(Name=name) for name in names]
 
     def age_everyone(self) -> None:
         self.now += OLD_ACCOUNT_SECONDS
@@ -150,6 +150,7 @@ def run_snapshot(
     submitter_of: Any = lambda subject: None,
     retirement_poll: Any = None,
     poll_retirements: bool = False,
+    hype_gap: dict | None = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -159,7 +160,7 @@ def run_snapshot(
     )
     context = SimpleNamespace(projector=SimpleNamespace(policy=url_policy(base_path)), writer=writer, invalidate=invalidate)
     environment = {
-        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5, "retirementPoll": retirement_poll is not None}),
+        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5, "retirementPoll": retirement_poll is not None, **({"hypeGap": hype_gap} if hype_gap else {})}),
         VOTE_TABLE_ENV: TABLE_NAMES["vote"],
         PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
         HANDLE_TABLE_ENV: TABLE_NAMES["handle"],

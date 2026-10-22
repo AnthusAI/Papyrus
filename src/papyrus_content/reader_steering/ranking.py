@@ -56,19 +56,40 @@ def front_score(
     return rounded(base * decay(age_hours, parameters.half_life_hours))
 
 
-def hype_gap(
-    editor_means: Mapping[str, float | None], reader_means: Mapping[str, float | None], reader_counts: Mapping[str, int], minimum: int
-) -> float | None:
-    """Editor composite minus reader composite over the dimensions the editor rated.
+@dataclass(frozen=True)
+class HypeGapGroups:
+    """The dimensions whose mean is added (``plus``) and subtracted (``minus``) to make the hype gap."""
 
-    ``None`` unless every one of those dimensions has at least ``minimum`` reader ratings: a gap built on a handful of votes is noise.
+    plus: tuple[str, ...]
+    minus: tuple[str, ...]
+
+    @property
+    def involved(self) -> tuple[str, ...]:
+        return self.plus + self.minus
+
+
+def _mean(values: list[float]) -> float:
+    return sum(values) / len(values)
+
+
+def hype_gap(
+    groups: HypeGapGroups,
+    means: Mapping[str, float | None],
+    counts: Mapping[str, int],
+    minimum: int,
+) -> float | None:
+    """``mean(plus dimensions) - mean(minus dimensions)``, or ``None`` when any dimension involved is short of ratings.
+
+    Used once for the reader means and once for the editor scores. Every dimension of both groups needs a mean and at
+    least ``minimum`` ratings (``counts``): a gap built on a handful of votes is noise. Without groups there is no gap.
     """
-    involved = [dimension for dimension, mean in editor_means.items() if mean is not None]
-    if not involved or any(reader_means.get(dimension) is None or reader_counts.get(dimension, 0) < minimum for dimension in involved):
+    if not groups.plus or not groups.minus:
         return None
-    editor = composite(editor_means[dimension] for dimension in involved)
-    reader = composite(reader_means[dimension] for dimension in involved)
-    return rounded(editor - reader) if editor is not None and reader is not None else None
+    if any(means.get(dimension) is None or counts.get(dimension, 0) < minimum for dimension in groups.involved):
+        return None
+    plus = _mean([means[dimension] for dimension in groups.plus])  # type: ignore[misc]
+    minus = _mean([means[dimension] for dimension in groups.minus])  # type: ignore[misc]
+    return rounded(plus - minus)
 
 
 def rank(rows: Iterable[dict], score_field: str) -> list[dict]:
