@@ -258,6 +258,10 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
     result = humanus.check(request, **services.humanus_kwargs("decision_model"))
     if skip_judgments:
         result["lanes"]["classifier"] = skipped_judgments(missing_doctrine)
+    # No NewsroomSection for the stored value: the section's own mission and policy could not be applied. Say so (PPY-2c4b56).
+    missing_sections = context.get("missingSectionConfiguration") or []
+    if missing_sections:
+        result["lanes"]["section"] = {"status": "skipped", "reason": f"no section configuration for {', '.join(missing_sections)}"}
     return result
 
 

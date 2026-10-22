@@ -17,6 +17,7 @@ class FakeEditorialStore:
         self.settings: dict | None = None
         self.feedback: list[dict] = []
         self.writes = 0
+        self.unconfigured_section = False   # the story's section matches no NewsroomSection record
         self.missions = 1               # current publication mission records (the doctrine the judgment lane reads)
         self.items: dict[str, dict] = {}
         self.check_runs: list[dict] = []
@@ -34,8 +35,11 @@ class FakeEditorialStore:
         if self.missions == 1:
             entries.insert(0, {'scope': 'publication', 'kind': 'mission', 'text': 'Synthetic mission',
                                'source': {'id': 'synthetic-mission'}})
-        return build_context({'key': 'synthetic'}, {'sectionId': section}, entries, mode='cloud',
-                             missing_publication_doctrine=[] if self.missions else ['mission'])
+        missing_section = bool(section) and self.unconfigured_section
+        scope = {'sectionId': None, 'requestedSection': section} if missing_section else {'sectionId': section}
+        return build_context({'key': 'synthetic'}, scope, entries, mode='cloud',
+                             missing_publication_doctrine=[] if self.missions else ['mission'],
+                             missing_section_configuration=[section] if missing_section else [])
 
     def get_item(self, item_id):
         return self.items.get(item_id)
@@ -423,6 +427,24 @@ def step_one_mission(context):
 @given("the publication has {count:d} current missions")
 def step_many_missions(context, count):
     context.store.missions = count
+
+
+@given("the section has no NewsroomSection record")
+def step_no_section_record(context):
+    context.store.unconfigured_section = True
+
+
+@then('the section is recorded as skipped because there is "{text}"')
+def step_section_skipped(context, text):
+    lane = context.check_result["lanes"]["section"]
+    assert lane["status"] == "skipped" and lane["reason"] == f"no section configuration for engineering" and text in lane["reason"], lane
+
+
+@then("the stored check run records the section lane as skipped")
+def step_run_section_skipped(context):
+    assert len(context.store.check_runs) == 1, context.store.check_runs
+    lane = context.store.check_runs[0]["lanes"]["section"]
+    assert lane["status"] == "skipped" and "no section configuration for engineering" in lane["reason"], lane
 
 
 @then("Humanus was asked to run without the classifier")

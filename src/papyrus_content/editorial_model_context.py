@@ -12,7 +12,9 @@ def checked_context(pack, *, section=None, publication=None, mode='cloud'):
             or pack.get('rendererVersion') != 'editorial-context/v1'
             or not pack.get('text') or not pack.get('contextHash')):
         raise ValueError('Current scoped editorial context is required')
-    if pack.get('scope', {}).get('sectionId') != section:
+    scope = pack.get('scope', {})
+    # The section may have been asked for by slug or name (or matched nothing); the scope says which.
+    if section not in (scope.get('sectionId'), scope.get('requestedSection')):
         raise ValueError('Editorial context section mismatch')
     if publication is not None and pack.get('publication', {}).get('key') != publication:
         raise ValueError('Editorial context publication mismatch')

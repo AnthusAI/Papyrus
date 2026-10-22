@@ -5,6 +5,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import re
 from typing import Any
 
 from .env import graphql_endpoint, load_dotenv
@@ -46,7 +47,8 @@ def _entry(scope: str, kind: str, text: str, record: dict, **source: Any) -> dic
 
 def build_context(publication: dict, scope: dict, entries: list[dict], *, mode: str,
                   warnings: list[str] | None = None, max_characters: int = 0,
-                  missing_publication_doctrine: list[str] | None = None) -> dict:
+                  missing_publication_doctrine: list[str] | None = None,
+                  missing_section_configuration: list[str] | None = None) -> dict:
     warnings = list(warnings or [])
     lines = [f"Editorial context: {publication['key']}", f'Source: {mode}',
              'Precedence: publication > section > assignment. Surface conflicts; narrower instructions do not silently override publication policy.',
@@ -64,6 +66,8 @@ def build_context(publication: dict, scope: dict, entries: list[dict], *, mode: 
                'warnings': warnings, 'text': text, 'totalCharacters': len(text)}
     if missing_publication_doctrine:
         payload['missingPublicationDoctrine'] = list(missing_publication_doctrine)
+    if missing_section_configuration:
+        payload['missingSectionConfiguration'] = list(missing_section_configuration)
     payload['contextHash'] = _digest(payload)
     payload['resolvedAt'] = datetime.now(timezone.utc).isoformat()
     return payload
@@ -86,6 +90,35 @@ def hosted_publication(client, requested_key: str | None = None) -> dict:
             'tenantId': getattr(client, 'tenant_id', None)}
 
 
+def _slug(value: str) -> str:
+    return re.sub(r'[^a-z0-9]+', '-', value.lower()).strip('-')
+
+
+def find_section(client, value: str) -> dict | None:
+    """The NewsroomSection a stored section value means: by id, then slug (the id's local part), then name (title or short title).
+
+    None when nothing matches; two sections matching at the same step is an error. Mirrors the hosted resolver."""
+    direct = client.get_record('NewsroomSection', value)
+    if direct:
+        return direct
+    lister = getattr(client, 'safe_list_records', None)
+    rows = lister('NewsroomSection') if lister else []
+    wanted = _slug(value)
+    names = lambda row: [name for name in (row.get('title'), row.get('shortTitle')) if isinstance(name, str)]
+    steps = [
+        lambda row: _slug(str(row.get('id') or '').split('#')[-1]) == wanted,
+        lambda row: any(name.strip().lower() == value.strip().lower() for name in names(row)),
+        lambda row: any(_slug(name) == wanted for name in names(row)),
+    ]
+    for step in steps:
+        matches = [row for row in rows if step(row)]
+        if len(matches) > 1:
+            raise ValueError(f'Section "{value}" is ambiguous: {", ".join(str(row.get("id")) for row in matches)}.')
+        if matches:
+            return matches[0]
+    return None
+
+
 def resolve_editorial_context(client, *, endpoint: str, publication_key: str | None = None,
                               section_id: str | None = None, story_lineage_id: str | None = None,
                               assignment_id: str | None = None, max_characters: int = 0,
@@ -98,6 +131,8 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
     entries = []
     warnings = []
     missing = []
+    missing_section = []
+    requested_section = None
     assignment = None
     if assignment_id:
         assignment = client.get_record('Assignment', assignment_id)
@@ -134,11 +169,18 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
             raise ValueError(f'Required publication {kind} is empty.')
         entries.append(_entry('publication', kind, text, record))
     if section_id:
-        section = client.get_record('NewsroomSection', section_id)
-        if not section:
+        section = find_section(client, section_id)
+        if not section and not optional_publication_doctrine:
             raise ValueError(f'Requested section not found: {section_id}')
-        _check_tenant(client, section)
-        _section_entries(entries, warnings, section)
+        if not section:
+            missing_section.append(section_id)
+            requested_section, section_id = section_id, None
+        else:
+            _check_tenant(client, section)
+            if section['id'] != section_id:
+                requested_section = section_id
+            section_id = section['id']
+            _section_entries(entries, warnings, section)
     if assignment:
         if getattr(client, 'tenant_id', None) and not (story_lineage_id or section_id):
             raise ValueError('A tenant assignment needs a scoped story or section to establish its publication.')
@@ -164,9 +206,10 @@ def resolve_editorial_context(client, *, endpoint: str, publication_key: str | N
             entries.append(_entry('assignment', 'brief', assignment['summary'], assignment))
             warnings.append('No assignment brief attachment exists; the Assignment summary is supplied as its brief.')
     return build_context({**publication, 'endpoint': endpoint},
-                         {'sectionId': section_id, 'storyLineageId': story_lineage_id, 'assignmentId': assignment_id},
+                         {'sectionId': section_id, 'storyLineageId': story_lineage_id, 'assignmentId': assignment_id,
+                          **({'requestedSection': requested_section} if requested_section else {})},
                          entries, mode='cloud', warnings=warnings, max_characters=max_characters,
-                         missing_publication_doctrine=missing)
+                         missing_publication_doctrine=missing, missing_section_configuration=missing_section)
 
 
 def _section_entries(entries: list, warnings: list, section: dict) -> None:

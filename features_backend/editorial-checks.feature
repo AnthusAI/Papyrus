@@ -134,6 +134,18 @@ Feature: Editorial checks
     When the saved version of a story with "This game-changing release." is checked
     Then the stored check run records the classifier lane as skipped
 
+  # PPY-2c4b56: items store a section name or slug; with no matching NewsroomSection the check still returns a result.
+  Scenario: No section record: the check still runs and records the skip
+    Given the section has no NewsroomSection record
+    When an editor checks "This game-changing release." in section "engineering"
+    Then the findings are for policies "no-hype"
+    And the section is recorded as skipped because there is "no section configuration"
+
+  Scenario: The section skip is stored with the checked version
+    Given the section has no NewsroomSection record
+    When the saved version of a story with "This game-changing release." is checked
+    Then the stored check run records the section lane as skipped
+
   Scenario: One current mission: judgment checks run as before
     Given the publication has one current mission
     And the editorial check settings turn the classifier on with a 12 second deadline
