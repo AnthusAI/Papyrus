@@ -57,6 +57,17 @@
     show(holder, true);
   }
 
+  // The server redirects here only after the address is confirmed, so this page is the confirmed-success moment. Once per tab
+  // session, and only with the token the confirmation redirect carries; the event itself carries no token, address or list.
+  function reportSignUpOnce(token) {
+    if (!TOKEN.test(token) || !window.papyrusAnalytics) return;
+    try {
+      if (window.sessionStorage.getItem("papyrus-sign-up-reported") === "1") return;
+      window.sessionStorage.setItem("papyrus-sign-up-reported", "1");
+    } catch (e) {}
+    window.papyrusAnalytics.track("sign_up", { method: "newsletter" });
+  }
+
   var pages = {
     confirm: function (root, query) {
       var token = query.get("token") || "";
@@ -70,6 +81,7 @@
 
     confirmed: function (root, query) {
       manageLink(root, query.get("token") || "");
+      reportSignUpOnce(query.get("token") || "");
       return nameLists(root, listIds(query.get("lists"))).then(function (names) { fillList(root, names); });
     },
 

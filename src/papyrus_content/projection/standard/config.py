@@ -275,9 +275,19 @@ class FormSpec:
     closed_notice: str = "This form is not open yet. Please check back soon."
     success_text: str = "Thank you. Your message was sent."
     failure_text: str = "Your message could not be sent. Please try again later."
+    conversion_event: str | None = None
+    """``"generate_lead"`` reports that GA4 event, once, when the endpoint answers 2xx (never on submit). None reports nothing."""
 
 
 FORM_FIELD_TYPES = ("text", "email", "textarea", "select")
+
+
+def _conversion_event(value, form_id: str) -> str | None:
+    if value is None:
+        return None
+    if value != "generate_lead":
+        raise ValueError(f"forms.{form_id}.conversionEvent must be 'generate_lead' when set")
+    return value
 
 
 @dataclass(frozen=True)
@@ -690,7 +700,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             raise ValueError("showcase.section must not also be declared in urls.sections")
     forms = []
     for form_id, spec in dict(raw.get("forms") or {}).items():
-        _only(spec, {"title", "fields", "endpoint", "submitLabel", "honeypot", "closedNotice", "successText", "failureText"}, f"forms.{form_id}")
+        _only(spec, {"title", "fields", "endpoint", "submitLabel", "honeypot", "closedNotice", "successText", "failureText", "conversionEvent"}, f"forms.{form_id}")
         fields = []
         for field_raw in spec.get("fields") or ():
             _only(field_raw, {"name", "label", "type", "required", "options", "autocomplete", "help"}, f"forms.{form_id}.fields")
@@ -717,6 +727,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
                 submit_label=str(spec.get("submitLabel", defaults.submit_label)), honeypot=str(spec.get("honeypot", defaults.honeypot)),
                 closed_notice=str(spec.get("closedNotice", defaults.closed_notice)),
                 success_text=str(spec.get("successText", defaults.success_text)), failure_text=str(spec.get("failureText", defaults.failure_text)),
+                conversion_event=_conversion_event(spec.get("conversionEvent"), form_id),
             )
         )
         if any(field.name == forms[-1].honeypot for field in forms[-1].fields):

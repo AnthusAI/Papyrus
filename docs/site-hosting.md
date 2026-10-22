@@ -1005,6 +1005,31 @@ of `ConsentModeSettings` fields; `{}` takes every default.
   `privacy_policy_label`) is plain text, HTML-escaped on output. The shipped
   wording is a draft that the site owner must approve.
 
+### Events and address redaction (on whenever a measurement id is set)
+
+With `ga_measurement_id` set, every page also gets two small inline scripts. Nothing changes for a site without an id.
+
+- **Address redaction.** Before `gtag('config')` the page sets `page_location` and `page_referrer` to the address with
+  identity-bearing query parameters (`token`, `email`, `ss`, `user_id`, `handle` and similar names), any value that looks
+  like an e-mail address, a `ss1_` subject or a long opaque token, and the `#fragment` removed; the same patterns are replaced
+  in the path. Campaign parameters such as `utm_source` are kept.
+- **`window.papyrusAnalytics.track(name, params)`** sends only these events, with only these parameters, and drops any value
+  that looks like an identity. It can never set `user_id`.
+
+  | Event | Parameters | When |
+  | --- | --- | --- |
+  | `cta_click` | `cta_text`, `cta_location`, `link_url` (host and path only) | automatically, for a link marked `data-cta-location="<place>"` (`[a-z0-9_-]`, up to 40) and for any link to `anth.us/engage` (place = its `cta` query value); text is the link text or `data-cta-text` |
+  | `sign_up` | `method` | the newsletter plugin's confirmed page, once per tab session, only with its token |
+  | `generate_lead` | `form_id`, `lead_source`, `solution` | a form with `"conversionEvent": "generate_lead"`, only when its endpoint answers 2xx |
+  | `view_promotion`, `select_promotion` | `promotion_id`, `promotion_name`, `creative_name`, `location_id` | reserved for sponsor units; the engine fires neither |
+
+  A link inside an element with `data-promotion-id` never reports `cta_click`: a sponsor unit is a promotion, not a call to
+  action. Never report a conversion on submit; report it from the success answer. Contact calls to action should point at
+  `https://anth.us/engage/?solution=<Product>&cta=<location>`.
+- **Documentation sites.** `DocsSiteConfig.ga_measurement_id` (CLI `--ga-measurement-id`) turns all of this on for the docs
+  builder with the shipped consent defaults, a "Cookie settings" footer link, and a banner privacy link to
+  `privacy_policy_url` (CLI `--privacy-url`, default `https://anth.us/privacy/`).  Point `contact_url` at `https://anth.us/engage/?solution=<Product>&cta=<location>` and the footer's Contact us link reports `cta_click`. Empty keeps analytics off.
+
 ## `SITE_ENV` and `PAPYRUS_CONTENT_SOURCE` (staging for Pretext sites)
 
 Two environment variables select what a deployment serves and how it presents

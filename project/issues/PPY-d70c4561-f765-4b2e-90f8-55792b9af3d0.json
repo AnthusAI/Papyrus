@@ -1,0 +1,24 @@
+{
+  "id": "PPY-d70c4561-f765-4b2e-90f8-55792b9af3d0",
+  "title": "GA4 conversion events, location redaction and docs-builder analytics defaults",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-f07bb296-102b-434e-9410-4504438e26c0",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T16:06:05.220040Z",
+  "updated_at": "2026-10-22T16:06:05.220122Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
