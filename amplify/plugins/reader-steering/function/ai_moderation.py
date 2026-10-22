@@ -38,6 +38,20 @@ REASON_PREFIX = "AI: "
 PARAMETER_NAME = re.compile(r"/papyrus/[a-z0-9][a-z0-9-]{0,62}/openai-api-key")
 
 
+# Structured Outputs: the API itself constrains the answer to this schema (strict), so no "json" wording is needed in the input.
+VERDICT_FORMAT: dict[str, Any] = {
+    "type": "json_schema",
+    "name": "moderation_verdict",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {"verdict": {"type": "string", "enum": [ALLOW, HIDE]}, "reason": {"type": "string"}},
+        "required": ["verdict", "reason"],
+        "additionalProperties": False,
+    },
+}
+
+
 class ModelOutputError(ValueError):
     pass
 
@@ -58,7 +72,7 @@ def load_prompt(path: str = PROMPT_FILE) -> str:
 
 
 def parse_verdict(text: Any) -> Verdict:
-    """A strict reading of the model's answer: one JSON object, ``decision`` allow or hide, a short plain reason."""
+    """A strict reading of the model's answer: one JSON object, ``verdict`` (or the older ``decision``) allow or hide, a short plain reason."""
     if not isinstance(text, str):
         raise ModelOutputError("the model answered nothing")
     start, end = text.find("{"), text.rfind("}")
@@ -68,7 +82,9 @@ def parse_verdict(text: Any) -> Verdict:
         data = json.loads(text[start : end + 1])
     except ValueError as error:
         raise ModelOutputError("the model's answer is not valid JSON") from error
-    decision, reason = data.get("decision") if isinstance(data, dict) else None, data.get("reason") if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        raise ModelOutputError("the decision is neither allow nor hide")
+    decision, reason = data.get("verdict", data.get("decision")), data.get("reason")
     if decision not in (ALLOW, HIDE):
         raise ModelOutputError("the decision is neither allow nor hide")
     if not isinstance(reason, str) or not reason.strip():
@@ -121,7 +137,7 @@ class OpenAIModerationModel:
             "model": self._model,
             "instructions": self._prompt,
             "input": json.dumps(item, ensure_ascii=False, separators=(",", ":")),
-            "text": {"format": {"type": "json_object"}},
+            "text": {"format": VERDICT_FORMAT},
             "max_output_tokens": 300,
             "store": False,
         }
