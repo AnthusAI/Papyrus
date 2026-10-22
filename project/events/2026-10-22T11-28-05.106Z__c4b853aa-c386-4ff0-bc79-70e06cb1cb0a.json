@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "c4b853aa-c386-4ff0-bc79-70e06cb1cb0a",
+  "issue_id": "PPY-99e70c46-e971-4bcb-a9bc-2e714feed2bf",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-22T11:28:05.106Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Replace ReferenceCyclotronPriming in ReferenceAddEntry with the PrimingPanel transform route. Keep Ryan's UI rules: rating = buttons, explanation = full textarea below.\nAcceptance: BDD URL -> preview -> label -> accept; no priming-request payload written.\n\nSize: M\nDependencies: P1, Cyclotron C1; related PPY-71277c (UI rules), PPY-02e694\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+        "to": "Replace ReferenceCyclotronPriming in ReferenceAddEntry with the PrimingPanel transform route. Keep Ryan's UI rules: rating = buttons, explanation = full textarea below.\nAcceptance: BDD URL -> preview -> label -> accept; no priming-request payload written.\n\nLong-wait acceptance (added by Ryan 2026-10-22). Reading a URL can take several minutes, and a lab decision about 50 seconds:\n1. No single request waits on the work. Every lab call is \"send the job, get a job id, check back\", so no request comes near the 15-second limit in lib/curation-client.ts:17 and lib/curation-routes.ts:28 (CURATION_UPSTREAM_TIMEOUT_MILLISECONDS). Spec: a job that runs for 3 minutes in a fake lab completes in the UI with no timeout message.\n2. Refresh or leaving the page does not lose the job. Keep the draft id (for example in the URL or the saved reference row) and pass it to PrimingPanel's initialDraftId when the page comes back. Leaving the page must not cancel a job the editor started (PrimingPanel currently cancels on unmount). Spec: start a read, reload, and see the same job still running, then finishing.\n3. Say it takes a while. While waiting, show that it is still working (elapsed time or similar) and plain text such as \"Reading the page can take a few minutes. You can leave this page and come back.\"\n4. No double submit. The \"Add reference\" button is disabled while the request is being sent, and a second click on the same URL does not create a second job. Spec: two quick clicks produce one job.\n\nSize: M\nDependencies: P1, Cyclotron C1; related PPY-71277c (UI rules), PPY-02e694\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval."
+      }
+    }
+  }
+}

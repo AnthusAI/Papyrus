@@ -1,0 +1,24 @@
+{
+  "id": "PPY-05cf8a57-a8cc-48c2-91e6-ea078dde0549",
+  "title": "papyrus editorial policies add/export: load policy packs with classifier questions from a file",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T10:35:14.444649Z",
+  "updated_at": "2026-10-22T10:35:14.444727Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
