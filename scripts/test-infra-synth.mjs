@@ -421,6 +421,33 @@ try {
     "prospectus: sealing parameter read is scoped to that parameter's ARN",
   );
   assert.equal(JSON.stringify(prospectusTemplate).includes("secretsmanager:GetSecretValue"), false, "prospectus: nothing reads Secrets Manager");
+  assert.equal(JSON.stringify(prospectusTemplate).includes("reader-poll-secret"), false, "prospectus: no reader poll secret unless the site asks for the retirement poll");
+
+  const readerPollSite = JSON.parse(fs.readFileSync(path.join(shell, "examples/p-apyr-us.site.json"), "utf8"));
+  readerPollSite.cms.prospectusAccountsApiStageArn = "arn:aws:execute-api:us-east-1:712236451410:abc123defg/api";
+  readerPollSite.cms.readerRetirementPoll = true;
+  const readerPollSitePath = path.join(work, "p-apyr-us-reader-poll.site.json");
+  fs.writeFileSync(readerPollSitePath, JSON.stringify(readerPollSite));
+  const readerPollOut = path.join(infraApp, "cdk.out.p-apyr-us-reader-poll");
+  run("node", [cli, "synth", "--site", readerPollSitePath, "--out", readerPollOut], { cwd: infraApp });
+  const readerPollTemplate = JSON.parse(fs.readFileSync(path.join(readerPollOut, fs.readdirSync(readerPollOut).find((name) => name.endsWith(".template.json"))), "utf8"));
+  assert.deepEqual(
+    resourcesOfType(readerPollTemplate, "Custom::SecureStringParameter").map((parameter) => parameter.Properties.ParameterName).sort(),
+    ["/papyrus/p-apyr-us/prospectus-session-sealing", "/papyrus/p-apyr-us/reader-poll-secret", "/papyrus/p-apyr-us/revalidate-secret"],
+    "reader poll: the template generates the poll secret",
+  );
+  const readerPollComputeRoleKey = Object.keys(readerPollTemplate.Resources).find((key) => key.startsWith("AmplifyComputeRole") && readerPollTemplate.Resources[key].Type === "AWS::IAM::Role");
+  const readerPollReads = Object.values(readerPollTemplate.Resources)
+    .filter((resource) => resource.Type === "AWS::IAM::Policy" && resource.Properties.Roles.some((role) => role.Ref === readerPollComputeRoleKey))
+    .flatMap((resource) => resource.Properties.PolicyDocument.Statement)
+    .filter((statement) => statement.Sid === "ReadReaderPollSecret");
+  assert.equal(readerPollReads.length, 1, "reader poll: the compute role reads the poll secret");
+  assert.equal(readerPollReads[0].Action, "ssm:GetParameter");
+  assert.match(JSON.stringify(readerPollReads[0].Resource), /parameter\/papyrus\/p-apyr-us\/reader-poll-secret/, "reader poll: the read is scoped to that parameter");
+  for (const branch of resourcesOfType(readerPollTemplate, "AWS::Amplify::Branch")) {
+    const variables = Object.fromEntries(branch.Properties.EnvironmentVariables.map((variable) => [variable.Name, variable.Value]));
+    assert.equal(variables.PAPYRUS_READER_POLL_SECRET_PARAMETER, "/papyrus/p-apyr-us/reader-poll-secret", `reader poll: ${branch.Properties.BranchName} gets the parameter name`);
+  }
 
   const synthVariant = (label, example, change, { repositoryConnected = false } = {}) => {
     const config = JSON.parse(fs.readFileSync(path.join(shell, "examples", example), "utf8"));
