@@ -17,10 +17,17 @@
       "text": "Branch feature/PPY-9abb98-knowledge-snapshot. Builder, publish-run, entities review and snapshot commands with tests and docs/knowledge-snapshot.md; PR and verification follow.",
       "created_at": "2026-10-22T03:48:09.604392Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c0e7a58c-6382-4b8f-824b-ed397b8ecd9c",
+      "author": "home",
+      "text": "Landed: PR #528 merged to develop (branch feature/PPY-9abb98-knowledge-snapshot). Verification: 35 pytest tests in src/papyrus_content/knowledge_snapshot (builder, guest-surface field pin, byte-identical rebuild, publish-run idempotency, entity review, snapshot end to end), CI python/ts/smoke green, offline snapshot from a fixture records file. Not yet run against Shipped: no CLI session for its publication on the build machine. Docs: docs/knowledge-snapshot.md.",
+      "created_at": "2026-10-22T04:13:49.853488Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.663015Z",
-  "updated_at": "2026-10-22T03:48:09.604431Z",
+  "updated_at": "2026-10-22T04:13:49.853514Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
