@@ -7,7 +7,7 @@ Status: Beta. Public editing, history, discussion and contributor counts are out
 ## The rules
 
 - **Nothing is public until it is published.** `wiki sync` writes drafts and never publishes. A page with generated text that nobody accepted has no review stamp, and a publish without a stamp is refused.
-- **Honest labels.** Today an AI agent accepts entities and publishes the pages, so a page says `Edited by AI on 2026-10-22`. A page a person reviewed says `Reviewed by Ada Reader on 2026-10-22` (or `Reviewed by an editor on 2026-10-22` with no name). A published page that somehow has no valid stamp says `Draft, not yet reviewed`.
+- **Honest labels.** Today an AI agent accepts entities and publishes the pages, so a page says `Draft, not yet reviewed. Edited by AI on 2026-10-22`: text an AI edited is a draft until a person reviews it, and never reads as attested. A page a person reviewed says `Reviewed by Ada Reader on 2026-10-22` (or `Reviewed by an editor on 2026-10-22` with no name). A published page that somehow has no valid stamp says `Draft, not yet reviewed`. The footer links the entity data as `Graph JSON`.
 - **The node is the source of truth.** The page text comes from the accepted entity. Change the entity (`papyrus knowledge entities describe`, `rename`), run the sync, publish the revision.
 - **No language model runs here.** The sync uses the entity's existing description when it has been accepted (state `reviewed`, or `ai_edited` by the AI editor). A description that is only a draft is left out and reported as a warning. An entity with no usable description gets one factual line: its name, its kind and its other names.
 

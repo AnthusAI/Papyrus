@@ -49,6 +49,7 @@ export function readerSnapshotSettings(config: ReaderSteeringConfig) {
     submissions: config.submissions,
     karma: config.karma,
     ranking: config.ranking,
+    limits: { newAccountHours: config.limits.newAccountHours },
     hypeMinimum: config.snapshot.hypeMinimum,
     ...(config.hypeGap ? { hypeGap: config.hypeGap } : {}),
     retirementPoll: config.retirementPoll,

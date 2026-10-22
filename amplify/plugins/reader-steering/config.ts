@@ -12,7 +12,7 @@ export const COMPUTE_ROLE_ARN = /^arn:aws:iam::[0-9]{12}:role\/[A-Za-z0-9+=,.@_/
 export type ReaderSteeringConfig = {
   /** The IAM role of the CMS app's server runtime (the `CmsComputeRoleArn` output of the app-shell stack): the only caller of reader-actions. */
   computeRoleArn: string;
-  /** Rating dimensions of the publication, such as `real` and `useful`. `up` and `used-it` are always available. */
+  /** Rating dimensions of the publication, named by the site (lowercase). `up` and `used-it` are always available. */
   dimensions: string[];
   limits: {
     /** Votes and ratings one reader may make in a clock hour. */
@@ -31,8 +31,18 @@ export type ReaderSteeringConfig = {
     risingWindowHours: number;
     /** Reader ratings per item needed before the reader composite counts in Front. */
     readerMinimum: number;
-    /** Weight of the editor composite in Front once readers have rated (the reader composite gets the rest). */
+    /** Weight of the editor composite in Front once readers have rated (the reader composite gets the rest). Used by `blend` only. */
     editorWeight: number;
+    /** `blend`: editor composite, then a fixed-weight blend after `readerMinimum` ratings (the original rule). `shrinkage`: per dimension, the editor score is a prior worth `shrinkageK` ratings and the reader share is capped. */
+    combination: "blend" | "shrinkage";
+    /** Shrinkage: the editor score counts as this many reader ratings. */
+    shrinkageK: number;
+    /** Shrinkage: the reader mean never gets more than this share of the distance from the editor score. */
+    readerShareCap: number;
+    /** A rating from a profile younger than `limits.newAccountHours` counts for this fraction in the reader mean and count. Default 1/3 under `shrinkage`, 1 under `blend`. */
+    newAccountWeight: number;
+    /** Rising and the used-it reporter count only take profiles at least this many hours old; 0 takes all. Default 24 under `shrinkage`, 0 under `blend`. */
+    risingMinimumAccountHours: number;
   };
   snapshot: {
     /** An EventBridge rule runs the snapshot every `intervalHours`. Off by default. */
@@ -84,7 +94,7 @@ export type ReaderSteeringConfig = {
   };
   /**
    * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
-   * Absent means no hype gap is published. Shipped sets plus = notable, novel and minus = real, useful.
+   * Absent means no hype gap is published. The site names the dimensions in each group.
    */
   hypeGap?: { plus: string[]; minus: string[] };
   /**
@@ -171,7 +181,12 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   if (reserved.length > 0) throw new Error(`reader-steering plugin dimensions cannot use the reserved names: ${reserved.join(", ")}`);
   const limits = object(raw.limits, "limits", ["actionsPerHour", "newAccountHours", "newAccountDivisor"]);
   const karma = object(raw.karma, "karma", ["upvoteWeight", "usedItWeight"]);
-  const ranking = object(raw.ranking, "ranking", ["halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight"]);
+  const ranking = object(raw.ranking, "ranking", [
+    "halfLifeHours", "risingWindowHours", "readerMinimum", "editorWeight", "combination", "shrinkageK", "readerShareCap", "newAccountWeight", "risingMinimumAccountHours",
+  ]);
+  const combination = ranking.combination === undefined ? "blend" : ranking.combination;
+  if (combination !== "blend" && combination !== "shrinkage") throw new Error("reader-steering plugin ranking.combination must be blend or shrinkage");
+  const shrinking = combination === "shrinkage";
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
   const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds", "itemType", "section"]);
   const moderation = object(raw.moderation, "moderation", ["mode", "preModeration", "reportsPerDay", "ai"]);
@@ -216,6 +231,11 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       risingWindowHours: number(ranking.risingWindowHours, "ranking.risingWindowHours", 6, 1, 24 * 30),
       readerMinimum: integer(ranking.readerMinimum, "ranking.readerMinimum", 5, 1, 10000),
       editorWeight: number(ranking.editorWeight, "ranking.editorWeight", 0.5, 0, 1),
+      combination,
+      shrinkageK: number(ranking.shrinkageK, "ranking.shrinkageK", 20, 0.01, 10000),
+      readerShareCap: number(ranking.readerShareCap, "ranking.readerShareCap", 0.4, 0, 1),
+      newAccountWeight: number(ranking.newAccountWeight, "ranking.newAccountWeight", shrinking ? 1 / 3 : 1, 0, 1),
+      risingMinimumAccountHours: number(ranking.risingMinimumAccountHours, "ranking.risingMinimumAccountHours", shrinking ? 24 : 0, 0, 24 * 90),
     },
     snapshot: {
       schedule: flag(snapshot.schedule, "snapshot.schedule"),

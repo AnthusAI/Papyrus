@@ -7,7 +7,8 @@ themes them with the custom properties listed in ``assets/papyrus-knowledge.css`
 
 Cold-start rules (the snapshot contract): under 4 weeks of history there is no sparkline and no percent, only the word
 "new"; from 4 to 7 weeks a sparkline without a percent; from 8 weeks the sparkline and the percent when the snapshot has one.
-The 26-week chart appears only after 12 weeks of history.
+The 26-week chart appears only after 12 weeks of history; before that the weekly bars that exist are drawn, titled with the
+real span. A percent is always written with the counts it comes from ("12 vs 8"), and the definition is on the page.
 """
 
 from __future__ import annotations
@@ -98,8 +99,24 @@ def sparkline(values: Sequence[int]) -> str:
     )
 
 
-def change_figure(percent: int) -> str:
-    """``▲ +40%``: a mark, a sign and the number; the mark is read as a word by assistive technology."""
+CHANGE_DEFINITION = (
+    "Change is the items in the last 4 weeks against the 4 weeks before. There is no percent when those earlier "
+    "4 weeks hold fewer than 5 items or the topic has under 8 weeks of history; under 4 weeks it is new."
+)
+
+
+def definition_note() -> str:
+    """The visible definition of "change", as text (a tooltip alone does not reach touch screens)."""
+    return f'<p class="papyrus-knowledge-definition">{esc(CHANGE_DEFINITION)}</p>'
+
+
+def change_figure(percent: int, last4=None, prior4=None) -> str:
+    """``12 vs 8, ▲ +50%``: the counts, a mark, a sign and the number; the mark is read as a word by assistive technology."""
+    counts = ""
+    title = ""
+    if last4 is not None and prior4 is not None:
+        counts = f'<span class="papyrus-knowledge-change-counts">{int(last4)} vs {int(prior4)},</span> '
+        title = f' title="{esc(f"{int(last4)} items in the last 4 weeks, {int(prior4)} in the 4 weeks before")}"'
     if percent > 0:
         mark, word, sign = "▲", "up", "+"
     elif percent < 0:
@@ -107,7 +124,7 @@ def change_figure(percent: int) -> str:
     else:
         mark, word, sign = "▬", "unchanged", ""
     return (
-        f'<span class="papyrus-knowledge-change" data-direction="{word}">'
+        f'<span class="papyrus-knowledge-change" data-direction="{word}"{title}>{counts}'
         f'<span aria-hidden="true">{mark}</span><span class="papyrus-knowledge-sr">{word} </span>{sign}{abs(percent)}%</span>'
     )
 
@@ -120,8 +137,9 @@ def trend(entity: Mapping) -> str:
         return '<span class="papyrus-knowledge-trend" data-state="new"><span class="papyrus-knowledge-new">new</span></span>'
     series = list(entity.get("series8") or [])
     drawn = sparkline(series[-min(len(series), weeks):])
-    percent = (entity.get("change") or {}).get("percent")
-    figure = change_figure(int(percent)) if percent is not None else ""
+    change = entity.get("change") or {}
+    percent = change.get("percent")
+    figure = change_figure(int(percent), change.get("last4"), change.get("prior4")) if percent is not None else ""
     if not (drawn or figure):
         return ""
     return f'<span class="papyrus-knowledge-trend" data-state="{state}">{drawn}{figure}</span>'
@@ -133,14 +151,16 @@ def _week_starts(as_of: str, count: int) -> list[dt.date]:
 
 
 def trend_chart(series: Sequence[int], weeks_of_history, as_of: str, *, annotate: str = "", annotate_label: str = "", unit: str = "items") -> str:
-    """Two-series weekly chart: bars for the weekly count and a dashed line for its trailing four-week average.
+    """Weekly chart: bars for the weekly count and, from 12 weeks of history, a dashed line for its trailing four-week average.
 
-    Only after 12 weeks of history; the weeks before the entity's first link are not drawn. ``annotate`` is a date: the week
-    that holds it gets a vertical marker, labelled with ``annotate_label``."""
+    Under 12 weeks only the bars of the weeks that exist are drawn, and the title says the real span ("5 weeks"); the weeks
+    before the entity's first link are never drawn. ``annotate`` is a date: the week that holds it gets a vertical marker,
+    labelled with ``annotate_label``."""
     weeks = int(weeks_of_history or 0)
     values = [max(0, int(value)) for value in series]
-    if weeks < CHART_FROM or len(values) < CHART_FROM:
+    if weeks < 1 or not values:
         return ""
+    full = weeks >= CHART_FROM and len(values) >= CHART_FROM
     values = values[-min(len(values), weeks):]
     try:
         starts = _week_starts(as_of, len(values))
@@ -161,6 +181,7 @@ def trend_chart(series: Sequence[int], weeks_of_history, as_of: str, *, annotate
     )
     averages = [sum(values[max(0, index - 3): index + 1]) / len(values[max(0, index - 3): index + 1]) for index in range(len(values))]
     line = " ".join(f"{left + (index + 0.5) * slot:.1f},{y_of(value):.1f}" for index, value in enumerate(averages))
+    average = f'<polyline class="papyrus-knowledge-chart-average" points="{line}" fill="none"/>' if full else ""
     marker = ""
     note = ""
     if annotate:
@@ -176,7 +197,8 @@ def trend_chart(series: Sequence[int], weeks_of_history, as_of: str, *, annotate
             label = f'<text class="papyrus-knowledge-chart-note" x="{text_x:.1f}" y="10" text-anchor="{anchor}">{esc(annotate_label)}</text>' if annotate_label else ""
             marker = f'<line class="papyrus-knowledge-chart-marker" x1="{x:.1f}" x2="{x:.1f}" y1="{top_pad}" y2="{top_pad + plot_height}"/>{label}'
             note = f" Marked: {annotate_label or starts[found].isoformat()}."
-    summary = f"{unit.capitalize()} per week for {len(values)} weeks to {starts[-1].isoformat()}; peak {max(values)}; latest week {values[-1]}.{note}"
+    span = f"{len(values)} week{'' if len(values) == 1 else 's'}"
+    summary = f"{unit.capitalize()} per week for {span}, {starts[0].isoformat()} to {starts[-1].isoformat()}; peak {max(values)}; latest week {values[-1]}.{note}"
     peak_label = "" if (marker and annotate_label) else f'<text class="papyrus-knowledge-chart-label" x="{left}" y="10">{peak}</text>'
     axis = (
         f'<line class="papyrus-knowledge-chart-axis" x1="{left}" x2="{width - left}" y1="{top_pad + plot_height}" y2="{top_pad + plot_height}"/>'
@@ -187,8 +209,8 @@ def trend_chart(series: Sequence[int], weeks_of_history, as_of: str, *, annotate
     return (
         '<figure class="papyrus-knowledge-chart">'
         f'<svg viewBox="0 0 {width} {height}" role="img" aria-label="{esc(summary)}" focusable="false">'
-        f'{bars}<polyline class="papyrus-knowledge-chart-average" points="{line}" fill="none"/>{marker}{axis}</svg>'
-        f'<figcaption class="papyrus-knowledge-chart-caption">{esc(summary)} Bars: {esc(unit)} per week. Dashed line: four-week average.</figcaption>'
+        f'{bars}{average}{marker}{axis}</svg>'
+        f'<figcaption class="papyrus-knowledge-chart-caption">{esc(summary)} Bars: {esc(unit)} per week.{" Dashed line: four-week average." if full else ""}</figcaption>'
         "</figure>"
     )
 

@@ -14,7 +14,18 @@ from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .ranking import HypeGapGroups, RankingParameters, composite, front_score, hype_gap, rank, rounded
+from .ranking import (
+    COMBINATION_SHRINKAGE,
+    COMBINATIONS,
+    HypeGapGroups,
+    RankingParameters,
+    composite,
+    front_score,
+    hype_gap,
+    rank,
+    rounded,
+    shrinkage_front_score,
+)
 
 READER_DATA_DIRECTORY = "_data/reader"
 ITEMS_FILE = f"{READER_DATA_DIRECTORY}/items.json"
@@ -36,6 +47,8 @@ VISIBLE_SUBMISSION_STATES = (SUBMISSION_PENDING, SUBMISSION_PROMOTED)
 RATING_VALUES = (1, 2, 3, 4, 5)
 TOP_READERS = 50
 SECONDS_PER_HOUR = 3600
+SHRINKAGE_NEW_ACCOUNT_WEIGHT = 1 / 3
+SHRINKAGE_RISING_MINIMUM_HOURS = 24.0
 ROLE_READER = "reader"
 ROLE_EDITOR = "editor"
 UP = "up"
@@ -58,9 +71,13 @@ class SnapshotSettings:
 
 
 def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
-    karma, ranking = raw.get("karma") or {}, raw.get("ranking") or {}
+    karma, ranking, limits = raw.get("karma") or {}, raw.get("ranking") or {}, raw.get("limits") or {}
     defaults = RankingParameters()
     hype = raw.get("hypeGap")
+    combination = ranking.get("combination", defaults.combination)
+    if combination not in COMBINATIONS:
+        raise ValueError(f"ranking.combination must be one of {', '.join(COMBINATIONS)}")
+    shrinking = combination == COMBINATION_SHRINKAGE  # the account-age rules default on only with shrinkage, so other sites do not change
     return SnapshotSettings(
         retirement_poll=raw.get("retirementPoll") is True,
         hype_gap=HypeGapGroups(plus=tuple(hype.get("plus") or ()), minus=tuple(hype.get("minus") or ())) if hype else None,
@@ -72,6 +89,14 @@ def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
             reader_minimum=int(ranking.get("readerMinimum", defaults.reader_minimum)),
             editor_weight=float(ranking.get("editorWeight", defaults.editor_weight)),
             hype_minimum=int(raw.get("hypeMinimum", defaults.hype_minimum)),
+            combination=combination,
+            shrinkage_k=float(ranking.get("shrinkageK", defaults.shrinkage_k)),
+            reader_share_cap=float(ranking.get("readerShareCap", defaults.reader_share_cap)),
+            new_account_weight=float(ranking.get("newAccountWeight", SHRINKAGE_NEW_ACCOUNT_WEIGHT if shrinking else 1.0)),
+            new_account_hours=float(limits.get("newAccountHours", defaults.new_account_hours)),
+            rising_minimum_account_hours=float(
+                ranking.get("risingMinimumAccountHours", SHRINKAGE_RISING_MINIMUM_HOURS if shrinking else 0.0)
+            ),
         ),
     )
 
@@ -111,6 +136,58 @@ def distinct_raters(votes: Iterable[Mapping], dimensions: Collection[str]) -> in
             and 1 <= vote["value"] <= 5
         }
     )
+
+
+def account_ages(profiles: Iterable[Mapping]) -> Callable[[Mapping], float | None]:
+    """A function giving a vote's account age in hours when it was cast, or ``None`` when the profile or a timestamp is unknown.
+
+    Age at the time of the vote, not at the snapshot: a rating from a day-old sock stays discounted after the sock turns a day old.
+    """
+    created = {profile["readerId"]: seconds_of(profile["createdAt"]) for profile in profiles if profile.get("createdAt")}
+
+    def age(vote: Mapping) -> float | None:
+        start, cast = created.get(vote.get("readerId")), vote.get("createdAt")
+        return None if start is None or not cast else (seconds_of(cast) - start) / SECONDS_PER_HOUR
+
+    return age
+
+
+def old_enough(age_hours: float | None, minimum_hours: float) -> bool:
+    """Whether an account counts under a minimum age; an unknown age (no profile row) is not held against the vote."""
+    return minimum_hours <= 0 or age_hours is None or age_hours >= minimum_hours
+
+
+def weighted_reader_view(
+    reader_votes: Mapping[str, list[tuple[int, float]]], dimensions: Iterable[str]
+) -> tuple[dict[str, float | None], dict[str, float]]:
+    """``(means, weights)`` per dimension from ``(value, weight)`` pairs: the weighted mean (``None`` without ratings) and the weight sum."""
+    means: dict[str, float | None] = {}
+    weights: dict[str, float] = {}
+    for dimension in dimensions:
+        pairs = reader_votes.get(dimension, [])
+        total = sum(weight for _, weight in pairs)
+        weights[dimension] = total
+        means[dimension] = sum(value * weight for value, weight in pairs) / total if total > 0 else None
+    return means, weights
+
+
+def reader_rating_pairs(
+    votes: Iterable[Mapping], dimensions: Collection[str], age_of: Callable[[Mapping], float | None], settings: SnapshotSettings
+) -> dict[str, list[tuple[int, float]]]:
+    """Valid reader ratings as ``(value, weight)``: weight ``new_account_weight`` when the account was younger than ``new_account_hours``, else 1."""
+    ranking = settings.ranking
+    pairs: dict[str, list[tuple[int, float]]] = defaultdict(list)
+    for vote in votes:
+        if (
+            vote.get("voterRole") == ROLE_READER
+            and vote["dimension"] in dimensions
+            and isinstance(vote["value"], int)
+            and 1 <= vote["value"] <= 5
+        ):
+            age = age_of(vote)
+            young = age is not None and age < ranking.new_account_hours
+            pairs[vote["dimension"]].append((vote["value"], ranking.new_account_weight if young else 1.0))
+    return pairs
 
 
 def karma_by_reader(
@@ -316,6 +393,9 @@ def build_snapshot(
     front_rows: list[dict] = []
     rising_rows: list[dict] = []
     window_start = now_seconds - settings.ranking.rising_window_hours * SECONDS_PER_HOUR
+    age_of = account_ages(profile_rows)
+    minimum_age = settings.ranking.rising_minimum_account_hours
+    shrinking = settings.ranking.combination == COMBINATION_SHRINKAGE
     for subject in sorted(by_subject):
         subject_votes = by_subject[subject]
         grouped = ratings_by_role(subject_votes, settings.dimensions)
@@ -329,9 +409,15 @@ def build_snapshot(
         editor_counts = {dimension: stats[dimension][ROLE_EDITOR]["n"] for dimension in settings.dimensions}
         editor_composite, reader_composite = composite(editor_means.values()), composite(reader_means.values())
         upvotes = [vote for vote in subject_votes if vote["dimension"] == UP]
+        used_it_reporters = {
+            vote["readerId"]
+            for vote in subject_votes
+            if vote["dimension"] == USED_IT and vote.get("voterRole") != ROLE_EDITOR and old_enough(age_of(vote), minimum_age)
+        }
         items[subject] = {
             "up": len(upvotes),
             "usedIt": sum(1 for vote in subject_votes if vote["dimension"] == USED_IT),
+            "usedItReporters": len(used_it_reporters),
             "comments": comment_counts.get(subject, 0),
             "raters": distinct_raters(subject_votes, settings.dimensions),
             "ratings": stats,
@@ -341,8 +427,26 @@ def build_snapshot(
         }
         published = published_at[subject]
         age_hours = (now_seconds - seconds_of(published)) / SECONDS_PER_HOUR if published else 0.0
-        reader_n = max(reader_counts.values(), default=0)
-        score = front_score(editor_composite, reader_composite, reader_n, age_hours, settings.ranking)
+        discounted = settings.ranking.new_account_weight != 1.0
+        if shrinking or discounted:
+            weighted_means, weighted_counts = weighted_reader_view(
+                reader_rating_pairs(subject_votes, settings.dimensions, age_of, settings), settings.dimensions
+            )
+        else:
+            weighted_means, weighted_counts = reader_means, reader_counts
+        reader_n = max(weighted_counts.values(), default=0)
+        if shrinking:
+            score = shrinkage_front_score(
+                [editor_means[dimension] for dimension in settings.dimensions],
+                [weighted_means[dimension] for dimension in settings.dimensions],
+                [weighted_counts[dimension] for dimension in settings.dimensions],
+                age_hours,
+                settings.ranking,
+            )
+        else:
+            weighted_composite = composite(weighted_means.values()) if discounted else reader_composite
+            score = front_score(editor_composite, weighted_composite, reader_n, age_hours, settings.ranking)
+        reader_n = int(reader_n) if reader_n == int(reader_n) else rounded(reader_n)
         if score is not None:
             front_rows.append(
                 {
@@ -354,7 +458,7 @@ def build_snapshot(
                     "ageHours": rounded(max(age_hours, 0.0)),
                 }
             )
-        recent = sum(1 for vote in upvotes if seconds_of(vote["createdAt"]) >= window_start)
+        recent = sum(1 for vote in upvotes if seconds_of(vote["createdAt"]) >= window_start and old_enough(age_of(vote), minimum_age))
         if recent:
             rising_rows.append({"subject": subject, "upvotes": recent})
 
@@ -381,6 +485,12 @@ def build_snapshot(
                 "readerMinimum": ranking.reader_minimum,
                 "displayMinimum": ranking.hype_minimum,
                 "editorWeight": ranking.editor_weight,
+                "combination": ranking.combination,
+                "shrinkageK": ranking.shrinkage_k,
+                "readerShareCap": ranking.reader_share_cap,
+                "newAccountWeight": ranking.new_account_weight,
+                "newAccountHours": ranking.new_account_hours,
+                "risingMinimumAccountHours": ranking.rising_minimum_account_hours,
             },
             "front": front,
             "rising": rising,

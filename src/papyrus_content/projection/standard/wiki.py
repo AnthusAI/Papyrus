@@ -1,7 +1,7 @@
 """Public wiki pages in the standard front end: the review stamp, the superseded notice and the "suggest an edit" footer.
 
 A wiki page is an item whose type is in ``wiki.types`` (default ``wiki_page``). Above its text the page says who last put
-it in front of readers (``Edited by AI on DATE`` or ``Reviewed by NAME on DATE``, from the ``review`` front matter, see
+it in front of readers (``Draft, not yet reviewed. Edited by AI on DATE`` or ``Reviewed by NAME on DATE``, from the ``review`` front matter, see
 ``papyrus_content.wiki_stamp``); a page with no valid stamp says ``Draft, not yet reviewed``. A page whose front matter
 names ``superseded_by`` carries a notice that links the replacement. Below the text a footer shows ``Updated DATE``, a
 link to the entity's graph JSON when the knowledge snapshot has it, and, when ``wiki.suggestForm`` names a ``forms``
@@ -79,7 +79,7 @@ def footer_html(
     key = front_matter.get("entityKey")
     if settings.wiki.data_link and isinstance(key, str) and key in entity_keys:
         parts.append(
-            f'<p class="papyrus-wiki-data"><a href="{_q(path_for("/" + entity_file_key(key)))}">Data for this page (JSON)</a></p>'
+            f'<p class="papyrus-wiki-data"><a href="{_q(path_for("/" + entity_file_key(key)))}">Graph JSON</a></p>'
         )
     if form is not None:
         parts.append(f'<details class="papyrus-wiki-suggest"><summary>Suggest an edit</summary>{render_form(form)}</details>')

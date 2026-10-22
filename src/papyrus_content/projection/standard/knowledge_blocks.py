@@ -17,18 +17,19 @@ from .knowledge import KnowledgeSource
 PREFIX = "knowledge-"
 COMMON = {"kind", "name", "depends"}
 BLOCKS: dict[str, set[str]] = {
-    "knowledge-trending-strip": {"limit"},
-    "knowledge-trending-list": {"limit", "entityKind", "filter"},
-    "knowledge-clusters": {"limit", "terms"},
-    "knowledge-concept-of-the-week": set(),
+    "knowledge-trending-strip": {"limit", "definition", "empty"},
+    "knowledge-trending-list": {"limit", "entityKind", "filter", "definition", "empty"},
+    "knowledge-clusters": {"limit", "terms", "empty"},
+    "knowledge-concept-of-the-week": {"empty"},
     "knowledge-topic-count": {"count", "href", "label"},
-    "knowledge-beat": {"key", "part", "limit"},
+    "knowledge-beat": {"key", "part", "limit", "empty"},
     "knowledge-entity": {"key", "part", "annotate", "annotateLabel"},
     "knowledge-score": {"value", "n", "threshold", "label"},
 }
 PARTS = ("trend", "neighbourhood", "related", "provenance")
 BEAT_PARTS = ("trend", "entities", "clusters")
 COUNTS = ("beats", "entities")
+EMPTY_BLOCKS = ("knowledge-trending-strip", "knowledge-trending-list", "knowledge-clusters", "knowledge-concept-of-the-week", "knowledge-beat")
 DEFAULT_LIMITS = {"knowledge-trending-strip": 5, "knowledge-trending-list": 6, "knowledge-clusters": 3}
 DEFAULT_TERMS = 5
 BEAT_DEFAULT_LIMITS = {"entities": 12, "clusters": 3}
@@ -77,6 +78,7 @@ def check(attributes: Mapping, source: str) -> None:
     _whole(attributes, "limit", source)
     _whole(attributes, "terms", source)
     _choice(attributes, "filter", ("true", "false"), source)
+    _choice(attributes, "definition", ("true", "false"), source)
     _choice(attributes, "count", COUNTS, source)
     if name == "knowledge-topic-count" and "href" in attributes and not parts.safe_href(attributes["href"]):
         raise ValueError(f"{source}: ::include knowledge-topic-count href must be a site path or an https URL, got {attributes['href']!r}")
@@ -124,14 +126,20 @@ def _item_count(count) -> str:
     return f"{count} item" + ("" if count == 1 else "s")
 
 
-def _strip(index: Mapping, limit: int) -> str:
+def _strip(index: Mapping, limit: int, definition: bool = True) -> str:
     by_key = _by_key(index)
     chosen = [by_key[key] for key in index.get("trending") or [] if key in by_key and not by_key[key].get("isNew")][:limit]
     if not chosen:
         return ""
     kinds = _kinds(index)
     rows = "".join(f'<li class="papyrus-knowledge-trending-item">{_chip(e, kinds)}{parts.trend(e)}</li>' for e in chosen)
-    return f'<ul class="papyrus-knowledge-trending-strip">{rows}</ul>'
+    return f'<ul class="papyrus-knowledge-trending-strip">{rows}</ul>{_definition(chosen, definition)}'
+
+
+def _definition(rows: list, wanted: bool) -> str:
+    """The written definition of "change", when any row shows a percent or the word new (never only in a tooltip)."""
+    shown = wanted and any((row.get("change") or {}).get("percent") is not None for row in rows)
+    return parts.definition_note() if shown else ""
 
 
 def _filter_nav(identifier: str, kinds_present: list[tuple[str, str]]) -> str:
@@ -148,7 +156,7 @@ def _filter_nav(identifier: str, kinds_present: list[tuple[str, str]]) -> str:
     )
 
 
-def _list(index: Mapping, limit: int, entity_kind: str, filtered: bool = True) -> str:
+def _list(index: Mapping, limit: int, entity_kind: str, filtered: bool = True, definition: bool = True) -> str:
     by_key = _by_key(index)
     ranked = [by_key[key] for key in index.get("trending") or [] if key in by_key and not by_key[key].get("isNew")]
     if entity_kind:
@@ -175,7 +183,7 @@ def _list(index: Mapping, limit: int, entity_kind: str, filtered: bool = True) -
         if len(present) > 1:
             identifier = "papyrus-knowledge-trending-" + hashlib.sha256("|".join(str(e.get("key")) for e in chosen).encode("utf-8")).hexdigest()[:8]
             nav = _filter_nav(identifier, present)
-    return f'<div class="papyrus-knowledge-trending-list">{nav}<ol>{"".join(rows)}</ol></div>'
+    return f'<div class="papyrus-knowledge-trending-list">{nav}<ol>{"".join(rows)}</ol>{_definition(chosen, definition)}</div>'
 
 
 def _clusters(clusters: Mapping, limit: int, terms: int = DEFAULT_TERMS) -> str:
@@ -313,7 +321,18 @@ def _beat(knowledge: KnowledgeSource, index: Mapping | None, attributes: Mapping
 
 
 def render_block(attributes: Mapping, knowledge: KnowledgeSource, source: str) -> str:
-    """The markup of one knowledge block; empty when the data it reads is absent."""
+    """The markup of one knowledge block; empty when the data it reads is absent.
+
+    With ``empty="text"`` a block whose data is present but has nothing to show says so in a sentence instead of vanishing."""
+    markup = _render_block(attributes, knowledge, source)
+    text = attributes.get("empty")
+    if markup or not text or attributes.get("name") not in EMPTY_BLOCKS:
+        return markup
+    present = knowledge.clusters() if attributes["name"] == "knowledge-clusters" or attributes.get("part") == "clusters" else knowledge.index()
+    return f'<p class="papyrus-knowledge-empty">{escape(str(text))}</p>' if present else ""
+
+
+def _render_block(attributes: Mapping, knowledge: KnowledgeSource, source: str) -> str:
     check(attributes, source)
     name = attributes["name"]
     limit = _whole(attributes, "limit", source)
@@ -334,9 +353,9 @@ def render_block(attributes: Mapping, knowledge: KnowledgeSource, source: str) -
     if not index:
         return ""
     if name == "knowledge-trending-strip":
-        return _strip(index, limit)
+        return _strip(index, limit, attributes.get("definition", "true") != "false")
     if name == "knowledge-trending-list":
-        return _list(index, limit, attributes.get("entityKind", ""), attributes.get("filter", "true") != "false")
+        return _list(index, limit, attributes.get("entityKind", ""), attributes.get("filter", "true") != "false", attributes.get("definition", "true") != "false")
     if name == "knowledge-concept-of-the-week":
         return _concept_of_the_week(index)
     return _topic_count(index, attributes)
