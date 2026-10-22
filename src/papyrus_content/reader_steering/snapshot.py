@@ -40,6 +40,7 @@ class SnapshotSettings:
     dimensions: tuple[str, ...] = ()
     karma: KarmaWeights = field(default_factory=KarmaWeights)
     ranking: RankingParameters = field(default_factory=RankingParameters)
+    retirement_poll: bool = False
     hype_gap: HypeGapGroups | None = None
 
 
@@ -48,6 +49,7 @@ def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
     defaults = RankingParameters()
     hype = raw.get("hypeGap")
     return SnapshotSettings(
+        retirement_poll=raw.get("retirementPoll") is True,
         hype_gap=HypeGapGroups(plus=tuple(hype.get("plus") or ()), minus=tuple(hype.get("minus") or ())) if hype else None,
         dimensions=tuple(raw.get("dimensions") or ()),
         karma=KarmaWeights(upvote=float(karma.get("upvoteWeight", 1)), used_it=float(karma.get("usedItWeight", 2))),

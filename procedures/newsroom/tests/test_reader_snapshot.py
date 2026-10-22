@@ -288,7 +288,8 @@ class SnapshotTaskTests(unittest.TestCase):
             self.assertEqual(json.loads(store.get("posts/_data/reader/readers.json"))["readers"], [])
             self.assertEqual(purged, [report.written], "exactly the three files are purged, never a wildcard")
             self.assertFalse(any("*" in key for key in report.purged))
-            self.assertEqual(report.retirement_poll, "disabled")
+            self.assertFalse(report.retirement_poll.enabled)
+            self.assertEqual(report.to_dict()["retirementPoll"]["pages"], 0)
 
     def test_the_run_without_an_edge_distribution_still_writes(self) -> None:
         with ReaderBackend() as backend, tempfile.TemporaryDirectory() as directory:
@@ -332,7 +333,7 @@ class SnapshotTaskTests(unittest.TestCase):
         poll = DisabledRetirementPoll()
         self.assertFalse(poll.enabled)
         retired = poll.fetch("cursor-1")
-        self.assertEqual((retired.site_subjects, retired.cursor), ((), "cursor-1"))
+        self.assertEqual((retired.retired, retired.cursor, retired.more), ((), "cursor-1", False))
 
 
 class ReconcileKeepsTheSnapshotTests(unittest.TestCase):

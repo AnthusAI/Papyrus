@@ -13,9 +13,10 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import START_SECONDS, ReaderBackend, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import START_SECONDS, ReaderBackend, ScriptedRetirementPoll, run_snapshot, subject_for  # noqa: E402
 from reader_privacy import scan_files  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
+from papyrus_content.reader_steering.retirement import RetiredPage, RetiredSubject  # noqa: E402
 
 
 def backend_of(context) -> ReaderBackend:
@@ -206,6 +207,40 @@ def more_readers_rate(context, count: int, subject: str, dimension: str, value: 
     context.reader_extra_readers = start + count
 
 
+def prospectus_reports(context, record: RetiredSubject) -> None:
+    context.reader_retired = [*getattr(context, "reader_retired", []), record]
+
+
+@when('Prospectus reports "{name}" deleted')
+def reports_deleted(context, name: str) -> None:
+    prospectus_reports(context, RetiredSubject(subject_for(name), "deleted"))
+
+
+@when('Prospectus reports "{name}" merged into "{survivor}"')
+def reports_merged(context, name: str, survivor: str) -> None:
+    prospectus_reports(context, RetiredSubject(subject_for(name), "merged", subject_for(survivor)))
+
+
+@when("the scheduled snapshot runs")
+def scheduled_snapshot_runs(context) -> None:
+    run_the_snapshot(context, scheduled=True)
+
+
+@then("Prospectus was not asked")
+def prospectus_not_asked(context) -> None:
+    assert context.reader_poll.asked == [], context.reader_poll.asked
+
+
+@then('the handle "{handle}" is free')
+def handle_is_free(context, handle: str) -> None:
+    assert ensure_started(context).table("handle").get_item(Key={"id": handle}).get("Item") is None
+
+
+@then('"{name}" has no profile')
+def has_no_profile(context, name: str) -> None:
+    assert ensure_started(context).table("profile").get_item(Key={"id": subject_for(name)}).get("Item") is None
+
+
 @when('{count:d} extra readers rate "{subject}" "{dimension}" {value:d}')
 def extra_readers_rate(context, count: int, subject: str, dimension: str, value: int) -> None:
     backend = ensure_started(context)
@@ -213,13 +248,15 @@ def extra_readers_rate(context, count: int, subject: str, dimension: str, value:
         backend.call(subject_for(f"extra-{number}"), "rating", {"subject": subject, "dimension": dimension, "value": value})
 
 
-def run_the_snapshot(context, base_path: str = "") -> None:
+def run_the_snapshot(context, base_path: str = "", scheduled: bool = False) -> None:
     backend = ensure_started(context)
     if getattr(context, "reader_site_directory", None) is None:
         directory = tempfile.TemporaryDirectory()
         context.add_cleanup(directory.cleanup)
         context.reader_site_directory = directory
     context.reader_purged = []
+    retired = getattr(context, "reader_retired", None)
+    context.reader_poll = ScriptedRetirementPoll(RetiredPage(tuple(retired or ()), "cursor-1", False), RetiredPage((), "cursor-1", False))
     context.reader_site = LocalDirectoryWriter(Path(context.reader_site_directory.name))
     context.reader_report = run_snapshot(
         backend,
@@ -227,6 +264,8 @@ def run_the_snapshot(context, base_path: str = "") -> None:
         base_path=base_path,
         invalidate=lambda keys: context.reader_purged.append(list(keys)) or keys,
         dimensions=context.reader_dimensions,
+        retirement_poll=context.reader_poll if getattr(context, "reader_retired", None) is not None else None,
+        poll_retirements=scheduled,
         hype_gap=getattr(context, "reader_hype_gap", None),
     )
 
