@@ -1012,7 +1012,7 @@ of `ConsentModeSettings` fields; `{}` takes every default.
   raising `policy_version` re-prompts everyone.
 - To let visitors change their choice, place
   `<a href="#" data-papyrus-consent-reopen hidden>Cookie settings</a>` in
-  `footer_html` (the script unhides it, so it never shows without JS), or call
+  `footer_html` (the script unhides it, so it never shows without JS), or add a footer link whose href is `#cookie-settings` (for the standard front end's `footer.columns`, which cannot carry attributes), or call
   `window.papyrusOpenConsentChoices()`.
 - Banner wording (`banner_heading`, `banner_message`, `accept_label`,
   `reject_label`, `banner_region_label`, `privacy_policy_url`,

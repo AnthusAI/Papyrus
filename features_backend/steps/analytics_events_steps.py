@@ -130,3 +130,8 @@ def docs_have_banner(context) -> None:
 def docs_without(context) -> None:
     for fragment in ("papyrus-consent-banner", "data-papyrus-consent-reopen", "gtag"):
         assert fragment not in context.without_id, fragment
+
+
+@then('the consent script reopens the choices from links to "{href}"')
+def reopen_link(context, href: str) -> None:
+    assert f'a[href="{href}"]' in context.page
