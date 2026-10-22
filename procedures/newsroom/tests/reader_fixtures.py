@@ -5,12 +5,20 @@ from __future__ import annotations
 import base64
 import hashlib
 import importlib.util
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import boto3
 from moto import mock_aws
+
+from papyrus_content.projection.standard.config import standard_settings_from_mapping
+from papyrus_content.projection.standard.urls import UrlPolicy
+from papyrus_content.publishing import published_item_id_for
+from papyrus_content.reader_steering.task import PROFILE_TABLE_ENV, SETTINGS_ENV, VOTE_TABLE_ENV, run_reader_snapshot
 
 HANDLER_PATH = Path(__file__).resolve().parents[3] / "amplify" / "plugins" / "reader-steering" / "function" / "handler.py"
 _specification = importlib.util.spec_from_file_location("reader_actions_handler", HANDLER_PATH)
@@ -96,3 +104,37 @@ class ReaderBackend:
 
     def votes(self) -> list[dict]:
         return self.table("vote").scan()["Items"]
+
+
+def iso_at(seconds: float) -> str:
+    return datetime.fromtimestamp(seconds, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def url_policy(base_path: str = "") -> UrlPolicy:
+    urls = {"basePath": base_path} if base_path else {}
+    return UrlPolicy(standard_settings_from_mapping({"site": {"name": "Example"}, "urls": urls}))
+
+
+def run_snapshot(
+    backend: "ReaderBackend",
+    writer: Any,
+    *,
+    base_path: str = "",
+    invalidate: Any = None,
+    published: tuple[str, ...] = PUBLISHED_SUBJECTS,
+    dimensions: tuple[str, ...] = ("real", "useful"),
+    submitter_of: Any = lambda subject: None,
+):
+    """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
+    published_ids = {published_item_id_for(subject) for subject in published}
+    now = backend.now + 60
+    client = SimpleNamespace(
+        get_record=lambda model, record_id: {"status": "published", "publishedAt": iso_at(now - 5 * 3600)} if model == "PublishedItem" and record_id in published_ids else None
+    )
+    context = SimpleNamespace(projector=SimpleNamespace(policy=url_policy(base_path)), writer=writer, invalidate=invalidate)
+    environment = {
+        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5}),
+        VOTE_TABLE_ENV: TABLE_NAMES["vote"],
+        PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
+    }
+    return run_reader_snapshot(context, client, environment=environment, resource=backend.resource, now_seconds=now, submitter_of=submitter_of)

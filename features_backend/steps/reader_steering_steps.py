@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 from behave import given, then, when
@@ -12,7 +13,9 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import ReaderBackend, subject_for  # noqa: E402
+from reader_fixtures import ReaderBackend, run_snapshot, subject_for  # noqa: E402
+from reader_privacy import scan_files  # noqa: E402
+from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 
 
 def backend_of(context) -> ReaderBackend:
@@ -184,3 +187,102 @@ def no_identity(context, name: str) -> None:
     text = json.dumps(reader_state(context, name, ["item-one"]))
     assert subject_for(name) not in text and subject_for(name)[4:] not in text
     assert "person" not in text.lower()
+
+
+@when("{count:d} more readers rate \"{subject}\" \"{dimension}\" {value:d}")
+def more_readers_rate(context, count: int, subject: str, dimension: str, value: int) -> None:
+    backend = ensure_started(context)
+    start = getattr(context, "reader_extra_readers", 0)
+    for number in range(start, start + count):
+        backend.call(subject_for(f"extra-{number}"), "rating", {"subject": subject, "dimension": dimension, "value": value})
+    context.reader_extra_readers = start + count
+
+
+def run_the_snapshot(context, base_path: str = "") -> None:
+    backend = ensure_started(context)
+    if getattr(context, "reader_site_directory", None) is None:
+        directory = tempfile.TemporaryDirectory()
+        context.add_cleanup(directory.cleanup)
+        context.reader_site_directory = directory
+    context.reader_purged = []
+    context.reader_site = LocalDirectoryWriter(Path(context.reader_site_directory.name))
+    context.reader_report = run_snapshot(
+        backend,
+        context.reader_site,
+        base_path=base_path,
+        invalidate=lambda keys: context.reader_purged.append(list(keys)) or keys,
+        dimensions=context.reader_dimensions,
+    )
+
+
+@when("the snapshot runs")
+def snapshot_runs_step(context) -> None:
+    run_the_snapshot(context)
+
+
+@when('the snapshot runs under the base path "{base_path}"')
+def snapshot_runs_under_base_path(context, base_path: str) -> None:
+    run_the_snapshot(context, base_path)
+
+
+def public_file(context, key: str) -> dict:
+    body = context.reader_site.get(key)
+    assert body is not None, f"{key} was not written; the store holds {sorted(entry.key for entry in context.reader_site.list())}"
+    return json.loads(body)
+
+
+@then('the public file "{key}" shows {count:d} upvote on "{subject}"')
+def public_upvotes(context, key: str, count: int, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["up"] == count
+
+
+@then('it shows readers rating "{subject}" "{dimension}" at {mean:f} from {n:d} rating and editors at {editor:f}')
+def public_ratings(context, subject: str, dimension: str, mean: float, n: int, editor: float) -> None:
+    ratings = public_file(context, "_data/reader/items.json")["items"][subject]["ratings"][dimension]
+    assert (ratings["reader"]["mean"], ratings["reader"]["n"], ratings["editor"]["mean"]) == (mean, n, editor), ratings
+
+
+@then('the public file "{key}" ranks "{subject}" first on the front')
+def front_first(context, key: str, subject: str) -> None:
+    assert public_file(context, key)["front"][0]["subject"] == subject
+
+
+@then('the public file "{key}" lists "{subject}" as rising with {count:d} upvote')
+def rising_with(context, key: str, subject: str, count: int) -> None:
+    assert {"subject": subject, "upvotes": count} in public_file(context, key)["rising"]
+
+
+@then('the public file "{key}" shows no hype gap on "{subject}"')
+def no_hype_gap(context, key: str, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["hypeGap"] is None
+
+
+@then('the public file "{key}" shows a hype gap of {gap:f} on "{subject}"')
+def hype_gap_of(context, key: str, gap: float, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["hypeGap"] == gap
+
+
+@then("nobody is on the karma list")
+def nobody_has_karma(context) -> None:
+    assert public_file(context, "_data/reader/readers.json")["readers"] == []
+
+
+@then('the site store holds "{first}", "{second}" and "{third}"')
+def store_holds(context, first: str, second: str, third: str) -> None:
+    keys = sorted(entry.key for entry in context.reader_site.list())
+    assert keys == sorted([first, second, third]), keys
+
+
+@then("the edge was asked to purge those three files and nothing else")
+def edge_purged(context) -> None:
+    written = context.reader_report.written
+    assert context.reader_purged == [written], (context.reader_purged, written)
+    assert not any("*" in key for call in context.reader_purged for key in call)
+
+
+@then("the public files hold no site subject, person id or email address")
+def public_files_clean(context) -> None:
+    backend = ensure_started(context)
+    reader_ids = [item["readerId"] for item in backend.table("profile").scan()["Items"]]
+    files = {entry.key: context.reader_site.get(entry.key) for entry in context.reader_site.list()}
+    assert files and scan_files(files, reader_ids) == {}, scan_files(files, reader_ids)

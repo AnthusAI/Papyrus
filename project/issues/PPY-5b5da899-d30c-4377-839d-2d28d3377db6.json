@@ -3,17 +3,25 @@
   "title": "Docs: reader steering (papyrus docs and p.apyr.us page)",
   "description": "Feature: Docs\n  Scenario: docs/reader-steering.md covers enabling, config, API, privacy, snapshot, karma and the siteSubject switch-on condition.",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3ccc5632-87cf-4ba4-bc7f-a0a59d70292e",
+      "author": "home",
+      "text": "Part 2 PR: https://github.com/AnthusAI/Papyrus/pull/516 (branch feat/reader-steering-snapshot). Verified: test_reader_snapshot.py, features_backend/reader-steering.feature, scripts/test-reader-islands.ts, test-reader-snapshot-privacy.ts, test-reader-steering-plugin.ts. p.apyr.us page: AnthusAI/Papyrus-web#28 (unmerged, a merge deploys). Off in production until Prospectus returns siteSubject.",
+      "created_at": "2026-10-22T02:14:49.676166Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T01:15:46.916275Z",
-  "updated_at": "2026-10-22T01:15:46.916307Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T02:14:50.173387Z",
+  "closed_at": "2026-10-22T02:14:50.173353Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

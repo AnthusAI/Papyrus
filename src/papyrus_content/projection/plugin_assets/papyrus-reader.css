@@ -1,0 +1,18 @@
+/* Reader islands (reader-steering plugin, contract 1). State is always in words too; styling only reinforces it. */
+.papyrus-reader-control, .papyrus-reader-signin { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; font: inherit; }
+.papyrus-reader-rating { flex-direction: column; align-items: flex-start; }
+.papyrus-reader-rating-row { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; }
+.papyrus-reader-rating-label { min-width: 6ch; font-weight: 600; text-transform: capitalize; }
+.papyrus-reader-button { font: inherit; padding: .25rem .65rem; border: 2px solid currentColor; border-radius: .35rem; background: transparent; color: inherit; cursor: pointer; }
+.papyrus-reader-button:hover:not(:disabled) { text-decoration: underline; }
+.papyrus-reader-button:focus-visible, .papyrus-reader-handle-input:focus-visible, .papyrus-reader-link:focus-visible { outline: 3px solid currentColor; outline-offset: 2px; }
+.papyrus-reader-button[aria-pressed="true"] { font-weight: 700; border-style: double; border-width: 4px; }
+.papyrus-reader-button:disabled { cursor: not-allowed; opacity: .6; border-style: dashed; }
+.papyrus-reader-star { min-width: 2.25rem; }
+.papyrus-reader-count, .papyrus-reader-own, .papyrus-reader-stats, .papyrus-reader-hint, .papyrus-reader-karma, .papyrus-reader-freshness { font-size: .9em; }
+.papyrus-reader-status { font-size: .9em; font-style: italic; }
+.papyrus-reader-status:empty { display: none; }
+.papyrus-reader-handle { font-weight: 700; }
+.papyrus-reader-handle-form { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
+.papyrus-reader-handle-input { font: inherit; padding: .25rem .5rem; border: 2px solid currentColor; border-radius: .35rem; background: transparent; color: inherit; }
+@media (prefers-reduced-motion: no-preference) { .papyrus-reader-button { transition: border-width .1s; } }

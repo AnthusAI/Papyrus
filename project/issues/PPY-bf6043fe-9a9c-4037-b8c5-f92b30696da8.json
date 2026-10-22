@@ -3,17 +3,25 @@
   "title": "Reader snapshot: items, board and readers JSON",
   "description": "As a visitor, I want live numbers on static pages so that votes show without a rebuild.\n\nFeature: Snapshot\n  Scenario: Debounced snapshot after a vote\n    Given a reader voted\n    When the debounced reader-snapshot runs\n    Then _data/reader/items.json, board.json and readers.json hold public-safe numbers\n  Scenario: Hype gap needs n >= 5 on every dimension\n  Scenario: No person id, siteSubject or email appears in any output (privacy scan)",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2e5e2d51-2e43-4d7e-a578-ab6fe677eff2",
+      "author": "home",
+      "text": "Part 2 PR: https://github.com/AnthusAI/Papyrus/pull/516 (branch feat/reader-steering-snapshot). Verified: test_reader_snapshot.py, features_backend/reader-steering.feature, scripts/test-reader-islands.ts, test-reader-snapshot-privacy.ts, test-reader-steering-plugin.ts. p.apyr.us page: AnthusAI/Papyrus-web#28 (unmerged, a merge deploys). Off in production until Prospectus returns siteSubject.",
+      "created_at": "2026-10-22T02:14:47.609679Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T01:15:45.011866Z",
-  "updated_at": "2026-10-22T01:15:45.011903Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T02:14:48.101692Z",
+  "closed_at": "2026-10-22T02:14:48.101643Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
