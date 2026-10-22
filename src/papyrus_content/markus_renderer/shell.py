@@ -18,6 +18,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .analytics_events import render_analytics_events_script, render_location_redaction_script
 from .consent import (
     CONSENT_BANNER_STYLE,
     ConsentModeSettings,
@@ -358,6 +359,7 @@ def render_page(
         f"<title>{title_tag}</title>{chrome.head_html}",
     ]
     if chrome.ga_measurement_id is not None:
+        head_lines.append(render_location_redaction_script())
         head_lines.append(
             render_ga4_snippet(
                 chrome.ga_measurement_id,
@@ -366,6 +368,7 @@ def render_page(
                 consent_mode=chrome.consent_mode,
             )
         )
+        head_lines.append(render_analytics_events_script())
         if chrome.consent_mode is not None:
             head_lines.append(CONSENT_BANNER_STYLE)
     head_lines.extend(

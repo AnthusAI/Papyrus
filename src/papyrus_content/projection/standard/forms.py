@@ -63,10 +63,11 @@ def render_form(spec: FormSpec) -> str:
             f'<form><fieldset disabled>{fields}<button type="button" disabled>{_q(spec.submit_label)}</button></fieldset></form></section>'
         )
     submit_url = _submit_url(spec.endpoint, spec.id)
+    conversion = f' data-analytics-event="{_q(spec.conversion_event)}"' if spec.conversion_event else ""
     return (
         f'<section class="markus-form" aria-labelledby="{form_id}-title">{heading}'
         f'<form id="{form_id}" method="post" action="{_q(submit_url)}" data-papyrus-form="{_q(spec.id)}" '
-        f'data-endpoint="{_q(submit_url)}" data-success="{_q(spec.success_text)}" data-failure="{_q(spec.failure_text)}">'
+        f'data-endpoint="{_q(submit_url)}" data-success="{_q(spec.success_text)}" data-failure="{_q(spec.failure_text)}"{conversion}>'
         f'{fields}{honeypot}<button type="submit">{_q(spec.submit_label)}</button>'
         f'<p class="markus-form-status" role="status" aria-live="polite" hidden></p></form></section>'
     )
