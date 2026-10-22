@@ -44,8 +44,11 @@ class FakeContent:
     def __init__(self) -> None:
         self.items: dict[str, dict[str, Any]] = {}
         self.published: list[dict[str, Any]] = []
+        self.published_items: dict[str, dict[str, Any]] = {}
 
     def get_record(self, model: str, record_id: str) -> dict[str, Any] | None:
+        if model == "PublishedItem":
+            return self.published_items.get(record_id)
         assert model == "Item"
         return self.items.get(record_id)
 

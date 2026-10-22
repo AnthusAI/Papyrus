@@ -179,7 +179,7 @@ assert.equal(pluginSettings({ custom: { papyrusPlugins: { newsletter: published 
 // The function environment.
 const environment = newsletterEnvironment(config, "table-name", "/papyrus/example/newsletter-key");
 assert.deepEqual(Object.keys(environment).sort(), [
-  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID",
+  "ALARM_NAMES", "CONFIGURATION_SET", "FROM_ADDRESS", "FROM_NAME", "INSTANT_ALERTS", "ITEM_URL_STYLE", "KEY_PARAMETER", "LISTS_JSON", "SENDING_DOMAIN", "SITE_ID",
   "SITE_ORIGIN", "TABLE_NAME", "THEME_JSON",
 ]);
 assert.equal(environment.SITE_ORIGIN, "https://news.example.com");
@@ -189,10 +189,12 @@ assert.deepEqual(JSON.parse(environment.LISTS_JSON), [
     id: "weekly", name: "Weekly roundup", description: "The week in review.", kind: "roundup",
     issueType: "newsletter_issue", archivePath: "/roundup/", timezone: "America/New_York",
   },
-  { id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert" },
+  {
+    id: "alerts-x", name: "Alerts", description: "Breaking items.", kind: "alert",
+    rule: { sections: ["Security"], tags: ["breaking"] }, approval: "admin",
+  },
 ]);
 assert.ok(!environment.LISTS_JSON.includes("cron("), "schedules stay out of the environment");
-assert.ok(!environment.LISTS_JSON.includes("Security"), "alert rules stay out of the environment");
 
 // A site without plugins touches nothing.
 wirePlugins(new Proxy({}, { get: () => assert.fail("a site without plugins must not touch the backend") }), [], undefined as never);
@@ -395,8 +397,8 @@ const appsync = statements.find((statement) => actionsOf(statement).includes("ap
 assert.ok(appsync);
 assert.deepEqual(
   (appsync.Resource as unknown[]).map((entry) => JSON.stringify(entry).split("/types/")[1].replace(/"\]\]\}$/, "")).sort(),
-  ["Mutation/fields/createItem", "Mutation/fields/updateItem", "Query/fields/getItem", "Query/fields/listPublishedItems"],
-  "four content API fields and no others",
+  ["Mutation/fields/createItem", "Mutation/fields/updateItem", "Query/fields/getItem", "Query/fields/getPublishedItem", "Query/fields/listPublishedItems"],
+  "five content API fields and no others",
 );
 assert.ok(
   statements.some((statement) => actionsOf(statement).includes("sqs:SendMessage")),
@@ -423,17 +425,39 @@ assert.ok(!JSON.stringify(sending[0].Resource).includes("identity"));
 const invokes = statements.filter((statement) => actionsOf(statement).includes("lambda:InvokeFunction"));
 assert.ok(invokes.length >= 3, "the scheduler role, and the function and worker invoking content-actions");
 
-// The AppSync operations function may invoke the newsletter function and nothing else.
+// The AppSync operations function and the content-actions function (to announce a publish) may each invoke the newsletter function and nothing else.
 const operationsStatements = Object.values(operationsTemplate.findResources("AWS::IAM::Policy")).flatMap(
   (policy) => (policy as { Properties: { PolicyDocument: { Statement: Statement[] } } }).Properties.PolicyDocument.Statement,
 );
-assert.equal(operationsStatements.length, 1);
-assert.deepEqual(operationsStatements[0].Action, "lambda:InvokeFunction");
-assert.ok(JSON.stringify(operationsStatements[0].Resource).endsWith(`:lambda:us-east-1:${account}:function:papyrus-newsletter-example"]]}`));
+assert.equal(operationsStatements.length, 2);
+for (const statement of operationsStatements) {
+  assert.deepEqual(statement.Action, "lambda:InvokeFunction");
+  assert.ok(JSON.stringify(statement.Resource).endsWith(`:lambda:us-east-1:${account}:function:papyrus-newsletter-example"]]}`));
+}
 const operationsEnvironment = Object.values(operationsTemplate.findResources("AWS::Lambda::Function")).map(
   (entry) => (entry as FunctionResource).Properties.Environment?.Variables ?? {},
 );
 assert.ok(operationsEnvironment.some((value) => value.NEWSLETTER_FUNCTION_NAME === "papyrus-newsletter-example"));
+
+// Alerts: the function knows each alert list's rule and approval, and whether instant alerts are allowed.
+assert.equal(variables.INSTANT_ALERTS, "false");
+const listsInEnvironment = JSON.parse(String(variables.LISTS_JSON)) as Array<Record<string, unknown>>;
+const alertList = listsInEnvironment.find((entry) => entry.kind === "alert");
+assert.ok(alertList && "rule" in alertList && alertList.approval === "admin", "alert lists carry rule and approval");
+assert.ok(!("rule" in listsInEnvironment.find((entry) => entry.kind === "roundup")!), "roundup lists carry no rule");
+
+// The content-actions function is told the newsletter function's name and may invoke exactly that function.
+const contentActionsResources = Object.values(operationsTemplate.findResources("AWS::Lambda::Function")) as FunctionResource[];
+assert.ok(
+  contentActionsResources.some((entry) => entry.Properties.Environment?.Variables?.PAPYRUS_NEWSLETTER_FUNCTION === "papyrus-newsletter-example"),
+  "content-actions gets PAPYRUS_NEWSLETTER_FUNCTION",
+);
+const invokeStatements = Object.entries(operationsTemplate.findResources("AWS::IAM::Policy")).filter(([id]) => id.startsWith("ContentActions")).flatMap(
+  ([, policy]) => ((policy as any).Properties.PolicyDocument.Statement as Array<{ Action: unknown; Resource: unknown }>),
+).filter((statement) => JSON.stringify(statement.Action).includes("lambda:InvokeFunction") && JSON.stringify(statement.Resource).includes("papyrus-newsletter-example"));
+assert.equal(invokeStatements.length, 1, "one invoke grant for the newsletter function");
+assert.ok(!JSON.stringify(invokeStatements[0].Resource).includes("*"), "the grant names the one function");
+assert.ok(!JSON.stringify(template.toJSON()).includes("PAPYRUS_NEWSLETTER_FUNCTION"), "the variable lives on content-actions, not the newsletter stack");
 
 // A site with only alert lists schedules nothing.
 const alertsOnly = resolveNewsletterConfig(with_({ lists: [base.lists[1]] }));

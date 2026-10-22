@@ -3,16 +3,31 @@
   "title": "Publish-triggered alerts per list rule, deduplicated per item per list",
   "description": "Hook on the publish path (newsroom and CLI) when PublishResult.changed: async invoke newsletter item-published. Rules by section, tag or type; dedupe per lineage per list; approval gate per list, instant sends only when the site enables them. Never fails a publish.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-024f9661-19c6-4ec7-8dc7-6c47e49d237a",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a82284ed-0a84-4054-91dc-052ba0fe2d38",
+      "author": "home",
+      "text": "Merged to develop: PR 543 (5e28cbf). Hook: papyrus_content/publish_alerts.py announce_published, called from content-actions project_item_action (newsroom) and run_projection_task (CLI, marked task); item-published handled by newsletter/alerts.py. Tests: pytest, behave newsletter-alerts.feature, plugin synth. Not promoted to main. Story left open for the panel and live verification.",
+      "created_at": "2026-10-22T06:00:13.461374Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "a353460a-6c08-4dde-ba7e-be2f254d6f39",
+      "author": "home",
+      "text": "Merged to develop: PR 543 (5e28cbf). Hook: papyrus_content/publish_alerts.py announce_published, called from content-actions project_item_action (newsroom) and run_projection_task (CLI, marked task); item-published handled by newsletter/alerts.py. Tests: pytest, behave newsletter-alerts.feature, plugin synth. Not promoted to main. Story left open for the panel and live verification.",
+      "created_at": "2026-10-22T06:00:19.453343Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:40.136747Z",
-  "updated_at": "2026-10-22T02:43:40.136775Z",
+  "updated_at": "2026-10-22T06:00:19.453378Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

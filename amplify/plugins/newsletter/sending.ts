@@ -19,9 +19,10 @@ export const newsletterFunctionName = (siteId: string) => `papyrus-newsletter-${
 export const newsletterWorkerName = (siteId: string) => `papyrus-newsletter-send-${siteId}`;
 export const newsletterSendQueueName = (siteId: string) => `papyrus-newsletter-send-${siteId}`;
 
-/** The AppSync fields the `newsletter` function reads and writes through the content API (the roundup draft and the issue's Item). */
+/** The AppSync fields the `newsletter` function reads and writes through the content API (the roundup draft, the issue's Item, and the published item an alert is about). */
 export const NEWSLETTER_APPSYNC_FIELDS = [
   "Query/fields/getItem",
+  "Query/fields/getPublishedItem",
   "Query/fields/listPublishedItems",
   "Mutation/fields/createItem",
   "Mutation/fields/updateItem",
@@ -58,7 +59,7 @@ type SendingInputs = {
 /**
  * Everything that sends: the queue and its dead letter queue, the send worker, the scheduler role and the per-list
  * draft schedules, and the IAM they need. Nothing here lets the function reach anything but its own queue, its own
- * schedules (`papyrus-nl-<siteId>-*`), two postal address parameters and four content API fields.
+ * schedules (`papyrus-nl-<siteId>-*`), two postal address parameters and five content API fields.
  */
 export function wireSending(inputs: SendingInputs): { queue: Queue; deadLetterQueue: Queue; worker: LambdaFunction; schedulerRole: Role } {
   const { stack, config, context, backend, table, lambda, environment, keyParameterArn, sesResources, code } = inputs;
