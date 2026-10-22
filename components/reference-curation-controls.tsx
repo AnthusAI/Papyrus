@@ -73,7 +73,7 @@ function Controls({session,disabled,refreshSignal}:{session:CurationSession;disa
     {error?<p role="alert">{error}</p>:null}
     {snapshot?<PublicationCyclotronPanel mode={session.bootstrap.mode} status={snapshot.status} history={snapshot.history}
       onReview={canReview?async payload=>{await session.publication.review(payload);await refresh();}:undefined}
-      onSteer={canSteer&&snapshot.status.features?.steering&&session.bootstrap.bindingRef?classifier=>{setSteering(classifier);setRubric('');setExplanation('');setTrial(null);setSteeringMessage('');}:undefined}/>:null}
+      onSteer={canSteer&&session.bootstrap.bindingRef?classifier=>{setSteering(classifier);setRubric('');setExplanation('');setTrial(null);setSteeringMessage('');}:undefined}/>:null}
     {steering?<form aria-label="Rule change" className="space-y-3 rounded-md border p-3" onSubmit={event=>{event.preventDefault();void steer('evaluate');}}>
       <h4 className="font-semibold">Test a rule change</h4>
       <p className="text-sm">A change is tested before it is adopted. Opening this form does not change any existing suggestion.</p>
