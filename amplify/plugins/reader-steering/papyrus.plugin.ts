@@ -44,6 +44,7 @@ export function readerSnapshotSettings(config: ReaderSteeringConfig) {
     karma: config.karma,
     ranking: config.ranking,
     hypeMinimum: config.snapshot.hypeMinimum,
+    ...(config.hypeGap ? { hypeGap: config.hypeGap } : {}),
     retirementPoll: config.retirementPoll,
   };
 }

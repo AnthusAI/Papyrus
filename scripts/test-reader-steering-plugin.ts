@@ -51,7 +51,19 @@ assert.equal(shipped.karma.usedItWeight, 3);
 assert.equal(shipped.karma.upvoteWeight, 1);
 assert.equal(shipped.snapshot.schedule, true);
 
+const withHype = resolveReaderSteeringConfig({ ...base, dimensions: ["real", "useful", "notable", "novel"], hypeGap: { plus: ["notable", "novel"], minus: ["real", "useful"] } });
+assert.deepEqual(withHype.hypeGap, { plus: ["notable", "novel"], minus: ["real", "useful"] });
+assert.equal("hypeGap" in defaults, false, "no hypeGap configuration means no hype gap");
+assert.deepEqual(JSON.parse(JSON.stringify(readerSnapshotSettings(withHype))).hypeGap, { plus: ["notable", "novel"], minus: ["real", "useful"] }, "the snapshot task gets the groups");
+assert.equal("hypeGap" in readerSnapshotSettings(shipped), false);
+
 for (const bad of [
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: [], minus: ["real"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable"], minus: ["useful"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable", "real"], minus: ["real"] } },
+  { dimensions: ["real", "notable"], hypeGap: { plus: ["notable"], minus: ["real"], extra: 1 } },
+  { dimensions: ["real", "notable"], hypeGap: "notable" },
   { dimensions: ["Real"] },
   { dimensions: ["up"] },
   { dimensions: ["used-it"] },

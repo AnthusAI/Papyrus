@@ -124,6 +124,7 @@ def run_snapshot(
     published: tuple[str, ...] = PUBLISHED_SUBJECTS,
     dimensions: tuple[str, ...] = ("real", "useful"),
     submitter_of: Any = lambda subject: None,
+    hype_gap: dict | None = None,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -133,7 +134,7 @@ def run_snapshot(
     )
     context = SimpleNamespace(projector=SimpleNamespace(policy=url_policy(base_path)), writer=writer, invalidate=invalidate)
     environment = {
-        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5}),
+        SETTINGS_ENV: json.dumps({"dimensions": list(dimensions), "karma": {"upvoteWeight": 1, "usedItWeight": 2}, "ranking": {}, "hypeMinimum": 5, **({"hypeGap": hype_gap} if hype_gap else {})}),
         VOTE_TABLE_ENV: TABLE_NAMES["vote"],
         PROFILE_TABLE_ENV: TABLE_NAMES["profile"],
     }

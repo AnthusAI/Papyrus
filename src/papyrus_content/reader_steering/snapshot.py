@@ -13,7 +13,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .ranking import RankingParameters, composite, front_score, hype_gap, rank, rounded
+from .ranking import HypeGapGroups, RankingParameters, composite, front_score, hype_gap, rank, rounded
 
 READER_DATA_DIRECTORY = "_data/reader"
 ITEMS_FILE = f"{READER_DATA_DIRECTORY}/items.json"
@@ -40,12 +40,15 @@ class SnapshotSettings:
     dimensions: tuple[str, ...] = ()
     karma: KarmaWeights = field(default_factory=KarmaWeights)
     ranking: RankingParameters = field(default_factory=RankingParameters)
+    hype_gap: HypeGapGroups | None = None
 
 
 def settings_from_mapping(raw: Mapping) -> SnapshotSettings:
     karma, ranking = raw.get("karma") or {}, raw.get("ranking") or {}
     defaults = RankingParameters()
+    hype = raw.get("hypeGap")
     return SnapshotSettings(
+        hype_gap=HypeGapGroups(plus=tuple(hype.get("plus") or ()), minus=tuple(hype.get("minus") or ())) if hype else None,
         dimensions=tuple(raw.get("dimensions") or ()),
         karma=KarmaWeights(upvote=float(karma.get("upvoteWeight", 1)), used_it=float(karma.get("usedItWeight", 2))),
         ranking=RankingParameters(
@@ -100,6 +103,26 @@ def karma_by_reader(
     return dict(karma)
 
 
+def item_hype_gap(
+    settings: SnapshotSettings,
+    editor_means: Mapping[str, float | None],
+    reader_means: Mapping[str, float | None],
+    editor_counts: Mapping[str, int],
+    reader_counts: Mapping[str, int],
+) -> dict | None:
+    """``{reader, editor}`` gaps, each ``None`` until its own ratings are enough; ``None`` altogether without ``hypeGap`` groups.
+
+    The reader gap needs ``hype_minimum`` ratings on every dimension involved; the editor gap needs one editor rating on each.
+    """
+    groups = settings.hype_gap
+    if groups is None:
+        return None
+    return {
+        "reader": hype_gap(groups, reader_means, reader_counts, settings.ranking.hype_minimum),
+        "editor": hype_gap(groups, editor_means, editor_counts, 1),
+    }
+
+
 @dataclass(frozen=True)
 class Snapshot:
     items: dict
@@ -138,6 +161,7 @@ def build_snapshot(
         editor_means = {dimension: stats[dimension][ROLE_EDITOR]["mean"] for dimension in settings.dimensions}
         reader_means = {dimension: stats[dimension][ROLE_READER]["mean"] for dimension in settings.dimensions}
         reader_counts = {dimension: stats[dimension][ROLE_READER]["n"] for dimension in settings.dimensions}
+        editor_counts = {dimension: stats[dimension][ROLE_EDITOR]["n"] for dimension in settings.dimensions}
         editor_composite, reader_composite = composite(editor_means.values()), composite(reader_means.values())
         upvotes = [vote for vote in subject_votes if vote["dimension"] == UP]
         items[subject] = {
@@ -146,7 +170,7 @@ def build_snapshot(
             "ratings": stats,
             "editor": None if editor_composite is None else rounded(editor_composite),
             "reader": None if reader_composite is None else rounded(reader_composite),
-            "hypeGap": hype_gap(editor_means, reader_means, reader_counts, settings.ranking.hype_minimum),
+            "hypeGap": item_hype_gap(settings, editor_means, reader_means, editor_counts, reader_counts),
         }
         published = published_at[subject]
         age_hours = (now_seconds - seconds_of(published)) / SECONDS_PER_HOUR if published else 0.0

@@ -39,6 +39,7 @@ def publication(context, first: str, second: str) -> None:
     context.reader_backend = None
     context.reader_published = []
     context.reader_names = []
+    context.reader_hype_gap = None
 
 
 def ensure_started(context) -> ReaderBackend:
@@ -205,6 +206,13 @@ def more_readers_rate(context, count: int, subject: str, dimension: str, value: 
     context.reader_extra_readers = start + count
 
 
+@when('{count:d} extra readers rate "{subject}" "{dimension}" {value:d}')
+def extra_readers_rate(context, count: int, subject: str, dimension: str, value: int) -> None:
+    backend = ensure_started(context)
+    for number in range(count):
+        backend.call(subject_for(f"extra-{number}"), "rating", {"subject": subject, "dimension": dimension, "value": value})
+
+
 def run_the_snapshot(context, base_path: str = "") -> None:
     backend = ensure_started(context)
     if getattr(context, "reader_site_directory", None) is None:
@@ -219,6 +227,7 @@ def run_the_snapshot(context, base_path: str = "") -> None:
         base_path=base_path,
         invalidate=lambda keys: context.reader_purged.append(list(keys)) or keys,
         dimensions=context.reader_dimensions,
+        hype_gap=getattr(context, "reader_hype_gap", None),
     )
 
 
@@ -264,9 +273,24 @@ def no_hype_gap(context, key: str, subject: str) -> None:
     assert public_file(context, key)["items"][subject]["hypeGap"] is None
 
 
-@then('the public file "{key}" shows a hype gap of {gap:f} on "{subject}"')
-def hype_gap_of(context, key: str, gap: float, subject: str) -> None:
-    assert public_file(context, key)["items"][subject]["hypeGap"] == gap
+@then('the public file "{key}" shows no {who} hype gap on "{subject}"')
+def no_hype_gap_for(context, key: str, who: str, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["hypeGap"][who] is None
+
+
+@then('the public file "{key}" shows the {who} hype gap at {gap:f} on "{subject}"')
+def hype_gap_of(context, key: str, who: str, gap: float, subject: str) -> None:
+    assert public_file(context, key)["items"][subject]["hypeGap"][who] == gap
+
+
+@given('the publication also rates "{first}" and "{second}"')
+def also_rates(context, first: str, second: str) -> None:
+    context.reader_dimensions = (*context.reader_dimensions, first, second)
+
+
+@given('the hype gap adds "{plus_first}" and "{plus_second}" and subtracts "{minus_first}" and "{minus_second}"')
+def hype_gap_groups(context, plus_first: str, plus_second: str, minus_first: str, minus_second: str) -> None:
+    context.reader_hype_gap = {"plus": [plus_first, plus_second], "minus": [minus_first, minus_second]}
 
 
 @then("nobody is on the karma list")
