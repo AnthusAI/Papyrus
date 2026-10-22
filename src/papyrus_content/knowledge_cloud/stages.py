@@ -24,6 +24,7 @@ IDENTITY_THRESHOLD = "0.5"
 TREND_WEEKS = "26"
 ENTITY_HREF = "/wiki/{slug}/"
 DELETION_FLAG = "--allow-deletions"
+ARCHIVE_DIRECTORY = "_data/knowledge/history"
 FORBIDDEN_FLAGS = (DELETION_FLAG, "--reconcile", "--replace")  # a run only writes: no cleanup, no replacing an archived week
 
 
@@ -397,6 +398,19 @@ def snapshot(run: Run) -> dict:
 
 def archive(run: Run) -> dict:
     run.prepare_site()
+    entry = f"{ARCHIVE_DIRECTORY}/{run.config.monday.isoformat()}.json"
+    stored = run.services.read_object(run.config.site_bucket, entry)
+    if stored is not None:
+        # An entry is immutable and the pipeline never replaces one: a second run in the week keeps the week's first.
+        try:
+            kept = json.loads(stored)
+            run_id, as_of = kept["runId"], kept["asOf"]
+        except (ValueError, KeyError, TypeError) as error:
+            raise StageFailed(f"The archive entry {entry} exists but is unreadable ({type(error).__name__}); not replacing it and not skipping it.") from error
+        if as_of != run.config.monday.isoformat():
+            raise StageFailed(f"The archive entry {entry} says it is for {as_of}, not {run.config.monday}; not skipping it.")
+        print(f"archive: kept-existing (run {run_id}): week {as_of} is already archived in {entry}", flush=True)
+        return {"asOf": as_of, "archive": f"kept-existing (run {run_id})"}
     run.sh("papyrus", "knowledge", "archive", *knowledge_options(run))  # never --replace: a week's entry is immutable
     return {"asOf": run.config.monday.isoformat()}
 

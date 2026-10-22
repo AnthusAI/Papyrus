@@ -42,6 +42,11 @@ class FakeSite:
 
     def __init__(self, plugins: str = "reader-steering,newsletter") -> None:
         self.variables = {"PAPYRUS_PLUGINS": plugins}
+        self.objects: dict[str, bytes] = {}
+
+    def read_object(self, bucket: str, key: str) -> bytes | None:
+        assert bucket == SITE_BUCKET
+        return self.objects.get(key)
 
     def deployed_commit(self, app_id: str, branch: str) -> str:
         assert (app_id, branch) == ("dapp123", "main")
