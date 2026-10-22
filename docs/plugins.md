@@ -155,3 +155,7 @@ newsroom has no panel. `scripts/synth-site-backend.mts` synthesizes a site's who
 backend into a directory so two configurations can be compared; `npm run test:plugins`
 pins the registry, the settings, the web ACL and the manifest-to-schema match.
 
+
+## Other plugins
+
+`reader-steering` (reader identity, votes, ratings and live numbers) is documented in [reader-steering.md](reader-steering.md).

@@ -166,6 +166,7 @@ async function completeCallback(
       personId: signedIn.person.id,
       accessToken: signedIn.accessToken,
       accessTokenExpiresAt: signedIn.accessTokenExpiresAt,
+      ...(signedIn.person.siteSubject ? { siteSubject: signedIn.person.siteSubject } : {}),
     };
     const response = NextResponse.redirect(new URL(pendingSignIn.returnPath, siteOriginFor(request, options)), { status: 303, headers: NO_STORE_HEADERS });
     response.cookies.set(

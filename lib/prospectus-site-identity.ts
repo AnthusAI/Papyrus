@@ -24,6 +24,7 @@ export type ProspectusOperation = "console:read" | "console:write" | "members:re
 export interface ProspectusPerson {
   id: string;
   createdAt: string;
+  siteSubject?: string;
 }
 
 export interface ProspectusAccountAuthorization {

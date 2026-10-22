@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "ab3de04e-d68e-4dc9-9b0e-bfea7f9b5910",
+  "issue_id": "PPY-a811b32f-7739-46d1-b9f7-205593b17808",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:15:43.207Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader handle and profile (reader-steering)",
+    "description": "As a signed-in reader, I want to pick a unique public handle once so that my votes are attributed to a name, not an identity.\n\nFeature: Reader handle\n  Scenario: First handle\n    Given a signed-in reader with no handle\n    When they set the handle 'quiet-fox'\n    Then /api/reader/me returns the handle and a random readerId\n  Scenario: Taken handle\n    Given another reader holds 'Quiet-Fox'\n    When this reader sets 'quiet-fox'\n    Then the answer is 409\n  Scenario: Reserved handle\n    When a reader sets 'admin'\n    Then the answer is 422",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+    "labels": []
+  }
+}

@@ -13,6 +13,7 @@ from pathlib import Path
 PLUGINS_ENV = "PAPYRUS_PLUGINS"
 PLUGIN_ASSET_DIRECTORY = Path(__file__).parent / "plugin_assets"
 PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
+    "reader-steering": {},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},
 }
 

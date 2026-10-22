@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "0d393956-71c0-4b93-a235-17cb9342d3af",
+  "issue_id": "PPY-bf6043fe-9a9c-4037-b8c5-f92b30696da8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:15:45.011Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader snapshot: items, board and readers JSON",
+    "description": "As a visitor, I want live numbers on static pages so that votes show without a rebuild.\n\nFeature: Snapshot\n  Scenario: Debounced snapshot after a vote\n    Given a reader voted\n    When the debounced reader-snapshot runs\n    Then _data/reader/items.json, board.json and readers.json hold public-safe numbers\n  Scenario: Hype gap needs n >= 5 on every dimension\n  Scenario: No person id, siteSubject or email appears in any output (privacy scan)",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-64cb48fc-cc13-4302-ae23-ce51cad57732",
+    "labels": []
+  }
+}
