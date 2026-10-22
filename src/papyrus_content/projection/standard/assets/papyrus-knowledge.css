@@ -53,3 +53,5 @@ a.papyrus-knowledge-chip:hover { border-color: var(--papyrus-knowledge-accent, c
 .papyrus-knowledge-chart-marker { stroke: var(--papyrus-knowledge-accent, currentColor); stroke-width: 1.5; }
 .papyrus-knowledge-chart-label, .papyrus-knowledge-chart-note { fill: currentColor; font-size: 9px; }
 .papyrus-knowledge-chart-caption { font-size: .8125rem; color: var(--papyrus-knowledge-muted, inherit); }
+.papyrus-knowledge-definition, .papyrus-knowledge-empty { margin: .5rem 0 0; font-size: .8125em; color: var(--papyrus-knowledge-muted, inherit); }
+.papyrus-knowledge-change-counts { margin-right: .35em; font-weight: 400; }

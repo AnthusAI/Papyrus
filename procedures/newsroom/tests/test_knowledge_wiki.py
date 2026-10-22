@@ -373,14 +373,14 @@ def test_a_published_page_appears_in_the_listing_sitemap_llms_and_markdown_twin(
     assert f"## Related coverage" in twin
 
 
-def test_a_page_shows_edited_by_ai_above_its_text(client, made_site):
+def test_a_page_shows_draft_and_edited_by_ai_above_its_text(client, made_site):
     sync(client, "--apply")
     publish(client, "--all-drafts", "--actor", "ai", "--apply")
     site = made_site().project()
     page = main_of(site.text(f"wiki/{ACME_SLUG}/index.html"))
-    assert "Edited by AI on 2026-10-22" in page and 'data-state="ai"' in page
+    assert "Draft, not yet reviewed. Edited by AI on 2026-10-22" in page and 'data-state="ai"' in page
     assert page.index("Edited by AI") < page.index("papyrus-knowledge-entity-trend") and "Reviewed by" not in page
-    assert "> Edited by AI on 2026-10-22" in site.text(f"wiki/{ACME_SLUG}/index.md")
+    assert "> Draft, not yet reviewed. Edited by AI on 2026-10-22" in site.text(f"wiki/{ACME_SLUG}/index.md")
     assert "desk" not in site.text(f"wiki/{ACME_SLUG}/index.html").lower().replace("desktop", "")
 
 

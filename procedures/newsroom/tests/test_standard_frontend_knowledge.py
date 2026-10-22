@@ -73,9 +73,12 @@ def test_the_sparkline_needs_no_script_and_is_hidden_from_screen_readers():
 
 def test_the_trend_chart_appears_only_after_twelve_weeks_of_history():
     series = data.ACME["series26"]
-    assert parts.trend_chart(series, 11, data.AS_OF) == ""
+    assert parts.trend_chart(series, 0, data.AS_OF) == ""
+    bars = parts.trend_chart(series, 5, data.AS_OF)   # under 12 weeks: the weekly bars that exist, titled with the real span, no average
+    assert bars.count("papyrus-knowledge-chart-bar") == 5 and "papyrus-knowledge-chart-average" not in bars and "for 5 weeks, " in bars
+    assert "Dashed line" not in bars
     chart = parts.trend_chart(series, 12, data.AS_OF)
-    assert chart.startswith("<figure") and "<script" not in chart
+    assert chart.startswith("<figure") and "<script" not in chart and "for 12 weeks, " in chart
     assert chart.count("papyrus-knowledge-chart-bar") == 12 and "papyrus-knowledge-chart-average" in chart   # two series, only the weeks since the first link
 
 
@@ -134,9 +137,10 @@ def test_only_what_the_snapshot_lists_is_shown(tmp_path):
 def test_entity_trend_part_has_the_trend_and_the_chart_only_with_enough_history(tmp_path):
     source = source_for(tmp_path)
     full = block("knowledge-entity", source, key="acme-loom", part="trend", annotate="2026-09-24", annotateLabel="Launch")
-    assert "+200%" in full and "<figure" in full and "Launch" in full
+    assert "+200%" in full and "vs" in full and "<figure" in full and "Launch" in full
     young = block("knowledge-entity", source, key="gamma-new", part="trend")
-    assert ">new<" in young and "<figure" not in young and "<svg" not in young
+    assert ">new<" in young and "papyrus-knowledge-sparkline" not in young and "%" not in re.sub(r"<[^>]+>", "", young)
+    assert "papyrus-knowledge-chart-average" not in young and "Dashed line" not in young   # a few weekly bars with the real span, no average line
 
 
 # ------------------------------------------------------------------ trending, clusters, the rest
@@ -617,3 +621,29 @@ def test_a_site_sets_the_wiki_listing_page_size_in_urls_sections():
         assert "wiki/index.html" in keys and "wiki/page/2/index.html" in keys and "wiki/page/3/index.html" in keys and "wiki/page/4/index.html" not in keys
     finally:
         created.cleanup()
+
+
+# ------------------------------------------------------------------ change definition, counts and empty states (ship-14efe5)
+
+def test_a_percent_is_written_with_the_counts_it_comes_from():
+    markup = parts.trend({"weeksOfHistory": 52, "series8": [1, 2, 3, 4, 7, 3, 3, 2], "change": {"last4": 12, "prior4": 8, "percent": 50}})
+    text = re.sub(r"<[^>]+>", "", markup)
+    assert "12 vs 8," in text and "+50%" in text and 'title="12 items in the last 4 weeks, 8 in the 4 weeks before"' in markup
+    assert "vs" not in re.sub(r"<[^>]+>", "", parts.trend({"weeksOfHistory": 9, "series8": [3] * 8, "change": {"last4": 12, "prior4": 4, "percent": None}}))
+
+
+def test_the_trending_blocks_define_change_in_visible_text_unless_told_not_to(tmp_path):
+    source = source_for(tmp_path)
+    for name in ("knowledge-trending-strip", "knowledge-trending-list"):
+        markup = block(name, source)
+        assert "papyrus-knowledge-definition" in markup and "last 4 weeks against the 4 weeks before" in markup
+        assert "papyrus-knowledge-definition" not in block(name, source, definition="false")
+
+
+def test_an_empty_block_with_data_present_says_so_and_without_data_renders_nothing(tmp_path):
+    source = source_for(tmp_path)
+    nothing = block("knowledge-trending-list", source, entityKind="no-such-kind", empty="Nothing is trending yet.")
+    assert nothing == '<p class="papyrus-knowledge-empty">Nothing is trending yet.</p>'
+    assert block("knowledge-trending-list", source, entityKind="no-such-kind") == ""
+    assert block("knowledge-trending-list", KnowledgeSource(), empty="Nothing is trending yet.") == ""
+    assert "Nothing" in block("knowledge-beat", source, key="no-such-beat", part="trend", empty="Nothing here yet.")
