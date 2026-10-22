@@ -45,3 +45,10 @@
 .papyrus-reader-ranked-title { font-weight: 600; overflow-wrap: anywhere; }
 .papyrus-reader-ranked-where, .papyrus-reader-ranked-figure { font-size: .9em; }
 .papyrus-reader-ranked-message, .papyrus-reader-ranked-empty { margin: 0; }
+.papyrus-reader-meter { display: inline-flex; gap: 2px; }
+.papyrus-reader-meter-segment { width: .8rem; height: .8rem; border: 2px solid currentColor; box-sizing: border-box; }
+.papyrus-reader-meter-filled { background: currentColor; }
+.papyrus-reader-meter-withheld { opacity: .4; }
+.papyrus-reader-meter-withheld .papyrus-reader-meter-segment { border-style: dashed; }
+.papyrus-reader-raters { margin: 0; font-size: .9em; }
+.papyrus-reader-raters:empty { display: none; }
