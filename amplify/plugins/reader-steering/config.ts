@@ -46,6 +46,16 @@ export type ReaderSteeringConfig = {
     /** The kinds a reader may pick (a radio on the form). A single kind hides the radio. */
     kinds: string[];
   };
+  comments: {
+    /** Comments, replies and edits one reader may post in a clock hour (a third of it for new accounts). */
+    perHour: number;
+    /** The author may edit a comment for this many minutes after posting it. */
+    editWindowMinutes: number;
+    /** Most characters in a comment. */
+    maximumLength: number;
+    /** Most links (http, https or www) in a comment. */
+    maximumLinks: number;
+  };
   /**
    * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
    * Absent means no hype gap is published. Shipped sets plus = notable, novel and minus = real, useful.
@@ -63,7 +73,7 @@ export type ReaderSteeringConfig = {
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -133,6 +143,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   const snapshot = object(raw.snapshot, "snapshot", ["schedule", "intervalHours", "hypeMinimum"]);
   const submissions = object(raw.submissions, "submissions", ["perDay", "similarHours", "kinds"]);
   const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
+  const comments = object(raw.comments, "comments", ["perHour", "editWindowMinutes", "maximumLength", "maximumLinks"]);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
   const retirementPoll = flag(raw.retirementPoll, "retirementPoll");
   if (retirementPoll && !flag(snapshot.schedule, "snapshot.schedule")) {
@@ -166,6 +177,12 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       perDay: integer(submissions.perDay, "submissions.perDay", 10, 1, 1000),
       similarHours: integer(submissions.similarHours, "submissions.similarHours", 48, 1, 24 * 30),
       kinds: kinds.length > 0 ? kinds : ["link"],
+    },
+    comments: {
+      perHour: integer(comments.perHour, "comments.perHour", 30, 1, 1000),
+      editWindowMinutes: integer(comments.editWindowMinutes, "comments.editWindowMinutes", 10, 0, 24 * 60),
+      maximumLength: integer(comments.maximumLength, "comments.maximumLength", 2000, 1, 10000),
+      maximumLinks: integer(comments.maximumLinks, "comments.maximumLinks", 3, 0, 50),
     },
     retirementPoll,
     ...(hypeGap ? { hypeGap } : {}),

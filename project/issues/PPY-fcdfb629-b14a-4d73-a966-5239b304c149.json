@@ -10,9 +10,17 @@
   "parent": "PPY-739cb425-c6b0-41c7-ab90-c51f4b2cb00d",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b2fc3f94-b0eb-4ad0-b6ff-6cfb99415d8b",
+      "author": "home",
+      "text": "Threaded comments, edit window, delete stubs, limits and snapshot files are built. Moderation of comments lands with the moderation PR; this story closes there.",
+      "created_at": "2026-10-22T04:33:49.227582Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.239478Z",
-  "updated_at": "2026-10-21T12:49:28.239514Z",
+  "updated_at": "2026-10-22T04:33:49.227611Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

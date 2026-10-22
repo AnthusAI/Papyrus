@@ -34,8 +34,12 @@ assert.deepEqual(defaults, {
   ranking: { halfLifeHours: 48, risingWindowHours: 6, readerMinimum: 5, editorWeight: 0.5 },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
   submissions: { perDay: 10, similarHours: 48, kinds: ["link"] },
+  comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
   retirementPoll: false,
 });
+
+const tuned = resolveReaderSteeringConfig({ ...base, comments: { perHour: 5, editWindowMinutes: 0, maximumLinks: 0 } });
+assert.deepEqual(tuned.comments, { perHour: 5, editWindowMinutes: 0, maximumLength: 2000, maximumLinks: 0 });
 
 const withKinds = resolveReaderSteeringConfig({ ...base, submissions: { perDay: 20, kinds: ["article", "tool", "article"] } });
 assert.deepEqual(withKinds.submissions, { perDay: 20, similarHours: 48, kinds: ["article", "tool"] });
@@ -93,6 +97,12 @@ for (const bad of [
   { submissions: { kinds: "article" } },
   { submissions: { burst: 1 } },
   { submissions: [] },
+  { comments: { perHour: 0 } },
+  { comments: { editWindowMinutes: -1 } },
+  { comments: { maximumLength: 0 } },
+  { comments: { maximumLinks: 1.5 } },
+  { comments: { threads: 2 } },
+  { comments: "yes" },
 ]) {
   assert.throws(() => resolveReaderSteeringConfig({ ...base, ...bad } as never), /reader-steering/, JSON.stringify(bad));
 }
@@ -111,6 +121,7 @@ assert.deepEqual(settings, {
   limits: shipped.limits,
   reservedHandles: ["shipped-team"],
   submissions: shipped.submissions,
+  comments: shipped.comments,
   allowInterimSubjects: false,
   snapshotDebounceSeconds: 60,
 });
@@ -131,7 +142,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
-    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
   const outputs: unknown[] = [];
   const backend = {
@@ -162,7 +173,7 @@ assert.equal(permissions.filter((permission) => permission.Properties.Principal 
 const readerEnvironments = Object.values(template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
 const readerVariables = readerEnvironments.find((variables) => variables.PAPYRUS_READER_SETTINGS) as Record<string, string>;
 assert.ok(readerVariables, "the function gets its settings");
-for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
+for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_COMMENT_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
   assert.ok(name in readerVariables, `${name} is set`);
 }
 assert.equal(JSON.parse(readerVariables.PAPYRUS_READER_SETTINGS).allowInterimSubjects, false, "a production synth refuses interim subjects");

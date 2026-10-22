@@ -8,11 +8,11 @@ import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfigured
 export const READER_ACTIONS_FUNCTION_ENV = "PAPYRUS_READER_ACTIONS_FUNCTION";
 export const READER_MAXIMUM_BODY_BYTES = 4096;
 /** Larger bodies for actions that carry reader text: a URL, a title and a note; a comment of 2,000 characters. */
-export const READER_BODY_BYTES_BY_ACTION: Partial<Record<ReaderAction, number>> = { submit: 8192 };
+export const READER_BODY_BYTES_BY_ACTION: Partial<Record<ReaderAction, number>> = { submit: 8192, comment: 12288, "comment-edit": 12288 };
 export const READER_MAXIMUM_SUBJECTS = 50;
 export const READER_SUBJECT_KEY = /^[A-Za-z0-9._:-]{1,200}$/;
 
-export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit";
+export type ReaderAction = "me" | "handle" | "vote" | "rating" | "submit" | "comment" | "comment-edit" | "comment-delete";
 
 export interface ReaderActionEvent {
   publication: string;

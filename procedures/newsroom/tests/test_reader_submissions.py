@@ -370,7 +370,7 @@ class ReviewTests(unittest.TestCase):
             store = LocalDirectoryWriter(Path(directory))
             report = run_snapshot(backend, store, review_signals=signals)
             run_snapshot(backend, store, review_signals=signals)
-            self.assertEqual(report.to_dict()["review"], {"submissions": 1, "error": None})
+            self.assertEqual(report.to_dict()["review"], {"submissions": 1, "comments": 0, "error": None})
             self.assertEqual(calls, [("A small tool", None, CANONICAL)], "reviewed once")
             (stored,) = backend.submissions()
             self.assertIsInstance(stored["signals"], str)
