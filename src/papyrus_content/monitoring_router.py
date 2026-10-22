@@ -71,7 +71,7 @@ ROLE_ARN = re.compile(r"^arn:aws:iam::\d{12}:role/[\w+=,.@/-]{1,200}$")
 PROCEDURE_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 PROCEDURE_INPUT_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 SSM_PARAMETER = re.compile(r"^/[A-Za-z0-9_./-]{1,1000}$")
-TRIGGER_PLACEHOLDERS = frozenset({"sourceId", "sourceIdPrefix", "canonicalUrl", "sourceItemUrl", "title",
+TRIGGER_PLACEHOLDERS = frozenset({"sourceId", "sourceIdPrefix", "canonicalUrl", "documentUrl", "sourceItemUrl", "title",
                                   "publishedAt", "referenceId", "publicationId", "corpusId"})
 
 
@@ -218,7 +218,8 @@ def validate_procedure_triggers(publication_id: str, entry: dict) -> list[dict]:
 
 def procedure_trigger_input(trigger: dict, publication: dict, disc: dict, reference_id: str) -> dict:
     values = {"sourceId": disc["sourceId"], "sourceIdPrefix": str(disc["sourceId"]).split("-", 1)[0],
-              "canonicalUrl": disc["canonicalUrl"], "sourceItemUrl": disc.get("sourceItemUrl") or "",
+              "canonicalUrl": disc["canonicalUrl"], "documentUrl": (list(disc.get("aliases") or []) or [disc["canonicalUrl"]])[0],
+              "sourceItemUrl": disc.get("sourceItemUrl") or "",
               "title": disc.get("title") or "", "publishedAt": disc.get("sourcePublishedAt") or "",
               "referenceId": reference_id, "publicationId": publication["publicationId"],
               "corpusId": publication["corpusId"]}

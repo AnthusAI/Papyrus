@@ -36,7 +36,7 @@ PROCEDURE_WITH_SKILL = PROCEDURE.replace("Procedure {", """analyst = Agent {
 Procedure {""")
 KEY_PARAMETER = "/amplify/shared/app123/OPENAI_API_KEY"
 TRIGGER = {"procedureKey": "distinctive.ttab.ruling-analysis",
-           "input": {"proceeding": "{sourceIdPrefix}", "opinion_url": "{canonicalUrl}"}}
+           "input": {"proceeding": "{sourceIdPrefix}", "opinion_url": "{documentUrl}"}}
 
 
 # --- monitor triggers --------------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def test_a_new_reference_starts_its_procedure_once_with_mapped_input():
     assert len(started) == 2
     wemby = next(request for request in started if request["trigger"]["sourceId"] == "97752244-EXA_26")
     assert wemby["input"] == {"proceeding": "97752244", "opinion_url":
-                              "https://ttab-reading-room.uspto.gov/ttab-document/legal-proceeding/97752244/decision/EXA_26.pdf"}
+                              "https://ttab-reading-room.uspto.gov/ttab-document//legal-proceeding/97752244/decision/EXA_26.pdf"}
     assert wemby["openaiKeyParameter"] == KEY_PARAMETER and wemby["procedureKey"] == TRIGGER["procedureKey"]
     row = table.by_prefix("TRIGGER#distinctive#distinctive.ttab.ruling-analysis#97752244-EXA_26")[0]
     assert row["status"] == "started" and wemby["trigger"]["sk"] == row["sk"]
