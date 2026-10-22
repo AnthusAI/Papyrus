@@ -15,7 +15,7 @@ import { csvCell, neutralizeFormula, signupEntriesToCsv } from "../lib/signup-cs
 
 assert.deepEqual(resolvePlugins(undefined), []);
 assert.deepEqual(resolvePlugins([]), []);
-assert.throws(() => resolvePlugins(["newsletter"]), /Unknown plugin "newsletter"/);
+assert.throws(() => resolvePlugins(["newsletters"]), /Unknown plugin "newsletters"/);
 assert.throws(() => resolvePlugins(["signup", { name: "signup" }]), /listed twice/);
 assert.deepEqual(resolvePlugins(["signup"])[0].config, { forms: ["newsletter"], addressLimitPerMinute: 20, waf: true });
 assert.deepEqual(
@@ -101,7 +101,7 @@ assert.equal(signupEntriesToCsv([]), "form,value,submittedAt\r\n");
 
 // Editorial checks are core, not a plugin: every site's base schema has them, and they cannot be requested as a plugin.
 assert.throws(() => resolvePlugins(["editorial-checks"]), /Unknown plugin "editorial-checks"/);
-assert.deepEqual(Object.keys(KNOWN_PLUGINS).sort(), ["reader-steering", "signup"]);
+assert.deepEqual(Object.keys(KNOWN_PLUGINS).sort(), ["newsletter", "reader-steering", "signup"]);
 const baseSchemaText = schema.transform().schema;
 for (const name of Object.keys(editorialChecksSchemaDefinitions)) {
   assert.ok(baseSchemaText.includes(name), `the base schema defines ${name}`);
