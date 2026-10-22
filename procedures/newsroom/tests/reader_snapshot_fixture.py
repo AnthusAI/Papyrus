@@ -13,6 +13,7 @@ from papyrus_content.reader_steering.snapshot import (  # noqa: E402
     BOARD_FILE,
     ITEMS_FILE,
     READERS_FILE,
+    SUBJECTS_FILE,
     SUBMISSIONS_FILE,
     KarmaWeights,
     comments_key,
@@ -60,8 +61,9 @@ def main() -> None:
         submitter_of=lambda subject: READER_IDS[0],
         submissions=submissions,
         comments=comments,
+        published_items=[{"subject": "item-one", "title": "An item", "url": "/item-one/", "section": "news", "date": "2026-10-20", "publishedAt": "2026-10-20T10:00:00Z"}],
     )
-    files = {ITEMS_FILE: result.items, BOARD_FILE: result.board, READERS_FILE: result.readers, SUBMISSIONS_FILE: result.submissions, **{key: result.comments[subject] for subject in result.comments for key in [comments_key(subject)]}}
+    files = {ITEMS_FILE: result.items, BOARD_FILE: result.board, READERS_FILE: result.readers, SUBJECTS_FILE: result.subjects, SUBMISSIONS_FILE: result.submissions, **{key: result.comments[subject] for subject in result.comments for key in [comments_key(subject)]}}
     print(json.dumps({"readerIds": READER_IDS, "files": {name: encoded(payload).decode("utf-8") for name, payload in files.items()}}))
 
 

@@ -39,3 +39,9 @@
 .papyrus-reader-report { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
 .papyrus-reader-report-form { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
 .papyrus-reader-report-form[hidden] { display: none; }
+.papyrus-reader-ranked-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.papyrus-reader-ranked-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .6rem; }
+.papyrus-reader-ranked-rank { min-width: 2ch; font-weight: 700; font-variant-numeric: tabular-nums; }
+.papyrus-reader-ranked-title { font-weight: 600; overflow-wrap: anywhere; }
+.papyrus-reader-ranked-where, .papyrus-reader-ranked-figure { font-size: .9em; }
+.papyrus-reader-ranked-message, .papyrus-reader-ranked-empty { margin: 0; }

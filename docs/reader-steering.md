@@ -153,9 +153,9 @@ Submissions and comments also carry `moderation` (`new` or `approved`) and `repo
 ## The snapshot
 
 `reader-snapshot` is a projection task of the `content-actions` function. It reads every vote and profile with the
-function's own role, the publication time of each voted item through the authoring client, and writes four files, and one file for each item or submission that has comments, into
+function's own role, the publication time of each voted item through the authoring client, and writes five files, and one file for each item or submission that has comments, into
 the site bucket under the projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/reader/items.json`).
-The page-reconcile step knows these files belong to the task and never reports them as orphans. It then purges exactly the four
+The page-reconcile step knows these files belong to the task and never reports them as orphans. It then purges exactly the written
 paths on the edge distribution when the backend knows one (`PAPYRUS_EDGE_DISTRIBUTION_ID`; never a wildcard) and
 materialises karma on the profiles.
 
@@ -195,7 +195,8 @@ the editor gap shows as soon as an editor has rated, before readers have.
   "generatedAt": "2026-10-21T10:00:00Z",
   "parameters": { "halfLifeHours": 48, "risingWindowHours": 6, "readerMinimum": 5, "editorWeight": 0.5 },
   "front": [ { "subject": "<subjectKey>", "score": 3.5, "editor": 4.0, "reader": null, "readerN": 0, "ageHours": 12.0 } ],
-  "rising": [ { "subject": "<subjectKey>", "upvotes": 3 } ]
+  "rising": [ { "subject": "<subjectKey>", "upvotes": 3 } ],
+  "new": [ { "subject": "<subjectKey>", "kind": "item", "at": "2026-10-21T09:00:00Z" } ]
 }
 ```
 
@@ -204,6 +205,25 @@ reader ratings on some dimension; after that it is `editor * editorWeight + read
 item with neither is not ranked. Rising is the upvotes in the last `risingWindowHours`, most first. Ties break on the
 subject key. The formula is one module of pure functions, `src/papyrus_content/reader_steering/ranking.py`, and the raw
 components sit beside each score because how editor and reader scores combine is an open exploration (PPY-0b2cbb).
+
+`new` is the 50 newest entries, published items (`kind: "item"`, at their publication time) and pending submissions (`kind:
+"submission"`, at their submission time) interleaved newest first. A promoted or held submission is not in it.
+
+`_data/reader/subjects.json` says what the subjects in the three lists are, so a page can show them without another lookup:
+
+```json
+{
+  "generatedAt": "2026-10-21T10:00:00Z",
+  "subjects": {
+    "<item lineage id>": { "kind": "item", "title": "An item", "url": "/posts/an-item.html", "section": "tools", "date": "2026-10-20" },
+    "<submission id>": { "kind": "submission", "state": "pending", "title": "A link", "url": "https://example.com/a", "domain": "example.com", "section": null, "date": "2026-10-21" }
+  }
+}
+```
+
+Only subjects some list shows are in it. An item's `url` is the page the projector places it at (base path included); an item with
+no page of its own (a link-only section) is in no list. A submission's `url` is its source link. Every field is already public
+on a page or in `submissions.json`; the privacy scan covers the file.
 
 `_data/reader/readers.json`:
 
@@ -476,6 +496,7 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 | `UsedIt` | `subject`, `usedIt` | "I used it" toggle with a count. |
 | `Rating` | `subject`, `dimensions`, optional `ratings` | One to five per dimension, the reader's own value (optimistic), the reader and editor numbers. Selecting the current value clears it. After a rating it asks "Why? (optional, public)" and posts the answer as a comment that carries the rating. |
 | `Freshness` | optional `generatedAt` | "Updated N min ago". |
+| `RankedList` | `list` (`front`, `rising` or `new`), optional `limit` (10), `section`, `empty` | A ranked list from `board.json` and `subjects.json`: a real `<ol>` whose rows have the rank as text, the title link, the section (a submission: its domain, and the word "Pending" while it is pending, linking to its source with `rel="nofollow noopener noreferrer ugc"`) and the figure in words ("3 upvotes in 6 h", "Score 2.96", "5 min ago"). `section` keeps only that section's items before `limit` applies. An empty list shows `empty` as ordinary text; a failed load says it could not load and is never shown as empty. Under the list, "Updated N min ago" from `generatedAt`. Refetches both files every 60 seconds while visible and keeps the rows it has when a refetch fails. |
 | `Comments` | `subject`, optional `count`, `editMinutes`, `maximumLength` | The comments of one item or submission: a threaded list (handles and text only, a stub reads "This comment was removed."), a form and, for top-level comments, Reply. The author's own comments show Edit (inside the edit window) and Delete. Fetches `<base>_data/reader/comments/<subject>.json`, refetches it every 60 seconds while visible, and shows the reader's own new, edited and deleted comments at once until a newer file arrives. A reply or edit being typed survives a refresh. |
 | `Submit` | optional `kinds` | The `/submit/` form: link, title, kind radio (when there are several kinds) and note. It warns, without blocking, when the link is already in `submissions.json` or the site has a recent submission, saves a draft in `localStorage` and says so ("Saved locally ..."), clears the draft on success and then shows "Pending — we're reading the link." and any `similar` links. |
 

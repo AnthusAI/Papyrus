@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "60b9d5af-9678-4971-805f-3656eb4e7422",
+  "issue_id": "PPY-539af355-7243-4507-a368-1128d429693d",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-22T11:29:09.216Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Remainder of PPY-4e170a. The shipped snapshot (Papyrus #516, #520) writes items.json, board.json (front and rising) and readers.json. Still missing from the original story: a per-week snapshot alongside the current one, a 'new' list, and a verdict log. Do this only when a site needs it.\n\n```gherkin\nFeature: Board snapshot extras\n  Scenario: Weekly board\n    Given votes across two weeks\n    Then a board file exists per week as well as the current one\n\n  Scenario: New list\n    Then board.json lists the newest published items regardless of votes\n```",
+        "to": "Remainder of PPY-4e170a. The shipped snapshot writes items.json, board.json (front, rising and new), subjects.json and readers.json. The New list is done (board island PR). Still missing, only when a site needs it: a per-week snapshot alongside the current one, and a verdict log.\n\n```gherkin\nFeature: Board snapshot extras\n  Scenario: Weekly board\n    Given votes across two weeks\n    Then a board file exists per week as well as the current one\n```"
+      }
+    }
+  }
+}

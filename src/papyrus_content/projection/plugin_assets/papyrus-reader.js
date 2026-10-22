@@ -12,6 +12,7 @@
  *   <div data-island="Freshness" data-props='{"generatedAt":"2026-10-21T10:00:00Z"}'></div>
  *   <div data-island="Submit" data-props='{"kinds":["article","tool"]}'></div>   (the /submit/ page)
  *   <div data-island="Comments" data-props='{"subject":"<item key>"}'></div>   (an item page; optional "editMinutes", "maximumLength")
+ *   <div data-island="RankedList" data-props='{"list":"rising","limit":10,"section":"tools","empty":"Nothing is rising yet."}'></div>   (list: front, rising or new; from board.json and subjects.json)
  *   <div data-island="Report" data-props='{"target":"<submission id or comment id>"}'></div>   (next to a listed submission)
  *
  * The script registers its islands in window.papyrusIslands and also mounts any [data-island] of its own names, once, so
@@ -971,7 +972,109 @@
     setInterval(function () { if (document.visibilityState === "visible") load(); }, settings.pollSeconds * 1000);
   }
 
-  var islands = { ReaderSignIn: mountSignIn, Comments: mountComments, Report: mountReport, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
+  var RANKED_LISTS = { front: true, rising: true, "new": true };
+
+  function safeHref(url) {
+    var text = typeof url === "string" ? url : "";
+    return /^\/(?!\/)/.test(text) || /^https?:\/\//i.test(text) ? text : "";
+  }
+
+  function hoursText(hours) {
+    return (Math.round(hours * 10) / 10) + " h";
+  }
+
+  function agoShort(timestamp) {
+    var minutes = Math.floor(Math.max(0, Date.now() - Date.parse(timestamp)) / 60000);
+    if (isNaN(minutes)) return "";
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return minutes + " min ago";
+    var hours = Math.floor(minutes / 60);
+    return hours < 48 ? hours + " h ago" : Math.floor(hours / 24) + " d ago";
+  }
+
+  function rankedFigure(list, row, board) {
+    if (list === "rising") {
+      var span = board.parameters && board.parameters.risingWindowHours;
+      return plural(row.upvotes, "upvote", "upvotes") + (span ? " in " + hoursText(span) : "");
+    }
+    if (list === "front") return "Score " + (Math.round(row.score * 100) / 100);
+    return agoShort(row.at);
+  }
+
+  function renderRankedRow(list, row, entry, board, rank) {
+    var item = element("li", "papyrus-reader-ranked-row");
+    item.appendChild(element("span", "papyrus-reader-ranked-rank", rank + "."));
+    var link = element("a", "papyrus-reader-link papyrus-reader-ranked-title", entry.title || row.subject);
+    var href = safeHref(entry.url);
+    if (href) link.setAttribute("href", href);
+    if (entry.kind === "submission") link.setAttribute("rel", "nofollow noopener noreferrer ugc");
+    item.appendChild(link);
+    var where = entry.kind === "submission" ? entry.domain : entry.section;
+    if (where) item.appendChild(element("span", "papyrus-reader-ranked-where", where));
+    if (entry.kind === "submission" && entry.state === "pending") item.appendChild(element("span", "papyrus-reader-pending", "Pending"));
+    var figure = rankedFigure(list, row, board);
+    if (figure) item.appendChild(element("span", "papyrus-reader-ranked-figure", figure));
+    return item;
+  }
+
+  function mountRankedList(host, props) {
+    var list = RANKED_LISTS[props.list] ? props.list : "front";
+    var limit = Math.floor(Number(props.limit)) > 0 ? Math.floor(Number(props.limit)) : 10;
+    var emptyText = typeof props.empty === "string" && props.empty ? props.empty : "Nothing here yet.";
+    var data = null;
+    var failed = false;
+    host.classList.add("papyrus-reader-ranked");
+    var body = element("div", "papyrus-reader-ranked-body");
+    var stamp = element("p", "papyrus-reader-freshness papyrus-reader-ranked-updated");
+    host.appendChild(body);
+    host.appendChild(stamp);
+
+    function render() {
+      body.textContent = "";
+      stamp.textContent = "";
+      if (!data) {
+        body.appendChild(element("p", "papyrus-reader-ranked-message", failed ? "This list could not be loaded. Try again later." : "Loading the list"));
+        return;
+      }
+      var rows = (data.board[list] || []).map(function (row) { return { row: row, entry: data.subjects[row.subject] }; })
+        .filter(function (pair) { return pair.entry && (!props.section || pair.entry.section === props.section); })
+        .slice(0, limit);
+      if (!rows.length) {
+        body.appendChild(element("p", "papyrus-reader-ranked-empty", emptyText));
+      } else {
+        var ordered = element("ol", "papyrus-reader-ranked-list");
+        ordered.setAttribute("role", "list");
+        rows.forEach(function (pair, index) { ordered.appendChild(renderRankedRow(list, pair.row, pair.entry, data.board, index + 1)); });
+        body.appendChild(ordered);
+      }
+      var time = element("time", "", ago(data.board.generatedAt));
+      time.setAttribute("datetime", data.board.generatedAt);
+      stamp.appendChild(time);
+    }
+
+    function fetchJson(name) {
+      return fetch(settings.base + "_data/reader/" + name, { credentials: "omit", cache: "no-cache" })
+        .then(function (response) { if (!response.ok) throw new Error(name); return response.json(); });
+    }
+
+    function load() {
+      return Promise.all([fetchJson("board.json"), fetchJson("subjects.json")]).then(function (files) {
+        data = { board: files[0], subjects: files[1].subjects || {} };
+        failed = false;
+        render();
+      }).catch(function () {
+        failed = true;
+        if (!data) render();
+      });
+    }
+
+    render();
+    load();
+    setInterval(function () { if (document.visibilityState === "visible") load(); }, settings.pollSeconds * 1000);
+    setInterval(function () { if (document.visibilityState === "visible" && data) render(); }, 30000);
+  }
+
+  var islands = { RankedList: mountRankedList, ReaderSignIn: mountSignIn, Comments: mountComments, Report: mountReport, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
   var started = false;
 
   function guarded(mount) {
