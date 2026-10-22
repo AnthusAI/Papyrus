@@ -62,6 +62,7 @@ class Settings:
     configuration_set: str
     lists: tuple[Mapping[str, str], ...]
     theme: Mapping[str, Any]
+    item_url_style: str = "html"  # how the site's item pages are addressed (projection.json urls.style), for links in roundup drafts
     alarm_names: tuple[str, ...] = ()
 
     @classmethod
@@ -75,6 +76,7 @@ class Settings:
             configuration_set=environment["CONFIGURATION_SET"],
             lists=tuple(json.loads(environment["LISTS_JSON"])),
             theme=json.loads(environment["THEME_JSON"]),
+            item_url_style=environment.get("ITEM_URL_STYLE", "html"),
             alarm_names=tuple(name for name in environment.get("ALARM_NAMES", "").split(",") if name),
         )
 
@@ -106,7 +108,9 @@ class Newsletter:
         *,
         clock: Callable[[], float] = time.time,
         nonce: Callable[[], str] = lambda: secrets.token_urlsafe(12),
+        issues: Any = None,
     ) -> None:
+        self.issues = issues  # an ``issues.IssueService``: roundups, approval and sending
         self.settings = settings
         self.store = store
         self.keys = keys
@@ -119,7 +123,7 @@ class Newsletter:
     def dispatch(self, event: Mapping[str, Any]) -> Response:
         if "Records" in event:  # SNS: SES events and alarm state changes
             return handle_sns(self, event)
-        action = event.get("action")
+        action = event.get("action") or event.get("task")  # a scheduler task names itself with "task"
         if isinstance(action, str) and action in MANAGE_ACTIONS:
             return MANAGE_ACTIONS[action](self, event)
         method = ACTIONS.get(action) if isinstance(action, str) else None
@@ -349,29 +353,72 @@ class Newsletter:
             return respond(200, status="confirmed", lists=self._named(list_ids), manageToken=manage)
         return respond(410, status="expired")
 
+    # -- issues: roundups, approval and sending (delegated to ``issues.IssueService``) -----------------------------
+
+    def issue_list(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.list(event)
+
+    def issue_get(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.get(event)
+
+    def issue_approve(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.approve(event)
+
+    def issue_cancel(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.cancel(event)
+
+    def issue_stop(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.stop(event)
+
+    def issue_test_send(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.test_send(event)
+
+    def issue_create_draft(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.create_draft(event)
+
+    def issue_preview(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.preview(event)
+
+    def task_assemble_roundup(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.assemble_roundup(event)
+
+    def task_start_send(self, event: Mapping[str, Any]) -> Response:
+        return self.issues.start_send(event)
+
 
 ACTIONS: dict[str, str] = {
     "subscribe": "subscribe",
     "confirm": "confirm",
     "confirm_page_state": "confirm_page_state",
+    "issue_list": "issue_list",
+    "issue_get": "issue_get",
+    "issue_approve": "issue_approve",
+    "issue_cancel": "issue_cancel",
+    "issue_stop": "issue_stop",
+    "issue_test_send": "issue_test_send",
+    "issue_create_draft": "issue_create_draft",
+    "issue_preview": "issue_preview",
+    # EventBridge Scheduler tasks, named by "task"
+    "assemble-roundup": "task_assemble_roundup",
+    "start-send": "task_start_send",
 }
 
 _default: Newsletter | None = None
 
 
 def build(environment: Mapping[str, str] = os.environ) -> Newsletter:
+    from .runtime import build_issue_service
+
     settings = Settings.from_environment(environment)
-    return Newsletter(
-        settings,
-        Store(environment["TABLE_NAME"]),
-        load_keys(environment["KEY_PARAMETER"]),
-        Mailer(
-            from_name=settings.from_name,
-            from_address=settings.from_address,
-            configuration_set=settings.configuration_set,
-            site_id=settings.site_id,
-        ),
+    store = Store(environment["TABLE_NAME"])
+    keys = load_keys(environment["KEY_PARAMETER"])
+    mailer = Mailer(
+        from_name=settings.from_name,
+        from_address=settings.from_address,
+        configuration_set=settings.configuration_set,
+        site_id=settings.site_id,
     )
+    return Newsletter(settings, store, keys, mailer, issues=build_issue_service(environment, settings, store, keys, mailer))
 
 
 def handler(event: Mapping[str, Any], _context: Any = None) -> Response:

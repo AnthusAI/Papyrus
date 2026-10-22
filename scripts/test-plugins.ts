@@ -122,4 +122,10 @@ assert.ok(secretArns.includes("arn:aws:ssm:us-east-1:123456789012:parameter/ampl
 assert.ok(secretArns.every((arn) => arn.endsWith("/TYPESAFE_API_KEY") || arn.endsWith("/OPENAI_API_KEY")));
 assert.equal(editorialChecksSecretParameters("us-east-1", "123456789012", "").length, 4, "a sandbox gets only the sandbox paths");
 
+// The newsletter plugin's operations are in its manifest and its schema; none is open to guests.
+const newsletterOperations = [...(KNOWN_PLUGINS.newsletter.manifest.queries ?? []), ...KNOWN_PLUGINS.newsletter.manifest.mutations];
+assert.equal(newsletterOperations.length, 8);
+assert.deepEqual(Object.keys(KNOWN_PLUGINS.newsletter.schemaDefinitions()).sort(), [...newsletterOperations].sort());
+assert.deepEqual(KNOWN_PLUGINS.newsletter.manifest.guest.mutations, []);
+
 console.log("plugins ok");

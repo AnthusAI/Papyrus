@@ -44,6 +44,25 @@ class Mailer:
         )
         return str(response.get("MessageId", ""))
 
+    def send_issue(
+        self, *, to: str, subject: str, html: str, text: str, headers: dict[str, str], tags: dict[str, str]
+    ) -> str:
+        """One copy of an issue. ``headers`` carry List-Unsubscribe; ``tags`` map SES events back to the issue and subscriber."""
+        simple: dict[str, Any] = {
+            "Subject": {"Data": subject, "Charset": "UTF-8"},
+            "Body": {"Html": {"Data": html, "Charset": "UTF-8"}, "Text": {"Data": text, "Charset": "UTF-8"}},
+        }
+        if headers:
+            simple["Headers"] = [{"Name": name, "Value": value} for name, value in headers.items()]
+        response = self.client.send_email(
+            FromEmailAddress=self.sender,
+            Destination={"ToAddresses": [to]},
+            Content={"Simple": simple},
+            ConfigurationSetName=self.configuration_set,
+            EmailTags=[{"Name": name, "Value": value} for name, value in tags.items()],
+        )
+        return str(response.get("MessageId", ""))
+
     def set_sending_enabled(self, enabled: bool) -> None:
         """Turn sending on or off for this site's configuration set only."""
         self.client.put_configuration_set_sending_options(ConfigurationSetName=self.configuration_set, SendingEnabled=enabled)

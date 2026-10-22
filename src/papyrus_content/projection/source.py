@@ -74,8 +74,9 @@ def projected_item_from_row(row: dict) -> ProjectedItem:
     )
 
 
-def is_projectable(row: dict) -> bool:
-    return row.get("status") == "published" and row.get("type") in EXPORTED_TYPES
+def is_projectable(row: dict, extra_types: tuple[str, ...] = ()) -> bool:
+    """A published row of a projected type: ``article`` and ``page``, plus the types a site lists (``listings.types`` in projection.json)."""
+    return row.get("status") == "published" and (row.get("type") in EXPORTED_TYPES or row.get("type") in extra_types)
 
 
 def replace_item(site: SiteIndex, item_id: str, summary: ItemSummary | None) -> SiteIndex:
@@ -93,6 +94,8 @@ class PublishedContentSource:
     def __init__(self, client: Any) -> None:
         self._client = client
         self._loaded_rows: dict[str, dict] = {}
+        #: Item types beyond ``article`` and ``page`` that are projected. The projection context fills it from the projector's settings.
+        self.extra_types: tuple[str, ...] = ()
 
     def published_row(self, item_id: str) -> dict | None:
         item = self._client.get_record("Item", item_id)
@@ -100,7 +103,7 @@ class PublishedContentSource:
             return None
         lineage_id = item.get("lineageId") or item_id
         row = self._client.get_record("PublishedItem", published_item_id_for(lineage_id))
-        if row is None or not is_projectable(row):
+        if row is None or not is_projectable(row, self.extra_types):
             return None
         return row
 
@@ -134,13 +137,13 @@ class PublishedContentSource:
         summaries = [
             summary_from_row(row)
             for row in self._client.list_published_item_summaries()
-            if is_projectable(row)
+            if is_projectable(row, self.extra_types)
         ]
         ordered = tuple(sorted(summaries, key=lambda summary: summary.output_path))
         return SiteIndex(items=ordered, load_item=self.load_item)
 
     def all_published_items(self) -> list[ProjectedItem]:
-        rows = [row for row in self._client.list_records("PublishedItem") if is_projectable(row)]
+        rows = [row for row in self._client.list_records("PublishedItem") if is_projectable(row, self.extra_types)]
         for row in rows:
             self._loaded_rows[row.get("sourceItemId") or row["id"]] = row
         items = [projected_item_from_row(row) for row in rows]

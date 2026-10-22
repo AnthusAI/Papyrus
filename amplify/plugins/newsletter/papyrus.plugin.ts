@@ -14,14 +14,17 @@ import { SecureStringParameter } from "./secure-string-parameter";
 import { pythonLambdaCode } from "../../functions/shared/python-bundle";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveNewsletterConfig, type NewsletterConfig } from "./config";
-import { newsletterSchemaDefinitions } from "./schema";
+import { newsletterOps } from "./ops/resource";
+import { NEWSLETTER_MUTATIONS, NEWSLETTER_QUERIES, newsletterSchemaDefinitions } from "./schema";
+import { newsletterFunctionName, wireSending } from "./sending";
 
 export { resolveNewsletterConfig };
 export type { NewsletterConfig };
 
 export const NEWSLETTER_OUTPUT_KEY = "newsletter";
 export const NEWSLETTER_HANDLER = "papyrus_content.newsletter.handler.handler";
-export const NEWSLETTER_REQUIREMENTS = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12"];
+/** `boto3` is bundled because the runtime's copy may predate SESv2 `Simple.Headers` (List-Unsubscribe). */
+export const NEWSLETTER_REQUIREMENTS = ["PyYAML>=6.0.2,<7", "citeproc-py>=0.8.2,<1", "anthus-markus==0.7.0", "Pillow>=11.3,<12", "boto3>=1.35.8,<2"];
 /** Relative to `amplify/functions/`, which is where the shared bundler looks for a function's `handler.py`. */
 const FUNCTION_DIRECTORY = "../plugins/newsletter/function";
 
@@ -29,7 +32,8 @@ export const newsletterManifest: PluginManifest = {
   name: "newsletter",
   contract: 1,
   models: [],
-  mutations: [],
+  queries: NEWSLETTER_QUERIES,
+  mutations: NEWSLETTER_MUTATIONS,
   guest: { mutations: [] },
   newsroomPanels: [],
   staticAssets: ["_plugins/papyrus-newsletter@1.js"],
@@ -78,21 +82,38 @@ export function newsletterEnvironment(config: NewsletterConfig, tableName: strin
     FROM_ADDRESS: config.fromAddress,
     FROM_NAME: config.fromName,
     CONFIGURATION_SET: config.configurationSet,
-    LISTS_JSON: JSON.stringify(config.lists.map(({ id, name, description, kind }) => ({ id, name, description, kind }))),
+    ITEM_URL_STYLE: config.itemUrlStyle,
+    LISTS_JSON: JSON.stringify(
+      config.lists.map((list) => ({
+        id: list.id,
+        name: list.name,
+        description: list.description,
+        kind: list.kind,
+        // A roundup's issue type, archive section and time zone are what drafting needs; schedules and rules stay in the stack.
+        ...(list.kind === "roundup" ? { issueType: list.issueType, archivePath: list.archivePath, timezone: list.schedule.timezone } : {}),
+      })),
+    ),
     THEME_JSON: JSON.stringify(config.theme),
     ALARM_NAMES: Object.values(newsletterAlarmNames(config.siteId)).join(","),
   };
 }
 
-export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, Record<never, never>> = {
+export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, { newsletterOps: typeof newsletterOps }> = {
   manifest: newsletterManifest,
   resolveConfig: resolveNewsletterConfig,
-  functions: () => ({}),
+  functions: () => ({ newsletterOps }),
   schemaDefinitions: newsletterSchemaDefinitions,
   publicSettings: (config) => ({
     contract: newsletterManifest.contract,
     fromName: config.fromName,
-    lists: config.lists.map(({ id, name, description, kind }) => ({ id, name, description, kind })),
+    lists: config.lists.map((list) => ({
+      id: list.id,
+      name: list.name,
+      description: list.description,
+      kind: list.kind,
+      // The panel needs the item type to open an issue in the editor and the archive path to show where it lands.
+      ...(list.kind === "roundup" ? { issueType: list.issueType, archivePath: list.archivePath } : {}),
+    })),
     theme: config.theme,
   }),
   wire(backend, config, context: PluginWiringContext) {
@@ -134,34 +155,39 @@ export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, Record<never, nev
     });
 
     const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
+    // One bundle serves the `newsletter` function and the send worker; they differ in handler, timeout and IAM.
+    const code = codeForTests ?? pythonLambdaCode(
+      {
+        functionDir: FUNCTION_DIRECTORY,
+        modules: ["papyrus_content"],
+        requirements: NEWSLETTER_REQUIREMENTS,
+        noDeps: true,
+        checkoutExtras: (outputDir) => installRequirements(path.join(functionDirectory, "function", "requirements.txt"), outputDir),
+      },
+      [
+        "bash",
+        "-c",
+        [
+          "set -euo pipefail",
+          "mkdir -p /asset-output/papyrus_content",
+          "cp amplify/plugins/newsletter/function/handler.py /asset-output/handler.py",
+          "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
+          "python3 -m pip install -r amplify/plugins/newsletter/function/requirements.txt -t /asset-output --no-cache-dir",
+        ].join(" && "),
+      ],
+    );
+    const environment = newsletterEnvironment(config, table.tableName, keyParameter.parameterName);
     const lambda = new LambdaFunction(stack, "NewsletterFunction", {
+      functionName: newsletterFunctionName(config.siteId),
       runtime: Runtime.PYTHON_3_12,
       architecture: Architecture.ARM_64,
       handler: NEWSLETTER_HANDLER,
-      timeout: Duration.seconds(30),
+      // Starting a send pages the whole list and queues it, so this is longer than a signup needs.
+      timeout: Duration.seconds(120),
       memorySize: 512,
-      description: `Newsletter subscriptions for ${config.siteId}: double opt-in signup and confirmation`,
-      environment: newsletterEnvironment(config, table.tableName, keyParameter.parameterName),
-      code: codeForTests ?? pythonLambdaCode(
-        {
-          functionDir: FUNCTION_DIRECTORY,
-          modules: ["papyrus_content"],
-          requirements: NEWSLETTER_REQUIREMENTS,
-          noDeps: true,
-          checkoutExtras: (outputDir) => installRequirements(path.join(functionDirectory, "function", "requirements.txt"), outputDir),
-        },
-        [
-          "bash",
-          "-c",
-          [
-            "set -euo pipefail",
-            "mkdir -p /asset-output/papyrus_content",
-            "cp amplify/plugins/newsletter/function/handler.py /asset-output/handler.py",
-            "cp -R src/papyrus_content/. /asset-output/papyrus_content/",
-            "python3 -m pip install -r amplify/plugins/newsletter/function/requirements.txt -t /asset-output --no-cache-dir",
-          ].join(" && "),
-        ],
-      ),
+      description: `Newsletter for ${config.siteId}: subscriptions, roundup drafts, approval and starting sends`,
+      environment,
+      code,
     });
 
     table.grantReadWriteData(lambda); // includes the table key's encrypt and decrypt
@@ -176,6 +202,19 @@ export const newsletterPlugin: PapyrusPlugin<NewsletterConfig, Record<never, nev
         conditions: { StringEquals: { "ses:FromAddress": config.fromAddress } },
       }),
     );
+    wireSending({
+      stack,
+      config,
+      context,
+      backend,
+      table,
+      lambda,
+      environment,
+      keyParameterArn: keyParameter.parameterArn,
+      sesResources: newsletterSesResources(stack, config),
+      code,
+    });
+
     // The SES configuration set's own sending switch, for the alarm pause. Nothing else of SES is writable.
     lambda.addToRolePolicy(
       new PolicyStatement({

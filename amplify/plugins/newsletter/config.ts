@@ -7,10 +7,14 @@ const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9
 const LOCAL_PART = /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
 const SES_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 const ISSUE_TYPE = /^[a-z][a-z0-9_]{0,59}$/;
-const ARCHIVE_PATH = /^\/(?:[a-z0-9][a-z0-9_-]*\/)+$/;
+/** One path segment: it is the Item section of the archive and the `urls.sections` key of the site's projection.json. */
+const ARCHIVE_PATH = /^\/[a-z0-9][a-z0-9_-]*\/$/;
 const SCHEDULER_CRON = /^cron\(\S+ \S+ \S+ \S+ \S+ \S+\)$/;
 const UNSAFE_CSS = /[<>{};"\\`]|url\(|expression\(|@import/i;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
+
+export const ITEM_URL_STYLES = ["html", "directory", "clean"] as const;
+export type ItemUrlStyle = (typeof ITEM_URL_STYLES)[number];
 
 export type NewsletterTheme = {
   accent: string;
@@ -31,7 +35,7 @@ export type RoundupList = ListBase & {
   schedule: { draft: string; timezone: string };
   /** The CMS item type of an issue. */
   issueType: string;
-  /** Where the sent issue is archived, such as `/roundup/`. */
+  /** Where the sent issue is archived, such as `/roundup/`: one path segment, also the section the issue Items are filed under. */
   archivePath: string;
 };
 export type AlertList = ListBase & {
@@ -56,6 +60,8 @@ export type NewsletterConfig = {
   instantAlerts: boolean;
   theme: NewsletterTheme;
   lists: NewsletterList[];
+  /** How the site addresses its item pages (`urls.style` in projection.json): roundup drafts link to published items with it. */
+  itemUrlStyle: ItemUrlStyle;
   /** `papyrus-<siteId>` unless overridden. */
   configurationSet: string;
   /** `papyrus-newsletter-events-<siteId>` unless overridden. */
@@ -64,7 +70,7 @@ export type NewsletterConfig = {
 
 const KNOWN_KEYS = new Set([
   "name", "siteId", "siteOrigin", "computeRoleArn", "sendingDomain", "fromAddress", "fromName", "instantAlerts", "theme", "lists",
-  "configurationSet", "eventTopicName",
+  "configurationSet", "eventTopicName", "itemUrlStyle",
 ]);
 const LIST_KEYS = {
   roundup: ["id", "name", "description", "kind", "schedule", "issueType", "archivePath"],
@@ -125,6 +131,12 @@ function stringList(raw: unknown, label: string): string[] | undefined {
   if (raw === undefined) return undefined;
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > 50) fail(`${label} must be a list of 1 to 50 names`);
   return [...new Set(raw.map((entry, index) => text(entry, `${label}[${index}]`, 80)))];
+}
+
+function itemUrlStyle(raw: unknown): ItemUrlStyle {
+  if (raw === undefined) return "html";
+  if (typeof raw !== "string" || !(ITEM_URL_STYLES as readonly string[]).includes(raw)) fail(`itemUrlStyle must be one of ${ITEM_URL_STYLES.join(", ")}`);
+  return raw as ItemUrlStyle;
 }
 
 function resolveTheme(raw: unknown): NewsletterTheme {
@@ -221,6 +233,7 @@ export function resolveNewsletterConfig(request: PluginRequest): NewsletterConfi
     instantAlerts,
     theme: resolveTheme(raw.theme),
     lists,
+    itemUrlStyle: itemUrlStyle(raw.itemUrlStyle),
     configurationSet: matching(raw.configurationSet, "configurationSet", SES_NAME, "an SES configuration set name", `papyrus-${siteId}`),
     eventTopicName: matching(raw.eventTopicName, "eventTopicName", SES_NAME, "an SNS topic name", `papyrus-newsletter-events-${siteId}`),
   };
