@@ -142,7 +142,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 values26=values26,
                 change=change_of(values8),
                 new=is_new(history),
-                href=options.entity_href_template.format(key=key) if options.entity_href_template else None,
+                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template else None,
             )
         )
     return sorted(entities, key=lambda entity: (-len(entity.item_keys), entity.key))

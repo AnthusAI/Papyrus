@@ -10,6 +10,8 @@ from collections.abc import Callable
 from html import escape
 from typing import Any
 
+from pydantic import ConfigDict
+
 from markusmd.ast import Directive
 from markusmd.registry import DirectiveSpec, Registry, _Strict
 
@@ -30,6 +32,13 @@ class ConceptCountAttrs(_Strict):
     kind: str | None = None
 
 
+class IncludeAttrs(_Strict):
+    """``::include{kind="block" name="knowledge-entity" key="x" part="trend"}``: the attributes belong to the include's
+    kind and are checked when the site is projected (see ``projection/standard/includes.py``)."""
+
+    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+
+
 def _render_dynamic_placeholder(directive: Directive, inner: str, attrs: dict[str, Any]) -> str:
     return f'<div class="papyrus-dynamic" data-papyrus-dynamic="{escape(directive.name)}"></div>'
 
@@ -44,6 +53,7 @@ def wiki_directive_specs(render: Callable[[str, dict[str, Any]], str] | None = N
         DirectiveSpec(name="recent-concepts", schema=RecentConceptsAttrs, renderer=renderer, leaf=True),
         DirectiveSpec(name="concept-list", schema=ConceptListAttrs, renderer=renderer, leaf=True),
         DirectiveSpec(name="concept-count", schema=ConceptCountAttrs, renderer=renderer, leaf=True),
+        DirectiveSpec(name="include", schema=IncludeAttrs, renderer=lambda directive, inner, attrs: "", leaf=True),
     ]
 
 
