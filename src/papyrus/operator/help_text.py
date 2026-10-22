@@ -97,6 +97,8 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   clusters.add_argument("clusters_command")
   relations = subparsers.add_parser("relations", help="Review typed relations between entities (--actor ai|human required): list, accept, reject")
   relations.add_argument("relations_command")
+  wiki = subparsers.add_parser("wiki", help="Public wiki pages: sync accepted entities and topics into drafts, publish with a review stamp")
+  wiki.add_argument("wiki_command")
   return parser
 
 

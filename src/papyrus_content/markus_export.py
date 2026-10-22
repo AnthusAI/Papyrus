@@ -14,7 +14,7 @@ from .markus_import import MediaStore
 from .publishing import utc_now_iso
 
 EXPORT_CONTRACT = "papyrus-export/v1"
-EXPORTED_TYPES = ("article", "page")
+EXPORTED_TYPES = ("article", "page", "wiki_page")
 SIDE_FILES_DIR = "_papyrus"
 
 

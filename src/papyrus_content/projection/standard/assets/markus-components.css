@@ -84,3 +84,11 @@
 .markus-actions-status { min-width: 6rem; font-size: .875rem; }
 .markus-actions-fallback { width: 100%; min-height: 6rem; }
 .markus-page-actions-aside { margin-top: 2rem; }
+.papyrus-wiki-stamp, .papyrus-wiki-superseded { margin: 0 0 1rem; padding: .5rem .75rem; border: 1px solid var(--papyrus-rule, currentColor); border-radius: .25rem; font-size: .9375rem; }
+.papyrus-wiki-stamp p, .papyrus-wiki-superseded p { margin: 0; }
+.papyrus-wiki-stamp[data-state="draft"] { border-style: dashed; }
+.papyrus-wiki-superseded { border-width: 2px; }
+.papyrus-wiki-mark { display: inline-block; min-width: 1.25em; font-weight: 700; }
+.papyrus-wiki-footer { margin: 2rem 0 0; padding-top: 1rem; border-top: 1px solid var(--papyrus-rule, currentColor); font-size: .9375rem; }
+.papyrus-wiki-footer p { margin: 0 0 .5rem; }
+.papyrus-wiki-suggest > summary { cursor: pointer; font-weight: 600; }

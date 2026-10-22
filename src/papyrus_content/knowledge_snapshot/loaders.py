@@ -187,16 +187,18 @@ def beats_from_categories(
     clusters: list[Cluster],
     items: list[PublishedItem],
     href_template: str | None,
+    parent_key: str | None = None,
 ) -> list[Beat]:
-    """Beats from the accepted root categories of one category set. An item belongs to a beat when it is a member of
-    the accepted cluster the category was made from, or carries the category key or name as a front-matter tag."""
+    """Beats from the accepted root categories of one category set (the accepted children of ``parent_key`` when it is
+    given). An item belongs to a beat when it is a member of the accepted cluster the category was made from, or carries
+    the category key or name as a front-matter tag."""
     beats = []
     for row in category_rows:
         if (
             row.get("categorySetId") != category_set_id
             or row.get("versionState", CURRENT) != CURRENT
             or row.get("status") != "accepted"
-            or row.get("parentCategoryKey")
+            or (row.get("parentCategoryKey") or None) != parent_key
         ):
             continue
         key, name = str(row["categoryKey"]), str(row.get("displayName") or row["categoryKey"])
