@@ -4,12 +4,20 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from reader_fixtures import ReaderBackend, reader_handler, subject_for  # noqa: E402
+from reader_fixtures import (  # noqa: E402
+    SCHEDULER_ROLE_ARN,
+    SNAPSHOT_FUNCTION_ARN,
+    START_SECONDS,
+    ReaderBackend,
+    reader_handler,
+    subject_for,
+)
 
 ALICE = subject_for("alice")
 BOB = subject_for("bob")
@@ -228,17 +236,45 @@ class RateLimitTests(unittest.TestCase):
 
 
 class SnapshotDebounceTests(unittest.TestCase):
-    def test_a_vote_schedules_one_asynchronous_snapshot_per_minute(self) -> None:
+    """Trailing edge: the first write in a window schedules one run for the end of the window."""
+
+    def vote(self, backend: ReaderBackend, who: str = "alice", on: bool = True) -> None:
+        backend.call(subject_for(who), "vote", {"subject": "item-one", "dimension": "up", "on": on})
+
+    def test_the_first_write_schedules_one_run_at_the_end_of_the_window(self) -> None:
         with ReaderBackend() as backend:
-            for _ in range(5):
-                backend.call(ALICE, "vote", {"subject": "item-one", "dimension": "up", "on": True})
-            self.assertEqual(len(backend.lambda_client.invocations), 1)
-            invocation = backend.lambda_client.invocations[0]
-            self.assertEqual((invocation["FunctionName"], invocation["InvocationType"]), ("content-actions-test", "Event"))
-            self.assertEqual(json.loads(invocation["Payload"]), {"projectionTask": {"task": "reader-snapshot"}})
+            for number in range(5):
+                self.vote(backend, f"reader-{number}")
+                backend.now += 10
+            schedules = backend.schedules()
+            self.assertEqual(len(schedules), 1, "five writes inside the window still schedule one run")
+            schedule = schedules[0]
+            opened = int(START_SECONDS)
+            self.assertEqual(schedule["Name"], f"papyrus-reader-snapshot-{opened + 60}")
+            self.assertEqual(schedule["ScheduleExpression"], "at(" + time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(opened + 60)) + ")")
+            self.assertEqual(schedule["ScheduleExpressionTimezone"], "UTC")
+            self.assertEqual(schedule["FlexibleTimeWindow"], {"Mode": "OFF"})
+            self.assertEqual(schedule["ActionAfterCompletion"], "DELETE")
+            self.assertEqual((schedule["Target"]["Arn"], schedule["Target"]["RoleArn"]), (SNAPSHOT_FUNCTION_ARN, SCHEDULER_ROLE_ARN))
+            self.assertEqual(json.loads(schedule["Target"]["Input"]), {"projectionTask": {"task": "reader-snapshot"}})
+
+    def test_a_vote_inside_the_window_is_covered_by_the_run_at_its_end(self) -> None:
+        with ReaderBackend() as backend:
+            self.vote(backend, "alice")
+            backend.now += 59
+            self.vote(backend, "bob")
+            (schedule,) = backend.schedules()
+            run_at = int(START_SECONDS) + 60
+            self.assertGreater(run_at, backend.now, "the run is still ahead of the late vote")
+            self.assertIn(str(run_at), schedule["Name"])
+            self.assertEqual(len(backend.votes()), 2, "both votes are stored before the run reads them")
+
+    def test_a_write_after_the_window_opens_the_next_window(self) -> None:
+        with ReaderBackend() as backend:
+            self.vote(backend)
             backend.now += 61
-            backend.call(ALICE, "vote", {"subject": "item-one", "dimension": "up", "on": False})
-            self.assertEqual(len(backend.lambda_client.invocations), 2)
+            self.vote(backend, on=False)
+            self.assertEqual(len(backend.schedules()), 2)
 
     def test_reads_handles_and_refused_requests_schedule_nothing(self) -> None:
         with ReaderBackend() as backend:
@@ -246,17 +282,23 @@ class SnapshotDebounceTests(unittest.TestCase):
             backend.call(ALICE, "handle", {"handle": "quiet-fox"})
             backend.call(ALICE, "vote", {"subject": "missing", "dimension": "up", "on": True})
             backend.call(ALICE, "rating", {"subject": "item-one", "dimension": "real", "value": 9})
-            self.assertEqual(backend.lambda_client.invocations, [])
+            self.assertEqual(backend.schedules(), [])
 
-    def test_without_a_snapshot_function_nothing_is_scheduled_and_the_vote_still_works(self) -> None:
-        with ReaderBackend(snapshot_function="") as backend:
+    def test_without_a_snapshot_target_nothing_is_scheduled_and_the_vote_still_works(self) -> None:
+        with ReaderBackend(snapshot_enabled=False) as backend:
             self.assertEqual(backend.call(ALICE, "vote", {"subject": "item-one", "dimension": "up", "on": True})["statusCode"], 200)
-            self.assertEqual(backend.lambda_client.invocations, [])
+            self.assertEqual(backend.schedules(), [])
 
-    def test_a_failing_invoke_never_fails_the_vote(self) -> None:
+    def test_a_failing_schedule_never_fails_the_vote_and_the_next_write_tries_again(self) -> None:
         with ReaderBackend() as backend:
-            backend.lambda_client.invoke = lambda **_: (_ for _ in ()).throw(RuntimeError("down"))
+            real = backend.scheduler_client.create_schedule
+            backend.scheduler_client.create_schedule = lambda **_: (_ for _ in ()).throw(RuntimeError("down"))
             self.assertEqual(backend.call(ALICE, "vote", {"subject": "item-one", "dimension": "up", "on": True})["statusCode"], 200)
+            self.assertEqual(backend.schedules(), [])
+            backend.scheduler_client.create_schedule = real
+            backend.now += 1
+            self.vote(backend, "bob")
+            self.assertEqual(len(backend.schedules()), 1, "the window was released, so the next write scheduled the run")
 
 
 class SettingsTests(unittest.TestCase):

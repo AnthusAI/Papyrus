@@ -48,6 +48,7 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `snapshot.schedule` | `false` | Create the EventBridge rule that runs the snapshot every `snapshot.intervalHours`. |
 | `snapshot.intervalHours` | 6 | 1 to 24. Four runs a day was approved for the pilot. |
 | `snapshot.hypeMinimum` | 5 | Reader ratings every dimension needs before a hype gap is published. |
+| `reservedConcurrency` | unset | Reserved concurrent executions for `reader-actions`. Unset reserves none. An account with a small total Lambda quota cannot reserve any: papyrus-production has 10 in total, and Lambda requires 10 left unreserved. |
 | `retirementPoll` | `false` | Reserved for Prospectus's retired-subject poll. `true` is refused until the route exists. |
 
 The deployed backend publishes `custom.readerSteering.actionsFunction` (the function name the CMS routes invoke) and
@@ -95,11 +96,21 @@ did not enable the plugin; `503 site_origin_not_configured`.
 
 Rate limits are conditional counters per `readerId` and action in a function-owned table with a TTL: votes and ratings
 share `limits.actionsPerHour` (a third of it for profiles younger than `limits.newAccountHours`), handle changes get 10 an
-hour. The function has reserved concurrency 10. There is no WAF.
+hour. There is no WAF. The function reserves no concurrency unless the site sets `reservedConcurrency` (see the settings table).
 
-A vote or rating asks for one debounced `reader-snapshot` run: at most one asynchronous invoke of `content-actions` per
-60 seconds, decided by a conditional write on the rate table. A vote made inside the window is not lost, but its number
-waits for the next vote after the window or the scheduled run.
+A vote or rating asks for one debounced `reader-snapshot` run, trailing edge: the first write in a 60 second window (a
+conditional write of a marker on the rate table) creates a one-off EventBridge Scheduler schedule that fires at the end
+of the window and invokes `content-actions` with the snapshot task. Further writes inside the window schedule nothing,
+because the run at the end of the window reads them all; the first write after the window opens the next one. A vote is
+therefore on the page about a minute later, not on the next vote.
+
+Why Scheduler and not an SQS delay queue: a queue would add a queue, an event source mapping and a handler branch in
+`content-actions` for SQS records, and a delay queue also caps at 15 minutes and has no per-window name to deduplicate on.
+Scheduler needs one role, no queue and no handler change: the target input is the same JSON the scheduled rule sends. The schedule is named
+`papyrus-reader-snapshot-<window end>`, uses `ActionAfterCompletion: DELETE` (no leftovers) and no retries. If creating the
+schedule fails, the vote still succeeds and the window is reopened so the next write tries again. The plugin creates the
+role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` only), and gives `reader-actions` only
+`scheduler:CreateSchedule` on `schedule/default/papyrus-reader-snapshot-*` and `iam:PassRole` on that one role.
 
 ## Data
 
