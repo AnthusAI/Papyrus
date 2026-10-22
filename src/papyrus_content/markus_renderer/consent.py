@@ -31,6 +31,7 @@ CONSENT_DENIED_BY_DEFAULT_REGIONS: tuple[str, ...] = (
 
 CONSENT_REOPEN_ATTRIBUTE = "data-papyrus-consent-reopen"
 CONSENT_BANNER_ELEMENT_ID = "papyrus-consent-banner"
+CONSENT_REOPEN_HREF = "#cookie-settings"  # a footer link in settings (no attributes needed) reopens the choices
 CONSENT_REOPEN_FUNCTION_NAME = "papyrusOpenConsentChoices"
 
 
@@ -185,7 +186,7 @@ def render_consent_banner(settings: ConsentModeSettings) -> str:
         "<script>(function(){var c=window.papyrusConsent;"
         f"var b=document.getElementById({_javascript_literal(CONSENT_BANNER_ELEMENT_ID)});"
         "if(!c||!b)return;"
-        f"var r=document.querySelectorAll('[{CONSENT_REOPEN_ATTRIBUTE}]');"
+        f"var r=document.querySelectorAll('[{CONSENT_REOPEN_ATTRIBUTE}],a[href=\"{CONSENT_REOPEN_HREF}\"]');"
         "c.openChoices=function(){b.hidden=false;var f=b.querySelector('button');if(f)f.focus()};"
         f"window.{CONSENT_REOPEN_FUNCTION_NAME}=c.openChoices;"
         "b.addEventListener('click',function(e){"
