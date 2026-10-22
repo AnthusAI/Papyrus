@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "672dca38-d52a-48c3-a44d-39a8025f0a1e",
+  "issue_id": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-22T00:56:27.623Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "x",
+        "to": "Ryan committed (2026-10-21) to building learned items with provenance in the newsroom console. An editor reads, in plain words, everything a Cyclotron learned about the publication. Each item shows the approvals, rejections and notes behind it (e.g. 'From 12 approvals · 1 note'); every suggestion says which items and questions drove it. Editors edit, remove or add items, which go live only after measurement and an editor's promote.\nPlan: https://claude.ai/artifact/Jg1DpixLFcAvnPy7d9RNDE. Design: https://claude.ai/artifact/KzDCSDwgKos3iWjbm1oubz section 6. Tied to Cyclotron milestones M1–M4; the Cyclotron epic is filed on the Cyclotron board by the Cyclotron session. Ends with p.apyr.us documentation (Papyrus rule)."
+      }
+    }
+  }
+}

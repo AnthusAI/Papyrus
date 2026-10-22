@@ -1,0 +1,25 @@
+{
+  "id": "PPY-85c735f6-7ebf-4024-a816-fdcacd98fddc",
+  "title": "Marketing: retire COMING SOON/BETA labels as milestones ship",
+  "description": "Papyrus-web (p.apyr.us). Remove each COMING SOON or BETA label as its milestone ships. Islands reuse the console components with sample data. Covers the p.apyr.us documentation step for this epic.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T00:56:34.191524Z",
+  "updated_at": "2026-10-22T00:56:34.191566Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "papyrus-anthus"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "9db2d75d-6bcb-449b-a8af-6a70873c8d6d",
+  "issue_id": "PPY-56237aa0-8176-401e-a7f1-d1d8e2b0b75e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T00:56:28.548Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Sync Cyclotron learned state and provenance into the site backend",
+    "description": "M1–M3. For each Cyclotron version, sync the learned state and provenance into the site backend, the same way the cyclotron-status snapshot is stored today (KnowledgeRawPayload + ModelAttachment). Add the decision explanation to relevance_decision_is and site_decision_is decisions.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "papyrus-anthus"
+    }
+  }
+}
