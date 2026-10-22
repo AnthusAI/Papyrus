@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "bdc58727-40ed-4d2e-9e71-f49ba993e261",
+  "issue_id": "PPY-71277c0c-2c60-48b8-95d6-eff2a0a29bdb",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:39:00.547Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add-a-reference form: rating buttons and full explanation textarea",
+    "description": "Replace the Include/Exclude select in the Paste a URL form with radio-group toggle buttons; make the explanation a full-width labelled textarea below the rating. Ryan: rating never a dropdown; explanations must be encouraged. Payload unchanged.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "3161d5cf-83dd-42d5-92e1-7f5bf4849161",
+  "issue_id": "PPY-3e306274-450d-4c8e-a449-8c17a17df786",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:35.009Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier S2: threat-intelligence lab wiring",
+    "description": "Bump Papyrus; add cms.prospectusAccountsApiStageArn, PAPYRUS_PROSPECTUS_*, PAPYRUS_CURATION_UPSTREAM_URL; app-shell deploy.\nAcceptance: site deployed with the config and Prospectus sign-in working (deploy via the pipeline).\n\nSize: M\nDependencies: Prospectus R1 (filed by the Prospectus session)\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}

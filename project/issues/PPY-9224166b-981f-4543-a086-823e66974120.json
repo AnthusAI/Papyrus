@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9224166b-981f-4543-a086-823e66974120",
+  "title": "Lab is the single classifier per publication",
+  "description": "Decision (Ryan, 2026-10-22): the central Cyclotron lab is THE classifier per publication. Hosted URL reading = option B: front Lambda (Function URL, AWS_IAM) plus one Fargate task per job (arm64, 2 vCPU / 8 GB, GROBID 0.9.1-crf sidecar), DynamoDB jobs table, per-job cap 7 requests / $0.50, daily job cap, AWS Budget $25/mo, OpenAI key in SSM SecureString /cyclotron/transformer/openai-api-key, in AWS account 682849160744 as separate stack cyclotron-transformer. Lab criteria are rewritten from each publication's approved doctrine and approved by Ryan.\n\nCyclotron-side tickets: epic decision-flywheel-1b8b860d (AnthusAI/Cyclotron board), tasks C1-C6 and I6-I9. Prospectus R1/R2 (register papyrus-threat-intelligence and papyrus-anth-us in accounts/papyrus-sites.json; runbook for editor enrollment and lab membership) are filed by the Prospectus session. Site work is tracked on this board (as with PPY-0c5242).\n\nRelated existing tickets: PPY-7a0ac8 (Unified newsroom review), PPY-0c5242 (Deploy p.apyr.us with Prospectus sign-in), PPY-4ac3d0 / PPY-106510 (relevance decisions in the newsroom's own records), PPY-7a1ca2 (decide-relevance sweep), PPY-71277c (add-a-reference form UI rules).\n\nOrder: 1 P4a, C5, C6, C4; 2 lab criteria sign-off; 3 C1 and P1 (with fakes); 4 I7, I6, I9 (approval); 5 I8 and lab deploy (approval); 6 P2, P3, S1 verify; 7 R1/R2 then S2, S3; 8 C3 then P5, P4b, P6.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T01:55:49.549374Z",
+  "updated_at": "2026-10-22T01:55:49.549455Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

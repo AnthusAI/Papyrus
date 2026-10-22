@@ -7410,15 +7410,15 @@ dev = ["hypothesis (>=6.70.0)", "pytest (>=7.1.0)"]
 
 [[package]]
 name = "tactus"
-version = "0.53.0"
+version = "0.53.1"
 description = "Tactus: Lua-based DSL for agentic workflows"
 optional = true
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
 markers = "extra == \"newsroom\""
 files = [
-    {file = "tactus-0.53.0-py3-none-any.whl", hash = "sha256:d261e4f58967dc3d056a68273309455bc4decd003523e7f9fe36f38c88e6db56"},
-    {file = "tactus-0.53.0.tar.gz", hash = "sha256:e38ec2c22a1844c26932cea57e73c06abf6b8bc45861b44d7c8f7b0171e60ead"},
+    {file = "tactus-0.53.1-py3-none-any.whl", hash = "sha256:3e40531f8c9eb67b265403750ab349a20e1c144d86d3e529a27b78be90c0f795"},
+    {file = "tactus-0.53.1.tar.gz", hash = "sha256:ce8a42f4b0ba2b4c81f23ffe03ce3da6d986f4bf39909a6445ec716e5ceb3149"},
 ]
 
 [package.dependencies]
@@ -8906,4 +8906,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "c91fab28eb205fc276b746d01560e412da764b51cd23bf725d021ba521b672d2"
+content-hash = "ed589a8ec511d996088a8250c0d473a0f8e27b9d5a00e15409cebcf049e2e6f1"

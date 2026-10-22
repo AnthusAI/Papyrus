@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e1cb1e13-b2af-4234-b2a5-c724d86ec400",
+  "issue_id": "PPY-55e49aef-37c7-4d9c-99ee-dc0dd9c3012d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T01:56:27.667Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Lab classifier P6: Relation migration",
+    "description": "Freeze the 172 v2 shadow relations, export them for Biblicus blbs-67eb7d, then supersede in one reviewed batch (write; approval).\nAcceptance: export delivered; single reviewed batch supersedes all 172; nothing written without approval.\n\nSize: S\nDependencies: P3; write needs Ryan's approval\nEpic: Lab is the single classifier per publication (PPY-922416). Cyclotron-side epic: decision-flywheel-1b8b860d.\n\nApproved by Ryan 2026-10-22; AWS changes need his explicit approval.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9224166b-981f-4543-a086-823e66974120",
+    "labels": []
+  }
+}
