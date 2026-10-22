@@ -1,0 +1,29 @@
+{
+  "id": "PPY-eb29ea2d-c024-4097-9fce-c9366b7d0592",
+  "title": "1. Weekly knowledge history archive (M)",
+  "description": "Shipped story: ship-09ea2c (weekly knowledge history). Size M. URGENT: cluster history cannot be backfilled, so this starts this week.\n\nAs a publication editor, I want every weekly knowledge snapshot archived with cluster identity, so that history (the River, 'the map this week', 'concepts born this week') can be drawn from real data.\n\nAcceptance criteria:\n- Each weekly knowledge snapshot is archived, starting with this week's run.\n- Each cluster in an archived snapshot carries an identity relation to the previous week: new, continued, merged or split (with the source and target cluster ids).\n- The archive is stored durably per publication, as published data (readable by the site and the static projection, not a local file on the workstation).\n- Two consecutive weekly archives can be read back and compared.\n- Re-running the same week replaces that week's archive rather than duplicating it.\n- Cluster history is not backfilled; trend counts may still be backfilled from item dates.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+  "type": "story",
+  "status": "open",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [
+    "size-M",
+    "shipped",
+    "ship-09ea2c"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T15:31:10.476975Z",
+  "updated_at": "2026-10-22T15:31:10.477069Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "board-reposition"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "event_id": "8f3f8a7b-8c11-4669-ad69-dab8ef46613c",
+  "issue_id": "PPY-2ef17b20-64b1-4f3b-8cc4-c8664fad187e",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T15:31:35.966Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "6. Model entity attributes (M)",
+    "description": "Shipped story: ship-87b02c (model entity attributes). Size M. The curated-column part depends on story 4.\n\nAs a publication owner, I want models to carry structured attributes, so that a grid of entities can be drawn from data.\n\nAcceptance criteria:\n- Attributes: taskGroup, parametersTotal, parametersActive, licence, symbol (two letters, unique, stable), builtOn.\n- Symbol uniqueness and stability are enforced; a duplicate or changed symbol is rejected.\n- Task-group columns are curated publication data, changeable only through Proposals (story 4: new column, element symbol).\n- Out of scope (YAGNI, deferred): a generic 'entity grid' engine block. Shipped builds the grid site-side from front matter first; promote to an engine block only if a second site needs it.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+    "labels": [
+      "size-M",
+      "shipped",
+      "ship-87b02c"
+    ],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-sonnet-5-5",
+      "name": "board-reposition"
+    }
+  }
+}

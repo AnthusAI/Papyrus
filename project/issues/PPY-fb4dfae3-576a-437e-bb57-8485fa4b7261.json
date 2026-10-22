@@ -1,0 +1,42 @@
+{
+  "id": "PPY-fb4dfae3-576a-437e-bb57-8485fa4b7261",
+  "title": "7. Trend story pipeline (XL)",
+  "description": "Shipped story: ship-2fd025 (AI trend stories). Size XL. Depends on stories 1, 4 and 5.\n\nAs an editor, I want trend stories drafted from knowledge signals, so that the map has stories I only have to approve.\n\nAcceptance criteria:\n- Flow: knowledge snapshot, AI draft citing signals, Proposal (story draft), editor approval of the copy and of a figure drawn from map data.\n- Every claim in a draft traces to a cited signal; an uncited claim blocks submission.\n- Drafting uses GPT-6 Luna.\n- Attribution reads AI.\n- Nothing is published without editor approval.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [
+    "size-XL",
+    "shipped",
+    "ship-2fd025"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-eb29ea2d-c024-4097-9fce-c9366b7d0592",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-409d962d-6070-4dfb-9384-38389296690b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-0af7dbbf-2185-4f18-a4b5-3bcec43972e1",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-22T15:31:41.086240Z",
+  "updated_at": "2026-10-22T15:32:32.780435Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "board-reposition"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

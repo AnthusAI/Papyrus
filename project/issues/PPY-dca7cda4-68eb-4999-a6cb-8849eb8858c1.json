@@ -1,0 +1,41 @@
+{
+  "id": "PPY-dca7cda4-68eb-4999-a6cb-8849eb8858c1",
+  "title": "2. Scheduled knowledge run in AWS (L)",
+  "description": "Shipped story: ship-09ea2c (scheduled run half). Size L. BLOCKED pending Ryan's approval.\n\nAs an operator, I want the weekly knowledge run (BERTopic + GLiNER2) to run on a schedule in AWS, so that it does not depend on the workstation.\n\nAcceptance criteria:\n- A scheduled AWS job runs the BERTopic + GLiNER2 topic run weekly and feeds the archive from story 1.\n- The run carries the stale-checkout guard and the #565 projection-deletion guard: it refuses to run or publish from a stale checkout, and never deletes projected data on a bad run.\n- Secrets/config follow existing SSM and IaC conventions; nothing is created manually.\n- A failed run leaves the previous archive and projection intact and is reported.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
+  "type": "story",
+  "status": "blocked",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [
+    "size-L",
+    "shipped",
+    "ship-09ea2c"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "e1da9a04-6a7e-44eb-aa59-88f0a3444bf6",
+      "author": "home",
+      "text": "Ryan decided topic jobs stay local for now (2026-10); needs his approval before building. Until then the weekly run stays on the workstation and story 1 archives it.",
+      "created_at": "2026-10-22T15:32:59.903480Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-sonnet-5-5"
+      }
+    }
+  ],
+  "created_at": "2026-10-22T15:31:15.635929Z",
+  "updated_at": "2026-10-22T15:33:08.929032Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-sonnet-5-5",
+    "name": "board-reposition"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
