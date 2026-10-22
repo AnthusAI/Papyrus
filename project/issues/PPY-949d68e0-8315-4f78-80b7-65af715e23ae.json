@@ -31,10 +31,17 @@
       "text": "Shipped bug: Confirm subscription landed on the site 404. Cause: the newsletter pages sent Referrer-Policy no-referrer, so the browser posted Origin: null; the route's same-origin check answered 403 and CloudFront's origin 403/404 to /404.html mapping showed it as the styled 404 (reproduced in headless Chrome on shipped.anth.us; preferences and delete flows had the same exposure). Fix in PR #556, merged to develop (07811ee1): pages say same-origin; the check accepts the site Origin or a matching Referer, never null; refusals answer a styled 400. Also: with the newsletter plugin the standard projector writes a noindex chrome shell at _plugins/newsletter-shell/index.html, and the routes render confirm, preferences, unsubscribe and delete pages inside the site's header, footer and theme (self-contained fallback if the shell is missing). Deploy needs a full projection to write the shell. Verified: browser test in light and dark in CI, simulator subscriber erased.",
       "created_at": "2026-10-22T11:02:08.929981Z",
       "comment_type": "default"
+    },
+    {
+      "id": "7835be1c-4a57-489b-9a20-40b974c09ce3",
+      "author": "home",
+      "text": "Clean human-facing URLs landed on develop: PR https://github.com/AnthusAI/Papyrus/pull/567 (merged, CI green). Rule: people never land on or are sent to /api; /api is machine-only (form POST targets, RFC 8058 one-click, JSON). Newsletter pages are now static projected pages at <base>/newsletter/{confirm,confirmed,preferences,unsubscribe,unsubscribed,expired}/ filled by an external pages script; /api/newsletter/* POSTs answer 303 to them, legacy GETs 302, one-click stays 200, JSON state at /api/newsletter/state. Emails link to clean URLs (one_click_url only in List-Unsubscribe). Plugin setting basePath added. Reader sign-in callback failures redirect to the site with sign_in_error; reader Sign in control is a POST form. Deploy needs a full re-projection of sites with the newsletter plugin (and the CMS and function deploys). Docs: docs/newsletter.md, AGENTS.md.",
+      "created_at": "2026-10-22T12:22:51.113311Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T02:43:35.917559Z",
-  "updated_at": "2026-10-22T11:02:08.930012Z",
+  "updated_at": "2026-10-22T12:23:04.260139Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
