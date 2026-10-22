@@ -3,17 +3,32 @@
   "title": "Document the public knowledge base on the Papyrus marketing site",
   "description": "Standing rule: each initiative gets a documentation story on the Papyrus marketing site when its features are live. Document the knowledge snapshot command, public wiki pages, components and how to adopt them. Conventions: PPY-ab79ea, PPY-228e8d.\n\n```gherkin\nFeature: Marketing site documentation\n  Scenario: Features documented\n    Given the public knowledge base features are live on a pilot site\n    Then the Papyrus marketing site describes setup, the snapshot command and the components\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-42825266-659d-42c7-a0bc-52aea16b69ee",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "eeeebde4-6560-4056-9bd5-9c332c92c738",
+      "author": "home",
+      "text": "Live 2026-10-22: https://p.apyr.us/public-knowledge-base.html (Markus twin /public-knowledge-base.md 200 text/markdown; Accept: text/markdown returns markdown; in llms.txt and sitemap.xml). Papyrus-web PR #37 merged to main (Amplify job 35 SUCCEED, papyrus-production). Covers: what readers get, the weekly workstation run, snapshot command and files, blocks with attributes and the Markus example verbatim, trend rules and cold-start table, public-safety rules, honest labelling, adoption (projection.json wiki section, suggest-an-edit form), Shipped as the pilot (counts read from shipped.anth.us index.json, asOf 2026-10-19, dated 2026-10-22). Features list (PPY-b9b038): home card 'Public topic pages' is now 'Public knowledge base' labelled Beta and linking the page; footer link added; page map, README and tests updated (npm test passes, 22 tests). Claims limited to Papyrus docs at v5.22.0; Biblicus topic-identity and typed-entities noted as in Biblicus develop, not yet in a numbered release.",
+      "created_at": "2026-10-22T10:08:10.021630Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "375713d0-c3f4-4893-9e54-b723c5ba3820",
+      "author": "home",
+      "text": "Closed. Live: https://p.apyr.us/public-knowledge-base.html (Papyrus-web #37), features card 'Public knowledge base [Beta]'.",
+      "created_at": "2026-10-22T10:40:59.475247Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:50:05.950653Z",
-  "updated_at": "2026-10-21T12:50:05.950682Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.519989Z",
+  "closed_at": "2026-10-22T10:40:59.519963Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

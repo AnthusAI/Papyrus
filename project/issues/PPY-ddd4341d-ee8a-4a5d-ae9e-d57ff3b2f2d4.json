@@ -3,17 +3,25 @@
   "title": "Document collaborative steering on the Papyrus marketing site",
   "description": "Standing rule: each initiative gets a documentation story on the Papyrus marketing site when its features are live. Document reader accounts, submit-a-link, moderation modes, votes and ratings, karma, comments as a steering signal, and the snapshot-driven live numbers. See the existing marketing-site documentation stories PPY-ab79ea and PPY-228e8d for conventions.\n\n```gherkin\nFeature: Marketing site documentation\n  Scenario: Features documented\n    Given the collaborative steering features are live on a pilot site\n    Then the Papyrus marketing site describes each, with setup steps and a link to the pilot\n```",
   "type": "story",
-  "status": "open",
+  "status": "closed",
   "priority": 3,
   "assignee": null,
   "creator": null,
   "parent": "PPY-77bb3b2e-f984-46ea-919d-acbc358ce6ed",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "57c9df2e-1811-45ba-8b53-f8bdd52c631c",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Closed with evidence, all constituent documentation stories closed and live: https://p.apyr.us/reader-votes-and-ratings.md, /reader-submissions-and-moderation.md and /comments-as-steering.md all listed in https://p.apyr.us/llms.txt; reader accounts and live numbers are covered on those pages.",
+      "created_at": "2026-10-22T10:45:08.661071Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-21T12:49:28.821327Z",
-  "updated_at": "2026-10-21T12:49:28.821354Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:45:08.720350Z",
+  "closed_at": "2026-10-22T10:45:08.720314Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

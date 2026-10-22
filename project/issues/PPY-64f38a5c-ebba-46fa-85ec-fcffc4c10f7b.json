@@ -3,7 +3,7 @@
   "title": "Enable newsletters on Shipped end to end",
   "description": "Shipped-web: pin bump, newsletter plugin config, signup component on the roundup page, roundup archive at /roundup/. Verify with a test inbox Ryan controls. Tracks ship-7e99a6.",
   "type": "story",
-  "status": "open",
+  "status": "blocked",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Shipped is live with the newsletter plugin (AnthusAI/Shipped-web PR #30, Amplify job 29 SUCCEED; plugin stack created: table, KMS key, key parameter, functions papyrus-newsletter-shipped and papyrus-newsletter-send-shipped, send queue plus DLQ, weekly draft schedule, two alarms, SNS subscriptions). Verified with the SES mailbox simulator, no real address mailed: form on /roundup/ (screenshots 1280 and 390), subscribe 202, honeypot stores nothing, invalid email/list 400, confirm 303 with confirmedAt/IP/UA, preferences 200, one-click unsubscribe 200, re-subscribe, bounce and complaint suppressed via SNS (SUPP rows, EVENTS rows), alarms OK, configuration set still sending; simulator subscribers erased. Finding for core: /api/* inherits the edge's distribution-level custom error responses (403 and 404 -> /404.html with 404), so the route's 403 origin_mismatch reaches a browser as the site 404 page (the origin does return 403 JSON); harmless for security, worth knowing for debugging. Waiting for the human test (Ryan subscribes with his own inbox, confirms, receives a test issue, one-click unsubscribe). Left open.",
       "created_at": "2026-10-22T07:48:14.710374Z",
       "comment_type": "default"
+    },
+    {
+      "id": "9ba33e5b-7303-48d1-b4c9-2bcac70f9352",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Blocked. Shipped is live with the newsletter plugin and /roundup/ signup (Shipped-web #30, #33). Waiting on: (1) the email lead's fix to the confirmation page (reported unstyled and a 404 after submit), then (2) Ryan's real-inbox test of confirm, a test alert and one-click unsubscribe. Close when that passes.",
+      "created_at": "2026-10-22T10:45:14.056988Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T02:43:40.960263Z",
-  "updated_at": "2026-10-22T07:48:14.710403Z",
+  "updated_at": "2026-10-22T10:45:14.057014Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

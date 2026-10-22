@@ -27,7 +27,7 @@ from ..ids import safe_id
 from ..relation_types import normalize_relation_type_key
 from .actors import ACTOR_AI, Actor, ReviewMarks, decode_review
 from .cluster_records import CLUSTER_KIND, cluster_proposal_id, proposal_record
-from .keys import contains_email, entity_key, normalize_name, slug
+from .keys import contains_email, entity_key, kind_key, normalize_name
 from .model import LINK_EXTRACTOR, LINK_FRONT_MATTER, PublishedItem
 from .run_input import ClusterRun, TypedItem
 
@@ -83,7 +83,7 @@ class NodeIndex:
         for identifier in (row.get("nodeKey"), row.get("lineageId")):
             if identifier:
                 self._by_key.setdefault(str(identifier), row)
-        kind = slug(row.get("nodeKind") or "")
+        kind = kind_key(row.get("nodeKind") or "")
         for name in [row.get("displayName"), *(row.get("aliases") or ())]:
             normal = normalize_name(name or "")
             if normal:
@@ -93,7 +93,7 @@ class NodeIndex:
         return self._by_key.get(key)
 
     def resolve(self, kind: str, name: str) -> dict | None:
-        candidates = self._by_name.get((slug(kind), normalize_name(name)), [])
+        candidates = self._by_name.get((kind_key(kind), normalize_name(name)), [])
         for status in (STATUS_ACCEPTED, STATUS_GENERATED):
             matches = sorted((row for row in candidates if row.get("status") == status), key=lambda row: str(row.get("id")))
             if matches:
@@ -113,7 +113,7 @@ def new_node_row(kind: str, name: str, status: str, *, import_run_id: str, corpu
             "id": f"{lineage_id}-v1",
             "lineageId": lineage_id,
             "nodeKey": key,
-            "nodeKind": slug(kind),
+            "nodeKind": kind_key(kind),
             "corpusId": corpus_id,
             "displayName": " ".join(name.split()),
             "aliases": [],

@@ -2,7 +2,7 @@
 
 An actor is ``{"actor": "ai" | "human", "name": str | None, "on": "YYYY-MM-DD"}``. The schema has no field for it, so
 it rides in strings the rows already have: a node's ``changeReason`` holds one JSON object behind ``REVIEW_MARKER``
-(``acceptedBy``, ``rejectedBy``, ``descriptionEditedBy`` and, once a node has been retyped, ``retypedBy``), and a topic cluster's proposal ``summary`` object holds
+(``acceptedBy``, ``rejectedBy``, ``descriptionEditedBy`` ``retypedBy`` once a node has been retyped and ``aliasedBy`` once an alias was added to it), and a topic cluster's proposal ``summary`` object holds
 ``acceptedBy``. Nothing here reads a clock: callers pass the day.
 """
 
@@ -74,6 +74,7 @@ class ReviewMarks:
     rejected_by: Actor | None = None
     description_edited_by: Actor | None = None
     retyped_by: Actor | None = None
+    aliased_by: Actor | None = None
 
     def encode(self) -> str:
         body = {
@@ -83,6 +84,8 @@ class ReviewMarks:
         }
         if self.retyped_by:
             body["retypedBy"] = self.retyped_by.to_dict()
+        if self.aliased_by:
+            body["aliasedBy"] = self.aliased_by.to_dict()
         return REVIEW_MARKER + json.dumps(body, sort_keys=True, separators=(",", ":"))
 
     def replace(self, **changes: Actor | None) -> "ReviewMarks":
@@ -103,6 +106,7 @@ def decode_review(change_reason: Any) -> ReviewMarks:
         rejected_by=actor_from_dict(body.get("rejectedBy")),
         description_edited_by=actor_from_dict(body.get("descriptionEditedBy")),
         retyped_by=actor_from_dict(body.get("retypedBy")),
+        aliased_by=actor_from_dict(body.get("aliasedBy")),
     )
 
 

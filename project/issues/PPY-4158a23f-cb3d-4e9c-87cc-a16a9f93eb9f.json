@@ -3,17 +3,25 @@
   "title": "Request SES production access for papyrus-production",
   "description": "Written use case (double opt-in, bounce and complaint handling, volume) submitted with aws sesv2 put-account-details. Track AWS follow-up questions.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-08dbd8c7-9cc1-4e7e-9fe7-e36eb86effe3",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f373ba29-d71e-4f01-a9ad-7cbf5cb5368c",
+      "author": "home",
+      "text": "SES production access GRANTED for papyrus-production (case 179264063600677): 50,000 per day, 14 per second. Use case submitted with sesv2 put-account-details: double opt-in only, RFC 8058 one-click unsubscribe, event-fed suppression, per-site auto-pause alarms.",
+      "created_at": "2026-10-22T08:54:28.707827Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T02:43:35.073670Z",
-  "updated_at": "2026-10-22T02:43:35.073697Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T08:54:28.745032Z",
+  "closed_at": "2026-10-22T08:54:28.744645Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

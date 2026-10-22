@@ -3,7 +3,7 @@
   "title": "Public knowledge base: expose the wiki, topics and trends in publications",
   "description": "Goal: let any Papyrus publication expose its knowledge base to readers, read-only: entity (wiki) pages, topic pages, weekly trends, sparklines and emerging-cluster callouts. Built once in Papyrus core so any publication with a knowledge base can use it; the Shipped publication (AnthusAI/Shipped-web, board key SHIP) is the pilot and first consumer.\n\nPrinciple: keep pages static and small; put churning numbers in versioned, public-safe JSON that a small client component reads. The only thing that must be a Papyrus Item is prose a human has approved.\n\nEpics:\n1. Read-only public wiki: accepted entities become editor-published pages (ties to the wiki lifecycle epic PPY-964472: no auto-written pages without a human gate).\n2. Knowledge snapshot command and standard components (entity chip, sparkline, trend chart, graph neighbourhood, score readout).\n3. Entity trends by weekly counting.\n4. Emerging-cluster callouts.\n\nRelated boards:\n- Collaborative steering initiative PPY-77bb3b (accounts, votes, moderation, comments, scheduled snapshots of live numbers).\n- Biblicus epic blbs-d380cb (typed-entity extractor, weekly bins, cluster identity, extractor evaluation, cloud job runner).\n- Shipped pilot: SHIP voting story ship-b35fa2 and design story ship-4a59a1.\n\nStanding rule: each initiative carries a story \"Document on the Papyrus marketing site\" (see the story under this initiative). Existing marketing-site docs work: PPY-ab79ea, PPY-228e8d.\n\nOut of scope for v1: public editing, history UI, discussion, contributor counts. Public graph claims (relations between named things) are only published after desk confirmation.",
   "type": "initiative",
-  "status": "open",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -22,11 +22,18 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "e765cab9-e0da-4561-bdec-87f56ca03ba2",
+      "author": "home",
+      "text": "Closed. Every epic closed; Shipped's Trending strip, Trending topics, Emerging clusters, concept of the week, topic count, entity chips, wiki and beat pages are real and data-driven from two real workstation runs (docs/knowledge-workstation-run.md). Follow-ups: Biblicus cloud runner blbs-9668cf (backlog).",
+      "created_at": "2026-10-22T10:40:59.950861Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:46:46.917234Z",
-  "updated_at": "2026-10-21T12:50:17.525172Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.993211Z",
+  "closed_at": "2026-10-22T10:40:59.993183Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",

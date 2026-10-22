@@ -24,10 +24,17 @@
       "text": "Landed via PR #510 (pending merge); p.apyr.us docs follow in Papyrus-web.",
       "created_at": "2026-10-22T01:21:18.918494Z",
       "comment_type": "default"
+    },
+    {
+      "id": "65365c0f-f452-4dcb-a6d4-f2ed0aa3fe6e",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Confirmed closed with evidence: PR #502 (bare /x.md, Markus twins, authored pages in llms) released 5.19.0; PR #510 (Markus source in every Markdown output) released 5.19.1. Live: https://shipped.anth.us/index.md 200 text/markdown and keeps ::band and ::include directives; /open-weights/fish-audio-drama-3.md 200; Accept: text/markdown on / returns text/markdown.",
+      "created_at": "2026-10-22T10:45:25.215009Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T23:33:31.358401Z",
-  "updated_at": "2026-10-22T01:21:18.974262Z",
+  "updated_at": "2026-10-22T10:45:25.215044Z",
   "closed_at": "2026-10-22T01:21:18.974233Z",
   "agent": {
     "platform": "claude_code",

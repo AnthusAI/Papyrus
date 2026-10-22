@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "53a084bf-efcc-4d08-8dde-7a481bcf5f63",
+  "issue_id": "PPY-2c4b56b8-a4ed-4948-a205-7396e8b3a97a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T02:28:10.729Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "A publication without a mission still gets rule-based copy checks",
+    "description": "Found on Data Parade (5.19.1): every editorial check fails with \"Publication mission: expected exactly one current record, found 0.\" because the publication has no mission doctrine yet. The whole check errors, so even the rules-based (Humanus) copy checks, which do not need the mission, never run, and the newsroom shows \"The check failed\".\n\nBehavior:\n- No current publication mission or policy doctrine record (0): the rules lane still runs; the judgment (classifier) lane, which is given the mission and policy as context, is skipped. The skip is recorded in the EditorialCheckRun lanes and the newsroom shows \"Mission-based checks skipped: this publication has no mission yet.\" instead of a failure.\n- Exactly one current record: unchanged.\n- More than one current record: still an error (ambiguous doctrine).\n- Only the editorial check asks for this (getEditorialContext optionalPublicationDoctrine); research, reporting and assignment context keep requiring the doctrine.\n\n```gherkin\nFeature: Editorial checks for a publication without a mission\n\n  Scenario: No current mission: rule checks run, judgment checks are skipped\n    Given the publication has no current mission\n    And the editorial check settings turn the classifier on with a 12 second deadline\n    When an editor checks \"This game-changing release.\" in section \"engineering\"\n    Then the findings are for policies \"no-hype\"\n    And Humanus was asked to run without the classifier\n    And the classifier lane is skipped because the publication has no mission\n\n  Scenario: The skip is stored with the checked version\n    Given the publication has no current mission\n    When the saved version of a story is checked\n    Then the stored check run records the classifier lane as skipped\n\n  Scenario: One current mission: judgment checks run as before\n    Given the publication has one current mission\n    And the editorial check settings turn the classifier on with a 12 second deadline\n    When an editor checks \"This game-changing release.\" in section \"engineering\"\n    Then Humanus was asked to run the classifier with a 12 second deadline\n\n  Scenario: Two current missions are still an error\n    Given the publication has 2 current missions\n    When an editor checks \"This game-changing release.\" in section \"engineering\"\n    Then the check fails with \"expected exactly one current record, found 2\"\n```\n\nUnit level: both context resolvers (TypeScript and Python) return missingPublicationDoctrine for 0 records only when asked, and raise for 0 when not asked and for more than one always; laneNotice shows the skipped message.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-22bff943-ed62-4c1f-95f3-04f6f6168acd",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-opus-5-5",
+      "name": "DataParade.anth.us implementation"
+    }
+  }
+}

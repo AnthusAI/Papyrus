@@ -17,6 +17,15 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", folded).strip("-")
 
 
+def kind_key(text: str) -> str:
+    """The one form of an entity kind: lower case, runs of other characters one underscore (``model_family``).
+
+    It is the form of a Biblicus vocabulary key, kept as is in nodes, the registry and the snapshot. Only the entity
+    key (``model-family--tern-3``) folds the kind to hyphens, through ``slug``.
+    """
+    return slug(text).replace("-", "_")
+
+
 def bounded_slug(text: str) -> str:
     """A slug of at most ``MAXIMUM_SLUG_LENGTH`` characters; a longer one ends in a hash of the whole text."""
     value = slug(text)

@@ -3,7 +3,7 @@
   "title": "Board, score and freshness client components",
   "description": "As a reader, I want a fast board that tells me how fresh its numbers are, so that I trust what I see.\n\nStandard components: ranked board (sortable table from snapshot JSON), score readout (5-segment meter, value, n; grey when below a threshold), vote control (part of the votes plugin), \"updated N min ago\" label. Content that matters to search engines and agents is rendered as text; the user's own vote updates optimistically.\n\n```gherkin\nFeature: Board components\n  Scenario: Render from JSON\n    Given a board JSON file\n    Then the board component renders ranked rows with scores and counts\n\n  Scenario: Freshness\n    Then the component shows how long ago the snapshot was generated\n\n  Scenario: Optimistic own vote\n    When the signed-in reader votes\n    Then the reader's own control updates at once, before the next snapshot\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Reconciliation 2026-10-22. Partly done. Exists in the reader plugin assets (Papyrus #516): Vote, UsedIt, Rating (score readout with mean and n, editor mean, optimistic own value) and Freshness ('Updated N min ago') islands, refetching items.json every 60 seconds. Remains: the ranked board component (sortable table from board.json) and the 5-segment meter with grey below the minimum-n threshold.",
       "created_at": "2026-10-22T04:02:22.148539Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d619466d-d1cd-4b8f-913c-a587e44c7cfa",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Partly done, see earlier reconciliation comment: Vote, UsedIt, Rating and Freshness islands are live on Shipped (Freshness renders on Front and Rising). Remaining: the ranked board component reading board.json.",
+      "created_at": "2026-10-22T10:45:07.220492Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.749659Z",
-  "updated_at": "2026-10-22T04:02:22.148570Z",
+  "updated_at": "2026-10-22T10:45:07.220523Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

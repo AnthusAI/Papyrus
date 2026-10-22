@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
-from .keys import contains_email, entity_key, is_public_key, kind_label, normalize_name, slug
+from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
 from .model import (
     DESCRIPTION_AI_EDITED,
     DESCRIPTION_REVIEWED,
@@ -134,7 +134,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
             _Entity(
                 node=node,
                 key=key,
-                kind=slug(node.kind) or "entity",
+                kind=kind_key(node.kind) or "entity",
                 name=" ".join(node.name.split()),
                 aliases=_aliases(node),
                 item_keys=frozenset(item_keys),
@@ -268,13 +268,15 @@ def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict]) -
 def _concept_of_the_week(entities: list[_Entity], data: KnowledgeData, options: SnapshotOptions) -> dict | None:
     makers_by_item: dict[str, set[str]] = defaultdict(set)
     for entity in entities:
-        if entity.kind == slug(options.maker_kind):
+        if entity.kind == kind_key(options.maker_kind):
             for item in entity.item_keys:
                 makers_by_item[item].add(entity.key)
+    allowed = {kind_key(kind) for kind in options.concept_kinds} if options.concept_kinds else None
     candidates = [
         entity
         for entity in entities
-        if entity.node.description_state in EDITED_STATES
+        if (allowed is None or entity.kind in allowed)
+        and entity.node.description_state in EDITED_STATES
         and (entity.node.description or "").strip()
         and not contains_email(entity.node.description)
         and entity.change.last4 > 0

@@ -126,7 +126,7 @@ def build_editorial_parser() -> argparse.ArgumentParser:
   suggest.add_argument("--note")
   subparsers.add_parser("pack", help="Print the site's effective policy pack for a desk")
   subparsers.add_parser("import", help="Add a style profile's controls as editorial policies")
-  subparsers.add_parser("policies", help="List policies, import a starter pack, or ensure the default packs")
+  subparsers.add_parser("policies", help="List policies, import a starter pack, ensure the default packs, add policies from a policy-pack file (add), or export them (export)")
   version = subparsers.add_parser("check-version", help="Check one saved version and store the result with it")
   version.add_argument("--item", required=True)
   drafts = subparsers.add_parser("check-drafts", help="Check every unpublished draft version not yet checked")

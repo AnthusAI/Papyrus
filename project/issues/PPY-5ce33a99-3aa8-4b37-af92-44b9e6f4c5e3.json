@@ -3,7 +3,7 @@
   "title": "Minimum-n rules and derived values (for example the hype gap)",
   "description": "As a reader, I want values shown only when there is enough data, so that I am not misled by two votes.\n\nRules (configurable per publication, defaults shown): a dimension mean is shown with \"n=3, too few\" when n < 5; derived values (for example the gap between the mean of two \"buzz\" dimensions and the mean of two \"substance\" dimensions) show an em dash when any input has n < 5; ranking requires a floor of votes or the item appears under \"New\". Derived values are computed in the snapshot job, not in the browser.\n\n```gherkin\nFeature: Minimum-n rules\n  Scenario: Too few ratings\n    Given a dimension with 3 ratings and a floor of 5\n    Then the mean is flagged too few and the derived value is a dash\n\n  Scenario: Enough ratings\n    Given all inputs have at least 5 ratings\n    Then the derived value is computed and its sign is shown\n\n  Scenario: Partially rated item\n    Given an item rated on 2 of 4 dimensions\n    Then it displays the rated dimensions and is not ranked by a composite\n```",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -17,10 +17,17 @@
       "text": "Reconciliation 2026-10-22. Partly done. Exists: snapshot.hypeMinimum (default 5): the hype gap is null unless every dimension has enough reader ratings, computed in the snapshot job, not the browser (#516); the hype gap computed from config groups, readers and editors separately (#521); ranking.readerMinimum floor before the reader composite counts in Front (#516, ranking.py); partially rated items are not ranked by a composite. Remains: the 'too few' flag on a dimension mean in the components, the em dash display for a null derived value, and a 'New' queue for items below the ranking floor.",
       "created_at": "2026-10-22T04:02:21.943553Z",
       "comment_type": "default"
+    },
+    {
+      "id": "32fb0533-9a69-49e8-b226-ce2887c9c8ea",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). In progress. Done and released (5.20.0, PRs #516, #521): ranking floor (ranking.readerMinimum 5, visible as readerMinimum in the live board.json parameters), hype gap needs snapshot.hypeMinimum ratings in every input dimension, computed in the snapshot job; tested in procedures/newsroom/tests/test_reader_snapshot.py. Unverified: the 'n=3, too few' flag on a dimension mean in the browser (not seen in the Rating island). Remaining: that display state.",
+      "created_at": "2026-10-22T10:45:04.310332Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:49:28.023400Z",
-  "updated_at": "2026-10-22T04:02:21.943586Z",
+  "updated_at": "2026-10-22T10:45:04.310364Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

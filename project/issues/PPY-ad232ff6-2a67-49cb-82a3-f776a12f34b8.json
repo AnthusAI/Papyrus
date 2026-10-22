@@ -3,16 +3,24 @@
   "title": "Why this item: decision explanation in reference detail",
   "description": "M2–M3. In the reference detail, show the questions that moved the decision, the most similar reviewed items, and (from M3) the learned items that applied.",
   "type": "story",
-  "status": "open",
+  "status": "blocked",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-e3e6a53c-1b81-422c-88da-aa880a958213",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "3cc814b6-2695-45ab-b7bb-70257dda9c01",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Blocked on the Cyclotron session: M2 decision-flywheel-cd0b4705 is open (Cyclotron origin/develop 0.34.0, 2026-10-22).",
+      "created_at": "2026-10-22T10:45:20.395286Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T00:56:31.383446Z",
-  "updated_at": "2026-10-22T00:56:31.383483Z",
+  "updated_at": "2026-10-22T10:45:20.395331Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

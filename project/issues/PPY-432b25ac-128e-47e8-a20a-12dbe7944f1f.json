@@ -46,10 +46,17 @@
       "text": "Shipped. PRs: Papyrus #477 (develop), #479 (main), release v5.15.0; p.apyr.us #64, Pilobol.us #116 (pins 5.15.0). New SecureStringParameter construct (create-only custom resource, value never in template/output/log, retained on delete); sealing parameter /papyrus/<siteId>/prospectus-session-sealing read with decryption at runtime; revalidate parameter under the same construct. Stacks amplify-app-shell-p-apyr-us-cms and -pilobol-us-cms updated in 712236451410; CMS builds succeeded. Verified: sign-in start issues the sealed pending cookie, no AccessDenied in logs, no stack or env references the old secrets. Old retained secrets to delete after Ryan approves: ProspectusSessionSealingSec-XzFltkcYwNWl (p-apyr-us), ProspectusSessionSealingSec-AvezDYBrVD6h (pilobol-us). Full sign-in on p.apyr.us still hits the separate redirect_uri localhost bug (Cyclotron fix).",
       "created_at": "2026-10-21T20:02:56.797924Z",
       "comment_type": "default"
+    },
+    {
+      "id": "16eaac34-2099-44f5-bdd0-bac764241e9b",
+      "author": "home",
+      "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Closed correctly: released in 5.15.0 (PRs #477, #479). One remainder is not a Papyrus task: deleting the retained legacy secrets (ProspectusSessionSealingSecret copies and amplify/github-app-token in 335163751677) waits for Ryan's approval, as the earlier comments say.",
+      "created_at": "2026-10-22T10:45:25.700146Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T15:48:37.830369Z",
-  "updated_at": "2026-10-21T20:02:58.478742Z",
+  "updated_at": "2026-10-22T10:45:25.700178Z",
   "closed_at": "2026-10-21T20:02:58.478706Z",
   "agent": {
     "platform": "claude_code",

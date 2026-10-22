@@ -516,9 +516,8 @@ class GraphQLEditorialStore:
     def list_policies(self) -> list[dict[str, Any]]:
         return self._list(LIST_POLICIES, "listEditorialPolicies")
 
-    def get_editorial_context(self, section: str | None) -> dict[str, Any]:
-        from .editorial_model_context import checked_context
-        from .tenancy import tenant_id_from_environment
+    def publication_key(self) -> str:
+        """The key of the site's one verified canonical publication."""
         query = '''query CanonicalEditorialPublication($nextToken: String) {
           listKnowledgeCorporaByRoleAndName(role: "canonical", limit: 100, nextToken: $nextToken) {
             items { id name role } nextToken
@@ -528,7 +527,12 @@ class GraphQLEditorialStore:
         if (len(rows) != 1 or rows[0].get('role') != 'canonical'
                 or not str(rows[0].get('id', '')).startswith('knowledge-corpus-')):
             raise ValueError('Exactly one verified publication is required for editorial context')
-        publication = rows[0]['id'].removeprefix('knowledge-corpus-')
+        return rows[0]['id'].removeprefix('knowledge-corpus-')
+
+    def get_editorial_context(self, section: str | None) -> dict[str, Any]:
+        from .editorial_model_context import checked_context
+        from .tenancy import tenant_id_from_environment
+        publication = self.publication_key()
         # Optional doctrine: a publication without a mission still gets its rule checks (PPY-2c4b56).
         result = self._execute('''query EffectiveEditorialContext($publicationKey: String!, $sectionId: ID) {
           getEditorialContext(publicationKey: $publicationKey, sectionId: $sectionId, optionalPublicationDoctrine: true)

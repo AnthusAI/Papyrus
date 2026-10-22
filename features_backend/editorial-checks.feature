@@ -107,6 +107,59 @@ Feature: Editorial checks
     Then the site has the policies "avoid-lexicon, banned-phrases, house-checks, tone" with scope "publication"
     And importing the same profile again creates 0 policies
 
+  Scenario: Add a policy pack with a classifier question from the command line
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    When an operator adds the pack with papyrus editorial policies add
+    Then the policy command wrote 2 policies
+    And policy "plain-claims" is stored as version 1 with source "operator-cli:fixture-judgment:ryan"
+    And policy "plain-claims" keeps its classifier question, "yes" violation, threshold 0.7, review threshold 0.4 and message
+
+  Scenario: Adding the same pack again changes nothing
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    When an operator adds the pack with papyrus editorial policies add
+    And an operator adds the pack with papyrus editorial policies add
+    Then the policy command wrote 0 policies
+    And the plan says "unchanged\tplain-claims"
+
+  Scenario: Changed content creates the next version of only that policy
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    When an operator adds the pack with papyrus editorial policies add
+    And the pack's threshold is changed to 0.9
+    And an operator adds the pack with papyrus editorial policies add
+    Then the policy command wrote 1 policies
+    And policy "plain-claims" is now version 2
+    And policy "no-hype" is now version 1
+
+  Scenario: A dry run prints the plan and writes nothing
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    When an operator dry-runs adding the pack
+    Then the policy command wrote 0 policies
+    And the plan says "would create\tplain-claims"
+
+  Scenario: An invalid pack is refused before anything is written
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    And the pack's threshold is 7
+    When an operator adds the pack with papyrus editorial policies add
+    Then the policy command is refused with "not a valid policy-pack-v1 document"
+
+  Scenario: A pack for another publication is refused
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    When an operator adds the pack for publication "elsewhere"
+    Then the policy command is refused with "not elsewhere"
+
+  Scenario: Exported policies load back unchanged
+    Given a site with no editorial policies
+    And a policy-pack file with a classifier question
+    When an operator adds the pack with papyrus editorial policies add
+    And an operator exports the policies and the site loses them and adds the export
+    Then the site has the same detectors as before
+
   Scenario: Check a draft from the command line against a policy-pack file
     Given a policy-pack file whose policy "no-hype" flags "game-changing"
     When an operator runs papyrus editorial check on a draft saying "This is game-changing."

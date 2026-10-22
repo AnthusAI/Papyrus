@@ -194,10 +194,10 @@ papyrus knowledge publish-run --auth iam --amplify-outputs $OUT --corpus-key shi
 Front-matter entities of published items are entered by an AI research agent, so they are recorded as accepted by `ai`; `--actor-name` names that agent. Then write the registry of accepted entities for the extractor:
 
 ```bash
-papyrus knowledge entities registry --auth iam --amplify-outputs $OUT --out $RUN/registry.json
+papyrus knowledge entities registry --auth iam --amplify-outputs $OUT --out $RUN/registry.json --vocabulary $RUN/vocabulary.yml
 ```
 
-Each entry is `{key, kind, aliases}`, and `aliases` holds the node's display name and every alias it has, so name variants such as `Mistral` and `Mistral AI` resolve to the same entity when the node holds both (a `rename` keeps the old name as an alias). An alias that belongs to two entities is refused by the extractor, so the command leaves it out of all of them and prints a warning on stderr; read the warnings, and fix the entities if one of them is a duplicate.
+Each entry is `{key, kind, aliases}`, and `aliases` holds the node's display name and every alias it has, so name variants such as `Mistral` and `Mistral AI` resolve to the same entity when the node holds both (a `rename` keeps the old name as an alias). An alias that belongs to two entities is refused by the extractor, so the command leaves it out of all of them and prints a warning on stderr; read the warnings, and fix the entities if one of them is a duplicate. `--vocabulary` (the file of step 8; write it before this step) makes each `kind` the vocabulary's own key and leaves out, with a warning, an entity whose kind the vocabulary lacks; without it the kind is the underscore form (`model_family`) of whatever the node stores. Nodes are not rewritten. When the extractor keeps proposing a name you rejected as a duplicate (`Mistral` next to `Mistral AI`), make it an alias of the accepted entity and rebuild the registry: `papyrus knowledge entities alias --auth iam --amplify-outputs $OUT --key maker--mistral-ai --add Mistral --actor ai`.
 
 ### 8. Typed entities
 
@@ -262,6 +262,7 @@ papyrus knowledge entities accept   --auth iam --amplify-outputs $OUT --key mode
 papyrus knowledge entities reject   --auth iam --amplify-outputs $OUT --key platform--card --actor ai
 papyrus knowledge entities rename   --auth iam --amplify-outputs $OUT --key model--qwen3-tts --name "Qwen3-TTS" --actor ai
 papyrus knowledge entities describe --auth iam --amplify-outputs $OUT --key model--qwen3-tts --text "..." --actor ai   # facts stated in the site's items only
+papyrus knowledge entities alias    --auth iam --amplify-outputs $OUT --key maker--mistral-ai --add "Mistral" --actor ai   # a rejected duplicate name becomes an alias; re-run step 7's registry
 papyrus knowledge entities retype   --auth iam --amplify-outputs $OUT --key platform--swe-bench --kind benchmark --actor ai   # wrong kind: add --dry-run first
 
 papyrus knowledge clusters list     --auth iam --amplify-outputs $OUT --status all
@@ -288,11 +289,12 @@ MONDAY=$(python -c "import datetime as d;t=d.date.fromisoformat('$AS_OF');print(
 papyrus knowledge snapshot --auth iam --amplify-outputs $OUT \
   --site-bucket amplify-dkycd9pntgo6d-main-bran-sitebucket397a1860-072ufgwmonqo \
   --static-dir ~/Projects/Shipped-web/web --beats-config ~/Projects/Shipped-web/web/scoring.json \
-  --entity-href '/wiki/{slug}/' --as-of $MONDAY
+  --entity-href '/wiki/{slug}/' --as-of $MONDAY \
+  --concept-kinds task,technique,concept,model_family
 curl -s https://shipped.anth.us/_data/knowledge/index.json | python -m json.tool | head -40
 ```
 
-Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). The snapshot is deterministic for the same records and `--as-of`.
+`--concept-kinds` limits the concept of the week to those kinds (Shipped features a task, technique, concept or model family, not a platform or a licence); leave it out and every kind may be chosen. Add `--reproject` only when the site's pages use the knowledge blocks (it needs `PAPYRUS_REDIRECTS_KVS_ARN`). The snapshot is deterministic for the same records and `--as-of`.
 
 ### 13. Wiki
 
@@ -334,3 +336,32 @@ What the first run taught, for the next one:
 - The extractor is noisy outside makers and named models; most `task`, `concept` and `dataset` proposals were not worth accepting. Reviewing with a short list of exact names (in one Python process, as in step 11) was practical; reviewing 1,100 nodes one command at a time is not.
 - A mention should be matched to an accepted entity before it is proposed again: `Mistral` was proposed next to the accepted `Mistral AI`. Step 7's registry now carries every name and alias of each accepted entity, which avoids those duplicates.
 - A mention typed `model` for a benchmark (`SWE-bench`) or `platform` for a model card used to stay unaccepted because nothing could retype it; `entities retype` (step 11) now does.
+
+## Second run: Shipped, 2026-10-22
+
+The second weekly run, the same day as the first, from `origin/develop` of Papyrus and Biblicus in a fresh virtual environment. Same work folder (`/private/tmp/kb-work/shipped-run-2026-10-22`, scratch files in `runs/2026-10-22`), operator IAM lane, account 712236451410.
+
+| Step | Result |
+| --- | --- |
+| Export and `reindex` | 71 published items, none new since the first run. `scanned` 72, `skipped` 1: when the corpus root is the raw folder, `corpus/knowledge-run.json` is scanned and skipped (no item id). Harmless; the check is `inserted + updated` equals the exported items. |
+| Topic modelling | The same settings, with `topic-config --stop-words` (9 extra words, 11,526 stop words in all). 71 documents, 4 clusters of 21, 21, 20 and 9 items, 0 outliers (the first run had 1). |
+| Identity | `--previous` the first run id: 4 `continued`, 0 `new`, `merged` or `split`. The `uid`s, names and acceptance carried over. |
+| Cluster top terms | Clean: no `card`, `model`, `hugging`, `face`, `plus`, `f1` or whole numbers. `apache20` and `repo` still appear as terms; they are not on the stop-word list. |
+| Run import | Dry run, then `--apply`: 4 proposals updated, 192 front-matter links unchanged. |
+| Registry and typed entities | Registry of 282 accepted entities. 71 items, 2,649 mentions (1,171 resolved, up from 406) and 309 relations. Import: no new nodes, 111 new proposed relations; 91 relations skipped because an endpoint is not accepted. |
+| Relation review (`--actor ai`) | 39 proposed in all (the 5 left over from the first run plus 34 new): 23 accepted (a licence or maker or base model the item states), 16 rejected (wrong target kind such as a maker as base model, a weights licence that differs from the code licence, a made-by pointing at a licence or a platform, replaces or successor claims the item does not make, and the 5 that pointed at a duplicate maker). |
+| Retypes | None. No accepted entity had a clearly wrong kind. |
+| Wiki | `wiki sync --no-topics --apply`: 203 pending revisions beside live pages, 79 unchanged; `wiki publish --all-drafts --actor ai --apply --no-trigger`: 203 published. A second dry run plans 282 unchanged. |
+| Snapshot | `--as-of 2026-10-19 --reproject`: 282 entities, 2 beats, 4 clusters, 44 trending; 30 files written, 254 unchanged; 1,029 pages projected. |
+
+Found on this run:
+
+- `entities registry` writes the stored `nodeKind`, which is `model-family` for a node whose kind was slugged, while the vocabulary key is `model_family`; the extractor refuses the registry ("kind model-family outside the vocabulary"). The run mapped hyphens to underscores in the registry file by hand. Fixed (PPY-9abb98): nodes now store the vocabulary key (`model_family`), the registry always writes that form and `--vocabulary FILE` maps to the vocabulary's own keys; nodes stored earlier with hyphens are matched as the same kind and are not rewritten.
+- Several items state `Mistral`, `DeepSeek`, `Moonshot` or `Aleph Alpha` as the maker; those names were rejected as duplicates of the front-matter makers and are not aliases of them, so the extractor still proposes relations to the rejected node. Fixed: `entities alias --key K --add NAME --actor ai` adds the variants as aliases of the accepted makers.
+- The previous-run id lives in `corpus/knowledge-run.json`; it now holds `e7631ce7...` (topic-modeling snapshot) and `31b0af6b...` (trends snapshot).
+
+## Concept of the week and maker aliases: Shipped, 2026-10-22
+
+- Aliases added with `entities alias --actor ai`: `Mistral` on `maker--mistral-ai`, `Moonshot` on `maker--moonshotai`, `DeepSeek` on `maker--deepseek-ai`, `Aleph Alpha` on `maker--aleph-alpha-gmbh`. Four wiki pages (the aliased makers) have pending revisions that were not applied; the next `wiki sync --no-topics --apply` and `wiki publish` carry them.
+- Snapshot re-run with `--concept-kinds task,technique,concept,model_family` and `--reproject`: the concept of the week is `task--typed-decisions` (an AI-edited description already existed), with `href` `/wiki/task-typed-decisions/` returning 200 and the home rail showing "Edited by AI on 2026-10-22". `model_family` matches nodes stored as `model-family`.
+- Use a current checkout of the site repository for `--static-dir`. A first `--reproject` against a checkout 23 commits behind `origin/main` deleted the 282 wiki entity pages from the site bucket (the old `projection.json` had no wiki section); re-running `--reproject` with a fresh `origin/main` worktree restored them (984 pages written, 0 deleted).

@@ -3,7 +3,7 @@
   "title": "Suggest an edit (replaces public edit controls)",
   "description": "As a reader, I want to suggest a correction to a wiki page, so that errors reach the desk without public editing.\n\nUses the existing public form endpoint (stores a private message for the desk). Shows \"Updated DATE\" and a link to the entity's graph JSON.\n\n```gherkin\nFeature: Suggest an edit\n  Scenario: Submit a suggestion\n    When a reader submits a suggestion on a page\n    Then the desk receives a message that names the page\n    And nothing changes on the public page\n```",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -43,11 +43,18 @@
         "model": "Sonnet 5.5",
         "name": "papyrus-anthus"
       }
+    },
+    {
+      "id": "7119a501-3c69-4b26-8870-624a61622a04",
+      "author": "home",
+      "text": "Closed. Suggest an edit via the public form endpoint (#540); plugin-site grant fix (#548, 5.22.0). Live test submission stored as a private form_submission message and handled; public page unchanged. Verified live 2026-10-22 on https://shipped.anth.us (Papyrus 5.22.0, Shipped-web #29 #32 #34 #35 #36).",
+      "created_at": "2026-10-22T10:40:59.285214Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-21T12:50:05.012940Z",
-  "updated_at": "2026-10-22T08:26:59.842230Z",
-  "closed_at": null,
+  "updated_at": "2026-10-22T10:40:59.329141Z",
+  "closed_at": "2026-10-22T10:40:59.329107Z",
   "agent": {
     "platform": "claude_code",
     "model": "Sonnet 5.5",
