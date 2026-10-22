@@ -152,6 +152,15 @@ class ExportTests(unittest.TestCase):
         self.export(drafts=True)
         self.assertTrue((self.out / "assets" / "a.png").exists())
 
+    def test_an_exported_body_keeps_its_image_directive_verbatim(self):
+        """The export is a reader-facing Markdown emission: the body is Markus as written, directives intact."""
+        directive = '::image{src="assets/a.png" alt="A wide chart" layout="full" caption="Wide"}'
+        add_item(self.client, "pic", publish=False, body=f"Words.\n\n{directive}\n")
+        self.export(drafts=True)
+        text = (self.out / "articles" / "pic.md").read_text(encoding="utf-8")
+        self.assertIn(directive, text)
+        self.assertNotIn("![A wide chart]", text)
+
     def test_manifest_and_redirects(self):
         item_id = add_item(self.client, "hello", aliases=["/blog/hello-old"])
         add_media(self.client, item_id, "assets/a.png", published=True)
@@ -217,3 +226,4 @@ class CommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
