@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Reference edge for a Papyrus site that serves its S3 projection and the CMS on one host (papyrus-edge-<site>). Default behavior serves the site S3 projection bucket through OAC; /newsroom*, /_next/* and /api/* go to the CMS Amplify app main branch. The distribution has no CustomErrorResponses, because those apply to every behavior and would replace the CMS /api/* errors with the 404 page; the default behavior's origin-response function serves the 404 page instead.
+Parameters:
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate in us-east-1 covering ApexHost. Empty creates the distribution without aliases, on its cloudfront.net name only.
+  ApexHost:
+    Type: String
+    Description: The public host name of the site.
+  SiteBucketRegionalDomainName:
+    Type: String
+    Description: The backend site bucket, <bucket>.s3.us-east-1.amazonaws.com (PAPYRUS_SITE_BUCKET on content-actions).
+  SiteViewerRequestFunctionArn:
+    Type: String
+    Description: The backend's shared Papyrus viewer-request function (redirects from its key-value store, directory index documents, Accept text/markdown negotiation), RedirectAndIndexFunction in the site backend stack. Using it keeps the edge on the core function instead of a local copy.
+  CmsAppId:
+    Type: String
+    Description: Amplify app id of the site CMS app (CmsAppId output of its amplify-app-shell stack).
+Conditions:
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, '']]
+Resources:
+  CmsViewerRequestFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-cms-forward-host'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: copy the viewer Host to x-forwarded-host for the Amplify CMS origin
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var host = request.headers.host ? request.headers.host.value : "";
+          request.headers["x-forwarded-host"] = { value: host };
+          return request;
+        }
+  NotFoundPageRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com, edgelambda.amazonaws.com]
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  NotFoundPageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Origin-response function of the default behavior only. Turns an S3 miss (403 or 404) into the site's own 404.html with status 404.
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt NotFoundPageRole.Arn
+      Timeout: 5
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          const https = require("https");
+
+          const ERROR_PAGE_PATH = "/404.html";
+
+          function fetchErrorPage(host) {
+            return new Promise((resolve, reject) => {
+              const request = https.get(
+                { host, path: ERROR_PAGE_PATH, headers: { accept: "text/html", "accept-encoding": "identity" }, timeout: 4000 },
+                (response) => {
+                  const chunks = [];
+                  response.on("data", (chunk) => chunks.push(chunk));
+                  response.on("end", () => resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
+                },
+              );
+              request.on("timeout", () => request.destroy(new Error("timeout")));
+              request.on("error", reject);
+            });
+          }
+
+          function notFound(response, contentType, body) {
+            response.status = "404";
+            response.statusDescription = "Not Found";
+            response.headers["content-type"] = [{ key: "Content-Type", value: contentType }];
+            response.bodyEncoding = "text";
+            response.body = body;
+            return response;
+          }
+
+          exports.handler = async (event) => {
+            const { request, response, config } = event.Records[0].cf;
+            if (response.status !== "403" && response.status !== "404") {
+              return response;
+            }
+            if (request.uri === ERROR_PAGE_PATH) {
+              return notFound(response, "text/plain", "Not found");
+            }
+            try {
+              const page = await fetchErrorPage(config.distributionDomainName);
+              if (page.status === 200) {
+                return notFound(response, "text/html", page.body);
+              }
+            } catch (error) {
+              return notFound(response, "text/plain", "Not found");
+            }
+            return notFound(response, "text/plain", "Not found");
+          };
+  NotFoundPageVersion:
+    Type: AWS::Lambda::Version
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      FunctionName: !Ref NotFoundPageFunction
+      Description: 'revision 2: change this text whenever the function code changes, so a new immutable version is published'
+  SiteBucketOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-site-bucket'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: S3 projection, newsroom on /newsroom
+        Aliases: !If [HasCertificate, [!Ref ApexHost], !Ref 'AWS::NoValue']
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate: !If
+          - HasCertificate
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: site-bucket
+            DomainName: !Ref SiteBucketRegionalDomainName
+            OriginAccessControlId: !GetAtt SiteBucketOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: cms
+            DomainName: !Sub 'main.${CmsAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: site-bucket
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !Ref SiteViewerRequestFunctionArn
+          LambdaFunctionAssociations:
+            - EventType: origin-response
+              LambdaFunctionARN: !Ref NotFoundPageVersion
+        CacheBehaviors:
+          - PathPattern: '/newsroom*'
+            TargetOriginId: cms
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt CmsViewerRequestFunction.FunctionARN
+          - PathPattern: '/_next/*'
+            TargetOriginId: cms
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt CmsViewerRequestFunction.FunctionARN
+          - PathPattern: '/api/*'
+            TargetOriginId: cms
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt CmsViewerRequestFunction.FunctionARN
+Outputs:
+  DistributionId:
+    Value: !Ref SiteDistribution
+  DistributionArn:
+    Value: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}'
+  DistributionDomainName:
+    Value: !GetAtt SiteDistribution.DomainName
