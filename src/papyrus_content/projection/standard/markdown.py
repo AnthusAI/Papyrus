@@ -8,7 +8,9 @@ H2 sections of links to the ``.md`` URLs). ``/llms-full.txt`` is the content con
 bytes. The same eligibility as the sitemap and the feeds applies: only published pages, none for ``noindex`` entries,
 none for the 404 page, and no ``llms`` files for a guarded (non-production) environment.
 
-Markus directives in a body pass through, except ``::image`` which becomes a Markdown image.
+The twin is Markus source: every directive in a body passes through as written (``::image`` with all its attributes,
+page blocks, and an island as its ``summary`` text). The ``.md`` extension and ``text/markdown`` type stay, because Markus
+is a Markdown superset.
 """
 
 from __future__ import annotations
@@ -16,8 +18,6 @@ from __future__ import annotations
 import re
 
 FRONT_MATTER = re.compile(r"\A---\n.*?\n---\n?", re.S)
-IMAGE_DIRECTIVE = re.compile(r"^::image\{([^}]*)\}\s*$", re.M)
-ATTRIBUTE = re.compile(r'(\w+)="([^"]*)"')
 LLMS_KEY = "llms.txt"
 LLMS_FULL_KEY = "llms-full.txt"
 MARKDOWN_TYPE = "text/markdown"
@@ -46,14 +46,16 @@ def static_twin_key(site_path: str) -> str | None:
 
 
 def body_of(source_text: str) -> str:
-    body = FRONT_MATTER.sub("", source_text, count=1).strip()
+    """The Markus source of an item without its front matter, every directive as written."""
+    return FRONT_MATTER.sub("", source_text, count=1).strip()
 
-    def image(match: re.Match) -> str:
-        attributes = dict(ATTRIBUTE.findall(match.group(1)))
-        src = attributes.get("src", "")
-        return f"![{attributes.get('alt', '')}]({src})" if src else ""
 
-    return IMAGE_DIRECTIVE.sub(image, body)
+def _opens_with_heading(body: str) -> bool:
+    """True when the first line of text is an H1; page-block lines (``::band``) before it do not count."""
+    for line in body.split("\n"):
+        if line.strip() and not line.startswith("::"):
+            return line.startswith("# ")
+    return False
 
 
 def _link(origin: str | None, path: str) -> str:
@@ -63,7 +65,7 @@ def _link(origin: str | None, path: str) -> str:
 def item_markdown(entry, source_text: str, canonical: str | None) -> str:
     body = body_of(source_text)
     lines = []
-    if not body.startswith("# "):
+    if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
     if entry.authors:

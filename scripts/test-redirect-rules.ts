@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { compileRedirectFunctionSource, edgeRulesFromSettings, negotiatesMarkdown } from "../amplify/publication/redirect-rules";
+import { compileRedirectFunctionSource, edgeRulesFromSettings, negotiatesMarkdown, usesDirectoryTwins, readEdgeConfig } from "../amplify/publication/redirect-rules";
 
 const source = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), "../amplify/publication/redirect-and-index.js"),
@@ -11,11 +11,11 @@ const source = readFileSync(
 );
 
 type EdgeResponse = { statusCode?: number; headers?: { location: { value: string } }; uri?: string };
-type Run = { negotiateMarkdown?: boolean; accept?: string };
+type Run = { negotiateMarkdown?: boolean; directoryTwins?: boolean; accept?: string };
 
 /** Runs the CloudFront Function source against an in-memory key value store. */
 async function run(rules: ReturnType<typeof edgeRulesFromSettings>, store: Record<string, string>, uri: string, options: Run = {}): Promise<EdgeResponse> {
-  const compiled = compileRedirectFunctionSource(source, rules, { negotiateMarkdown: options.negotiateMarkdown })
+  const compiled = compileRedirectFunctionSource(source, rules, { negotiateMarkdown: options.negotiateMarkdown, directoryTwins: options.directoryTwins })
     .replace('import cf from "cloudfront";', "")
     .concat("\nreturn handler;");
   const handler = new Function("cf", compiled)({ kvs: () => ({ get: async (key: string) => store[key] }) });
@@ -108,4 +108,42 @@ test("a site opts into negotiation by being a standard front end site unless it 
   assert.equal(negotiatesMarkdown({ site: { name: "x" } }), true);
   assert.equal(negotiatesMarkdown({ site: { name: "x" }, agents: { markdown: false } }), false);
   assert.equal(negotiatesMarkdown({}), false);
+});
+
+const TWIN_CASES: [string, boolean, string][] = [
+  ["/about.md", true, "/about/index.md"],
+  ["/decisions/amazon-strands-decider-2b.md", true, "/decisions/amazon-strands-decider-2b/index.md"],
+  ["/posts/the-diagram.md", true, "/posts/the-diagram/index.md"],  // under a base path the prefix is just part of the path
+  ["/index.md", true, "/index.md"],
+  ["/about/index.md", true, "/about/index.md"],
+  ["/posts/index.md", true, "/posts/index.md"],
+  ["/about/", true, "/about/index.html"],
+  ["/feed.xml", true, "/feed.xml"],
+  ["/llms.txt", true, "/llms.txt"],
+  ["/about.md", false, "/about.md"],
+];
+
+for (const [uri, directory, expected] of TWIN_CASES) {
+  test(`bare markdown twin ${uri} directoryTwins=${directory}`, async () => {
+    const response = await run([], {}, uri, { directoryTwins: directory });
+    assert.equal(response.uri, expected);
+  });
+}
+
+test("Accept: text/markdown still serves /x/ from /x/index.md with directory twins on", async () => {
+  const response = await run(rules, {}, "/about/", { negotiateMarkdown: true, directoryTwins: true, accept: "text/markdown" });
+  assert.equal(response.uri, "/about/index.md");
+});
+
+test("directory twins follow urls.style directory and agents.markdown", () => {
+  assert.equal(usesDirectoryTwins({ site: {}, urls: { style: "directory" } }), true);
+  assert.equal(usesDirectoryTwins({ site: {}, urls: { style: "html" } }), false);
+  assert.equal(usesDirectoryTwins({ site: {}, urls: { style: "directory" }, agents: { markdown: false } }), false);
+  assert.equal(usesDirectoryTwins({ urls: { style: "directory" } }), false);
+  assert.equal(readEdgeConfig(undefined).directoryTwins, false);
+});
+
+test("the compiled function stays within the CloudFront Functions size limit", () => {
+  const compiled = compileRedirectFunctionSource(source, rules, { negotiateMarkdown: true, directoryTwins: true });
+  assert.ok(Buffer.byteLength(compiled) < 10 * 1024);
 });

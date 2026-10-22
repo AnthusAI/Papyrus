@@ -38,14 +38,19 @@ export function negotiatesMarkdown(settings: ProjectionSettings): boolean {
   return settings.site !== undefined && settings.agents?.markdown !== false;
 }
 
-export type EdgeConfig = { rules: EdgeRedirectRule[]; negotiateMarkdown: boolean };
+/** A directory-style site keeps a page's Markdown twin at `/x/index.md`; the edge then serves a bare `/x.md` from there. */
+export function usesDirectoryTwins(settings: ProjectionSettings): boolean {
+  return negotiatesMarkdown(settings) && settings.urls?.style === "directory";
+}
+
+export type EdgeConfig = { rules: EdgeRedirectRule[]; negotiateMarkdown: boolean; directoryTwins: boolean };
 
 export function readEdgeConfig(staticDir: string | undefined, baseDirectory: string = process.cwd()): EdgeConfig {
-  if (staticDir === undefined) return { rules: [], negotiateMarkdown: false };
+  if (staticDir === undefined) return { rules: [], negotiateMarkdown: false, directoryTwins: false };
   const settingsPath = resolve(baseDirectory, staticDir, "projection.json");
-  if (!existsSync(settingsPath)) return { rules: [], negotiateMarkdown: false };
+  if (!existsSync(settingsPath)) return { rules: [], negotiateMarkdown: false, directoryTwins: false };
   const settings = JSON.parse(readFileSync(settingsPath, "utf8")) as ProjectionSettings;
-  return { rules: edgeRulesFromSettings(settings), negotiateMarkdown: negotiatesMarkdown(settings) };
+  return { rules: edgeRulesFromSettings(settings), negotiateMarkdown: negotiatesMarkdown(settings), directoryTwins: usesDirectoryTwins(settings) };
 }
 
 export function readEdgeRules(staticDir: string | undefined, baseDirectory: string = process.cwd()): EdgeRedirectRule[] {
@@ -54,12 +59,23 @@ export function readEdgeRules(staticDir: string | undefined, baseDirectory: stri
 
 const NEGOTIATE_START = "/*PAPYRUS_NEGOTIATE_MARKDOWN*/";
 const NEGOTIATE_END = "/*END_PAPYRUS_NEGOTIATE_MARKDOWN*/";
+const TWINS_START = "/*PAPYRUS_DIRECTORY_TWINS*/";
+const TWINS_END = "/*END_PAPYRUS_DIRECTORY_TWINS*/";
+
+function spliceFlag(source: string, start: string, end: string, label: string): string {
+  const from = source.indexOf(start);
+  const to = source.indexOf(end);
+  if (from === -1 || to === -1 || to < from) {
+    throw new Error(`redirect function source has no ${label} markers`);
+  }
+  return source.slice(0, from + start.length) + "true" + source.slice(to);
+}
 
 /** The CloudFront Function source with the site's pattern rules and Markdown negotiation flag spliced in. */
 export function compileRedirectFunctionSource(
   source: string,
   rules: EdgeRedirectRule[],
-  options: { negotiateMarkdown?: boolean } = {},
+  options: { negotiateMarkdown?: boolean; directoryTwins?: boolean } = {},
 ): string {
   const start = source.indexOf(START_MARKER);
   const end = source.indexOf(END_MARKER);
@@ -68,12 +84,10 @@ export function compileRedirectFunctionSource(
   }
   let compiled = rules.length === 0 ? source : source.slice(0, start + START_MARKER.length) + JSON.stringify(rules) + source.slice(end);
   if (options.negotiateMarkdown === true) {
-    const from = compiled.indexOf(NEGOTIATE_START);
-    const to = compiled.indexOf(NEGOTIATE_END);
-    if (from === -1 || to === -1 || to < from) {
-      throw new Error("redirect function source has no markdown negotiation markers");
-    }
-    compiled = compiled.slice(0, from + NEGOTIATE_START.length) + "true" + compiled.slice(to);
+    compiled = spliceFlag(compiled, NEGOTIATE_START, NEGOTIATE_END, "markdown negotiation");
+  }
+  if (options.directoryTwins === true) {
+    compiled = spliceFlag(compiled, TWINS_START, TWINS_END, "directory twin");
   }
   return compiled;
 }
