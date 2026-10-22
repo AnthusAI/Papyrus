@@ -19,13 +19,15 @@ pydantic models below hold only what Papyrus reads; every other field is ignored
     span, score}], relations[{id, type, subject, object, state, span, score}]}]``. ``subject`` and ``object`` are ids
     of entities of the same item.
 
-Item ids are the ids of Papyrus items (the corpus export writes them to the front matter).
+Item ids are the ids of Papyrus items or the Biblicus ids the corpus export gave them (``biblicus.id`` in the front
+matter, a UUID derived from the item id); ``translate_item_ids`` turns the second kind back into the first.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal
@@ -221,4 +223,17 @@ def load_run(identity: Path | None, trends: Path | None, entities: Path | None) 
         entities=typed.items if typed is not None else [],
         backend=typed.backend if typed is not None else None,
         warnings=warnings,
+    )
+
+
+def translate_item_ids(run: ClusterRun, item_ids: Mapping[str, str]) -> ClusterRun:
+    """The run with each Biblicus item id replaced by the Papyrus item id it was exported from; other ids stay."""
+    def known(value: str) -> str:
+        return item_ids.get(value, value)
+
+    return run.model_copy(
+        update={
+            "clusters": [cluster.model_copy(update={"member_item_ids": [known(i) for i in cluster.member_item_ids]}) for cluster in run.clusters],
+            "entities": [item.model_copy(update={"item_id": known(item.item_id)}) for item in run.entities],
+        }
     )

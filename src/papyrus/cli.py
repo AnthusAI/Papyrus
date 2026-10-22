@@ -163,6 +163,11 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
     if command in {"publish-run", "snapshot"}:
         _delegate_content("knowledge", command, flags)
         return 0
+    if command == "corpus":
+        if not flags or flags[0] != "export":
+            raise ValueError("papyrus knowledge corpus requires <command>: export.")
+        _delegate_content("knowledge", "corpus-export", flags[1:])
+        return 0
     if command in {"entities", "clusters", "relations"}:
         allowed = {
             "entities": "list, accept, reject, rename or describe",

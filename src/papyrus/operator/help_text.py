@@ -89,6 +89,8 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   topics.add_argument("topics_command")
   concepts = subparsers.add_parser("concepts", help="Semantic relation concepts")
   concepts.add_argument("concepts_command")
+  corpus = subparsers.add_parser("corpus", help="Export the published items of a site as a Biblicus-ready folder: export --out DIR")
+  corpus.add_argument("corpus_command")
   subparsers.add_parser("publish-run", help="Import a workstation run (clusters, entities, front-matter entities); dry run unless --apply")
   subparsers.add_parser("snapshot", help="Write the public knowledge JSON (_data/knowledge/) for a site")
   entities = subparsers.add_parser("entities", help="Review entities (--actor ai|human required): list, accept, reject, rename, describe")
