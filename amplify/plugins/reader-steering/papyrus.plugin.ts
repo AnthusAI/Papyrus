@@ -1,5 +1,8 @@
 import { ArnPrincipal } from "aws-cdk-lib/aws-iam";
+import { Duration } from "aws-cdk-lib";
 import type { ITable } from "aws-cdk-lib/aws-dynamodb";
+import { Rule, RuleTargetInput, Schedule } from "aws-cdk-lib/aws-events";
+import { LambdaFunction as LambdaFunctionTarget } from "aws-cdk-lib/aws-events-targets";
 import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveReaderSteeringConfig, type ReaderSteeringConfig } from "./config";
@@ -10,6 +13,7 @@ export { resolveReaderSteeringConfig };
 export type { ReaderSteeringConfig };
 
 export const READER_STEERING_OUTPUT_KEY = "readerSteering";
+export const READER_SNAPSHOT_TASK = { projectionTask: { task: "reader-snapshot" } };
 
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
@@ -18,7 +22,7 @@ export const readerSteeringManifest: PluginManifest = {
   mutations: [],
   guest: { mutations: [] },
   newsroomPanels: [],
-  staticAssets: [],
+  staticAssets: ["_plugins/papyrus-reader@1.js", "_plugins/papyrus-reader@1.css"],
 };
 
 /** What the reader-actions function reads from `PAPYRUS_READER_SETTINGS`. */
@@ -81,6 +85,14 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       principal: new ArnPrincipal(config.computeRoleArn),
       action: "lambda:InvokeFunction",
     });
+
+    if (config.snapshot.schedule) {
+      new Rule(context.createStack("reader-steering-schedule"), "ReaderSnapshotSchedule", {
+        description: "Rebuilds the reader snapshot (time decay, Rising) and polls nothing else.",
+        schedule: Schedule.rate(Duration.hours(config.snapshot.intervalHours)),
+        targets: [new LambdaFunctionTarget(contentActions, { event: RuleTargetInput.fromObject(READER_SNAPSHOT_TASK), retryAttempts: 0 })],
+      });
+    }
 
     backend.addOutput({ custom: { [READER_STEERING_OUTPUT_KEY]: { actionsFunction: lambda.functionName } } });
   },

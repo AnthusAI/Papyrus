@@ -98,7 +98,9 @@ assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development" }), true);
 assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"] });
 
 function synthesize(config = shipped, environment: Record<string, string> = {}) {
-  const stack = new Stack(new App(), "Data", { env: { account: "123456789012", region: "us-east-1" } });
+  const app = new App();
+  const awsEnvironment = { account: "123456789012", region: "us-east-1" };
+  const stack = new Stack(app, "Data", { env: awsEnvironment });
   const lambdaFor = (id: string) => new Function(stack, id, { runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x") });
   const readerLambda = lambdaFor("ReaderActions");
   const contentActions = lambdaFor("ContentActions");
@@ -109,7 +111,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   const backend = {
     readerActions: { resources: { lambda: readerLambda } },
     data: { resources: { tables, graphqlApi: { apiId: "api" }, cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://x.test/graphql" } } } },
-    createStack: (name: string) => new Stack(stack, name),
+    createStack: (name: string) => new Stack(app, name, { env: awsEnvironment }),
     addOutput: (value: unknown) => outputs.push(value),
   };
   const previous = { ...process.env };
@@ -119,7 +121,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   } finally {
     for (const key of Object.keys(environment)) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
   }
-  return { template: Template.fromStack(stack), outputs };
+  return { template: Template.fromStack(stack), outputs, stacks: app.node.children.filter((child): child is Stack => child instanceof Stack) };
 }
 
 const { template, outputs } = synthesize(shipped, { SITE_ENV: "production" });
@@ -153,7 +155,16 @@ const writesPublishedItems = statements.some((statement) => {
 });
 assert.equal(writesPublishedItems, false, "reader-actions only reads PublishedItem");
 template.resourceCountIs("AWS::WAFv2::WebACL", 0);
-template.resourceCountIs("AWS::Events::Rule", 0);
+
+function eventRules(result: ReturnType<typeof synthesize>) {
+  return result.stacks.flatMap((stack) => Object.values(Template.fromStack(stack).findResources("AWS::Events::Rule")));
+}
+assert.equal(eventRules(synthesize({ ...shipped, snapshot: { ...shipped.snapshot, schedule: false } })).length, 0, "no schedule unless the site enables it");
+const scheduled = eventRules(synthesize({ ...shipped, snapshot: { ...shipped.snapshot, schedule: true, intervalHours: 6 } }));
+assert.equal(scheduled.length, 1, "one rule when the site enables the schedule");
+const rule = scheduled[0] as { Properties: { ScheduleExpression: string; Targets: Array<{ Input: string }> } };
+assert.equal(rule.Properties.ScheduleExpression, "rate(6 hours)");
+assert.deepEqual(JSON.parse(rule.Properties.Targets[0].Input), { projectionTask: { task: "reader-snapshot" } });
 
 assert.equal(READER_ACTIONS_RESERVED_CONCURRENCY, 10);
 

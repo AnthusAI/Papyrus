@@ -63,3 +63,42 @@ Feature: Reader steering for a signed-in reader
   Scenario: The reader state never exposes the reader's identity
     When "alice" upvotes "item-one"
     Then the reader state of "alice" contains neither her site subject nor her person id
+
+  Scenario: After the debounced run the public files show the numbers
+    Given "bob" is also on the staff
+    When "bob" rates "item-one" "real" 5
+    And "alice" rates "item-one" "real" 3
+    And "alice" upvotes "item-one"
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows 1 upvote on "item-one"
+    And it shows readers rating "item-one" "real" at 3.0 from 1 rating and editors at 5.0
+    And the public file "_data/reader/board.json" ranks "item-one" first on the front
+    And the public file "_data/reader/board.json" lists "item-one" as rising with 1 upvote
+
+  Scenario: The hype gap appears only when five readers have rated every dimension involved
+    Given "bob" is also on the staff
+    When "bob" rates "item-one" "real" 5
+    And 4 more readers rate "item-one" "real" 3
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows no hype gap on "item-one"
+    When 1 more readers rate "item-one" "real" 3
+    And the snapshot runs
+    Then the public file "_data/reader/items.json" shows a hype gap of 2.0 on "item-one"
+
+  Scenario: Until submissions exist nobody has karma
+    When "alice" picks the handle "quiet-fox"
+    And "bob" upvotes "item-one"
+    And the snapshot runs
+    Then nobody is on the karma list
+
+  Scenario: The files follow the site's base path and the edge is purged for exactly those files
+    When "alice" upvotes "item-one"
+    And the snapshot runs under the base path "posts"
+    Then the site store holds "posts/_data/reader/items.json", "posts/_data/reader/board.json" and "posts/_data/reader/readers.json"
+    And the edge was asked to purge those three files and nothing else
+
+  Scenario: The public files never identify a reader
+    When "alice" picks the handle "quiet-fox"
+    And "alice" upvotes "item-one"
+    And the snapshot runs
+    Then the public files hold no site subject, person id or email address

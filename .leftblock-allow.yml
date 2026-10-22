@@ -1,0 +1,77 @@
+# LeftBlock overrides: each entry approves one finding (one rule on one exact
+# line content in one file). Changing that line re-blocks it. `kind` is the
+# rule's category, shown for reviewers; it is not part of matching.
+version: 1
+allow:
+  - id: "50c254bb4868e1a0"
+    rule: "leftblock-personal-email"
+    file: "src/papyrus_content/projection/plugins.py"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "082eded91cc64bd8"
+    rule: "leftblock-personal-email"
+    file: "scripts/test-reader-snapshot-privacy.ts"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "2d495d53f1c2cb0c"
+    rule: "leftblock-personal-email"
+    file: "amplify/plugins/reader-steering/papyrus.plugin.ts"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "45d801bd669ba372"
+    rule: "leftblock-personal-email"
+    file: "docs/reader-steering.md"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "1c9d1e1b1f596989"
+    rule: "leftblock-personal-email"
+    file: "docs/reader-steering.md"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "185df47dc0b4c3be"
+    rule: "leftblock-personal-email"
+    file: "src/papyrus_content/projection/plugin_assets/papyrus-reader.js"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "310a143994c4a8f4"
+    rule: "leftblock-personal-email"
+    file: "src/papyrus_content/projection/plugin_assets/papyrus-reader.js"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "3094c47393447896"
+    rule: "leftblock-personal-email"
+    file: "scripts/test-reader-islands.ts"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "7e9d0db4c54bd9dc"
+    rule: "leftblock-personal-email"
+    file: "scripts/test-reader-islands.ts"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "b41e82a751457578"
+    rule: "leftblock-personal-email"
+    file: "scripts/test-reader-islands.ts"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "3bbd51d78c8a9680"
+    rule: "leftblock-personal-email"
+    file: "procedures/newsroom/tests/test_reader_snapshot.py"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
+  - id: "22a9fa9decba843c"
+    rule: "leftblock-personal-email"
+    file: "procedures/newsroom/tests/test_reader_snapshot.py"
+    kind: "Personal email address"
+    reason: "False positive: each match is the versioned file name of a plugin static asset, written like the signup plugin's asset name. It is a path, not an address."
+    added: 2026-10-22
