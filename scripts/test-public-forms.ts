@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { a } from "@aws-amplify/backend";
 import { App, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
+import { schema, schemaExcludingGroups, schemaWithPlugins } from "../amplify/data/schema";
+import { publicForms } from "../amplify/functions/public-forms/resource";
 import { derivePublicFormOrigins } from "../amplify/functions/public-forms/origins";
 import { wirePublicForms } from "../amplify/functions/public-forms/wire";
 import {
@@ -199,6 +202,20 @@ async function main() {
     assert.ok(block.includes('allow.groups(categoryWriteGroups)'), `${file}: editors and admins`);
     assert.ok(!/allow\.guest|allow\.publicApiKey|allow\.public\(/.test(block), `${file}: Message is never public`);
     assert.ok(source.includes('allow.resource(publicForms).to(["mutate"])'), `${file}: the endpoint function may only mutate`);
+  }
+  // Every deployed schema composition keeps the endpoint function's create-only access, with or without plugins.
+  {
+    const plugin = { Note: a.model({ body: a.string() }).authorization((allow) => [allow.groups(["admins"])]) };
+    for (const [name, definition] of [
+      ["base", schema],
+      ["plugins", schemaWithPlugins(plugin)],
+      ["no plugins, groups excluded", schemaExcludingGroups(["editions"])],
+      ["plugins, groups excluded", schemaExcludingGroups(["editions"], plugin)],
+    ] as const) {
+      const grants = definition.transform().functionSchemaAccess.filter((access) => access.resourceProvider === publicForms);
+      assert.equal(grants.length, 1, `${name}: the public-forms function needs a schema grant`);
+      assert.deepEqual(grants[0].actions, ["mutate"], `${name}: the public-forms function may only mutate`);
+    }
   }
   // The site's own origins are derived, never wildcards; bad explicit entries fail the deploy.
   assert.deepEqual(
