@@ -1,9 +1,9 @@
-import { ArnPrincipal } from "aws-cdk-lib/aws-iam";
-import { Duration } from "aws-cdk-lib";
+import { ArnPrincipal, Effect, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { Duration, Stack } from "aws-cdk-lib";
 import type { ITable } from "aws-cdk-lib/aws-dynamodb";
 import { Rule, RuleTargetInput, Schedule } from "aws-cdk-lib/aws-events";
 import { LambdaFunction as LambdaFunctionTarget } from "aws-cdk-lib/aws-events-targets";
-import type { Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
+import { CfnFunction, type Function as LambdaFunction } from "aws-cdk-lib/aws-lambda";
 import type { PapyrusPlugin, PluginManifest, PluginWiringContext } from "../types";
 import { resolveReaderSteeringConfig, type ReaderSteeringConfig } from "./config";
 import { readerActions } from "./function/resource";
@@ -13,6 +13,7 @@ export { resolveReaderSteeringConfig };
 export type { ReaderSteeringConfig };
 
 export const READER_STEERING_OUTPUT_KEY = "readerSteering";
+export const SNAPSHOT_SCHEDULE_PREFIX = "papyrus-reader-snapshot-";
 export const READER_SNAPSHOT_TASK = { projectionTask: { task: "reader-snapshot" } };
 
 export const readerSteeringManifest: PluginManifest = {
@@ -78,8 +79,29 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     tables.ReaderProfile.grantReadWriteData(contentActions);
 
     lambda.addEnvironment("PAPYRUS_READER_SETTINGS", JSON.stringify(readerActionsSettings(config, interimSubjectsAllowedAtSynth())));
-    lambda.addEnvironment("PAPYRUS_READER_SNAPSHOT_FUNCTION", contentActions.functionName);
-    contentActions.grantInvoke(lambda);
+    if (config.reservedConcurrency !== undefined) {
+      (lambda.node.defaultChild as CfnFunction).addPropertyOverride("ReservedConcurrentExecutions", config.reservedConcurrency);
+    }
+
+    // Trailing-edge debounce: the first write in a window creates a one-off EventBridge Scheduler schedule at the end of
+    // the window (docs/reader-steering.md). The schedule invokes content-actions as this role; reader-actions may create
+    // schedules named for this feature, and pass exactly this role.
+    const schedulerRole = new Role(Stack.of(lambda), "ReaderSnapshotSchedulerRole", {
+      assumedBy: new ServicePrincipal("scheduler.amazonaws.com"),
+      description: "Lets one-off schedules created by reader-actions invoke the reader-snapshot run.",
+    });
+    contentActions.grantInvoke(schedulerRole);
+    const stack = Stack.of(lambda); // the role lives with the function, so the stacks keep their existing one-way dependency
+    lambda.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["scheduler:CreateSchedule"],
+        resources: [`arn:${stack.partition}:scheduler:${stack.region}:${stack.account}:schedule/default/${SNAPSHOT_SCHEDULE_PREFIX}*`],
+      }),
+    );
+    lambda.addToRolePolicy(new PolicyStatement({ effect: Effect.ALLOW, actions: ["iam:PassRole"], resources: [schedulerRole.roleArn] }));
+    lambda.addEnvironment("PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", contentActions.functionArn);
+    lambda.addEnvironment("PAPYRUS_READER_SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
     contentActions.addEnvironment("PAPYRUS_READER_SNAPSHOT_SETTINGS", JSON.stringify(readerSnapshotSettings(config)));
 
     lambda.addPermission("InvokeFromCmsCompute", {

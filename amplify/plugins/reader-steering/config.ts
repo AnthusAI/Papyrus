@@ -37,11 +37,16 @@ export type ReaderSteeringConfig = {
     /** A hype gap needs at least this many ratings on every dimension involved. */
     hypeMinimum: number;
   };
+  /**
+   * Reserved concurrency for reader-actions. Unset by default, which reserves nothing: an account with a small total
+   * Lambda concurrency quota (papyrus-production has 10) cannot reserve any without dropping below its unreserved minimum.
+   */
+  reservedConcurrency?: number;
   /** The Prospectus retired-subject poll is not live: this flag stays false and the run's step is a no-op. */
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "hypeGap"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -138,5 +143,6 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
     },
     retirementPoll,
     ...(hypeGap ? { hypeGap } : {}),
+    ...(raw.reservedConcurrency === undefined ? {} : { reservedConcurrency: integer(raw.reservedConcurrency, "reservedConcurrency", 1, 1, 1000) }),
   };
 }

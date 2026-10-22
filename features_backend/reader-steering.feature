@@ -1,7 +1,7 @@
 Feature: Reader steering for a signed-in reader
   A reader signed in to a publication has a per-site pairwise identity, a public handle, and can vote and rate
-  published items. Everything fails closed, every action is rate limited per reader, and a vote asks for one
-  debounced snapshot run.
+  published items. Everything fails closed, every action is rate limited per reader, and the first write in a
+  minute schedules one snapshot run for the end of that minute.
 
   Background:
     Given a publication whose readers rate "real" and "useful"
@@ -53,12 +53,15 @@ Feature: Reader steering for a signed-in reader
     Then "alice" was refused 2 times with status 429
     And the refusal says when to retry
 
-  Scenario: The next vote after a snapshot run asks for a new one only after a minute
+  Scenario: The first vote in a window schedules one run for the end of the window
     When "alice" upvotes "item-one" 3 times
-    Then 1 snapshot run was requested
-    When a minute passes
+    Then 1 snapshot run is scheduled for 60 seconds after the first vote
+    When 30 seconds pass
     And "bob" upvotes "item-one"
-    Then 2 snapshot runs were requested
+    Then 1 snapshot run is scheduled for 60 seconds after the first vote
+    When 31 seconds pass
+    And "bob" removes the upvote on "item-one"
+    Then 2 snapshot runs are scheduled
 
   Scenario: The reader state never exposes the reader's identity
     When "alice" upvotes "item-one"

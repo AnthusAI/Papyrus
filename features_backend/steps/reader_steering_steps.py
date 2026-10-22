@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import ReaderBackend, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import START_SECONDS, ReaderBackend, run_snapshot, subject_for  # noqa: E402
 from reader_privacy import scan_files  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 
@@ -106,9 +106,9 @@ def rate(context, name: str, subject: str, dimension: str, value: int) -> None:
     call(context, name, "rating", {"subject": subject, "dimension": dimension, "value": value})
 
 
-@when("a minute passes")
-def a_minute_passes(context) -> None:
-    ensure_started(context).now += 61
+@when("{seconds:d} seconds pass")
+def seconds_pass(context, seconds: int) -> None:
+    ensure_started(context).now += seconds
 
 
 def last_answer(context, name: str) -> dict:
@@ -176,11 +176,18 @@ def says_when_to_retry(context) -> None:
     assert 0 < context.reader_refusal["body"]["retryAfter"] <= 3600, context.reader_refusal
 
 
-@then("{count:d} snapshot run{suffix} requested")
+@then("{count:d} snapshot run{suffix} scheduled")
 def snapshot_runs(context, count: int, suffix: str) -> None:
-    invocations = ensure_started(context).lambda_client.invocations
-    assert len(invocations) == count, invocations
-    assert all(json.loads(invocation["Payload"]) == {"projectionTask": {"task": "reader-snapshot"}} for invocation in invocations)
+    schedules = ensure_started(context).schedules()
+    assert len(schedules) == count, schedules
+    assert all(json.loads(schedule["Target"]["Input"]) == {"projectionTask": {"task": "reader-snapshot"}} for schedule in schedules)
+
+
+@then("{count:d} snapshot run is scheduled for {seconds:d} seconds after the first vote")
+def snapshot_run_at_window_end(context, count: int, seconds: int) -> None:
+    schedules = ensure_started(context).schedules()
+    assert len(schedules) == count, schedules
+    assert schedules[0]["Name"] == f"papyrus-reader-snapshot-{int(START_SECONDS) + seconds}", schedules[0]["Name"]
 
 
 @then("the reader state of \"{name}\" contains neither her site subject nor her person id")
