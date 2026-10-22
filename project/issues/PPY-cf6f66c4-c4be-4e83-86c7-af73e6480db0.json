@@ -1,0 +1,20 @@
+{
+  "id": "PPY-cf6f66c4-c4be-4e83-86c7-af73e6480db0",
+  "title": "p.apyr.us documentation: votes, ratings and karma",
+  "description": "Final story of the epic. Votes and ratings are published at https://p.apyr.us/reader-votes-and-ratings.html (Papyrus-web #24, #25, #28). Karma is described there only as the v1 formula; extend the page when karma ships.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-73a82de3-eac3-4364-8e3b-a43658b7c347",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T04:02:30.050748Z",
+  "updated_at": "2026-10-22T04:02:30.050925Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

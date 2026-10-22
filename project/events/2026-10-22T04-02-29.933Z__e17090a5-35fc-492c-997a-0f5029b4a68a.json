@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e17090a5-35fc-492c-997a-0f5029b4a68a",
+  "issue_id": "PPY-9f276894-3237-405d-8d51-920e25171b04",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T04:02:29.933Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us documentation: moderation",
+    "description": "Final story of the epic. Document moderation modes, the queue and AI moderation on p.apyr.us.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-af98c78f-dc09-4a12-b1fc-89625c0d4914",
+    "labels": []
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-244932eb-ce16-45b3-98d0-236506652242",
+  "title": "p.apyr.us documentation: comments",
+  "description": "Final story of the epic. Document comments and rationale as a steering signal on p.apyr.us.\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-739cb425-c6b0-41c7-ab90-c51f4b2cb00d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T04:02:30.167825Z",
+  "updated_at": "2026-10-22T04:02:30.167865Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

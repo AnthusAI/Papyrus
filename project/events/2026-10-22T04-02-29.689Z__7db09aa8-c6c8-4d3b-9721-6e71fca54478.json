@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7db09aa8-c6c8-4d3b-9721-6e71fca54478",
+  "issue_id": "PPY-0a49c875-de05-4bdc-8103-a39a180d4488",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-22T04:02:29.689Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us documentation: reader accounts",
+    "description": "Final story of the epic. Document reader sign-in and handles on p.apyr.us (see PPY-ddd434 for conventions).\n\n```gherkin\nFeature: p.apyr.us documentation\n  Scenario: Documented\n    Given the feature is live on a pilot site\n    Then p.apyr.us has a page describing it, with setup steps and a link to the pilot\n```",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-1546fcd8-d9bf-4d0b-8f47-1883660c18e4",
+    "labels": []
+  }
+}
