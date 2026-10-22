@@ -92,9 +92,11 @@ def run(function, *flags):
     function(list(flags))
 
 
-def describe(client, key, text, reviewed=True):
-    node = next(row for row in client.tables["SemanticNode"].values() if row["nodeKey"] == key)
-    node.update({"description": text, "changeReason": "description-reviewed:2026-10-01" if reviewed else "description-draft"})
+def describe(client, key, text, reviewed=True, actor="human"):
+    if reviewed:
+        run(snapshot_commands.knowledge_entities_describe, "--key", key, "--text", text, "--actor", actor, "--actor-name", "Ada Reader" if actor == "human" else "Wiki agent")
+    else:
+        next(row for row in client.tables["SemanticNode"].values() if row["nodeKey"] == key)["description"] = text
 
 
 def pages(client, section="wiki"):
@@ -171,6 +173,12 @@ def test_a_draft_description_nobody_accepted_stays_out_of_the_page_and_is_report
     assert "Generated and unreviewed" not in page["bodyMarkus"] and "is listed here as a maker" in page["bodyMarkus"]
     assert "description" not in front_matter_of(page)
     assert "warning\tmaker--acme-loom: the description is a draft nobody has accepted" in out
+
+
+def test_a_description_the_ai_editor_wrote_is_used_and_labelled_by_the_page_stamp(client):
+    describe(client, ACME, "Written by the AI editor.", actor="ai")
+    sync(client, "--apply")
+    assert "Written by the AI editor." in pages(client)[ACME_SLUG]["bodyMarkus"]
 
 
 def test_sync_never_publishes_and_a_second_run_changes_nothing(client, capsys):
