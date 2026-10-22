@@ -37,6 +37,8 @@ export type NewsletterTheme = {
   wordmarkAlt?: string;
   wordmarkWidth?: number;
   wordmarkHeight?: number;
+  /** Draws the footer's wordmark at this width in pixels (1 to 400), smaller than the header's; the height keeps the aspect ratio. */
+  footerWordmarkWidth?: number;
   labelFont?: string;
 };
 
@@ -46,6 +48,7 @@ const THEME_STYLE_KEYS = [
 ] as const;
 const THEME_KEYS = [
   "accent", "text", "background", ...THEME_STYLE_KEYS, "logoUrl", "wordmarkImageUrl", "wordmarkAlt", "wordmarkWidth", "wordmarkHeight",
+  "footerWordmarkWidth",
 ];
 
 export type NewsletterRule = { sections?: string[]; tags?: string[]; types?: string[] };
@@ -204,6 +207,14 @@ function resolveTheme(raw: unknown): NewsletterTheme {
     }
   } else if (theme.wordmarkWidth !== undefined || theme.wordmarkHeight !== undefined) {
     fail("theme.wordmarkWidth and theme.wordmarkHeight need theme.wordmarkImageUrl");
+  }
+  if (theme.footerWordmarkWidth !== undefined) {
+    if (theme.wordmarkImageUrl === undefined) fail("theme.footerWordmarkWidth needs theme.wordmarkImageUrl");
+    const width = theme.footerWordmarkWidth;
+    if (typeof width !== "number" || !Number.isInteger(width) || width < 1 || width > 400) {
+      fail("theme.footerWordmarkWidth must be a whole number of pixels from 1 to 400");
+    }
+    resolved.footerWordmarkWidth = width;
   }
   if (theme.wordmarkAlt !== undefined) {
     const alt = text(theme.wordmarkAlt, "theme.wordmarkAlt", 200);

@@ -84,3 +84,15 @@ Feature: Newsletter double opt-in
       | reader@example.com | one second after rendering        | check_email   |
       | reader@example.com | a day and an hour after rendering | check_email   |
       | not-an-address     | normally                          | invalid_email |
+
+  Scenario Outline: A mail scanner's HEAD request never confirms or unsubscribes
+    Given "reader@example.com" has asked for "weekly"
+    When a mail scanner sends HEAD to the legacy <route> link
+    Then the link answers 302 to the clean "<page>" page with no body
+    And "reader@example.com" is "pending" and is not a member of "weekly"
+
+    Examples:
+      | route       | page                   |
+      | confirm     | /newsletter/confirm/   |
+      | preferences | /newsletter/preferences/ |
+      | unsubscribe | /newsletter/unsubscribe/ |
