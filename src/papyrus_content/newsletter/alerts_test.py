@@ -295,7 +295,7 @@ def test_instant_approval_none_with_instant_alerts_sends_at_once_to_the_list_onl
     assert len(rig.ses.sent) == 2
     message = rig.ses.sent[0]["Content"]["Simple"]
     assert message["Subject"]["Data"] == "A *big* ruling"
-    assert "You get this because you subscribed to Rulings alerts on Example News." in message["Body"]["Text"]["Data"]
+    assert "You get this because you subscribed to Rulings on Example News." in message["Body"]["Text"]["Data"]
 
 
 def test_approval_none_without_instant_alerts_still_waits_for_an_admin(rig: Rig) -> None:
@@ -335,7 +335,7 @@ def test_an_alert_sends_to_its_own_list_with_the_alert_footer_in_the_html(rig: R
     assert rig.fire(created["issueId"])["status"] == "sending"
     rig.drain()
     html = rig.ses.sent[0]["Content"]["Simple"]["Body"]["Html"]["Data"]
-    assert "subscribed to Rulings alerts on Example News" in html and "1 Example Street" in html
+    assert "subscribed to Rulings on Example News" in html and "1 Example Street" in html
 
 
 def test_the_worker_completes_an_alert_without_publishing_an_item(rig: Rig) -> None:
@@ -367,7 +367,7 @@ def test_preview_and_test_send_work_for_an_alert(rig: Rig) -> None:
     publish(rig)
     (created,) = announce(rig)["alerts"]
     preview = rig.call("issue_preview", EDITOR, issueId=created["issueId"])
-    assert preview["ok"] and "subscribed to Rulings alerts on Example News" in preview["html"]
+    assert preview["ok"] and "subscribed to Rulings on Example News" in preview["html"]
     assert rig.call("issue_test_send", EDITOR, issueId=created["issueId"])["ok"]
     assert rig.ses.sent and rig.ses.sent[-1]["Content"]["Simple"]["Subject"]["Data"].startswith("[Test] ")
     assert rig.call("issue_get", EDITOR, issueId=created["issueId"])["issue"]["lineageId"] == "story-1"

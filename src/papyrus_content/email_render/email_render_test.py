@@ -159,3 +159,14 @@ def test_long_document_stays_under_gmail_clip():
     )
     mail = issue(markus=big)
     assert len(mail.html.encode()) < 100 * 1024
+
+
+def test_text_linked_heading_keeps_url_and_case():
+    url = "https://shipped.example.com/open-weights/Liquid-AI-Releases-A-Very-Long-Slug-That-Exceeds-The-Wrap-Width-Of-The-Text-Part"
+    mail = render_issue(
+        subject="S", markus=f"## [Liquid AI releases new model]({url})\n\nBody.", theme=THEME, footer=footer(), site_url=SITE
+    )
+    lines = mail.text.splitlines()
+    assert "LIQUID AI RELEASES NEW MODEL" in lines
+    assert f"<{url}>" in lines
+    assert "(" + url.upper() not in mail.text
