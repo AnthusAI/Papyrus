@@ -17,10 +17,22 @@
       "text": "Branch feature/PPY-aaa702-knowledge-components, PR https://github.com/AnthusAI/Papyrus/pull/527. Verification: procedures/newsroom/tests/test_standard_frontend_knowledge.py (38 tests, one per scenario) and the standard front end, projection and Markus suites, 684 passed locally with anthus-markus 0.7.0. Docs: docs/knowledge-components.md.",
       "created_at": "2026-10-22T03:58:16.471005Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d171e881-c3a8-4862-b86f-310f91e7a771",
+      "author": "home",
+      "text": "Knowledge block options, knowledge-beat block and site.knowledge hooks lookup: PR https://github.com/AnthusAI/Papyrus/pull/549 (feature/PPY-ddbb84-knowledge-block-options), merged to develop after green CI. 193 knowledge tests pass locally; wiki pageSize via urls.sections.wiki.pageSize confirmed and tested. Snapshot gains beats[].topEntities, clusters[].beats, entities[].aliases (re-run papyrus knowledge snapshot).",
+      "created_at": "2026-10-22T08:27:36.633027Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "Sonnet 5.5",
+        "name": "papyrus-anthus"
+      }
     }
   ],
   "created_at": "2026-10-21T12:50:05.305124Z",
-  "updated_at": "2026-10-22T03:58:16.471036Z",
+  "updated_at": "2026-10-22T08:27:36.825335Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
