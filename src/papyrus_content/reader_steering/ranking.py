@@ -1,4 +1,7 @@
-"""How scores rank items. One module on purpose: the combination of editor and reader scores is an open exploration (PPY-0b2cbb).
+"""How scores rank items. One module on purpose: the combination of editor and reader scores lives here (PPY-0b2cbb, decided 2026-10-22).
+
+``blend`` is the original rule (editor composite, then a fixed-weight blend after ``reader_minimum`` ratings). ``shrinkage`` is the adopted
+alternative in docs/score-combination.md: per dimension, the editor score is a prior worth ``shrinkage_k`` ratings and the reader share is capped.
 
 Every function is pure. The snapshot writes the raw components next to the score, so changing a formula here
 changes ranking without moving any data.
@@ -9,6 +12,9 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
+COMBINATION_BLEND = "blend"
+COMBINATION_SHRINKAGE = "shrinkage"
+COMBINATIONS = (COMBINATION_BLEND, COMBINATION_SHRINKAGE)
 SCORE_DECIMALS = 4
 HOURS_PER_DAY = 24
 
@@ -20,6 +26,14 @@ class RankingParameters:
     reader_minimum: int = 5
     editor_weight: float = 0.5
     hype_minimum: int = 5
+    combination: str = COMBINATION_BLEND
+    shrinkage_k: float = 20.0
+    reader_share_cap: float = 0.4
+    new_account_weight: float = 1.0
+    """Weight of a rating from a profile younger than ``new_account_hours`` (in the reader mean and in ``n``)."""
+    new_account_hours: float = 24.0
+    rising_minimum_account_hours: float = 0.0
+    """Rising and the used-it reporter count only take profiles at least this old; 0 takes every profile."""
 
 
 def rounded(value: float) -> float:
@@ -54,6 +68,39 @@ def front_score(
     else:
         return None
     return rounded(base * decay(age_hours, parameters.half_life_hours))
+
+
+def reader_share(n: float, parameters: RankingParameters) -> float:
+    """The weight of the reader mean against the editor score: ``n / (k + n)``, never more than ``reader_share_cap``."""
+    return min(n / (parameters.shrinkage_k + n), parameters.reader_share_cap) if n > 0 else 0.0
+
+
+def shrinkage_front_score(
+    editor_means: Iterable[float | None],
+    reader_means: Iterable[float | None],
+    reader_weights: Iterable[float],
+    age_hours: float,
+    parameters: RankingParameters,
+) -> float | None:
+    """Front under shrinkage: per dimension ``E + share * (readerMean - E)``, the mean of those, times time decay.
+
+    The three iterables run in step over the dimensions. ``reader_weights`` is the weighted number of reader ratings on that dimension
+    (a rating from a young account counts less). A dimension without an editor score takes the reader mean alone; one without either is
+    left out; an item with no dimension is not ranked. ``reader_minimum`` plays no part.
+    """
+    per_dimension: list[float] = []
+    for editor, reader, weight in zip(editor_means, reader_means, reader_weights, strict=True):
+        if reader is None or weight <= 0:
+            reader = None
+        if editor is None:
+            if reader is not None:
+                per_dimension.append(reader)
+        elif reader is None:
+            per_dimension.append(editor)
+        else:
+            per_dimension.append(editor + reader_share(weight, parameters) * (reader - editor))
+    base = composite(per_dimension)
+    return None if base is None else rounded(base * decay(age_hours, parameters.half_life_hours))
 
 
 @dataclass(frozen=True)

@@ -44,8 +44,13 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `karma.upvoteWeight`, `karma.usedItWeight` | 1, 2 | See [Karma](#karma). |
 | `ranking.halfLifeHours` | 48 | Front: the editor composite loses half its weight every this many hours. |
 | `ranking.risingWindowHours` | 6 | Rising counts upvotes made in this window. |
-| `ranking.readerMinimum` | 5 | Reader ratings an item needs (on any one dimension) before the reader composite counts in Front. |
-| `ranking.editorWeight` | 0.5 | Weight of the editor composite in Front once readers have rated; readers get the rest. |
+| `ranking.combination` | `blend` | How Front combines editor and reader scores. `blend`: the original rule, editor composite then a fixed-weight blend after `readerMinimum` ratings. `shrinkage`: per dimension, the editor score is a prior worth `shrinkageK` ratings and the reader share is capped. Other sites keep `blend` and see no change. |
+| `ranking.readerMinimum` | 5 | `blend` only: reader ratings an item needs (on any one dimension) before the reader composite counts in Front. Ignored under `shrinkage`. |
+| `ranking.editorWeight` | 0.5 | `blend` only: weight of the editor composite in Front once readers have rated; readers get the rest. |
+| `ranking.shrinkageK` | 20 | `shrinkage` only: the editor score counts as this many reader ratings. |
+| `ranking.readerShareCap` | 0.4 | `shrinkage` only: readers never get more than this share of the distance from the editor score, however many rate. |
+| `ranking.newAccountWeight` | 1/3 under `shrinkage`, 1 under `blend` | A rating from a profile younger than `limits.newAccountHours` (at the time it was cast) counts at this weight in the reader mean and in `n`. |
+| `ranking.risingMinimumAccountHours` | 24 under `shrinkage`, 0 under `blend` | Rising counts only upvotes from profiles at least this old, and `usedItReporters` only counts used-it reports from such profiles. 0 counts every profile. |
 | `snapshot.schedule` | `false` | Create the EventBridge rule that runs the snapshot every `snapshot.intervalHours`. |
 | `snapshot.intervalHours` | 6 | 1 to 24. Four runs a day was approved for the pilot. |
 | `hypeGap` | unset | `{ plus: [...], minus: [...] }`: the dimensions whose mean is added and subtracted to make the hype gap (Shipped: plus `notable`, `novel`; minus `real`, `useful`). Both lists are required, must be rated dimensions and cannot overlap. Without it no hype gap is published. |
@@ -194,21 +199,37 @@ the editor gap shows as soon as an editor has rated, before readers have.
 ```json
 {
   "generatedAt": "2026-10-21T10:00:00Z",
-  "parameters": { "halfLifeHours": 48, "risingWindowHours": 6, "readerMinimum": 5, "displayMinimum": 5, "editorWeight": 0.5 },
+  "parameters": { "halfLifeHours": 48, "risingWindowHours": 6, "readerMinimum": 5, "displayMinimum": 5, "editorWeight": 0.5,
+                  "combination": "shrinkage", "shrinkageK": 20, "readerShareCap": 0.4, "newAccountWeight": 0.3333, "newAccountHours": 24, "risingMinimumAccountHours": 24 },
   "front": [ { "subject": "<subjectKey>", "score": 3.5, "editor": 4.0, "reader": null, "readerN": 0, "ageHours": 12.0 } ],
   "rising": [ { "subject": "<subjectKey>", "upvotes": 3 } ],
   "new": [ { "subject": "<subjectKey>", "kind": "item", "at": "2026-10-21T09:00:00Z" } ]
 }
 ```
 
-`parameters.displayMinimum` is `snapshot.hypeMinimum`: the reader count below which a page must not print a reader mean
-(the same floor the reader hype gap uses). `readerMinimum` only gates Front.
+`parameters` carries the active ranking settings so a site can explain them. `parameters.displayMinimum` is `snapshot.hypeMinimum`: the
+reader count below which a page must not print a reader mean (the same floor the reader hype gap uses). `readerMinimum` only gates Front
+under `blend`.
 
-Front is the editor composite times time decay (`0.5 ^ (ageHours / halfLifeHours)`) until an item has `ranking.readerMinimum`
-reader ratings on some dimension; after that it is `editor * editorWeight + reader * (1 - editorWeight)`, times decay. An
-item with neither is not ranked. Rising is the upvotes in the last `risingWindowHours`, most first. Ties break on the
-subject key. The formula is one module of pure functions, `src/papyrus_content/reader_steering/ranking.py`, and the raw
-components sit beside each score because how editor and reader scores combine is an open exploration (PPY-0b2cbb).
+Front is time decay (`0.5 ^ (ageHours / halfLifeHours)`) times a base score that depends on `ranking.combination`:
+
+- `blend`: the editor composite until an item has `ranking.readerMinimum` reader ratings on some dimension; after that
+  `editor * editorWeight + reader * (1 - editorWeight)`.
+- `shrinkage`: for each dimension, `E + min(n / (shrinkageK + n), readerShareCap) * (readerMean - E)`, where `E` is the editor mean on
+  that dimension, `readerMean` the reader mean and `n` the reader rating count; the base is the mean over the dimensions that have a
+  score. A dimension with no editor score takes the reader mean. There is no minimum: one rating moves the score a little, the fifth
+  does not lurch.
+
+Reader ratings from a profile younger than `limits.newAccountHours` when it was cast count at `ranking.newAccountWeight` in the reader
+mean and in `n` (the `ratings` statistics in `items.json` stay plain counts, and so does `readerN` when no weight applies; otherwise
+`readerN` is the weighted count). An item with no usable score is not ranked. Rising is the upvotes in the last `risingWindowHours`
+from profiles at least `risingMinimumAccountHours` old, most first. Ties break on the subject key. The formula is one module of pure
+functions, `src/papyrus_content/reader_steering/ranking.py`; the raw components sit beside each score. The decision and the
+simulation behind it are in [score-combination.md](score-combination.md).
+
+Each subject in `items.json` also has `usedItReporters`: the distinct readers (editors excluded) who reported "I used it" from a profile
+at least `risingMinimumAccountHours` old. `usedIt` stays the raw count. The plugin does not stamp "Shipped by readers" itself; a site
+applies its rule (Shipped: 3 reports) to `usedItReporters`, so accounts made to push one item have to wait a day first.
 
 `new` is the 50 newest entries, published items (`kind: "item"`, at their publication time) and pending submissions (`kind:
 "submission"`, at their submission time) interleaved newest first. A promoted or held submission is not in it.

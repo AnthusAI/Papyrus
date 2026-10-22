@@ -1,8 +1,16 @@
 # Combining editor and reader scores
 
-Exploration PPY-0b2cbb (story PPY-1bf366; Shipped ship-1f3d29). This is a recommendation for Ryan to decide. **Nothing here changes
-production**: the formula in `src/papyrus_content/reader_steering/ranking.py` (editor composite, then a 0.5 blend after
-`readerMinimum` ratings, times a 48 h half-life decay) is untouched. The simulation is in
+Exploration PPY-0b2cbb (story PPY-1bf366; Shipped ship-1f3d29).
+
+**Decision: adopted 2026-10-22, all five points; Readers tab skipped for launch.** Implemented in the reader-steering plugin as
+`ranking.combination: "shrinkage"` (default stays `blend`, so other sites are unchanged), `ranking.shrinkageK` (20), `ranking.readerShareCap` (0.4),
+`ranking.newAccountWeight` (1/3) and `ranking.risingMinimumAccountHours` (24); Shipped's site config turns them on. No Wilson bound. The active
+values are published in `board.json` `parameters`, the used-it reporter count is `usedItReporters` in `items.json`, and
+`procedures/newsroom/tests/test_score_combination.py` reproduces the key numbers below from `sim.py` with the plugin's own ranking functions. See
+[reader-steering.md](reader-steering.md). What follows is the original recommendation text.
+
+The original recommendation read: **nothing here changes production**: the formula in `src/papyrus_content/reader_steering/ranking.py` (editor composite, then a 0.5 blend after
+`readerMinimum` ratings, times a 48 h half-life decay) was untouched. The simulation is in
 [score-combination/](score-combination/): `sim.py` (fixed seed 20261022), `items.csv` (the 70 real editor scores) and the
 output tables (`results.md` and one CSV per scenario). Run `python3 sim.py` from that directory.
 

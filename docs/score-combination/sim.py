@@ -19,7 +19,7 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SEED_DIR = sys.argv[1] if len(sys.argv) > 1 else None  # the Shipped item JSON files; without it items.csv beside this file
+SEED_DIR = sys.argv[1] if __name__ == "__main__" and len(sys.argv) > 1 else None  # the Shipped item JSON files; without it items.csv beside this file. Importing (the plugin tests do) never reads argv
 SEED = 20261022
 DIMS = ["real", "useful", "notable", "novel"]
 READER_MINIMUM = 5
