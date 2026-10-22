@@ -59,7 +59,9 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `comments.maximumLength` | 2000 | Characters in a comment. |
 | `comments.maximumLinks` | 3 | Links (`http://`, `https://` or `www.`) in a comment. |
 | `submissions.itemType`, `submissions.section` | `brief`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
-| `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. See [Moderation](#moderation). |
+| `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. `ai`: a model decides each new item, with human override. See [Moderation](#moderation). |
+| `moderation.ai.apiKeyParameter` | required in `ai` mode | The SSM SecureString that holds the model's API key, named `/papyrus/<site>/openai-api-key`. The plugin only grants read access to this one parameter; it never creates it. |
+| `moderation.ai.model` | `gpt-6-luna` | The model that judges each item. |
 | `moderation.preModeration` | `false` | Hold new submissions and comments hidden until a moderator approves them. Needs a mode other than `off`. |
 | `moderation.reportsPerDay` | 20 | Reports one reader may file in a UTC day (a third for a new account). |
 | `retirementPoll` | `false` | Poll Prospectus for retired reader subjects in each scheduled run. Needs `snapshot.schedule: true`, and `cms.readerRetirementPoll: true` in the site's app-shell `site.json` (see [the retirement poll](#the-prospectus-retirement-poll)). |
@@ -410,6 +412,27 @@ public; `off` has no queue. Moving a site from `human` to `off` is "trust gradua
 nothing else. With `moderation.preModeration: true` new submissions and comments start `hidden` ("held": the reader is told `state:
 "held"` and the island says "Held for review") and become public when a moderator approves them.
 
+**AI mode (`moderation.mode: "ai"`).** Off by default. A worker step reads each new submission and comment, asks the model (GPT-6 Luna) for
+`allow` or `hide` with a one-sentence reason, and applies the answer as an ordinary action marked `by: "ai"`: `allow` is an `approve`, `hide`
+is a `hide` (for a held item, the item stays hidden and leaves the queue). The decision is public at once, appears in the log as "AI moderator"
+with the reason (prefixed `AI:`), and any moderator can undo or overrule it. A human decision always stands: once a person has acted on an item
+(including an undo) the model never judges it again, even if a report puts it back in the queue. A model that fails, times out, or answers
+something that is not a valid verdict leaves the item in the human queue; three failures in a row end the run.
+
+- **How it runs.** In AI mode the debounced run that follows a write (the same 60 second window as the snapshot) is a one-off schedule that invokes
+  `reader-actions` itself with `{"worker": "ai-review"}`. The worker reads the key, judges the oldest new items first within its time budget (at most 25 a run),
+  and then invokes `content-actions` asynchronously for the snapshot, so decisions reach the public files in the same cycle. The snapshot is requested
+  whatever happens, so votes still show if the model or the key is unavailable. The function's timeout is 60 seconds. It runs only in `ai` mode.
+- **The prompt** is a file, `amplify/plugins/reader-steering/function/moderation-prompt.md`, shipped with the function. The reader's text goes to the model
+  as data in the request input, never in the instructions; the prompt tells the model to ignore instructions inside the content.
+- **What the model sees**: kind, title, URL, domain, the note or comment text (capped at 4,000 characters), the automatic signals (policy, detector and severity only) and the report count.
+  Never a `readerId`, a handle or a siteSubject.
+- **The key.** An SSM SecureString at `/papyrus/<site>/openai-api-key` (never Secrets Manager), created by an operator. The function role may `ssm:GetParameter` that one name
+  and nothing else in SSM. The key is read when a run starts, held only by the object that makes the request, sent as a bearer header and never logged, returned or stored;
+  errors are reported by class name. The Responses API request (`POST https://api.openai.com/v1/responses`, `store: false`, JSON object output) is built in
+  `ai_moderation.py`. It has not been exercised against the live API: tests stub the model and close the network, and no test, CI job or default makes a paid call.
+- **IAM added in AI mode**: the scheduler role may invoke `reader-actions` (as well as `content-actions`), and `reader-actions` may invoke `content-actions`.
+
 **Reports.** `POST /api/reader/report {target, reason}` (the target is a submission id or a comment id; `reason` is plain text, at most
 500 characters; `moderation.reportsPerDay` a day, a third for a new account, repeats count). A report is stored once per reader and
 target, raises the target's `reportCount` and puts it back in the queue (`moderation: "new"`) even if it was approved before. A
@@ -476,6 +499,8 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_submissions.py` and `features_backend/reader-submissions.feature`: submit, the canonical URL
   parity with reference intake, dedupe, similar, validation, the daily limit, votes and karma, the snapshot file, the review signals
   (with real Humanus rules) and retirement of submissions, against moto.
+- `procedures/newsroom/tests/test_reader_ai_moderation.py`: the AI step with a stubbed model and the network closed: allow and hide, human override and undo, held content, failures, deadline,
+  the key (read from the one parameter, absent from every log, result and row), the prompt file, what the model sees, and the scheduling; `scripts/test-reader-steering-plugin.ts` pins the IAM.
 - `procedures/newsroom/tests/test_reader_moderation.py` and `features_backend/reader-moderation.feature`: reports, every transition, the stale-view guard,
   undo, bans on every write route, promotion, pre-moderation, moderation off, and that hidden content leaves the files; `scripts/test-reader-moderation-panel.ts`:
   the queue, hidden list, log and the escaped rendering of the panel.

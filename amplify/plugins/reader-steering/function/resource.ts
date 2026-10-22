@@ -21,7 +21,7 @@ export const readerActions = defineFunction(
       runtime: Runtime.PYTHON_3_12,
       architecture: Architecture.ARM_64,
       handler: "handler.handler",
-      timeout: Duration.seconds(10),
+      timeout: Duration.seconds(60),
       memorySize: 256,
       code: Code.fromAsset(functionDirectory, { exclude: ["*.ts", "__pycache__", "*.pyc"] }),
       environment: { PAPYRUS_READER_RATE_TABLE: rateTable.tableName },

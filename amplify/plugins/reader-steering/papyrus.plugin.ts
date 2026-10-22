@@ -90,6 +90,25 @@ function wireRetirementPoll(readerLambda: LambdaFunction, contentActions: Lambda
   );
 }
 
+/**
+ * AI moderation (`moderation.mode: ai`). The debounced run becomes a run of reader-actions itself (a one-off schedule that
+ * invokes this function), which judges the new items and then asks content-actions for the snapshot. So the scheduler role may
+ * invoke reader-actions, reader-actions may invoke content-actions (its ARN is already in the environment) and may read exactly
+ * one SSM SecureString: the API key, which the plugin never creates and never receives.
+ */
+function wireAiModeration(readerLambda: LambdaFunction, contentActions: LambdaFunction, schedulerRole: Role, apiKeyParameter: string) {
+  const stack = Stack.of(readerLambda);
+  readerLambda.grantInvoke(schedulerRole);
+  contentActions.grantInvoke(readerLambda);
+  readerLambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["ssm:GetParameter"],
+      resources: [`arn:${stack.partition}:ssm:${stack.region}:${stack.account}:parameter${apiKeyParameter}`],
+    }),
+  );
+}
+
 export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerActions: typeof readerActions }> = {
   manifest: readerSteeringManifest,
   resolveConfig: resolveReaderSteeringConfig,
@@ -154,6 +173,8 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     lambda.addEnvironment("PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", contentActions.functionArn);
     lambda.addEnvironment("PAPYRUS_READER_SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
     contentActions.addEnvironment("PAPYRUS_READER_SNAPSHOT_SETTINGS", JSON.stringify(readerSnapshotSettings(config)));
+
+    if (config.moderation.ai) wireAiModeration(lambda, contentActions, schedulerRole, config.moderation.ai.apiKeyParameter);
 
     lambda.addPermission("InvokeFromCmsCompute", {
       principal: new ArnPrincipal(config.computeRoleArn),
