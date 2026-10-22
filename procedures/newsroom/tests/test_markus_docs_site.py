@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import argparse
+import re
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
 from papyrus_content.markus_renderer.docs_markdown import convert_markdown_dialects
+from papyrus_content.projection.standard.family import REGISTRY
 from papyrus_content.markus_renderer.docs_site import (
     DocsSiteConfig,
     build_docs_site,
+    docs_site_family_footer,
+    family_footer_stylesheet,
+    https_address,
+    main,
     docs_site_chrome,
     published_page_path,
     rewrite_image_references,
@@ -262,6 +269,72 @@ class DocsImageAndLinkTests(unittest.TestCase):
         self.assertIn("catppuccin-latte", chrome.head_html)
         self.assertIn("prefers-color-scheme: light", chrome.head_html)
         self.assertIn("mermaid", chrome.footer_html)
+
+
+CONTACT_ADDRESS = "https://example.org/engage/?solution=Demo&cta=docs"
+CONTACT_ADDRESS_ESCAPED = "https://example.org/engage/?solution=Demo&amp;cta=docs"
+
+
+def contact_link_hrefs(page_html: str) -> list[str]:
+    return re.findall(r'<a href="([^"]+)" target="_blank" rel="noreferrer">Contact us</a>', page_html)
+
+
+class DocsFamilyFooterTests(unittest.TestCase):
+    def test_footer_is_the_family_footer_named_for_the_site_and_described_by_its_tagline(self) -> None:
+        footer = docs_site_family_footer(DocsSiteConfig("Demo", "A demo tagline.", Path("docs"), "https://x"))
+        self.assertIn('<h2 class="papyrus-family-footer-title">Demo</h2>', footer)
+        self.assertIn('<p class="papyrus-family-footer-description">A demo tagline.</p>', footer)
+        self.assertIn("Made by", footer)
+        self.assertIn(">Tactus</a>", footer)
+
+    def test_chrome_footer_carries_the_family_footer_and_keeps_the_page_scripts(self) -> None:
+        chrome = docs_site_chrome(DocsSiteConfig("Demo", "tag", Path("docs"), "https://x"))
+        self.assertIn('<div class="papyrus-family-footer">', chrome.footer_html)
+        self.assertIn("mermaid", chrome.footer_html)
+
+    def test_contact_us_defaults_to_the_registry_contact_address(self) -> None:
+        footer = docs_site_family_footer(DocsSiteConfig("Demo", "tag", Path("docs"), "https://x"))
+        self.assertEqual(contact_link_hrefs(footer), [REGISTRY["contactUrl"]])
+
+    def test_contact_url_replaces_only_the_contact_us_href_and_escapes_the_ampersand(self) -> None:
+        default_footer = docs_site_family_footer(DocsSiteConfig("Demo", "tag", Path("docs"), "https://x"))
+        footer = docs_site_family_footer(DocsSiteConfig("Demo", "tag", Path("docs"), "https://x", contact_url=CONTACT_ADDRESS))
+        self.assertEqual(contact_link_hrefs(footer), [CONTACT_ADDRESS_ESCAPED])
+        self.assertEqual(footer.replace(CONTACT_ADDRESS_ESCAPED, "REGISTRY"), default_footer.replace(REGISTRY["contactUrl"], "REGISTRY"))
+
+    def test_stylesheet_holds_every_family_footer_rule_and_nothing_else(self) -> None:
+        stylesheet = family_footer_stylesheet()
+        self.assertIn(".papyrus-family-footer-community", stylesheet)
+        self.assertTrue(all("papyrus-family-footer" in line for line in stylesheet.splitlines() if line))
+
+    def test_contact_url_must_be_an_https_address(self) -> None:
+        self.assertEqual(https_address(CONTACT_ADDRESS), CONTACT_ADDRESS)
+        for refused in ("http://example.org/", "javascript:alert(1)", "https://", "engage"):
+            with self.assertRaises(argparse.ArgumentTypeError):
+                https_address(refused)
+
+    @unittest.skipUnless(shutil.which("markus"), "markus executable not installed")
+    def test_built_site_has_the_footer_its_stylesheet_and_the_contact_link_on_every_page(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_name:
+            root = Path(temporary_name)
+            write_documentation_tree(root / "docs")
+            out = root / "out"
+            arguments = ["--docs", str(root / "docs"), "--out", str(out), "--name", "Demo", "--source-url", "https://x"]
+            self.assertEqual(main(arguments + ["--contact-url", CONTACT_ADDRESS]), 0)
+            for address in ("index.html", "articles/cli.html", "articles/guides-setup.html"):
+                page = (out / address).read_text(encoding="utf-8")
+                self.assertEqual(contact_link_hrefs(page), [CONTACT_ADDRESS_ESCAPED], address)
+            self.assertIn(".papyrus-family-footer-community", (out / "css" / "site-theme.css").read_text(encoding="utf-8"))
+            self.assertIn(".site-banner", (out / "css" / "site-theme.css").read_text(encoding="utf-8"))
+
+    @unittest.skipUnless(shutil.which("markus"), "markus executable not installed")
+    def test_built_site_without_contact_url_uses_the_registry_address(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_name:
+            root = Path(temporary_name)
+            write_documentation_tree(root / "docs")
+            out = root / "out"
+            self.assertEqual(main(["--docs", str(root / "docs"), "--out", str(out), "--name", "Demo", "--source-url", "https://x"]), 0)
+            self.assertEqual(contact_link_hrefs((out / "index.html").read_text(encoding="utf-8")), [REGISTRY["contactUrl"]])
 
 
 if __name__ == "__main__":

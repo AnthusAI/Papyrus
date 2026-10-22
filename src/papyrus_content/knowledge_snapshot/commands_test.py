@@ -990,3 +990,15 @@ def test_a_model_is_its_own_kind_labelled_model_and_is_related_to_its_family_onl
     assert neighbours("model--tern-3") == [("member_of", "model-family--tern")]
     assert neighbours("model-family--tern") == [("member_of", "model--tern-3")]
     assert neighbours("model--lone-1") == []
+
+
+def test_reproject_builds_its_context_with_the_deletion_guard_unless_allowed(client, tmp_path, monkeypatch):
+    from papyrus_content import project_commands
+    from papyrus_content.projection.engine import DeletionGuard
+
+    monkeypatch.setattr(project_commands, "load_projector", lambda _environment: Projector())
+    monkeypatch.setattr(project_commands, "warn_if_checkout_is_behind", lambda _directory: None)
+    guarded = project_commands._context_for(client, {"out": str(tmp_path), "static-dir": str(tmp_path)})
+    unguarded = project_commands._context_for(client, {"out": str(tmp_path), "allow-deletions": True})
+    assert guarded.deletion_guard == DeletionGuard()
+    assert unguarded.deletion_guard is None

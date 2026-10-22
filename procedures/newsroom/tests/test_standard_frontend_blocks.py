@@ -429,6 +429,13 @@ def test_the_family_footer_lists_the_registry_in_the_packages_order_and_only_liv
     assert "© Anthus AI Solutions" in page
 
 
+def test_the_family_footer_contact_url_replaces_only_the_contact_us_href():
+    page = family_page(family={"siteId": "tactus", "contactUrl": "https://example.org/engage/?solution=Example&cta=site"})
+    assert '<a href="https://example.org/engage/?solution=Example&amp;cta=site" target="_blank" rel="noreferrer">Contact us</a>' in page
+    assert '<a href="https://github.com/AnthusAI" target="_blank" rel="noreferrer">GitHub</a>' in page
+    assert 'href="https://anth.us/engage"' not in page
+
+
 def test_the_company_site_gets_the_anthus_column_and_no_made_by():
     page = family_page(family={"siteId": "anthus"})
     assert '<h3 class="papyrus-family-footer-column-title">Anthus</h3>' in page and "Made by" not in page

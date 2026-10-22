@@ -47,6 +47,51 @@ MAXIMUM_ROUNDS = 3
 REPROJECT_ALL_THRESHOLD = 20
 
 
+@dataclass(frozen=True)
+class DeletionGuard:
+    """When a bulk projection refuses to delete: more than ``share_limit`` of the stored pages (and more than ``floor``), or any page of an item that stays published."""
+
+    share_limit: float = 0.1
+    floor: int = 20
+
+
+MESSAGE_ITEM_LIMIT = 20
+MESSAGE_KEY_LIMIT = 50
+
+
+class DeletionRefused(ValueError):
+    """A projection planned deletions the guard does not allow; no page was written."""
+
+    def __init__(self, keys, dropped_items, stored_pages: int) -> None:
+        self.keys = tuple(sorted(keys))
+        self.dropped_items = tuple(sorted(dropped_items))
+        self.stored_pages = stored_pages
+        super().__init__(self._describe())
+
+    def _describe(self) -> str:
+        groups: dict[str, int] = {}
+        for key in self.keys:
+            head = key.split("/", 1)[0] + "/" if "/" in key else "(top level)"
+            groups[head] = groups.get(head, 0) + 1
+        lines = [
+            f"Refusing to delete {len(self.keys)} of {self.stored_pages} stored pages; no page was written.",
+            "By first path segment: " + ", ".join(f"{head} {count}" for head, count in sorted(groups.items())),
+        ]
+        if self.dropped_items:
+            shown = ", ".join(self.dropped_items[:MESSAGE_ITEM_LIMIT])
+            more = len(self.dropped_items) - MESSAGE_ITEM_LIMIT
+            lines.append(
+                f"{len(self.dropped_items)} published items would be left with no pages: {shown}"
+                + (f" and {more} more" if more > 0 else "")
+            )
+        more_keys = len(self.keys) - MESSAGE_KEY_LIMIT
+        lines.append("Pages: " + ", ".join(self.keys[:MESSAGE_KEY_LIMIT]) + (f" and {more_keys} more" if more_keys > 0 else ""))
+        lines.append(
+            "Check that --static-dir is a current checkout of the site, or pass --allow-deletions if the deletions are intended."
+        )
+        return "\n".join(lines)
+
+
 @dataclass
 class ProjectionContext:
     source: PublishedContentSource
@@ -57,6 +102,7 @@ class ProjectionContext:
     keep_state: bool = True
     maximum_rounds: int = MAXIMUM_ROUNDS
     defer_follow_up: bool = False
+    deletion_guard: DeletionGuard | None = None
 
     def __post_init__(self) -> None:
         types = tuple(getattr(self.projector, "projectable_types", ()))
@@ -105,6 +151,23 @@ def _delete_pages(context: ProjectionContext, report: ProjectionReport, keys) ->
     for key in sorted(keys):
         context.writer.delete(key)
         report.deleted.append(key)
+
+
+def _guard_deletions(context: ProjectionContext, keys, dropped_items) -> None:
+    """Refuse, before any page is written, deletions that look like a wrong site configuration rather than an edit."""
+    guard = context.deletion_guard
+    keys = set(keys)
+    dropped = sorted(set(dropped_items))
+    if guard is None or not (keys or dropped):
+        return
+    projector = context.projector
+    stored = sum(
+        1
+        for entry in context.writer.list()
+        if not entry.key.startswith(STATE_PREFIX) and not is_plugin_runtime_key(entry.key) and projector.owns_page_key(entry.key)
+    )
+    if dropped or len(keys) > max(guard.floor, guard.share_limit * stored):
+        raise DeletionRefused(keys, dropped, stored)
 
 
 def _item_keys(context: ProjectionContext, site: SiteIndex) -> set[str]:
@@ -444,6 +507,7 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     states: list[ItemState] = []
     sibling_keys: set[str] = set()
     leftovers: set[str] = set()
+    dropped: list[str] = []
     for item in items:
         pages = projector.item_pages(item, site)
         rendered.update(pages)
@@ -454,6 +518,8 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
             remembered = _merge_sibling_states(remembered, [state for _key, state in siblings])
         if remembered is not None:
             leftovers.update(set(remembered.page_keys) - set(pages))
+            if remembered.page_keys and not pages:
+                dropped.append(item.summary.item_id)
         states.append(_updated_state(remembered, item.summary, tuple(sorted(pages))))
     inputs = projector.listing_inputs(site)
     listings = projector.listing_pages(site, None)
@@ -461,10 +527,12 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     redirects = dict(projector.redirects(site))
     for state in states:
         redirects.update(_moved_redirects(context.projector, state, live_keys))
+    planned = leftovers - live_keys - set(inputs)
+    _guard_deletions(context, planned, dropped)
     _write_static(context, report, projector.static_files())
     _write_item_pages(context, report, rendered, _versions_by_page(context, site))
     _write_listing_pages(context, report, listings, inputs)
-    _delete_pages(context, report, leftovers - live_keys - set(inputs))
+    _delete_pages(context, report, planned)
     if context.redirect_store is not None and redirects:
         current = context.redirect_store.list_all()
         changed = {source: target for source, target in redirects.items() if current.get(source) != target}
@@ -602,6 +670,15 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
     )
     report.stale_listings = _stale_listing_keys(context, site)
 
+    expected = set(expected_item_keys) | set(projector.listing_inputs(site))
+    report.orphan_pages = sorted(
+        key
+        for key in objects
+        if not key.startswith(STATE_PREFIX) and not is_plugin_runtime_key(key) and projector.owns_page_key(key) and key not in expected
+    )
+    if not dry_run:
+        _guard_reconcile(context, report, site, objects, expected)
+
     if not dry_run and len(report.stale_items) > REPROJECT_ALL_THRESHOLD:
         project_all(context)
         report.projected_everything = True
@@ -621,12 +698,6 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
         if report.removed_items:
             _remove_items(context, report.removed_items, fresh)
 
-    expected = set(expected_item_keys) | set(projector.listing_inputs(site))
-    report.orphan_pages = sorted(
-        key
-        for key in objects
-        if not key.startswith(STATE_PREFIX) and not is_plugin_runtime_key(key) and projector.owns_page_key(key) and key not in expected
-    )
     if not dry_run and report.orphan_pages:
         cleanup = ProjectionReport()
         _delete_pages(context, cleanup, report.orphan_pages)
@@ -634,6 +705,27 @@ def reconcile(context: ProjectionContext, *, dry_run: bool = False) -> Reconcile
 
     _reconcile_redirects(context, report, site, dry_run)
     return report
+
+
+def _guard_reconcile(
+    context: ProjectionContext, report: ReconcileReport, site: SiteIndex, objects: dict[str, StoredObject], expected: set[str]
+) -> None:
+    if context.deletion_guard is None:
+        return
+    planned = set(report.orphan_pages)
+    for item_id in report.removed_items:
+        state = read_item_state(context.writer, item_id)
+        if state is not None:
+            planned.update(set(state.page_keys) - expected)
+    dropped: list[str] = []
+    if context.keep_state:
+        for summary in site.items:
+            if context.projector.item_page_paths(summary) or item_state_key(summary.item_id) not in objects:
+                continue
+            state = read_item_state(context.writer, summary.item_id)
+            if state is not None and state.page_keys:
+                dropped.append(summary.item_id)
+    _guard_deletions(context, planned, dropped)
 
 
 def _remove_items(context: ProjectionContext, item_ids: list[str], site: SiteIndex) -> None:

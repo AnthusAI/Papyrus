@@ -20,6 +20,7 @@ import tempfile
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .build import BuildResult, build_markus_site
 from .docs_markdown import convert_markdown_dialects
@@ -55,6 +56,8 @@ class DocsSiteConfig:
     """Glob patterns matched against each page's path under the docs directory; matching pages are never published."""
     published_site_url: str = ""
     """The site's public address ending in a slash; when set, the build also writes ``sitemap.xml`` and ``404.html``."""
+    contact_url: str = ""
+    """Where the family footer's "Contact us" link points; empty keeps the registry's ``contactUrl``."""
 
 
 def source_documentation_pages(config: DocsSiteConfig) -> list[Path]:
@@ -446,6 +449,23 @@ def theme_selection_script(config: DocsSiteConfig) -> str:
     )
 
 
+def family_footer_stylesheet() -> str:
+    """The family-footer rules of the standard front end's component stylesheet (they use the ``--papyrus-family-footer-*`` tokens)."""
+    from papyrus_content.projection.standard.projector import ASSET_DIRECTORY
+
+    lines = (ASSET_DIRECTORY / "markus-components.css").read_text(encoding="utf-8").splitlines()
+    return "\n".join(line for line in lines if "papyrus-family-footer" in line) + "\n"
+
+
+def docs_site_family_footer(config: DocsSiteConfig) -> str:
+    """The Anthus family footer for this docs site, rendered by the standard front end's one footer renderer."""
+    from papyrus_content.projection.standard.config import FamilyFooter
+    from papyrus_content.projection.standard.family import family_footer
+
+    family = FamilyFooter(name=config.site_name, description=config.tagline, contact_url=config.contact_url)
+    return family_footer(family, config.site_name, config.tagline, ())
+
+
 def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
     def render_site_banner(page_context) -> str:
         navigation_groups = config.navigation or automatic_navigation(config)
@@ -479,8 +499,7 @@ def docs_site_chrome(config: DocsSiteConfig) -> SiteChrome:
         head_html=theme_selection_script(config),
         render_masthead=render_site_banner,
         footer_html=(
-            '<p>Built with <a href="https://github.com/AnthusAI/Papyrus">Papyrus</a>. '
-            f'Source on <a href="{config.source_repository_url}">GitHub</a>.</p>'
+            docs_site_family_footer(config)
             + COLLAPSE_MENU_ON_NARROW_SCREENS_SCRIPT
             + RENDER_MERMAID_DIAGRAMS_SCRIPT
         ),
@@ -518,14 +537,21 @@ def source_last_modified(config: DocsSiteConfig) -> dict[str, str]:
 
 
 def build_docs_site(config: DocsSiteConfig, output_directory: Path) -> BuildResult:
-    with tempfile.TemporaryDirectory(prefix="papyrus-docs-site-") as staging_name:
+    with tempfile.TemporaryDirectory(prefix="papyrus-docs-site-") as staging_name, tempfile.TemporaryDirectory(
+        prefix="papyrus-docs-site-css-"
+    ) as stylesheet_name:
         staging_directory = Path(staging_name)
         stage_docs_content(config, staging_directory)
+        site_stylesheet = Path(stylesheet_name) / "site.css"
+        site_stylesheet.write_text(
+            (config.site_stylesheet or DEFAULT_SITE_STYLESHEET).read_text(encoding="utf-8") + family_footer_stylesheet(),
+            encoding="utf-8",
+        )
         result = build_markus_site(
             content_dir=staging_directory,
             out_dir=output_directory,
             theme=config.theme,
-            site_css=config.site_stylesheet or DEFAULT_SITE_STYLESHEET,
+            site_css=site_stylesheet,
             chrome=docs_site_chrome(config),
         )
         if config.redirect_former_directory_urls:
@@ -540,6 +566,14 @@ def build_docs_site(config: DocsSiteConfig, output_directory: Path) -> BuildResu
     return result
 
 
+def https_address(value: str) -> str:
+    """Argument type for an address a link points at: an ``https://`` URL with a host."""
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not an https:// address")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build a documentation site with Papyrus.")
     parser.add_argument("--docs", type=Path, default=Path("docs"))
@@ -550,6 +584,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--theme", default="catppuccin")
     parser.add_argument("--site-url", default="", help="Public address ending in a slash; enables sitemap.xml and 404.html.")
     parser.add_argument("--exclude", action="append", default=[], help="Glob of pages (relative to --docs) never to publish; repeatable.")
+    parser.add_argument("--contact-url", default=None, type=https_address, help="Where the footer's Contact us link points (default: the Anthus registry's contact address).")
     parser.add_argument("--redirect-former-urls", action="store_true", help="Write redirects from former directory-style URLs.")
     arguments = parser.parse_args(argv)
     result = build_docs_site(
@@ -561,6 +596,7 @@ def main(argv: list[str] | None = None) -> int:
             theme=arguments.theme,
             redirect_former_directory_urls=arguments.redirect_former_urls,
             published_site_url=arguments.site_url,
+            contact_url=arguments.contact_url or "",
             excluded_page_patterns=tuple(arguments.exclude),
         ),
         arguments.out,
