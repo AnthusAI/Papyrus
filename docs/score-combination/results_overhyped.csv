@@ -1,0 +1,19 @@
+case,option,median_rank_of_overhyped_item,reader_hype_gap_median
+editor saw through it,A,60,2.17
+editor saw through it,B5,61,2.17
+editor saw through it,B10,60,2.17
+editor saw through it,B20,59,2.17
+editor saw through it,B40,58,2.17
+editor saw through it,B20cap.4,59,2.17
+editor saw through it,C-Front,54,2.17
+editor saw through it,C-Readers,62,2.17
+editor saw through it,D,1,2.17
+editor fooled,A,20,2.18
+editor fooled,B5,33,2.18
+editor fooled,B10,15,2.18
+editor fooled,B20,7,2.18
+editor fooled,B40,2,2.18
+editor fooled,B20cap.4,7,2.18
+editor fooled,C-Front,1,2.18
+editor fooled,C-Readers,63,2.18
+editor fooled,D,1,2.18
