@@ -94,6 +94,7 @@
     "test:robots-policy": "tsx scripts/test-robots-policy.ts",
     "test:site-backend-names": "tsx scripts/test-site-backend-names.ts",
     "test:site-backend-synth": "tsx scripts/test-site-backend-synth.ts",
+    "test:scheduled-job-synth": "tsx scripts/test-scheduled-job-synth.ts",
     "test:reader-cache-lifetime": "tsx scripts/test-reader-cache-lifetime.ts",
     "test:s3-projection-publication": "tsx scripts/test-s3-projection-publication.ts",
     "test:renditions-function": "tsx scripts/test-renditions-function.ts",

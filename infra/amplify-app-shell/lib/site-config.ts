@@ -79,6 +79,11 @@ export type AmplifyAppShellSiteConfig = {
   papyrusVersion: string;
   storagePreviewPrefix?: string;
   /**
+   * The scheduled cloud knowledge run for this publication. The app-shell stack ignores it; it is validated by
+   * infra/scheduled-jobs/lib/knowledge-run-config.ts, which owns the schema.
+   */
+  knowledgeRun?: unknown;
+  /**
    * Merge-to-main deploy from GitHub Actions through OIDC. When true (the default) the stack creates the
    * `<siteId>-github-deploy` role and turns off Amplify's own auto-build on the production branches, so the
    * public repository's workflow is the only trigger. Set false for a site whose repository is private:
@@ -485,7 +490,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "autoDeploy", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "knowledgeRun", "autoDeploy", "github"],
     "site",
   );
 
@@ -600,6 +605,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     storagePreviewPrefix,
     autoDeploy: autoDeploy as boolean,
     github,
+    ...(record.knowledgeRun !== undefined ? { knowledgeRun: record.knowledgeRun } : {}),
   };
 
   if (hasCmsApp(config)) validateOauthRedirectUrls(config);

@@ -1,0 +1,57 @@
+{
+  "siteId": "shipped",
+  "stackName": "amplify-app-shell-shipped-cms",
+  "repository": "https://github.com/AnthusAI/Shipped-web",
+  "brand": "shipped",
+  "frontend": "markus-static",
+  "papyrusVersion": "5.26.0",
+  "aws": {
+    "profile": "papyrus-production",
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
+  "cms": {
+    "staging": false,
+    "cognitoDomainPrefix": "papyrus-shipped-cms",
+    "applyCognitoDomainPrefix": true,
+    "buildComputeType": "STANDARD_8GB",
+    "environment": {
+      "PAPYRUS_ENABLE_CONSOLE_RESPONDER": "false",
+      "PAPYRUS_ENABLE_SLACK": "false",
+      "PAPYRUS_ENABLE_INBOUND_EMAIL": "false",
+      "PAPYRUS_ENABLE_STORAGE_BACKUPS": "false",
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://shipped.anth.us/,https://main.dkycd9pntgo6d.amplifyapp.com/"
+    },
+    "siteOrigin": "https://shipped.anth.us",
+    "prospectusAccountsApiStageArn": "arn:aws:execute-api:us-east-1:712236451410:bnh9mctvo9/api",
+    "readerRetirementPoll": true
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "Shipped-web",
+    "branches": [
+      "main"
+    ],
+    "ownerId": 152415604,
+    "repoId": 1428297675
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 5 ? * MON *)",
+    "vCpu": 4,
+    "memoryMiB": 16384,
+    "ephemeralStorageGiB": 40,
+    "siteBucket": "amplify-dkycd9pntgo6d-main-bran-sitebucket397a1860-072ufgwmonqo",
+    "edgeDistributionId": "EUQZ249T4OKXH",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/7c0d81b7-e786-4ae3-a30b-abd7dd532560",
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "beatsConfig": "web/scoring.json",
+    "conceptKinds": [
+      "task",
+      "technique",
+      "concept",
+      "model_family"
+    ],
+    "lockWaitSeconds": 1800
+  }
+}
