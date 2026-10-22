@@ -9,8 +9,6 @@ import { fileURLToPath } from "node:url";
 
 const functionDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-export const READER_ACTIONS_RESERVED_CONCURRENCY = 10;
-
 export const readerActions = defineFunction(
   (scope: Construct) => {
     const rateTable = new Table(scope, "PapyrusReaderRateWindows", {
@@ -25,7 +23,6 @@ export const readerActions = defineFunction(
       handler: "handler.handler",
       timeout: Duration.seconds(10),
       memorySize: 256,
-      reservedConcurrentExecutions: READER_ACTIONS_RESERVED_CONCURRENCY,
       code: Code.fromAsset(functionDirectory, { exclude: ["*.ts", "__pycache__", "*.pyc"] }),
       environment: { PAPYRUS_READER_RATE_TABLE: rateTable.tableName },
     });
