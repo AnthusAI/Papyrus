@@ -187,8 +187,8 @@ export function curationForSuggestionChoice(decision: RelevanceDecisionView, cho
 }
 
 export type ProvenanceSummary = {
-  teachingLabelsSentence: string;
-  primingExamplesSentence: string;
+  teachingLabelsSentence: string | null;
+  primingExamplesSentence: string | null;
   doctrineShortHash: string | null;
   modelVersion: string | null;
   decidedAt: string | null;
@@ -202,8 +202,8 @@ export function provenanceSummary(decision: RelevanceDecisionView): ProvenanceSu
   if (!provenance) return null;
   const plural = (count: number, singular: string) => `${count} ${singular}${count === 1 ? "" : "s"}`;
   return {
-    teachingLabelsSentence: `Based on ${plural(provenance.teachingLabels, "decision")} that editors made themselves`,
-    primingExamplesSentence: `${plural(provenance.primingExamples, "example reference")} supplied as starting examples`,
+    teachingLabelsSentence: provenance.teachingLabels === null ? null : `Based on ${plural(provenance.teachingLabels, "decision")} that editors made themselves`,
+    primingExamplesSentence: provenance.primingExamples === null ? null : `${plural(provenance.primingExamples, "example reference")} supplied as starting examples`,
     doctrineShortHash: provenance.doctrineFingerprint ? provenance.doctrineFingerprint.slice(0, SHORT_HASH_LENGTH) : null,
     modelVersion: decision.version === null ? null : `revision ${decision.version}`,
     decidedAt: decision.decidedAt,

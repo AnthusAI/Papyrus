@@ -1,0 +1,10 @@
+@brand-agnostic @reference-editor-layout
+Feature: Reference review remains reachable on a laptop screen
+  Secondary import controls and prediction activity must not consume the
+  available space for references. This full-app check runs only when an
+  explicit local demo URL is supplied; it never opens a production newsroom.
+
+  Scenario: Select a pending reference at 1280 by 720
+    Given an explicitly configured local reference demo
+    When the editor opens the full newsroom at 1280 by 720
+    Then a reference row is visible inside the list viewport and pending feedback is reachable

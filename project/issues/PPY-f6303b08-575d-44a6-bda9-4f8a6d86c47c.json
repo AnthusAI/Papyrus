@@ -1,0 +1,49 @@
+{
+  "id": "PPY-f6303b08-575d-44a6-bda9-4f8a6d86c47c",
+  "title": "Restore editor Reference selection and truthful review feedback",
+  "description": "As an editor, I can select pending References, inspect actual publication and Section prediction state, approve or reject with optional explanation, and revise persisted feedback through authorized existing APIs. Scope: editor UI and required API integration; no email intake (PPY-65026c), training, production labels, merge or deployment. Reuse existing curation/relevance work. Acceptance: executable Gherkin plus fixture unit/integration/browser coverage of selection, prediction absence/error, optional explanation, persistence, authorization, failure recovery and repeated-click protection.",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "c5f6575e-bc55-46fe-a294-a0230a3ffc82",
+      "author": "home",
+      "text": "Isolated worktree fix/PPY-f6303b-editor-reference-review from origin/develop 79bee759. Reviewed existing #170/#213 curation work and PPY-90ca40, PPY-820acd, PPY-3626cd; no replacement duplication. Production inspected in separate in-app browser: signed-out Editor Sign-In Required; no production reference mutations. Source diagnosis: semanticRelations loading effect invalidates its own async response; catch hides failures as empty predictions; generic Reject omits required reasonCode; same-status feedback revisions unavailable. Local fixture selection works at desktop; mobile/deep-link tests follow. Email PPY-65026c worktree/infrastructure untouched.",
+      "created_at": "2026-10-23T14:10:15.448879Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "editor-reference-review"
+      }
+    },
+    {
+      "id": "5c6cec8d-2366-4a84-836e-3957ed38ab0f",
+      "author": "home",
+      "text": "Implementation complete in isolated branch fix/PPY-f6303b-editor-reference-review. Actual demo layout reproduced a zero-height reference list at 1280x720; collapsed secondary controls restore a 260px viewport with a complete 118px row. Selected references read indexed predictions and latest attached review metadata; errors and missing predictions stay distinct. Review API preserves optional note, rejection reason, explicit Section and decision link; latest server metadata controls human/delegated labels. Added same-status revisions, failure recovery and duplicate-click guards. Verified full lint/typecheck; 22 focused unit/API/auth/schema tests; 5 browser lifecycle/import/rating tests; 9 fixture browser scenarios (34 steps) and real-app layout scenario (3 steps); Python curation 11 scenarios/55 steps and relevance records 9 scenarios/31 steps; pilot guard and diff check. Initial browser executable mismatch resolved with installed Chromium override; import tests updated for new disclosure. Production read-only inspection stops at Editor Sign-In Required, so private predictions and hosted editor mutations remain unverified. Full build compiled but page data failed on /articles/[slug] because demo Amplify outputs lack PublishedItem. No backend/schema/email/training/production changes; no merge or deploy. Draft PR follows.",
+      "created_at": "2026-10-23T14:33:56.103851Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "editor-reference-review"
+      }
+    }
+  ],
+  "created_at": "2026-10-23T14:05:57.311107Z",
+  "updated_at": "2026-10-23T14:33:56.103883Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

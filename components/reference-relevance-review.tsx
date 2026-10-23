@@ -28,7 +28,7 @@ export function ReferenceRelevanceReview({
 }: {
   disabled?: boolean;
   decision: RelevanceDecisionView;
-  onCurate: (curation: RelevanceCuration) => void;
+  onCurate: (curation: RelevanceCuration) => Promise<void> | void;
   referenceLineageId: string;
 }) {
   const [shareable, setShareable] = useState(false);
@@ -47,10 +47,10 @@ export function ReferenceRelevanceReview({
         disabled={disabled}
         itemId={referenceLineageId}
         mode={decision.reviewControl === "thumbs" && classes.length === 2 ? "thumbs" : "labels"}
-        onReview={(review) => {
+        onReview={async (review) => {
           try {
             setError(null);
-            onCurate(curationForRelevanceReview(decision, { ...review, shareable }));
+            await onCurate(curationForRelevanceReview(decision, { ...review, shareable }));
           } catch (failure) {
             setError(failure instanceof Error ? failure.message : String(failure));
           }
