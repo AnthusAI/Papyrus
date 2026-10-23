@@ -24,7 +24,7 @@ DEFAULT_MAXIMUM_IDEAS = 5
 MAXIMUM_TITLE = 200
 MAXIMUM_ANGLE = 1500
 MAXIMUM_OUTPUT_TOKENS = 6000
-MAXIMUM_INPUT_CHARACTERS = 60_000
+MAXIMUM_INPUT_CHARACTERS = 120_000
 REQUEST_TIMEOUT_SECONDS = 180
 BANNED_WORDS = ("desk",)
 
@@ -47,7 +47,7 @@ Rules:
 - References with status "pending" are unreviewed: say in the angle that the idea rests on unreviewed references.
 - Choose the section from the allowed list, exactly as written.
 - The novelty note says what the recent and in-flight stories, earlier drafts and feedback already cover, and why this idea is not that. If it is not clearly different, leave the idea out.
-- Follow the mission and policy. Prefer fewer, stronger ideas; zero is a fine answer. Never use the word "desk".
+- Follow the mission and policy. Propose as many distinct ideas as the references support, up to maximum_ideas, each built from a different cluster of references; give fewer only when the references really do not support more. Weak or unsupported ideas are worse than none. Never use the word "desk".
 """
 
 SCHEMA: dict[str, Any] = {
