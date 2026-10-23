@@ -1,0 +1,22 @@
+{
+  "id": "PPY-36ee9616-e5bb-440b-a1c6-743b8f62d317",
+  "title": "Document automations on p.apyr.us (S)",
+  "description": "Every Papyrus feature epic ends with a docs page on the marketing and docs site, p.apyr.us (Papyrus-web).\n\nAdd a page covering automations as they ship:\n- what an automation is (a trigger bound to a procedure);\n- the trigger kinds (monitor today; schedule, event and manual coming);\n- run history;\n- the console Automation page;\n- the papyrus automations CLI.\n\nUse Distinctive Mark's TTAB rulings as the worked example. Update it as later slices land: review points, the Notification Center, story-state bots, the idea pipeline and cross-story checks. Source: docs/automations.md in Papyrus.\n\nThe Papyrus marketing website redesign session owns Papyrus-web. Coordinate with it before editing.\n\nAcceptance: the page is live on p.apyr.us, linked from the docs index, and accurate to the released version.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-S"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-23T08:05:46.999712Z",
+  "updated_at": "2026-10-23T08:05:46.999798Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
