@@ -11,7 +11,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Add a site to Hacker News routing**: [monitoring-cloud.md](monitoring-cloud.md), [../AGENTS.md](../AGENTS.md#add-a-site-to-the-hacker-news-routing).
 - **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
-- **Review requests and the Notification Center** (console home; in progress, PR #642, PPY-ab6a50 and PPY-1cd261): the principle is that the console home shows what needs a person, in words with marks and never colour alone; ignoring an item is always safe; and answers are fed back to the steering of the next run. Its pages (`notification-center.md`, `review-requests.md`) land with the PR; link them here when it merges.
+- **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
 
 ## Features at a glance
 

@@ -28,7 +28,7 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 | Knowledge run (local and cloud), weekly archive, projection lease | `infra/scheduled-jobs/`, `infra/knowledge-run/`, `amplify/publication/projection-lease.ts`, `papyrus knowledge` | [workstation run](docs/knowledge-workstation-run.md), [cloud run](docs/knowledge-cloud-run.md), [knowledge snapshot](docs/knowledge-snapshot.md), [lease](docs/site-hosting.md#projection-lease-one-projection-at-a-time) |
 | Automations | `src/papyrus_content/automations.py`, `amplify/functions/automation-view`, `papyrus automations` | [automations](docs/automations.md) |
 | Idea pipeline v0 | `src/papyrus_content/ideas/`, `papyrus ideas` | [idea pipeline](docs/idea-pipeline.md) |
-| Review requests and the Notification Center (console home) | In progress, PR #642 (PPY-ab6a50, PPY-1cd261). Nothing on `develop` yet | Docs arrive with the PR (`docs/notification-center.md`, `docs/review-requests.md`) |
+| Review requests and the Notification Center (console home) | `src/papyrus_content/review_requests.py`, `components/notification-center.tsx`, `lib/review-requests.ts`, `papyrus reviews`. Merged to `develop` (#642); live on a site after its data API deploys | [notification center](docs/notification-center.md), [review requests](docs/review-requests.md) |
 | GA4 and consent | `src/papyrus_content/markus_renderer/consent.py`, `analytics_events.py` | [site hosting: Analytics](docs/site-hosting.md#analytics-google-analytics-4) |
 | Pretext layout solver and reader | `lib/`, `renderers/`, `features/` | [layout system](docs/layout-system.md), [solver and data contracts](docs/solver-and-data-contracts.md) |
 | Operator CLI | `src/papyrus/`, `src/papyrus_content/cli.py` | [operator CLI](docs/operator-cli.md), [CLI login](docs/cli-login.md) |
@@ -63,7 +63,7 @@ git worktree add -b docs/my-change ~/Projects/Papyrus-worktrees/my-change origin
 - **Shared checkouts: never switch branches, never `git stash`.** Use worktrees. Remove them when done.
 - **Production AWS**: use `AWS_PROFILE=papyrus-production` and assert the account (`aws sts get-caller-identity --query Account --output text` prints `712236451410`) before any write. Never run `ampx pipeline-deploy` locally. Stack changes go through a CloudFormation change set that a human reads. `aws sso login` is interactive; only the user can run it.
 - **GA4 consent is the Anth.us standard**: Consent Mode v2 with the first-party banner. `analytics_only` exists but stays **off** on every site.
-- **Human review is never a story state.** Do not add a "review" stage to a content item; human review is a review request (in progress, PR #642).
+- **Human review is never a story state.** Do not add a "review" stage to a content item; human review is a review request ([review requests](docs/review-requests.md)).
 - **Never create Cognito password users**; sign-in is Google only.
 - **Reader steering stays closed in production** until Prospectus returns a site subject; do not add a flag to open it.
 - Subject areas, corpus names and categories never go into application logic; the pilot-identifier guard (`procedures/guards/check_pilot_identifiers.py`) fails CI on new ones.
@@ -181,7 +181,7 @@ Local: [workstation runbook](docs/knowledge-workstation-run.md). Cloud: `aws ste
 - `kbs update` does not take `--agent-*` provenance flags on every installed version; if it rejects them, drop them. On `kbs create`, pass `--no-agent-provenance` to silence the provenance warning.
 - Hierarchy: initiative, epic, task, sub-task; bug, story and chore hang under any of them. Read ids from the `kbs` output (a create prints the new id; `kbs show <id>` prints the parent).
 - Board changes go in via a `board/<slug>` pull request. Record the branch, PR link and verification on the issue before closing it.
-- Human review is never a status: use review requests (in progress, PR #642).
+- Human review is never a status: use review requests ([docs](docs/review-requests.md)).
 - Ryan's board names: the **newsroom board** or **Papyrus board** means the Anth.us publication board (Kanbus key `ANTH`, repository `AnthusAI/anthus-semantic-knowledge-base`, checked out at `~/Projects/anthus-semantic-knowledge-base`); the **product board** or **PPY board** is this repository's. `pods/anthus-blog` is a submodule of that repository, live only after `git submodule update --init`; if `kbs list` there shows no stories you are in the stale empty template.
 
 ## Rules, each with its enforcement (layout, content, newsroom, CLI)
@@ -273,7 +273,8 @@ Roles as of 2026-10-23. Ryan decides priorities; when unsure who owns a thing, a
 ## Current state (2026-10-23)
 
 - **Live**: standard Markus projector and the edge handler on Markus sites; newsletters on Shipped; reader-steering code and Proposals (reader writes closed in production); monitoring and router (dry-run or live per the router config); procedure runner for Distinctive Mark's TTAB analysis; automations slices 1 and 2; the cloud knowledge run (Shipped first); GA4 with Consent Mode v2.
-- **In progress**: review requests and the Notification Center home (PR #642, PPY-ab6a50 and PPY-1cd261, under PPY-9ff95b); the idea pipeline beyond v0 (PPY-8ffc18: scheduling and weekly trends; unattended runs cannot file Proposals because `fileProposal` is not open to IAM); outbound newsletters beyond Shipped (PPY-31455f); publication-agnostic Monitoring (PPY-2d77c8).
+- **Merged, awaiting a release and a data API deploy per site**: review requests and the Notification Center home (#642, PPY-ab6a50 and PPY-1cd261, under PPY-9ff95b).
+- **In progress**: the idea pipeline beyond v0 (PPY-8ffc18: scheduling and weekly trends; unattended runs cannot file Proposals because `fileProposal` is not open to IAM); outbound newsletters beyond Shipped (PPY-31455f); publication-agnostic Monitoring (PPY-2d77c8).
 - **Planned**: automation outputs go to review by default (PPY-2b4bda); schedule, event and manual automation triggers; Data Parade binding into the shared Cyclotron (PPY-cad5f6, blocked); votes and flags checking that their subject exists (PPY-d9e384).
 - **Known stale docs**: `docs/standard-site.md` and `packages/README.md` still describe the packages as a spike that publishes nothing (they publish; see `docs/releasing.md`); `docs/newsletter.md` opens with "not yet enabled on any site" (Shipped has it on). Prefer README.md and the topic pages when they disagree.
 
