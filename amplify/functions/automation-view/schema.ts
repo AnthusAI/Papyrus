@@ -1,5 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { automationView } from "./resource";
+import { functionHandler } from "../shared/function-handler";
 
 const editors = ["editor", "admin"];
 
@@ -17,11 +18,11 @@ export const automationViewSchemaDefinitions = {
     .arguments({ automationId: a.string() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
-    .handler(a.handler.function(automationView)),
+    .handler(functionHandler("automationView", automationView)),
   runAutomation: a
     .mutation()
     .arguments({ automationId: a.string().required(), input: a.json() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
-    .handler(a.handler.function(automationView)),
+    .handler(functionHandler("automationView", automationView)),
 };

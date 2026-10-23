@@ -14,6 +14,7 @@ import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
 import { assertKnownModelGroups, schema as leanSchema, schemaExcludingGroups, schemaWithPlugins } from "./schema";
+import { functionHandler, sharedFunctions } from "../functions/shared/function-handler";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -145,7 +146,7 @@ const schema = a.schema({
     .query()
     .returns(a.ref("UserDirectoryResult"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   grantUserRole: a
     .mutation()
@@ -157,7 +158,7 @@ const schema = a.schema({
     })
     .returns(a.ref("UserRoleMutationResult"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   revokeUserRole: a
     .mutation()
@@ -169,7 +170,7 @@ const schema = a.schema({
     })
     .returns(a.ref("UserRoleMutationResult"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   mergeUserProfiles: a
     .mutation()
@@ -182,13 +183,13 @@ const schema = a.schema({
     })
     .returns(a.ref("UserDirectoryEntry"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   getReaderSettings: a
     .query()
     .returns(a.ref("ReaderSettingsResult"))
     .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(readerSettings)),
+    .handler(functionHandler("readerSettings", readerSettings)),
 
   updateReaderSettings: a
     .mutation()
@@ -197,7 +198,7 @@ const schema = a.schema({
     })
     .returns(a.ref("ReaderSettingsResult"))
     .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(readerSettings)),
+    .handler(functionHandler("readerSettings", readerSettings)),
 
   SteeringActionResult: a.customType({
     ok: a.boolean().required(),
@@ -227,7 +228,7 @@ const schema = a.schema({
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   CurationDelegationResult: a.customType({
     ok: a.boolean().required(),
@@ -352,7 +353,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createCurationDelegation: a
     .mutation()
@@ -364,7 +365,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   revokeCurationDelegation: a
     .mutation()
@@ -375,7 +376,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   listCurationDelegations: a
     .query()
@@ -383,7 +384,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   requestCurationDelegation: a
     .mutation()
@@ -397,7 +398,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.authenticated("identityPool"),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   approveCurationDelegation: a
     .mutation()
@@ -408,7 +409,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   denyCurationDelegation: a
     .mutation()
@@ -419,7 +420,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   getCurationDelegationStatus: a
     .query()
@@ -430,7 +431,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.authenticated("identityPool"),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   recordDelegatedCuration: a
     .mutation()
@@ -452,7 +453,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.authenticated("identityPool"),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   setReferenceQualityRating: a
     .mutation()
@@ -467,7 +468,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createReferenceNote: a
     .mutation()
@@ -482,7 +483,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   moveReferenceCorpus: a
     .mutation()
@@ -497,7 +498,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   startReferenceCuration: a
     .mutation()
@@ -511,7 +512,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   getReferenceCurationStatus: a
     .query()
@@ -522,7 +523,7 @@ const schema = a.schema({
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createCategorySetDraft: a
     .mutation()
@@ -534,7 +535,7 @@ const schema = a.schema({
     })
     .returns(a.ref("CategorySetDraftActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   promoteCategorySetDraft: a
     .mutation()
@@ -545,7 +546,7 @@ const schema = a.schema({
     })
     .returns(a.ref("CategorySetDraftActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   discardCategorySetDraft: a
     .mutation()
@@ -556,7 +557,7 @@ const schema = a.schema({
     })
     .returns(a.ref("CategorySetDraftActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createDraftCategory: a
     .mutation()
@@ -572,7 +573,7 @@ const schema = a.schema({
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   updateDraftCategory: a
     .mutation()
@@ -588,7 +589,7 @@ const schema = a.schema({
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   archiveDraftCategory: a
     .mutation()
@@ -599,7 +600,7 @@ const schema = a.schema({
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   reviewReferenceTopicLabel: a
     .mutation()
@@ -613,7 +614,7 @@ const schema = a.schema({
     })
     .returns(a.ref("TopicLabelActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   NewsroomSummary: a.customType({
     generatedAt: a.datetime().required(),
@@ -633,56 +634,56 @@ const schema = a.schema({
     .query()
     .returns(a.ref("NewsroomSummary"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(newsroomSummary)),
+    .handler(functionHandler("newsroomSummary", newsroomSummary)),
 
   deriveMarkus: a
     .query()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   intakePendingReferences: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   saveItemDraft: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   publishItem: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   moveStoryStage: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   unpublishItem: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   requestStagingBuild: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   knowledgeQuery: a
     .query()
@@ -691,7 +692,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(knowledgeQuery)),
+    .handler(functionHandler("knowledgeQuery", knowledgeQuery)),
 
   updateNewsroomSummary: a
     .mutation()
@@ -702,7 +703,7 @@ const schema = a.schema({
     })
     .returns(a.ref("NewsroomSummary"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(newsroomSummary)),
+    .handler(functionHandler("newsroomSummary", newsroomSummary)),
 
   ModelAttachmentUploadSlot: a.customType({
     ok: a.boolean().required(),
@@ -762,7 +763,7 @@ const schema = a.schema({
     })
     .returns(a.ref("ModelAttachmentUploadSlot"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   completeModelAttachmentUpload: a
     .mutation()
@@ -784,7 +785,7 @@ const schema = a.schema({
     })
     .returns(a.ref("ModelAttachment"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   abortModelAttachmentUpload: a
     .mutation()
@@ -806,7 +807,7 @@ const schema = a.schema({
     })
     .returns(a.ref("ModelAttachmentUploadAbortResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   createModelAttachmentDownload: a
     .mutation()
@@ -815,7 +816,7 @@ const schema = a.schema({
     })
     .returns(a.ref("ModelAttachmentDownloadSlot"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   AssignmentActionResult: a.customType({
     ok: a.boolean().required(),
@@ -910,7 +911,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentContext").array().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   listAssignmentQueue: a
     .query()
@@ -921,7 +922,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentContext").array().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   getEditorialContext: a
     .query()
@@ -935,7 +936,7 @@ const schema = a.schema({
     })
     .returns(a.json().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   getAssignmentContext: a
     .query()
@@ -944,7 +945,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentContext"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   claimAssignment: a
     .mutation()
@@ -961,7 +962,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   releaseAssignment: a
     .mutation()
@@ -973,7 +974,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   completeAssignment: a
     .mutation()
@@ -985,7 +986,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   cancelAssignment: a
     .mutation()
@@ -997,7 +998,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   reopenAssignment: a
     .mutation()
@@ -1009,7 +1010,7 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   retryImmediateAssignment: a
     .mutation()
@@ -1021,13 +1022,13 @@ const schema = a.schema({
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   listNewsroomProcedureDefinitions: a
     .query()
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   getNewsroomProcedureDefinition: a
     .query()
@@ -1037,7 +1038,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   saveNewsroomProcedureDefinition: a
     .mutation()
@@ -1046,7 +1047,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   saveNewsroomProcedureVersionDraft: a
     .mutation()
@@ -1055,7 +1056,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   publishNewsroomProcedureVersion: a
     .mutation()
@@ -1064,7 +1065,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   startNewsroomProcedureRun: a
     .mutation()
@@ -1079,7 +1080,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   getNewsroomProcedureRun: a
     .query()
@@ -1088,7 +1089,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   listNewsroomProcedureRunsByProcedure: a
     .query()
@@ -1097,7 +1098,7 @@ const schema = a.schema({
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   Assignment: a
     .model({
@@ -2385,6 +2386,7 @@ export function defineSiteData(pluginDefinitions: Record<string, unknown> = {}, 
   const hasPlugins = Object.keys(pluginDefinitions).length > 0;
   return defineData({
     name: "PapyrusCmsApi",
+    functions: sharedFunctions(),
     schema: excludeModelGroups.length > 0
       ? schemaExcludingGroups(excludeModelGroups, pluginDefinitions)
       : hasPlugins ? schemaWithPlugins(pluginDefinitions) : leanSchema,

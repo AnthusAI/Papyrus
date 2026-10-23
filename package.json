@@ -101,6 +101,7 @@
     "test:redirect-and-index-function": "node scripts/test-redirect-and-index-function.mjs",
     "test:resolver-waves": "tsx scripts/test-resolver-waves.ts",
     "test:model-groups": "tsx scripts/test-model-groups.ts",
+    "test:function-directive-stack": "tsx scripts/test-function-directive-stack.ts",
     "test:plugins": "tsx scripts/test-plugins.ts",
     "test:newsletter-plugin": "tsx scripts/test-newsletter-plugin.ts",
     "test:newsletter-api": "tsx scripts/test-newsletter-api.ts",

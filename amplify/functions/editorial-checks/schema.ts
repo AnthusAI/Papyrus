@@ -1,5 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { editorialChecks } from "./resource";
+import { functionHandler } from "../shared/function-handler";
 
 const editors = ["editor", "admin"];
 
@@ -71,19 +72,19 @@ export const editorialChecksSchemaDefinitions = {
       .query()
       .returns(a.json())
       .authorization((allow) => [allow.groups(editors)])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     checkItemVersion: a
       .mutation()
       .arguments({ itemId: a.id().required() })
       .returns(a.json())
       .authorization((allow) => [allow.groups(editors)])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     checkEditorial: a
       .query()
       .arguments({ body: a.string().required(), format: a.string(), section: a.string() })
       .returns(a.json())
       .authorization((allow) => [allow.groups(editors)])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     suggestEditorialRewrite: a
       .query()
       .arguments({
@@ -96,28 +97,28 @@ export const editorialChecksSchemaDefinitions = {
       })
       .returns(a.json())
       .authorization((allow) => [allow.groups(editors)])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     draftEditorialQuestions: a
       .query()
       .arguments({ title: a.string().required(), guidance: a.string().required(), examples: a.json() })
       .returns(a.json())
       .authorization((allow) => [allow.group("admin")])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     tryEditorialPolicy: a
       .query()
       .arguments({ policy: a.json().required(), text: a.string().required(), format: a.string() })
       .returns(a.json())
       .authorization((allow) => [allow.group("admin")])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     importEditorialStarterPack: a
       .mutation()
       .arguments({ name: a.string().required() })
       .returns(a.json())
       .authorization((allow) => [allow.group("admin")])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
     recalibrateEditorialPolicies: a
       .mutation()
       .returns(a.json())
       .authorization((allow) => [allow.group("admin")])
-      .handler(a.handler.function(editorialChecks)),
+      .handler(functionHandler("editorialChecks", editorialChecks)),
   };

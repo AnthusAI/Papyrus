@@ -681,6 +681,24 @@ Stage the first deploy: set `backend.excludeModelGroups: ["editions"]` in `papyr
 editions are off by default), deploy, then remove the line and deploy again. The second deploy is an ordinary update
 that adds the models. Known groups are in `OPTIONAL_MODEL_GROUPS` (`amplify/data/schema.ts`); an unknown name fails the build.
 
+## Data API Lambda resolvers and the 500-resource stack limit
+
+CloudFormation fails a stack of more than 500 resources. Amplify puts every Lambda-backed query and mutation of the data
+API into one nested stack, `FunctionDirectiveStack`. A field handled with `a.handler.function(fn)` gets its own AppSync
+data source, IAM role, IAM policy and two function configurations, so it costs six resources there; Papyrus 5.33.0 had 85
+such fields and the build failed with `TooManyResourcesInStack ... FunctionDirectiveStack: 505`.
+
+Handle schema fields with `functionHandler("name", fn)` from `amplify/functions/shared/function-handler.ts`, never with
+`a.handler.function(fn)`. Every field that calls the same Lambda then shares one data source, role, policy and function
+configuration, and a new field costs one resolver. The Lambda receives the same event as before (`typeName`, `fieldName`,
+`arguments`, `identity`). `defineSiteData` passes the registered functions to `defineData({ functions })`. The stack is
+about 230 resources with every plugin on; `scripts/test-function-directive-stack.ts` synthesizes the real backend and
+fails above 450.
+
+Sites need nothing beyond the version bump. The first deploy replaces each per-field data source with the shared one
+inside the same nested stack (CloudFormation creates the new ones, repoints the resolvers, then deletes the old ones); the
+GraphQL schema and clients are unchanged.
+
 ## Backend features and account-global names
 
 `defineSiteBackend(site)` creates four optional features, each behind a flag

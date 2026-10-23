@@ -1,5 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { monitoringView } from "./resource";
+import { functionHandler } from "../shared/function-handler";
 
 const editors = ["editor", "admin"];
 
@@ -14,5 +15,5 @@ export const monitoringViewSchemaDefinitions = {
     .arguments({ scope: a.string() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
-    .handler(a.handler.function(monitoringView)),
+    .handler(functionHandler("monitoringView", monitoringView)),
 };
