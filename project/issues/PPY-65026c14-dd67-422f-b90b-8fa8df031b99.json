@@ -1,0 +1,49 @@
+{
+  "id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
+  "title": "Route authorized email submissions into existing Monitoring intake",
+  "description": "As an editor, I want publication and explicitly shared Cyclotron submission addresses to ingest safe newsletter links into pending Reference workflows. User authorized implementation on 2026-10-23; this scoped backend slice does not close the broader inbox-reader milestone. Feature: Authorized email reference intake\nScenario: Route a submitted newsletter\nGiven an explicitly configured publication or shared destination and authenticated allowed sender\nWhen a multipart newsletter with multiple editorial links is received\nThen safe links enter existing deduplicated Monitoring and Reference workflows with private provenance\nAnd publication selection precedes section classification\nAnd retries are idempotent and failures visible\nAnd instructions, action links, human labels and automatic publishing are never executed\nScenario: Cloud email without newsletters\nGiven a cloud-backed site without the newsletter plugin\nWhen its infrastructure is synthesized\nThen sender identity and configured email intake are supported independently\nAnd a static-only site requires no email resources\nScope: code, IaC, local fixtures, tests and draft PR only. No deployment, DNS/MX, policy changes, credentials, real email or merges.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0a1bd895-7a4b-4adf-8b86-67c180f55dc8",
+      "author": "home",
+      "text": "Initial findings: primary develop is behind, Claude worktrees contain board edits and are untouched. Isolated worktree is based on fetched origin/develop 79bee759 (includes latest stack-limit fix). Existing inbound multi-link/prose path delegates to console commands, so new submission-only receiver bypasses it. Reuse Dynamo Monitoring discoveries and ReferenceIntake, explicit account/shared Cyclotron binding, then existing decide-site-sections queue. Require explicit cloud email managed/existing identity selection; static-only app shells synthesize none. No per-site rule-set activation or DNS edits. Expected red checks: extraction BDD (4 missing-module errors), intake BDD (missing module), package test (build_email missing). Implementation underway; no production action.",
+      "created_at": "2026-10-23T13:48:56.020176Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "546f8d24-2e68-4411-bdf7-7cc850303d23",
+      "author": "home",
+      "text": "Implementation and local verification complete; awaiting draft PR review, not landed. Branch feature/PPY-65026c-email-submissions from origin/develop 79bee759. Changes: mandatory explicit managed/existing cloud email ownership (static-only none), separate strict SES receiver with disabled receipt/router schedule, bounded safe MIME/link extraction, trusted DMARC/SPF/DKIM plus sender grants, account-scoped destinations, retry/rate receipts, existing shared router and pending Reference delivery. No source fetch, console commands, procedure triggers, feedback labels, sending or publishing. Shared relevance selects publications; existing site sweep selects sections and must be running on activation.\n\nVerification: PYTHONPATH=src:. Python3.12 -m pytest -q procedures/newsroom/tests/test_email_submission.py procedures/newsroom/tests/test_email_submission_intake.py procedures/newsroom/tests/test_email_submission_infra.py procedures/newsroom/tests/test_email_submission_package.py procedures/newsroom/tests/test_monitoring_cloud.py procedures/newsroom/tests/test_monitoring_router.py procedures/newsroom/tests/test_monitoring_intake.py => 183 passed. Existing Cyclotron-enabled Python3.12 env: -m pytest -q src/papyrus_content/site_sweep_test.py => 17 passed. Behave email-submission-extraction.feature email-submission-intake.feature cloud-email-infrastructure.feature monitoring-hacker-news.feature monitoring-private-queue.feature => 20 scenarios, 72 steps passed. npm run lint; npm run typecheck; SITE_ENV=staging PAPYRUS_CONTENT_SOURCE=drafts npm run build passed (build required network for Google Fonts). node --import tsx scripts/test-cloud-email-infra.ts, scripts/test-infra-site-config.ts, scripts/test-site-backend-names.ts, scripts/test-site-backend-synth.ts passed. App-shell tsc and test-infra-app-shell-account.mjs passed. Package contents passed using writable npm cache; pilot guard and diff check passed; both worker zips built locally.\n\nFailures: expected red specs preceded implementation. Initial section tests lacked optional decision_flywheel; passed in existing env containing it. Root-dependency app-shell type conflicts resolved with its own dependency set and correct test import boundary. tsx CLI IPC was sandbox-blocked; equivalent node --import tsx harnesses pass. Backend Node policy check remains red with exactly the same 41 preexisting paths on untouched develop; no new violation. No live AWS, DNS/MX, policy, credential, model, email or publishing action performed. Activation/migration steps in docs/email-reference-intake.md and infra/email/README.md.",
+      "created_at": "2026-10-23T14:03:50.431336Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    }
+  ],
+  "created_at": "2026-10-23T13:42:33.927657Z",
+  "updated_at": "2026-10-23T14:03:50.431369Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

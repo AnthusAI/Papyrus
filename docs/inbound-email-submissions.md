@@ -1,5 +1,10 @@
 # Inbound Email Submissions
 
+This page describes the legacy command-capable receiver. For newsletter links
+submitted as untrusted reference data, use the separate
+[strict email reference intake](email-reference-intake.md) and its explicit
+publication or shared-Cyclotron destination configuration.
+
 Papyrus accepts reference suggestions by email at configured addresses on the
 publication domain. Messages are stored as `Message` records with
 `messageKind = email_submission`, then processed by the

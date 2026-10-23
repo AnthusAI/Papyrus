@@ -30,10 +30,22 @@
         "model": "gpt-6",
         "name": "papyrus-planning"
       }
+    },
+    {
+      "id": "b94d73bd-ebe0-420a-bc92-8aec4187c718",
+      "author": "home",
+      "text": "Codex is implementing the user-authorized 2026-10-23 backend slice in PPY-65026c, branch feature/PPY-65026c-email-submissions, isolated worktree based on origin/develop 79bee759. Existing inbox/reader/unsubscribe plans remain separate. No Claude work changed. Plan: explicit publication/shared address bindings; authenticated bounded MIME/link intake through Monitoring and pending References; no console-agent execution; cloud email independent of newsletter. IaC and local fixtures only; no live AWS or email.",
+      "created_at": "2026-10-23T13:42:55.998180Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
     }
   ],
   "created_at": "2026-10-20T03:03:15.899093Z",
-  "updated_at": "2026-10-20T03:11:36.883043Z",
+  "updated_at": "2026-10-23T13:42:55.998212Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
