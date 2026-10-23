@@ -439,17 +439,20 @@ def projection(run: Run) -> dict:
 
 
 def first_json_object(text: str) -> dict:
-    """The first JSON object in a command's output, which may carry other lines around it."""
+    """The projection report in a command's output: the first JSON object with a `written` count. The output also carries
+    other lines, among them CloudWatch metric lines that are JSON too."""
     decoder = json.JSONDecoder()
-    for start, character in enumerate(text):
-        if character == "{":
-            try:
-                value, _end = decoder.raw_decode(text[start:])
-            except ValueError:
-                continue
-            if isinstance(value, dict):
-                return value
-    raise StageFailed("The projection printed no JSON report.")
+    start = text.find("{")
+    while start != -1:
+        try:
+            value, end = decoder.raw_decode(text[start:])
+        except ValueError:
+            start = text.find("{", start + 1)
+            continue
+        if isinstance(value, dict) and "written" in value:
+            return value
+        start = text.find("{", start + end)
+    raise StageFailed("The projection printed no report (a JSON object with a `written` count).")
 
 
 STAGE_FUNCTIONS: dict[str, Callable[[Run], dict]] = {
