@@ -74,12 +74,22 @@ cached, output) and cost in dollars. Cost uses the recorded price for the model 
 for `gpt-6-luna`, LiteLLM standard tier, read 2026-10-11). A run whose estimate is over `--max-cost-usd` (0.50) stops before the call.
 `--report FILE` writes the ideas and the drop lists as markdown.
 
-## Human review (not built yet)
+## Human review
 
-`request_human_review(run, ideas)` in `ideas/review.py` is the single place a review will be raised. Today it logs
-`review pending` and records `review: {status: pending, requested: false}` in the run. Reviewer feedback returns through
-`--feedback FILE`, a JSON list of `{title, verdict: accept|decline|revise, note}`; synthesis shows it to the model and treats a
-declined title as a reason not to propose that idea again.
+Review goes through review requests ([review-requests.md](review-requests.md)) and shows in the Notification Center.
+
+- **Raising.** When a run creates ideas, `request_human_review(client, run, ideas)` in `ideas/review.py` calls `raise_batch_review`: ONE
+  soft review per run, "N new story ideas to review", 7-day deadline, subject `{batch, <run id>}`, idempotent per run. Ideas filed as
+  Proposals are linked by Proposal id. Ideas kept as JSON are linked by idea id, which the console cannot open: a limit of the JSON
+  store. A run with no ideas raises nothing.
+- **Reading back.** At the start of a run, `steering_for(client, raised_by="idea-pipeline")` returns what editors said about earlier
+  batches. Each answer becomes reviewer feedback for every idea that batch held (reject = decline, approve = accept, feedback =
+  revise, with any note and steer). The model sees it, and a declined idea is not proposed again. After the model call the run calls
+  `mark_applied`, so the console shows "Applied in run Y". A run that makes no model call leaves the steering unapplied.
+- **Manual override.** `--feedback FILE` (a JSON list of `{title, verdict: accept|decline|revise, note}`) is merged after the steering
+  and wins for the same title.
+- **Sites without the review models.** A site that has not deployed review requests cannot take a request. The run keeps its ideas and
+  records `review: {status: not_raised, error}` and `steering.error`; nothing fails.
 
 ## Friction for the run contract
 

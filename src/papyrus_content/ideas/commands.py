@@ -29,7 +29,7 @@ USAGE = (
     "  papyrus ideas digest --publication KEY [--since 7d] [--status accepted[,pending]] [--max-references N] [--excerpts]\n"
     "      [--out DIR] [--json]\n"
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
-    "      [--store json|proposals] [--feedback FILE] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
+    "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
 )
@@ -124,6 +124,7 @@ def synthesize_command(flags: list[str]) -> None:
             json_store=json_store,
             transport=synthesis.openai_transport(api_key),
             proposal_store=ProposalStore(client) if store_name == PROPOSALS else None,
+            review_client=client,
             feedback=load_feedback(normalize_string(options.get("feedback"))),
             model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
             maximum=_integer(options, "max", synthesis.DEFAULT_MAXIMUM_IDEAS),
@@ -146,7 +147,9 @@ def synthesize_command(flags: list[str]) -> None:
     print(f"inputs\treferences {inputs['references']}\tstories {inputs['stories']}\tdrafts {inputs['earlierDrafts']}\tdigest {digest['digestId']}")
     print(f"ideas\tproposed {run['proposed']}\tinvalid {len(run['invalid'])}\tduplicates {len(run['duplicates'])}\tcreated {run['ideasCreated']}")
     print(f"llm\t{run['model']}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
-    print(f"review\t{run['review']['status']}\trequested {str(run['review']['requested']).lower()}")
+    review = run["review"]
+    print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
+    print(f"steering\tentries {run['steering']['entries']}" + (f"\t{run['steering']['error']}" if run["steering"].get("error") else ""))
     for idea in run["ideas"]:
         print(f"idea\t{idea['ideaId']}\t{idea['section']}\t{idea['title']}")
 

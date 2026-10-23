@@ -8,7 +8,7 @@ from typing import Any
 
 from . import dedupe, synthesis
 from .digest import ACCEPTED, PENDING, iso
-from .review import request_human_review
+from .review import mark_steering_applied, merge_feedback, read_steering, request_human_review
 from .store import JsonStore, ProposalStore
 
 DEFAULT_MAXIMUM_COST_USD = 0.50
@@ -103,6 +103,7 @@ def synthesize(
     json_store: JsonStore,
     transport: synthesis.Transport,
     proposal_store: ProposalStore | None = None,
+    review_client: Any = None,
     feedback: list[dict[str, Any]] | None = None,
     model: str = synthesis.DEFAULT_MODEL,
     maximum: int = synthesis.DEFAULT_MAXIMUM_IDEAS,
@@ -112,7 +113,6 @@ def synthesize(
 ) -> dict[str, Any]:
     """Runs synthesis and returns the run ledger (also saved); the ideas are in ``run['ideas']`` and saved one file each."""
     moment = now or datetime.now(timezone.utc)
-    feedback = feedback or []
     run: dict[str, Any] = {
         "runId": run_id_for(digest["digestId"], moment),
         "kind": "ideas-run",
@@ -124,6 +124,9 @@ def synthesize(
         "private": True,
     }
     stored = json_store.ideas()
+    steering, steering_ids, steering_error = read_steering(review_client, json_store.batch_titles())
+    feedback = merge_feedback(steering, feedback or [])
+    run["steering"] = {"entries": len(steering), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
     drafts = proposal_store.story_drafts() if proposal_store else []
     documents = comparison_documents(context, stored, drafts, feedback)
     run["inputs"] = count_inputs(digest, context, documents, feedback)
@@ -142,6 +145,7 @@ def synthesize(
             raise RunRefused(f"Estimated cost ${estimate:.4f} is over --max-cost-usd ${maximum_cost_usd:.2f}.")
         raw, usage = synthesis.call_model(transport, model, model_input)
         run["usage"] = usage.as_dict()
+        run["steering"]["notApplied"] = mark_steering_applied(review_client, steering_ids, run["runId"]) if review_client else []
         run["proposed"] = len(raw)
         valid, run["invalid"] = synthesis.validate_ideas(raw, handles, [s["title"] for s in context.get("sections", [])], maximum)
         kept, run["duplicates"] = dedupe.split_duplicates(valid, documents, threshold)
@@ -152,7 +156,7 @@ def synthesize(
             json_store.save_idea(idea)
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])
-    request_human_review(run, run["ideas"])
+    request_human_review(review_client, run, run["ideas"])
     run["finishedAt"] = iso(datetime.now(timezone.utc))
     json_store.save_run(run)
     return run

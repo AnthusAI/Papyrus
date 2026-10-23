@@ -79,7 +79,34 @@ Feature: The idea pipeline turns a site's recent references into private story i
     When the operator synthesizes ideas with a cost cap of a millionth of a dollar
     Then the run is refused before any model call
 
-  Scenario: A run only records that human review is pending
+  Scenario: A run that creates ideas raises one soft review for the batch
     When the model proposes the idea "Agents and keys" citing the first two references
-    And the operator synthesizes ideas from the digest
-    Then the run records a pending review of 1 idea that was not requested from anyone
+    And the operator synthesizes ideas from the digest with review requests
+    Then one soft review "1 new story idea to review" is open with a 7-day deadline
+    And the review is about this run's batch and links the idea
+    And asking again for the same run raises no second review
+
+  Scenario: A run that creates no ideas raises no review
+    When the operator synthesizes ideas from the digest with review requests
+    Then no review is raised
+
+  Scenario: A site without review requests keeps its ideas
+    Given the site has not deployed review requests
+    When the model proposes the idea "Agents and keys" citing the first two references
+    And the operator synthesizes ideas from the digest with review requests
+    Then 1 idea is created
+    And the run records that the review could not be raised
+
+  Scenario: A rejected batch steers the next run
+    Given an earlier run proposed "Rotating cloud keys safely" and an editor rejected the batch saying "Too basic"
+    When the model proposes the idea "Safely rotating cloud keys" citing the first two references
+    And the operator synthesizes ideas from the digest with review requests
+    Then 0 ideas are created
+    And the model was shown the editor's rejection of "Rotating cloud keys safely" with the note "Too basic"
+    And the editor's review shows it was applied in this run
+
+  Scenario: A feedback file overrides the editors' steering for the same idea
+    Given an earlier run proposed "Rotating cloud keys safely" and an editor rejected the batch saying "Too basic"
+    And a feedback file accepts "Rotating cloud keys safely" with the note "Fine after all"
+    When the operator synthesizes ideas from the digest with review requests
+    Then the model was shown only the feedback file's verdict "accept" for "Rotating cloud keys safely"
