@@ -3081,7 +3081,6 @@ function NewsDeskDashboard({
             decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            messages={messages}
             newsroomSections={newsroomSections}
             references={references}
           />

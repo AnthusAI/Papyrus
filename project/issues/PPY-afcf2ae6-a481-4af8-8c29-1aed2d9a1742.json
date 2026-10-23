@@ -46,10 +46,22 @@
         "model": "gpt-6.1-sol",
         "name": "BlackbookM1 Sol"
       }
+    },
+    {
+      "id": "5a03f8a7-44ec-49ad-9570-27a8814c0ffa",
+      "author": "home",
+      "text": "Follow-up overview scope: removed the redundant Go to cards and made Notification Center the first main panel, with Needs attention directly below. Added Overview to the equal-width mobile tabs. Reconciled the related acceptance scenario from the stopped rollout worker. Rendered 390px reload showed a Notification Center skeleton followed by the populated feed; focused newsroom Chrome and constrained-width layout acceptance scenarios passed. This issue covers the change in draft PR #660; no merge or deployment.",
+      "created_at": "2026-10-23T18:25:30.331374Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1-Sol"
+      }
     }
   ],
   "created_at": "2026-10-23T17:57:13.960951Z",
-  "updated_at": "2026-10-23T18:17:00.319344Z",
+  "updated_at": "2026-10-23T18:25:30.331923Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
