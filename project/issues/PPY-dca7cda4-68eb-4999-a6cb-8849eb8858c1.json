@@ -3,7 +3,7 @@
   "title": "2. Scheduled knowledge run in AWS (L)",
   "description": "Shipped story: ship-09ea2c (scheduled run half). Size L. BLOCKED pending Ryan's approval.\n\nAs an operator, I want the weekly knowledge run (BERTopic + GLiNER2) to run on a schedule in AWS, so that it does not depend on the workstation.\n\nAcceptance criteria:\n- A scheduled AWS job runs the BERTopic + GLiNER2 topic run weekly and feeds the archive from story 1.\n- The run carries the stale-checkout guard and the #565 projection-deletion guard: it refuses to run or publish from a stale checkout, and never deletes projected data on a bad run.\n- Secrets/config follow existing SSM and IaC conventions; nothing is created manually.\n- A failed run leaves the previous archive and projection intact and is reported.\n- All behaviour here ships with Gherkin specs (Feature/Scenario/Given/When/Then) in the repo, written first and green before close.",
   "type": "story",
-  "status": "blocked",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -25,11 +25,25 @@
         "platform": "claude_code",
         "model": "claude-sonnet-5-5"
       }
+    },
+    {
+      "id": "7e92d5fb-afdd-4e4c-9708-6d7db6c94005",
+      "author": "home",
+      "text": "Ryan approved the design and cost (Step Functions + Fargate CPU, about 1.50-2.50 USD/month). Building: lease PR #581 and CDK construct PR #582 merged; stage runner and image next.",
+      "created_at": "2026-10-22T16:58:40.708778Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "2169079f-3a23-499c-aec9-30777f8f5b53",
+      "author": "home",
+      "text": "Shipped on 2026-10-23: weekly cloud knowledge run (EventBridge Scheduler, Step Functions, Fargate ARM64 CPU). Stacks papyrus-projection-lock and papyrus-scheduled-job-knowledge-run-shipped; PRs 581, 582, 595, 601, 603, 604, 606, 608, 609, 620, 621, 622, 626, 627, 628. Evidence: manual run succeeded in 46 min, the weekly schedule started a second run unattended (42 min), a deliberate failure at ai-review stopped before projection with the alarm fired and the site byte-identical; projection wrote 1224 files and deleted 0. About 2 USD a month. Docs: docs/knowledge-cloud-run.md.",
+      "created_at": "2026-10-23T06:43:06.242621Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T15:31:15.635929Z",
-  "updated_at": "2026-10-22T15:33:08.929032Z",
-  "closed_at": null,
+  "updated_at": "2026-10-23T06:43:06.270137Z",
+  "closed_at": "2026-10-23T06:43:06.270096Z",
   "agent": {
     "platform": "claude_code",
     "model": "claude-sonnet-5-5",
