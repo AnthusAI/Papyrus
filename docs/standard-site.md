@@ -2,7 +2,7 @@
 
 Status: **Approved design (2026-10-05); packaging spike done (PPY-82be6c, verdict:
 works with changes, section 5).** Phase 3 migration issues reference this doc.
-The package skeletons exist (PR #100) but nothing is published. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
+The package skeletons (PR #100) began as a spike and are now published: `@anthusai/papyrus` on npm and `papyrus-newsroom` on PyPI (both 5.32.0 at the time of writing), released by semantic-release on promotion to `main` (`docs/releasing.md`). The spike narrative below is kept as the historical record. Kanbus: PPY-a0fb61 under epic PPY-1f1489. Facts were
 verified against `origin/develop` (7cb1b7e), `AnthusAI/Anth.us-web@main`,
 `AnthusAI/Pilobol.us@main` and `AnthusAI/Threat-Intelligence@main` on
 2026-10-05. Existing docs are linked, not repeated:

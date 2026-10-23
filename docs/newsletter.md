@@ -1,6 +1,6 @@
 # Newsletter
 
-Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) but not yet enabled on any site. Unsubscribe, preferences, erasure, bounce and complaint suppression and the pause alarms are Built too (PPY-b5a699), as are roundup issues, admin approval and paced sending (PPY-3ae3b9). Alerts (PPY-d415c0) and the newsroom panel (PPY-4005de) are Built.
+Status: signup capture is Live. Sending infrastructure is Live for Shipped. The `newsletter` plugin with double opt-in subscriptions is Built (PPY-949d68) and enabled on Shipped (shipped.anth.us: double opt-in, the `/newsletter/*` pages, the branded email theme, alerts and the weekly roundup) and on Distinctive (a weekly roundup and ruling alerts). Unsubscribe, preferences, erasure, bounce and complaint suppression and the pause alarms are Built too (PPY-b5a699), as are roundup issues, admin approval and paced sending (PPY-3ae3b9). Alerts (PPY-d415c0) and the newsroom panel (PPY-4005de) are Built.
 
 ## What exists
 
@@ -82,7 +82,7 @@ The stack does not send mail and does not lift the SES sandbox. Parameters, the 
 
 ## The newsletter plugin: double opt-in
 
-Status: Built (PPY-949d68), not yet enabled on a site. This is the foundation: the subscriber store, signup and the confirmation email. It stands apart from the `signup` plugin above, which only stores an address.
+Status: Built (PPY-949d68), enabled on Shipped and Distinctive. This is the foundation: the subscriber store, signup and the confirmation email. It stands apart from the `signup` plugin above, which only stores an address.
 
 ### Enabling it
 
@@ -191,7 +191,7 @@ One DynamoDB table (not a GraphQL model; subscriber data never appears in the co
 
 ### Unsubscribe, preferences and erasure (PPY-b5a699)
 
-Status: Built, not yet enabled on a site.
+Status: Built, live on Shipped and Distinctive.
 
 - **Links.** `papyrus_content.newsletter.links` exports `make_manage_token(hid)`, `manage_urls(hid, list_id=None)` and `page_url(origin, base_path, page, query)` for the sender. `manage_urls` returns `{"manage_url": <origin><base>/newsletter/preferences/?token=<token>, "unsubscribe_url": <origin><base>/newsletter/unsubscribe/?token=<token>[&list=<listId>], "one_click_url": <origin>/api/newsletter/unsubscribe?t=<token>[&l=<listId>]}`. The first two are for people (email footers); `one_click_url` goes only in the `List-Unsubscribe` header. The confirmation email's button goes to `<origin><base>/newsletter/confirm/?token=<token>`. They read `KEY_PARAMETER`, `SITE_ORIGIN` and `SITE_BASE_PATH` from the environment (or take `keys=`, `site_origin=` and `base_path=`). No address ever travels in a link. Confirming a subscription returns a manage token, and the confirmed page links to the preferences page with it. The preview and test-send renders use `#preview` and `#test` placeholders, not links.
 - **`POST /api/newsletter/unsubscribe?t=&l=`** accepts RFC 8058 one-click: a POST from a mail provider's servers with the body `List-Unsubscribe=One-Click`. It has no same-origin check, accepts any content type, answers `200` with `Unsubscribed.` and is idempotent (a repeat, or a token whose subscriber was erased, still answers 200; an invalid token is 400). A POST needs that marker or `page=1` from the unsubscribe page, which gets a `303` to the unsubscribed page. `GET` changes nothing and answers `302` to `<base>/newsletter/unsubscribe/?token=&list=`.
