@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1cad49f8-fc8b-4ac4-a3c1-836d001c904a",
+  "title": "Projection-time social cards (og:image) for items without an image (M)",
+  "description": "Generic Papyrus capability: at projection time, draw a social card for each page that has no image of its own, write it next to the page, and use it as og:image / twitter:image.\n\nAsked for by Shipped (shipped.anth.us); also useful to every syndicating site (ryanalynporter.com cards read og:image, and latest.json `image`).\n\n## Behaviour\n- A site supplies a card template in projection.json (`seo.socialCards`): size (default 1200x630), background, wordmark image, font files, colours, and which fields to draw: title, section label, a status word from front matter, site name.\n- At projection time, for each entry with no `image` and no `seo.image`, render a PNG and write it at a stable path next to the page (e.g. `/_cards/<slug>.png`), content-hashed so it is regenerated only when the drawn fields change.\n- Set og:image, twitter:image and alt text (\"<title> — <site name>\") to it; the site's `seo.defaultImage` remains the fallback when cards are off.\n- An item with its own image is never overridden. Story figures drawn from map data may supply the image instead (later, via PPY-fb4dfa).\n- Text fits: long titles wrap and shrink within bounds, then truncate with an ellipsis; never overflow.\n- Accessibility: no meaning carried by colour alone; adequate contrast checked against the template colours.\n- Off unless configured. Deterministic output (same inputs give the same bytes), so projections stay idempotent and the #565 deletion guard sees no churn.\n\n## Acceptance\n- Gherkin specs (narrative, complete) and unit tests: card generated for an image-less item, not generated when the item has an image, regenerated only on a field change, long-title fitting, alt text, off by default.\n- Shipped configures it and its item pages carry absolute og:image URLs (separate Shipped story).\n- Docs: docs/building-a-papyrus-static-site.md (seo section).",
+  "type": "story",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [
+    "size-M"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T16:51:13.766213Z",
+  "updated_at": "2026-10-22T16:51:13.766296Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

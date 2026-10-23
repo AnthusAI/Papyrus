@@ -31,7 +31,19 @@ CONSENT_DENIED_BY_DEFAULT_REGIONS: tuple[str, ...] = (
 
 CONSENT_REOPEN_ATTRIBUTE = "data-papyrus-consent-reopen"
 CONSENT_BANNER_ELEMENT_ID = "papyrus-consent-banner"
+CONSENT_REOPEN_HREF = "#cookie-settings"  # a footer link in settings (no attributes needed) reopens the choices
 CONSENT_REOPEN_FUNCTION_NAME = "papyrusOpenConsentChoices"
+
+
+DEFAULT_BANNER_MESSAGE = (
+    "We use cookies to measure how this site is used and, if you agree, "
+    "for advertising. You can accept all, reject all, and change your "
+    "choice at any time."
+)
+ANALYTICS_ONLY_BANNER_MESSAGE = (
+    "We use cookies to measure how this site is used. We do not use them for advertising. "
+    "You can accept all, reject all, and change your choice at any time."
+)
 
 
 @dataclass(frozen=True)
@@ -41,18 +53,21 @@ class ConsentModeSettings:
     policy_version: int = 1
     retention_days: int = 183
     banner_heading: str = "Cookies and analytics"
-    banner_message: str = (
-        "We use cookies to measure how this site is used and, if you agree, "
-        "for advertising. You can accept all, reject all, and change your "
-        "choice at any time."
-    )
+    banner_message: str = DEFAULT_BANNER_MESSAGE
     accept_label: str = "Accept all"
     reject_label: str = "Reject all"
     banner_region_label: str = "Cookie consent"
     privacy_policy_url: str | None = None
     privacy_policy_label: str = "Privacy policy"
+    analytics_only: bool = False
+    """Off by default. When true, Accept grants only ``analytics_storage``: ``ad_storage``, ``ad_user_data`` and
+    ``ad_personalization`` stay denied after every choice, and the default banner text does not mention advertising."""
 
     def __post_init__(self) -> None:
+        if not isinstance(self.analytics_only, bool):
+            raise ValueError(f"consent analytics_only must be true or false, got {self.analytics_only!r}")
+        if self.analytics_only and self.banner_message == DEFAULT_BANNER_MESSAGE:
+            object.__setattr__(self, "banner_message", ANALYTICS_ONLY_BANNER_MESSAGE)
         regions = tuple(self.denied_by_default_regions)
         object.__setattr__(self, "denied_by_default_regions", regions)
         for region in regions:
@@ -134,8 +149,14 @@ def render_consent_defaults_script(settings: ConsentModeSettings, *, site_name: 
         "if(s&&s.version===c.version&&typeof s.savedAt==='number'&&typeof s.granted==='boolean'"
         "&&s.savedAt<=Date.now()&&Date.now()-s.savedAt<c.retentionMilliseconds)return s}"
         "catch(e){}return null};\n"
-        "c.apply=function(granted){var v=granted?'granted':'denied';"
-        "gtag('consent','update',{ad_storage:v,ad_user_data:v,ad_personalization:v,analytics_storage:v})};\n"
+        + (
+            "c.apply=function(granted){var v=granted?'granted':'denied';"
+            "gtag('consent','update',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:v})};\n"
+            if settings.analytics_only
+            else "c.apply=function(granted){var v=granted?'granted':'denied';"
+            "gtag('consent','update',{ad_storage:v,ad_user_data:v,ad_personalization:v,analytics_storage:v})};\n"
+        )
+        +
         "c.save=function(granted){try{localStorage.setItem(c.key,JSON.stringify("
         "{version:c.version,savedAt:Date.now(),granted:granted}))}catch(e){}};\n"
         "var stored=c.read();if(stored)c.apply(stored.granted)})();\n"
@@ -185,7 +206,7 @@ def render_consent_banner(settings: ConsentModeSettings) -> str:
         "<script>(function(){var c=window.papyrusConsent;"
         f"var b=document.getElementById({_javascript_literal(CONSENT_BANNER_ELEMENT_ID)});"
         "if(!c||!b)return;"
-        f"var r=document.querySelectorAll('[{CONSENT_REOPEN_ATTRIBUTE}]');"
+        f"var r=document.querySelectorAll('[{CONSENT_REOPEN_ATTRIBUTE}],a[href=\"{CONSENT_REOPEN_HREF}\"]');"
         "c.openChoices=function(){b.hidden=false;var f=b.querySelector('button');if(f)f.focus()};"
         f"window.{CONSENT_REOPEN_FUNCTION_NAME}=c.openChoices;"
         "b.addEventListener('click',function(e){"

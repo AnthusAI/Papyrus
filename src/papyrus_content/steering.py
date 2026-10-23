@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from .env import PAPYRUS_ROOT
+from .env import resolve_corpora_file
 from .papyrus_config import DEFAULT_STEERING_CONFIG_PATH, resolve_topics_steering_config_path
 from .relevance_cyclotron import normalize_relevance_cyclotron_config
 from .site_cyclotron import normalize_site_cyclotron_config
@@ -19,7 +19,7 @@ def resolve_steering_config_path(config_path: str | None = None) -> Path | None:
     configured = config_path or os.environ.get("PAPYRUS_STEERING_CONFIG") or resolve_topics_steering_config_path()
     resolved = Path(configured)
     if not resolved.is_absolute():
-        resolved = PAPYRUS_ROOT / resolved
+        resolved = resolve_corpora_file(resolved)
     if not resolved.exists():
         if config_path or os.environ.get("PAPYRUS_STEERING_CONFIG"):
             raise ValueError(f"Steering config was not found: {configured}")

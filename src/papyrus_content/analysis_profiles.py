@@ -9,13 +9,13 @@ import yaml
 
 from .categories_steering import semantic_state_key
 from .biblicus_runner import resolve_biblicus_workdir
-from .env import PAPYRUS_ROOT
+from .env import resolve_corpora_file
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .options import normalize_string, parse_options
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .steering import require_corpus_config
 
-DEFAULT_ANALYSIS_PROFILES_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-analysis-profiles.yml"
+DEFAULT_ANALYSIS_PROFILES_PATH = resolve_corpora_file("corpora/papyrus-analysis-profiles.yml")
 
 VALID_SCOPES = frozenset(
     {

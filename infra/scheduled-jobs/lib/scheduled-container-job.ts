@@ -5,6 +5,9 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as ecs from "aws-cdk-lib/aws-ecs";
+import * as events from "aws-cdk-lib/aws-events";
+import * as eventTargets from "aws-cdk-lib/aws-events-targets";
+import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -69,6 +72,29 @@ export type ScheduledContainerJobProps = {
 const RETRY_DEFAULTS: StageRetry = { maxAttempts: 2, intervalSeconds: 60, backoffRate: 2 };
 const RETRYABLE_ERRORS = ["States.TaskFailed", "ECS.AmazonECSException", "ECS.ServerException", "ECS.ClientException"];
 const MISSED_WEEK_DAYS = 8;
+export const WATCHDOG_NAMESPACE = "Papyrus/ScheduledJob";
+export const WATCHDOG_METRIC = "DaysSinceLastSuccess";
+const WATCHDOG_SOURCE = `
+import datetime, os
+import boto3
+
+
+def handler(event, context):
+    states = boto3.client("stepfunctions")
+    found = states.list_executions(stateMachineArn=os.environ["STATE_MACHINE_ARN"], statusFilter="SUCCEEDED", maxResults=1)["executions"]
+    now = datetime.datetime.now(datetime.timezone.utc)
+    days = (now - found[0]["stopDate"]).total_seconds() / 86400 if found else 999.0
+    boto3.client("cloudwatch").put_metric_data(
+        Namespace=os.environ["NAMESPACE"],
+        MetricData=[{
+            "MetricName": "${WATCHDOG_METRIC}",
+            "Dimensions": [{"Name": "Job", "Value": os.environ["JOB"]}, {"Name": "Publication", "Value": os.environ["PUBLICATION"]}],
+            "Value": days,
+            "Unit": "None",
+        }],
+    )
+    return {"daysSinceLastSuccess": days}
+`;
 
 /**
  * A weekly (or any schedule) container job: EventBridge Scheduler starts a Standard Step Functions state machine
@@ -301,16 +327,39 @@ export class ScheduledContainerJob extends Construct {
     });
     this.failureAlarm.addAlarmAction(alarmAction);
 
-    // Missed week: no successful execution on any of the last 8 days. Missing data breaches, so a week with no
-    // execution at all alarms. For the same reason this alarm goes to ALARM (and notifies) when the stack is new,
-    // until the first successful run is more recent than 8 days; that is expected.
+    // Missed week: no successful execution in 8 days. CloudWatch cannot evaluate a metric over more than 7 days
+    // (EvaluationPeriods * Period <= 604800 for periods of an hour or more), so a small daily watchdog publishes
+    // the days since the last success and the alarm watches that. Missing data breaches: a dead watchdog alarms too.
+    // A new stack has no success yet, so it alarms (and notifies) until its first successful run; that is expected.
+    const watchdog = new lambda.Function(this, "MissedWeekWatchdog", {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      architecture: lambda.Architecture.ARM_64,
+      handler: "index.handler",
+      timeout: Duration.seconds(30),
+      description: `Publishes the days since the last successful ${props.jobId} execution for ${props.publication}.`,
+      environment: { STATE_MACHINE_ARN: this.stateMachine.stateMachineArn, JOB: props.jobId, PUBLICATION: props.publication, NAMESPACE: WATCHDOG_NAMESPACE },
+      code: lambda.Code.fromInline(WATCHDOG_SOURCE),
+    });
+    watchdog.addToRolePolicy(new iam.PolicyStatement({ actions: ["states:ListExecutions"], resources: [this.stateMachine.stateMachineArn] }));
+    watchdog.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["cloudwatch:PutMetricData"], resources: ["*"], conditions: { StringEquals: { "cloudwatch:namespace": WATCHDOG_NAMESPACE } } }),
+    );
+    new events.Rule(this, "MissedWeekWatchdogSchedule", {
+      schedule: events.Schedule.cron({ minute: "17", hour: "12" }),
+      targets: [new eventTargets.LambdaFunction(watchdog)],
+    });
     this.missedWeekAlarm = new cloudwatch.Alarm(this, "MissedWeekAlarm", {
       alarmDescription: `No successful ${props.jobId} execution for ${props.publication} in ${MISSED_WEEK_DAYS} days.`,
-      metric: this.stateMachine.metricSucceeded({ period: Duration.days(1), statistic: "Sum" }),
-      threshold: 1,
-      evaluationPeriods: MISSED_WEEK_DAYS,
-      datapointsToAlarm: MISSED_WEEK_DAYS,
-      comparisonOperator: cloudwatch.ComparisonOperator.LESS_THAN_THRESHOLD,
+      metric: new cloudwatch.Metric({
+        namespace: WATCHDOG_NAMESPACE,
+        metricName: WATCHDOG_METRIC,
+        dimensionsMap: { Job: props.jobId, Publication: props.publication },
+        period: Duration.days(1),
+        statistic: "Maximum",
+      }),
+      threshold: MISSED_WEEK_DAYS,
+      evaluationPeriods: 1,
+      comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: cloudwatch.TreatMissingData.BREACHING,
     });
     this.missedWeekAlarm.addAlarmAction(alarmAction);

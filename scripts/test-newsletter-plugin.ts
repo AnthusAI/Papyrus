@@ -154,6 +154,12 @@ refuses(with_({ theme: { ...branded, wordmarkHeight: 0 } }), /wordmarkHeight is 
 refuses(with_({ theme: { ...branded, wordmarkHeight: "40" } }), /wordmarkHeight is required/);
 refuses(with_({ theme: { ...base.theme, wordmarkWidth: 168 } }), /need theme.wordmarkImageUrl/);
 refuses(with_({ theme: { ...branded, wordmarkAlt: "two\nlines" } }), /wordmarkAlt/);
+assert.equal(resolveNewsletterConfig(with_({ theme: { ...branded, footerWordmarkWidth: 110 } })).theme.footerWordmarkWidth, 110);
+assert.equal(resolveNewsletterConfig(with_({ theme: { ...branded, footerWordmarkWidth: 400 } })).theme.footerWordmarkWidth, 400);
+for (const bad of [0, -5, 401, 110.5, "110", null]) {
+  refuses(with_({ theme: { ...branded, footerWordmarkWidth: bad } }), /footerWordmarkWidth must be a whole number of pixels from 1 to 400/);
+}
+refuses(with_({ theme: { ...base.theme, footerWordmarkWidth: 110 } }), /footerWordmarkWidth needs theme.wordmarkImageUrl/);
 refuses(with_({ webhook: "https://x.test" }), /unknown settings: webhook/);
 refuses(with_({ configurationSet: "bad name" }), /configurationSet/);
 refuses(with_({ lists: [] }), /lists must be a list of 1 to 20/);

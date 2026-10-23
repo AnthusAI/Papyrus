@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
 
+from .authors import author_names
 from .markus_renderer.derive import BodyError, derive_body
 from .projection.stored import PROJECTION_METADATA_KEY, projection_metadata
 from .record_helpers import compact_dict, content_hash_for, slugify, to_aws_json
@@ -110,11 +111,8 @@ def _first_text(*values: Any) -> str | None:
 
 def columns_from_front_matter(fm: dict) -> dict:
     title = _first_text(fm.get("title"))
-    authors = fm.get("authors")
-    if isinstance(authors, list) and authors:
-        byline = ", ".join(str(author) for author in authors)
-    else:
-        byline = fm.get("author") if isinstance(fm.get("author"), str) else None
+    names = author_names(fm.get("authors") if fm.get("authors") else fm.get("author"))
+    byline = ", ".join(names) if names else None
     return {
         "title": title,
         "headline": title,

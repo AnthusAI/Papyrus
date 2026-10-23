@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html import escape
+from urllib.parse import urlsplit
 
 from papyrus_content.markus_renderer.build import render_fragment_text
 from papyrus_content.markus_renderer.convert import convert_text_in_process
@@ -25,6 +26,8 @@ class EmailFooter:
     manage_url: str
     unsubscribe_url: str
     postal_address: str | None
+    #: The list's archive page. When set, the footer links "All issues".
+    archive_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -121,12 +124,16 @@ def _head(subject: str, theme: EmailTheme) -> str:
 </head>"""
 
 
-def _wordmark(theme: EmailTheme, home: str, site_name: str, *, size: int = 22, color: str | None = None) -> str:
-    """The brand mark: the wordmark image when set, else the site name as text."""
+def _wordmark(
+    theme: EmailTheme, home: str, site_name: str, *, size: int = 22, color: str | None = None, width: int | None = None
+) -> str:
+    """The brand mark: the wordmark image when set, else the site name as text. ``width`` draws the image smaller, same aspect."""
     if theme.wordmark_image_url:
+        shown_width = width or theme.wordmark_width
+        shown_height = theme.wordmark_height if not width else max(1, round(width * theme.wordmark_height / theme.wordmark_width))
         return (
             f'<a href="{home}" style="text-decoration:none;"><img src="{escape(theme.wordmark_image_url)}" '
-            f'alt="{escape(theme.wordmark_text or site_name)}" width="{theme.wordmark_width}" height="{theme.wordmark_height}" '
+            f'alt="{escape(theme.wordmark_text or site_name)}" width="{shown_width}" height="{shown_height}" '
             f'style="display:block;border:0;outline:none;max-width:100%;height:auto;" /></a>'
         )
     return (
@@ -173,19 +180,22 @@ def _footer_row(theme: EmailTheme, site_url: str, site_name: str, legacy: str, p
     if theme.footer_band and parts is not None:
         ink = theme.footer_ink
         font = f"font-family:{theme.font_family};color:{ink};"
-        links = f' <span style="{_label_style(theme, ink, 12)}">&middot;</span> '.join(
+        compact = bool(theme.footer_wordmark_width)  # the smaller footer: plain mono lines, as in a printed colophon
+        line = (
+            f"font-family:{theme.mono};font-size:11px;font-weight:normal;color:{ink};" if compact else _label_style(theme, ink, 12)
+        )
+        links = f' <span style="{line}">&middot;</span> '.join(
             f'<a href="{escape(url)}" style="color:{ink};text-decoration:underline;">{escape(label)}</a>'
             for label, url in parts.links
         )
         address = "<br />".join(escape(line) for line in parts.address_lines)
-        address_html = (
-            f'<p style="{_label_style(theme, ink, 11)}font-weight:normal;margin:0;line-height:1.6;">{address}</p>' if address else ""
-        )
+        address_style = line if compact else f"{_label_style(theme, ink, 11)}font-weight:normal;"
+        address_html = f'<p style="{address_style}margin:0;line-height:1.6;">{address}</p>' if address else ""
         return (
             f'<tr><td class="em-fband em-pad" bgcolor="{theme.footer_band}" '
             f'style="background-color:{theme.footer_band};padding:22px 32px 26px 32px;{font}">'
-            f'<div style="margin:0 0 14px 0;">{_wordmark(theme, home, site_name, size=26, color=ink)}</div>'
-            f'<p style="{_label_style(theme, ink, 12)}margin:0 0 12px 0;line-height:1.8;">{links}</p>'
+            f'<div style="margin:0 0 14px 0;">{_wordmark(theme, home, site_name, size=26, color=ink, width=theme.footer_wordmark_width)}</div>'
+            f'<p style="{line}margin:0 0 12px 0;line-height:{1.7 if compact else 1.8};">{links}</p>'
             f'<p style="{font}font-size:13px;line-height:1.5;margin:0 0 10px 0;">{escape(parts.reason)}</p>'
             f"{address_html}</td></tr>"
         )
@@ -248,6 +258,13 @@ def _button(url: str, label: str, theme: EmailTheme) -> str:
     )
 
 
+def _site_label(theme: EmailTheme, site_url: str, site_name: str) -> str:
+    """The footer band's site link: the bare host (``shipped.anth.us``) in the smaller footer, else the site name."""
+    if theme.footer_wordmark_width:
+        return urlsplit(site_url).netloc or site_name
+    return site_name
+
+
 def _link_style(theme: EmailTheme) -> str:
     return f'style="color:{theme.muted};text-decoration:underline;"'
 
@@ -279,9 +296,11 @@ def render_issue(
     html_body, plain_body = _body(markus, theme, site_url)
     ls = _link_style(theme)
     address_html = "<br />".join(escape(line.strip()) for line in address.splitlines() if line.strip())
+    archive = (footer.archive_url or "").strip()
+    all_issues = f'<a href="{escape(archive)}" {ls}>All issues</a> &nbsp;|&nbsp; ' if archive else ""
     footer_html = (
         f'<p style="margin:0 0 10px 0;">{escape(footer.reason)}</p>'
-        f'<p style="margin:0 0 10px 0;"><a href="{escape(footer.manage_url)}" {ls}>Manage your subscription</a>'
+        f'<p style="margin:0 0 10px 0;">{all_issues}<a href="{escape(footer.manage_url)}" {ls}>Manage your subscription</a>'
         f' &nbsp;|&nbsp; <a href="{escape(footer.unsubscribe_url)}" {ls}>Unsubscribe</a></p>'
         f'<p style="margin:0 0 10px 0;"><a href="{escape(footer.site_url)}" {ls}>{escape(footer.site_name)}</a><br />'
         f"{address_html}</p>"
@@ -290,7 +309,12 @@ def render_issue(
     label = _one_line(list_name) or subject
     parts = FooterParts(
         reason=footer.reason,
-        links=((footer.site_name, footer.site_url), ("Unsubscribe", footer.unsubscribe_url), ("Email preferences", footer.manage_url)),
+        links=(
+            (_site_label(theme, footer.site_url, footer.site_name), footer.site_url),
+            *((("All issues", archive),) if archive else ()),
+            ("Unsubscribe", footer.unsubscribe_url),
+            ("Email preferences", footer.manage_url),
+        ),
         address_lines=address_lines,
     )
     html = _shell(
@@ -298,9 +322,11 @@ def render_issue(
         site_name=footer.site_name, content=html_body, footer=footer_html, label=label, parts=parts,
     )
     address_text = "\n".join(address_lines)
+    all_issues_text = f"All issues: {archive}\n" if archive else ""
     plain = (
         f"{_plain_header(theme, footer.site_name, label)}{plain_body}\n\n--\n"
         f"{text_mod.wrap(footer.reason)}\n\n"
+        f"{all_issues_text}"
         f"Manage your subscription: {footer.manage_url}\n"
         f"Unsubscribe: {footer.unsubscribe_url}\n\n"
         f"{footer.site_name} - {footer.site_url}\n{address_text}\n"
@@ -331,7 +357,7 @@ def render_transactional(
         f'<p style="margin:0 0 10px 0;">{escape(reason)}</p>'
         f'<p style="margin:0 0 10px 0;"><a href="{escape(site_url)}" {ls}>{escape(site_name)}</a></p>'
     )
-    parts = FooterParts(reason=reason, links=((site_name, site_url),))
+    parts = FooterParts(reason=reason, links=((_site_label(theme, site_url, site_name), site_url),))
     html = _shell(
         subject=subject, preheader=preheader, theme=theme, site_url=site_url,
         site_name=site_name, content=html_body, footer=footer_html, parts=parts,

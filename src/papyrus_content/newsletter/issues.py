@@ -482,7 +482,7 @@ class IssueService:
             return failure(409, "item_missing", "The issue's item no longer exists.")
         address = self.postal.resolve()
         try:
-            render(self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER)
+            render(self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER, entry=entry)
         except Exception as error:  # noqa: BLE001 - a body that cannot render is the editor's to fix
             return failure(422, "render_failed", f"The issue cannot be rendered: {type(error).__name__}.")
         now = self.clock()
@@ -580,7 +580,7 @@ class IssueService:
         address = self.postal.resolve()
         try:
             rendered = render(
-                self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER, manage_url="#preview", unsubscribe_url="#preview",
+                self.settings, entry["name"], source, address or POSTAL_PLACEHOLDER, manage_url="#preview", unsubscribe_url="#preview", entry=entry,
             )
         except Exception as error:  # noqa: BLE001
             return failure(422, "render_failed", f"The issue cannot be rendered: {type(error).__name__}.")
@@ -610,7 +610,7 @@ class IssueService:
 
         try:
             source = load_source(self.content, issue)
-            rendered = render(self.settings, entry["name"], source, address, manage_url="#test", unsubscribe_url="#test", subject_prefix="[Test] ")
+            rendered = render(self.settings, entry["name"], source, address, manage_url="#test", unsubscribe_url="#test", subject_prefix="[Test] ", entry=entry)
         except ItemMissing:
             return failure(409, "item_missing", "The issue's item no longer exists.")
         except Exception as error:  # noqa: BLE001

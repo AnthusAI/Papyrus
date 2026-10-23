@@ -81,6 +81,12 @@ or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, Sept
 `section`, `feed_eligible` (not `feed: false`, in a feeding section, has a page), `noindex` (`noindex: true`,
 `robots: noindex` or `draft: true`), `listed`, and the raw `data` for hooks.
 
+`authors` (or `author`) may be a string (`Ann Lee, Bo Reed`), a list of strings, or a list of `{name, url}` objects
+(`url` optional). One shared reader (`papyrus_content.authors.normalize_authors`) turns each into authors, so every output
+shows the name: Atom `<author><name>` plus `<uri>` (made absolute with the site origin), RSS `<dc:creator>`, the Markdown
+twin's By line (a Markdown link where there is a url), the HTML byline (a link where there is a url), the JSON-LD
+`author` (a `Person` with `url`), and `authors` in the public data files (names only).
+
 ## URL policy
 
 `urls.style` decides the shape of every page: `html` writes `x.html`, `directory` writes `x/index.html`, `clean` writes
@@ -519,6 +525,26 @@ Every site is meant to deploy when a change merges to `main`, with no manual ste
 Expect a delay: on 2026-10-21 GitHub delivered push webhooks 8 to 20 minutes late, to Amplify and to CodePipeline alike.
 A job that has not started after a merge is usually that delay, not a missing trigger. Amplify ignores the late push when
 a manual job has already built the same commit, so starting a build by hand right after a merge hides the automatic one.
+
+## Reconcile and plugin pages
+
+`papyrus ops content project --reconcile` deletes the pages the projector owns and nothing expects. A plugin's pages (the
+newsletter plugin's `newsletter/<name>/index.html`) are planned only when the projector is told the plugin is enabled, so a run
+that is not told would see them as orphans. Three rules prevent that:
+
+- **The plugin list comes from the site.** The CLI uses the list the deployed backend uses: the keys of `custom.papyrusPlugins`
+  in `amplify_outputs.json` (found through `PAPYRUS_SITE_ROOT`, the working directory or `--amplify-outputs PATH`). An explicit
+  `PAPYRUS_PLUGINS` environment variable (comma separated, as on the content-actions function) takes precedence.
+- **A reconcile that is not a dry run refuses** with a non-zero exit and a message, before it reads any content, when the list
+  is unknown (no readable `amplify_outputs.json`) or when a `PAPYRUS_PLUGINS` override differs from the deployed list. A dry run
+  and `--out` runs are not refused.
+- **Plugin pages are never deleted unless the plugin is known to be disabled.** A reconcile never deletes a key under a known
+  plugin's page prefix (`PLUGIN_PAGE_PREFIXES` in `projection/plugins.py`), and `--allow-deletions` does not change that. The
+  plugin counts as disabled only when the verified deployed list lacks it. Otherwise the reconcile refuses with a message that
+  names the paths (exit 2), and a dry run lists them as `protectedPluginPages`, not as orphans or drift.
+
+`--only <prefix>` limits the orphans a reconcile considers to keys under a site-relative prefix, such as `--only wiki/page/`;
+the site's `urls.basePath` is added for you. It does not limit the repair of stale items or listings.
 
 ## Page actions
 

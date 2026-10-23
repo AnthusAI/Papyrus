@@ -6,9 +6,9 @@ from typing import Any
 
 import yaml
 
-from .env import PAPYRUS_ROOT
+from .env import resolve_corpora_file
 
-DEFAULT_NEWSROOM_SECTIONS_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-newsroom-sections.yml"
+DEFAULT_NEWSROOM_SECTIONS_PATH = resolve_corpora_file("corpora/papyrus-newsroom-sections.yml")
 SECTION_TYPES = frozenset({"canonical", "floating", "rotating"})
 
 _section_seed_cache: dict[str, list[dict[str, Any]]] = {}

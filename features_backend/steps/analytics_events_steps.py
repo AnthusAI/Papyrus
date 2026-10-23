@@ -130,3 +130,31 @@ def docs_have_banner(context) -> None:
 def docs_without(context) -> None:
     for fragment in ("papyrus-consent-banner", "data-papyrus-consent-reopen", "gtag"):
         assert fragment not in context.without_id, fragment
+
+
+@then('the consent script reopens the choices from links to "{href}"')
+def reopen_link(context, href: str) -> None:
+    assert f'a[href="{href}"]' in context.page
+
+
+@given("a page built with a measurement id and analytics-only consent")
+def page_analytics_only(context) -> None:
+    context.settings = ConsentModeSettings(analytics_only=True)
+    context.page = render(ga_measurement_id=MEASUREMENT_ID, consent_mode=context.settings)
+
+
+@then("accepting grants only analytics storage")
+def accept_analytics_only(context) -> None:
+    assert "ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:v" in context.page
+    assert "ad_storage:v" not in context.page
+
+
+@then("rejecting denies every signal")
+def reject_denies(context) -> None:
+    assert "var v=granted?'granted':'denied'" in context.page
+
+
+@then("the banner text does not offer advertising")
+def no_advertising_text(context) -> None:
+    assert "for advertising" not in context.settings.banner_message or "do not use them for advertising" in context.settings.banner_message
+    assert "if you agree, for advertising" not in context.settings.banner_message

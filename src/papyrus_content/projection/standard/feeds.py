@@ -13,12 +13,14 @@ from __future__ import annotations
 import datetime as dt
 from xml.sax.saxutils import escape, quoteattr
 
+from ...authors import absolute_author_url
 from .config import StandardSettings
 from .entries import StandardEntry, newest_first
 from .environment import SiteEnvironment
 from .sitemap import XML_DECLARATION
 
 ATOM_NS = "http://www.w3.org/2005/Atom"
+DC_NS = "http://purl.org/dc/elements/1.1/"
 
 
 def feed_selection(entries, settings: StandardSettings) -> list[StandardEntry]:
@@ -47,6 +49,11 @@ def _link(environment: SiteEnvironment, path: str) -> str:
     return (environment.origin or "") + path
 
 
+def _atom_author(author, environment: SiteEnvironment) -> str:
+    uri = absolute_author_url(author.url, environment.origin)
+    return f"<author><name>{escape(author.name)}</name>" + (f"<uri>{escape(uri)}</uri>" if uri else "") + "</author>"
+
+
 def _root(settings: StandardSettings) -> str:
     """The base path with a trailing slash (``posts/``), or "" for a site at the root."""
     return f"{settings.base_path}/" if settings.base_path else ""
@@ -69,6 +76,7 @@ def rss_bytes(selection: list[StandardEntry], settings: StandardSettings, enviro
         ]
         if entry.date and rfc822(entry.date):
             parts.append(f"<pubDate>{rfc822(entry.date)}</pubDate>")
+        parts.extend(f"<dc:creator>{escape(author.name)}</dc:creator>" for author in entry.authors)
         parts.extend(f"<category>{escape(tag)}</category>" for tag in entry.tags)
         items.append("<item>" + "".join(parts) + "</item>")
     channel = [
@@ -83,8 +91,9 @@ def rss_bytes(selection: list[StandardEntry], settings: StandardSettings, enviro
         channel.append(
             f'<atom:link href={quoteattr(_link(environment, "/" + _root(settings) + settings.feeds.rss_path))} rel="self" type="application/rss+xml"/>'
         )
+    dc_namespace = f' xmlns:dc="{DC_NS}"' if any(entry.authors for entry in selection) else ""
     return (
-        f'{XML_DECLARATION}\n<rss version="2.0" xmlns:atom="{ATOM_NS}"><channel>'
+        f'{XML_DECLARATION}\n<rss version="2.0" xmlns:atom="{ATOM_NS}"{dc_namespace}><channel>'
         + "".join(channel)
         + "".join(items)
         + "</channel></rss>\n"
@@ -120,7 +129,7 @@ def atom_bytes(selection: list[StandardEntry], settings: StandardSettings, envir
             parts.append(f"<published>{rfc3339(entry.date)}</published>")
         if entry.summary_text:
             parts.append(f"<summary>{escape(entry.summary_text)}</summary>")
-        parts.extend(f"<author><name>{escape(name)}</name></author>" for name in entry.authors)
+        parts.extend(_atom_author(author, environment) for author in entry.authors)
         parts.extend(f"<category term={quoteattr(tag)}/>" for tag in entry.tags)
         entries.append("<entry>" + "".join(parts) + "</entry>")
     return (

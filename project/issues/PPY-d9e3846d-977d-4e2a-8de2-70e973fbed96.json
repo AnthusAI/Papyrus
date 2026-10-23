@@ -1,0 +1,22 @@
+{
+  "id": "PPY-d9e3846d-977d-4e2a-8de2-70e973fbed96",
+  "title": "Votes and flags check that story, proposal and concept subjects exist (S)",
+  "description": "Follow-up to PPY-c97ce4. The reader vote and flag handlers check that an item is published and a submission is visible, but for `story`, `proposal` and `concept` subjects they accept any well-formed id. Votes and flags can therefore pile up against ids that do not exist. They never render, but they waste storage and could skew counts if an id is later reused.\n\n## Fix\n- Before accepting a vote or flag on story, proposal or concept, check that the subject exists and is public: a published story item, a proposal in a publicly readable state, an accepted concept.\n- Answer 404 (`unknown_subject`) otherwise.\n- Use the cheapest authoritative source, for example the published snapshot data or the backend record.\n\n## Acceptance\nGherkin specs and unit tests for each type: the existing subject is accepted, an unknown id is refused, and a non-public proposal (draft, if drafts are not votable by config) is refused.",
+  "type": "bug",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [
+    "size-S"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-22T23:04:32.390846Z",
+  "updated_at": "2026-10-22T23:04:32.391881Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

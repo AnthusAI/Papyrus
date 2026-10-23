@@ -12,6 +12,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [public-wiki.md](public-wiki.md): the public wiki: draft pages from accepted entities and beats, review stamps, suggest an edit.
 - [knowledge-snapshot.md](knowledge-snapshot.md): the public knowledge JSON of a site (`papyrus knowledge snapshot`, `publish-run`, entity review).
 - [knowledge-workstation-run.md](knowledge-workstation-run.md): the weekly workstation run, end to end: corpus export, Biblicus topics, trends, identity, typed entities, import, review, snapshot, wiki.
+- [knowledge-cloud-run.md](knowledge-cloud-run.md): the same run as an unattended weekly job in AWS (EventBridge, Step Functions, Fargate), its AI review, state, alarms and cost.
 - [newsletter.md](newsletter.md): signup capture (Live); sending is not built.
 
 ## Start here

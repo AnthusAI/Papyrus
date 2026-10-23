@@ -10,10 +10,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .env import PAPYRUS_ROOT
+from .env import PAPYRUS_ROOT, resolve_corpora_file
 from .graphql_authoring import PapyrusGraphQLAuthoringClient
 
-REQUIRED_PROCEDURES_CONFIG_PATH = PAPYRUS_ROOT / "corpora" / "papyrus-required-procedures.json"
+REQUIRED_PROCEDURES_CONFIG_PATH = resolve_corpora_file("corpora/papyrus-required-procedures.json")
 SEED_REQUIRED_PROCEDURES_COMMAND = (
     "poetry run papyrus procedures seed-required"
 )

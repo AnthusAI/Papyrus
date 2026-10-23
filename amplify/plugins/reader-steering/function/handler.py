@@ -30,6 +30,7 @@ if _FUNCTION_DIRECTORY not in sys.path:  # a Lambda already has its code directo
     sys.path.insert(0, _FUNCTION_DIRECTORY)
 import ai_moderation  # noqa: E402
 import moderation as moderation_rules  # noqa: E402
+import proposals as proposal_rules  # noqa: E402
 
 SITE_SUBJECT = re.compile(r"ss1_[A-Za-z0-9_-]{43}")
 INTERIM_SUBJECT = re.compile(r"ssdev_[A-Za-z0-9_-]{43}")
@@ -54,6 +55,21 @@ ACTION_RATING = "rating"
 ACTION_SUBMIT = "submit"
 ACTION_COMMENT = "comment"
 ACTION_REPORT = "report"
+ACTION_FLAG = "flag"
+SUBJECT_TYPE_ITEM = "item"
+SUBJECT_TYPE_SUBMISSION = "submission"
+SUBJECT_TYPES = (SUBJECT_TYPE_ITEM, SUBJECT_TYPE_SUBMISSION, "story", "proposal", "concept")
+DEFAULT_SUBJECT_TYPES = (SUBJECT_TYPE_ITEM, SUBJECT_TYPE_SUBMISSION)
+SUBJECT_ID = re.compile(r"[A-Za-z0-9._:-]{1,190}")
+VOTE_DIMENSION = "up"
+VOTE_PAYLOAD_KEYS = frozenset({"subject", "value"})
+FLAG_WRONG = "wrong"
+FLAG_BELONGS_UNDER = "belongs_under"
+FLAG_BETTER_NAME = "better_name"
+FLAG_KINDS = (FLAG_WRONG, FLAG_BELONGS_UNDER, FLAG_BETTER_NAME)
+FLAG_PAYLOAD_KEYS = frozenset({"subject", "kind", "reason", "target", "name"})
+MAXIMUM_FLAG_REASON = 500
+MAXIMUM_SUGGESTED_NAME = 120
 RATE_BUCKET_REPORT = "report"
 REPORT_ID_PREFIX = "rep-"
 MAXIMUM_REPORT_REASON = 500
@@ -127,6 +143,7 @@ class ReaderSettings:
     promote_section: str = "unsectioned"
     ai_model: str = ai_moderation.DEFAULT_MODEL
     ai_key_parameter: str = ""
+    subject_types: tuple[str, ...] = DEFAULT_SUBJECT_TYPES
 
 
 def settings_from_environment(environment: dict[str, str] | None = None) -> ReaderSettings:
@@ -154,6 +171,7 @@ def settings_from_environment(environment: dict[str, str] | None = None) -> Read
         reports_per_day=int((raw.get("moderation") or {}).get("reportsPerDay", defaults.reports_per_day)),
         ai_model=str(((raw.get("moderation") or {}).get("ai") or {}).get("model", defaults.ai_model)),
         ai_key_parameter=str(((raw.get("moderation") or {}).get("ai") or {}).get("apiKeyParameter", defaults.ai_key_parameter)),
+        subject_types=tuple((raw.get("subjects") or {}).get("types") or defaults.subject_types),
         promote_item_type=str((raw.get("submissions") or {}).get("itemType", defaults.promote_item_type)),
         promote_section=str((raw.get("submissions") or {}).get("section", defaults.promote_section)),
     )
@@ -171,6 +189,8 @@ class ReaderStore(Protocol):
     def put_vote(self, vote: dict[str, Any], now_iso: str) -> None: ...
 
     def delete_vote(self, vote_id: str) -> None: ...
+
+    def put_flag(self, flag: dict[str, Any], now_iso: str) -> None: ...
 
     def is_published(self, subject_key: str) -> bool: ...
 
@@ -227,6 +247,30 @@ def seconds_of(iso_text: str) -> float:
 
 def vote_id(subject_key: str, reader_id: str, dimension: str) -> str:
     return f"{subject_key}#{reader_id}#{dimension}"
+
+
+def subject_key(subject_type: str, subject_id: str) -> str:
+    """The key a vote is stored under: items and submissions keep their bare id (so every vote written before subject types stays valid); other types are prefixed."""
+    return subject_id if subject_type in (SUBJECT_TYPE_ITEM, SUBJECT_TYPE_SUBMISSION) else f"{subject_type}:{subject_id}"
+
+
+def legacy_subject_type(key: str) -> str:
+    """The type of a bare subject key: a submission id, otherwise an item."""
+    return SUBJECT_TYPE_SUBMISSION if SUBMISSION_ID.fullmatch(key) else SUBJECT_TYPE_ITEM
+
+
+def parse_subject(raw: Any, settings: ReaderSettings) -> tuple[tuple[str, str] | None, dict[str, Any] | None]:
+    """``({type, id}) -> (type, id)``, or a refusal. A bare string is a subject written before subject types: its type is read from its shape."""
+    if isinstance(raw, str):
+        raw = {"type": legacy_subject_type(raw), "id": raw}
+    if not isinstance(raw, dict) or set(raw) != {"type", "id"} or not isinstance(raw["type"], str) or not isinstance(raw["id"], str):
+        return None, refusal(422, "invalid_subject", "Send the subject as {type, id}.")
+    subject_type, subject_id = raw["type"], raw["id"]
+    if subject_type not in SUBJECT_TYPES or subject_type not in settings.subject_types:
+        return None, refusal(422, "unknown_subject_type", "That kind of subject cannot be voted on here.")
+    if not SUBJECT_ID.fullmatch(subject_id):
+        return None, refusal(422, "invalid_subject", "Send the id of the subject.")
+    return (subject_type, subject_id), None
 
 
 def valid_site_subject(value: Any, settings: ReaderSettings) -> bool:
@@ -321,13 +365,18 @@ def public_profile(profile: dict[str, Any]) -> dict[str, Any]:
 
 
 def my_state(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any], settings: ReaderSettings) -> dict[str, Any]:
-    subjects = payload.get("subjects", [])
-    if (
-        not isinstance(subjects, list)
-        or len(subjects) > MAXIMUM_SUBJECTS
-        or not all(isinstance(subject, str) and SUBJECT_KEY.fullmatch(subject) for subject in subjects)
-    ):
-        return refusal(422, "invalid_subjects", f"Send at most {MAXIMUM_SUBJECTS} item keys.")
+    raw_subjects = payload.get("subjects", [])
+    if not isinstance(raw_subjects, list) or len(raw_subjects) > MAXIMUM_SUBJECTS:
+        return refusal(422, "invalid_subjects", f"Send at most {MAXIMUM_SUBJECTS} subjects.")
+    subjects: list[str] = []
+    for raw in raw_subjects:
+        if isinstance(raw, str) and SUBJECT_KEY.fullmatch(raw):
+            subjects.append(raw)
+            continue
+        parsed, _ = parse_subject(raw, settings) if isinstance(raw, dict) else (None, None)
+        if parsed is None:
+            return refusal(422, "invalid_subjects", f"Send at most {MAXIMUM_SUBJECTS} subject keys or {{type, id}} subjects.")
+        subjects.append(subject_key(*parsed))
     dimensions = [*TOGGLE_DIMENSIONS, *settings.dimensions]
     wanted = {vote_id(subject, profile["readerId"], dimension): (subject, dimension) for subject in subjects for dimension in dimensions}
     found = store.get_vote_values(list(wanted))
@@ -335,7 +384,9 @@ def my_state(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any
     for stored_id, value in found.items():
         subject, dimension = wanted[stored_id]
         votes.setdefault(subject, {})[dimension] = value
-    return reply(200, {**public_profile(profile), "votes": votes})
+    # The reader's own up (1) or down (-1) vote per requested subject, by subject key (the key format of items.json).
+    subject_votes = {subject: held["up"] for subject, held in votes.items() if held.get("up") in (1, -1)}
+    return reply(200, {**public_profile(profile), "votes": votes, "subjectVotes": subject_votes})
 
 
 def set_handle(
@@ -375,8 +426,11 @@ def react(
     now_seconds: float,
     schedule_snapshot: Callable[[], None],
 ) -> dict[str, Any]:
-    if not isinstance(subject, str) or not SUBJECT_KEY.fullmatch(subject):
-        return refusal(422, "invalid_subject", "Send the key of a published item.")
+    parsed, refused = parse_subject(subject, settings)
+    if refused:
+        return refused
+    subject_type, subject_id = parsed
+    subject = subject_key(subject_type, subject_id)
     if not isinstance(dimension, str) or dimension not in allowed_dimensions:
         return refusal(422, "invalid_dimension", "That dimension is not available.")
     if profile.get("state") == STATE_BANNED:
@@ -386,7 +440,7 @@ def react(
     limited = within_rate_limit(store, profile, RATE_BUCKET_REACTIONS, action_limit(profile, settings, now_seconds), now_seconds)
     if limited:
         return limited
-    if not subject_is_open(store, subject):
+    if not subject_is_open(store, subject_type, subject_id):
         return refusal(404, "unknown_subject", "That item is not published.")
     stored_id = vote_id(subject, profile["readerId"], dimension)
     if value is None:
@@ -396,6 +450,7 @@ def react(
             {
                 "id": stored_id,
                 "subjectKey": subject,
+                "subjectType": subject_type,
                 "readerId": profile["readerId"],
                 "dimension": dimension,
                 "value": value,
@@ -407,12 +462,17 @@ def react(
     return reply(200, {"subject": subject, "dimension": dimension, "value": value})
 
 
-def subject_is_open(store: ReaderStore, subject: str) -> bool:
-    """A published item, or a submission that is visible (pending or promoted); hidden submissions cannot be voted on."""
-    if SUBMISSION_ID.fullmatch(subject):
-        submission = store.get_submission(subject)
+def subject_is_open(store: ReaderStore, subject_type: str, subject_id: str) -> bool:
+    """A published item, or a submission that is visible (pending or promoted); hidden submissions cannot be voted on.
+
+    The other subject types have no record in this plugin (stories, proposals and concepts live in the site's own data), so any well-formed id is open.
+    """
+    if subject_type == SUBJECT_TYPE_SUBMISSION:
+        submission = store.get_submission(subject_id)
         return submission is not None and submission.get("state") in VISIBLE_SUBMISSION_STATES
-    return store.is_published(subject)
+    if subject_type == SUBJECT_TYPE_ITEM:
+        return store.is_published(subject_id)
+    return True
 
 
 def clean_text(value: Any, label: str, maximum: int, *, required: bool) -> tuple[str | None, dict[str, Any] | None]:
@@ -606,7 +666,7 @@ def comment_action(
     limited = within_rate_limit(store, profile, RATE_BUCKET_COMMENT, new_account_limit(profile, settings, now_seconds, settings.comments_per_hour), now_seconds)
     if limited:
         return limited
-    if not subject_is_open(store, subject):
+    if not subject_is_open(store, legacy_subject_type(subject), subject):
         return refusal(404, "unknown_subject", "That item is not published.")
     if parent_id is not None:
         parent = store.get_comment(parent_id)
@@ -677,6 +737,75 @@ def report_action(
     return reply(200, {"reported": True})
 
 
+def flag_action(
+    store: ReaderStore,
+    profile: dict[str, Any],
+    payload: dict[str, Any],
+    settings: ReaderSettings,
+    is_staff: bool,
+    now_seconds: float,
+    schedule_snapshot: Callable[[], None],
+) -> dict[str, Any]:
+    """A reader flags a subject as wrong, as belonging under another subject, or as needing a better name; a reason is required.
+
+    One flag per reader, subject and kind: flagging again replaces the reason. Flags are stored apart from votes and reach the
+    snapshot as counts only. The stored row holds the readerId, never a siteSubject.
+    """
+    if set(payload) - FLAG_PAYLOAD_KEYS:
+        return refusal(422, "invalid_flag", "Send subject, kind, reason, and target or name for the kind.")
+    kind = payload.get("kind")
+    if kind not in FLAG_KINDS:
+        return refusal(422, "invalid_flag_kind", f"Send kind as one of {', '.join(FLAG_KINDS)}.")
+    parsed, refused = parse_subject(payload.get("subject"), settings)
+    if refused:
+        return refused
+    reason = payload.get("reason")
+    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > MAXIMUM_FLAG_REASON or CONTROL_CHARACTERS.search(reason):
+        return refusal(422, "invalid_reason", f"Give a reason in plain text of at most {MAXIMUM_FLAG_REASON} characters.")
+    if EMAIL_ADDRESS.search(reason):
+        return refusal(422, "invalid_reason", "A reason cannot contain an email address.")
+    target_key: str | None = None
+    suggested: str | None = None
+    if kind == FLAG_BELONGS_UNDER:
+        target, refused = parse_subject(payload.get("target"), settings) if isinstance(payload.get("target"), dict) else (None, True)
+        if refused or "name" in payload:
+            return refusal(422, "invalid_target", "Send target as {type, id} for belongs_under.")
+        target_key = subject_key(*target)
+        if target_key == subject_key(*parsed):
+            return refusal(422, "invalid_target", "A subject cannot belong under itself.")
+    elif kind == FLAG_BETTER_NAME:
+        suggested, refused = clean_text(payload.get("name"), "name", MAXIMUM_SUGGESTED_NAME, required=True)
+        if refused or "target" in payload:
+            return refused or refusal(422, "invalid_name", "Send name for better_name.")
+    elif "target" in payload or "name" in payload:
+        return refusal(422, "invalid_flag", "wrong takes only a reason.")
+    if profile.get("state") == STATE_LIMITED:
+        return refusal(403, "reader_limited", "This reader cannot flag right now.")
+    limited = within_rate_limit(store, profile, RATE_BUCKET_REACTIONS, action_limit(profile, settings, now_seconds), now_seconds)
+    if limited:
+        return limited
+    subject_type, subject_id = parsed
+    if not subject_is_open(store, subject_type, subject_id):
+        return refusal(404, "unknown_subject", "That subject cannot be flagged.")
+    key = subject_key(subject_type, subject_id)
+    store.put_flag(
+        {
+            "id": f"{key}#{profile['readerId']}#{kind}",
+            "subjectKey": key,
+            "subjectType": subject_type,
+            "readerId": profile["readerId"],
+            "kind": kind,
+            "reason": reason.strip(),
+            "targetKey": target_key,
+            "suggestedName": suggested,
+            "voterRole": ROLE_EDITOR if is_staff else ROLE_READER,
+        },
+        iso(now_seconds),
+    )
+    schedule_snapshot()
+    return reply(200, {"subject": payload["subject"], "kind": kind})
+
+
 def own_comment(store: ReaderStore, profile: dict[str, Any], payload: dict[str, Any], allowed: frozenset[str]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     if set(payload) - allowed:
         return None, refusal(422, "invalid_comment", "Send only " + ", ".join(sorted(allowed)) + ".")
@@ -740,7 +869,23 @@ def delete_comment_action(
     return reply(200, {"id": comment["id"], "state": COMMENT_DELETED})
 
 
+def typed_vote_action(store, profile, payload, settings, is_staff, now_seconds, schedule_snapshot):
+    """``{subject: {type, id}, value: 1 | -1 | null}``: an up or down vote on any enabled subject type; ``null`` removes the reader's vote."""
+    value = payload.get("value")
+    if set(payload) - VOTE_PAYLOAD_KEYS or isinstance(value, bool) or value not in (1, -1, None):
+        return refusal(422, "invalid_vote", "Send only subject and value, and value as 1, -1 or null.")
+    answer = react(
+        store, profile, subject=payload.get("subject"), dimension=VOTE_DIMENSION, allowed_dimensions=(VOTE_DIMENSION,),
+        value=value, is_staff=is_staff, settings=settings, now_seconds=now_seconds, schedule_snapshot=schedule_snapshot,
+    )
+    if answer["statusCode"] == 200:
+        answer = reply(200, {"subject": payload["subject"], "value": value})
+    return answer
+
+
 def vote_action(store, profile, payload, settings, is_staff, now_seconds, schedule_snapshot):
+    if isinstance(payload.get("subject"), dict):
+        return typed_vote_action(store, profile, payload, settings, is_staff, now_seconds, schedule_snapshot)
     on = payload.get("on")
     if not isinstance(on, bool):
         return refusal(422, "invalid_vote", "Send on as true or false.")
@@ -794,6 +939,8 @@ def handle_event(
         return delete_comment_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
     if action == ACTION_REPORT:
         return report_action(store, profile, payload, settings, now_seconds, schedule_snapshot)
+    if action == ACTION_FLAG:
+        return flag_action(store, profile, payload, settings, event["isStaff"], now_seconds, schedule_snapshot)
     return refusal(400, "unknown_action", "Unknown action.")
 
 
@@ -832,6 +979,8 @@ class DynamoReaderStore:
         report_table: str = "",
         action_table: str = "",
         item_table: str = "",
+        proposal_table: str = "",
+        flag_table: str = "",
     ) -> None:
         self._resource = resource
         self._names = {
@@ -845,10 +994,44 @@ class DynamoReaderStore:
             "report": report_table,
             "action": action_table,
             "item": item_table,
+            "proposal": proposal_table,
+            "flag": flag_table,
         }
 
     def _table(self, key: str) -> Any:
         return self._resource.Table(self._names[key])
+
+    def get_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        item = self._table("proposal").get_item(Key={"id": proposal_id}, ConsistentRead=True).get("Item")
+        return plain(item) if item else None
+
+    def create_proposal(self, row: dict[str, Any]) -> bool:
+        item = {**_without_none(row), "__typename": "Proposal", "updatedAt": row["createdAt"]}
+        try:
+            self._table("proposal").put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
+
+    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool:
+        names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
+        assignments = ", ".join(f"#c{index} = :c{index}" for index in range(len(changes)))
+        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values())}}
+        try:
+            self._table("proposal").update_item(
+                Key={"id": proposal_id},
+                UpdateExpression=f"SET {assignments}, #u = :now",
+                ConditionExpression="#st = :expected",
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues=values,
+            )
+        except Exception as error:
+            if is_conditional_failure(error):
+                return False
+            raise
+        return True
 
     def get_profile(self, site_subject: str) -> dict[str, Any] | None:
         item = self._table("profile").get_item(Key={"id": site_subject}, ConsistentRead=True).get("Item")
@@ -914,13 +1097,14 @@ class DynamoReaderStore:
         self._table("vote").update_item(
             Key={"id": vote["id"]},
             UpdateExpression=(
-                "SET #t = :t, subjectKey = :s, readerId = :r, #d = :d, #v = :v, voterRole = :role, "
+                "SET #t = :t, subjectKey = :s, subjectType = :st, readerId = :r, #d = :d, #v = :v, voterRole = :role, "
                 "createdAt = if_not_exists(createdAt, :now), updatedAt = :now"
             ),
             ExpressionAttributeNames={"#t": "__typename", "#d": "dimension", "#v": "value"},
             ExpressionAttributeValues={
                 ":t": "ReaderVote",
                 ":s": vote["subjectKey"],
+                ":st": vote.get("subjectType") or legacy_subject_type(vote["subjectKey"]),
                 ":r": vote["readerId"],
                 ":d": vote["dimension"],
                 ":v": vote["value"],
@@ -931,6 +1115,9 @@ class DynamoReaderStore:
 
     def delete_vote(self, vote_id_: str) -> None:
         self._table("vote").delete_item(Key={"id": vote_id_})
+
+    def put_flag(self, flag: dict[str, Any], now_iso: str) -> None:
+        self._table("flag").put_item(Item=_without_none({**flag, "__typename": "ReaderFlag", "createdAt": now_iso, "updatedAt": now_iso}))
 
     def is_published(self, subject_key: str) -> bool:
         item = self._table("published").get_item(Key={"id": PUBLISHED_ID_PREFIX + subject_key}, ProjectionExpression="#s", ExpressionAttributeNames={"#s": "status"}).get("Item")
@@ -1259,6 +1446,8 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         report_table=environment.get("PAPYRUS_READER_REPORT_TABLE", ""),
         action_table=environment.get("PAPYRUS_READER_ACTION_TABLE", ""),
         item_table=environment.get("PAPYRUS_READER_ITEM_TABLE", ""),
+        proposal_table=environment.get("PAPYRUS_READER_PROPOSAL_TABLE", ""),
+        flag_table=environment.get("PAPYRUS_READER_FLAG_TABLE", ""),
     )
 
 
@@ -1312,6 +1501,8 @@ def run_ai_worker(
 
 def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float) -> dict[str, Any]:
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
+    if (event.get("info") or {}).get("fieldName") in proposal_rules.MUTATIONS:
+        return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds))
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []

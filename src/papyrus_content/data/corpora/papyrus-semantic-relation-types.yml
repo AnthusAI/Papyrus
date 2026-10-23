@@ -1,0 +1,486 @@
+schemaVersion: 1
+relationTypes:
+  - key: classified_as
+    label: classified as
+    inverseLabel: classified references/items
+    description: Associates a reference, item, or artifact with an accepted category.
+    domain: knowledge
+    allowedSubjectKinds: [reference, item, knowledgeArtifact]
+    allowedObjectKinds: [category]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, category_context]
+  - key: authoritative_label
+    label: authoritative label
+    inverseLabel: authoritatively labeled references/items
+    description: Records an editor-approved authoritative topic label for a reference, item, or artifact.
+    domain: classification
+    allowedSubjectKinds: [reference, item, knowledgeArtifact]
+    allowedObjectKinds: [category]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, category_context]
+  - key: digital_object_identifier_is
+    label: digital object identifier is
+    inverseLabel: identifies reference
+    description: Links a reference to its DOI identifier semantic node.
+    domain: ontology
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: arxiv_identifier_is
+    label: arXiv identifier is
+    inverseLabel: identifies reference
+    description: Links a reference to its arXiv identifier semantic node.
+    domain: ontology
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: isbn_identifier_is
+    label: ISBN identifier is
+    inverseLabel: identifies reference
+    description: Links a reference to its ISBN identifier semantic node.
+    domain: ontology
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: publisher_item_identifier_is
+    label: publisher item identifier is
+    inverseLabel: identifies reference
+    description: Links a reference to a normalized publisher item identifier semantic node when DOI, arXiv, or ISBN identifiers are unavailable.
+    domain: ontology
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: reference_summary_100_tokens
+    label: 100-token reference summary
+    inverseLabel: 100-token summary for
+    description: Links a private Message to the Reference it summarizes with a maximum budget of 100 tokens.
+    domain: summarization
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, research, context_ranking]
+  - key: reference_summary_200_tokens
+    label: 200-token reference summary
+    inverseLabel: 200-token summary for
+    description: Links a private Message to the Reference it summarizes with a maximum budget of 200 tokens.
+    domain: summarization
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, research, context_ranking]
+  - key: reference_summary_500_tokens
+    label: 500-token reference summary
+    inverseLabel: 500-token summary for
+    description: Links a private Message to the Reference it summarizes with a maximum budget of 500 tokens.
+    domain: summarization
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, research, context_ranking]
+  - key: reference_summary_1000_tokens
+    label: 1000-token reference summary
+    inverseLabel: 1000-token summary for
+    description: Links a private Message to the Reference it summarizes with a maximum budget of 1000 tokens.
+    domain: summarization
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, research, context_ranking]
+  - key: reference_summary_1800_tokens
+    label: 1800-token reference summary
+    inverseLabel: 1800-token summary for
+    description: Links a private Message to the Reference it summarizes with a maximum budget of 1800 tokens.
+    domain: summarization
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, research, context_ranking]
+  - key: quality_rating_is
+    label: quality rating is
+    inverseLabel: quality rating for
+    description: Links a reference to its accepted one-to-five-star quality rating semantic node; SemanticRelation.score stores the numeric rating.
+    domain: curation
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, research, context_ranking]
+  - key: relevance_decision_is
+    label: relevance decision is
+    inverseLabel: relevance decision for
+    description: Links a candidate reference to the relevance cyclotron's current decision node (relevance.include or relevance.exclude); score is the probability of the positive label, confidence and modelVersion (cyclotron version) and reviewRecommended (sent to review) come from the decision. Workflow state, not evidence.
+    domain: workflow
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation]
+  - key: mentions
+    label: mentions
+    inverseLabel: mentioned by
+    description: Connects a source object to a semantic concept or entity it mentions.
+    domain: ontology
+    allowedSubjectKinds: [reference, item, message]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: authored_by
+    label: authored by
+    inverseLabel: author of
+    description: Links a reference to an author semantic concept extracted from structured source metadata.
+    domain: knowledge
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: cites
+    label: cites
+    inverseLabel: cited by
+    description: Links one reference to another reference it cites in a bibliography or citation list.
+    domain: evidence
+    allowedSubjectKinds: [reference]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: has_editorial_form
+    label: has editorial form
+    inverseLabel: items by editorial form
+    description: Tags an item or assignment with a publication form such as reporting, analysis, opinion, or briefs.
+    domain: editorial
+    allowedSubjectKinds: [item, assignment, reference]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [editing, publication, assignment_context]
+  - key: note_about
+    label: note about
+    inverseLabel: has note
+    description: Links a private note Message to the object the note describes.
+    domain: knowledge
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference, item, category, semanticNode, assignment, newsroomSection]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [research, reference_graph, editing]
+  - key: explains_relation
+    label: explains relation
+    inverseLabel: relation explained by
+    description: Links a private ontology-enrichment Message to the SemanticRelation whose contextual meaning it explains.
+    domain: ontology
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [semanticRelation]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: about
+    label: about
+    inverseLabel: commentary
+    description: Connects commentary or notes to the object being discussed.
+    domain: commentary
+    allowedSubjectKinds: [message, steeringProposal, item]
+    allowedObjectKinds: [reference, item, category, semanticNode, assignment]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [editing, research]
+  - key: comment
+    label: comments on
+    inverseLabel: commented on by
+    description: Links a private Message to the object it comments on.
+    domain: commentary
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference, item, category, semanticNode, assignment, steeringProposal]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, editing, research, assignment_context]
+  - key: ingestion_rationale
+    label: ingestion rationale for
+    inverseLabel: ingestion rationale
+    description: Links a private Message to the Reference whose ingestion rationale it documents.
+    domain: commentary
+    allowedSubjectKinds: [message]
+    allowedObjectKinds: [reference]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_curation, editing, research, assignment_context]
+  - key: requests_work_on
+    label: requests work on
+    inverseLabel: requested work
+    description: Links an assignment to the concrete object, coverage concept, or workflow target it asks someone or an agent to work on.
+    domain: workflow
+    allowedSubjectKinds: [assignment]
+    allowedObjectKinds: [reference, item, category, categorySet, semanticNode, steeringProposal]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing]
+  - key: uses_evidence
+    label: uses evidence
+    inverseLabel: used as evidence by
+    description: Links an assignment, item, or comment to supporting reference evidence.
+    domain: evidence
+    allowedSubjectKinds: [assignment, item, message, steeringProposal]
+    allowedObjectKinds: [reference, knowledgeArtifact, semanticRelation]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, research, reference_graph]
+  - key: uses_signal
+    label: uses signal
+    inverseLabel: signal for
+    description: Links an assignment, proposal, or procedure output to a graph or analysis signal.
+    domain: evidence
+    allowedSubjectKinds: [assignment, steeringProposal, message]
+    allowedObjectKinds: [semanticNode, semanticRelation, knowledgeArtifact]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, research, reference_graph]
+  - key: planned_for_edition
+    label: planned for edition
+    inverseLabel: planned assignments
+    description: Links a private assignment or draft to the planning edition it belongs to.
+    domain: publication
+    allowedSubjectKinds: [assignment, item]
+    allowedObjectKinds: [edition]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing, publication]
+  - key: targets_lane
+    label: targets lane
+    inverseLabel: lane targets
+    description: Links an assignment or item to a publication lane such as reporting, analysis, or briefs.
+    domain: editorial
+    allowedSubjectKinds: [assignment, item]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing, publication]
+  - key: targets_section
+    label: targets section
+    inverseLabel: section assignments
+    description: Links an assignment or item to the configurable Newsroom section it is intended to serve.
+    domain: editorial
+    allowedSubjectKinds: [assignment, item]
+    allowedObjectKinds: [newsroomSection]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing, publication]
+  - key: targets_slot
+    label: targets slot
+    inverseLabel: slot candidates
+    description: Links a reporting assignment to the edition slot it is competing to fill.
+    domain: editorial
+    allowedSubjectKinds: [assignment]
+    allowedObjectKinds: [editionSlot]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing, publication]
+  - key: selected_by
+    label: selected by
+    inverseLabel: selected slot
+    description: Links an edition slot to the reporting assignment selected for copywriting.
+    domain: workflow
+    allowedSubjectKinds: [editionSlot]
+    allowedObjectKinds: [assignment]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing, publication]
+  - key: targets_topic
+    label: targets topic
+    inverseLabel: topic assignments
+    description: Links an assignment to an optional knowledge taxonomy scope without making that topic the Newsroom desk.
+    domain: editorial
+    allowedSubjectKinds: [assignment]
+    allowedObjectKinds: [category]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing, publication, research]
+  - key: scoped_to_topic
+    label: scoped to topic
+    inverseLabel: semantic concepts scoped here
+    description: Links a semantic concept, entity, or coverage question to the accepted taxonomy category that scopes it.
+    domain: ontology
+    allowedSubjectKinds: [semanticNode]
+    allowedObjectKinds: [category]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, research, reference_graph, category_context]
+  - key: produces
+    label: produces
+    inverseLabel: produced by
+    description: Links an assignment, procedure, or source to the object it produced.
+    domain: workflow
+    allowedSubjectKinds: [assignment, knowledgeImportRun, item]
+    allowedObjectKinds: [item, message, semanticRelation, steeringProposal]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing]
+  - key: blocked_by
+    label: blocked by
+    inverseLabel: blocks
+    description: Marks a workflow dependency that prevents an assignment or item from moving forward.
+    domain: workflow
+    allowedSubjectKinds: [assignment, item]
+    allowedObjectKinds: [assignment, item, message, semanticRelation]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [assignment_context, editing]
+  - key: derived_from
+    label: derived from
+    inverseLabel: source for
+    description: Connects a derived object or workflow record to the source packet, assignment, artifact, reference, or item it came from.
+    domain: evidence
+    allowedSubjectKinds: [assignment, item, reference, message, semanticNode, semanticRelation]
+    allowedObjectKinds: [assignment, message, reference, item, knowledgeArtifact, knowledgeImportRun, semanticNode, semanticRelation]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: related_to
+    label: related to
+    inverseLabel: related to
+    description: A generic symmetric relation used only when a more specific relation type is not known.
+    domain: generic
+    allowedSubjectKinds: [reference, item, category, semanticNode, assignment, message]
+    allowedObjectKinds: [reference, item, category, semanticNode, assignment, message]
+    isDirectional: false
+    isSymmetric: true
+    isTransitive: false
+    contextPackTags: [reference_graph]
+  - key: same_as
+    label: same as
+    inverseLabel: same as
+    description: Symmetric ontology relation indicating two semantic concepts represent the same real-world or conceptual referent.
+    domain: ontology
+    allowedSubjectKinds: [semanticNode]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: false
+    isSymmetric: true
+    isTransitive: true
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: alias_of
+    label: alias of
+    inverseLabel: canonical concept for
+    description: Directional ontology relation indicating one semantic concept is an alias or alternate label for another concept.
+    domain: ontology
+    allowedSubjectKinds: [semanticNode]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: true
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: disambiguates
+    label: disambiguates
+    inverseLabel: disambiguated by
+    description: Ontology relation indicating one concept or profile clarifies that similarly named concepts should remain distinct.
+    domain: ontology
+    allowedSubjectKinds: [semanticNode, message]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: broader_than
+    label: broader than
+    inverseLabel: narrower concept
+    description: Ontological hierarchy edge from a broader concept to a narrower concept.
+    domain: ontology
+    allowedSubjectKinds: [category, semanticNode]
+    allowedObjectKinds: [category, semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: true
+    contextPackTags: [reference_graph, research, category_context]
+  - key: narrower_than
+    label: narrower than
+    inverseLabel: broader concept
+    description: Ontological hierarchy edge from a narrower concept to a broader concept.
+    domain: ontology
+    allowedSubjectKinds: [category, semanticNode]
+    allowedObjectKinds: [category, semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: true
+    contextPackTags: [reference_graph, research, category_context]
+  - key: member_of
+    label: member of
+    inverseLabel: members
+    description: Ontological membership edge from a specific member (for example a model) to the group it belongs to (for example its model family). Used only when the source text says which group the member belongs to.
+    domain: ontology
+    allowedSubjectKinds: [semanticNode]
+    allowedObjectKinds: [semanticNode]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research, ontology_enrichment]
+  - key: supports
+    label: supports
+    inverseLabel: supported by
+    description: Evidence relation indicating that one object supports another claim or object.
+    domain: evidence
+    allowedSubjectKinds: [reference, item, message, semanticRelation]
+    allowedObjectKinds: [reference, item, message, semanticRelation]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]
+  - key: contradicts
+    label: contradicts
+    inverseLabel: contradicted by
+    description: Evidence relation indicating that one object contradicts another claim or object.
+    domain: evidence
+    allowedSubjectKinds: [reference, item, message, semanticRelation]
+    allowedObjectKinds: [reference, item, message, semanticRelation]
+    isDirectional: true
+    isSymmetric: false
+    isTransitive: false
+    contextPackTags: [reference_graph, research]

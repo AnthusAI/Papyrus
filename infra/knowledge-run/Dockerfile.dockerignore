@@ -1,0 +1,3 @@
+*
+!infra/knowledge-run/constraints.txt
+!infra/knowledge-run/bake_models.py

@@ -37,10 +37,19 @@ assert.deepEqual(defaults, {
   },
   snapshot: { schedule: false, intervalHours: 6, hypeMinimum: 5 },
   submissions: { perDay: 10, similarHours: 48, kinds: ["link"], itemType: "brief", section: "unsectioned" },
+  subjects: { types: ["item", "submission"] },
   moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
   comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
   retirementPoll: false,
 });
+
+assert.deepEqual(resolveReaderSteeringConfig({ ...base, subjects: { types: ["item", "proposal", "story", "proposal"] } }).subjects.types, ["item", "proposal", "story"]);
+assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { types: ["person"] } }), /subjects\.types/, "an unknown subject type is refused");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { types: [] } }), /subjects\.types/, "at least one subject type");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { kinds: ["item"] } }), /Unknown reader-steering plugin subjects settings/);
+assert.deepEqual((readerSteeringPlugin.publicSettings(resolveReaderSteeringConfig({ ...base, subjects: { types: ["item", "proposal"] } })) as { subjects: unknown }).subjects, { types: ["item", "proposal"] }, "the browser is told the enabled types");
+assert.deepEqual(readerActionsSettings(resolveReaderSteeringConfig({ ...base, subjects: { types: ["proposal"] } }), false).subjects, { types: ["proposal"] }, "the actions function is told the enabled types");
+assert.deepEqual(readerSnapshotSettings(resolveReaderSteeringConfig({ ...base, subjects: { types: ["proposal"] } })).subjects, { types: ["proposal"] }, "the snapshot is told the enabled types");
 
 const tuned = resolveReaderSteeringConfig({ ...base, comments: { perHour: 5, editWindowMinutes: 0, maximumLinks: 0 } });
 assert.deepEqual(tuned.comments, { perHour: 5, editWindowMinutes: 0, maximumLength: 2000, maximumLinks: 0 });
@@ -154,11 +163,11 @@ for (const bad of [
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
 assert.deepEqual(
   Object.keys(definitions).sort(),
-  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt"].sort(),
-  "the schema defines exactly the manifest's models and mutations, plus the receipt type",
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt", "ProposalReceipt"].sort(),
+  "the schema defines exactly the manifest's models and mutations, plus the receipt types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"]);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal"]);
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -174,6 +183,7 @@ assert.deepEqual(settings, {
   limits: shipped.limits,
   reservedHandles: ["shipped-team"],
   submissions: shipped.submissions,
+  subjects: shipped.subjects,
   comments: shipped.comments,
   moderation: shipped.moderation,
   allowInterimSubjects: false,
@@ -185,7 +195,7 @@ assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development", NODE_ENV: "production" }), false);
 assert.equal(interimSubjectsAllowedAtSynth({}), false);
 assert.equal(interimSubjectsAllowedAtSynth({ SITE_ENV: "development" }), true);
-assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"], moderation: { mode: "human" } });
+assert.deepEqual(readerSteeringPlugin.publicSettings(shipped), { contract: 1, dimensions: ["real", "useful", "notable", "novel"], subjects: { types: ["item", "submission"] }, moderation: { mode: "human" } });
 
 function synthesize(config = shipped, environment: Record<string, string> = {}) {
   const app = new App();
@@ -196,7 +206,7 @@ function synthesize(config = shipped, environment: Record<string, string> = {}) 
   new Table(stack, "PapyrusReaderRateWindows", { partitionKey: { name: "pk", type: AttributeType.STRING } });
   const contentActions = lambdaFor("ContentActions");
   const tables = Object.fromEntries(
-    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
+    ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Proposal", "Item", "PublishedItem"].map((name) => [name, new Table(stack, name, { partitionKey: { name: "id", type: AttributeType.STRING } })]),
   );
   const outputs: unknown[] = [];
   const backend = {
@@ -227,7 +237,7 @@ assert.equal(permissions.filter((permission) => permission.Properties.Principal 
 const readerEnvironments = Object.values(template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
 const readerVariables = readerEnvironments.find((variables) => variables.PAPYRUS_READER_SETTINGS) as Record<string, string>;
 assert.ok(readerVariables, "the function gets its settings");
-for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_COMMENT_TABLE", "PAPYRUS_READER_REPORT_TABLE", "PAPYRUS_READER_ACTION_TABLE", "PAPYRUS_READER_ITEM_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
+for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE", "PAPYRUS_READER_VOTE_TABLE", "PAPYRUS_READER_FLAG_TABLE", "PAPYRUS_READER_SUBMISSION_TABLE", "PAPYRUS_READER_COMMENT_TABLE", "PAPYRUS_READER_REPORT_TABLE", "PAPYRUS_READER_ACTION_TABLE", "PAPYRUS_READER_ITEM_TABLE", "PAPYRUS_READER_PUBLISHED_ITEM_TABLE", "PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", "PAPYRUS_READER_SCHEDULER_ROLE_ARN"]) {
   assert.ok(name in readerVariables, `${name} is set`);
 }
 assert.equal(JSON.parse(readerVariables.PAPYRUS_READER_SETTINGS).allowInterimSubjects, false, "a production synth refuses interim subjects");
@@ -272,7 +282,7 @@ const debounceTemplates = synthesize(shipped).stacks.map((stack) => Template.fro
 const schedulerRoles = debounceTemplates.flatMap((candidate) => Object.values(candidate.findResources("AWS::IAM::Role"))).filter((role) =>
   JSON.stringify((role as { Properties: { AssumeRolePolicyDocument: unknown } }).Properties.AssumeRolePolicyDocument).includes("scheduler.amazonaws.com"));
 assert.equal(schedulerRoles.length, 1, "one role for the Scheduler to assume");
-const debounceStatements = debounceTemplates.flatMap((candidate) => Object.values(candidate.findResources("AWS::IAM::Policy"))).flatMap(
+const debounceStatements = debounceTemplates.flatMap((candidate) => [...Object.values(candidate.findResources("AWS::IAM::Policy")), ...Object.values(candidate.findResources("AWS::IAM::ManagedPolicy"))]).flatMap(
   (policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement,
 );
 const createSchedule = debounceStatements.filter((statement) => ([] as string[]).concat(statement.Action).includes("scheduler:CreateSchedule"));
@@ -308,8 +318,9 @@ assert.equal(polledVariables.PAPYRUS_READER_POLL_URL, "https://reader.example.te
 assert.equal(polledVariables.PAPYRUS_READER_POLL_SECRET_PARAMETER, "/papyrus/reader/reader-poll-secret");
 assert.ok(polledVariables.PAPYRUS_READER_RATE_TABLE, "the cursor lives in the rate table");
 assert.equal(JSON.parse(polledVariables.PAPYRUS_READER_SNAPSHOT_SETTINGS).retirementPoll, true);
+// CDK moves statements that no longer fit the inline size limit into an overflow managed policy on the same role; both count.
 const statementsOf = (template: Template, rolePrefix: string) =>
-  Object.values(template.findResources("AWS::IAM::Policy"))
+  [...Object.values(template.findResources("AWS::IAM::Policy")), ...Object.values(template.findResources("AWS::IAM::ManagedPolicy"))]
     .filter((policy) => ((policy as { Properties: { Roles: Array<{ Ref: string }> } }).Properties.Roles ?? []).some((role) => role.Ref.startsWith(rolePrefix)))
     .flatMap((policy) => (policy as { Properties: { PolicyDocument: { Statement: Array<{ Action: string | string[]; Resource: unknown }> } } }).Properties.PolicyDocument.Statement);
 const actionsOn = (statements: ReturnType<typeof statementsOf>, table: string) =>
@@ -373,4 +384,13 @@ assert.match(mutation, /@function/);
 assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
 assert.match(mutation, /groups: \["editor"\]/);
 assert.match(mutation, /groups: \["admin"\]/);
+for (const name of ["fileProposal", "transitionProposal"]) {
+  const start = transformed.indexOf(`${name}(`);
+  assert.ok(start > 0, `${name} is in the deployed schema`);
+  const proposalMutation = transformed.slice(start, start + 400).split("\n\n")[0];
+  assert.match(proposalMutation, /@function/);
+  assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(proposalMutation), false, `${name} is open to groups only: ${proposalMutation}`);
+  assert.match(proposalMutation, /groups: \["editor"\]/);
+  assert.match(proposalMutation, /groups: \["admin"\]/);
+}
 console.log("reader steering schema ok");

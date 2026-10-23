@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "892e8708-b9f9-47cc-adc2-c006a7b8fcaf",
+  "issue_id": "PPY-433383bc-92f3-4903-8a4c-4ce034c60c97",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T05:53:02.372Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Background jobs: one job definition, cloud and local-pod runners (M)",
+    "description": "Generalise the scheduled container job from PPY-dca7cd into a backend-neutral background job. A site declares jobs in config: a registered procedure (core or site-supplied) or a pipeline such as the knowledge run, plus its arguments and schedule. The job then runs on whichever backend the site has, behind the operator CLI's existing local/cloud backend split (src/papyrus/operator/backends).\n\nThe same guarantees hold on both runners:\n- the pinned Papyrus release;\n- the site's deployed or current commit;\n- the projection lease, and never reconcile;\n- idempotency keys and a run ledger;\n- a failure that stops before projection and leaves the site unchanged;\n- clear failure and missed-run reporting.\n\nCloud runner: the existing Step Functions + Fargate construct, now driven by the job definition.\n\nLocal-pod runner: see the sibling story for sites with no cloud backend.\n\nAcceptance:\n- One example job configured but disabled.\n- A deliberate-failure test on each runner.\n- Gherkin specs and CDK assertions.\n\nDepends on the packaging chore. The trend-story pipeline (PPY-fb4dfa) should use this instead of its own runner.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-M"
+    ]
+  }
+}

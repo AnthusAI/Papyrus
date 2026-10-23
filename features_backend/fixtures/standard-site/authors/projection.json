@@ -1,0 +1,10 @@
+{
+  "site": {
+    "name": "Author Almanac",
+    "description": "Articles whose authors are written three ways.",
+    "productionUrl": "https://authors.example.org",
+    "author": "The Almanac Volunteers"
+  },
+  "seo": { "articleTypes": ["article"] },
+  "publicData": { "searchIndex": true, "latest": true }
+}

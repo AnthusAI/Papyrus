@@ -21,6 +21,7 @@ Operator groups:
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
   reader        Reader steering exports (reader feedback export)
+  proposals     File, decide and publish map proposals (proposals create|list|show|transition|publish)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)
@@ -93,6 +94,8 @@ def build_knowledge_parser() -> argparse.ArgumentParser:
   corpus.add_argument("corpus_command")
   subparsers.add_parser("publish-run", help="Import a workstation run (clusters, entities, front-matter entities); dry run unless --apply")
   subparsers.add_parser("snapshot", help="Write the public knowledge JSON (_data/knowledge/) for a site")
+  subparsers.add_parser("archive", help="Archive the week's snapshot under _data/knowledge/history/ (same options as snapshot)")
+  subparsers.add_parser("cloud-run", help="One stage of the scheduled cloud knowledge run: --stage NAME (the container command; see docs/knowledge-cloud-run.md)")
   subparsers.add_parser("topic-config", help="Write the BERTopic configuration with the stop-word vectorizer: --out FILE [--stop-words FILE]")
   entities = subparsers.add_parser("entities", help="Review entities (--actor ai|human required): list, accept, reject, rename, describe, retype, registry")
   entities.add_argument("entities_command")

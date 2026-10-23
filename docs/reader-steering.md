@@ -28,7 +28,7 @@ export default defineSite({
 });
 ```
 
-Enabling it is a backend deploy: seven models, one staff mutation, the `reader-actions` function, a rate-window table and, when
+Enabling it is a backend deploy: nine models, three staff mutations, the `reader-actions` function, a rate-window table and, when
 `snapshot.schedule` is on, one EventBridge rule are added. A site that does not list it synthesizes exactly what it did before.
 `computeRoleArn` is the `CmsComputeRoleArn` output of the app-shell stack. The plugin does not edit that role: it puts a
 resource policy on `reader-actions` that lets exactly that role invoke exactly that function.
@@ -55,6 +55,7 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `snapshot.intervalHours` | 6 | 1 to 24. Four runs a day was approved for the pilot. |
 | `hypeGap` | unset | `{ plus: [...], minus: [...] }`: the dimensions whose mean is added and subtracted to make the hype gap (Shipped: plus `notable`, `novel`; minus `real`, `useful`). Both lists are required, must be rated dimensions and cannot overlap. Without it no hype gap is published. |
 | `snapshot.hypeMinimum` | 5 | Reader ratings every dimension in `hypeGap` needs before the reader hype gap is published. |
+| `subjects.types` | `["item", "submission"]` | The kinds of subject readers may vote on and flag: any of `item`, `submission`, `story`, `proposal`, `concept`. See [Subjects](#subjects). |
 | `reservedConcurrency` | unset | Reserved concurrent executions for `reader-actions`. Unset reserves none. An account with a small total Lambda quota cannot reserve any: papyrus-production has 10 in total, and Lambda requires 10 left unreserved. |
 | `submissions.perDay` | 10 | Submissions one reader may make in a UTC day. A profile younger than `limits.newAccountHours` gets `perDay / limits.newAccountDivisor` (3 by default). |
 | `submissions.similarHours` | 48 | Another submission from the same domain inside this window is returned as a `similar` warning. |
@@ -104,9 +105,11 @@ Next route handlers in the CMS app: `app/api/reader/*`, `Cache-Control: no-store
 
 | Route | Body | Answer |
 |---|---|---|
-| `GET /api/reader/me?subjects=a,b` (at most 50 item keys) | | `{readerId, handle \| null, karma, state, votes: {subjectKey: {up: 1, "used-it": 1, real: 4, ...}}}`. Creates the profile on first call. `401` when signed out. |
+| `GET /api/reader/me?subjects=a,b` (at most 50 subject keys; see [Subjects](#subjects)) | | `{readerId, handle \| null, karma, state, votes: {subjectKey: {up: 1, "used-it": 1, real: 4, ...}}}`. Creates the profile on first call. `401` when signed out. |
 | `POST /api/reader/handle` | `{handle}` | Sets the handle once: 3 to 24 characters of `[a-z0-9_-]`, case-insensitive (stored lowercase). `409 handle_taken`, `409 handle_already_set`, `422 reserved_handle`, `422 invalid_handle`. |
 | `POST /api/reader/vote` | `{subject, dimension: "up" \| "used-it", on: boolean}` | `on: true` stores the vote (idempotent), `on: false` removes it. |
+| `POST /api/reader/vote` (any subject type) | `{subject: {type, id}, value: 1 \| -1 \| null}` | An up or down vote on any enabled subject type; `null` removes the reader's vote. One vote per reader and subject. `422 unknown_subject_type`. See [Subjects](#subjects). |
+| `POST /api/reader/flag` | `{subject: {type, id}, kind, reason, target?, name?}` | `200 {subject, kind}`. See [Subjects](#subjects). |
 | `POST /api/reader/rating` | `{subject, dimension, value: 1..5 \| null}` | A new value replaces the old one; `null` removes it. |
 | `POST /api/reader/report` | `{target, reason}` | `200 {reported: true}` for a visible submission or comment; one report per reader and target; `404 unknown_target`. See [Moderation](#moderation). |
 | `POST /api/reader/comment` | `{subject, body, parent?, ratingContext?}` | `201 {id, subject, parent, body, createdAt, ratingContext}`. See [Comments](#comments). |
@@ -140,6 +143,87 @@ schedule fails, the vote still succeeds and the window is reopened so the next w
 role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` only), and gives `reader-actions` only
 `scheduler:CreateSchedule` on `schedule/default/papyrus-reader-snapshot-*` and `iam:PassRole` on that one role.
 
+## Subjects
+
+A vote or a flag is about a subject, named `{type, id}`. The publication's `subjects.types` lists the types it has turned on;
+every other type is refused with `422 unknown_subject_type`. Defaults keep what existed before: `item` and `submission`.
+
+| Type | `id` | Checked against |
+|---|---|---|
+| `item` | the lineage id of a published item | the `PublishedItem` table (`404 unknown_subject` when unpublished) |
+| `submission` | a submission id (`sub-` + 24 hex) | the `ReaderSubmission` table; hidden submissions are unknown |
+| `story`, `proposal`, `concept` | any id of 1 to 190 characters from `[A-Za-z0-9._:-]` | nothing: these records live in the site's own data, so the plugin accepts any well-formed id |
+
+The **subject key** is how a subject is stored and keyed in the reader state: the bare `id` for `item` and `submission`
+(so every vote written before subject types stays valid and is read as `type: "item"`, or `"submission"` for a `sub-` id),
+and `type:id` for the others (`proposal:prop-1`). The same id under two types is two subjects.
+
+**Votes.** `POST /api/reader/vote {subject: {type, id}, value: 1 | -1 | null}` stores an up vote, a down vote, or removes
+the reader's vote. A reader has one vote per subject: a new value replaces the old one. It is stored as the `up` dimension
+of `ReaderVote` with `value` 1 or -1 (the old `{subject: "<key>", dimension, on}` request still works and means +1 or remove).
+Any signed-in reader can vote: there is no karma gate. Votes share the hourly allowance with ratings. `used-it` and ratings
+stay on items and submissions.
+
+**Flags.** `POST /api/reader/flag {subject, kind, reason, target?, name?}`:
+
+| `kind` | extra field | Meaning |
+|---|---|---|
+| `wrong` | none | This is wrong. |
+| `belongs_under` | `target: {type, id}` (required, not the subject itself) | This belongs under another subject. |
+| `better_name` | `name` (required, plain text, at most 120 characters) | Suggest a better name. |
+
+`reason` is required plain text of at most 500 characters, with no control characters and no email address. A reader has one
+flag per subject and kind: flagging again replaces the reason. Flags are stored in `ReaderFlag`, not with votes, and reach the
+snapshot as counts only.
+
+**Reader state.** `GET /api/reader/me?subjects=...` takes at most 50 subject keys (`proposal:prop-1`; `item-one` for an item)
+and answers, for those subjects only and for the signed-in reader only, `votes: {subjectKey: {up: 1 | -1, ...}}` (unchanged)
+and the flat `subjectVotes: {subjectKey: 1 | -1}`: the reader's own vote, in the key format of `items.json`. A subject the
+reader has not voted on is absent. There is no way to list every vote of a reader: ask for the subjects on the page.
+
+**Identity.** Rows hold the opaque `readerId` only. The pairwise `ss1_...` site subject is the profile key and never goes into a
+vote, a flag, a response or a snapshot file; the Person ID never reaches this plugin.
+
+### Snapshot output for subjects
+
+Every run writes, for each enabled type, `_data/reader/votes/<type>.json` (under `urls.basePath` when the site has one), and
+the same numbers under `votes` in `_data/reader/subjects.json`, next to `types` (the enabled types):
+
+```json
+{"generatedAt": "2026-10-22T12:00:00Z", "type": "proposal",
+ "subjects": {"prop-1": {"up": 2, "down": 1, "net": 1.0, "score": 0.0435,
+                         "flags": {"wrong": 1, "belongs_under": 0, "better_name": 2}}}}
+```
+
+Keys are the subject `id` (not the subject key). A type nobody has voted on has `"subjects": {}`.
+
+| Field | Meaning |
+|---|---|
+| `up`, `down` | Plain counts of the readers who voted up and down. |
+| `net` | Weighted up minus weighted down. A vote from a profile younger than `limits.newAccountHours` when it was cast weighs `ranking.newAccountWeight` (1/3 under `shrinkage`); an editor's vote weighs 1. |
+| `score` | The adopted shrinkage with a neutral prior of 0: `share(n) * (U - D) / n`, where `U`, `D` are the weighted counts, `n = U + D`, and `share = min(n / (shrinkageK + n), readerShareCap)`. It lies between `-readerShareCap` and `readerShareCap`; a subject with one vote scores near 0, and many agreeing votes approach the cap. |
+| `flags` | The number of flags of each kind. No reader, no reason, no target and no suggested name is ever published. |
+
+`items.json` also holds the other types under their subject key (`proposal:prop-1`) with `up`, `down`, `net`, `score`, `flags` and `comments`. Its item entries keep every field they had (`up` still counts upvotes only) and gain `down`, `net`, `score` and `flags`.
+Rising counts upvotes only, from profiles at least `ranking.risingMinimumAccountHours` old. A downvote earns the submitter no
+karma and takes none away. Votes on an `item` or `submission` that is no longer published or visible are left out; the other
+types have no record to check, so every well-formed id appears. A type the publication has not enabled is not written, and its
+stored votes are ignored.
+
+### Contract for Proposals
+
+The Proposals feature (PPY-409d96) votes on `proposal` subjects with nothing more than this contract; it must not depend on
+anything else in the plugin:
+
+- A proposal is the subject `{type: "proposal", id: <proposal id>}`, with `proposal` in `subjects.types`.
+- Readers vote and flag through `POST /api/reader/vote` and `POST /api/reader/flag` with that subject.
+- The proposal's numbers are `subjects[<proposal id>]` in `_data/reader/votes/proposal.json`: `up`, `down`, `net` (and `score`, `flags`),
+  and also `items["proposal:<proposal id>"]` in `_data/reader/items.json` with `up`, `down`, `net`, `score`, `flags` and `comments`.
+  Use `net` for ordering and `up` and `down` for display. `net` is weighted and can be fractional. A proposal absent from the file has no votes (read it as zeros).
+- The reader's own vote comes from `GET /api/reader/me?subjects=proposal:<id>` as `votes["proposal:<id>"].up` (1 or -1).
+
+This shape is stable: fields may be added, never renamed or removed.
+
 ## Data
 
 | Model | Key (`id`) | Fields |
@@ -150,7 +234,8 @@ role (assumed by `scheduler.amazonaws.com`, allowed to invoke `content-actions` 
 | `ReaderComment` | `cmt-` + 32 hex characters | `subjectKey`, `readerId`, `body` (empty once deleted), `parentId`, `ratingContext` (JSON string `{dimension, value}`), `state` (`visible`, `hidden`, `deleted`), `signals`, `reviewedAt`, `editedAt`, `deletedAt`, `createdAt` |
 | `ReaderReport` | `rep-` + 24 hex characters of the SHA-256 of `readerId#target` | `targetType`, `target`, `reporterReaderId`, `reason`, `state` (`open`, `closed`), `closedAt`, `createdAt`. An index `reportsByTarget`. |
 | `ModerationAction` | `mod-` + 32 hex characters | `by` (`human`, `ai`), `actorSub` (the staff member's Cognito subject, or `ai`), `action`, `targetType` (`submission`, `comment`, `reader`), `target`, `reason`, `fromState`, `toState`, `fromModeration`, `toModeration`, `undoOf`, `undoneBy`, `at`. An index `actionsByTarget`. |
-| `ReaderVote` | `subjectKey#readerId#dimension` | `subjectKey`, `readerId`, `dimension`, `value` (1 for `up` and `used-it`, 1 to 5 for ratings), `voterRole` (`editor` or `reader`), `createdAt`, `updatedAt` |
+| `ReaderVote` | `subjectKey#readerId#dimension` | `subjectKey`, `subjectType` (absent on rows written before subject types: read as `submission` for a `sub-` key, otherwise `item`), `readerId`, `dimension`, `value` (1 or -1 for `up`, 1 for `used-it`, 1 to 5 for ratings), `voterRole` (`editor` or `reader`), `createdAt`, `updatedAt` |
+| `ReaderFlag` | `subjectKey#readerId#kind` | `subjectKey`, `subjectType`, `readerId`, `kind` (`wrong`, `belongs_under`, `better_name`), `reason`, `targetKey` (`belongs_under` only), `suggestedName` (`better_name` only), `voterRole`, `createdAt`. Kept apart from votes. |
 
 A revote overwrites and keeps `createdAt`; an unvote deletes. `ReaderProfile.state` is what a ban or limit changes; it has an index on `readerId` (`profilesByReader`), because moderators name readers by their public id.
 Submissions and comments also carry `moderation` (`new` or `approved`) and `reportCount`.
@@ -507,6 +592,94 @@ items, newest first, with the automatic signals, the reports and Approve, Hide, 
 (Show again) and Recent actions (Undo). It reads the staff-readable models through AppSync and calls `moderateReader`; reader text is
 rendered as text and links only if they are `http` or `https`. The plugin manifest declares it as a `newsroomPanels` entry.
 
+## Proposals
+
+A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge, a
+split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides. It is part of the
+`reader-steering` plugin (a `Proposal` model, the `fileProposal` and `transitionProposal` mutations on `reader-actions`, and
+`papyrus proposals` on the CLI). The record and its rules are one stdlib module,
+`amplify/plugins/reader-steering/function/proposals.py`; the public files come from
+`src/papyrus_content/reader_steering/proposals.py`.
+
+**The record (`Proposal`, id `prop-` + 32 hex characters).** Staff-readable only, like the other reader models.
+
+| Field | Meaning |
+|---|---|
+| `kind` | `story_draft`, `new_concept`, `rename`, `merge`, `split`, `new_column`, `element_symbol` |
+| `title`, `summary`, `body` | Title (200 characters), an optional one-line summary (300) and the body as Markus, kept byte for byte (50,000) |
+| `targets` | JSON list of `{type, id}` with a type of `concept`, `entity`, `column`, `story` or `cluster`. A `rename`, `split` or `element_symbol` names exactly one, a `merge` two to ten, the rest none to ten |
+| `evidence` | Optional JSON `{signals, source}`: how many signals back the proposal and where they came from |
+| `proposer` | `ai`, or a reader's siteSubject. Stored, never published, and never a Person ID. `fileProposal` files AI proposals only; a reader route is not built |
+| `state` | `draft`, `in_steering`, `editor_review`, `approved`, `declined`, `overridden_by_editor` |
+| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject and is never published |
+| `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Written once, never overwritten |
+
+**Transitions.** Anything not listed is refused (`transition_not_allowed`); approved, declined and overridden are final.
+
+| From | To |
+|---|---|
+| `draft` | `in_steering`, `declined` |
+| `in_steering` | `editor_review` |
+| `editor_review` | `approved`, `declined`, `overridden_by_editor` |
+
+`overridden_by_editor` needs a public `reason` (`reason_required`) and a `result` of `approved` or `declined`, the editor's decision against
+the community's view (`result_required`); no other transition takes a result. Every reason is public text of at most 500 characters. Both
+mutations are open to the `editor` and `admin` groups only (the function checks the groups again) and answer a receipt `{status, id, error,
+message}` that never throws. A move is conditioned on the state the caller saw: if someone else moved the proposal first the answer is
+`refused / target_changed` and nothing is written. The full editor tier (PPY-0af7db) adds what it needs beyond these.
+
+**The files.** The snapshot reads every proposal and writes `_data/proposals/index.json` and one `_data/proposals/<id>.json` under the
+projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/proposals/index.json`). Every state is published, so a site can
+show drafts, what is in steering and what an editor decided. Only changed files are written and purged; the freshness stamp alone is not a
+change. The page reconcile never reports them as orphans.
+
+```json
+{
+  "generatedAt": "2026-10-22T10:00:00Z",
+  "proposals": [
+    {
+      "id": "prop-0123...", "kind": "merge", "group": "map_changes", "title": "Merge two clusters", "summary": "One line.",
+      "state": "overridden_by_editor", "label": "Overridden by editor · Proposed by AI", "proposedBy": "AI",
+      "targets": [{"type": "concept", "id": "a"}, {"type": "concept", "id": "b"}],
+      "evidence": {"signals": 12, "source": "arXiv"},
+      "createdAt": "2026-10-21T10:00:00Z", "updatedAt": "2026-10-22T09:00:00Z",
+      "votes": {"up": 42, "down": 3, "net": 39}, "comments": 5,
+      "communityResult": {"up": 42, "down": 3, "net": 39, "at": "2026-10-22T08:00:00Z"},
+      "decision": {"state": "overridden_by_editor", "result": "declined", "by": "Editor", "reason": "Coordinated votes from new accounts.", "at": "2026-10-22T09:00:00Z"}
+    }
+  ]
+}
+```
+
+`_data/proposals/<id>.json` is `{generatedAt, proposal}` where `proposal` is the entry above plus `body` (the Markus as filed) and `history`
+(`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (story drafts), `concepts` (new
+concepts) or `map_changes` (everything else), the tabs a site shows. `label` is `<State> · Proposed by AI` (`Reader` for a reader proposer).
+`communityResult` is `null` before editor review, live until the snapshot has fixed it, then frozen; `decision` is `null` until an editor
+decides. Sort orders (Top, New, Controversial) are the site's to compute from `votes` and `createdAt`. No file holds a siteSubject, a
+Cognito subject or an email.
+
+**Votes.** Votes on a proposal are keyed `{type: "proposal", id}`; the vote model (PPY-c97ce4) is the only place votes are cast or counted.
+`VoteCounts` in `proposals.py` reads `up`, `down`, `net` and `comments` for the proposal from the subjects snapshot
+(`_data/reader/items.json`, subject `proposal:<id>` from `proposal_subject_key`) and treats missing counts as zero (`net` defaults to up
+minus down), so proposals publish before votes on them do. `up` and `down` are whole numbers; `net` is weighted (a new account counts a third), so it can
+be fractional and is published unrounded; a site rounds it to one decimal for display. To take votes on proposals a publication lists `"proposal"` in its
+`subjects.types`, and the page casts them with `POST /api/reader/vote {subject: {type: "proposal", id}, value: 1 | -1 | null}`.
+
+**The CLI.** Signed in as an editor or admin (`papyrus login`):
+
+```bash
+papyrus proposals create --kind merge --title "Merge the agent clusters" --body-file draft.md \
+  --target concept:agents --target concept:agentic-systems --signals 12 --source arXiv
+papyrus proposals list [--state in_steering] [--json]
+papyrus proposals show prop-... [--json]
+papyrus proposals transition prop-... --to in_steering
+papyrus proposals transition prop-... --to overridden_by_editor --result declined --reason "Coordinated votes."
+papyrus proposals publish        # runs the reader snapshot, which writes _data/proposals/
+```
+
+A refusal prints `error: message` and exits 2. `create` files a draft; it is public after the next snapshot, which every `publish` and
+every scheduled run starts.
+
 ## The page components
 
 Static assets shipped to the site bucket when the plugin is enabled: `_plugins/papyrus-reader@1.js` and
@@ -518,12 +691,21 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 |---|---|---|
 | `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words and then removes from the address; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
+| `Vote` (any subject type) | `type`, `id`, optional `up`, `down` | Two buttons, "△ Vote up" and "▽ Vote down" ("▲ Voted up" and "▼ Voted down" once chosen, with `aria-pressed`), and "N votes up, M votes down" read from `items.json` under the subject key. Choosing the chosen button again removes the vote. Posts `{subject: {type, id}, value: 1 \| -1 \| null}`; a refused vote is rolled back and the reason shown in words. |
+| `Flag` | `type`, `id`, optional `targetTypes` (default `concept`, `story`, `proposal`, `item`) | A "⚑ Flag" button that opens a form: what is the problem (This is wrong, This belongs under…, Suggest a better name), the target type and id for "belongs under", the suggested name for "better name", and a required reason of at most 500 characters. Posts `/api/reader/flag`, then says "Flag sent. Thank you." |
 | `UsedIt` | `subject`, `usedIt` | "I used it" toggle with a count. |
 | `Rating` | `subject`, `dimensions`, optional `ratings`, `raters` | One to five per dimension, the reader's own value (optimistic), the reader and editor numbers. Reader numbers are shown only with at least the display minimum of ratings on that dimension (`board.json` `parameters.displayMinimum`, else `hypeMinimum`, else `readerMinimum`, else 5): below it the row reads "Readers: n=3, too few", and its five-segment meter is empty, dimmed and dashed, so the state is words and shape, not colour. At or above it the row reads "Readers: 3.8 from 5 ratings" and the meter fills to the rounded mean. Under the rows, "N rated it" gives the distinct raters (`raters`), separate from the `Vote` island's "N upvotes". Selecting the current value clears it. After a rating it asks "Why? (optional, public)" and posts the answer as a comment that carries the rating. |
 | `Freshness` | optional `generatedAt` | "Updated N min ago". |
 | `RankedList` | `list` (`front`, `rising` or `new`), optional `limit` (10), `section`, `empty` | A ranked list from `board.json` and `subjects.json`: a real `<ol>` whose rows have the rank as text, the title link, the section (a submission: its domain, and the word "Pending" while it is pending, linking to its source with `rel="nofollow noopener noreferrer ugc"`) and the figure in words ("3 upvotes in 6 h", "Score 2.96", "5 min ago"). `section` keeps only that section's items before `limit` applies. An empty list shows `empty` as ordinary text; a failed load says it could not load and is never shown as empty. Under the list, "Updated N min ago" from `generatedAt`. Refetches both files every 60 seconds while visible and keeps the rows it has when a refetch fails. |
 | `Comments` | `subject`, optional `count`, `editMinutes`, `maximumLength` | The comments of one item or submission: a threaded list (handles and text only, a stub reads "This comment was removed."), a form and, for top-level comments, Reply. The author's own comments show Edit (inside the edit window) and Delete. Fetches `<base>_data/reader/comments/<subject>.json`, refetches it every 60 seconds while visible, and shows the reader's own new, edited and deleted comments at once until a newer file arrives. A reply or edit being typed survives a refresh. |
 | `Submit` | optional `kinds` | The `/submit/` form: link, title, kind radio (when there are several kinds) and note. It warns, without blocking, when the link is already in `submissions.json` or the site has a recent submission, saves a draft in `localStorage` and says so ("Saved locally ..."), clears the draft on success and then shows "Pending — we're reading the link." and any `similar` links. |
+
+**Which types can be voted on.** The deployed backend publishes the enabled types as `subjects.types` under
+`custom.papyrusPlugins["reader-steering"]` in `amplify_outputs.json`. The site copies them into the page config:
+`window.papyrusReader = { voteSubjects: ["item", "proposal"] }` (default `["item", "submission"]`). The script then sets two
+fields on `window.papyrusReader` that the page can key on: `voteSubjects` (the list) and `proposalVoting`
+(`voteSubjects.includes("proposal")`). A typed `Vote` or `Flag` island whose type is not in `voteSubjects` is disabled and says
+"Voting on this is not open yet".
 
 `subject` is the lineage id of the published item. Props prerender the last snapshot values; each page then fetches
 `<base>_data/reader/items.json`, refetches it every 60 seconds while the tab is visible, and asks `/api/reader/me` once for every
@@ -553,6 +735,9 @@ handles are only ever set as text. While the API answers `503 reader_identity_un
 - `procedures/newsroom/tests/test_reader_comments.py`, `test_reader_feedback_export.py` and `features_backend/reader-comments.feature`: comments, threading, the
   edit window, delete stubs, rating context, limits, the snapshot files (only changed files written, stale ones emptied), signals,
   retirement and the feedback export, against moto.
+- `procedures/newsroom/tests/test_proposals.py`, `test_proposals_cli.py` and `features_backend/proposals.feature`: filing and validation, every transition, the override rules,
+  the stale-view guard, the staff check, the public files (labels, no private fields, the frozen community result, changed files only, base path), the vote
+  adapter and the CLI; the Markus body is checked against a golden fragment rendered with the locked Markus 0.7.0.
 - `scripts/test-reader-write-routes.ts`: the checks every text-carrying route shares (503, 401, 403, 415, 413, 429, pass-through).
 - `scripts/test-reader-islands.ts`: the islands in a real browser against a fake API.
 

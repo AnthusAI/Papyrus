@@ -23,6 +23,25 @@ Feature: Newsletter emails carry the site's branding
     Then the footer band is lime and shows the wordmark, an underlined unsubscribe link and an underlined preferences link
     And the footer band shows the reason sentence and the postal address
 
+  Scenario: The footer wordmark can be smaller than the header's
+    Given a branded theme with a lime header band and a lime footer band and a footer wordmark 110 pixels wide on a wordmark image 168 by 40 with alt text "Shipped"
+    When a roundup email is rendered for the list "The Shipped roundup"
+    Then the header image is 168 by 40
+    And the footer image has alt text "Shipped" and is 110 by 26
+
+  Scenario: The footer links the archive when the list has one
+    Given a branded theme with a lime header band and a lime footer band and a footer wordmark 110 pixels wide on a wordmark image 168 by 40 with alt text "Shipped"
+    When a roundup email is rendered for a list whose archive is "https://example.com/roundup/"
+    Then the footer links read the site host, "All issues", "Unsubscribe" and "Email preferences", all underlined
+    And "All issues" links to "https://example.com/roundup/"
+    And the plain-text part links "All issues" with the full address
+
+  Scenario: The footer has no All issues link when there is no archive
+    Given a branded theme with a lime header band and a lime footer band and a footer wordmark 110 pixels wide on a wordmark image 168 by 40 with alt text "Shipped"
+    When a roundup email is rendered for a list with no archive
+    Then the footer has no "All issues" link
+    And the footer links read the site host, "Unsubscribe" and "Email preferences", all underlined
+
   Scenario: The confirmation button has a fill, a label and a border
     Given a branded theme with lime buttons, ink button text and an ink button border
     When the confirmation email is rendered

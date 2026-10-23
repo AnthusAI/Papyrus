@@ -131,7 +131,7 @@ template.hasResourceProperties("AWS::ECS::TaskDefinition", {
 const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefinition"))[0];
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
-  "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_AUTHORING_ROLE_ARN", "KNOWLEDGE_BEATS_CONFIG",
+  "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
   "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET",
@@ -139,8 +139,11 @@ assert.deepEqual(Object.keys(staticEnvironment).sort(), [
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
-assert.equal(staticEnvironment.KNOWLEDGE_AUTHORING_ROLE_ARN, "arn:aws:iam::712236451410:role/shipped-papyrus-authoring");
+assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
+assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
+assert.equal(staticEnvironment.KNOWLEDGE_AMPLIFY_APP_ID, "dkycd9pntgo6d");
+assert.equal(staticEnvironment.KNOWLEDGE_CONTENT_ACTIONS_FUNCTION, "amplify-dkycd9pntgo6d-mai-papyruscontentactionsE8B-p01l4veHquVE");
 
 // ECR repository.
 template.hasResourceProperties("AWS::ECR::Repository", {
@@ -200,18 +203,27 @@ template.hasResourceProperties("AWS::CloudWatch::Alarm", {
     Match.objectLike({ MetricStat: Match.objectLike({ Metric: Match.objectLike({ MetricName: "ExecutionsTimedOut" }) }) }),
   ]),
 });
+// Missed week: CloudWatch cannot look back 8 days, so a daily watchdog publishes the days since the last success.
 template.hasResourceProperties("AWS::CloudWatch::Alarm", {
-  MetricName: "ExecutionsSucceeded",
-  Namespace: "AWS/States",
-  Statistic: "Sum",
+  MetricName: "DaysSinceLastSuccess",
+  Namespace: "Papyrus/ScheduledJob",
+  Dimensions: [{ Name: "Job", Value: "knowledge-run" }, { Name: "Publication", Value: "shipped" }],
+  Statistic: "Maximum",
   Period: 86400,
-  EvaluationPeriods: 8,
-  DatapointsToAlarm: 8,
-  Threshold: 1,
-  ComparisonOperator: "LessThanThreshold",
+  EvaluationPeriods: 1,
+  Threshold: 8,
+  ComparisonOperator: "GreaterThanOrEqualToThreshold",
   TreatMissingData: "breaching",
   AlarmActions: [{ Ref: Match.stringLikeRegexp("^JobAlarmTopic") }],
 });
+template.hasResourceProperties("AWS::Lambda::Function", { Runtime: "python3.12", Architectures: ["arm64"], Environment: { Variables: Match.objectLike({ JOB: "knowledge-run", PUBLICATION: "shipped" }) } });
+template.hasResourceProperties("AWS::Events::Rule", { ScheduleExpression: "cron(17 12 * * ? *)" });
+// boto3 names the Step Functions client "stepfunctions" ("states" is the IAM prefix, not a boto3 service); the first deploy had it wrong.
+const watchdog = Object.values(template.findResources("AWS::Lambda::Function")).find((fn: any) => fn.Properties.Description?.startsWith("Publishes the days since"));
+assert.match(watchdog.Properties.Code.ZipFile, /boto3\.client\("stepfunctions"\)/);
+assert.doesNotMatch(watchdog.Properties.Code.ZipFile, /boto3\.client\("states"\)/);
+const watchdogStatements = policyStatements(template, "JobMissedWeekWatchdogServiceRoleDefaultPolicy");
+assert.deepEqual(watchdogStatements.map((statement: any) => statement.Action).sort(), ["cloudwatch:PutMetricData", "states:ListExecutions"]);
 
 // Schedule and its role.
 template.hasResourceProperties("AWS::Scheduler::Schedule", {
@@ -233,7 +245,7 @@ const taskStatements = policyStatements(template, "JobTaskRoleDefaultPolicy");
 const allowedActions = new Set([
   "s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket", "s3:GetBucketLocation",
   "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
-  "ssm:GetParameter", "sts:AssumeRole", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
+  "ssm:GetParameter", "appsync:GraphQL", "lambda:GetFunctionConfiguration", "amplify:ListJobs", "cloudfront:CreateInvalidation", "cloudfront:DescribeKeyValueStore",
   "cloudfront-keyvaluestore:DescribeKeyValueStore", "cloudfront-keyvaluestore:GetKey", "cloudfront-keyvaluestore:ListKeys",
   "cloudfront-keyvaluestore:PutKey", "cloudfront-keyvaluestore:DeleteKey", "cloudfront-keyvaluestore:UpdateKeys",
 ]);
@@ -252,7 +264,19 @@ assert.deepEqual(statementBySid("ReadParameters").Resource, [
   `arn:aws:ssm:us-east-1:712236451410:parameter${PROJECTION_LOCK_PARAMETER_NAME}`,
   "arn:aws:ssm:us-east-1:712236451410:parameter/papyrus/shipped/openai-api-key",
 ]);
-assert.deepEqual(statementBySid("AssumeAuthoringRole").Resource, "arn:aws:iam::712236451410:role/shipped-papyrus-authoring");
+assert.deepEqual(statementBySid("SignAppSyncRequests").Resource, [
+  "arn:aws:appsync:us-east-1:712236451410:apis/6sw6454pozbgvdgm233gqkxsxu/types/Query/fields/*",
+  "arn:aws:appsync:us-east-1:712236451410:apis/6sw6454pozbgvdgm233gqkxsxu/types/Mutation/fields/*",
+]);
+assert.deepEqual(
+  statementBySid("ReadContentActionsConfiguration").Resource,
+  "arn:aws:lambda:us-east-1:712236451410:function:amplify-dkycd9pntgo6d-mai-papyruscontentactionsE8B-p01l4veHquVE",
+);
+assert.deepEqual(statementBySid("ReadContentActionsConfiguration").Action, "lambda:GetFunctionConfiguration");
+assert.deepEqual(statementBySid("ReadDeployedCommit").Resource, [
+  "arn:aws:amplify:us-east-1:712236451410:apps/dkycd9pntgo6d/branches/main",
+  "arn:aws:amplify:us-east-1:712236451410:apps/dkycd9pntgo6d/branches/main/jobs/*",
+]);
 assert.deepEqual(statementBySid("SiteBucketObjects").Resource, `arn:aws:s3:::${config.siteBucket}/*`);
 assert.deepEqual(statementBySid("SiteBucketList").Resource, `arn:aws:s3:::${config.siteBucket}`);
 assert.deepEqual(statementBySid("InvalidateEdge").Resource, "arn:aws:cloudfront::712236451410:distribution/EUQZ249T4OKXH");
@@ -311,7 +335,6 @@ const customised = knowledgeStack((site) => {
   Object.assign(site.knowledgeRun, {
     openAiKeyParameter: "/papyrus/other/key",
     alarmEmailParameter: "/papyrus/other/alarm",
-    authoringRoleArn: "arn:aws:iam::712236451410:role/custom-role",
     environment: { EXTRA_FLAG: "1", HF_HOME: "/elsewhere" },
   });
 });

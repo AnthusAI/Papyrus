@@ -7,6 +7,8 @@
  * and place mount points where the site owns the HTML (an article template, the header):
  *   <div data-island="ReaderSignIn"></div>
  *   <div data-island="Vote" data-props='{"subject":"<item key>","up":3}'></div>
+ *   <div data-island="Vote" data-props='{"type":"proposal","id":"<proposal id>","up":2,"down":1}'></div>   (any subject type: up and down)
+ *   <div data-island="Flag" data-props='{"type":"proposal","id":"<proposal id>"}'></div>   (wrong, belongs under, better name; each with a reason)
  *   <div data-island="UsedIt" data-props='{"subject":"<item key>","usedIt":1}'></div>
  *   <div data-island="Rating" data-props='{"subject":"<item key>","dimensions":["real","useful"]}'></div>
  *   <div data-island="Freshness" data-props='{"generatedAt":"2026-10-21T10:00:00Z"}'></div>
@@ -18,7 +20,9 @@
  * The script registers its islands in window.papyrusIslands and also mounts any [data-island] of its own names, once, so
  * it works with or without the core islands runtime. Props prerender the last snapshot values; the page then fetches
  * <base>_data/reader/items.json, refetches it every 60 seconds while the tab is visible, and asks /api/reader/me
- * for the reader's own votes. Site settings: window.papyrusReader = { base: "/", api: "/api/reader", signIn: "...", signOut: "..." }.
+ * for the reader's own votes. Site settings: window.papyrusReader = { base: "/", api: "/api/reader", signIn: "...", signOut: "...",
+ * voteSubjects: ["item", "proposal"] }. voteSubjects lists the enabled vote subject types (the backend's subjects.types; default
+ * item and submission); the script also sets window.papyrusReader.proposalVoting = voteSubjects.includes("proposal").
  *
  * Every state is words as well as styling, buttons carry aria-pressed, and while the API answers 503
  * reader_identity_unavailable every control is disabled and says "Reader sign-in is not open yet".
@@ -30,6 +34,12 @@
     { base: "/", api: "/api/reader", signIn: "/api/auth/prospectus/sign-in", signOut: "/api/auth/prospectus/sign-out", pollSeconds: 60 },
     window.papyrusReader || {}
   );
+  // The subject types the publication lets readers vote on (custom.papyrusPlugins["reader-steering"].subjects.types in
+  // amplify_outputs.json; the site copies it into window.papyrusReader.voteSubjects). Without it: items and submissions.
+  var voteSubjects = Array.isArray(settings.voteSubjects) ? settings.voteSubjects.filter(function (type) { return typeof type === "string"; }) : ["item", "submission"];
+  settings.voteSubjects = voteSubjects;
+  settings.proposalVoting = voteSubjects.indexOf("proposal") !== -1;
+  window.papyrusReader = Object.assign(window.papyrusReader || {}, { voteSubjects: voteSubjects, proposalVoting: settings.proposalVoting });
   var SUBJECTS_PER_REQUEST = 50;
   var TEXT = {
     loading: "Checking sign-in",
@@ -38,7 +48,8 @@
     failed: "Something went wrong. Try again later.",
     notRated: "Not rated",
     signInDeclined: "Sign-in was cancelled.",
-    signInFailed: "Sign-in did not complete. Try again."
+    signInFailed: "Sign-in did not complete. Try again.",
+    typeOff: "Voting on this is not open yet"
   };
 
   /* A failed sign-in comes back to the page it started from with ?sign_in_error=<code> (never an /api page): say so once, then tidy the address. */
@@ -184,6 +195,10 @@
     return Math.max(0, base + (adjustment ? adjustment.delta : 0));
   }
 
+  function typeEnabled(type) {
+    return voteSubjects.indexOf(type) !== -1;
+  }
+
   function controlStatus() {
     if (state.identity === "loading") return TEXT.loading;
     if (state.identity === "unavailable") return TEXT.unavailable;
@@ -280,7 +295,181 @@
     });
   }
 
+  // The subject key votes are stored and listed under: the bare id for items and submissions, "type:id" for the other types.
+  function subjectKeyOf(type, id) {
+    return type === "item" || type === "submission" ? id : type + ":" + id;
+  }
+
+  function snapshotCounts(key, props) {
+    var item = snapshotItem(key);
+    var from = state.snapshot ? item || {} : props;
+    var adjustment = state.adjustments[key + "#vote"] || { up: 0, down: 0 };
+    return { up: Math.max(0, Number(from.up || 0) + adjustment.up), down: Math.max(0, Number(from.down || 0) + adjustment.down) };
+  }
+
+  // Up and down on any subject type. Words and shapes carry the state (a triangle and "Voted up"), never colour alone.
+  function mountTypedVote(host, props) {
+    var type = props.type, id = props.id, key = subjectKeyOf(type, id);
+    requestMe(key);
+    host.classList.add("papyrus-reader-control");
+    var up = element("button", "papyrus-reader-button");
+    var down = element("button", "papyrus-reader-button");
+    up.type = down.type = "button";
+    var count = element("span", "papyrus-reader-count");
+    var status = element("span", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    [up, down, count, status].forEach(function (node) { host.appendChild(node); });
+    var message = "";
+    var busy = false;
+    subscribe(function () {
+      var mineNow = mine(key, "up");
+      var counts = snapshotCounts(key, props);
+      up.setAttribute("aria-pressed", mineNow === 1 ? "true" : "false");
+      down.setAttribute("aria-pressed", mineNow === -1 ? "true" : "false");
+      up.textContent = mineNow === 1 ? "\u25B2 Voted up" : "\u25B3 Vote up";
+      down.textContent = mineNow === -1 ? "\u25BC Voted down" : "\u25BD Vote down";
+      up.disabled = down.disabled = !enabled() || !typeEnabled(type);
+      up.setAttribute("aria-busy", busy ? "true" : "false");
+      down.setAttribute("aria-busy", busy ? "true" : "false");
+      count.textContent = plural(counts.up, "vote up", "votes up") + ", " + plural(counts.down, "vote down", "votes down");
+      status.textContent = message || controlStatus() || (typeEnabled(type) ? "" : TEXT.typeOff);
+    });
+    function cast(clicked) {
+      if (!enabled() || !typeEnabled(type) || busy) return;
+      busy = true;
+      message = "";
+      var previous = mine(key, "up");
+      var next = previous === clicked ? null : clicked;
+      var votes = (state.me.votes[key] = state.me.votes[key] || {});
+      var before = state.adjustments[key + "#vote"] || { up: 0, down: 0 };
+      function apply(from, to) {
+        if (to === null) delete votes.up; else votes.up = to;
+        state.adjustments[key + "#vote"] = {
+          up: before.up + (to === 1 ? 1 : 0) - (from === 1 ? 1 : 0),
+          down: before.down + (to === -1 ? 1 : 0) - (from === -1 ? 1 : 0),
+          delta: 0,
+          at: Date.now()
+        };
+      }
+      function undo() {
+        if (previous) votes.up = previous; else delete votes.up;
+        state.adjustments[key + "#vote"] = before;
+      }
+      apply(previous, next);
+      notify();
+      post("/vote", { subject: { type: type, id: id }, value: next }).then(function (result) {
+        if (!result.ok) { undo(); message = failureText(result); }
+      }).catch(function () { undo(); message = TEXT.failed; }).then(function () {
+        busy = false;
+        notify();
+      });
+    }
+    up.addEventListener("click", function () { cast(1); });
+    down.addEventListener("click", function () { cast(-1); });
+  }
+
+  var FLAG_KINDS = [
+    { value: "wrong", label: "This is wrong" },
+    { value: "belongs_under", label: "This belongs under\u2026" },
+    { value: "better_name", label: "Suggest a better name" }
+  ];
+
+  function field(form, labelText, control) {
+    var id = "papyrus-reader-flag-" + Math.random().toString(36).slice(2);
+    var label = element("label", "papyrus-reader-field-label", labelText);
+    control.id = id;
+    label.setAttribute("for", id);
+    var wrapper = element("div", "papyrus-reader-field");
+    wrapper.appendChild(label);
+    wrapper.appendChild(control);
+    form.appendChild(wrapper);
+    return wrapper;
+  }
+
+  // Flag a subject of any type as wrong, as belonging under another subject, or as needing a better name, always with a reason.
+  function mountFlag(host, props) {
+    var type = props.type, id = props.id;
+    requestMe();
+    host.classList.add("papyrus-reader-control", "papyrus-reader-flag");
+    var open = element("button", "papyrus-reader-button", "\u2691 Flag");
+    open.type = "button";
+    open.setAttribute("aria-expanded", "false");
+    var form = element("form", "papyrus-reader-flag-form");
+    form.hidden = true;
+    var kind = element("select", "papyrus-reader-input");
+    kind.name = "kind";
+    FLAG_KINDS.forEach(function (entry) { var option = element("option", "", entry.label); option.value = entry.value; kind.appendChild(option); });
+    field(form, "What is the problem?", kind);
+    var targetTypes = props.targetTypes || ["concept", "story", "proposal", "item"];
+    var targetType = element("select", "papyrus-reader-input");
+    targetType.name = "targetType";
+    targetTypes.forEach(function (name) { var option = element("option", "", name); option.value = name; targetType.appendChild(option); });
+    var targetId = element("input", "papyrus-reader-input");
+    targetId.type = "text"; targetId.name = "targetId"; targetId.maxLength = 190; targetId.autocomplete = "off";
+    var targetRow = element("div", "papyrus-reader-field");
+    field(targetRow, "Type of the subject it belongs under", targetType);
+    field(targetRow, "Id of the subject it belongs under", targetId);
+    targetRow.hidden = true;
+    form.appendChild(targetRow);
+    var name = element("input", "papyrus-reader-input");
+    name.type = "text"; name.name = "name"; name.maxLength = 120; name.autocomplete = "off";
+    var nameRow = field(form, "Your suggested name", name);
+    nameRow.hidden = true;
+    var reason = element("textarea", "papyrus-reader-input");
+    reason.name = "reason"; reason.maxLength = 500; reason.required = true; reason.rows = 3;
+    field(form, "Why? (required, at most 500 characters)", reason);
+    var send = element("button", "papyrus-reader-button", "Send flag");
+    send.type = "submit";
+    form.appendChild(send);
+    var status = element("span", "papyrus-reader-status");
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    [open, form, status].forEach(function (node) { host.appendChild(node); });
+    var message = "";
+    subscribe(function () {
+      open.disabled = !enabled() || !typeEnabled(type);
+      send.disabled = open.disabled;
+      status.textContent = message || controlStatus() || (typeEnabled(type) ? "" : TEXT.typeOff);
+    });
+    function showKind() {
+      targetRow.hidden = kind.value !== "belongs_under";
+      nameRow.hidden = kind.value !== "better_name";
+      targetId.required = kind.value === "belongs_under";
+      name.required = kind.value === "better_name";
+    }
+    kind.addEventListener("change", showKind);
+    showKind();
+    open.addEventListener("click", function () {
+      form.hidden = !form.hidden;
+      open.setAttribute("aria-expanded", form.hidden ? "false" : "true");
+      if (!form.hidden) kind.focus();
+    });
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (!enabled() || send.getAttribute("aria-busy") === "true" || !reason.value.trim()) return;
+      var body = { subject: { type: type, id: id }, kind: kind.value, reason: reason.value };
+      if (kind.value === "belongs_under") body.target = { type: targetType.value, id: targetId.value.trim() };
+      if (kind.value === "better_name") body.name = name.value;
+      send.setAttribute("aria-busy", "true");
+      message = "";
+      post("/flag", body).then(function (result) {
+        send.setAttribute("aria-busy", "false");
+        if (result.ok) {
+          form.hidden = true;
+          open.setAttribute("aria-expanded", "false");
+          reason.value = ""; name.value = ""; targetId.value = "";
+          message = "Flag sent. Thank you.";
+        } else {
+          message = failureText(result);
+        }
+        notify();
+      }).catch(function () { send.setAttribute("aria-busy", "false"); message = TEXT.failed; notify(); });
+    });
+  }
+
   function mountVote(host, props) {
+    if (props.type && props.id) return mountTypedVote(host, props);
     toggleIsland(host, props, {
       dimension: "up", field: "up", offLabel: "Upvote", onLabel: "Upvoted",
       countText: function (count) { return plural(count, "upvote", "upvotes"); }
@@ -1152,7 +1341,7 @@
     setInterval(function () { if (document.visibilityState === "visible" && data) render(); }, 30000);
   }
 
-  var islands = { RankedList: mountRankedList, ReaderSignIn: mountSignIn, Comments: mountComments, Report: mountReport, Submit: mountSubmit, Vote: mountVote, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
+  var islands = { RankedList: mountRankedList, ReaderSignIn: mountSignIn, Comments: mountComments, Report: mountReport, Submit: mountSubmit, Vote: mountVote, Flag: mountFlag, UsedIt: mountUsedIt, Rating: mountRating, Freshness: mountFreshness };
   var started = false;
 
   function guarded(mount) {

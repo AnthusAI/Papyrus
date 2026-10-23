@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import json
 import tempfile
 import threading
@@ -386,7 +387,11 @@ class ReconcileCommandTests(unittest.TestCase):
             status, payload = self.run_command(site, ["--reconcile", "--dry-run"])
             self.assertEqual(status, 1)
             self.assertEqual(payload["staleItems"], ["item-1"])
-            status, payload = self.run_command(site, ["--reconcile"])
+            outputs = Path(temporary) / "amplify_outputs.json"
+            outputs.write_text("{}", encoding="utf-8")  # a deployed site that enables no plugin
+            with mock.patch.dict("os.environ"):
+                os.environ.pop("PAPYRUS_PLUGINS", None)
+                status, payload = self.run_command(site, ["--reconcile", "--amplify-outputs", str(outputs)])
             self.assertEqual(status, 0)
             assert_equals_full(self, site)
             status, payload = self.run_command(site, ["--reconcile", "--dry-run"])

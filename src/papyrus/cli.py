@@ -160,7 +160,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
             raise ValueError("papyrus knowledge concepts requires <command>.")
         _delegate_content("relations", flags[0], flags[1:])
         return 0
-    if command in {"publish-run", "snapshot", "topic-config"}:
+    if command in {"publish-run", "snapshot", "archive", "topic-config", "cloud-run"}:
         _delegate_content("knowledge", command, flags)
         return 0
     if command == "corpus":
@@ -313,7 +313,7 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             print_group_help(group)
             return 0
         return _map_analysis(command, flags)
-    if group in {"editions", "batch", "messages", "reader"}:
+    if group in {"editions", "batch", "messages", "reader", "proposals"}:
         if command is None:
             print_group_help(group)
             return 0

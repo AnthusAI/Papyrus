@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "5a4d063f-5ef4-4724-83bf-3446ef19d6f6",
+  "issue_id": "PPY-e95a0cf3-0d2f-479f-b2c4-7137b10e21b1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T05:52:48.359Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Ship Tactus procedures in the wheel and resolve them by kind (S)",
+    "description": "The 11 core procedures in procedures/newsroom/*.tac are read from a Papyrus checkout. newsroom_commands.py (around line 659) hardcodes a kind→path map under PAPYRUS_ROOT, and ontology_enrichment.py reads files from the repo root. The published papyrus-newsroom wheel does not include them, so neither a PyPI install nor a container job nor a local pod without a Papyrus checkout can run the research, reporting, summarisation or ontology procedures. This was found while packaging the cloud knowledge run (Papyrus #596).\n\nFix:\n- Move the .tac files into package data, as #596 did for corpora/, keeping a repo-path symlink or override for checkouts.\n- Load them with importlib.resources.\n- Replace the hardcoded map with one data registry of procedure kind → packaged file, extending papyrus-required-procedures.json or adding a sibling file.\n\nAcceptance:\n- A wheel-content test that every registered kind's file is packaged.\n- A test that the kind lookup works from an unpacked wheel away from the checkout.\n- Gherkin specs.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-S"
+    ]
+  }
+}

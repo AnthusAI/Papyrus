@@ -1133,3 +1133,22 @@ def test_archive_refuses_without_a_cluster_run_or_with_a_run_of_another_week(cli
 def test_archive_never_reprojects(client, tmp_path):
     with pytest.raises(ValueError, match="never re-projects"):
         run(commands.knowledge_archive, "--out", str(tmp_path), "--reproject")
+
+
+def test_archive_runs_through_the_papyrus_cli_entry_point(client, tmp_path, monkeypatch, capsys):
+    from papyrus import cli
+
+    published_run(client, tmp_path)
+    monkeypatch.setattr(commands, "_context_for", lambda _client, options: snapshot_context(Path(options["out"])))
+    out = tmp_path / "site"
+    assert cli.main(["knowledge", "archive", "--out", str(out), "--as-of", "2026-10-19"]) == 0
+    assert (out / f"{HISTORY}/2026-10-19.json").is_file()
+    assert "knowledge\tarchive\tcreated" in capsys.readouterr().out
+    monkeypatch.setattr(commands, "_context_for", lambda _client, options: snapshot_context(Path(options["out"])))
+    assert cli.main(["knowledge", "archive", "--out", str(out), "--as-of", "2026-10-19", "--replace"]) == 0
+
+
+def test_the_cli_help_lists_the_archive_command():
+    from papyrus.operator import help_text
+
+    assert "archive" in help_text.build_knowledge_parser().format_help()
