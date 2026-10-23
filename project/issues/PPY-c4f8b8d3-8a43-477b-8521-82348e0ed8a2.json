@@ -1,0 +1,31 @@
+{
+  "id": "PPY-c4f8b8d3-8a43-477b-8521-82348e0ed8a2",
+  "title": "Cross-story editorial checks with merge, split and series operations (L)",
+  "description": "Cross-story editorial checks, with merge, split and series operations. Smallest first version: the cheap neighbourhood check before publish raising a review request, and merge Proposals with the deterministic merge operation; the daily portfolio review, split and series releases follow.\n\nTwo modes:\n- A cheap neighbourhood check at chosen transitions (for example before publish); high overlap raises a review request or a Proposal.\n- A daily portfolio review across in-flight and recently published stories for duplicates, merge candidates (N->1), split-into-series candidates (1->N, with a release schedule) and coverage gaps.\n\nResults are Proposals of kind merge or split (these kinds exist in PPY-409d96), with the story ids as targets. They hold a group lock (similarity story) while open.\n\nOn approval, the merge or split is a deterministic, non-LLM operation. It records lineage (merged_from, series_of, \"part n of m\") and schedules the series releases.\n\nAcceptance criteria:\n- High overlap at the chosen transition raises a review request or Proposal; low overlap does not.\n- The portfolio review files merge and split Proposals targeting the right story ids, each holding a group lock until resolved.\n- Approving a merge or split performs the operation without an LLM, records lineage and schedules the series releases; rejecting releases the lock.\n- Gherkin specs (narrative, complete) required.\n\nDepends on the human review points story and the similarity index story.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-L"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-ab6a507c-5aaf-4805-add3-0cb6db4573d8",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-b3aaea05-0a38-4967-bb59-3e3f6e0fb47a",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-23T06:21:32.786917Z",
+  "updated_at": "2026-10-23T06:22:24.811817Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
