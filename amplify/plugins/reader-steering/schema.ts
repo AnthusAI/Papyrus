@@ -1,5 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { readerActions } from "./function/resource";
+import { functionHandler } from "../../data/function-handler";
 
 /**
  * Staff and IAM only: no guest, API key or reader rule on any model. The reader-actions function writes the
@@ -172,7 +173,7 @@ export function readerSteeringSchemaDefinitions() {
       })
       .returns(a.ref("ProposalReceipt"))
       .authorization((allow) => [allow.group("editor"), allow.group("admin")])
-      .handler(a.handler.function(readerActions)),
+      .handler(functionHandler("readerActions", readerActions)),
     transitionProposal: a
       .mutation()
       .arguments({
@@ -183,7 +184,7 @@ export function readerSteeringSchemaDefinitions() {
       })
       .returns(a.ref("ProposalReceipt"))
       .authorization((allow) => [allow.group("editor"), allow.group("admin")])
-      .handler(a.handler.function(readerActions)),
+      .handler(functionHandler("readerActions", readerActions)),
     ModerationReceipt: a.customType({
       status: a.string().required(),
       id: a.string(),
@@ -201,6 +202,6 @@ export function readerSteeringSchemaDefinitions() {
       })
       .returns(a.ref("ModerationReceipt"))
       .authorization((allow) => [allow.group("editor"), allow.group("admin")])
-      .handler(a.handler.function(readerActions)),
+      .handler(functionHandler("readerActions", readerActions)),
   };
 }

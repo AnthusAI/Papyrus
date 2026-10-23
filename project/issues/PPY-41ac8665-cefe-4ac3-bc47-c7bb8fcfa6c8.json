@@ -1,0 +1,25 @@
+{
+  "id": "PPY-41ac8665-cefe-4ac3-bc47-c7bb8fcfa6c8",
+  "title": "GA4 with consent on the Data Parade articles (dataparade.io/posts)",
+  "description": "Ryan (2026-10-23, via Papyrus implementation): analytics on the articles is a fairly high priority. Same GA4 property as the main site, G-SS1D0H8DDD (not the Anthus one), so sessions continue across dataparade.io.\n\nDone on branch feature/articles-ga4 in AnthusAI/DataParade-newsroom (draft PR): Papyrus pins 5.32.0; web/projection.json chrome.ga_measurement_id G-SS1D0H8DDD and chrome.consent_mode with the standard defaults (EEA/GB/CH denied, no analytics_only) and privacy_policy_url https://dataparade.io/privacy; a Cookie settings link in the footer's Legal column (data-papyrus-consent-reopen, #cookie-settings); data-cta-location on the Request a Demo links (posts_nav, posts_footer, post_cta). Bump fix: since Papyrus 5.2x entry.authors are Author objects, and the hooks now join str(author) (every article render crashed otherwise). Tests: 7 passing, covering GA4, consent defaults before the loader, the privacy link, Cookie settings and the CTA places. Checked locally in a browser: banner shows; Accept grants all four signals; Reject denies all four; saved as dataparade-consent; Cookie settings reopens it.\n\nNot deployed: blocked on Ryan's decision. dataparade.io's landing (DataParade-io team) uses CookieYes, which denies all storage for everyone until a choice and keeps it in a CookieYes cookie. The Papyrus banner would be a second banner with its own localStorage choice that grants analytics by default outside EEA/GB/CH, so a visitor who rejected on the landing would be counted on /posts. The standard banner wording also mentions advertising, which Data Parade does not run. Options put to Ryan: (1) use CookieYes on the articles (one consent across dataparade.io); (2) ship the Papyrus banner as built and report the mismatch to the DataParade-io team.",
+  "type": "task",
+  "status": "blocked",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-23T13:24:54.938972Z",
+  "updated_at": "2026-10-23T13:25:02.417191Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-opus-5-5",
+    "name": "DataParade.anth.us implementation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

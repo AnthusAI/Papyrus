@@ -12,6 +12,7 @@ import { newsroomSummary } from "../functions/newsroom-summary/resource";
 import { publicForms } from "../functions/public-forms/resource";
 import { procedureAction } from "../functions/procedure-action/resource";
 import { readerSettings } from "../functions/reader-settings/resource";
+import { functionHandler } from "./function-handler";
 
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
@@ -162,7 +163,7 @@ const definitions = {
     .query()
     .returns(a.ref("UserDirectoryResult"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   grantUserRole: a
     .mutation()
@@ -174,7 +175,7 @@ const definitions = {
     })
     .returns(a.ref("UserRoleMutationResult"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   revokeUserRole: a
     .mutation()
@@ -186,7 +187,7 @@ const definitions = {
     })
     .returns(a.ref("UserRoleMutationResult"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   mergeUserProfiles: a
     .mutation()
@@ -199,13 +200,13 @@ const definitions = {
     })
     .returns(a.ref("UserDirectoryEntry"))
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(manageUserRole)),
+    .handler(functionHandler("manageUserRole", manageUserRole)),
 
   getReaderSettings: a
     .query()
     .returns(a.ref("ReaderSettingsResult"))
     .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(readerSettings)),
+    .handler(functionHandler("readerSettings", readerSettings)),
 
   updateReaderSettings: a
     .mutation()
@@ -214,7 +215,7 @@ const definitions = {
     })
     .returns(a.ref("ReaderSettingsResult"))
     .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(readerSettings)),
+    .handler(functionHandler("readerSettings", readerSettings)),
 
   SteeringActionResult: a.customType({
     ok: a.boolean().required(),
@@ -244,7 +245,7 @@ const definitions = {
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   CurationDelegationResult: a.customType({
     ok: a.boolean().required(),
@@ -331,7 +332,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createCurationDelegation: a
     .mutation()
@@ -343,7 +344,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   revokeCurationDelegation: a
     .mutation()
@@ -354,7 +355,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   listCurationDelegations: a
     .query()
@@ -362,7 +363,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   requestCurationDelegation: a
     .mutation()
@@ -376,7 +377,7 @@ const definitions = {
     .authorization((allow) => [
       allow.authenticated("identityPool"),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   approveCurationDelegation: a
     .mutation()
@@ -387,7 +388,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   denyCurationDelegation: a
     .mutation()
@@ -398,7 +399,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   getCurationDelegationStatus: a
     .query()
@@ -409,7 +410,7 @@ const definitions = {
     .authorization((allow) => [
       allow.authenticated("identityPool"),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   recordDelegatedCuration: a
     .mutation()
@@ -431,7 +432,7 @@ const definitions = {
     .authorization((allow) => [
       allow.authenticated("identityPool"),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   setReferenceQualityRating: a
     .mutation()
@@ -446,7 +447,7 @@ const definitions = {
     .authorization((allow) => [
       allow.groups(categoryWriteGroups),
     ])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createCategorySetDraft: a
     .mutation()
@@ -458,7 +459,7 @@ const definitions = {
     })
     .returns(a.ref("CategorySetDraftActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   promoteCategorySetDraft: a
     .mutation()
@@ -469,7 +470,7 @@ const definitions = {
     })
     .returns(a.ref("CategorySetDraftActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   discardCategorySetDraft: a
     .mutation()
@@ -480,7 +481,7 @@ const definitions = {
     })
     .returns(a.ref("CategorySetDraftActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   createDraftCategory: a
     .mutation()
@@ -496,7 +497,7 @@ const definitions = {
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   updateDraftCategory: a
     .mutation()
@@ -512,7 +513,7 @@ const definitions = {
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   archiveDraftCategory: a
     .mutation()
@@ -523,7 +524,7 @@ const definitions = {
     })
     .returns(a.ref("SteeringActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   reviewReferenceTopicLabel: a
     .mutation()
@@ -537,7 +538,7 @@ const definitions = {
     })
     .returns(a.ref("TopicLabelActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(categoryAction)),
+    .handler(functionHandler("categoryAction", categoryAction)),
 
   NewsroomSummary: a.customType({
     generatedAt: a.datetime().required(),
@@ -557,56 +558,56 @@ const definitions = {
     .query()
     .returns(a.ref("NewsroomSummary"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(newsroomSummary)),
+    .handler(functionHandler("newsroomSummary", newsroomSummary)),
 
   deriveMarkus: a
     .query()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   intakePendingReferences: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   saveItemDraft: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   publishItem: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   moveStoryStage: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   unpublishItem: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   requestStagingBuild: a
     .mutation()
     .arguments({ input: a.json().required() })
     .returns(a.json())
     .authorization((allow) => [allow.groups(contentWriteGroups)])
-    .handler(a.handler.function(contentActions)),
+    .handler(functionHandler("contentActions", contentActions)),
 
   knowledgeQuery: a
     .query()
@@ -615,7 +616,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(knowledgeQuery)),
+    .handler(functionHandler("knowledgeQuery", knowledgeQuery)),
 
   updateNewsroomSummary: a
     .mutation()
@@ -626,7 +627,7 @@ const definitions = {
     })
     .returns(a.ref("NewsroomSummary"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(newsroomSummary)),
+    .handler(functionHandler("newsroomSummary", newsroomSummary)),
 
   ModelAttachmentUploadSlot: a.customType({
     ok: a.boolean().required(),
@@ -686,7 +687,7 @@ const definitions = {
     })
     .returns(a.ref("ModelAttachmentUploadSlot"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   completeModelAttachmentUpload: a
     .mutation()
@@ -708,7 +709,7 @@ const definitions = {
     })
     .returns(a.ref("ModelAttachment"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   abortModelAttachmentUpload: a
     .mutation()
@@ -730,7 +731,7 @@ const definitions = {
     })
     .returns(a.ref("ModelAttachmentUploadAbortResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   createModelAttachmentDownload: a
     .mutation()
@@ -739,7 +740,7 @@ const definitions = {
     })
     .returns(a.ref("ModelAttachmentDownloadSlot"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(modelAttachmentUpload)),
+    .handler(functionHandler("modelAttachmentUpload", modelAttachmentUpload)),
 
   AssignmentActionResult: a.customType({
     ok: a.boolean().required(),
@@ -834,7 +835,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentContext").array().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   listAssignmentQueue: a
     .query()
@@ -845,7 +846,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentContext").array().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   getEditorialContext: a
     .query()
@@ -859,7 +860,7 @@ const definitions = {
     })
     .returns(a.json().required())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   getAssignmentContext: a
     .query()
@@ -868,7 +869,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentContext"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   claimAssignment: a
     .mutation()
@@ -885,7 +886,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   releaseAssignment: a
     .mutation()
@@ -897,7 +898,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   completeAssignment: a
     .mutation()
@@ -909,7 +910,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   cancelAssignment: a
     .mutation()
@@ -921,7 +922,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   reopenAssignment: a
     .mutation()
@@ -933,7 +934,7 @@ const definitions = {
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   retryImmediateAssignment: a
     .mutation()
@@ -945,13 +946,13 @@ const definitions = {
     })
     .returns(a.ref("AssignmentActionResult"))
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(assignmentAction)),
+    .handler(functionHandler("assignmentAction", assignmentAction)),
 
   listNewsroomProcedureDefinitions: a
     .query()
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   getNewsroomProcedureDefinition: a
     .query()
@@ -961,7 +962,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   saveNewsroomProcedureDefinition: a
     .mutation()
@@ -970,7 +971,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   saveNewsroomProcedureVersionDraft: a
     .mutation()
@@ -979,7 +980,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   publishNewsroomProcedureVersion: a
     .mutation()
@@ -988,7 +989,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.group(adminGroup)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   startNewsroomProcedureRun: a
     .mutation()
@@ -1003,7 +1004,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   getNewsroomProcedureRun: a
     .query()
@@ -1012,7 +1013,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   listNewsroomProcedureRunsByProcedure: a
     .query()
@@ -1021,7 +1022,7 @@ const definitions = {
     })
     .returns(a.json())
     .authorization((allow) => [allow.groups(categoryWriteGroups)])
-    .handler(a.handler.function(procedureAction)),
+    .handler(functionHandler("procedureAction", procedureAction)),
 
   Assignment: modelWithoutSubscriptions({
       id: a.id().required(),

@@ -1,5 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { newsletterOps } from "./ops/resource";
+import { functionHandler } from "../../data/function-handler";
 
 const staff = ["editor", "admin"];
 const admins = ["admin"];
@@ -49,7 +50,7 @@ export const NEWSLETTER_OPERATION_GROUPS: Record<string, string[]> = {
  * table, never readable through the content API. It adds fourteen operations for the newsroom's Newsletter panel.
  */
 export function newsletterSchemaDefinitions(): Record<string, unknown> {
-  const handler = a.handler.function(newsletterOps);
+  const handler = functionHandler("newsletterOps", newsletterOps);
   const query = (name: string) =>
     a.query().arguments({ input: a.json() }).returns(a.json()).authorization((allow) => [allow.groups(NEWSLETTER_OPERATION_GROUPS[name])]).handler(handler);
   const mutation = (name: string) =>

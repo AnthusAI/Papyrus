@@ -28,10 +28,17 @@
       "text": "v0 merged to develop in PR #642 (merge 0c2dad33d26f7238800f5dd410fd729aaaaa3fdb). Done: ReviewRequest/ReviewReadMark/ReviewRecipientRule models, three modes, soft review timeout checked on read (records 'proceeded without review'), hard gate never proceeds, answer/withdraw/list through the model and Python library, papyrus reviews CLI, steering read-back (steering_for, mark_applied), idea-pipeline hook raise_batch_review, recipient rules in site data. Remains: run contract honouring gates (resumable; needs PPY-433383), scheduled sweep, email to recipients (no staff transactional sender yet), audit line on the item's own trail, server-side transition validation beyond the state=open condition. Docs: docs/review-requests.md. Left in_progress.",
       "created_at": "2026-10-23T11:36:46.970958Z",
       "comment_type": "default"
+    },
+    {
+      "id": "cacaeffa-6b42-4457-91e7-1d575a90a93a",
+      "author": "home",
+      "text": "v0 merged (#642): modes, a deadline checked on read, steering and applied-in, the CLI and library. Not in v0: email notifications (needs a staff mail sender), a scheduled deadline sweep, and gates resumable in the run contract. The idea pipeline is the first caller (#651). Not deployed to any site yet; sites get it on the next release plus a data API deploy.",
+      "created_at": "2026-10-23T12:21:50.075999Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T06:21:18.786732Z",
-  "updated_at": "2026-10-23T11:36:46.970986Z",
+  "updated_at": "2026-10-23T12:21:50.076041Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
