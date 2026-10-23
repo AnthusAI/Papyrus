@@ -674,7 +674,7 @@ export function NewsDeskWorkspace({
     );
   }
 
-  if (session && sessionDashboard) {
+  if (session && sessionDashboard && session.shell.phase !== "loadingDesk") {
     return (
       <NewsDeskDashboard
         analysisProfiles={analysisProfiles}

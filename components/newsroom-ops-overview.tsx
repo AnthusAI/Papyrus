@@ -128,13 +128,15 @@ export function NewsroomOpsOverview({
       data-newsroom-ops-home="true"
     >
       <div className="space-y-8" data-newsroom-overview-feeds>
-        <NotificationCenter
-          actorLabel={actorLabel}
-          decisions={decisions}
-          demo={demo}
-          humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-          references={canonicalReferences}
-        />
+        <div aria-label="Notification Center feed" className="newsroom-overview-feed-frame overflow-y-auto rounded-xl border bg-card p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-newsroom-overview-notifications role="region" tabIndex={0}>
+          <NotificationCenter
+            actorLabel={actorLabel}
+            decisions={decisions}
+            demo={demo}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            references={canonicalReferences}
+          />
+        </div>
         <section aria-label="Destinations" className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Go to</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -226,7 +228,7 @@ export function NewsroomOpsOverview({
           ) : (
             <Card>
               <CardContent className="p-4 text-sm text-muted-foreground">
-                Nothing needs attention right now. Check References for new intake or open Assignments from the destinations above.
+                No pending references or open assignments. Check those destinations for other work.
               </CardContent>
             </Card>
           )}

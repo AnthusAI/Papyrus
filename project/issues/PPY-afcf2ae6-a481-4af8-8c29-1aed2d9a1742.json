@@ -1,0 +1,37 @@
+{
+  "id": "PPY-afcf2ae6-a481-4af8-8c29-1aed2d9a1742",
+  "title": "Stabilize newsroom console loading and access UX",
+  "description": "Avoid repeated credential-check interstitials while preserving authorization; show shaped loading skeletons until overview data resolves; prevent overview layout shifts. Cover loading, failures, sessions, responsive and reduced motion.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "762c6522-2aef-452a-b1af-5bc89ea76f50",
+      "author": "home",
+      "text": "Implemented newsroom access and data-loading skeletons, stable overview Notification Center frame, clearer empty/error states, and session-expiration invalidation. Local lint, typecheck, focused newsroom tests, production build, and rendered desktop/mobile checks passed. Draft PR and exact-head CI pending.",
+      "created_at": "2026-10-23T18:09:54.971733Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1 Sol"
+      }
+    }
+  ],
+  "created_at": "2026-10-23T17:57:13.960951Z",
+  "updated_at": "2026-10-23T18:09:54.971760Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

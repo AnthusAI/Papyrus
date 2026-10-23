@@ -1,6 +1,7 @@
 "use client";
 
 import { Hub } from "aws-amplify/utils";
+import { isUnauthenticatedError } from "./reader-auth-state";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
 import type { CategorySteeringDashboard } from "../lib/category-repository";
@@ -14,9 +15,10 @@ import {
 } from "./news-desk-taxonomy-client";
 import {
   beginAccessCheck,
-  beginAuthenticatedDeskHydration,
+  beginDeskLoad,
   createInitialNewsDeskShellState,
   patchDashboard,
+  resolveAccessFailure,
   resolveDashboardFailure,
   resolveDashboardReady,
   resolveForbidden,
@@ -94,11 +96,11 @@ export function NewsDeskClientProvider({
       return;
     }
     if (access.status === "error") {
-      setShell((current) => resolveDashboardFailure(current, access.auth, access.error));
+      setShell((current) => resolveAccessFailure(current, access.error));
       return;
     }
 
-    setShell((current) => beginAuthenticatedDeskHydration(current, access.auth, { canManageUsers: access.isAdmin }));
+    setShell((current) => beginDeskLoad(current, access.auth));
 
     try {
       const dashboard = await loadEditorNewsDeskDashboard({ isAdmin: access.isAdmin });
@@ -106,6 +108,10 @@ export function NewsDeskClientProvider({
       setShell((current) => resolveDashboardReady(current, dashboard, access.auth, new Date().toISOString()));
     } catch (error) {
       if (bootstrapSequenceRef.current !== sequence) return;
+      if (isUnauthenticatedError(error)) {
+        setShell((current) => resolveSignedOut(current, { status: "signedOut", label: "Signed out" }));
+        return;
+      }
       if (isAuthorizationError(error)) {
         setShell((current) => resolveForbidden(current, access.auth));
         return;
@@ -132,11 +138,7 @@ export function NewsDeskClientProvider({
       ));
     } catch (error) {
       const auth = shellRef.current.auth;
-      setShell((current) => resolveDashboardFailure(
-        current,
-        auth,
-        error instanceof Error ? error.message : "Could not refresh assignments.",
-      ));
+      setShell((current) => resolvePrivateReadFailure(current, auth, error, "Could not refresh assignments."));
     }
   }, []);
 
@@ -153,11 +155,7 @@ export function NewsDeskClientProvider({
       ));
     } catch (error) {
       const auth = shellRef.current.auth;
-      setShell((current) => resolveDashboardFailure(
-        current,
-        auth,
-        error instanceof Error ? error.message : "Could not refresh doctrine records.",
-      ));
+      setShell((current) => resolvePrivateReadFailure(current, auth, error, "Could not refresh doctrine records."));
     }
   }, []);
 
@@ -175,11 +173,7 @@ export function NewsDeskClientProvider({
       ));
     } catch (error) {
       const auth = shellRef.current.auth;
-      setShell((current) => resolveDashboardFailure(
-        current,
-        auth,
-        error instanceof Error ? error.message : "Could not refresh the user directory.",
-      ));
+      setShell((current) => resolvePrivateReadFailure(current, auth, error, "Could not refresh the user directory."));
     }
   }, []);
 
@@ -219,6 +213,12 @@ export function NewsDeskClientProvider({
 function isAuthorizationError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /not authorized|unauthorized|access denied|forbidden/i.test(message);
+}
+
+function resolvePrivateReadFailure(state: NewsDeskShellState, auth: NewsDeskShellState["auth"], error: unknown, fallback: string): NewsDeskShellState {
+  if (isUnauthenticatedError(error)) return resolveSignedOut(state, { status: "signedOut", label: "Signed out" });
+  if (isAuthorizationError(error)) return resolveForbidden(state, auth);
+  return resolveDashboardFailure(state, auth, error instanceof Error ? error.message : fallback);
 }
 
 export function useOptionalNewsDeskClient() {

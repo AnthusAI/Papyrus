@@ -131,9 +131,20 @@ export function NotificationCenterView({ loadState, requests, readIds, held, aut
   const entry = (request: ReviewRequest) => (
     <Entry busy={busyId === request.id} demo={demo} key={request.id} onAnswer={onAnswer} onMarkRead={onMarkRead} request={request} unread={isUnread(request, readIds)} />
   );
-  if (loadState === "loading") return <div role="status" data-notification-state="loading"><strong>Loading the Notification Center</strong></div>;
+  if (loadState === "loading") return (
+    <section aria-label="Loading Notification Center" className="space-y-4" data-notification-state="loading" role="status">
+      <div className="h-6 w-48 rounded bg-muted" />
+      <div className="h-4 w-3/4 max-w-xl rounded bg-muted" />
+      <div className="h-4 w-2/3 max-w-lg rounded bg-muted" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {Array.from({ length: 4 }, (_, index) => <div className="h-28 rounded-xl border bg-card p-4" key={index}>
+          <div className="h-4 w-2/3 rounded bg-muted" /><div className="mt-4 h-3 w-1/2 rounded bg-muted" />
+        </div>)}
+      </div>
+    </section>
+  );
   if (loadState === "forbidden") return <div role="alert" data-notification-state="forbidden"><strong>The Notification Center is for editors and admins</strong></div>;
-  if (loadState === "unavailable") return <div role="alert" data-notification-state="unavailable"><strong>Review requests could not be read right now</strong><p>Try again in a minute. Nothing waiting on a person has changed.</p></div>;
+  if (loadState === "unavailable") return <div role="alert" data-notification-state="unavailable"><strong>Review requests could not be read right now</strong><p>Try again in a minute. The current request state is unknown.</p></div>;
   return (
     <div className="space-y-6" data-notification-center>
       <header className="space-y-1">
