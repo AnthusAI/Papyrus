@@ -1,6 +1,17 @@
 # Documentation index
 
-One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md); start there. Pages marked (archive) are historical logs and are not maintained.
+One line per page. Read [../README.md](../README.md) for what the repository is and how a change ships, then [../AGENTS.md](../AGENTS.md) for the rules and the common commands. Pages marked (archive) are historical logs and are not maintained. Status words: Live, Beta, In progress, Planned. Pages with a design status in their first lines (for example the standard site design) can lag the code; the README wins when they disagree.
+
+## By task
+
+- **Orient**: [../README.md](../README.md), [../AGENTS.md](../AGENTS.md), [code-map.md](code-map.md), [how-papyrus-works.md](how-papyrus-works.md).
+- **Ship a change**: [releasing.md](releasing.md), [site-hosting.md](site-hosting.md#deploy-on-merge-to-main), [verification.md](verification.md).
+- **Start a new site**: [../README.md#start-a-new-papyrus-site](../README.md#start-a-new-papyrus-site), [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md), [../infra/amplify-app-shell/README.md](../infra/amplify-app-shell/README.md), [google-oauth-setup.md](google-oauth-setup.md).
+- **Re-project or repair a site**: [site-hosting.md](site-hosting.md#operations-runbook), [site-hosting.md](site-hosting.md#projection-lease-one-projection-at-a-time).
+- **Add a site to Hacker News routing**: [monitoring-cloud.md](monitoring-cloud.md), [../AGENTS.md](../AGENTS.md#add-a-site-to-the-hacker-news-routing).
+- **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
+- **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
+- **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
 
 ## Features at a glance
 
@@ -10,10 +21,14 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [editor-agents.md](editor-agents.md): editor, reporter, copywriter and researcher procedures, editorial checks, story versions.
 - [knowledge-base.md](knowledge-base.md): concepts wiki, taxonomy, graph, context packs, the trending report (Beta), Biblicus.
 - [public-wiki.md](public-wiki.md): the public wiki: draft pages from accepted entities and beats, review stamps, suggest an edit.
+- [knowledge-components.md](knowledge-components.md): the components that render knowledge data on static pages.
 - [knowledge-snapshot.md](knowledge-snapshot.md): the public knowledge JSON of a site (`papyrus knowledge snapshot`, `publish-run`, entity review).
 - [knowledge-workstation-run.md](knowledge-workstation-run.md): the weekly workstation run, end to end: corpus export, Biblicus topics, trends, identity, typed entities, import, review, snapshot, wiki.
 - [knowledge-cloud-run.md](knowledge-cloud-run.md): the same run as an unattended weekly job in AWS (EventBridge, Step Functions, Fargate), its AI review, state, alarms and cost.
-- [newsletter.md](newsletter.md): signup capture (Live); sending is not built.
+- [newsletter.md](newsletter.md): signup capture, the double opt-in `newsletter` plugin with clean `/newsletter/*` pages, branded email theme, roundups, alerts and SES sending (Live on Shipped).
+- [reader-steering.md](reader-steering.md): the `reader-steering` plugin: votes on any subject, ratings, flags, comments, submissions, moderation, snapshots and Proposals (built; reader writes closed in production until Prospectus returns a site subject).
+- [automations.md](automations.md): automation records binding a monitor to a procedure, with `enabled`, limits, cost, history and Run now (PPY-9ff95b slices 1 and 2).
+- [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest` and `synthesize`, v0 (PPY-8ffc18; scheduling in progress).
 
 ## Start here
 
@@ -47,7 +62,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [site-stacks.md](site-stacks.md): ops UI and reader output as independent plugins.
 - [site-theme-packs.md](site-theme-packs.md): theme packs and ops chrome on `SiteBrand`.
 - [site-workspace.md](site-workspace.md): the local folder convention for a split reader and CMS.
-- [standard-site.md](standard-site.md): the approved design for the standard Papyrus site.
+- [standard-site.md](standard-site.md): the approved design for the standard Papyrus site (design record, 2026-10-05; the packages it calls a spike are now published).
 - [pluggable-publishers.md](pluggable-publishers.md): Pretext and Markus publication front ends.
 - [hosting/edge-under-the-cms-backend.md](hosting/edge-under-the-cms-backend.md): design notes (status: design only) for putting each site edge under its CMS backend.
 - [plugins.md](plugins.md): deploy-time site plugins.
@@ -71,11 +86,14 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 - [reference-processing-terminology.md](reference-processing-terminology.md): vocabulary for reference workflows.
 - [inbound-email-submissions.md](inbound-email-submissions.md): suggesting references by email.
 - [reference-intake/user-session-intake.md](reference-intake/user-session-intake.md): pending Reference intake with an editor session.
-- [monitoring-cloud.md](monitoring-cloud.md): the Hacker News collector and router in AWS.
+- [monitoring-cloud.md](monitoring-cloud.md): the Hacker News and TTAB collectors, the router, the shared Cyclotron routing to several sites, and the Monitoring page.
+- [procedure-runner.md](procedure-runner.md): the cloud Lambda that runs a site's registered Tactus procedure; `papyrus procedures register`.
 - [monitoring-hn-pilot.md](monitoring-hn-pilot.md): the local Hacker News monitor worker.
 - [console-chat-runbook.md](console-chat-runbook.md): the editor-only console chat on `/newsroom`.
 - [slack-agent.md](slack-agent.md): the Slack channel for the console agent.
 - [newsroom-organizer-release.md](newsroom-organizer-release.md): the organizer layout and read-only Board release.
+- [notification-center.md](notification-center.md): the CMS console home: review requests, Cyclotron items and the auto-decided stream; the ignore-safe principle.
+- [review-requests.md](review-requests.md): flags, timed soft reviews and hard gates; the model, the deadline, the CLI, the steering read-back and the idea-pipeline hook.
 - [automation-ai-ml-academic-research-dispatch.md](automation-ai-ml-academic-research-dispatch.md): the cron that dispatches AI/ML paper discovery.
 - [automation-chorus-code-review-research.md](automation-chorus-code-review-research.md): registering Chorus and starting two research assignments.
 
@@ -96,6 +114,7 @@ One line per page. The hard rules for agents are in [../AGENTS.md](../AGENTS.md)
 
 - [operator-cli.md](operator-cli.md): one `papyrus` command over local pod and cloud backends.
 - [cli-login.md](cli-login.md): native Google CLI session, secure storage, renewal and required provider configuration.
+- [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest|synthesize`, private story ideas from a site's recent references (v0).
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.
 - [schema-and-api-alignment.md](schema-and-api-alignment.md): fix schema drift by deploying, never by shims.
 - [local-dev-431-troubleshooting.md](local-dev-431-troubleshooting.md): `HTTP 431` from oversized localhost cookies.

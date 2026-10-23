@@ -46,7 +46,7 @@ class TriggerTable(FakeTable):
         item = self.items[(Key["pk"], Key["sk"])]
         for assignment in UpdateExpression.removeprefix("SET ").split(", "):
             name, value = assignment.split(" = ")
-            item[ExpressionAttributeNames[name]] = ExpressionAttributeValues[value]
+            item[ExpressionAttributeNames.get(name, name)] = ExpressionAttributeValues[value]
 
 
 def triggered_table(**publication):
@@ -173,12 +173,122 @@ def test_the_runner_materializes_skills_records_the_run_and_its_output(tmp_path)
                                       environment={}, workroot=tmp_path)
 
     assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "versionId": "version-1",
-                      "runStatus": "completed", "seconds": 42, "error": None}
+                      "runStatus": "completed", "seconds": 42, "error": None, "costUsd": None, "costRecorded": False}
     assert seen["skill"] == "# Example" and "Procedure {" in seen["source"] and seen["timeout"] == 840
     assert json.loads(client.started[0]["input"])["__papyrusExecutionMode"] == "external_cli"
     assert client.updates[0]["runStatus"] == "completed" and json.loads(client.updates[0]["output"]) == {"title": "Wemby"}
     assert "title: Wemby" in client.updates[0]["resultSummary"]
     assert list(tmp_path.iterdir()) == []
+
+
+def run_with(request, outcome, *, client=None, seconds_available=900, tmp_path=None, **kwargs):
+    client = client or NewsroomClient()
+    seen = {}
+
+    def execute(workdir, source_path, inputs, *, timeout_seconds, environment):
+        seen["timeout"] = timeout_seconds
+        return outcome
+
+    result = pr.run_procedure_request({**REQUEST, **request}, client=client, execute=execute, seconds_available=seconds_available,
+                                      environment={}, workroot=tmp_path, **kwargs)
+    return result, client, seen
+
+
+@pytest.mark.parametrize("requested, available, expected", [
+    (None, 900, 840),        # no limit in the request: what the Lambda has left, less the recording margin (as before)
+    (300, 900, 300),         # the automation's timeout is shorter
+    (5000, 900, 840),        # asked for more than the Lambda has: capped at the Lambda's limit
+    (840, 400, 340),         # the Lambda's own remaining time still wins
+])
+def test_the_automations_timeout_is_the_childs_deadline_capped_at_the_lambdas_limit(tmp_path, requested, available, expected):
+    request = {} if requested is None else {"timeoutSeconds": requested}
+    _, _, seen = run_with(request, {"success": True, "output": {}, "seconds": 1}, seconds_available=available, tmp_path=tmp_path)
+    assert seen["timeout"] == expected
+
+
+@pytest.mark.parametrize("bad", [0, -5, "300", True, 1.5])
+def test_a_timeout_that_is_not_a_positive_whole_number_is_not_runnable(bad):
+    with pytest.raises(pr.ProcedureNotRunnable, match="timeoutSeconds"):
+        pr.validate_request({**REQUEST, "timeoutSeconds": bad})
+
+
+CALLS = [{"agent": "analyst", "model": "gpt-6-luna", "provider": "openai", "promptTokens": 100_000, "completionTokens": 10_000, "cachedTokens": 0},
+         {"agent": "analyst", "model": "gpt-6-luna", "provider": "openai", "promptTokens": 100_000, "completionTokens": 0, "cachedTokens": 50_000}]
+
+
+def test_the_usage_and_an_estimated_cost_are_stored_on_the_procedure_run(tmp_path):
+    result, client, _ = run_with({}, {"success": True, "output": {"title": "x"}, "seconds": 5, "usage": CALLS}, tmp_path=tmp_path)
+    update = client.updates[0]
+    assert update["costUsd"] == pytest.approx(0.015 + 0.0055) and result["costUsd"] == pytest.approx(0.0205) and result["costRecorded"] is True
+    usage = json.loads(update["usage"])
+    assert (usage["calls"], usage["promptTokens"], usage["completionTokens"], usage["complete"]) == (2, 200_000, 10_000, True)
+    assert usage["models"] == {"gpt-6-luna": 2} and usage["perCall"] == CALLS
+
+
+def test_a_failed_run_still_records_the_cost_of_the_calls_it_made(tmp_path):
+    result, client, _ = run_with({}, {"success": False, "error": "boom", "usage": CALLS[:1]}, tmp_path=tmp_path)
+    assert result["runStatus"] == "failed" and client.updates[0]["runStatus"] == "failed" and client.updates[0]["costUsd"] == pytest.approx(0.015)
+
+
+def test_an_unpriced_model_is_recorded_as_usage_without_a_cost(tmp_path):
+    odd = [{**CALLS[0], "model": "mystery-1"}]
+    result, client, _ = run_with({}, {"success": True, "output": {}, "usage": odd}, tmp_path=tmp_path)
+    usage = json.loads(client.updates[0]["usage"])
+    assert client.updates[0]["costUsd"] is None and usage["complete"] is False and usage["unpricedModels"] == ["mystery-1"]
+    assert result["costRecorded"] is True and result["costUsd"] is None
+
+
+def test_a_run_with_no_model_call_sends_no_usage_fields(tmp_path):
+    _, client, _ = run_with({}, {"success": True, "output": {}, "usage": []}, tmp_path=tmp_path)
+    assert "usage" not in client.updates[0] and "costUsd" not in client.updates[0]
+
+
+def test_a_backend_without_the_usage_fields_still_gets_the_outcome(tmp_path):
+    class OldBackend(NewsroomClient):
+        def graphql(self, query, variables):
+            if "updateProcedureRun" in query and "usage" in variables["input"]:
+                raise RuntimeError("Validation error: The variables input contains a field name 'usage' that is not defined")
+            return super().graphql(query, variables)
+    client = OldBackend()
+    result, _, _ = run_with({}, {"success": True, "output": {"title": "x"}, "usage": CALLS}, client=client, tmp_path=tmp_path)
+    assert result["runStatus"] == "completed" and result["costRecorded"] is False and result["costUsd"] == pytest.approx(0.0205)
+    assert client.updates[0]["runStatus"] == "completed" and "usage" not in client.updates[0]
+
+
+def test_a_failure_to_record_that_is_not_about_usage_still_raises(tmp_path):
+    class Down(NewsroomClient):
+        def graphql(self, query, variables):
+            if "updateProcedureRun" in query:
+                raise RuntimeError("AppSync is down")
+            return super().graphql(query, variables)
+    with pytest.raises(RuntimeError, match="down"):
+        run_with({}, {"success": True, "output": {}}, client=Down(), tmp_path=tmp_path)
+
+
+def test_the_trigger_row_names_its_run_while_it_runs_and_a_failure_to_say_so_does_not_stop_the_run(tmp_path):
+    seen = []
+    result, _, _ = run_with({}, {"success": True, "output": {}}, run_started=seen.append, tmp_path=tmp_path)
+    assert seen == ["run-1"] and result["runStatus"] == "completed"
+
+    def failing(run_id):
+        raise RuntimeError("AccessDenied")
+    result, _, _ = run_with({}, {"success": True, "output": {}}, run_started=failing, tmp_path=tmp_path)
+    assert result["runStatus"] == "completed"
+
+
+def test_record_trigger_run_marks_the_row_running_with_the_run_id():
+    table = TriggerTable()
+    table.put_item({"pk": "MONITOR#ttab", "sk": "MANUAL#a#1", "status": "starting"})
+    pr.record_trigger_run(table, {"pk": "MONITOR#ttab", "sk": "MANUAL#a#1"}, "run-7")
+    row = table.items[("MONITOR#ttab", "MANUAL#a#1")]
+    assert row["status"] == "running" and row["runId"] == "run-7" and row["runStartedAt"].endswith("Z")
+    pr.record_trigger_run(None, {"pk": "p", "sk": "s"}, "run-8")           # no table: nothing to do
+    pr.record_trigger_run(table, None, "run-8")                            # no trigger: nothing to do
+
+
+def test_the_automation_id_in_the_request_survives_validation():
+    request = pr.validate_request({**REQUEST, "timeoutSeconds": 300, "trigger": {"kind": "manual", "automationId": "distinctive.ttab"}})
+    assert request["timeoutSeconds"] == 300 and request["trigger"]["automationId"] == "distinctive.ttab"
 
 
 def test_a_failed_run_is_recorded_as_failed_with_its_error(tmp_path):

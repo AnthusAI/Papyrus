@@ -3,7 +3,7 @@
 A proposal is a change to the map written down where readers can see it. These commands call the ``fileProposal`` and
 ``transitionProposal`` mutations as the signed-in editor or admin (``papyrus login``); the function validates the kind, the
 targets and the transition, and answers a receipt. ``publish`` asks the site to run the reader snapshot, which writes the
-public proposal files.
+public proposal files only when the site has opted in with ``proposals.publish``; otherwise proposals stay private.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ USAGE = (
     "  papyrus proposals list [--state STATE] [--json]\n"
     "  papyrus proposals show PROPOSAL_ID [--json]\n"
     "  papyrus proposals transition PROPOSAL_ID --to STATE [--reason TEXT] [--result approved|declined] [--json]\n"
-    "  papyrus proposals publish [--json]\n"
+    "  papyrus proposals publish [--json]   (writes public files only if the site sets proposals.publish)\n"
     "Kinds: story_draft, new_concept, rename, merge, split, new_column, element_symbol.\n"
     "States: draft, in_steering, editor_review, approved, declined, overridden_by_editor."
 )

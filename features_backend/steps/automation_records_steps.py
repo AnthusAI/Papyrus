@@ -217,9 +217,10 @@ def cost_unknown(context):
     assert all(run["costUsd"] is None for run in automation(context)["runs"])
 
 
-@then("the cost note says the procedure runner does not record token use or cost")
+@then("the cost note says the cost was not recorded for that run")
 def cost_note(context):
-    assert "does not record token use or cost" in automation(context)["runs"][0]["costNote"]
+    found = [run for run in automation(context)["runs"] if run["runRecord"] == "found"]
+    assert found and all(run["costNote"] == "not recorded for this run" for run in found)
 
 
 @then("the record shows the automation as disabled")
@@ -227,9 +228,9 @@ def shows_disabled(context):
     assert context.updated["enabled"] is False
 
 
-@then("the record says enabled is display only until the router honours it")
-def display_only(context):
-    assert context.updated["enabledNote"] == "display only until the router honours it"
+@then("the record says the router starts nothing for a disabled automation")
+def router_honours(context):
+    assert context.updated["enabledNote"] == "the router starts nothing for a disabled automation"
 
 
 @then("the router's configuration and the trigger rows are unchanged")
@@ -297,14 +298,14 @@ def list_line(context, automation_id):
     assert fields[:5] == ["automations", automation_id, "monitor", fx.PROCEDURE, "enabled"] and len(fields) == 6, fields
 
 
-@then("the output says enabled is display only until the router honours it")
+@then("the output says the router starts nothing for a disabled automation")
 def output_enabled(context):
-    assert "display only until the router honours it" in context.cli_output
+    assert "the router starts nothing for a disabled automation" in context.cli_output
 
 
-@then("the output says the limits are recorded only")
+@then("the output says the limits are enforced when a run starts")
 def output_limits(context):
-    assert "recorded only" in context.cli_output
+    assert "enforced when a run starts" in context.cli_output
 
 
 @then('the output lists the run for "{source_id}" with its run id and story')
@@ -318,9 +319,9 @@ def output_skipped(context, count):
     assert f"{count} item(s) not started because the Reference already existed" in context.cli_output
 
 
-@then("the output says cost is not recorded")
+@then("the output says the cost is unknown for runs without a recorded cost")
 def output_cost(context):
-    assert "does not record token use or cost" in context.cli_output
+    assert "cost unknown" in context.cli_output
 
 
 @then("the command is refused because it needs the monitoring table")

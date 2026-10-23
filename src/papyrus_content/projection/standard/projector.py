@@ -373,7 +373,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             canonical=entry.canonical,
             published=entry.date,
             modified=entry.updated,
-            authors=entry.authors,
+            authors=entry.author_details,
             tags=entry.tags,
             noindex=entry.noindex,
             based_on=self._based_on(entry),
@@ -654,7 +654,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _authored_markdown(self, custom: CustomPage) -> str:
         """The twin of an authored page: its title, description and canonical URL, then the page file's Markus source."""
         path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
-        facts = SimpleNamespace(title=custom.title, authors=(), date="", updated="", summary_text=custom.description or "")
+        facts = SimpleNamespace(title=custom.title, authors=(), author_details=(), date="", updated="", summary_text=custom.description or "")
         return item_markdown(facts, self._twin(self._page_text(custom.source, f"pages.{custom.id}"), custom.source), self.head.absolute(path))
 
     def _static_twin_documents(self) -> list[tuple[str, str, str]]:

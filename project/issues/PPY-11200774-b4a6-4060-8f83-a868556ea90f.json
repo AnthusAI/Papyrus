@@ -1,0 +1,30 @@
+{
+  "id": "PPY-11200774-b4a6-4060-8f83-a868556ea90f",
+  "title": "Automations slice 2: enabled, limits, cost and run now (M)",
+  "description": "Slice 2 of automations, after slice 1 (PPY-2e6e2b, Papyrus #630). Makes the record real for monitor automations, with Distinctive's distinctive.ttab as the test site.\n\nScope:\n- enabled: the monitoring router reads the automation record before starting a procedure; a disabled automation starts nothing and records 'skipped: automation disabled'. With no record, or an unreadable one, the router behaves exactly as before (procedureTriggers stays authoritative).\n- Limits: timeoutSeconds goes to the runner's deadline (capped at the Lambda's limit); maxConcurrent refuses a new start with a recorded reason; budgetUsdPerRun stays advisory, compared with the recorded cost and flagged.\n- Cost: procedure_runner_child reports token use per call; run_procedure_request stores the usage and an estimated cost (price table in data, GPT-6 Luna) on the ProcedureRun. Shown in 'papyrus automations runs' and the console.\n- Run now: 'papyrus automations run --id X [--input JSON]' and a console button (editors, admins, confirm step). Invokes the runner and links the run to the automation's history.\n- History also lists the procedure's other ProcedureRuns under 'Started outside this automation'.\n- automationOverview admits the operator IAM roles for reading; writes stay editor or admin.\n\nNot in scope: schedule and event triggers, queueing, deploys (the release and the router deploy are separate).\n\nAcceptance: Gherkin specs (narrative, complete), unit tests for every behaviour including the router's disabled, fallback and maxConcurrent paths, and TS tests for the console.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-M"
+  ],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "d2b56a08-c693-4001-bf74-c1a106a59d34",
+      "author": "home",
+      "text": "Merged: board PR #635 (acc7f21), code PR #639 (27b29aecbdcdb8ef08f7b28dc5a96a3d170f7eea). Not deployed; release order in docs/automations.md.",
+      "created_at": "2026-10-23T11:14:35.921933Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-23T10:30:57.364335Z",
+  "updated_at": "2026-10-23T11:14:35.962119Z",
+  "closed_at": "2026-10-23T11:14:35.962079Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

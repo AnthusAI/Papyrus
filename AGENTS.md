@@ -1,46 +1,190 @@
 # AGENTS.md
 
+Operating manual for any coding agent (Codex, Cursor, Claude Code) or person working in the Papyrus engine repository. For what Papyrus is and how it ships, read [README.md](README.md) first. Everything here was checked against the code on `origin/develop` on 2026-10-23.
 
-## Ryan's board names
+## Read this first
 
-When Ryan says **the newsroom board** or **the Papyrus board**, he means the Anth.us publication board (Kanbus key `ANTH`), not this repo's product board (`PPY`). Call `PPY` the product board or the PPY board.
+- This is the **engine**. Site repositories (Shipped-web, Distinctive-web, Pilobol.us, and so on) hold only site settings; fix the engine here, release it, bump the pin there.
+- Work in a **git worktree**, branched from `origin/develop`. The shared checkout `~/Projects/Papyrus` is used by several sessions: never switch its branch and **never `git stash`**.
+- Every task lives on the **Kanbus board** (project key `PPY`). Create or update the issue before coding.
+- Every behaviour change ships with **Gherkin specs** (narrative, complete). Unit tests alone are not enough.
+- Read `AGENTS.local.md` (gitignored, machine-local) before any AWS command, but treat the repository docs as the reference: that file may name the legacy account `335163751677` as production, and production is `papyrus-production` (`712236451410`).
+- Wording: never write "desk" in prose; attribution is just "AI" (for example "Edited by AI on DATE"); the shared directory tenant is an **Account**, never "Organization". Code identifiers that still say desk (`components/news-desk-*.tsx`, `NewsDeskShellState`, `news-desk-*` CSS classes, `deskId`, `desk_category`, `papyrus editorial pack` help text) are kept as they are; do not rename them in a docs change and do not copy the word into new prose.
 
-Source of truth: [AnthusAI/anthus-semantic-knowledge-base](https://github.com/AnthusAI/anthus-semantic-knowledge-base), checked out at `~/Projects/anthus-semantic-knowledge-base`. Work there:
+## Map of the parts
+
+| Part | Where | Docs |
+| --- | --- | --- |
+| Standard Markus projector and front end | `src/papyrus_content/markus_renderer/`, `src/papyrus_content/project_commands.py`, `web/projection.json` in a site | [building a static site](docs/building-a-papyrus-static-site.md), [standard site](docs/standard-site.md), [markus markup](docs/markus-content-markup.md) |
+| CMS backend and console | `amplify/` (data, auth, storage, `functions/`, `publication/`), `app/newsroom`, `components/` | [how Papyrus works](docs/how-papyrus-works.md), [newsroom operations](docs/newsroom-operations.md), [how a publish flows](docs/how-a-publish-flows.md) |
+| Plugins | `amplify/plugins/{signup,newsletter,reader-steering}`, registry in `amplify/plugins/registry.ts` | [plugins](docs/plugins.md) |
+| Reader steering: votes on any subject, flags, ratings, comments, Proposals | `amplify/plugins/reader-steering`, `src/papyrus_content/reader_steering/`, `papyrus reader`, `papyrus proposals` | [reader steering](docs/reader-steering.md) |
+| Newsletter: double opt-in, clean `/newsletter/*` pages, branded email theme, roundups, alerts | `amplify/plugins/newsletter`, `app/api/newsletter/*`, `infra/newsletter/` | [newsletter](docs/newsletter.md) |
+| Edge | `infra/edge/` (`s3-projection-cms.yaml`: NotFoundPage Lambda@Edge, `/api/*` pass-through, #560) | [edge README](infra/edge/README.md), [site hosting](docs/site-hosting.md) |
+| App shell (Amplify apps, roles, domains per site) | `infra/amplify-app-shell/` | [app-shell README](infra/amplify-app-shell/README.md), [site hosting](docs/site-hosting.md) |
+| Monitoring and the router | `src/papyrus_content/monitoring*.py`, `infra/monitoring/` | [monitoring in the cloud](docs/monitoring-cloud.md), [local HN worker](docs/monitoring-hn-pilot.md) |
+| Shared relevance Cyclotron | `src/papyrus_content/relevance_cyclotron.py`, `pyproject.toml` group `cyclotron` | [Cyclotron](docs/cyclotron-priming.md), [steering and relevance](docs/steering-and-relevance.md) |
+| Procedure runner and Tactus procedures | `infra/procedures/`, `procedures/newsroom/`, `papyrus procedures` | [procedure runner](docs/procedure-runner.md), [newsroom procedures runbook](docs/newsroom-procedures-runbook.md) |
+| Knowledge run (local and cloud), weekly archive, projection lease | `infra/scheduled-jobs/`, `infra/knowledge-run/`, `amplify/publication/projection-lease.ts`, `papyrus knowledge` | [workstation run](docs/knowledge-workstation-run.md), [cloud run](docs/knowledge-cloud-run.md), [knowledge snapshot](docs/knowledge-snapshot.md), [lease](docs/site-hosting.md#projection-lease-one-projection-at-a-time) |
+| Automations | `src/papyrus_content/automations.py`, `amplify/functions/automation-view`, `papyrus automations` | [automations](docs/automations.md) |
+| Idea pipeline v0 | `src/papyrus_content/ideas/`, `papyrus ideas` | [idea pipeline](docs/idea-pipeline.md) |
+| Review requests and the Notification Center (console home) | `src/papyrus_content/review_requests.py`, `components/notification-center.tsx`, `lib/review-requests.ts`, `papyrus reviews`. Merged to `develop` (#642); live on a site after its data API deploys | [notification center](docs/notification-center.md), [review requests](docs/review-requests.md) |
+| GA4 and consent | `src/papyrus_content/markus_renderer/consent.py`, `analytics_events.py` | [site hosting: Analytics](docs/site-hosting.md#analytics-google-analytics-4) |
+| Pretext layout solver and reader | `lib/`, `renderers/`, `features/` | [layout system](docs/layout-system.md), [solver and data contracts](docs/solver-and-data-contracts.md) |
+| Operator CLI | `src/papyrus/`, `src/papyrus_content/cli.py` | [operator CLI](docs/operator-cli.md), [CLI login](docs/cli-login.md) |
+| Packaging | `packages/`, `release.config.cjs` | [releasing](docs/releasing.md) |
+
+Other code: `corpora/` (one-time doctrine and steering imports), `features_backend/` (behave specs, 70-plus features), `features/` (cucumber layout specs), `skills/` and `.agents/skills/` (agent workflows), `scripts/` (TypeScript tests), `src/papyrus_newsroom` and `src/papyrus_knowledge_query` (Python newsroom libraries).
+
+## Git workflow
+
+Git Flow. Agents commit, push and open pull requests as normal delivery.
+
+- Branch from `origin/develop`, named after the Kanbus issue: `feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...`, `docs/...`, `board/...` (a `cursor/` prefix when host tooling requires it).
+- Never commit to `develop` or `main` directly. Work lands on `develop` by pull request, merged with a **merge commit** once CI is green.
+- Board-only changes (the `project/` directory) are small `board/<slug>` branches and pull requests, merged the same way; in practice that is what the history shows. If a board change belongs to an implementation, include it in that PR.
+- Conventional commits: `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`. Only `feat:`, `fix:` and breaking changes release; `chore:` and `docs:` do not. Never amend or force-push a commit that may have reached `develop` or `main`.
+- Commits end with the attribution line your tool is configured to add; pull request bodies end with the tool's generated-with line.
+- **Promotion to `main`** is a pull request `develop` to `main` with a merge commit. Never promote, or merge to `main`, without an instruction in your task or from a human. Standing instruction (Ryan, 2026-10-18): once CI is green, agents may promote `develop` to `main`, let the release publish, and open and merge the version-bump pull requests on the Papyrus test sites without asking again. Never touch Anth.us. Never change this rule yourself.
+- Stage deliberately; trees are often dirty. Never `git add -A` while someone else's work is in flight.
+- Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change reached `develop` and whether a `develop` to `main` PR exists.
+- When finished, remove your worktree: `git worktree remove <path>` from the shared checkout.
 
 ```bash
-cd ~/Projects/anthus-semantic-knowledge-base
-kbs list    # or: kanbus list
+cd ~/Projects/Papyrus && git fetch origin
+git worktree add -b docs/my-change ~/Projects/Papyrus-worktrees/my-change origin/develop
 ```
 
-Papyrus `develop` also mounts that repo as a git submodule at `pods/anthus-blog`. That path is live only after `git submodule update --init` in a checkout that has `.gitmodules`. The default `~/Projects/Papyrus` tree is often a feature branch whose `pods/anthus-blog` is still the old **empty template**. If `kbs list` shows no stories, you are in the stale copy. Do not conclude the board is empty. Do not use anything under Anth.us `src/blog/` as the publication board.
+## Hard rules
 
-## Project management with Kanbus
+- **Never run a reconcile without the deployed plugin list, and never use `--allow-deletions`** unless a refusal was reviewed and the deletions are intended. `papyrus ops content project --reconcile` (not a dry run) refuses when the plugin list it would use is unknown or differs from the deployed one (`PAPYRUS_PLUGINS`, or `custom.papyrusPlugins` in `amplify_outputs.json`), and never deletes pages under a known plugin's prefix (#594; spec `features_backend/projection-reconcile-plugin-pages.feature`). Always run `--reconcile --dry-run` first.
+- **Projections take the projection lease** (`papyrus-projection-locks`, one projection per site bucket at a time). Never bypass it, and clear a stuck lease only after confirming the holder is gone ([lease](docs/site-hosting.md#projection-lease-one-projection-at-a-time)). Snapshots and projections run only from a checkout whose `origin/main` is current: a stale checkout once deleted 282 wiki pages.
+- **Secrets go in SSM SecureString** (generated by infrastructure code, or `papyrus site google-secrets set`), never in the repository, `site.json`, branch variables or chat. **No real email addresses in the repository**: use placeholders (`newsletter@<sendingDomain>`); allowlists live in AWS configuration.
+- **Shared checkouts: never switch branches, never `git stash`.** Use worktrees. Remove them when done.
+- **Production AWS**: use `AWS_PROFILE=papyrus-production` and assert the account (`aws sts get-caller-identity --query Account --output text` prints `712236451410`) before any write. Never run `ampx pipeline-deploy` locally. Stack changes go through a CloudFormation change set that a human reads. `aws sso login` is interactive; only the user can run it.
+- **GA4 consent is the Anth.us standard**: Consent Mode v2 with the first-party banner. `analytics_only` exists but stays **off** on every site.
+- **Human review is never a story state.** Do not add a "review" stage to a content item; human review is a review request ([review requests](docs/review-requests.md)).
+- **Never create Cognito password users**; sign-in is Google only.
+- **Reader steering stays closed in production** until Prospectus returns a site subject; do not add a flag to open it.
+- Subject areas, corpus names and categories never go into application logic; the pilot-identifier guard (`procedures/guards/check_pilot_identifiers.py`) fails CI on new ones.
+- Ask before changing shared infrastructure (see Ownership).
 
-Use Kanbus for task management.
-Why: Kanbus task management is MANDATORY here; every task must live in Kanbus.
-When: Create/update the Kanbus task before coding; close it only after the change lands.
-How: See CONTRIBUTING_AGENT.md for the Kanbus workflow, hierarchy, status rules, priorities, command examples, and the mistakes to avoid. Never inspect project/ or issue JSON directly (including with cat or jq); use Kanbus commands only.
-Performance: Prefer kbs (Rust) when available; kanbus (Python) is equivalent but slower.
-Warning: Editing project/ directly violates The Way. Do not read or write anything in project/; work only through Kanbus.
-Git / PR policy: Rules for product-code commits, branch names, pull requests, and human approval live in this repository's AGENTS.md (outside this Kanbus section). CONTRIBUTING_AGENT.md covers Kanbus board mechanics such as `kbs commit`; follow AGENTS.md for product code and git workflow.
+## Common tasks
 
-## Purpose
+Run from a worktree. Python commands use `poetry run` (or the Poetry virtualenv's Python with `PYTHONPATH=src`).
 
-Papyrus is a general-purpose automated newsroom: a Next.js/React newspaper layout lab built on `@chenglou/pretext` plus a Python newsroom of research, reporting and copywriting agents. The AI/ML corpus and editions are pilot configuration. Never bake a subject area, corpus name, classifier id or content category into application logic. Pretext owns text measurement; Papyrus owns everything around it. Background: [docs/how-papyrus-works.md](docs/how-papyrus-works.md).
+### Install and run the tests
 
-## Git workflow (mandatory)
+```bash
+npm ci
+poetry install --extras "newsroom markus priming" --with cyclotron
+echo '{}' > amplify_outputs.json                 # git-ignored stub for the type check
+npm run typecheck && npm run lint
+npm run test:bdd:backend                          # behave over features_backend/
+poetry run behave features_backend/projection-reconcile-plugin-pages.feature
+poetry run pytest -q procedures/newsroom/tests/test_ideas.py
+npm run test:schema-parity
+npm test                                          # all TypeScript and Lambda tests
+python procedures/guards/check_pilot_identifiers.py
+```
 
-Git Flow. Agents commit, push and open PRs as normal delivery.
+Cucumber layout specs need Playwright (`npx playwright install --with-deps chromium`, then `npm run test:bdd`). Live-agent specs (`test:bdd:agent-live`) call real models; do not run them without being asked. Full list: [verification](docs/verification.md), [Python CLI and testing](docs/python-cli-and-testing.md).
 
-- Branch from `origin/develop`, named after the Kanbus issue: `feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...` (a `cursor/` prefix when host tooling requires it).
-- Never commit implementation to `develop` or `main`. It lands on `develop` by pull request.
-- `project/` changes and spec-only Gherkin go straight to `develop`, no PR. If they belong with an implementation, include them in that PR.
-- Never merge to `main` or open or merge `develop -> main` without explicit human instruction. Standing instruction (Ryan, 2026-10-18, project thread): once CI is green, agents may promote `develop` to `main`, let the release publish, and open and merge the version-bump PRs on the Papyrus test sites without asking again. Never touch Anth.us. Never merge a change to this rule yourself.
-- Conventional commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`, `ci:`). Never amend or force-push a commit that may have reached `develop` or `main`. If you committed to either by mistake, stop and ask.
-- Stage deliberately; the tree is often dirty. Never `git add -A` while someone else's work is in flight.
-- Done means pushed, with the branch, PR link and verification recorded on the Kanbus issue. Report whether the change has landed in `develop` and whether a `develop -> main` PR exists.
+### Preview the console locally
 
-## Rules, each with its enforcement
+```bash
+npm run dev:preview        # seeded, no AWS: http://127.0.0.1:3002/newsroom/work
+npm run dev:127            # real backend via amplify_outputs.json: http://127.0.0.1:3001
+```
+
+If the user is already running the dev server on 3001, use it and do not restart it.
+
+### Bump the Papyrus pin in a site
+
+After a release is published (`npm view @anthusai/papyrus dist-tags`), edit the same exact version in four files of the site repository, in one pull request:
+
+- `package.json` (`@anthusai/papyrus`)
+- `infra/package.json` (`@anthusai/papyrus`)
+- `infra/site.json` (`papyrusVersion`)
+- `requirements-publication.txt` (`papyrus-newsroom[markus]==X.Y.Z`)
+
+Run `npm install` in both places to refresh the lockfiles. A release that changes the schema or functions deploys the backend with the site, so read the release notes. Merging to the site's `main` deploys it (see README, "How a change reaches production"). Pin stable versions; the `next` tag is for trying a prerelease.
+
+### Deploy
+
+- **A site**: merge its pull request to `main`. Public repositories deploy through Actions OIDC, private ones in AWS. The deploy re-renders the site.
+- **App-shell stack**: `cd infra/amplify-app-shell && npm ci`, then `SITE=/abs/path/infra/site.json AWS_PROFILE=papyrus-production npm run diff`, then `npm run deploy` after a human has read the diff.
+- **Shared stacks** (`papyrus-monitoring`, `papyrus-procedure-runner`, edge, newsletter sending): hand-run with a change set (`aws cloudformation create-change-set`, then `describe-change-set`, then execute). Each README says which parameters to pass.
+- **Engine**: promote `develop` to `main` (see Git workflow); the release publishes the packages. The engine itself deploys nothing to a site.
+
+### Re-project safely
+
+```bash
+papyrus ops content project --reconcile --dry-run     # what is behind; deletes nothing
+papyrus ops content project --reconcile               # repair; needs the deployed plugin list
+papyrus ops content project --all                     # full re-render; never deletes
+```
+
+Export the AWS credentials first if the CLI cannot refresh SSO (`eval "$(aws configure export-credentials --profile papyrus-production --format env)"`). A failed projection never fails a save: look at the dead-letter queue and run the dry run ([runbook](docs/site-hosting.md#operations-runbook)).
+
+### Register a site procedure
+
+From the site repository root:
+
+```bash
+papyrus procedures register --file procedures/<name>.tac --key <site>.<monitor>.<name> --dry-run --json
+papyrus procedures register --file procedures/<name>.tac --key <site>.<monitor>.<name>
+```
+
+It validates the procedure with Tactus, derives the parameter schema from its `input` block, bundles the skills its agents name, and stores a new published version (an unchanged digest changes nothing). To start it from a monitor, add `procedureTriggers` and `openaiKeyParameter` to the site's router publication ([procedure runner](docs/procedure-runner.md)).
+
+### Create or change an automation
+
+```bash
+papyrus automations list
+papyrus automations create --id <site>.<name> --title "..." --monitor <monitor> --publication <site> \
+  --procedure <procedure key> --input '{"field":"{placeholder}"}' --dry-run
+papyrus automations update --id <site>.<name> --enabled false --max-concurrent 4 --budget-usd 5
+papyrus automations run --id <site>.<name> --input '{...}' --dry-run
+papyrus automations runs --id <site>.<name> --limit 20
+```
+
+`create`, `update` and `run` need `papyrus login` (editor or admin) or `PAPYRUS_GRAPHQL_AUTH=iam`. Only monitor triggers start anything today ([automations](docs/automations.md)).
+
+### Add a site to the Hacker News routing
+
+1. Add the site's AppSync API id as a parameter and its Reference intake and `relevance_decision_is` grants to `infra/monitoring/papyrus-monitoring.yaml` (follow `RouterDataParadeIntakePolicy` and `RouterDecisionRelationPolicy`; the role's inline policy is size-limited, so use managed policies).
+2. Create a change set for `papyrus-monitoring` and read it first.
+3. Add the publication to the router config and seed it (the validator refuses a config the router would reject):
+
+   ```bash
+   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table <table> --file router.json --replace
+   ```
+
+   The table name is in SSM `/papyrus/monitoring/table-name`. The publication entry needs `publicationId`, `site` and `appsyncEndpoint`; the site's backend must have exactly one canonical `KnowledgeCorpus`. Keep `mode: dry-run` until the Cyclotron has an output `<publicationId>-relevance` with labels `include` and `exclude`, then flip with `--set mode=live`.
+4. Tell the owner of the shared Cyclotron and of monitoring (see Ownership). Details: [monitoring in the cloud](docs/monitoring-cloud.md#the-router-step-4).
+
+### Start a new Papyrus site
+
+The twelve steps are in [README.md](README.md#start-a-new-papyrus-site). The traps: `infra/site.json` must have an `aws` block; the app shell is deployed from this repository's `infra/amplify-app-shell`, not from the site; the four pins must match; Google secrets are set with `papyrus site google-secrets set`; a site with CMS routes behind its own CloudFront needs the Lambda@Edge 404 handler, not `CustomErrorResponses`; and the mission doctrine is data in the backend (`papyrus sections doctrine set`), never a file in the repository.
+
+### Run the weekly knowledge run
+
+Local: [workstation runbook](docs/knowledge-workstation-run.md). Cloud: `aws stepfunctions start-execution --state-machine-arn <arn> --name manual-$(date -u +%Y%m%dT%H%M%S) --input '{"publication":"shipped"}'` ([cloud run](docs/knowledge-cloud-run.md#operating-it)). Both write through the projection lease.
+
+## Board conventions (Kanbus)
+
+`kbs` (Rust) is the board CLI; `kanbus` (Python) is equivalent but slower. Never read or edit `project/` directly, and never `cat` or `jq` issue JSON ([CONTRIBUTING_AGENT.md](CONTRIBUTING_AGENT.md) has the full workflow).
+
+- Run every board command as `KANBUS_REALTIME_BROKER=off kbs ...`. It turns the realtime broker off, which agent sessions do not need.
+- Statuses: `open` to `in_progress` to `closed`. A move from `open` to `blocked` is not allowed: go through `in_progress` first, then block.
+- `kbs update` does not take `--agent-*` provenance flags on every installed version; if it rejects them, drop them. On `kbs create`, pass `--no-agent-provenance` to silence the provenance warning.
+- Hierarchy: initiative, epic, task, sub-task; bug, story and chore hang under any of them. Read ids from the `kbs` output (a create prints the new id; `kbs show <id>` prints the parent).
+- Board changes go in via a `board/<slug>` pull request. Record the branch, PR link and verification on the issue before closing it.
+- Human review is never a status: use review requests ([docs](docs/review-requests.md)).
+- Ryan's board names: the **newsroom board** or **Papyrus board** means the Anth.us publication board (Kanbus key `ANTH`, repository `AnthusAI/anthus-semantic-knowledge-base`, checked out at `~/Projects/anthus-semantic-knowledge-base`); the **product board** or **PPY board** is this repository's. `pods/anthus-blog` is a submodule of that repository, live only after `git submodule update --init`; if `kbs list` there shows no stories you are in the stale empty template.
+
+## Rules, each with its enforcement (layout, content, newsroom, CLI)
 
 "Unenforced" means no test, lint or CI check fails when the rule is broken; review is the only guard. Full text: [docs/agent-rules-detail.md](docs/agent-rules-detail.md).
 
@@ -96,7 +240,7 @@ Module boundaries and solver flow: [docs/solver-and-data-contracts.md](docs/solv
 | Assignments are private `Assignment` records, never `Item` rows. Lifecycle changes append `AssignmentEvent` rows. | `npm run test:identity-pool-model-access` keeps `Assignment` and `MessageThread` off the identity pool; `features_backend/assignment-management.feature` covers create, list and update. `AssignmentEvent` audit rows are unenforced. |
 | Research and reporting produce private `Message` packets with `ModelAttachment` payloads, linked `Assignment --produces--> Message`. Only copywriting creates reader-facing draft copy. | Unenforced. `features_backend/research-reporting-context.feature` covers orientation traces only. |
 | Reporting review (`select`, `merge`, `brief`, `hold`, `kill`) never creates `EditionItem`; edition placement is a later layout step. | `features/newspaper-layout.feature` ("reviews reporting packets without publishing placement"). |
-| Only current accepted `Reference` rows feed evidence sets, analysis, desk memory, context packs and edition planning. Packet `proposedReferences` are prospects until intake registers them. | `is_evidence_eligible_reference` in `src/papyrus_newsroom/reference_policy.py` is the single gate where callers use it; coverage of every consumer is unenforced. See `skills/reference-intake/SKILL.md`. |
+| Only current accepted `Reference` rows feed evidence sets, analysis, publication memory, context packs and edition planning. Packet `proposedReferences` are prospects until intake registers them. | `is_evidence_eligible_reference` in `src/papyrus_newsroom/reference_policy.py` is the single gate where callers use it; coverage of every consumer is unenforced. See `skills/reference-intake/SKILL.md`. |
 | Corpus contents stay in Biblicus and S3. GraphQL holds steering state, strict `Reference` metadata and `item_id` references only. | Unenforced. |
 | Doctrine, not code, carries subject assumptions. No corpus name, classifier id or category in `/newsroom`, the content CLI, GraphQL models or layout code. | Unenforced. Known violations are tracked under epic PPY-36270a. |
 | Rejected steering proposals are exported (`export-steering-feedback`) before each new proposal cycle. | Unenforced. See [docs/category-steering-runbook.md](docs/category-steering-runbook.md). |
@@ -115,10 +259,35 @@ Workflows for agents live in `skills/`: `edition-planning`, `newsroom-story-cycl
 
 Details: [docs/operator-cli.md](docs/operator-cli.md).
 
+## Ownership and coordination
+
+Roles as of 2026-10-23. Ryan decides priorities; when unsure who owns a thing, ask in the session that started it rather than guessing.
+
+- **Engine (this repository)**: the Papyrus implementation sessions. Releases are cut here; site sessions consume them by pin.
+- **Site repositories**: each site has its own implementation session (for example the Shipped session owns shipped.anth.us and `AnthusAI/Shipped-web`). Do not change a site repository from an engine task except for an agreed pin bump.
+- **Shared infrastructure**: `papyrus-monitoring` (collectors, router, its AppSync grants), `papyrus-procedure-runner`, the knowledge run and projection lease table, the edge stacks and the newsletter sending stacks serve several sites. Tell Ryan and the session that last changed the stack before a change set is executed, and never run two deploys of one stack at once.
+- **Prospectus**: tell the Prospectus session before merging to Prospectus `main`; deploys must not overlap. Anth.us is never touched without explicit instruction.
+- **Cyclotron**: the shared relevance Cyclotron belongs to the Cyclotron sessions. Adding a publication output or binding is a request to them.
+- **Spend**: use the models a task names; do not start paid or model-calling runs that were not requested.
+
+## Current state (2026-10-23)
+
+- **Live**: standard Markus projector and the edge handler on Markus sites; newsletters on Shipped; reader-steering code and Proposals (reader writes closed in production); monitoring and router (dry-run or live per the router config); procedure runner for Distinctive Mark's TTAB analysis; automations slices 1 and 2; the cloud knowledge run (Shipped first); GA4 with Consent Mode v2.
+- **Merged, awaiting a release and a data API deploy per site**: review requests and the Notification Center home (#642, PPY-ab6a50 and PPY-1cd261, under PPY-9ff95b).
+- **In progress**: the idea pipeline beyond v0 (PPY-8ffc18: scheduling and weekly trends; unattended runs cannot file Proposals because `fileProposal` is not open to IAM); outbound newsletters beyond Shipped (PPY-31455f); publication-agnostic Monitoring (PPY-2d77c8).
+- **Planned**: automation outputs go to review by default (PPY-2b4bda); schedule, event and manual automation triggers; Data Parade binding into the shared Cyclotron (PPY-cad5f6, blocked); votes and flags checking that their subject exists (PPY-d9e384).
+- **Known stale docs**: `docs/standard-site.md` and `packages/README.md` still describe the packages as a spike that publishes nothing (they publish; see `docs/releasing.md`); `docs/newsletter.md` opens with "not yet enabled on any site" (Shipped has it on). Prefer README.md and the topic pages when they disagree.
+
+Epics and ids: PPY-9ff95b (automation), PPY-991a32 (Shipped engine support), PPY-bcfd2d (standard front end), PPY-1f1489 (four-site alignment), PPY-ad3da5 (one content item, one lifecycle).
+
+## Where things live
+
+- Documentation: [docs/README.md](docs/README.md), grouped by task.
+- The board: Kanbus project `PPY` (`KANBUS_REALTIME_BROKER=off kbs list`); the wiki under `project/wiki/` is the only part of `project/` you may edit directly.
+- Skills for agents: `skills/` and `.agents/skills/`.
+
 ## Verification
 
 Before opening a PR run what the change touches: `npm run lint`, `npm run typecheck`, `npm run build`, `npm run test:bdd`, `npm run test:bdd:backend`, `npm run test:bdd:operator-cli`, and the relevant `npm run test:*` scripts. Amplify, archive and browser smoke checks: [docs/verification.md](docs/verification.md). CI runs `.github/workflows/tests.yml` (not every local script is wired in). Use the dev server on port 3001 if the user is running it, and do not restart it.
 
-## Index
-
-Everything else is in [docs/README.md](docs/README.md): architecture, layout, hosting, newsroom operations, runbooks and archives. Kanbus mechanics are in [CONTRIBUTING_AGENT.md](CONTRIBUTING_AGENT.md).
+Everything else is in [docs/README.md](docs/README.md). Kanbus mechanics are in [CONTRIBUTING_AGENT.md](CONTRIBUTING_AGENT.md).

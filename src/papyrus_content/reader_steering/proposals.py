@@ -2,8 +2,9 @@
 
 A proposal is stored by the ``reader-actions`` function (``amplify/plugins/reader-steering/function/proposals.py`` owns the
 record and its transitions). The snapshot turns the stored rows into ``_data/proposals/index.json`` and one
-``_data/proposals/<id>.json`` per proposal. Every state is published, each labelled, so a site can show drafts, what is in
-steering and what an editor decided. Nothing private reaches the files: not the proposer's siteSubject, not the staff
+``_data/proposals/<id>.json`` per proposal, but only for a site that opts in with ``proposals.publish`` (the snapshot task
+skips this module otherwise, and proposals stay private). When published, every state is published, each labelled, so a site
+can show drafts, what is in steering and what an editor decided. Nothing private reaches the files: not the proposer's siteSubject, not the staff
 member's id. The proposer reads "AI" (or "Reader"), and a state change reads "Editor" for a decision and "Staff" otherwise.
 
 Votes belong to the vote model. Until it publishes up, down and net per subject, :class:`VoteCounts` reads whatever the

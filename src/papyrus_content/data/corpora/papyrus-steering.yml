@@ -8,7 +8,7 @@ corpora:
   - key: "threat-intelligence"
     name: "threat-intelligence"
     path: "corpora/threat-intelligence"
-    s3Prefix: "s3://amplify-d3on1y5vlrxmam-ma-papyrusmediabucket0dab24-vq9lqoedok0k/corpora/threat-intelligence/"
+    s3Prefix: "s3://amplify-d12wnrx15qbcc2-ma-papyrusmediabucket0dab24-qr8gvsc26b09/corpora/threat-intelligence/"
     role: "canonical"
     localClassifiers:
       - classifierId: "threat-intelligence"
@@ -29,5 +29,5 @@ relevanceCyclotron:
   optimizer: null
   store:
     localPath: "var/cyclotrons/papyrus-relevance"
-    s3Prefix: "s3://amplify-d3on1y5vlrxmam-ma-papyrusmediabucket0dab24-vq9lqoedok0k/cyclotrons/papyrus-relevance/"
+    s3Prefix: "s3://amplify-d12wnrx15qbcc2-ma-papyrusmediabucket0dab24-qr8gvsc26b09/cyclotrons/papyrus-relevance/"
   maxRequestsPerSweep: 30

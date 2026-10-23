@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "currency": "USD",
+  "note": "Estimated list prices per million tokens, used to put a cost on a procedure run. An estimate, not a bill. A model missing here is reported as unpriced, never as free. Edit this file to add or correct a model; no code changes.",
+  "models": {
+    "gpt-6-luna": {
+      "inputUsdPerMtok": 0.10,
+      "outputUsdPerMtok": 0.50,
+      "cachedInputUsdPerMtok": 0.01,
+      "aboveInputTokens": 272000,
+      "aboveInputUsdPerMtok": 0.20,
+      "aboveOutputUsdPerMtok": 0.75,
+      "source": "LiteLLM model price table (standard tier), read 2026-10-11"
+    }
+  }
+}

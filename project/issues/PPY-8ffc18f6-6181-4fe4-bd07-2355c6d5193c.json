@@ -3,7 +3,7 @@
   "title": "Idea pipeline: research digest, weekly trends, idea synthesis into Proposals (L)",
   "description": "Scheduled jobs that turn research into story ideas filed as Proposals. This subsumes the trend story pipeline (PPY-fb4dfa). Smallest first version: the daily digest and the idea-synthesis job filing story_draft Proposals with a fixed ideas-per-week limit; weekly trends and section quotas follow once the first Proposals have been judged.\n\nScope:\n- A daily digest of newly accepted research, grouped by cluster and entity.\n- Weekly trends from the knowledge history archive (rising clusters, new concepts, momentum), run after the knowledge run.\n- Idea synthesis that reads the digest, the trends and existing published or in-flight stories (using the similarity index when available), and files story_draft Proposals with cited signals and a novelty reason.\n- Site knobs: ideas per week, section quotas, priority for uncovered sections.\n- An approved idea becomes a story in its first state, which triggers the story-state triggers story.\n- All three are automations on the run contract, outputs to review by default.\n\nAcceptance criteria:\n- The digest, trends and synthesis jobs run on schedule as automations and record runs.\n- Each filed Proposal cites its signals and gives a novelty reason; the weekly limit and section quotas are honoured.\n- Approving a story_draft Proposal creates a story in its first state.\n- Gherkin specs (narrative, complete) required.\n\nDepends on the human review points story, the story-state triggers story and the automation records story (PPY-2e6e2b). PPY-fb4dfa is folded into this story.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -25,9 +25,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "36420a83-8d14-4ffd-8b7c-6965175e8370",
+      "author": "home",
+      "text": "v0: digest + synthesis on the Anthus sites; ideas stored as private draft Proposals; weekly trends come later.",
+      "created_at": "2026-10-23T10:47:43.086349Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T06:21:29.259854Z",
-  "updated_at": "2026-10-23T06:22:17.910929Z",
+  "updated_at": "2026-10-23T10:47:43.086375Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

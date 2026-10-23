@@ -1,6 +1,6 @@
 Feature: Proposals to change the map
   AI proposes a change to the map: a story draft, a new concept, a rename, a merge, a split, a new column or an element symbol.
-  The proposal is a public record from the moment it is filed. It is labelled as a draft and as proposed by AI, readers steer it
+  On a site that publishes its proposals (the proposals.publish setting, off by default) the proposal is a public record from the first snapshot after it is filed. It is labelled as a draft and as proposed by AI, readers steer it
   with votes, and an editor decides. A proposal moves through draft, in steering and editor review to approved, declined or
   overridden by editor, and no other road is open. An editor who overrides the community must give a public reason, and readers
   see both results. The public files never name the proposer or the staff member who acted.

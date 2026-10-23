@@ -9,7 +9,7 @@ release number. Publishing uses npm and PyPI trusted publishing (OIDC); there is
 
 - Commit with conventional commits (`feat:`, `fix:`, `feat!:` or `BREAKING CHANGE` for real breaks).
 - A push to `develop` publishes a prerelease `X.Y.Z-next.N` (npm dist-tag `next`; PyPI `X.Y.Z.devN`).
-- A push to `main` publishes the stable version. Agents never merge to `main`.
+- A push to `main` publishes the stable version. `main` only changes by a `develop` to `main` pull request with a merge commit. Under the standing instruction in `AGENTS.md` (Git workflow), agents may promote `develop` to `main` once CI is green and let the release publish; without that instruction, or a human asking, they do not.
 - Versions are stamped into the staged copies only; nothing is committed back.
 - Do not hand-tag. Semantic Release picks the first version (`1.0.0-next.1`).
 

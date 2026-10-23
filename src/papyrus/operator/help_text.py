@@ -17,12 +17,14 @@ Operator groups:
   sections      Newsroom section maintenance
   editions      Edition planning
   procedures    Tactus and policy commands
-  automations   Automation records: list, show, runs, create, update
+  automations   Automation records: list, show, runs, run (now), create, update
+  reviews       Human review points: list, show, raise, answer, withdraw, wait, steering, recipients
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
   reader        Reader steering exports (reader feedback export)
   proposals     File, decide and publish map proposals (proposals create|list|show|transition|publish)
+  ideas         Digest recent references and synthesise private story ideas (ideas digest|synthesize)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)

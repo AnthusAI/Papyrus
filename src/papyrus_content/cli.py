@@ -112,6 +112,7 @@ from .item_content_commands import (
 )
 from .dev_tests import run_category_mapper_tests, run_identifier_backfill_tests
 from .form_submissions_commands import messages_handle, messages_list
+from .ideas.commands import ideas_command
 from .proposals_commands import proposals_command
 from .reader_commands import reader_feedback
 from .messages_commands import (
@@ -375,6 +376,16 @@ PORTED_COMMANDS = frozenset(
         "automations:runs",
         "automations:create",
         "automations:update",
+        "automations:run",
+        "reviews:list",
+        "reviews:show",
+        "reviews:raise",
+        "reviews:answer",
+        "reviews:withdraw",
+        "reviews:wait",
+        "reviews:steering",
+        "reviews:applied",
+        "reviews:recipients",
         "newsroom:purge-planning",
         "relations:import-types",
         "relations:backfill",
@@ -388,6 +399,8 @@ PORTED_COMMANDS = frozenset(
         "ontology:recompute-authority",
         "ontology:doctor",
         "reader:feedback",
+        "ideas:digest",
+        "ideas:synthesize",
         "proposals:create",
         "proposals:list",
         "proposals:show",
@@ -778,6 +791,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif group == "automations":
         from .automations import run_command as automations_command
         automations_command(command, flags)
+    elif group == "reviews":
+        from .review_requests import run_command as reviews_command
+        reviews_command(command, flags)
     elif route == "newsroom:purge-planning":
         newsroom_purge_planning(flags)
     elif route == "relations:import-types":
@@ -819,6 +835,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
             raise ValueError(f"Unsupported ontology command: {route}")
     elif route == "reader:feedback":
         reader_feedback(flags)
+    elif route.startswith("ideas:"):
+        ideas_command(command, flags)
     elif route.startswith("proposals:"):
         proposals_command(command, flags)
     elif route == "messages:list":
@@ -1652,7 +1670,8 @@ def print_usage() -> None:
     print("  assignments list, analysis profiles/validate-profiles/reindex-plan/preview-reindex/")
     print("  create-reindex-assignment/run-now/execute-assignment (auto sync-from-cloud when local catalog is stale;")
     print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/doctor-entity-graph,")
-    print("  automations list|show|runs [--id ID] [--limit N] [--json] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
+    print("  reviews list|show|raise|answer|withdraw|wait|steering|applied|recipients [--id ID] [--mode flag|soft_review|hard_gate] [--decision approve|reject|feedback] [--feedback T] [--steer adjust|not_this_kind] [--json],")
+    print("  automations list|show|runs [--id ID] [--limit N] [--json] / run --id ID [--input JSON] [--dry-run] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")

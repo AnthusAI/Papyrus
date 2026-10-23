@@ -8,7 +8,7 @@ corpora:
 - key: pilobol-us
   name: Pilobolus Field Notes Corpus
   path: corpora/pilobol-us
-  s3Prefix: s3://amplify-d11eu9hbs2mipk-ma-papyrusmediabucket0dab24-nictgfucsrga/corpora/pilobol-us/
+  s3Prefix: s3://amplify-d1eiwl0gedkmnj-ma-papyrusmediabucket0dab24-nke2rnsdqes7/corpora/pilobol-us/
   role: canonical
   localClassifiers:
   - classifierId: pilobol-us
@@ -16,7 +16,7 @@ corpora:
 - key: pilobol-us-source
   name: Pilobolus Source Intake
   path: corpora/pilobol-us-source
-  s3Prefix: s3://amplify-d11eu9hbs2mipk-ma-papyrusmediabucket0dab24-nictgfucsrga/corpora/pilobol-us-source/
+  s3Prefix: s3://amplify-d1eiwl0gedkmnj-ma-papyrusmediabucket0dab24-nke2rnsdqes7/corpora/pilobol-us-source/
   role: source
   localClassifiers:
   - classifierId: pilobol-us-source

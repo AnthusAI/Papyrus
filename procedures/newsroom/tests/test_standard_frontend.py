@@ -630,7 +630,7 @@ def test_entry_model_extends_the_public_entry(flat):
     assert site_index is not None
     entries = {entry.slug: entry for entry in projector._entries(site_index)}
     moss = entries["moss"]
-    assert [author.name for author in moss.authors] == ["Ada Fern", "Bo Reed"] and moss.updated == "2026-01-19" and moss.type == "article"
+    assert moss.authors == ("Ada Fern", "Bo Reed") and [author.name for author in moss.author_details] == ["Ada Fern", "Bo Reed"] and moss.updated == "2026-01-19" and moss.type == "article"
     assert entries["ferns"].updated == "2026-02-01" and entries["algae"].feed_eligible is False
     assert entries["cycads"].noindex and not entries["cycads"].listed
     assert entries["about"].type == "page" and not entries["about"].listed and entries["about"].url == "/about.html"
@@ -1271,8 +1271,20 @@ def test_the_html_byline_links_an_author_with_a_url_and_escapes_names():
     from papyrus_content.authors import Author
     from papyrus_content.projection.standard.components import byline
 
-    entry = SimpleNamespace(authors=(Author("Ryan <R>", "/ryan"), Author("Eve Stone")), date="")
+    entry = SimpleNamespace(author_details=(Author("Ryan <R>", "/ryan"), Author("Eve Stone")), date="")
     assert byline(entry) == '<p class="markus-byline"><span class="markus-byline-authors"><a href="/ryan">Ryan &lt;R&gt;</a>, Eve Stone</span></p>'
+
+
+def test_site_hooks_can_join_entry_authors_as_names_for_every_form(authored):
+    entries = {entry.slug: entry for entry in authored.projector._entries(authored.context.source.site_index())}
+    assert ", ".join(entries["by-string"].authors) == "Ann Lee, Bo Reed"
+    assert ", ".join(entries["by-list"].authors) == "Cy Marsh, Di Wood"
+    assert ", ".join(entries["by-objects"].authors) == "Ryan Porter, Derek Norrbom, Eve Stone"
+    assert entries["anonymous"].authors == ()
+    assert all(isinstance(name, str) for entry in entries.values() for name in entry.authors)
+    assert [(a.name, a.url) for a in entries["by-objects"].author_details][:2] == [
+        ("Ryan Porter", "/ryan"), ("Derek Norrbom", "https://www.linkedin.com/in/dereknorrbom/")]
+    assert str(entries["by-objects"].author_details[0]) == "Ryan Porter"
 
 
 def test_public_data_lists_author_names_for_every_form_and_omits_the_key_without_authors(authored):
