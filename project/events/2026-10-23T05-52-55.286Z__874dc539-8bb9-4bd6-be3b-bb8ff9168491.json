@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "874dc539-8bb9-4bd6-be3b-bb8ff9168491",
+  "issue_id": "PPY-54bd131c-6712-450a-8b87-01fbd3618904",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T05:52:55.286Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Remove desk vocabulary from procedures and procedure keys (S)",
+    "description": "'Desk' is retired vocabulary: Ryan said on 2026-10-21 to use 'section', and attribution is just 'AI'. It survives about 103 times across procedures/ and the procedure registry, including the CLI key edition-plan.rotating-desk and rotating_section_selector's header ('rotating desk selector').\n\nFix:\n- Rename to section wording, for example edition-plan.rotating-section.\n- Keep the old CLI key as a deprecated alias for one release.\n- Remove 'desk' from prompts, so AI output never echoes it.\n\nAcceptance:\n- A grep test: no 'desk' anywhere in procedures/ or the registry, apart from the alias line.\n- The old key still works and prints a deprecation note.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-S"
+    ]
+  }
+}

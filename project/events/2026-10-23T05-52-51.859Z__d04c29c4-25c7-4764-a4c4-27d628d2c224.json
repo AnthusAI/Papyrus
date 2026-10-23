@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d04c29c4-25c7-4764-a4c4-27d628d2c224",
+  "issue_id": "PPY-0d4984ac-a26c-4a5c-aad1-7f2e9015d31b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T05:52:51.859Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Procedure header declares its kind; validate registry against headers (S)",
+    "description": "Only email_submission_processor.tac declares '-- papyrus-procedure-kind: …'. Kinds and filenames disagree elsewhere (newsroom.reporting.context → reporter.tac; newsroom.research.explorer → research_explorer.tac), and nothing checks that a registered kind points at the right procedure.\n\nFix:\n- Every procedure's first line declares its kind.\n- At load and in CI, check that each registry entry's file declares the same kind.\n- Check that no two files declare the same kind.\n- Check that every CLI command in requiredCliProcedures resolves.\n\nAcceptance: a CI check that fails on any mismatch, with unit tests for each failure case.",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-S"
+    ]
+  }
+}

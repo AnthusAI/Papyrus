@@ -1,0 +1,22 @@
+{
+  "id": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
+  "title": "Site-supplied procedures: a contract for custom .tac files (M)",
+  "description": "Distinctive Mark ships its own procedure (Distinctive-web procedures/ttab_ruling_analysis.tac). There is no documented way for a site to register a custom procedure kind, have the CLI find it, or run it as a job.\n\nScope:\n- A site declares custom procedures in its config, as kind → path in the site repo.\n- They load with the same kind-header validation as core procedures.\n- A site kind cannot shadow a core kind unless that is explicitly allowed.\n- Site procedures run through either job runner: the cloud construct or the local pod.\n- Documented, with Distinctive's ttab_ruling_analysis as the worked example. Moving Distinctive onto the contract is that site's own story.\n\nAcceptance: Gherkin specs for declaring a procedure, loading it, the shadowing refusal, and running it from a site checkout.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-M"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-23T05:52:58.799799Z",
+  "updated_at": "2026-10-23T05:52:58.799868Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

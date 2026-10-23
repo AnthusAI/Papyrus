@@ -10,9 +10,17 @@
   "parent": null,
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "71cea3d3-2a05-4ebb-a30a-4b8e96767b06",
+      "author": "home",
+      "text": "Scope includes sites with no cloud backend: Papyrus sites that run from a local pod (for example Tactus-web) get the same background jobs through a local-pod runner (PPY-93faf2). Both runners share one job definition (PPY-433383). Order: packaging (PPY-e95a0c) → kind headers (PPY-0d4984) → desk cleanup (PPY-54bd13) → job definition (PPY-433383) → local-pod runner (PPY-93faf2) and site procedures (PPY-1b2edd).",
+      "created_at": "2026-10-23T05:53:20.103563Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T05:51:38.896492Z",
-  "updated_at": "2026-10-23T05:51:38.896590Z",
+  "updated_at": "2026-10-23T05:53:20.103589Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
