@@ -40,7 +40,7 @@ def test_submission_receipt_preserves_ses_authority_and_separates_legacy_command
     worker = resources["SubmissionFunction"]["Properties"]
     assert worker["Handler"] == "papyrus_content.email_submission_intake.handler"
     assert worker["Timeout"] == 120
-    assert worker["ReservedConcurrentExecutions"] == 1
+    assert worker["ReservedConcurrentExecutions"] == {"If": ["ReserveConcurrency", {"Ref": "ReservedConcurrency"}, {"Ref": "AWS::NoValue"}]}
     assert worker["Environment"]["Variables"]["EMAIL_RAW_PREFIX"] == "email-submissions/"
     assert worker["DeadLetterConfig"]["TargetArn"] == {"GetAtt": "FailureQueue.Arn"}
     assert resources["RawMailBucket"]["Properties"]["PublicAccessBlockConfiguration"]["BlockPublicPolicy"] is True
@@ -56,3 +56,12 @@ def test_submission_receipt_preserves_ses_authority_and_separates_legacy_command
     assert schedule["Targets"][0]["Arn"] == {"Ref": "RouterFunctionArn"}
     assert schedule["Targets"][0]["Input"] == {"Sub": '{"monitorId":"${MonitorId}"}'}
     assert resources["RouterInvokePermission"]["Properties"]["SourceArn"] == {"GetAtt": "RouterSchedule.Arn"}
+
+
+def test_receiver_can_rely_on_its_durable_lease_when_account_cannot_reserve_concurrency():
+    path = Path(__file__).resolve().parents[3] / "infra/email/papyrus-email-submissions.yaml"
+    template = yaml.load(path.read_text(), Loader=CloudFormationLoader)
+    parameter = template["Parameters"]["ReservedConcurrency"]
+    assert parameter["Default"] == 1
+    assert parameter["AllowedValues"] == [0, 1]
+    assert template["Conditions"]["ReserveConcurrency"] == {"Equals": [{"Ref": "ReservedConcurrency"}, 1]}

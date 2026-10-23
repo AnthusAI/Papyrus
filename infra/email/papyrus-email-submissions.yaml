@@ -22,6 +22,11 @@ Parameters:
   CodeKey:
     Type: String
     Description: Content-addressed zip from infra/monitoring/build.py --email.
+  ReservedConcurrency:
+    Type: Number
+    Default: 1
+    AllowedValues: [0, 1]
+    Description: 1 reserves one execution; 0 leaves it unreserved for low-quota accounts. The durable monitor lease still serializes intake.
   Enabled:
     Type: String
     Default: "false"
@@ -37,6 +42,7 @@ Parameters:
     AllowedValues: ["true", "false"]
     Description: Enable the routing sweep only after CONFIG#router is validated. Independent of receipt activation.
 Conditions:
+  ReserveConcurrency: !Equals [!Ref ReservedConcurrency, 1]
   EnableReceipt: !Equals [!Ref Enabled, "true"]
   EnableRouter: !Equals [!Ref RouterEnabled, "true"]
 Resources:
@@ -134,7 +140,7 @@ Resources:
       Code: {S3Bucket: !Ref CodeBucket, S3Key: !Ref CodeKey}
       Timeout: 120
       MemorySize: 256
-      ReservedConcurrentExecutions: 1
+      ReservedConcurrentExecutions: !If [ReserveConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
       DeadLetterConfig: {TargetArn: !GetAtt FailureQueue.Arn}
       Environment:
         Variables:

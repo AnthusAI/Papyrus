@@ -46,10 +46,34 @@
         "model": "gpt-6",
         "name": "email-intake"
       }
+    },
+    {
+      "id": "4cf90acd-d5af-4cb5-9ac8-73b690f3cebd",
+      "author": "home",
+      "text": "PR657 CI at 7a0a998b exposed two task-introduced integration failures: the new root test runner statically imports the app-shell stack, pulling its newer CDK-only API into root typecheck; and site-config imports cloud-email with eager CDK imports, bypassing the packaged optional-peer diagnostic. Reopening the same isolated worktree to fix both boundaries and run the actual package smoke path. Python CI is still running. No shared checkout, UI, AWS or DNS changes.",
+      "created_at": "2026-10-23T14:13:37.390961Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    },
+    {
+      "id": "b83aa60b-5d17-48ed-87de-8921c5840b34",
+      "author": "home",
+      "text": "CI corrections validated locally: separate pure cloud-email-config from CDK resources so package optional-peer checks remain intact; execute the infrastructure harness in a child process so root typecheck does not import the separately versioned stack. npm run typecheck and lint passed with root dependencies only. node packages/stage.mjs --version 0.0.0-smoke.1 and packages/verify-packages.mjs passed the actual isolated consumer install, optional-CDK diagnostic, upgrade and Python wheel checks. Infrastructure/intake tests: 35 passed; cloud-email BDD: 6 scenarios passed. Added tested ReservedConcurrency=0 option matching existing Monitoring for low-quota accounts; durable lease still serializes intake. Existing site config already gives AWS account/region/site IDs; current deployed router provides logical Account, Cyclotron and publication endpoint values. Operator decisions remain exact receiving addresses, initial publication membership, sender allowlist and ownership for domains without existing sending resources. Awaiting GitHub verification on the corrective commit; no merge/deploy.",
+      "created_at": "2026-10-23T14:18:03.615531Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-23T14:08:52.552420Z",
+  "updated_at": "2026-10-23T14:18:03.615566Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

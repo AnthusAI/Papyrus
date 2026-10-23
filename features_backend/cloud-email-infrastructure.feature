@@ -26,3 +26,8 @@ Feature: Cloud email is independent of newsletter subscriptions
     Given a cloud email infrastructure case named "receiver"
     When its infrastructure is synthesized locally
     Then its cloud email contract is satisfied
+
+  Scenario: A receiver supports accounts without spare Lambda concurrency reservations
+    Given a cloud email infrastructure case named "receiver"
+    When its infrastructure is synthesized locally
+    Then its cloud email contract is satisfied

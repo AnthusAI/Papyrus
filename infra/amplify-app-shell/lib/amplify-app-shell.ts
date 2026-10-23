@@ -3,7 +3,8 @@ import { ArnFormat, CfnOutput, Duration, Fn, Stack, StackProps } from "aws-cdk-l
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { SecureStringParameter } from "./secure-string-parameter";
-import { addCloudEmail, parseCloudEmail } from "./cloud-email";
+import { addCloudEmail } from "./cloud-email";
+import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";

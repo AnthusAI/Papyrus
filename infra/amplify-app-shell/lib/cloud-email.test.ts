@@ -62,3 +62,5 @@ export function runCloudEmailTests(selected?: string): void {
   else for (const check of Object.values(checks)) check();
   console.log("cloud email infrastructure: ok");
 }
+
+runCloudEmailTests(process.argv[2]);

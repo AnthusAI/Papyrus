@@ -1,4 +1,4 @@
-import { parseCloudEmail, type CloudEmailConfig } from "./cloud-email";
+import { parseCloudEmail, type CloudEmailConfig } from "./cloud-email-config";
 
 export type CmsRedirect = {
   source: string;

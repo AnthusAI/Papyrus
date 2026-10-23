@@ -84,7 +84,11 @@ this monitor. Enable only the desired components after testing fixture processin
 
 Inspect the failure queue/alarm and private Monitoring receipts for errors. The receiver has
 only raw-object reads and writes to its monitor partition, with no email sending, agent
-invocation, AppSync, or Cyclotron permissions. Its function has concurrency 1 and two
+invocation, AppSync, or Cyclotron permissions. Its function reserves concurrency 1 by
+default; set `ReservedConcurrency=0` where the account quota cannot reserve any.
+The durable per-monitor lease still serializes intake. Verify the current quota
+before deployment; Monitoring's runbook documents this constraint in production.
+The function has two
 asynchronous retries; the durable monitor receipt and discovery IDs make retries safe.
 
 No production resources, DNS, security policies or email were changed while implementing
