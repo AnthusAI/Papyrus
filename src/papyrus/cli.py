@@ -348,6 +348,12 @@ def _run_with_arguments(argv: list[str] | None) -> int:
             return 0
         _delegate_content("automations", command, flags)
         return 0
+    if group == "reviews":
+        if command is None:
+            print_group_help(group)
+            return 0
+        _delegate_content("reviews", command, flags)
+        return 0
     if group == "knowledge":
         if command is None:
             print_group_help(group)

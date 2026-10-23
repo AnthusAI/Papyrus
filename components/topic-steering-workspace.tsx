@@ -3004,7 +3004,7 @@ function NewsDeskDashboard({
     return entries;
   }, [summaryStatus, tabCounts]);
   const opsPageTitle = activeTab === "overview"
-    ? "Overview"
+    ? "Notification Center"
     : activeTab === "administration" && administrationPanel === "sections"
       ? "Sections"
       : formatDeskSectionHeadline(activeTab);
@@ -3062,8 +3062,11 @@ function NewsDeskDashboard({
 
         {activeTab === "overview" ? (
           <NewsroomOpsOverview
+            actorLabel={authState.label}
             assignments={assignments}
+            decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
             messages={messages}
             newsroomSections={newsroomSections}
             references={references}

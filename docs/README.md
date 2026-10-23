@@ -92,6 +92,8 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [console-chat-runbook.md](console-chat-runbook.md): the editor-only console chat on `/newsroom`.
 - [slack-agent.md](slack-agent.md): the Slack channel for the console agent.
 - [newsroom-organizer-release.md](newsroom-organizer-release.md): the organizer layout and read-only Board release.
+- [notification-center.md](notification-center.md): the CMS console home: review requests, Cyclotron items and the auto-decided stream; the ignore-safe principle.
+- [review-requests.md](review-requests.md): flags, timed soft reviews and hard gates; the model, the deadline, the CLI, the steering read-back and the idea-pipeline hook.
 - [automation-ai-ml-academic-research-dispatch.md](automation-ai-ml-academic-research-dispatch.md): the cron that dispatches AI/ML paper discovery.
 - [automation-chorus-code-review-research.md](automation-chorus-code-review-research.md): registering Chorus and starting two research assignments.
 

@@ -33,14 +33,22 @@ import {
   sortNewsroomSections,
 } from "../lib/newsroom-sections";
 import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
+import type { RelevanceDecisionView } from "../lib/relevance-decisions";
+import { NotificationCenter } from "./notification-center";
 
 type NewsroomOpsOverviewProps = {
   assignments: AssignmentRecord[];
+  actorLabel?: string;
+  decisions?: ReadonlyMap<string, RelevanceDecisionView>;
   demo?: boolean;
+  humanCuratedReferenceLineageIds?: ReadonlySet<string>;
   messages: MessageRecord[];
   newsroomSections: NewsroomSectionRecord[];
   references: ReferenceRecord[];
 };
+
+const NO_DECISIONS: ReadonlyMap<string, RelevanceDecisionView> = new Map();
+const NO_IDS: ReadonlySet<string> = new Set();
 
 type DestinationKey = Exclude<NewsroomNavTabId, "overview" | "desks">;
 
@@ -75,8 +83,11 @@ function recentMessageCount(messages: MessageRecord[]): number {
 }
 
 export function NewsroomOpsOverview({
+  actorLabel = "",
   assignments,
+  decisions = NO_DECISIONS,
   demo = false,
+  humanCuratedReferenceLineageIds = NO_IDS,
   messages,
   newsroomSections,
   references,
@@ -117,6 +128,13 @@ export function NewsroomOpsOverview({
       data-newsroom-ops-home="true"
     >
       <div className="space-y-8" data-newsroom-overview-feeds>
+        <NotificationCenter
+          actorLabel={actorLabel}
+          decisions={decisions}
+          demo={demo}
+          humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+          references={canonicalReferences}
+        />
         <section aria-label="Destinations" className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Go to</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

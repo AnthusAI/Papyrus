@@ -18,6 +18,7 @@ Operator groups:
   editions      Edition planning
   procedures    Tactus and policy commands
   automations   Automation records: list, show, runs, run (now), create, update
+  reviews       Human review points: list, show, raise, answer, withdraw, wait, steering, recipients
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands
