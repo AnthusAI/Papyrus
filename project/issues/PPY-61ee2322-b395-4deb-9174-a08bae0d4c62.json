@@ -3,7 +3,7 @@
   "title": "Consume shared Chatticus chat presentation in the newsroom console",
   "description": "As a signed-in editor, I want the newsroom console to consume the shared Chatticus chat surface so that chat UI is reused without cloning an agent engine.\n\nFeature: Shared newsroom chat presentation\n  Scenario: Render an editorial conversation\n    Given a signed-in editor has an active console conversation\n    When the newsroom renders its messages using the shared package\n    Then the editor sees their conversation and can send a message once\n    And Papyrus retains its current auth and editorial context adapter\n  Scenario: Preserve host context actions\n    Given a console conversation includes a Papyrus navigation action\n    When the editor selects that action\n    Then Papyrus handles the navigation without a Chatticus product dependency\n\nFirst slice of PPY-a438d0 / PPY-7962e3. Chatticus tracking: chatticus-abde29 / chatticus-080b0e. UI/client extraction is independent of the later server-runtime migration. Shared server, per-editor isolation and delegated tools remain separate acceptance gates. No deployment or registry publication authorized.",
   "type": "story",
-  "status": "open",
+  "status": "in_progress",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -25,10 +25,40 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "644540be-b840-497d-b662-c054194044cc",
+      "author": "home",
+      "text": "Implementation resumed on BlackbookM1 after user direction. Feature branch feature/PPY-61ee23-shared-chat consumes version-pinned Chatticus chat UI-kit exports and adapts console records/context. PR660 files and loading/Notification Center/mobile-navigation behavior stay untouched. Core extraction, delegated authority and private transcript migration remain later gates; no server migration, merge, registry publication or deployment in this increment.",
+      "created_at": "2026-10-23T18:45:52.727707Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "8bad30cd-1d60-428c-8ed3-04a98ea14e58",
+      "author": "home",
+      "text": "First implementation increment pushed: draft Papyrus PR https://github.com/AnthusAI/Papyrus/pull/662 at 6bb5634e, consuming exact Chatticus f94ece3f from draft https://github.com/AnthusAI/Chatticus/pull/636. Shared transcript/composer/markdown and controlled host presentation hooks replace duplicated rendering; current Papyrus auth, AppSync persistence, model selection and editorial actions remain host-owned. BlackbookM1 verification: 2 browser Gherkin scenarios / 7 steps pass against exact installed archive; typecheck, ESLint, withPapyrus transpilation check and local production build pass. Read-only merge check against PR660 4d9a9b0 has no conflict markers; only package.json overlaps. Combined browser UX and live Cognito/AppSync/model flows not tested. Chatticus has 396 passing web tests and 3 passing Gherkin scenarios. Full server integration, private transcript isolation, delegated tool policy and continuation semantics remain later gates, so story remains in_progress. No merge, publication or deployment performed.",
+      "created_at": "2026-10-23T19:11:27.586943Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T18:30:23.561107Z",
-  "updated_at": "2026-10-23T18:37:53.025033Z",
+  "updated_at": "2026-10-23T19:11:27.586980Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
