@@ -1,6 +1,7 @@
 """Offline trust boundary, durable queue and shared-router integration tests."""
 import json
 from copy import deepcopy
+from decimal import Decimal
 from email.message import EmailMessage
 from hashlib import sha256
 
@@ -198,6 +199,12 @@ def test_email_cannot_start_procedures_or_generate_feedback():
     fixture.router["feedback"] = True
     with pytest.raises(ConfigurationError, match="feedback"):
         validate_email_config(fixture.config, fixture.router)
+
+
+def test_dynamodb_decimal_sender_rate_limit_validates():
+    fixture = email_fixture()
+    fixture.config["maxMessagesPerSenderHour"] = Decimal(10)
+    assert validate_email_config(fixture.config, fixture.router)["maxMessagesPerSenderHour"] == 10
 
 
 @pytest.mark.parametrize("change", ["group", "unverified", "disabled", "lookup"])

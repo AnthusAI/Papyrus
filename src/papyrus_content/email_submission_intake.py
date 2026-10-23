@@ -11,6 +11,7 @@ import os
 import re
 import time
 import uuid
+from decimal import Decimal
 from email.utils import getaddresses
 from hashlib import sha256
 
@@ -63,7 +64,8 @@ def _addresses(values, maximum):
 def _limit(raw, name, default, maximum):
     value = raw.get(name, default)
     # DynamoDB numbers arrive as Decimal; reject fractional/bool/string values.
-    if isinstance(value, (bool, str)) or not isinstance(value, (int, float)) or int(value) != value or not 1 <= value <= maximum:
+    if (isinstance(value, (bool, str)) or not isinstance(value, (int, float, Decimal))
+            or int(value) != value or not 1 <= value <= maximum):
         raise ConfigurationError(f"{name}_invalid")
     return int(value)
 
