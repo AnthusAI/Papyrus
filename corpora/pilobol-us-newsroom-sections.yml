@@ -4,10 +4,10 @@ sections:
     title: Field Notes
     shortTitle: Fungus Among Us
     type: canonical
-    editorialMission: Document how fungal networks coordinate growth, resource sharing, and takeover patterns in Pilobolus field research.
-    editorialPolicy: Publish grounded field notes about mycelial signal propagation, host encirclement, and coordination under canopy stress. Prefer observational evidence over metaphor alone.
-    assignmentGuidance: Start from a specific field observation or intake artifact. Name the coordination pattern, the host context, and what changed in the control loop.
-    killCriteria: Reject generic nature writing or AI hype that does not tie back to inspectable fungus-among-us field evidence.
+    editorialMission: Tell one strange, checkable story about what happens when AI and machine-learning systems take over a piece of ordinary life, as a scene with a point of view that a reader who has never followed the technology can picture.
+    editorialPolicy: Publish a single real event, place or person, told with plain words and a primary source the reader could open (the page itself, a filing, a recording, a named person). Prefer the uncanny outcome, such as a copy that people come to prefer over the original, over any account of how the technology works. Nothing in the story may be invented.
+    assignmentGuidance: Start from one concrete example with a primary source. Say what happened, who or what was involved, why it is strange, and how it fits the larger pattern of AI slowly taking over everyday life. Give every name or product the one fact a new reader needs, inside the sentence.
+    killCriteria: Reject product launches, benchmark results, funding news, tutorials, policy explainers, opinion about the future with no real event, and stories of one person fooled by a fake with no larger pattern behind it.
     enabled: true
     sortOrder: 1
 
@@ -15,10 +15,10 @@ sections:
     title: Strangler Control
     shortTitle: Host Encirclement
     type: canonical
-    editorialMission: Cover strangler-fig takeover loops—how encirclement pressure reshapes host access, light, and downstream control paths.
-    editorialPolicy: Treat strangler-fig dynamics as a control metaphor with field-testable claims. Separate observed canopy behavior from editorial inference.
-    assignmentGuidance: Map an encirclement sequence to a measurable control shift. Include what an editor should verify before publication.
-    killCriteria: Reject pieces that use strangler-fig language without a defensible control-loop or field-note anchor.
+    editorialMission: Cover the slow kind of takeover, where an automated system settles into a routine until the choices people make every day run through it, and old human weaknesses such as rumor, loneliness and wishful thinking are sped up and amplified at scale.
+    editorialPolicy: Publish stories where the harm builds up gradually and the people involved still believe they are making their own choices, such as a feed shaping what a town believes, a route app steering traffic, or a companion bot standing in for friends. Separate what the record shows from what the writer infers, and show the old weakness the system amplifies.
+    assignmentGuidance: Trace one sequence from first convenience to dependence. Name the routine, the system that took it over, the human weakness it amplified, and the source that lets a reader verify each step. Say what an editor should confirm before publication.
+    killCriteria: Reject stories with no real sequence of events to check, stories that treat the technology as an actor with intentions it cannot be shown to have, and pieces that only warn about the future.
     enabled: true
     sortOrder: 2
 
@@ -26,10 +26,10 @@ sections:
     title: Mycelial Signals
     shortTitle: Network Routing
     type: canonical
-    editorialMission: Track signal routing, timing, and failure modes across fungal networks that inform Pilobolus coordination models.
-    editorialPolicy: Prioritize intake artifacts, annotated field logs, and accepted references over speculative network diagrams.
-    assignmentGuidance: Identify a signal path, its failure mode, and the corpus evidence that supports the routing claim.
-    killCriteria: Reject network analogies that cannot be traced to accepted source material in the Pilobolus corpus.
+    editorialMission: Track how automated accounts, synthetic voices and faces, and machine-made content spread through networks of people, and the gaps between how fast attackers adapt and how fast institutions can notice and respond.
+    editorialPolicy: Prefer cases where a new gap opens a new kind of abuse that was rare or impossible before, such as machine-made filings flooding an office or bot accounts filling a town forum. Rely on filings, logs, archived pages and named sources over diagrams or speculation.
+    assignmentGuidance: Identify the path the content or the attack took, where an institution or a crowd failed to catch it, and the record that supports each claim. Keep the scene concrete and the explanation short.
+    killCriteria: Reject pure security advisories and vulnerability reports unless the case is itself a strange lived story, and reject network analogies that cannot be traced to a source a reader can open.
     enabled: true
     sortOrder: 3
 
@@ -37,9 +37,9 @@ sections:
     title: Source Intake
     shortTitle: Intake Queue
     type: floating
-    editorialMission: Curate incoming Pilobolus source material before it enters the accepted knowledge base.
-    editorialPolicy: Intake reviews source provenance, field-note quality, and topic fit for the Pilobolus steering tree—not the Papyrus publication KB.
-    assignmentGuidance: Bind each intake packet to a corpus role, topic scope, and explicit accept/reject rationale.
-    killCriteria: Reject intake that treats Pilobolus field material as generic platform demo content.
+    editorialMission: Review incoming candidate stories and source material before they are accepted, so that only items that fit the strange, checkable stories of AI slowly taking over ordinary life move forward.
+    editorialPolicy: Intake reviews each candidate for a real event, a primary source a reader could open, and fit with the publication mission. Items that fail the first two tests are rejected even when the topic is AI. Borderline cases, such as retrospectives on a famous past hoax or a security story where the victim matters more than the exploit, go to a person to decide.
+    assignmentGuidance: Record the candidate, the primary source, the section it best fits, and a short accept, reject or refer rationale tied to the mission.
+    killCriteria: Reject tooling and tutorials, model or product launches, benchmark results, funding and acquisition news, think-pieces with no real event, and material that cannot be traced to a source a reader can open.
     enabled: true
     sortOrder: 4
