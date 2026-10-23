@@ -64,6 +64,7 @@ resource policy on `reader-actions` that lets exactly that role invoke exactly t
 | `comments.editWindowMinutes` | 10 | The author may edit a comment this long after posting it. `0` turns editing off. |
 | `comments.maximumLength` | 2000 | Characters in a comment. |
 | `comments.maximumLinks` | 3 | Links (`http://`, `https://` or `www.`) in a comment. |
+| `proposals.publish` | `false` | Publish proposals, in every state, as public `_data/proposals/` files. Off by default: proposals stay private records (AI-filed story ideas are private drafts) until a site opts in. Sets `PAPYRUS_READER_PUBLISH_PROPOSALS` (`true` or `false`) on content-actions. Turning it off stops further updates; it does not delete files already published. See [Proposals](#proposals). |
 | `submissions.itemType`, `submissions.section` | `brief`, `unsectioned` | The type and section of the draft item that promoting a submission creates. |
 | `moderation.mode` | `human` | `human`: new submissions and comments are public at once and wait in the Administration queue. `off`: no queue; moderators can still hide, ban and undo. `ai`: a model decides each new item, with human override. See [Moderation](#moderation). |
 | `moderation.ai.apiKeyParameter` | required in `ai` mode | The SSM SecureString that holds the model's API key, named `/papyrus/<site>/openai-api-key`. The plugin only grants read access to this one parameter; it never creates it. |
@@ -628,7 +629,7 @@ mutations are open to the `editor` and `admin` groups only (the function checks 
 message}` that never throws. A move is conditioned on the state the caller saw: if someone else moved the proposal first the answer is
 `refused / target_changed` and nothing is written. The full editor tier (PPY-0af7db) adds what it needs beyond these.
 
-**The files.** The snapshot reads every proposal and writes `_data/proposals/index.json` and one `_data/proposals/<id>.json` under the
+**The files.** Publishing is opt-in: the files below are written only when the site sets `proposals: { publish: true }` (default `false`; the snapshot task reads `PAPYRUS_READER_PUBLISH_PROPOSALS`). With it off, proposals stay private records, the snapshot still freezes the community result of a proposal that reaches editor review and still counts the stored proposals in its report, and `papyrus proposals publish` and the scheduled snapshot write no public proposal files. Turning it off later stops further updates; files already published stay until the site removes them. With it on, the snapshot reads every proposal and writes `_data/proposals/index.json` and one `_data/proposals/<id>.json` under the
 projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/proposals/index.json`). Every state is published, so a site can
 show drafts, what is in steering and what an editor decided. Only changed files are written and purged; the freshness stamp alone is not a
 change. The page reconcile never reports them as orphans.
@@ -674,10 +675,10 @@ papyrus proposals list [--state in_steering] [--json]
 papyrus proposals show prop-... [--json]
 papyrus proposals transition prop-... --to in_steering
 papyrus proposals transition prop-... --to overridden_by_editor --result declined --reason "Coordinated votes."
-papyrus proposals publish        # runs the reader snapshot, which writes _data/proposals/
+papyrus proposals publish        # runs the reader snapshot, which writes _data/proposals/ only when proposals.publish is on
 ```
 
-A refusal prints `error: message` and exits 2. `create` files a draft; it is public after the next snapshot, which every `publish` and
+A refusal prints `error: message` and exits 2. `create` files a private draft. It becomes public only on a site that sets `proposals.publish: true`, at the next snapshot, which every `publish` and
 every scheduled run starts.
 
 ## The page components

@@ -182,6 +182,8 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     lambda.addEnvironment("PAPYRUS_READER_SNAPSHOT_FUNCTION_ARN", contentActions.functionArn);
     lambda.addEnvironment("PAPYRUS_READER_SCHEDULER_ROLE_ARN", schedulerRole.roleArn);
     contentActions.addEnvironment("PAPYRUS_READER_SNAPSHOT_SETTINGS", JSON.stringify(readerSnapshotSettings(config)));
+    // Proposals are private unless the site opts in (docs/reader-steering.md, Proposals); the snapshot reads this flag.
+    contentActions.addEnvironment("PAPYRUS_READER_PUBLISH_PROPOSALS", config.proposals.publish ? "true" : "false");
 
     if (config.moderation.ai) wireAiModeration(lambda, contentActions, schedulerRole, config.moderation.ai.apiKeyParameter);
 

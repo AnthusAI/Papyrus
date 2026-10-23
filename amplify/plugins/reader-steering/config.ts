@@ -98,6 +98,14 @@ export type ReaderSteeringConfig = {
     /** Most links (http, https or www) in a comment. */
     maximumLinks: number;
   };
+  proposals: {
+    /**
+     * Publish every proposal, in every state (drafts included), as public `_data/proposals/` files in each snapshot run.
+     * Off by default: proposals stay private records until a site opts in. Turning it off stops further updates; it does not
+     * delete files already published.
+     */
+    publish: boolean;
+  };
   /**
    * The hype gap is `mean(plus dimensions) - mean(minus dimensions)`, computed for reader means and for editor scores.
    * Absent means no hype gap is published. The site names the dimensions in each group.
@@ -115,7 +123,7 @@ export type ReaderSteeringConfig = {
   retirementPoll: boolean;
 };
 
-const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments", "moderation", "subjects"]);
+const KNOWN_KEYS = new Set(["name", "computeRoleArn", "dimensions", "limits", "reservedHandles", "karma", "ranking", "snapshot", "retirementPoll", "reservedConcurrency", "hypeGap", "submissions", "comments", "moderation", "subjects", "proposals"]);
 
 function object(raw: unknown, label: string, known: string[]): Record<string, unknown> {
   if (raw === undefined) return {};
@@ -217,6 +225,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
   if (!Array.isArray(subjectTypes) || subjectTypes.length === 0 || !subjectTypes.every((type) => (SUBJECT_TYPES as readonly unknown[]).includes(type))) {
     throw new Error(`reader-steering plugin subjects.types must be a non-empty list of: ${SUBJECT_TYPES.join(", ")}`);
   }
+  const proposals = object(raw.proposals, "proposals", ["publish"]);
   const kinds = names(submissions.kinds, "submissions.kinds", SUBMISSION_KIND_NAME);
   const comments = object(raw.comments, "comments", ["perHour", "editWindowMinutes", "maximumLength", "maximumLinks"]);
   const hypeGap = resolveHypeGap(raw.hypeGap, dimensions);
@@ -273,6 +282,7 @@ export function resolveReaderSteeringConfig(request: PluginRequest): ReaderSteer
       maximumLength: integer(comments.maximumLength, "comments.maximumLength", 2000, 1, 10000),
       maximumLinks: integer(comments.maximumLinks, "comments.maximumLinks", 3, 0, 50),
     },
+    proposals: { publish: flag(proposals.publish, "proposals.publish") },
     retirementPoll,
     ...(hypeGap ? { hypeGap } : {}),
     ...(raw.reservedConcurrency === undefined ? {} : { reservedConcurrency: integer(raw.reservedConcurrency, "reservedConcurrency", 1, 1, 1000) }),

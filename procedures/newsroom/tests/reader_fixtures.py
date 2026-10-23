@@ -25,6 +25,7 @@ from papyrus_content.reader_steering.task import (
     STATE_TABLE_ENV,
     COMMENT_TABLE_ENV,
     PROPOSAL_TABLE_ENV,
+    PUBLISH_PROPOSALS_ENV,
     FLAG_TABLE_ENV,
     SUBMISSION_TABLE_ENV,
     VOTE_TABLE_ENV,
@@ -242,6 +243,7 @@ def run_snapshot(
     section_of: dict | None = None,
     ranking: dict | None = None,
     subject_types: tuple[str, ...] | None = None,
+    publish_proposals: bool | None = True,
 ):
     """The reader-snapshot task against the backend's moto tables and a page writer, one minute after the backend's clock."""
     published_ids = {published_item_id_for(subject) for subject in published}
@@ -269,6 +271,7 @@ def run_snapshot(
         COMMENT_TABLE_ENV: TABLE_NAMES["comment"],
         PROPOSAL_TABLE_ENV: TABLE_NAMES["proposal"],
         FLAG_TABLE_ENV: TABLE_NAMES["flag"],
+        **({} if publish_proposals is None else {PUBLISH_PROPOSALS_ENV: "true" if publish_proposals else "false"}),
     }
     return run_reader_snapshot(
         context,

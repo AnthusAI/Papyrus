@@ -54,6 +54,7 @@ COMMENT_TABLE_ENV = "PAPYRUS_READER_COMMENT_TABLE"
 FLAG_TABLE_ENV = "PAPYRUS_READER_FLAG_TABLE"
 STATE_TABLE_ENV = "PAPYRUS_READER_RATE_TABLE"
 PROPOSAL_TABLE_ENV = "PAPYRUS_READER_PROPOSAL_TABLE"
+PUBLISH_PROPOSALS_ENV = "PAPYRUS_READER_PUBLISH_PROPOSALS"
 POLL_URL_ENV = "PAPYRUS_READER_POLL_URL"
 POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARAMETER"
 TASK_NAME = "reader-snapshot"
@@ -345,8 +346,9 @@ def run_reader_snapshot(
     if proposal_rows:
         counts = VoteCounts.from_items_file(snapshot.items)
         freeze_community_results(resource, environment[PROPOSAL_TABLE_ENV], proposal_rows, counts, snapshot.items["generatedAt"])
-        proposal_keys = write_proposal_files(context, build_proposal_files(proposal_rows, counts, snapshot.items["generatedAt"]))
-        keys.extend(proposal_keys)
+        if (environment.get(PUBLISH_PROPOSALS_ENV) or "").strip().lower() == "true":
+            proposal_keys = write_proposal_files(context, build_proposal_files(proposal_rows, counts, snapshot.items["generatedAt"]))
+            keys.extend(proposal_keys)
     karma_updated = write_karma(resource, environment[PROFILE_TABLE_ENV], profiles, snapshot.karma)
     purged: list[str] = []
     purge_error: str | None = None

@@ -323,6 +323,31 @@ class PublicFilesTests(unittest.TestCase):
             self.assertIsNone(writer.get("_data/proposals/index.json"))
 
 
+class PublicationOptInTests(unittest.TestCase):
+    def keys_after_snapshot(self, **kwargs) -> tuple[set[str], int]:
+        with ReaderBackend() as backend, tempfile.TemporaryDirectory() as directory:
+            file_one(backend)
+            writer = LocalDirectoryWriter(Path(directory))
+            report = run_snapshot(backend, writer, **kwargs)
+            return {entry.key for entry in writer.list() if entry.key.startswith("_data/proposals/")}, report.proposals
+
+    def test_a_draft_is_private_when_the_setting_is_absent(self) -> None:
+        keys, counted = self.keys_after_snapshot(publish_proposals=None)
+        self.assertEqual(keys, set())
+        self.assertEqual(counted, 1)
+
+    def test_a_draft_is_private_when_the_setting_is_false(self) -> None:
+        keys, counted = self.keys_after_snapshot(publish_proposals=False)
+        self.assertEqual(keys, set())
+        self.assertEqual(counted, 1)
+
+    def test_a_site_that_opts_in_publishes_its_proposals(self) -> None:
+        keys, counted = self.keys_after_snapshot(publish_proposals=True)
+        self.assertIn("_data/proposals/index.json", keys)
+        self.assertEqual(len(keys), 2)
+        self.assertEqual(counted, 1)
+
+
 class ParityTests(unittest.TestCase):
     def test_the_public_module_and_the_function_agree_on_kinds_and_states(self) -> None:
         self.assertEqual(
