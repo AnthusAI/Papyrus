@@ -6,7 +6,6 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckIcon, UserIcon } from "lucide-react";
 import { Md5 } from "@smithy/md5-js";
-import { gsap } from "gsap";
 import {
   createConsoleMessage,
   createConsoleThread,
@@ -35,10 +34,8 @@ import {
   subscribeReaderSettingsChanges,
   type ReaderMotionSetting,
 } from "./reader-settings";
-import { Conversation, ConversationContent, ConversationScrollButton } from "./ai-elements/conversation";
+import { PapyrusConsoleConversation, type ConsoleConversationMessage } from "./papyrus-console-conversation";
 import { ModelSelector } from "./ai-elements/model-selector";
-import { PromptInput, PromptInputBody, PromptInputFooter, type PromptInputMessage, PromptInputSubmit, PromptInputTextarea, PromptInputTools } from "./ai-elements/prompt-input";
-import { Shimmer } from "./ai-elements/shimmer";
 import { Suggestion, Suggestions } from "./ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "./ai-elements/tool";
 import { CONNECTION_STATE_CHANGE, ConnectionState } from "aws-amplify/data";
@@ -54,7 +51,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { useStickToBottomContext } from "use-stick-to-bottom";
 
 const CONSOLE_STARTER_SUGGESTIONS = [
   "Start a research assignment",
@@ -421,7 +417,6 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
   const [thread, setThread] = useState<ConsoleChatThread | null>(null);
   const [threads, setThreads] = useState<ConsoleChatThread[]>([]);
   const [messages, setMessages] = useState<ConsoleChatMessage[]>([]);
-  const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -863,13 +858,6 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
     }
   }
 
-  async function sendMessage(message: PromptInputMessage) {
-    const content = message.text.trim();
-    if (!content) return;
-    setDraft("");
-    await submitMessage(content);
-  }
-
   function handleSuggestionClick(suggestion: string) {
     if (sending) return;
     void submitMessage(suggestion);
@@ -1045,18 +1033,18 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
     }
     return latestAgentEntryId;
   }, [isSupersededRunningAssistantMessage, timelineEntries]);
-  const streamingAutoStickSignal = useMemo(() => {
-    const activeStreamingAssistant = [...displayMessages]
-      .reverse()
-      .find((message) => message.role === "ASSISTANT" && message.responseStatus === "RUNNING");
-    if (!activeStreamingAssistant) return null;
-    return [
-      activeStreamingAssistant.id,
-      activeStreamingAssistant.pendingPlaceholder ? "placeholder" : "message",
-      (activeStreamingAssistant.content ?? "").length,
-      activeStreamingAssistant.updatedAt ?? activeStreamingAssistant.createdAt,
-    ].join(":");
-  }, [displayMessages]);
+  const presentationEntries = useMemo(() => new Map(timelineEntries.map((entry) => [entry.id, entry])), [timelineEntries]);
+  const conversationMessages = useMemo<ConsoleConversationMessage[]>(() => timelineEntries.flatMap<ConsoleConversationMessage>((entry) => {
+    if (entry.kind === "tool") return [{ id: entry.id, role: "TOOL", text: "", createdAt: entry.tool.firstCreatedAt }];
+    const message = entry.message;
+    const content = (message.content ?? "").trim();
+    if (isSupersededRunningAssistantMessage(message, content)) return [];
+    const awaiting = message.pendingPlaceholder || (message.role === "ASSISTANT" && message.responseStatus === "RUNNING");
+    return [{ id: message.id, role: message.role,
+      text: content || (awaiting ? "" : sanitizeConsoleSummary((message.summary ?? "").trim())),
+      createdAt: message.createdAt, pending: awaiting, failed: message.responseStatus === "FAILED",
+      error: message.responseError, context: message.messageKind === CONSOLE_WEB_CONTEXT_MESSAGE_KIND }];
+  }), [isSupersededRunningAssistantMessage, timelineEntries]);
 
   return (
     <div className="papyrus-console__panel">
@@ -1089,141 +1077,49 @@ function ConsolePanel({ actorEmail, actorLabel, onClose }: { actorEmail: string 
           </button>
         ) : null}
       </div>
-      <Conversation className="papyrus-console__conversation" resize={pending ? "instant" : "smooth"}>
-        <ConsoleStreamingAutoStick active={pending} streamSignal={streamingAutoStickSignal} />
-        <ConversationContent
-          aria-live="polite"
-          className="papyrus-console__body"
-          scrollClassName="papyrus-console__scrollport"
-          role="log"
-        >
-          {loading && !sortedMessages.length ? <p className="papyrus-console__empty">Loading conversation…</p> : null}
-          {timelineEntries.map((entry) => {
-            if (entry.kind === "tool") {
-              const showAssistantAvatar = entry.id === latestVisibleAvatarAnchorId;
-              const assistantAvatar = showAssistantAvatar
-                ? resolveAssistantAvatarPresentation(entry.tool, motionSetting === "low", pending)
-                : null;
-              return (
-                <ConsoleToolTimelineRow key={entry.id}>
-                  <ConsoleToolMessageContent tool={entry.tool} />
-                  {assistantAvatar ? (
-                    <span className="papyrus-console-message__assistant-avatar" data-tone={assistantAvatar.tone}>
-                      <VultusBotAvatar
-                        ariaLabel={assistantAvatar.ariaLabel}
-                        lightColor={assistantAvatar.tone === "error" ? ASSISTANT_AVATAR_ERROR_LIGHT_COLOR : ASSISTANT_AVATAR_DEFAULT_LIGHT_COLOR}
-                        neutralIdleMode={assistantAvatar.neutralIdleMode}
-                        shadowColor={assistantAvatar.tone === "error" ? ASSISTANT_AVATAR_ERROR_SHADOW_COLOR : ASSISTANT_AVATAR_DEFAULT_SHADOW_COLOR}
-                        size={ASSISTANT_AVATAR_SIZE_PX}
-                        state={assistantAvatar.state}
-                        transitionDurationSeconds={0.35}
-                      />
-                    </span>
-                  ) : null}
-                </ConsoleToolTimelineRow>
-              );
-            }
-
-            const message = entry.message;
-            const isWebContextMessage = message.messageKind === CONSOLE_WEB_CONTEXT_MESSAGE_KIND;
-            const content = (message.content ?? "").trim();
-            const summary = (message.summary ?? "").trim();
-            const sanitizedSummary = sanitizeConsoleSummary(summary);
-            const isSupersededRunningAssistant = isSupersededRunningAssistantMessage(message, content);
-            const showAssistantAvatar = entry.id === latestVisibleAvatarAnchorId;
-            const assistantAvatar = showAssistantAvatar
-              ? resolveAssistantAvatarPresentation(message, motionSetting === "low", pending)
-              : null;
-            const userAvatarHash = message.role === "USER" ? readConsoleAuthorAvatarHash(message) : null;
-            const userAuthorEmail = message.role === "USER" ? readConsoleAuthorEmail(message) : null;
-            const shouldShowThinking = (
-              message.pendingPlaceholder
-              || (message.role === "ASSISTANT" && message.responseStatus === "RUNNING" && !content && !isSupersededRunningAssistant)
-            );
-            if (isSupersededRunningAssistant) return null;
-
-            return (
-              <ConsoleChatMessageRow
-                key={message.id}
-                role={isWebContextMessage ? "CONTEXT" : message.role}
-              >
-                <div className={message.role === "ASSISTANT" ? "papyrus-console-message__markdown" : undefined}>
-                  {message.role === "USER" ? <ConsoleUserAvatar authorEmail={userAuthorEmail} avatarHash={userAvatarHash} /> : null}
-                  {isWebContextMessage ? (
-                    <p className="papyrus-console-message__context-label">Page context</p>
-                  ) : null}
-                  {shouldShowThinking ? (
-                    <Shimmer className="papyrus-console__thinking-shimmer">Thinking...</Shimmer>
-                  ) : <ConsoleChatMessageContent role={message.role} text={content || sanitizedSummary} />}
-                </div>
-                {message.responseStatus === "FAILED" ? <span className="papyrus-console-message__error">{message.responseError ?? "Responder failed"}</span> : null}
-                {assistantAvatar ? (
-                  <span className="papyrus-console-message__assistant-avatar" data-tone={assistantAvatar.tone}>
-                    <VultusBotAvatar
-                      ariaLabel={assistantAvatar.ariaLabel}
-                      lightColor={assistantAvatar.tone === "error" ? ASSISTANT_AVATAR_ERROR_LIGHT_COLOR : ASSISTANT_AVATAR_DEFAULT_LIGHT_COLOR}
-                      neutralIdleMode={assistantAvatar.neutralIdleMode}
-                      shadowColor={assistantAvatar.tone === "error" ? ASSISTANT_AVATAR_ERROR_SHADOW_COLOR : ASSISTANT_AVATAR_DEFAULT_SHADOW_COLOR}
-                      size={ASSISTANT_AVATAR_SIZE_PX}
-                      state={assistantAvatar.state}
-                      transitionDurationSeconds={0.35}
-                    />
-                  </span>
-                ) : null}
-              </ConsoleChatMessageRow>
-            );
-          })}
-        </ConversationContent>
-        <ConversationScrollButton
-          aria-label="Scroll to latest message"
-          className="papyrus-console__scroll-bottom"
-        />
-      </Conversation>
-      {!loading && !sortedMessages.length ? (
-        <div className="papyrus-console__suggestions papyrus-console-ui">
-          <Suggestions>
-            {CONSOLE_STARTER_SUGGESTIONS.map((suggestion) => (
-              <Suggestion
-                disabled={sending}
-                key={suggestion}
-                onClick={handleSuggestionClick}
-                suggestion={suggestion}
-              />
-            ))}
-          </Suggestions>
-        </div>
-      ) : null}
-      {error ? <p className="papyrus-console__error">{error}</p> : null}
-      <PromptInput className="papyrus-console__composer" onSubmit={(message) => void sendMessage(message)}>
-        <PromptInputBody>
-          <PromptInputTextarea
-            aria-label="Console message"
-            disabled={sending}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Write a message..."
-            rows={3}
-            value={draft}
-          />
-        </PromptInputBody>
-        <PromptInputFooter>
-          <PromptInputTools>
-            <ModelSelector
-              aria-label="Console model"
-              disabled={sending}
-              onValueChange={handleModelChange}
-              options={CONSOLE_MODEL_OPTIONS.map((option) => ({
-                value: option.value,
-                label: option.label,
-              }))}
-              value={selectedModel}
-            />
-          </PromptInputTools>
-          <PromptInputSubmit
-            disabled={!draft.trim() || sending}
-            status={pending ? "streaming" : "ready"}
-          />
-        </PromptInputFooter>
-      </PromptInput>
+      <PapyrusConsoleConversation
+        messages={conversationMessages}
+        isSending={sending}
+        isRunning={pending}
+        onSendMessage={submitMessage}
+        error={error}
+        emptyState={loading ? <p className="papyrus-console__empty">Loading conversation…</p> : (
+          <div className="papyrus-console__suggestions papyrus-console-ui">
+            <Suggestions>{CONSOLE_STARTER_SUGGESTIONS.map((suggestion) => (
+              <Suggestion disabled={sending} key={suggestion} onClick={handleSuggestionClick} suggestion={suggestion} />
+            ))}</Suggestions>
+          </div>
+        )}
+        composerActions={<div className="papyrus-console-ui"><ModelSelector
+          aria-label="Console model" disabled={sending} onValueChange={handleModelChange}
+          options={CONSOLE_MODEL_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+          value={selectedModel}
+        /></div>}
+        presentation={{
+          header: (id) => {
+            const entry = presentationEntries.get(id);
+            if (entry?.kind !== "message" || entry.message.role !== "USER") return null;
+            return <ConsoleUserAvatar authorEmail={readConsoleAuthorEmail(entry.message)} avatarHash={readConsoleAuthorAvatarHash(entry.message)} />;
+          },
+          body: (id, body) => {
+            const entry = presentationEntries.get(id);
+            return entry?.kind === "tool" ? <ConsoleToolMessageContent tool={entry.tool} /> : body;
+          },
+          footer: (id) => {
+            const entry = presentationEntries.get(id);
+            if (!entry || id !== latestVisibleAvatarAnchorId) return null;
+            const avatar = resolveAssistantAvatarPresentation(entry.kind === "tool" ? entry.tool : entry.message, motionSetting === "low", pending);
+            if (!avatar) return null;
+            return <span className="papyrus-console-message__assistant-avatar" data-tone={avatar.tone}>
+              <VultusBotAvatar ariaLabel={avatar.ariaLabel}
+                lightColor={avatar.tone === "error" ? ASSISTANT_AVATAR_ERROR_LIGHT_COLOR : ASSISTANT_AVATAR_DEFAULT_LIGHT_COLOR}
+                shadowColor={avatar.tone === "error" ? ASSISTANT_AVATAR_ERROR_SHADOW_COLOR : ASSISTANT_AVATAR_DEFAULT_SHADOW_COLOR}
+                neutralIdleMode={avatar.neutralIdleMode} size={ASSISTANT_AVATAR_SIZE_PX}
+                state={avatar.state} transitionDurationSeconds={0.35} />
+            </span>;
+          },
+        }}
+      />
     </div>
   );
 }
@@ -1516,30 +1412,6 @@ function ConsoleToolMessageContent({ tool }: { tool: ConsoleToolTimelineEntry })
   );
 }
 
-function ConsoleToolTimelineRow({ children }: { children: ReactNode }) {
-  const rowRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    const row = rowRef.current;
-    if (!row || prefersReducedMotion()) return;
-    const tween = gsap.fromTo(
-      row,
-      { autoAlpha: 0, y: 8 },
-      { autoAlpha: 1, y: 0, duration: 0.16, ease: "power2.out", overwrite: "auto" },
-    );
-    return () => {
-      tween.kill();
-      gsap.killTweensOf(row);
-    };
-  }, []);
-
-  return (
-    <article className="papyrus-console-tool-row" ref={rowRef}>
-      {children}
-    </article>
-  );
-}
-
 function formatToolOutputText(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === undefined || value === null) return "";
@@ -1548,240 +1420,6 @@ function formatToolOutputText(value: unknown): string {
   } catch {
     return String(value);
   }
-}
-
-function ConsoleChatMessageContent({ role, text }: { role: string | null | undefined; text: string }) {
-  const blocks = useMemo(() => parseConsoleMarkdownBlocks(text), [text]);
-  if (role !== "ASSISTANT") return text;
-  return (
-    <>
-      {blocks.map((block, index) => renderConsoleMarkdownBlock(block, index))}
-    </>
-  );
-}
-
-type ConsoleMarkdownBlock =
-  | { type: "code"; text: string }
-  | { type: "heading"; depth: number; text: string }
-  | { type: "list"; ordered: boolean; items: string[] }
-  | { type: "paragraph"; text: string };
-
-function parseConsoleMarkdownBlocks(text: string): ConsoleMarkdownBlock[] {
-  const blocks: ConsoleMarkdownBlock[] = [];
-  const lines = text.split(/\r?\n/);
-  let paragraph: string[] = [];
-  let list: string[] = [];
-  let listOrdered = false;
-  let code: string[] = [];
-  let inCode = false;
-
-  const flushParagraph = () => {
-    if (!paragraph.length) return;
-    blocks.push({ type: "paragraph", text: paragraph.join(" ").trim() });
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!list.length) return;
-    blocks.push({ type: "list", ordered: listOrdered, items: list });
-    list = [];
-  };
-
-  for (const line of lines) {
-    if (line.trim().startsWith("```")) {
-      if (inCode) {
-        blocks.push({ type: "code", text: code.join("\n") });
-        code = [];
-        inCode = false;
-      } else {
-        flushParagraph();
-        flushList();
-        inCode = true;
-      }
-      continue;
-    }
-    if (inCode) {
-      code.push(line);
-      continue;
-    }
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-    const heading = /^(#{1,4})\s+(.+)$/.exec(trimmed);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      blocks.push({ type: "heading", depth: heading[1].length, text: heading[2].trim() });
-      continue;
-    }
-    const bullet = /^([-*+])\s+(.+)$/.exec(trimmed);
-    if (bullet) {
-      flushParagraph();
-      if (!list.length) listOrdered = false;
-      list.push(bullet[2].trim());
-      continue;
-    }
-    const ordered = /^\d+[.)]\s+(.+)$/.exec(trimmed);
-    if (ordered) {
-      flushParagraph();
-      if (!list.length) listOrdered = true;
-      list.push(ordered[1].trim());
-      continue;
-    }
-    flushList();
-    paragraph.push(trimmed);
-  }
-
-  flushParagraph();
-  flushList();
-  if (code.length) blocks.push({ type: "code", text: code.join("\n") });
-  return blocks;
-}
-
-function renderConsoleMarkdownBlock(block: ConsoleMarkdownBlock, index: number): ReactNode {
-  const key = `${block.type}-${index}`;
-  if (block.type === "code") return <pre className="papyrus-console-message__code" key={key}>{block.text}</pre>;
-  if (block.type === "list") {
-    if (block.ordered) {
-      return (
-        <ol key={key}>
-          {block.items.map((item, itemIndex) => <li key={`${key}-${itemIndex}`}>{renderConsoleInlineMarkdown(item)}</li>)}
-        </ol>
-      );
-    }
-    return (
-      <ul key={key}>
-        {block.items.map((item, itemIndex) => <li key={`${key}-${itemIndex}`}>{renderConsoleInlineMarkdown(item)}</li>)}
-      </ul>
-    );
-  }
-  if (block.type === "heading") {
-    if (block.depth <= 1) return <h3 key={key}>{renderConsoleInlineMarkdown(block.text)}</h3>;
-    if (block.depth === 2) return <h4 key={key}>{renderConsoleInlineMarkdown(block.text)}</h4>;
-    return <h5 key={key}>{renderConsoleInlineMarkdown(block.text)}</h5>;
-  }
-  return <p key={key}>{renderConsoleInlineMarkdown(block.text)}</p>;
-}
-
-function renderConsoleInlineMarkdown(text: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    const token = match[0];
-    if (token.startsWith("`")) {
-      nodes.push(<code key={`${match.index}-code`}>{token.slice(1, -1)}</code>);
-    } else if (token.startsWith("**")) {
-      nodes.push(<strong key={`${match.index}-strong`}>{token.slice(2, -2)}</strong>);
-    } else {
-      const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
-      if (linkMatch) {
-        nodes.push(
-          <a href={linkMatch[2]} key={`${match.index}-link`} rel="noreferrer noopener" target="_blank">
-            {linkMatch[1]}
-          </a>,
-        );
-      } else {
-        nodes.push(token);
-      }
-    }
-    lastIndex = match.index + token.length;
-  }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
-  return nodes;
-}
-
-function ConsoleChatMessageRow({
-  role,
-  children,
-}: {
-  role: string | null | undefined;
-  children: ReactNode;
-}) {
-  const rowRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    const row = rowRef.current;
-    if (!row || prefersReducedMotion()) return;
-    const tween = gsap.fromTo(
-      row,
-      { autoAlpha: 0, y: 8 },
-      { autoAlpha: 1, y: 0, duration: 0.16, ease: "power2.out", overwrite: "auto" },
-    );
-    return () => {
-      tween.kill();
-      gsap.killTweensOf(row);
-    };
-  }, []);
-
-  return (
-    <article
-      className={
-        role === "USER"
-          ? "papyrus-console-message papyrus-console-message--user"
-          : role === "CONTEXT"
-            ? "papyrus-console-message papyrus-console-message--context"
-            : "papyrus-console-message papyrus-console-message--assistant"
-      }
-      ref={rowRef}
-    >
-      {children}
-    </article>
-  );
-}
-
-function ConsoleStreamingAutoStick({ active, streamSignal }: { active: boolean; streamSignal: string | null }) {
-  const { scrollRef, scrollToBottom } = useStickToBottomContext();
-  const previousSignalRef = useRef<string | null>(null);
-
-  const snapToBottom = useCallback(() => {
-    void scrollToBottom({ animation: "instant" });
-    const scrollElement = scrollRef.current;
-    if (!scrollElement) return;
-    scrollElement.scrollTop = Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
-  }, [scrollRef, scrollToBottom]);
-
-  useEffect(() => {
-    if (!active || !streamSignal) return;
-    if (previousSignalRef.current === streamSignal) return;
-    previousSignalRef.current = streamSignal;
-
-    snapToBottom();
-    const frame = window.requestAnimationFrame(() => {
-      snapToBottom();
-    });
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
-  }, [active, snapToBottom, streamSignal]);
-
-  useEffect(() => {
-    if (!active) return;
-    let frame = 0;
-    const pin = () => {
-      snapToBottom();
-      frame = window.requestAnimationFrame(pin);
-    };
-    pin();
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
-  }, [active, snapToBottom]);
-
-  useEffect(() => {
-    if (!active) previousSignalRef.current = null;
-  }, [active]);
-
-  return null;
-}
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function formatConsoleThreadOption(thread: ConsoleChatThread): string {
