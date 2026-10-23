@@ -12,7 +12,7 @@ import { newsroomSummary } from "../functions/newsroom-summary/resource";
 import { publicForms } from "../functions/public-forms/resource";
 import { procedureAction } from "../functions/procedure-action/resource";
 import { readerSettings } from "../functions/reader-settings/resource";
-import { functionHandler } from "../functions/shared/function-handler";
+import { functionHandler } from "./function-handler";
 
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",

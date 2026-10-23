@@ -1,6 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { newsletterOps } from "./ops/resource";
-import { functionHandler } from "../../functions/shared/function-handler";
+import { functionHandler } from "../../data/function-handler";
 
 const staff = ["editor", "admin"];
 const admins = ["admin"];

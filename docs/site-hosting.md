@@ -688,7 +688,7 @@ API into one nested stack, `FunctionDirectiveStack`. A field handled with `a.han
 data source, IAM role, IAM policy and two function configurations, so it costs six resources there; Papyrus 5.33.0 had 85
 such fields and the build failed with `TooManyResourcesInStack ... FunctionDirectiveStack: 505`.
 
-Handle schema fields with `functionHandler("name", fn)` from `amplify/functions/shared/function-handler.ts`, never with
+Handle schema fields with `functionHandler("name", fn)` from `amplify/data/function-handler.ts`, never with
 `a.handler.function(fn)`. Every field that calls the same Lambda then shares one data source, role, policy and function
 configuration, and a new field costs one resolver. The Lambda receives the same event as before (`typeName`, `fieldName`,
 `arguments`, `identity`). `defineSiteData` passes the registered functions to `defineData({ functions })`. The stack is

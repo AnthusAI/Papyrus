@@ -14,7 +14,7 @@ import { sesInboundReceive } from "../functions/ses-inbound-receive/resource";
 import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
 import { assertKnownModelGroups, schema as leanSchema, schemaExcludingGroups, schemaWithPlugins } from "./schema";
-import { functionHandler, sharedFunctions } from "../functions/shared/function-handler";
+import { functionHandler, sharedFunctions } from "./function-handler";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",

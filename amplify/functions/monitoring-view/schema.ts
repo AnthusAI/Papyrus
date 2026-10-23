@@ -1,6 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { monitoringView } from "./resource";
-import { functionHandler } from "../shared/function-handler";
+import { functionHandler } from "../../data/function-handler";
 
 const editors = ["editor", "admin"];
 

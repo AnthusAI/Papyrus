@@ -1,6 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { signupSubmit } from "./function/resource";
-import { functionHandler } from "../../functions/shared/function-handler";
+import { functionHandler } from "../../data/function-handler";
 
 /**
  * SignupEntry is never guest-readable and has no create rule for anyone: only the

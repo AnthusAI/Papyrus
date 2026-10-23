@@ -1,6 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { readerActions } from "./function/resource";
-import { functionHandler } from "../../functions/shared/function-handler";
+import { functionHandler } from "../../data/function-handler";
 
 /**
  * Staff and IAM only: no guest, API key or reader rule on any model. The reader-actions function writes the

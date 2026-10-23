@@ -49,7 +49,7 @@ async function main() {
   } as never);
   const app = (backend as any).data.resources.graphqlApi.node.root;
 
-  const nested: NestedStack[] = [];
+  const nested: any[] = [];
   const walk = (construct: any) => {
     for (const child of construct.node.children) {
       if (child instanceof NestedStack) nested.push(child);
@@ -68,7 +68,7 @@ async function main() {
   assert.ok(resolvers > 60, `expected the Lambda-backed resolvers in the stack, found ${resolvers}`);
   assert.ok(
     resources.length < FUNCTION_DIRECTIVE_STACK_BUDGET,
-    `FunctionDirectiveStack has ${resources.length} resources; keep it under ${FUNCTION_DIRECTIVE_STACK_BUDGET} (CloudFormation fails at ${CLOUDFORMATION_STACK_LIMIT}). Handle new fields with functionHandler() from amplify/functions/shared/function-handler.ts so they share a Lambda data source.`,
+    `FunctionDirectiveStack has ${resources.length} resources; keep it under ${FUNCTION_DIRECTIVE_STACK_BUDGET} (CloudFormation fails at ${CLOUDFORMATION_STACK_LIMIT}). Handle new fields with functionHandler() from amplify/data/function-handler.ts so they share a Lambda data source.`,
   );
   assert.ok(
     dataSources < resolvers / 2,
