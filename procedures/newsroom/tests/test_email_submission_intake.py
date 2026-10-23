@@ -1,13 +1,27 @@
 """Offline trust boundary, durable queue and shared-router integration tests."""
-from copy import deepcopy
-from hashlib import sha256
 import json
+from copy import deepcopy
+from email.message import EmailMessage
+from hashlib import sha256
 
 import pytest
 
-from papyrus_content.email_submission_intake import ConfigurationError, EmailStore, IntakeBusy, validate_email_config
-from papyrus_content.monitoring_router import CyclotronClient, RouterStore, run_router, validate_router_config
-from procedures.newsroom.tests.email_submission_fixture import RAW, collect_email, email_fixture, route_email
+from papyrus_content.email_submission_intake import (
+    ConfigurationError,
+    EmailStore,
+    IntakeBusy,
+    validate_email_config,
+)
+from papyrus_content.monitoring_router import (
+    CyclotronClient,
+    validate_router_config,
+)
+from procedures.newsroom.tests.email_submission_fixture import (
+    RAW,
+    collect_email,
+    email_fixture,
+    route_email,
+)
 from procedures.newsroom.tests.test_monitoring_router import FakeCyclotron
 
 
@@ -28,7 +42,10 @@ def shared_fixture():
         "runId": "shared-fixture", "bindingRevision": "1",
         "roleArn": "arn:aws:iam::111111111111:role/email-relevance-invoker", "pollSeconds": 10})
     fixture.router["publications"].append({"publicationId": "second", "site": "second.example",
+        "userPoolId": "us-east-1_second",
         "appsyncEndpoint": "https://second.appsync-api.us-east-1.amazonaws.com/graphql"})
+    fixture.cognito.editors["us-east-1_second"] = {"editor@example.org"}
+    fixture.cognito.groups["us-east-1_second"] = {"editor"}
     fixture.table.put_item(Item=fixture.router)
     return fixture
 
@@ -59,15 +76,34 @@ def test_trusted_verdicts_required_and_mime_header_cannot_authorize(verdict):
     assert fixture.table.by_prefix("DISC#") == []
 
 
-def test_allowed_sender_and_from_mime_must_match_authenticated_envelope():
+def test_editor_membership_and_from_mime_must_match_authenticated_envelope():
     fixture = email_fixture()
     fixture.event["Records"][0]["ses"]["mail"]["commonHeaders"]["from"] = ["attacker@example.org"]
-    assert collect_email(fixture)["reason"] == "sender_not_allowed"
+    assert collect_email(fixture)["reason"] == "sender_not_active_editor"
     assert fixture.s3.calls == []
     fixture = email_fixture()
     fixture.s3.raw = RAW.replace(b"editor@example.org", b"different@example.org")
     assert collect_email(fixture)["reason"] == "mime_sender_mismatch"
     assert fixture.table.by_prefix("DISC#") == []
+
+
+def test_forwarded_attached_message_links_use_outer_editor_authentication_only():
+    fixture = email_fixture()
+    outer = EmailMessage()
+    outer["From"] = "editor@example.org"
+    outer["To"] = "submissions@publication.example"
+    outer.set_content("Forwarding a newsletter")
+    attached = EmailMessage()
+    attached["From"] = "newsletter@example.net"
+    attached.set_content("https://example.net/article")
+    outer.add_attachment(attached)
+    fixture.s3.raw = outer.as_bytes()
+    result = collect_email(fixture)
+    assert result["status"] == "queued"
+    discoveries = fixture.table.by_prefix("DISC#")
+    assert len(discoveries) == 1
+    assert discoveries[0]["canonicalUrl"] == "https://example.net/article"
+    assert discoveries[0]["emailProvenance"]["sender"] == "editor@example.org"
 
 
 def test_mime_to_headers_are_provenance_and_cannot_choose_destination():
@@ -145,7 +181,7 @@ def test_parked_publication_backfill_rechecks_email_destination_scope():
 
 @pytest.mark.parametrize("mutation", [
     {"accountId": "other"}, {"publicationIds": ["other"]}, {"kind": "shared"},
-    {"allowedSenders": ["*@example.org"]}, {"allowedSenders": []}, {"addresses": []},
+    {"allowedSenders": ["*@example.org"]}, {"addresses": []},
     {"maxLinks": 26}, {"maxMessageBytes": 1048577}, {"maxMessagesPerSenderHour": 0},
     {"maxMessagesPerSenderHour": True}, {"enabled": "true"}, {"unexpected": True},
 ])
@@ -162,6 +198,78 @@ def test_email_cannot_start_procedures_or_generate_feedback():
     fixture.router["feedback"] = True
     with pytest.raises(ConfigurationError, match="feedback"):
         validate_email_config(fixture.config, fixture.router)
+
+
+@pytest.mark.parametrize("change", ["group", "unverified", "disabled", "lookup"])
+def test_only_enabled_verified_editor_is_eligible_and_lookup_fails_closed(change):
+    fixture = email_fixture()
+    if change == "group":
+        fixture.cognito.groups["us-east-1_fixture"].clear()
+    elif change == "unverified":
+        fixture.cognito.verified = False
+    elif change == "disabled":
+        fixture.cognito.enabled = False
+    else:
+        fixture.cognito.fail = True
+    if change == "lookup":
+        with pytest.raises(RuntimeError, match="editor_membership_lookup_unavailable"):
+            collect_email(fixture)
+    else:
+        assert collect_email(fixture)["reason"] == "sender_not_active_editor"
+    assert fixture.s3.calls == []
+    assert fixture.table.by_prefix("DISC#") == []
+
+
+def test_active_admin_is_eligible_because_application_allows_admin_content_writes():
+    fixture = email_fixture()
+    fixture.cognito.groups["us-east-1_fixture"] = {"admin"}
+    assert collect_email(fixture)["status"] == "queued"
+    assert fixture.table.by_prefix("DISC#")
+
+
+def test_shared_route_is_limited_to_editor_publications_and_revocation_rechecked():
+    fixture, model = shared_fixture(), AccountCyclotron()
+    fixture.cognito.editors["us-east-1_second"].clear()
+    assert collect_email(fixture)["status"] == "queued"
+    discovery = fixture.table.by_prefix("DISC#")[0]
+    assert discovery["emailAuthorizedPublicationIds"] == ["publication"]
+    result, delivered = route_email(fixture, cyclotron=CyclotronClient(
+        validate_router_config(fixture.router), sign=lambda *_: {}, http=model.http,
+        sleep=lambda _: None, clock=lambda: 0))
+    assert result["counts"]["delivered"] == 2  # one authorized publication for each of two links
+    assert {entry[0]["publicationId"] for entry in delivered} == {"publication"}
+
+    # Another queued discovery cannot survive membership revocation.
+    next_delivery(fixture, "new")
+    assert collect_email(fixture)["status"] == "queued"
+    fixture.cognito.editors["us-east-1_fixture"].clear()
+    result, delivered = route_email(fixture)
+    assert delivered == [] and result["counts"]["refused"] == 2
+
+
+def test_router_membership_lookup_failure_fails_closed():
+    fixture = email_fixture()
+    collect_email(fixture)
+    fixture.cognito.fail = True
+    result, delivered = route_email(fixture)
+    assert delivered == [] and result["counts"]["error"] == 2
+
+
+def test_classifier_backfill_rechecks_membership_before_delivery():
+    fixture, model = shared_fixture(), AccountCyclotron()
+    collect_email(fixture)
+    model.post_override["second"] = (409, {"detail": "publication criteria are pending"})
+    client = CyclotronClient(validate_router_config(fixture.router), sign=lambda *_: {}, http=model.http,
+                             sleep=lambda _: None, clock=lambda: 0)
+    result, delivered = route_email(fixture, cyclotron=client)
+    assert {entry[0]["publicationId"] for entry in delivered} == {"publication"}
+    assert fixture.table.by_prefix("PARK#")
+    fixture.cognito.editors["us-east-1_second"].clear()
+    model.post_override.clear()
+    calls = len(model.posts())
+    result, delivered = route_email(fixture, cyclotron=client)
+    assert delivered == [] and result["counts"]["delivered"] == 0
+    assert len(model.posts()) == calls
     fixture.router["feedback"] = False
     fixture.router["publications"][0]["procedureTriggers"] = [{"procedureKey": "unsafe.publish", "input": {}}]
     fixture.router["publications"][0]["openaiKeyParameter"] = "/fixture/unused"

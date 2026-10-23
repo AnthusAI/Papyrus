@@ -67,11 +67,16 @@ Parameters:
     Description: >-
       Name of the procedure runner Lambda (infra/procedures). When set, the router may start it
       asynchronously for a publication's procedureTriggers. Empty leaves triggers recorded as startFailed.
+  EditorUserPoolArns:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: Exact Cognito pools for configured publications where email sender membership is rechecked.
 
 Conditions:
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
+  HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
 
 Resources:
   MonitoringTable:
@@ -389,6 +394,20 @@ Resources:
             Effect: Allow
             Action: lambda:InvokeFunction
             Resource: !Sub "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProcedureRunnerFunctionName}"
+
+  RouterEditorMembershipPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasEditorUserPools
+    Properties:
+      Description: Read-only sender membership checks in the explicitly configured publication pools.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EmailEditorMembership
+            Effect: Allow
+            Action: [cognito-idp:ListUsers, cognito-idp:AdminListGroupsForUser]
+            Resource: !Ref EditorUserPoolArns
 
   RouterInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig

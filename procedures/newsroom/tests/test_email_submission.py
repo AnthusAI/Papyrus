@@ -3,8 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from papyrus_content.email_submission import SubmissionRejected, extract_submission, safe_editorial_url
-
+from papyrus_content.email_submission import (
+    SubmissionRejected,
+    extract_submission,
+    safe_editorial_url,
+)
 
 FIXTURE = Path(__file__).resolve().parents[3] / "features_backend/fixtures/email-submission/newsletter.eml"
 
@@ -96,14 +99,14 @@ def test_newsletters_and_explicit_manual_submission_allowed():
                         List_ID="Weekly <weekly.example.org>")) == ["https://example.org/article"]
 
 
-def test_forwarded_message_attachment_is_not_recursed():
+def test_forwarded_message_attachment_contributes_links_without_authorizing_from():
     outer = EmailMessage()
     outer["From"] = "editor@example.org"
     outer.set_content("https://example.org/one")
     attached = EmailMessage()
     attached.set_content("https://example.org/attached")
     outer.add_attachment(attached)
-    assert urls(outer.as_bytes()) == ["https://example.org/one"]
+    assert urls(outer.as_bytes()) == ["https://example.org/one", "https://example.org/attached"]
 
 
 @pytest.mark.parametrize("raw,code", [
