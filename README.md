@@ -1,125 +1,132 @@
 # Papyrus
 
-Papyrus is an open-source system that keeps a continuous, steerable feed of insight about the subjects you choose: it watches sources, decides what is relevant from your include/exclude labels, has editor agents write and check it up to your policies, and publishes it for people and agents.
+Papyrus is an open-source engine for a continuous, steerable feed of insight about a subject. It watches sources, decides what is relevant from an editor's include and exclude decisions, has editor agents research, write and check up to the publication's policies, and publishes the result for people and agents. The subject is configuration (doctrine, sections, corpus, steering), never code.
 
-You are focused on a topic. For us, it is AI/ML information systems. For you, it might be golf club technology, oil markets, local politics, or any other beat worth watching closely. The beat is configuration, not code. The current AI/ML corpus is pilot content, not an application assumption. A Papyrus publication changes subject by changing publication configuration, corpus set, category/graph steering state, edition plans, and worker instructions.
+This repository is the **engine**. It ships two packages in lockstep, `@anthusai/papyrus` on npm and `papyrus-newsroom` on PyPI, and every Papyrus site installs both at one exact version. A site repository holds only what is specific to that site. Fix the engine here, release it, then bump the pin in the site. Do not copy engine code into a site.
 
-Research agents monitor the beat, update a publication-specific knowledge base, and surface developments. Editor agents turn those signals into assignments. Reporter agents prepare private reporting packets: the verified facts, source trail, open questions, risks, angle, and copywriter brief an editor needs before commissioning reader-facing copy. Copywriter agents turn selected packets into draft Items for review. You steer as much or as little as you want, and editors decide what is published.
+New to the repo? Read this page, then [AGENTS.md](AGENTS.md) (the operating manual for agents and people), then the [docs index](docs/README.md).
 
-## What Papyrus does
+## How it relates to the other repositories
 
-Status: Live, Beta, or Not built yet. Each line links to the page that says what exists.
+| Repository | Role |
+| --- | --- |
+| **Papyrus** (this repo) | The engine: the newsroom console, the CMS backend (Amplify Gen 2), the standard Markus projector, the `papyrus` CLI, plugins, infrastructure templates and the shared monitoring and procedure stacks |
+| Site repositories, for example `AnthusAI/Shipped-web`, `Distinctive-web`, `Pilobol.us`, `Anth.us-Papyrus`, `Threat-Intelligence`, `p.apyr.us`, `DataParade-newsroom` | One per site: `papyrus.config.ts`, `web/projection.json`, theme, `infra/site.json`, the exact Papyrus pins. They are generic containers; sections, missions and scoring live in the site's backend data |
+| **Cyclotron** (`AnthusAI/Cyclotron`) | The decision engine. One shared relevance Cyclotron answers include/exclude for the Hacker News router and several sites. The `cyclotron` Poetry group in this repo pins its commit |
+| **Prospectus** (`AnthusAI/Prospectus`) | Accounts and sign-in for reader sites. A site's reader features open when Prospectus returns a per-site subject (see [reader steering](docs/reader-steering.md#the-switch-on-condition)). Tell the Prospectus owner before merging to its `main` |
+| **Biblicus** | The knowledge layer (corpora, topic models, extraction). Installed from PyPI (`biblicus >=1.15.0`) |
+| **Tactus** | The procedure runtime. Newsroom procedures are `.tac` files run by Tactus (`tactus >=0.53.4`) |
+| Markus (`anthus-markus`) | The content markup and renderer behind Markus sites (`papyrus-newsroom[markus]`) |
+| Kanbus | The work board (project key `PPY`) and its `kbs` CLI |
 
-- **Publishes for people and agents.** Static Markus sites with Markdown twins, `llms.txt`, `Accept: text/markdown`, page actions, feeds and a sitemap. Live. [Agent-readable sites](docs/agent-readable-sites.md), [building a static site](docs/building-a-papyrus-static-site.md).
-- **Steers from your decisions.** Doctrine, include and exclude labels, category steering. Live. The relevance Cyclotron and per-Section Cyclotron are Beta; steering by votes, ratings and comments is Not built yet. [Steering and relevance](docs/steering-and-relevance.md).
-- **Watches sources.** The Hacker News Monitor is Beta. Email, Slack and research dispatch are Live. General RSS monitors, many monitors per publication and X search are Not built yet. [Sources and monitoring](docs/sources-and-monitoring.md).
-- **Runs editor agents.** Researcher, editor, reporter and copywriter procedures, editorial checks on by default, story versions and a reporting trail. Live. [Editor agents](docs/editor-agents.md).
-- **Keeps a knowledge base.** Concepts wiki for editors, topics, graph, context packs: Live. Trending concepts report: Beta. Public wiki, topics and trends: Not built yet. [Knowledge base](docs/knowledge-base.md).
-- **Collects newsletter signups.** Signup capture is Live. Sending is Not built yet. [Newsletter](docs/newsletter.md).
+## Where it runs
 
-To start a new publication from a pile of files, follow
-[`docs/new-publication-from-corpus.md`](docs/new-publication-from-corpus.md).
-That workflow defines the corpus accession shape, reference-prospect intake,
-accepted-only analysis manifests, authoritative labels, topic granularity
-profiles, and `analysis.reindex` assignment path used to bootstrap a knowledge
-base from scratch.
+- **AWS account `papyrus-production`, id `712236451410`, region `us-east-1`** hosts the sites that belong to the Papyrus platform: Shipped, Distinctive Mark, Pilobol.us, Anth.us, Threat Intelligence, p.apyr.us and Data Parade. Use `AWS_PROFILE=papyrus-production` (SSO; only the person can run `aws sso login`). Sites whose product has its own account (Apricity, Auritus, Kanbus, Cyclotron and Prospectus, Chattic.us) are deployed there instead; each site records its account in `infra/site.json` under `aws`. See [Which account hosts a site](docs/site-hosting.md#which-account-hosts-a-site).
+- **Shared stacks** (hand-run CloudFormation or CDK in `712236451410`): `papyrus-monitoring` (collectors and the router), `papyrus-procedure-runner`, the knowledge cloud run and the projection lease table (`infra/scheduled-jobs`), `papyrus-newsletter-sending-<siteId>` (SES), and one edge stack `papyrus-edge-<siteId>` per site.
+- **Per site**: a CMS Amplify app (`<siteId>-cms`, platform `WEB_COMPUTE`) that owns the backend (AppSync, DynamoDB, Lambdas, S3), a versioned S3 site bucket, and the site's own CloudFront distribution (`papyrus-edge-<siteId>`, an origin access control to the bucket, `/newsroom*`, `/_next/*` and `/api/*` going to the CMS app). Amplify app ids and distribution ids live in each site's `infra/site.json` (Shipped: app `dkycd9pntgo6d`, distribution `EUQZ249T4OKXH`, `https://shipped.anth.us`).
+- **Hosts**: `shipped.anth.us`, `distinctive-mark.com`, `pilobol.us`, `anth.us`, `threat-intelligence.anth.us`, `p.apyr.us`, `dataparade.io/posts`. Editors sign in with Google at `/newsroom`.
+- **Legacy account `335163751677`** still holds personal sandboxes (see [aws-sandbox-personal](docs/aws-sandbox-personal.md)) and stale pre-move copies of some apps. Do not create or change production resources there. A gitignored `AGENTS.local.md` on a developer machine may describe that account as production; the repository docs are the reference.
 
-## What is in the box
+The runtime picture, in short:
 
-- **A newsroom.** `/newsroom` is the operations workspace: topics, sections, doctrine, references, assignments, editions. Agents research and report in private; editors steer and decide. See [Newsroom operations](docs/newsroom-operations.md) and [How Papyrus works](docs/how-papyrus-works.md).
-- **A knowledge base.** Accepted categories, references and a semantic graph give agents context beyond vector search. Search it with `knowledge-query` ([internal knowledge research](docs/internal-knowledge-research.md)).
-- **A reader.** Either a newspaper-style Next.js reader laid out by a Pretext solver ([layout system](docs/layout-system.md)) or a static Markus site served from S3 and CloudFront ([site hosting](docs/site-hosting.md)).
-- **A CLI.** `papyrus` signs every request with your AWS credentials (SigV4); there is no token to manage ([operator CLI](docs/operator-cli.md), [recipes](docs/python-cli-and-testing.md)).
+- **Save is live.** For a Markus site (`s3-projection`, the default for new sites) the `content-actions` Lambda saves an item and renders only the pages that depend on it into the S3 bucket; CloudFront serves it. There is no build job.
+- **Git holds code, theme and settings, not articles.** Content lives in DynamoDB and the site can always be re-projected with `papyrus ops content project --all`.
+- **Pretext** (a Next.js server on Amplify that renders on request) is the alternative publication kind, used by Threat Intelligence and p.apyr.us.
+- **Local vs cloud.** `papyrus` runs against a local pod or the cloud GraphQL API with the same argv (`--backend local|cloud`, [operator CLI](docs/operator-cli.md)). Procedures run locally under Tactus or in the cloud in the procedure runner Lambda. The weekly knowledge run runs on a workstation ([runbook](docs/knowledge-workstation-run.md)) or unattended in AWS ([cloud run](docs/knowledge-cloud-run.md)). The Hacker News collector has a local SQLite worker and the cloud stack ([monitoring](docs/monitoring-cloud.md)).
 
-## How a Papyrus Publication Fits Together
+Detail: [How a publish flows](docs/how-a-publish-flows.md), [Site hosting](docs/site-hosting.md), [the standard site design](docs/standard-site.md).
 
-![How a Papyrus publication fits together: editors use the newsroom UI in the CMS app; Save calls the AppSync GraphQL API, and the content-actions Lambda renders only the affected pages into a versioned S3 site bucket served by CloudFront; a renditions Lambda makes images at upload; the Pretext kind is a Next.js server on Amplify that reads published models as a guest](docs/images/publication-architecture.svg)
+## What exists today
 
-Text version of the picture:
+Status words: **Live** (in production on at least one site), **Beta**, **In progress**, **Planned**.
 
-- **One CMS app per site.** Editors sign in with Google to the newsroom UI. Every change goes through the GraphQL API (AppSync), which stores items and published items in DynamoDB. Uploaded images go to the media bucket.
-- **Save is live.** For a Markus site (publication kind `s3-projection`, the default for new sites), the `content-actions` Lambda behind the Save, Publish and Unpublish mutations saves the item and then renders only the pages that depend on it (the item page, the listings, tags, home, sitemap) into a versioned S3 site bucket. There is no build job and no Republish button; a change is visible within seconds. Writes happen in an order that never leaves a link to a missing page.
-- **Images are made at upload.** An S3 event on the media bucket starts the `renditions` Lambda, which writes the responsive image files and a small size file into the site bucket. Page renders read the size file and never decode an image.
-- **CloudFront serves the bucket.** The site's own CloudFront stack (with its own certificate) reads the private bucket and runs small edge functions for redirects and for `/x/` to `/x/index.html`. After each projection the Lambda invalidates the changed paths in one call; a run that would purge more than 10 paths sends a single `/*` instead, which CloudFront bills as one path.
-- **Pretext is the alternative kind.** A Pretext site is a Next.js server on Amplify that renders pages on request from the published models. A publish tells it to revalidate, and a page lives about a minute at most.
-- **Guests are read-only.** The public (guest) GraphQL surface can read the published models and `media/*`, nothing else, and no model or mutation allows a guest to write.
-- **Where Git fits.** Git holds code, theme and the site's projector, not articles. Content lives in DynamoDB; the site can always be re-projected from it with `papyrus ops content project --all`.
-
-Details: [How a publish flows](docs/how-a-publish-flows.md) (for editors) and [Site hosting](docs/site-hosting.md) (for operators).
+- **Standard Markus projector and front end.** One renderer for every Markus site, driven by `web/projection.json`: pages, listings, tags, sitemap, feeds, Markdown twins, `llms.txt`. Live. [Building a static site](docs/building-a-papyrus-static-site.md), [agent-readable sites](docs/agent-readable-sites.md).
+- **Plugins and the edge.** Deploy-time plugins (`signup`, `newsletter`, `reader-steering`) and the `papyrus-edge-*` CloudFront stacks with the Lambda@Edge 404 handler for sites that mix S3 and the CMS app (#560). Live. [Plugins](docs/plugins.md), [edge README](infra/edge/README.md).
+- **Reader steering.** Votes on any subject, flags, ratings, comments, submissions, moderation, snapshots, and Proposals (PPY-c97ce4, PPY-409d96). Built and tested; reader writes stay closed in production until Prospectus returns a site subject. [Reader steering](docs/reader-steering.md).
+- **Newsletter.** Double opt-in, clean `/newsletter/*` pages, branded email theme, roundup issues, alerts, paced sending through SES. Live on Shipped. [Newsletter](docs/newsletter.md).
+- **Analytics.** GA4 with Consent Mode v2, a first-party banner and address redaction. `analytics_only` exists and stays off on every site. [Site hosting: Analytics](docs/site-hosting.md#analytics-google-analytics-4).
+- **Monitoring and the router.** The collector and router (`papyrus-monitoring`) and the Monitoring page. The shared relevance Cyclotron decides which Hacker News items each site wants (Anth.us, p.apyr.us, Threat Intelligence, Data Parade, Pilobolus); the TTAB monitor feeds Distinctive Mark directly. Beta. [Monitoring](docs/monitoring-cloud.md), [steering and relevance](docs/steering-and-relevance.md).
+- **Procedure runner and site procedures.** A site registers its own Tactus procedure with `papyrus procedures register`; the runner executes it in the cloud when a monitor delivers a new Reference. Live for Distinctive Mark. [Procedure runner](docs/procedure-runner.md).
+- **Knowledge run.** Weekly topic model, extraction, AI review, snapshot, archive, wiki and projection, local or unattended in AWS, guarded by the projection lease. Beta (Shipped first). [Cloud run](docs/knowledge-cloud-run.md).
+- **Automations.** Records that bind a monitor to a procedure, with `enabled`, concurrency and budget limits, cost and run history, and Run now (PPY-9ff95b slices 1 and 2). Monitor triggers are live; schedule, event and manual triggers are stored but not started. [Automations](docs/automations.md).
+- **Idea pipeline v0.** `papyrus ideas digest` and `synthesize` turn recent references into private story ideas, run by hand, with `--store proposals` filing them as `story_draft` Proposals (needs a `papyrus login` session; IAM cannot file). Merged to `develop`; scheduling and weekly trends are in progress (PPY-8ffc18). [Idea pipeline](docs/idea-pipeline.md).
+- **Review requests and the Notification Center** as the console home. In progress, pull request [#642](https://github.com/AnthusAI/Papyrus/pull/642) (PPY-ab6a50, PPY-1cd261). Not on `develop` yet.
+- **Reconcile guard.** A reconcile refuses to run without the deployed plugin list and never deletes a plugin's pages (#594). Live. [Site hosting: reconcile](docs/site-hosting.md#the-dead-letter-queue-and-reconcile).
+- **Pretext newspaper layout lab, newsroom, knowledge base, editor agents.** Live. [Layout system](docs/layout-system.md), [newsroom operations](docs/newsroom-operations.md), [editor agents](docs/editor-agents.md).
 
 ## Quick start
 
-Requirements: Node and npm, Python 3.12 or 3.13, [Poetry](https://python-poetry.org/), and an AWS profile for anything that touches the cloud.
+Prerequisites: Node 22 and npm, Python 3.12 or 3.13 (CI uses 3.12), [Poetry](https://python-poetry.org/), [`kbs`](https://github.com/AnthusAI/Kanbus) for the board, and an AWS SSO profile for anything that touches the cloud.
 
 ```bash
-npm install
-poetry install
-cp .env.example .env     # app-level settings only; never credentials
-npm run dev:127          # http://127.0.0.1:3001 (prefer 127.0.0.1 over localhost)
-```
-
-Settings you need for the features named:
-
-| Variable | Used for |
-| --- | --- |
-| `PAPYRUS_GRAPHQL_ENDPOINT` | CLI and agents talking to a deployed AppSync API |
-| `PAPYRUS_INBOUND_EMAIL_DOMAIN` | Addresses for inbound email submissions and replies |
-| `PAPYRUS_PUBLIC_SITE_BASE_URL` | Absolute links in submission feedback (or `publicSite.baseUrl` in the Papyrus config) |
-
-The shell environment wins over `.env`. See `.env.example` for the full list and [docs/inbound-email-submissions.md](docs/inbound-email-submissions.md) for the email flow.
-
-For a cloud sandbox:
-
-```bash
-AWS_PROFILE=<profile> npm run sandbox          # provisions an Amplify sandbox
-AWS_PROFILE=<profile> npm run seed:amplify     # users, sections, doctrine, procedures
-poetry run papyrus ops content seed-edition    # fixture edition, articles and media
-```
-
-Production deploys run from `main` through the DevOps pipeline. Do not run `ampx pipeline-deploy` locally.
-
-## Commands
-
-## Commands
-
-```bash
-npm run dev
-npm run dev:127
-npm run lint
-npm run typecheck
-npm run build
-poetry install
+npm ci
+poetry install --extras "newsroom markus priming" --with cyclotron   # what CI installs
 poetry run papyrus --help
-poetry run papyrus procedures execute-tactus 'return api_list{}'
-poetry run python procedures/newsroom/tests/test_newsroom_tools.py
-npm run sandbox
-npm run seed:amplify
-poetry run papyrus ops content inspect
-poetry run papyrus ops categories import-config --config corpora/papyrus-steering.yml
-poetry run papyrus sections import --config corpora/papyrus-newsroom-sections.yml
-poetry run papyrus ops categories import-steering --config corpora/papyrus-steering.yml --corpus-key <key>
-poetry run papyrus ops categories import-steering --bundle <steering-export.json>
-poetry run papyrus knowledge topics export-category-set --category-set <id> --output <accepted-category-set.json>
-poetry run papyrus ops categories import-projection --config corpora/papyrus-steering.yml --target-corpus-key <key> --authority-corpus-key <key> --bundle <projection.json>
-poetry run papyrus knowledge concepts import-types --config corpora/papyrus-semantic-relation-types.yml
-poetry run papyrus knowledge concepts backfill --config corpora/papyrus-semantic-relation-types.yml
-npm run test:bdd
-npm run test:bdd:backend
-npm run test:bdd:agent-live
+echo '{}' > amplify_outputs.json     # git-ignored stub so the type check resolves; no secrets
+npm run typecheck
+npm run lint
+npm run dev:preview                  # seeded newsroom at http://127.0.0.1:3002/newsroom/work, no AWS
 ```
 
-Test suites and verification: [docs/verification.md](docs/verification.md), [docs/python-cli-and-testing.md](docs/python-cli-and-testing.md), [docs/layout-scenario-tests.md](docs/layout-scenario-tests.md).
+Other local servers: `npm run dev:127` serves the app on `http://127.0.0.1:3001` and needs a real `amplify_outputs.json` (`npm run outputs:sandbox` or `npm run outputs:production`). `cp .env.example .env` holds app-level settings only, never credentials; the shell environment wins over `.env`.
+
+Tests (what CI runs is in `.github/workflows/tests.yml`):
+
+```bash
+npm run test:bdd:backend                                  # behave: features_backend/
+poetry run pytest -q procedures/newsroom/tests/test_ideas.py   # one Python test file
+npm run test:schema-parity                                # schema.ts against resource.ts
+npm test                                                  # all scripts/test-*.ts and Lambda tests
+npm run test:bdd                                          # cucumber: layout and reader (needs Playwright chromium)
+```
+
+More: [verification](docs/verification.md), [Python CLI and testing](docs/python-cli-and-testing.md), [local preview](docs/local-preview.md).
+
+## How a change reaches production
+
+1. **Branch from `origin/develop`** (`feature/PPY-xxxxxx-slug`, `fix/...`, `chore/...`, `docs/...`) and open a pull request to `develop`. Behaviour changes ship with Gherkin specs.
+2. **CI** (`tests.yml`, plus `package-smoke.yml` when packages, app or Python code changes) runs the type check, lint, the TypeScript tests, the app-shell CDK build, the Python tests and the pilot-identifier guard. Merge to `develop` with a merge commit once it is green.
+3. **A push to `develop` publishes a prerelease** `X.Y.Z-next.N` (npm dist-tag `next`, PyPI `X.Y.Z.devN`).
+4. **Promote `develop` to `main` with a pull request and a merge commit** (never a squash). A push to `main` runs `release.yml`: semantic-release (conventional commits) cuts the stable version and publishes `@anthusai/papyrus` to npm and `papyrus-newsroom` to PyPI at the same number, through trusted publishing (OIDC), with no stored tokens. `feat:` releases a minor, `fix:` a patch, `feat!:` or `BREAKING CHANGE` a major. `chore:`, `docs:`, `test:`, `refactor:` and `ci:` do not release. Versions are stamped into the staged packages and never committed back. Agents promote only when told to; see [AGENTS.md](AGENTS.md#git-workflow).
+5. **A site picks up a release by bumping its pin** by hand in four places: `package.json`, `infra/package.json`, `infra/site.json` (`papyrusVersion`) and `requirements-publication.txt` (`papyrus-newsroom[markus]==X`). Merging that to the site's `main` deploys it:
+   - **Public site repositories** run Actions CI, and a green push to `main` starts the Amplify job through GitHub OIDC (the reusable workflow `.github/workflows/amplify-deploy.yml`). Amplify auto-build is off on `main`.
+   - **Private site repositories** run all CI and CD in AWS (Amplify auto-build or CodePipeline).
+   - The deploy renders the whole site again (`reprojectOnDeploy`), so merging is the only step. Backend changes ride the same deploy.
+
+Details: [Releasing](docs/releasing.md), [Deploy on merge to main](docs/site-hosting.md#deploy-on-merge-to-main). This repository's own `main` does not deploy a site; the engine ships as packages. Production deploys through `ampx pipeline-deploy` are never run from a laptop.
+
+## Start a new Papyrus site
+
+The steps below are the real sequence; each links to the page that holds the detail. A site repository starts from the layout of a recent one (Shipped-web is the cleanest example) and contains no engine code.
+
+1. **Create the site repository** with `papyrus.config.ts` (`defineSite`), `web/projection.json`, `web/css/`, `amplify.yml`, `infra/site.json` and `requirements-publication.txt`. [Building a static site](docs/building-a-papyrus-static-site.md), [standard site layout](docs/standard-site.md).
+2. **Write `infra/site.json`** with an `aws` block (`profile`, `accountId`, `region`). There is no default account, and a file without `aws.accountId` and `aws.region` fails with `does not say where it deploys`. Also set `cms.cognitoDomainPrefix` (distinct per site), `cms.siteOrigin` for a site behind its own edge, and the `github` block with `ownerId` and `repoId`. Examples: [`infra/amplify-app-shell/examples/`](infra/amplify-app-shell/examples), reference: [app-shell README](infra/amplify-app-shell/README.md).
+3. **Pin the engine** to one released version in the four places listed above.
+4. **Deploy the app shell** from a Papyrus checkout (a human approves the change set; connect the GitHub App once per app and approve a new CodeConnections connection by hand):
+
+   ```bash
+   cd infra/amplify-app-shell && npm ci
+   SITE=/absolute/path/to/site/infra/site.json AWS_PROFILE=papyrus-production npm run diff
+   SITE=/absolute/path/to/site/infra/site.json AWS_PROFILE=papyrus-production npm run deploy
+   ```
+
+   [Deploying the app-shell stack](docs/site-hosting.md#deploying-the-app-shell-stack-from-a-checkout), [GitHub App connection](docs/site-hosting.md#one-time-github-app-connection-per-app).
+5. **Secrets.** Create the site's Google OAuth client, then from the site repository run `papyrus site google-secrets set` (it stores SSM SecureString secrets after asserting the account) and `papyrus site google-secrets check`. Add editors to a Cognito group after their first sign-in. [Google sign-in](docs/site-hosting.md#google-sign-in), [OAuth setup](docs/google-oauth-setup.md).
+6. **Edge.** Give the site its own CloudFront: `backend.publication.distribution` in `papyrus.config.ts`, or a `papyrus-edge-<siteId>` stack from `infra/edge/s3-projection-cms.yaml` (use this one when `/newsroom*` and `/api/*` share the host: it carries the 404 handler). DNS and certificates: [edge README](infra/edge/README.md), [own CloudFront](docs/site-hosting.md#own-cloudfront-in-front-of-the-bucket-papyrus-edge-).
+7. **First content and projection.** `papyrus publication init --key <key> --name <name>`, then `papyrus ops content project --all`. [How a publish flows](docs/how-a-publish-flows.md).
+8. **Mission doctrine.** Write the mission (three lines: what it is and for whom, what coverage includes, what readers take away) and the policy, then `papyrus sections doctrine set --kind mission --file mission.md` and `--kind policy`. The relevance Cyclotron seeds its rubric from them. [Editorial context](docs/editorial-context.md), [steering and relevance](docs/steering-and-relevance.md).
+9. **Newsletter (optional).** Deploy the SES stack `infra/newsletter/papyrus-newsletter-sending.yaml` for the site, then enable the `newsletter` plugin in `papyrus.config.ts`. SES starts in the sandbox. [Newsletter](docs/newsletter.md), [sending stack](infra/newsletter/README.md).
+10. **GA4 (optional).** `chrome.ga_measurement_id` plus `chrome.consent_mode` in `projection.json` (the standard Consent Mode v2 banner; leave `analytics_only` off). [Analytics](docs/site-hosting.md#analytics-google-analytics-4).
+11. **Hacker News routing (optional).** Add the site's AppSync grants to `infra/monitoring/papyrus-monitoring.yaml`, deploy `papyrus-monitoring` with a change set, add the publication to the router config with `infra/monitoring/seed_router_config.py`, and make sure the shared Cyclotron has a `<publicationId>-relevance` output. The router starts in `dry-run`. [Monitoring: the router](docs/monitoring-cloud.md#the-router-step-4), [AGENTS.md](AGENTS.md#add-a-site-to-the-hacker-news-routing).
+12. **Register the site in Prospectus** if it has reader features (`cms.prospectusAccountsApiStageArn`). [Reader steering](docs/reader-steering.md#enabling-it).
 
 ## Where to read next
 
-- [docs/README.md](docs/README.md): index of every documentation page.
-- [AGENTS.md](AGENTS.md): the hard rules for agents, each with its enforcement.
-- [CONTRIBUTING_AGENT.md](CONTRIBUTING_AGENT.md): Kanbus workflow for the PPY board.
-- [docs/new-publication-from-corpus.md](docs/new-publication-from-corpus.md): start a new publication from a pile of files.
+- [AGENTS.md](AGENTS.md): the operating manual, hard rules, common tasks with exact commands, ownership and current state.
+- [docs/README.md](docs/README.md): the index of every documentation page, grouped by task.
+- [CONTRIBUTING_AGENT.md](CONTRIBUTING_AGENT.md): the Kanbus workflow ("The Way") for the PPY board.
 - [docs/code-map.md](docs/code-map.md): where the main files live.
 
 ---
 
-Built by [Anthus AI Solutions](https://anth.us). We run this class of system in production.
-
-If you need this operated, not just cloned, [talk to us](https://anth.us).
+Built by [Anthus AI Solutions](https://anth.us). We run this class of system in production. If you need this operated, not just cloned, [talk to us](https://anth.us).
