@@ -108,6 +108,11 @@ PROCEDURE_RUN_FIELDS = (
 AUTOMATION_FIELDS = (
     "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
 )
+REVIEW_REQUEST_FIELDS = (
+    "id subject mode reason ask raisedBy raisedAt deadline state answer links history appliedIn updatedAt"
+)
+REVIEW_READ_MARK_FIELDS = "id requestId userKey readAt"
+REVIEW_RECIPIENT_RULE_FIELDS = "id scope key roles emails updatedBy updatedAt"
 USER_ROLE_ASSIGNMENT_FIELDS = (
     "id userProfileId userSub email role status grantedBy grantedAt revokedAt notes"
 )
@@ -186,6 +191,9 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ProcedureVersion": {"field": "listProcedureVersions", "fields": PROCEDURE_VERSION_FIELDS},
     "ProcedureRun": {"field": "listProcedureRuns", "fields": PROCEDURE_RUN_FIELDS},
     "Automation": {"field": "listAutomations", "fields": AUTOMATION_FIELDS},
+    "ReviewRequest": {"field": "listReviewRequests", "fields": REVIEW_REQUEST_FIELDS},
+    "ReviewReadMark": {"field": "listReviewReadMarks", "fields": REVIEW_READ_MARK_FIELDS},
+    "ReviewRecipientRule": {"field": "listReviewRecipientRules", "fields": REVIEW_RECIPIENT_RULE_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
     "ModelAttachment": {"field": "listModelAttachments", "fields": MODEL_ATTACHMENT_FIELDS},
     "NewsroomSection": {"field": "listNewsroomSections", "fields": NEWSROOM_SECTION_FIELDS},

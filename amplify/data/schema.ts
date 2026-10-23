@@ -1197,6 +1197,54 @@ const definitions = {
       allow.group(adminGroup).to(authoringOperations),
     ]),
 
+  /** A human review point raised by a step on any item (PPY-ab6a50). Review is not a story state. */
+  ReviewRequest: modelWithoutSubscriptions({
+      id: a.id().required(),
+      subject: a.json().required(),
+      mode: a.string().required(),
+      reason: a.string().required(),
+      ask: a.string(),
+      raisedBy: a.string().required(),
+      raisedAt: a.datetime().required(),
+      deadline: a.datetime(),
+      state: a.string().required(),
+      answer: a.json(),
+      links: a.json(),
+      history: a.json(),
+      appliedIn: a.json(),
+      updatedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group("editor").to(["read", "create", "update"]),
+      allow.group(adminGroup).to(authoringOperations),
+    ]),
+
+  /** One user's read mark on one review request; id is "<userKey>#<requestId>". */
+  ReviewReadMark: modelWithoutSubscriptions({
+      id: a.id().required(),
+      requestId: a.string().required(),
+      userKey: a.string().required(),
+      readAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.groups(["editor", adminGroup]).to(["read", "create", "update"]),
+    ]),
+
+  /** Who is told about review requests: scope default, mode or automation. Changed by data, not code. */
+  ReviewRecipientRule: modelWithoutSubscriptions({
+      id: a.id().required(),
+      scope: a.string().required(),
+      key: a.string(),
+      roles: a.string().array(),
+      emails: a.string().array(),
+      updatedBy: a.string(),
+      updatedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group("editor").to(["read"]),
+      allow.group(adminGroup).to(authoringOperations),
+    ]),
+
   NewsroomSection: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string(),
