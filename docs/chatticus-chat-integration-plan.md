@@ -2,6 +2,8 @@
 
 Planning only • 23 October 2026 • PPY-de11ec / PPY-eeb023
 
+This is the reviewed planning snapshot. Implementation subsequently resumed under user authorization; see [current implementation and remaining gates](chatticus-chat-implementation-status.md) for delivered PRs and dependencies. Historical pause/no-code statements below describe the planning handoff, not current execution.
+
 **Recommendation:** make Chatticus the owner of shared chat behavior and let Papyrus own the editorial application. Extract a small client/protocol package and a React chat surface; provide the durable server core from Chatticus with Papyrus-specific auth, context, tools and job adapters. Do not embed the whole Chatticus workspace, copy its components into Papyrus, or build another Papyrus agent loop.
 
 **Use the existing TypeScript Pi Durable implementation; do not introduce a Python migration prerequisite.** The user clarified after reviewing the plan that Pi Durable appears to be TypeScript-only. The inspected code confirms TypeScript `@earendil-works/pi-durable` 1.0.2; no Python package identity was supplied or verified. Earlier PPY issue descriptions saying PyAgents/PyDurable are stale terminology to reconcile, not evidence of an available Python implementation. Extract the React surface and HTTP/SSE client first, independently of the runner. Plan later server extraction around the existing Chatticus TypeScript core, with an explicit decision on how that shared dependency fits Papyrus's Python-first backend policy. Do not build a second chat loop in Python merely to match the old wording.

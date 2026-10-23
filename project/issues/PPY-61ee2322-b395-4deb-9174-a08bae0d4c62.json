@@ -55,10 +55,40 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "84c62197-3583-4b36-9e49-ce1b559cbac1",
+      "author": "home",
+      "text": "CI follow-up inspection found the fixture helper matches the broad scripts/test-* glob and defaults to only reference mode when called without an argument. Correcting the harness placement, requiring an explicit mode and wiring both existing Gherkin scenarios into the CI job after its existing Chromium installation. Use the standard PAPYRUS_CHROMIUM_PATH override locally; no product behavior or access changes.",
+      "created_at": "2026-10-23T19:14:30.230895Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "ff4ef60c-e3b8-4079-a8ec-b74b955a8cb6",
+      "author": "home",
+      "text": "CI coverage correction pushed at 7b445844d90e26bd85d92faa33e4a51399084fd4 on PR662: helper moved outside broad test glob, explicit mode required, standard Chromium override supported, both Gherkin scenarios run as an explicit CI step. Local 2 scenarios / 7 steps and lint pass; hosted Shared chat browser acceptance step and package smoke/consumer checks now pass. Full current-head ts/python jobs still running. Superseded pre-correction tests run was cancelled; old package smoke finished green. New docs/chatticus-chat-implementation-status.md records exact draft heads, unmerged package dependencies and M2b/M3/M4/M5/M6 gates. Chatticus admission follow-up PR637 is separately stacked on PR636 and is not yet consumed by Papyrus.",
+      "created_at": "2026-10-23T19:22:47.929154Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Shared chat integration",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T18:30:23.561107Z",
-  "updated_at": "2026-10-23T19:11:27.586980Z",
+  "updated_at": "2026-10-23T19:22:47.929197Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
