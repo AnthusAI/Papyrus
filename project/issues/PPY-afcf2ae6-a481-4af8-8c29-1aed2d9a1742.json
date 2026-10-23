@@ -34,10 +34,22 @@
         "model": "gpt-6.1-sol",
         "name": "BlackbookM1 Sol"
       }
+    },
+    {
+      "id": "547694ab-b61a-4712-a48c-e40f78077d9f",
+      "author": "home",
+      "text": "Follow-up from Ryan: added Overview to the five-slot mobile newsroom tab bar so the landing/Notification Center page is directly reachable and the tabs occupy all columns evenly. Browser check at 390px confirmed five equal-width columns and the Overview active state; Stories active state also checked.",
+      "created_at": "2026-10-23T18:17:00.319315Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1 Sol"
+      }
     }
   ],
   "created_at": "2026-10-23T17:57:13.960951Z",
-  "updated_at": "2026-10-23T18:12:16.280501Z",
+  "updated_at": "2026-10-23T18:17:00.319344Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
