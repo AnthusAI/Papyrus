@@ -1,0 +1,65 @@
+import type { AutomationOverview } from "./automation-overview";
+
+const COST_NOTE = "not recorded: the procedure runner does not record token use or cost on a ProcedureRun yet";
+
+/** A realistic overview for tests and the `?demo=1` newsroom: one live monitor automation and one stored schedule. */
+export const FIXTURE_AUTOMATION_OVERVIEW: AutomationOverview = {
+  state: "ready",
+  asOf: "2026-10-23T12:00:00Z",
+  monitoring: "ready",
+  automations: [
+    {
+      id: "example.ttab.ruling-analysis",
+      title: "Analyze new TTAB rulings",
+      description: "Drafts a story for each new Board decision.",
+      enabled: true,
+      enabledNote: "display only until the router honours it",
+      trigger: { kind: "monitor", config: { monitorId: "ttab", publicationId: "example" } },
+      supported: true,
+      supportNote: null,
+      procedureKey: "example.ttab.ruling-analysis",
+      inputTemplate: { proceeding: "{sourceIdPrefix}", opinion_url: "{documentUrl}" },
+      limits: { timeoutSeconds: 840, maxConcurrent: 1 },
+      limitsNote: "recorded only: the runner does not enforce these yet",
+      createdAt: "2026-10-23T10:00:00Z",
+      updatedAt: "2026-10-23T10:00:00Z",
+      link: { state: "linked", text: "The router's trigger matches this record.", routerMode: "live", routerEnabled: true },
+      notice: null,
+      skippedAlreadyHadReference: 2,
+      lastRun: null,
+      runs: [
+        { sourceId: "91000001-EXA_26", referenceId: "ref-1", triggerStatus: "completed", runId: "run-1", status: "completed",
+          startedAt: "2026-10-23T11:30:00Z", finishedAt: "2026-10-23T11:33:10Z", durationSeconds: 190, error: null, runRecord: "found",
+          storyId: "story-1", storyVersionId: "version-1", storyTitle: "Board affirms a refusal for likelihood of confusion", costUsd: null, costNote: COST_NOTE },
+        { sourceId: "91000002-EXA_26", referenceId: "ref-2", triggerStatus: "failed", runId: "run-2", status: "failed",
+          startedAt: "2026-10-23T05:30:00Z", finishedAt: "2026-10-23T05:31:00Z", durationSeconds: 60, error: "the opinion could not be downloaded", runRecord: "found",
+          storyId: null, storyVersionId: null, storyTitle: null, costUsd: null, costNote: COST_NOTE },
+        { sourceId: "91000003-EXA_26", referenceId: "ref-3", triggerStatus: "started", runId: null, status: "started",
+          startedAt: "2026-10-23T11:59:00Z", finishedAt: null, durationSeconds: null, error: null, runRecord: "none",
+          storyId: null, storyVersionId: null, storyTitle: null, costUsd: null, costNote: COST_NOTE },
+      ],
+    },
+    {
+      id: "example.weekly-digest",
+      title: "Weekly digest",
+      description: null,
+      enabled: false,
+      enabledNote: "display only until the router honours it",
+      trigger: { kind: "schedule", config: { cron: "0 9 * * 1" } },
+      supported: false,
+      supportNote: "not yet supported",
+      procedureKey: "example.weekly-digest",
+      inputTemplate: {},
+      limits: { timeoutSeconds: 840, maxConcurrent: 1 },
+      limitsNote: "recorded only: the runner does not enforce these yet",
+      createdAt: "2026-10-23T10:05:00Z",
+      updatedAt: "2026-10-23T10:05:00Z",
+      link: { state: "not_applicable", text: "not yet supported" },
+      notice: "not yet supported",
+      skippedAlreadyHadReference: 0,
+      lastRun: null,
+      runs: [],
+    },
+  ],
+};
+FIXTURE_AUTOMATION_OVERVIEW.automations[0].lastRun = FIXTURE_AUTOMATION_OVERVIEW.automations[0].runs[2];

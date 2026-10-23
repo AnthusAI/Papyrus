@@ -105,6 +105,9 @@ PROCEDURE_RUN_FIELDS = (
     "id procedureId procedureKey procedureVersionId procedureVersionNumber assignmentId runStatus requestedBy "
     "requestedAt startedAt finishedAt input normalizedInput resultSummary errorSummary output error attempt newsroomFeedKey"
 )
+AUTOMATION_FIELDS = (
+    "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
+)
 USER_ROLE_ASSIGNMENT_FIELDS = (
     "id userProfileId userSub email role status grantedBy grantedAt revokedAt notes"
 )
@@ -182,6 +185,7 @@ LIST_DEFINITIONS: dict[str, dict[str, str]] = {
     "ProcedureDefinition": {"field": "listProcedureDefinitions", "fields": PROCEDURE_DEFINITION_FIELDS},
     "ProcedureVersion": {"field": "listProcedureVersions", "fields": PROCEDURE_VERSION_FIELDS},
     "ProcedureRun": {"field": "listProcedureRuns", "fields": PROCEDURE_RUN_FIELDS},
+    "Automation": {"field": "listAutomations", "fields": AUTOMATION_FIELDS},
     "UserRoleAssignment": {"field": "listUserRoleAssignments", "fields": USER_ROLE_ASSIGNMENT_FIELDS},
     "ModelAttachment": {"field": "listModelAttachments", "fields": MODEL_ATTACHMENT_FIELDS},
     "NewsroomSection": {"field": "listNewsroomSections", "fields": NEWSROOM_SECTION_FIELDS},
