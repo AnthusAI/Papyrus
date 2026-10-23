@@ -10,9 +10,17 @@
   "parent": "PPY-839cf737-d3e6-46de-bb24-911bde8d11d4",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "1d2a4bcc-1270-48a9-8be4-06fb8417f656",
+      "author": "home",
+      "text": "2026-10-23: Added code-local site-hosted admission contract and Gherkin/test wiring. Branch feature/PPY-0d18a6-chat-trust-contract, head 93cf3f6cba2a095065e6218718042913d67fdef7 (pushed). Local PASS: npm run test:shared-chat-admission; both new Gherkin scenarios; npm run typecheck; npm run lint; git diff --check. Full shared-chat Gherkin run could not run its existing browser fixture because sandbox denied listening on 127.0.0.1 (EPERM); new contract scenarios pass individually. Exact-head GitHub status/workflow queries returned no checks/runs because no PR was created. Draft PR creation attempt via GitHub integration was rejected HTTP 403 Resource not accessible by integration; PR remains pending, no merge/deploy attempted. The production token profile and verifier/atomic idempotency-store wiring remain unimplemented by design.",
+      "created_at": "2026-10-23T20:18:55.463207Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-23T20:13:36.094168Z",
+  "updated_at": "2026-10-23T20:18:55.463254Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
