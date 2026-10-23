@@ -18,6 +18,6 @@ TAG="${IMAGE_TAG:-$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)}"
 aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$REGISTRY" >/dev/null
 PROVENANCE_FLAG=()
 docker buildx build --help 2>/dev/null | grep -q -- "--provenance" && PROVENANCE_FLAG=(--provenance=false)
-docker buildx build --platform linux/arm64 "${PROVENANCE_FLAG[@]}" \
+docker buildx build --progress=plain --platform linux/arm64 "${PROVENANCE_FLAG[@]}" \
   -f "$ROOT_DIR/infra/knowledge-run/Dockerfile" -t "$REGISTRY/$REPOSITORY:$TAG" ${PAPYRUS_VERSION:+--build-arg PAPYRUS_VERSION=$PAPYRUS_VERSION} ${PAPYRUS_SPEC:+--build-arg "PAPYRUS_SPEC=$PAPYRUS_SPEC"} --push "$ROOT_DIR" >&2
 echo "$TAG"
