@@ -2,6 +2,7 @@ import { type ClientSchema, a } from "@aws-amplify/backend";
 import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
+import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
 import { monitoringViewSchemaDefinitions } from "../functions/monitoring-view/schema";
 import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
@@ -1176,6 +1177,26 @@ const definitions = {
       allow.group(adminGroup).to(authoringOperations),
     ]),
 
+  /** A named "when X happens, run procedure Y" (PPY-9ff95b). Step 1 mirrors the monitoring router's procedureTriggers and starts nothing itself. */
+  Automation: modelWithoutSubscriptions({
+      id: a.id().required(),
+      title: a.string().required(),
+      description: a.string(),
+      enabled: a.boolean().required(),
+      trigger: a.json().required(),
+      procedureKey: a.string().required(),
+      inputTemplate: a.json(),
+      limits: a.json(),
+      createdBy: a.string(),
+      createdAt: a.datetime().required(),
+      updatedBy: a.string(),
+      updatedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group("editor").to(["read", "create", "update"]),
+      allow.group(adminGroup).to(authoringOperations),
+    ]),
+
   NewsroomSection: modelWithoutSubscriptions({
       id: a.id().required(),
       tenantId: a.string(),
@@ -2145,6 +2166,7 @@ const definitions = {
     ]),
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
+  ...automationViewSchemaDefinitions,
 };
 if (!includeEditions) {
   const mutableDefinitions = definitions as Record<string, unknown>;

@@ -1259,6 +1259,26 @@ const schema = a.schema({
       allow.group(adminGroup).to(authoringOperations),
     ]),
 
+  Automation: a
+    .model({
+      id: a.id().required(),
+      title: a.string().required(),
+      description: a.string(),
+      enabled: a.boolean().required(),
+      trigger: a.json().required(),
+      procedureKey: a.string().required(),
+      inputTemplate: a.json(),
+      limits: a.json(),
+      createdBy: a.string(),
+      createdAt: a.datetime().required(),
+      updatedBy: a.string(),
+      updatedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.group("editor").to(["read", "create", "update"]),
+      allow.group(adminGroup).to(authoringOperations),
+    ]),
+
   NewsroomSection: a
     .model({
       id: a.id().required(),

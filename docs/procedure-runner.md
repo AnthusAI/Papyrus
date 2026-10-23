@@ -110,6 +110,9 @@ The router never waits for a run, and a failed start never fails the delivery. B
 only once, a source item starts each procedure at most once, even when it is redelivered or redesignated.
 The run receipt counts `proceduresStarted`, `procedureStartFailed` and `procedureNotTriggered`.
 
+An automation record (`docs/automations.md`) mirrors a trigger like this one and shows its run history.
+It does not change how the router starts runs.
+
 To run a procedure again for an item, delete its `TRIGGER#` row and invoke the runner with the request
 stored on that row.
 

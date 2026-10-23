@@ -370,6 +370,11 @@ PORTED_COMMANDS = frozenset(
         "newsroom:update-section",
         "newsroom:seed-required-procedures",
         "newsroom:register-procedure",
+        "automations:list",
+        "automations:show",
+        "automations:runs",
+        "automations:create",
+        "automations:update",
         "newsroom:purge-planning",
         "relations:import-types",
         "relations:backfill",
@@ -770,6 +775,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "newsroom:register-procedure":
         from .site_procedures import procedures_register
         procedures_register(flags)
+    elif group == "automations":
+        from .automations import run_command as automations_command
+        automations_command(command, flags)
     elif route == "newsroom:purge-planning":
         newsroom_purge_planning(flags)
     elif route == "relations:import-types":
@@ -1644,6 +1652,7 @@ def print_usage() -> None:
     print("  assignments list, analysis profiles/validate-profiles/reindex-plan/preview-reindex/")
     print("  create-reindex-assignment/run-now/execute-assignment (auto sync-from-cloud when local catalog is stale;")
     print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/doctor-entity-graph,")
+    print("  automations list|show|runs [--id ID] [--limit N] [--json] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")
