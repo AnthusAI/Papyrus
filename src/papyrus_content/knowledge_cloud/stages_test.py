@@ -336,8 +336,12 @@ def test_the_projection_report_is_found_among_other_output_and_logged(tmp_path, 
     assert first_json_object(noisy) == {"written": 3, "deleted": 0, "errors": []}
     pretty = '{\n  "written": 3,\n  "deleted": 0\n}\ntrailing line\n'
     assert first_json_object(pretty)["written"] == 3
+    metric = '{"_aws": {"Timestamp": 1, "CloudWatchMetrics": []}, "InvalidatedPaths": 1}'
+    assert first_json_object(metric + '\n{\n  "ok": true,\n  "written": 1196,\n  "deleted": 0\n}\n')["written"] == 1196
     with pytest.raises(StageFailed):
         first_json_object("no report here")
+    with pytest.raises(StageFailed):
+        first_json_object(metric)
 
 
 def test_the_projection_stage_logs_its_report_and_records_the_counts(tmp_path, capsys):
