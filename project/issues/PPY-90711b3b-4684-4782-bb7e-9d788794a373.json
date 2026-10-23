@@ -1,0 +1,58 @@
+{
+  "id": "PPY-90711b3b-4684-4782-bb7e-9d788794a373",
+  "title": "Verify publication identities and approve exact Data Parade activation targets",
+  "description": "Owner: dataparade-preparation; user domain/editorial criteria expected later today, do not repeatedly ask. Depends on tenant-aware preparation story and Cyclotron owner-grant feature decision-flywheel-e5dcca5a-6438-41ef-b7a9-4f8e8dd56016. Verify actual SaaS organization UUID, meaning of perspective, publication identity and existing resources through normal authenticated metadata readback. Read-only inventory found existing Data Parade product sites and local dataparade-wiki pod, but no new hosted publication established. Data Parade AWS inventory is blocked by expired SSO. Prepare exact repository/app/domain/account/storage/grant/output/billing/retention diff before requesting final activation approval. No production grants, persistent credentials, DNS/infrastructure changes, policies or labels authorized.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": "claude-continuation",
+  "creator": null,
+  "parent": "PPY-9822fdeb-f07c-495a-a035-66f9e81f3d30",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-b9c2ff5e-008c-45a0-9a41-88a85d15135f",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "c5fd77d0-4b48-4913-a497-d48693df9b2f",
+      "author": "home",
+      "text": "The two account/perspective names supplied by the user are already known; do not request the names again or create duplicate organizations. Read-only tracing verified that the live central router and configured publication clients use the same production account directory. Its inspected records do not establish the required named-identity mapping. The existing Data Parade product uses a separate organization/workspace identity model, and no authoritative crosswalk was found.\n\nThe smallest unresolved identity input is the product/account-picker page that displays the two known names, or equivalent authenticated metadata. Keep exact private identity readback outside the public repository. Data Parade cloud-resource inventory remains pending renewal of its expired existing session; this is not proof that a resource is absent. Domain and actual editorial/section criteria are expected later today, so leave them unset and do not repeatedly ask while the user is mobile.\n\nActivation remains pending exact site, owner grant, output/execution, source, billing, retention and infrastructure scope approval. No production write was attempted; there is no denied or uncertain mutation.\n",
+      "created_at": "2026-10-20T14:54:46.694656Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
+    },
+    {
+      "id": "22f97dda-a8fc-4d43-84c7-367fff0af3da",
+      "author": "home",
+      "text": "Claude continuation checkpoint — implementation paused at the user's usage-limit request. Keep this site preparation inactive.\n\n- Repository/worktree: AnthusAI/Papyrus, `/Users/home/Documents/Codex/2026-10-20/task-4/papyrus-site-preparation`.\n- Branch: `feature/PPY-b9c2ff-publication-sharing-plan`; draft https://github.com/AnthusAI/Papyrus/pull/388.\n- Confirmed pushed source checkpoint: `17d8b6ba11d456b7bb5aede163d2a4a10b2582de`; implementation commit `d32e5d73ecc6fa678f959ec8fa0c3804fc9aadc6`. Subsequent handoff commits change Kanbus only.\n- Prepared inactive Data Parade plan, strict tenant-aware central-match/internal-section handoff and synthetic specs. No site, accounts, domain, criteria, taxonomy, labels, grants or credentials were created.\n- Already passed: 76 unit tests, six isolated Behave scenarios/28 steps, Ruff/format, pilot-ID guard, whitespace and independent review. Cross-repository smoke with actual journal/account/native engine adapters passed, including separately authorized internal classification.\n- Terminal CI at the exact source checkpoint: Python and TS succeeded in https://github.com/AnthusAI/Papyrus/actions/runs/39444134087; package smoke succeeded in https://github.com/AnthusAI/Papyrus/actions/runs/39444134074. No new polling during handoff. Local full Behave loading lacked baseline limatus.contracts; full remote Python CI passed. Kanbus whole-board validation has 15 inherited unrelated short-ID dependency errors; existing unrelated records were not edited.\n\nNo uncommitted source patches exist; worktree was clean before bookkeeping. Preserve both sibling checkouts and parent-directory `delivery-receipt.json`, private `identity-mapping.md`/`tenant-identity-readback.json`, and `verification/cyclotron_papyrus_hosted_smoke.py`; do not commit private evidence. Published source is recoverable from GitHub; these operator artifacts are local only.\n\nNext commands after authorization to resume:\n```sh\ncd /Users/home/Documents/Codex/2026-10-20/task-4/papyrus-site-preparation\ngit status --short\ngit log -4 --oneline\nkbs show PPY-90711b3b-4684-4782-bb7e-9d788794a373\ngh pr view 388 --repo AnthusAI/Papyrus --json headRefOid,statusCheckRollup\n```\nThen resolve the already-requested account-picker URL/authenticated metadata for the two known account names; do not ask their names again, guess perspective semantics, use personal/test IDs or create duplicate organizations. Data Parade cloud inventory remains incomplete because its existing SSO expired. Domain/editorial/section choices remain pending; never infer them from existing examples. Preserve existing product/landing sites and local pod.\n\nDependencies: sharing contract https://github.com/AnthusAI/Cyclotron/pull/60 and hosted integration decision-flywheel-e523bb3e-1b19-41dc-97d9-ae367ca36174. Main owner task01a15715-535d-777d-95d6-a183095000c8 owns ordinary release, central bootstrap and cross-stack consumer repairs; coordinate before touching those files. Original four-output priming remains independent.\n\nOrdinary Papyrus/Cyclotron merge/main/deploy is already approved; do not ask again. Exact new-site/infrastructure and owner grant/output/execution/source/billing/retention scopes, new authentication authority and persistent credentials remain unapproved. No deployment/security change is part of this handoff. Cache hold was released; deletion approval still requires a fresh installer-safe window. All prior external writes were confirmed; nothing is currently running or uncertain.\n",
+      "created_at": "2026-10-20T15:23:08.965446Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T14:27:22.558510Z",
+  "updated_at": "2026-10-20T15:23:08.965460Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6",
+    "name": "dataparade-preparation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

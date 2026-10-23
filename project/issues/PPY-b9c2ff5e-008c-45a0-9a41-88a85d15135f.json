@@ -1,0 +1,65 @@
+{
+  "id": "PPY-b9c2ff5e-008c-45a0-9a41-88a85d15135f",
+  "title": "Validate tenant-aware two-stage publication routing preparation",
+  "description": "Feature: Separate publication routing stages\nScenario: Prepare without editorial choices\nGiven the domain, SaaS account, publication, central grant and section criteria are not yet supplied\nWhen an operator validates a prepared site plan\nThen it remains inactive and lists unresolved fields without inventing them\nScenario: Preserve two stages and tenant provenance\nGiven distinct owner and consumer SaaS accounts and a consumer-owned section router\nWhen a matched central output is handed to section routing\nThen source revision, publication, central decision and owner/consumer identities are retained\nAnd feedback and undecided labels remain separate\nScenario: Refuse implicit tenant reuse\nGiven central owner account differs from the publication account\nWhen the internal router is bound to the central owner or the same central engine\nThen validation rejects the plan.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": "dataparade-preparation",
+  "creator": null,
+  "parent": "PPY-9822fdeb-f07c-495a-a035-66f9e81f3d30",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "8c646beb-d629-4c88-8c5c-e1443fadaec9",
+      "author": "home",
+      "text": "Implemented inactive publication routing preparation and guarded section handoff in publication_routing_plan.py, a Data Parade plan with all unverified identities/domain/editorial settings null, a behavior feature, synthetic unit tests and documentation. The plan preserves the existing shared central publication Cyclotron followed by the consumer's separate internal section Cyclotron. No taxonomy, match label, policy or section classification is invented.\n\nFinal root verification: 76 pytest tests, six isolated Behave scenarios/28 steps, Ruff/format, pilot identifier guard and whitespace checks pass. Full Behave loading remains unavailable in this environment because the baseline limatus.contracts dependency is missing; the actual feature and matching step file passed in isolation. Repository-wide Kanbus validation also reports 15 inherited unrelated short-ID dependency errors; new issues use full IDs and existing tracker files are untouched.\n\nIndependent review and an actual native central-decision-to-generated-sharing-receipt-to-Papyrus smoke passed. Source catalog/native revision, nullable origin publication, consumer internal ownership, original decision/billing and grant revocation are preserved; no additional model call is made. The contract is not wired into hosted runtime and creates no infrastructure or grants.\n",
+      "created_at": "2026-10-20T14:54:46.229360Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
+    },
+    {
+      "id": "1ef7fd64-5f65-4d6c-b6db-bcd6892b237b",
+      "author": "home",
+      "text": "Draft PR https://github.com/AnthusAI/Papyrus/pull/388 publishes reviewed source commit d32e5d73. Companion owner-grant contract: https://github.com/AnthusAI/Cyclotron/pull/60. Activation remains pending under PPY-90711b3b-4684-4782-bb7e-9d788794a373; all unverified site identities and editorial choices remain unset. No hosted site, grants or infrastructure have been created.",
+      "created_at": "2026-10-20T14:58:22.164531Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
+    },
+    {
+      "id": "9d3344ed-7266-440e-b2b8-9ffad0d60b16",
+      "author": "home",
+      "text": "Paused for usage-limit handoff. Draft PR388 source checkpoint17d8b6ba11d456b7bb5aede163d2a4a10b2582de has terminal passing Python/TS/package-smoke CI.76 unit tests and6 isolated Behave scenarios passed. Full Claude handoff, exact commands, blockers, approval boundaries and preservation instructions are on existing activation task PPY-90711b3b-4684-4782-bb7e-9d788794a373 (assignee claude-continuation). No uncommitted source patch or uncertain external write. Keep inactive and do not close until landed.",
+      "created_at": "2026-10-20T15:23:09.003752Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "dataparade-preparation"
+      }
+    }
+  ],
+  "created_at": "2026-10-20T14:27:21.356941Z",
+  "updated_at": "2026-10-20T15:23:09.003768Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6",
+    "name": "dataparade-preparation"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

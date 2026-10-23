@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "status": "inactive",
+  "publicationName": "Data Parade",
+  "consumer": {
+    "accountId": null,
+    "perspectiveSystem": null,
+    "perspectiveId": null,
+    "publicationId": null,
+    "domain": null
+  },
+  "centralRouter": {
+    "serviceId": null,
+    "ownerAccountId": null,
+    "instanceId": null,
+    "outputId": null,
+    "grantId": null,
+    "grantRevision": null,
+    "bindingRevision": null,
+    "matchLabel": null,
+    "billingAccountId": null,
+    "billingPolicy": null
+  },
+  "internalRouter": {
+    "accountId": null,
+    "instanceId": null,
+    "publicationId": null,
+    "sectionTaxonomyRef": null
+  },
+  "editorialPolicyRef": null
+}
