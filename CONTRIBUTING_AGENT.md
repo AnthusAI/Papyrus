@@ -194,6 +194,14 @@ Default is 2 (medium).
 
 Severity is not emotion. It is signal.
 
+## Running `kbs` in an agent session
+
+- Run every board command as `KANBUS_REALTIME_BROKER=off kbs ...` (the same for `kanbus`).
+- `kbs update` may reject the `--agent-*` provenance flags; if it does, drop them. On `kbs create`, pass `--no-agent-provenance` to silence the incomplete-provenance warning.
+- `open` cannot move straight to `blocked`: go `open` to `in_progress`, then `in_progress` to `blocked`.
+- A create prints the new id and `kbs show <id>` prints the parent; take ids from the CLI output. Do not read `project/` JSON.
+- Board-only changes go in through a `board/<slug>` branch and pull request to `develop`, merged with a merge commit.
+
 ## Wiki Workflow
 
 The wiki lives under project/wiki/. You may edit Markdown files there directly.
