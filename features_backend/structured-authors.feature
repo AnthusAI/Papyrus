@@ -35,6 +35,12 @@ Feature: Authors are names, however the front matter writes them
     Then the page "by-objects.html" says ""name":"Ryan Porter","url":"https://authors.example.org/ryan""
     And the page "by-objects.html" does not say "{'name'"
 
+  Scenario: Site hooks can treat entry authors as names
+    Then the entry "by-objects" has the authors "Ryan Porter, Derek Norrbom, Eve Stone" as plain names that join with commas
+    And the entry "by-string" has the authors "Ann Lee, Bo Reed" as plain names that join with commas
+    And the entry "anonymous" has no author names
+    And the entry "by-objects" keeps the url of the author "Ryan Porter" in its author details
+
   Scenario: The public data files list author names and omit the key when there are none
     Then the public data entry "/by-objects.html" has the authors "Ryan Porter, Derek Norrbom, Eve Stone"
     And the public data entry "/by-string.html" has the authors "Ann Lee, Bo Reed"
