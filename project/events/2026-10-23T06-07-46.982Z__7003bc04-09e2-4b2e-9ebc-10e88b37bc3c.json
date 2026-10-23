@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "7003bc04-09e2-4b2e-9ebc-10e88b37bc3c",
+  "issue_id": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-23T06:07:46.982Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "labels": {
+        "from": [
+          "size-M"
+        ],
+        "to": [
+          "size-S"
+        ]
+      }
+    }
+  }
+}

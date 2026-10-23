@@ -1,7 +1,7 @@
 {
   "id": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
   "title": "Continuous background automation for Papyrus sites",
-  "description": "Papyrus sites increasingly run work by themselves, unattended: the weekly knowledge run (PPY-dca7cd), reader snapshots, and next the trend-story pipeline (PPY-fb4dfa) and AI drafting. Before more automation is built on the Tactus procedures, clean up how procedures are packaged, named, registered and run, so any procedure can run as a scheduled background job from the published package, for any site, including site-supplied procedures.\n\nChildren are the procedure chores filed 2026-10-23, plus the story that makes a procedure schedulable.",
+  "description": "Papyrus sites increasingly run work by themselves, unattended: the weekly knowledge run (PPY-dca7cd), reader snapshots, and next the trend-story pipeline (PPY-fb4dfa) and AI drafting. Today there are four separate execution paths (the CLI fetching cloud source and running tactus locally; amplify/functions/assignment-action dispatching seeded kinds by key; the papyrus-procedure-runner Lambda; the Fargate scheduled-job construct from PPY-dca7cd), repo .tac files drift from backend versions, monitors are the only trigger, the Lambda stops at 15 minutes, and local-pod sites cannot run packaged procedures. Direction approved by Ryan 2026-10-23.\n\nTarget design:\n1. Git is the source of truth for procedure code. Core procedures ship in the wheel. Site procedures live in the site repo and are registered automatically on deploy. The console views and runs procedures; code changes go through PRs.\n2. Automation records in each site's backend: trigger + procedure key + input template. Trigger kinds: monitor (exists), schedule, event (reference ingested, story approved, proposal enters review), manual (console Run button). Each record has enable/disable, a budget/timeout, a concurrency limit, an idempotency key and alarms.\n3. One run contract (load the published version, record the run, execute, write back) with three runtimes: the runner Lambda (default); Fargate for procedures marked long or heavy (the knowledge pipeline becomes such an automation); a local pod with a local run ledger and a file lock. assignment-action's fixed key dispatch is retired.\n4. Guardrails in the contract: a cost estimate per run; the projection lease for anything touching pages, and never reconcile; outputs go to review queues or Proposals, not straight to publish, unless a site opts in.\n5. Console Automation page: schedules and triggers, recent runs with their LLM context, failures, enable/disable. It builds on the existing Administration -> Procedures panel.\n\nAcceptance criteria for the epic:\n- Every child story/chore is closed with its acceptance criteria met.\n- Any core or site procedure can run on a schedule, on an event, or manually on a cloud or local-pod site, through the one run contract.\n- Gherkin specs (narrative, complete) required for every behaviour change.",
   "type": "epic",
   "status": "open",
   "priority": 1,
@@ -17,10 +17,17 @@
       "text": "Scope includes sites with no cloud backend: Papyrus sites that run from a local pod (for example Tactus-web) get the same background jobs through a local-pod runner (PPY-93faf2). Both runners share one job definition (PPY-433383). Order: packaging (PPY-e95a0c) → kind headers (PPY-0d4984) → desk cleanup (PPY-54bd13) → job definition (PPY-433383) → local-pod runner (PPY-93faf2) and site procedures (PPY-1b2edd).",
       "created_at": "2026-10-23T05:53:20.103563Z",
       "comment_type": "default"
+    },
+    {
+      "id": "1fee987b-7182-4593-9e4f-24c35dc24b85",
+      "author": "home",
+      "text": "Build order (supersedes the earlier order comment). Priorities are all 1 so none decreases along the order.\n1. PPY-e95a0c  Ship Tactus procedures in the wheel (S)\n2. PPY-0d4984  Kind headers validated against the registry (S)\n3. PPY-54bd13  Remove desk vocabulary (S)\n4. PPY-1b2edd  Register site and core procedures automatically on deploy (S)\n5. PPY-433383  One procedure run contract across Lambda, Fargate and local-pod runtimes (L)\n6. Automation records: triggers bound to procedures (M)\n7. Automation outputs go to review by default (S)\n8. Console Automation page (M)\n9. PPY-93faf2  Run background jobs on a local pod, with no cloud backend (M)\n",
+      "created_at": "2026-10-23T06:07:27.179844Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T05:51:38.896492Z",
-  "updated_at": "2026-10-23T05:53:20.103589Z",
+  "updated_at": "2026-10-23T06:07:27.179875Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

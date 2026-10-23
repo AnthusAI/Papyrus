@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "event_id": "b41c2022-e1c8-4958-93b4-76c91dd6e083",
+  "issue_id": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-23T06:07:30.688Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "title": {
+        "from": "Site-supplied procedures: a contract for custom .tac files (M)",
+        "to": "Register site and core procedures automatically on deploy (S)"
+      },
+      "description": {
+        "from": "Distinctive Mark ships its own procedure (Distinctive-web procedures/ttab_ruling_analysis.tac). There is no documented way for a site to register a custom procedure kind, have the CLI find it, or run it as a job.\n\nScope:\n- A site declares custom procedures in its config, as kind → path in the site repo.\n- They load with the same kind-header validation as core procedures.\n- A site kind cannot shadow a core kind unless that is explicitly allowed.\n- Site procedures run through either job runner: the cloud construct or the local pod.\n- Documented, with Distinctive's ttab_ruling_analysis as the worked example. Moving Distinctive onto the contract is that site's own story.\n\nAcceptance: Gherkin specs for declaring a procedure, loading it, the shadowing refusal, and running it from a site checkout.",
+        "to": "Scope: at deploy time, register core procedures (from the wheel, PPY-e95a0c) and site procedures (from the site repo) into ProcedureDefinition/ProcedureVersion records in the site's backend, replacing the manual 'npm run seed:amplify' step. Git is the source of truth; the console only views and runs. Note that registration itself already exists: 'papyrus procedures register' (src/papyrus_content/site_procedures.py), which Distinctive's TTAB monitor uses to start distinctive.ttab.ruling-analysis. This story reuses it rather than building a new mechanism, and wires it into the deploy.\n\nScope:\n- Deploy-time registration of core and site procedures, using kind-header validation (PPY-0d4984). A site kind cannot shadow a core kind unless explicitly allowed.\n- Drift check: CI fails if a published version differs from the .tac in git.\n- Docs: update docs/newsroom-procedures-runbook.md (it lists only 3 of 11 procedures) and docs/procedure-runner.md, with Distinctive's ttab_ruling_analysis as the worked example. Moving Distinctive onto the contract is that site's own story.\n\nAcceptance criteria:\n- A deploy registers every core and site procedure with no manual seed step.\n- CI fails when a published version differs from git, and passes when they match.\n- A site-kind shadowing of a core kind is refused.\n- The runbook lists all 11 core procedures and documents the Distinctive example.\n- Gherkin specs (narrative, complete) required: registration on deploy, drift failure, shadowing refusal.\n\nDepends on PPY-e95a0c and PPY-0d4984."
+      },
+      "priority": {
+        "from": 2,
+        "to": 1
+      }
+    }
+  }
+}

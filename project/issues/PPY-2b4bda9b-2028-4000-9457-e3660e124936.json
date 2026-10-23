@@ -1,0 +1,31 @@
+{
+  "id": "PPY-2b4bda9b-2028-4000-9457-e3660e124936",
+  "title": "Automation outputs go to review by default (S)",
+  "description": "Procedure outputs must not publish on their own by default. They land in review queues or Proposals unless the automation opts in to direct publish.\n\nScope:\n- The run contract routes a procedure's outputs to a review queue or a Proposal by default.\n- Opt-in to direct publish is per site and per automation, stored on the Automation record, and off by default.\n- The opt-in is shown in the console (see the Automation page story).\n- Any output touching pages still takes the projection lease and never reconciles.\n\nAcceptance criteria:\n- An automation with default settings never publishes directly; its outputs appear in review or as Proposals.\n- An automation opted in at both site and automation level may publish directly; opting in at only one level does not.\n- The opt-in state is visible to console users.\n- Gherkin specs (narrative, complete) required.\n\nDepends on PPY-433383 and the automation records story.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-S"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-433383bc-92f3-4903-8a4c-4ce034c60c97",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2e6e2b38-10ff-4102-ae18-d967d5bd64f1",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-23T06:07:53.939034Z",
+  "updated_at": "2026-10-23T06:08:22.666294Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

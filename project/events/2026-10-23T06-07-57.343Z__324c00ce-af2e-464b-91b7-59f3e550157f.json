@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "324c00ce-af2e-464b-91b7-59f3e550157f",
+  "issue_id": "PPY-a8ab4edc-57ba-41f5-8e57-a116ee224228",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T06:07:57.343Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Console Automation page (M)",
+    "description": "Add an Automation page to the CMS console, built on the existing Administration -> Procedures panel.\n\nScope:\n- List of automations with their triggers (monitor, schedule, event, manual), enabled state and next run.\n- Recent runs with status, cost and links to the LLM context of each run.\n- Failures view, including missed schedules.\n- Enable/disable, and a manual Run button, for editors and admins only.\n- Shows each automation's direct-publish opt-in (review-by-default story).\n- Code is viewable but not editable here; code changes go through PRs.\n\nAcceptance criteria:\n- The page lists automations, triggers and recent runs for the site.\n- Editors and admins can enable/disable and press Run; other roles see the page read-only.\n- A failed run appears under failures with a link to its LLM context.\n- Gherkin specs (narrative, complete) required, including role permissions.\n\nDepends on the automation records story and the review-by-default story.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-M"
+    ]
+  }
+}
