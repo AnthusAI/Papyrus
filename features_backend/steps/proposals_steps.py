@@ -66,6 +66,13 @@ def publish(context, base_path: str = "") -> None:
     run_snapshot(backend, context.proposal_site, base_path=base_path)
 
 
+def run_with_setting(context, setting) -> None:
+    backend = backend_of(context)
+    context.proposal_site = context.proposal_site or LocalDirectoryWriter(Path(context.proposal_directory.name))
+    backend.now += 120
+    context.proposal_report = run_snapshot(backend, context.proposal_site, publish_proposals=setting)
+
+
 def public_file(context, key: str) -> dict:
     body = context.proposal_site.get(key)
     assert body is not None, f"{key} was not written; the store holds {sorted(entry.key for entry in context.proposal_site.list())}"
@@ -182,6 +189,32 @@ def second_editor_stale(context, state: str) -> None:
 @when("the snapshot publishes proposals")
 def snapshot_publishes(context) -> None:
     publish(context)
+
+
+@when("the snapshot runs without the publishing setting")
+def snapshot_without_setting(context) -> None:
+    run_with_setting(context, None)
+
+
+@when("the snapshot runs with proposal publishing turned off")
+def snapshot_setting_off(context) -> None:
+    run_with_setting(context, False)
+
+
+@when("the snapshot runs with proposal publishing turned on")
+def snapshot_setting_on(context) -> None:
+    run_with_setting(context, True)
+
+
+@then("no public proposal file is written")
+def nothing_public(context) -> None:
+    keys = [entry.key for entry in context.proposal_site.list() if entry.key.startswith("_data/proposals/")]
+    assert keys == [], keys
+
+
+@then("the snapshot counted {count:d} stored proposal")
+def counted_stored(context, count: int) -> None:
+    assert context.proposal_report.proposals == count, context.proposal_report.proposals
 
 
 @when("the snapshot publishes proposals again")

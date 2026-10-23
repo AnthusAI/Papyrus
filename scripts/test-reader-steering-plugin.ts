@@ -40,8 +40,14 @@ assert.deepEqual(defaults, {
   subjects: { types: ["item", "submission"] },
   moderation: { mode: "human", preModeration: false, reportsPerDay: 20 },
   comments: { perHour: 30, editWindowMinutes: 10, maximumLength: 2000, maximumLinks: 3 },
+  proposals: { publish: false },
   retirementPoll: false,
 });
+
+assert.equal(resolveReaderSteeringConfig({ ...base, proposals: { publish: true } }).proposals.publish, true, "a site can opt in to publishing proposals");
+assert.equal(resolveReaderSteeringConfig({ ...base, proposals: {} }).proposals.publish, false, "publishing proposals is off unless set");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, proposals: { publish: "yes" } }), /proposals\.publish must be a boolean/, "proposals.publish must be a boolean");
+assert.throws(() => resolveReaderSteeringConfig({ ...base, proposals: { drafts: true } }), /Unknown reader-steering plugin proposals settings/, "an unknown proposals key is refused");
 
 assert.deepEqual(resolveReaderSteeringConfig({ ...base, subjects: { types: ["item", "proposal", "story", "proposal"] } }).subjects.types, ["item", "proposal", "story"]);
 assert.throws(() => resolveReaderSteeringConfig({ ...base, subjects: { types: ["person"] } }), /subjects\.types/, "an unknown subject type is refused");
@@ -242,6 +248,10 @@ for (const name of ["PAPYRUS_READER_PROFILE_TABLE", "PAPYRUS_READER_HANDLE_TABLE
 }
 assert.equal(JSON.parse(readerVariables.PAPYRUS_READER_SETTINGS).allowInterimSubjects, false, "a production synth refuses interim subjects");
 assert.equal(readerEnvironments.filter((variables) => variables.PAPYRUS_READER_SNAPSHOT_SETTINGS).length, 1, "content-actions gets the snapshot settings");
+assert.equal(readerEnvironments.find((variables) => variables.PAPYRUS_READER_SNAPSHOT_SETTINGS)?.PAPYRUS_READER_PUBLISH_PROPOSALS, "false", "proposals are not published unless the site opts in");
+const optedIn = synthesize({ ...shipped, proposals: { publish: true } }, { SITE_ENV: "production" });
+const optedInVariables = Object.values(optedIn.template.findResources("AWS::Lambda::Function")).map((resource) => (resource as { Properties: { Environment?: { Variables: Record<string, string> } } }).Properties.Environment?.Variables ?? {});
+assert.equal(optedInVariables.find((variables) => variables.PAPYRUS_READER_SNAPSHOT_SETTINGS)?.PAPYRUS_READER_PUBLISH_PROPOSALS, "true", "an opted-in site tells the snapshot to publish");
 const published = outputs.map((output) => (output as { custom: Record<string, { actionsFunction?: unknown }> }).custom.readerSteering).filter(Boolean);
 assert.equal(published.length, 1, "the function name is published for the CMS routes");
 assert.ok(published[0].actionsFunction);
