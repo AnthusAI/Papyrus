@@ -168,7 +168,8 @@
     "test:verify-packages": "node scripts/test-verify-packages.mjs",
     "check:consumer-site-typecheck": "node scripts/check-consumer-site-typecheck.mjs",
     "test:newsroom-organizer": "node --import tsx scripts/test-newsroom-organizer-nav.ts && node --import tsx scripts/test-newsroom-section-routing.ts && node --import tsx scripts/test-newsroom-board.ts && node --import tsx scripts/test-editor-override.ts",
-    "test:shared-chat": "node node_modules/@cucumber/cucumber/bin/cucumber.js --config cucumber-shared-chat.cjs"
+    "test:shared-chat": "node node_modules/@cucumber/cucumber/bin/cucumber.js --config cucumber-shared-chat.cjs",
+    "test:shared-chat-admission": "node --experimental-strip-types scripts/test-shared-chat-admission.ts"
   },
   "keywords": [
     "nextjs",

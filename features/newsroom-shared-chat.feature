@@ -29,3 +29,11 @@ Feature: Shared newsroom chat presentation
     Given Papyrus supplies an editorial conversation to the shared chat
     When the editor selects a tool's reference action
     Then Papyrus handles that reference action without a Chatticus account
+
+  Scenario: Enforce the site host trust and transcript ownership contract
+    When the shared chat admission contract rejection suite runs
+    Then wrong trust profiles, inactive memberships and foreign transcript owners are rejected
+
+  Scenario: Replay an admitted send once within its private editor scope
+    When the shared chat admission contract rejection suite runs
+    Then an identical retry returns the original result and a changed payload conflicts

@@ -14,6 +14,10 @@ for (const [action, mode] of [
     this.sharedChatResult = result.stdout;
   });
 }
+When("the shared chat admission contract rejection suite runs", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["--experimental-strip-types", "scripts/test-shared-chat-admission.ts"], { maxBuffer: 4 * 1024 * 1024 });
+  this.chatAdmissionResult = result.stdout;
+});
 Given("the assistant is still replying to the previous message", function () {});
 Given("Papyrus has temporarily disabled sending", function () {});
 Then("Papyrus receives no message", function () {
@@ -27,4 +31,10 @@ Then("the shared surface renders the assistant markdown safely", function () {
 });
 Then("Papyrus handles that reference action without a Chatticus account", function () {
   assert.ok(this.sharedChatResult.includes("Papyrus reference action passed"));
+});
+Then("wrong trust profiles, inactive memberships and foreign transcript owners are rejected", function () {
+  assert.ok(this.chatAdmissionResult.includes("trust-profile rejections, transcript ownership"));
+});
+Then("an identical retry returns the original result and a changed payload conflicts", function () {
+  assert.ok(this.chatAdmissionResult.includes("scoped idempotency"));
 });

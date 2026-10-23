@@ -30,6 +30,11 @@ package in a temporary local browser fixture. They prove a send reaches the
 host once, shared markdown refuses executable links, and editorial reference
 actions remain host callbacks. They do not access AWS or make model calls.
 
+The separate site-hosted auth boundary is only a code-local contract so far;
+see [shared chat trust contract](shared-chat-trust-contract.md). Its injected
+verifier and membership fakes are test-only. This increment does not wire a
+route or replace the current AppSync send path.
+
 This change does not yet replace the Rust responder, adopt the shared SSE API
 in Papyrus, add per-editor transcript isolation, change backend permissions or
 implement job/approval continuations. The old backend remains the only chat
