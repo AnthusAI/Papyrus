@@ -24,10 +24,17 @@
       "text": "v0 merged to develop in PR #642 (merge 0c2dad33d26f7238800f5dd410fd729aaaaa3fdb). Notification Center is the console home (Overview tab): summary line, hard gates, soft reviews by deadline, Cyclotron held items (list + deep links into the existing References review), flags, answered-and-applied steering, collapsible read-only auto-decided stream, per-user read state, words and marks. Remains: embed or replace the References review surface, stream filters (publication, label, confidence), correction to ground truth, email digest. Docs: docs/notification-center.md. Left in_progress.",
       "created_at": "2026-10-23T11:36:47.009213Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c9193713-1118-4097-926f-9be1b4ff423a",
+      "author": "home",
+      "text": "v0 merged (#642) as the console home (Overview at /newsroom): a summary line, hard gates, soft reviews, Cyclotron held items (linked), flags, steering history and the auto-decided stream. Next: embed the References review, stream filters, corrections into ground truth, and a design round once Ryan has used it on a real site.",
+      "created_at": "2026-10-23T12:21:50.111318Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T06:43:15.295280Z",
-  "updated_at": "2026-10-23T11:36:47.009238Z",
+  "updated_at": "2026-10-23T12:21:50.111347Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

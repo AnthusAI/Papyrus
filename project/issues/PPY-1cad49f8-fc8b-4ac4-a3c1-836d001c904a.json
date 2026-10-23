@@ -12,9 +12,17 @@
     "size-M"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "879f2f57-3b86-46e1-81d2-bc51419197c7",
+      "author": "home",
+      "text": "Not started. Shipped has a default social card (Shipped side).",
+      "created_at": "2026-10-23T12:21:50.212448Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T16:51:13.766213Z",
-  "updated_at": "2026-10-22T16:51:13.766296Z",
+  "updated_at": "2026-10-23T12:21:50.212470Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
