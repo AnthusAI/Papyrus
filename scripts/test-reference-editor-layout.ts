@@ -18,7 +18,7 @@ async function main() {
     const row = page.locator('[data-news-desk-section="references"] [data-newsroom-card-id]').first();
     await row.waitFor({ state: "attached" });
     await page.locator("[data-reference-cyclotron-status]").waitFor({ state: "attached" });
-    const geometry = await row.evaluate((element) => {
+    const measureList = () => row.evaluate((element) => {
       const bounds = element.getBoundingClientRect();
       const viewport = element.closest(".papyrus-ui-scroll-area")?.getBoundingClientRect();
       let top = Math.max(bounds.top, 0);
@@ -35,8 +35,15 @@ async function main() {
       }
       return { rowTop: bounds.top, rowHeight: bounds.height, scrollHeight: viewport?.height ?? 0, visibleHeight: Math.max(0, bottom - top), clippers };
     });
+    const geometry = await measureList();
     assert.ok(geometry.scrollHeight > 0 && geometry.visibleHeight > 0,
       `The first reference must be visible inside its scroll viewport at 1280x720: ${JSON.stringify(geometry)}`);
+    const secondaryControls = page.getByText("Add a reference and prediction activity", { exact: true });
+    await secondaryControls.click();
+    const expandedGeometry = await measureList();
+    assert.ok(expandedGeometry.scrollHeight > 0 && expandedGeometry.visibleHeight > 0,
+      `Expanding reference import and prediction activity must preserve a visible list viewport at 1280x720: ${JSON.stringify(expandedGeometry)}`);
+    await secondaryControls.click();
     await page.getByRole("tab", { name: /^Pending/ }).click();
     await row.click();
     await page.locator('[data-news-desk-reference-detail]:visible').waitFor();
@@ -45,7 +52,7 @@ async function main() {
     if (process.env.PAPYRUS_REFERENCE_LAYOUT_SCREENSHOT) {
       await page.screenshot({ path: process.env.PAPYRUS_REFERENCE_LAYOUT_SCREENSHOT, fullPage: false });
     }
-    console.log(`Reference editor layout passed at 1280x720: ${JSON.stringify(geometry)}`);
+    console.log(`Reference editor layout passed at 1280x720: ${JSON.stringify({ collapsed: geometry, expanded: expandedGeometry })}`);
   } finally { await browser.close(); }
 }
 

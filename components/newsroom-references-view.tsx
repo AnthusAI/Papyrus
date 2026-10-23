@@ -721,7 +721,7 @@ export function NewsroomReferencesView({
             {onRetryPredictions ? <Button onClick={onRetryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
           </div>
         ) : null}
-        <details className="max-h-[35dvh] shrink-0 overflow-y-auto rounded-md border p-3 text-sm">
+        <details className="shrink-0 overflow-y-auto rounded-md border p-3 text-sm" style={{ maxHeight: "35dvh" }}>
           <summary className="cursor-pointer font-semibold">Add a reference and prediction activity</summary>
           <div className="mt-3 space-y-4">
         <ReferenceLiveAgreement agreement={shadowAgreement} />

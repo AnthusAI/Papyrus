@@ -1,7 +1,8 @@
 @brand-agnostic @reference-editor-layout
 Feature: Reference review remains reachable on a laptop screen
   Secondary import controls and prediction activity must not consume the
-  available space for references. This full-app check runs only when an
+  available space for references, even when those controls are expanded.
+  This full-app check runs only when an
   explicit local demo URL is supplied; it never opens a production newsroom.
 
   Scenario: Select a pending reference at 1280 by 720
