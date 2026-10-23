@@ -206,7 +206,8 @@ Monitoring page shows it on the router run.
 | `LOCK#router` | Lease (660 s, longer than the 600 s timeout), separate from the collector's `LOCK` |
 | `ROUTE#<sourceId>#<rev6>` | `dryRun` (`count`, `validatedAt`, `requests.<pub>` = path, `requestId`, bytes, body; `contexts.<pub>` = `contextHash`/`reason`), `jobs.<pub>` (`requestId`, `jobId`, `checked`), `decision` (`decisionId`, `source` = id/revision/fingerprint, per-publication `output`, `label`, `fingerprint`, `version`, plus account, run, binding revision), `publications.<pub>` (`delivered`, `referenceId`, `attempts`, `lastError`), `final` |
 | `DELIV#<pub>#<referenceId>` | A Reference this router delivered; feedback source. In `FEEDBACK#hn#pending` while feedback is outstanding |
-| `TRIGGER#<pub>#<procedureKey>#<sourceId>` | A procedure trigger for this item: `status` (`starting`, `started`, `startFailed`, `notTriggered`, then the runner's `completed`, `failed` or `notRunnable`), the runner `request`, `runId`, errors. Written only if absent, so each item starts each procedure once (`docs/procedure-runner.md`) |
+| `TRIGGER#<pub>#<procedureKey>#<sourceId>` | A procedure trigger for this item: `status` (`starting`, `started`, `startFailed`, `notTriggered`, `skipped`, `deferred`, then the runner's `running`, `completed`, `failed` or `notRunnable`), the runner `request`, `runId`, a `reason` for `skipped` and `deferred`, the `automationId` when an automation governed the start, errors. Written only if absent, so each item starts each procedure once (`docs/procedure-runner.md`, `docs/automations.md`) |
+| `MANUAL#<automationId>#<timestamp>` | A "Run now" of an automation, written by the CLI or the console (not by the router): who started it, the runner `request`, then the runner's `running`/`runId` and outcome, as on a `TRIGGER#` row (`docs/automations.md`) |
 | `FB#<requestId>` | Feedback receipt: outcome, label, curation status, publication |
 | `ROUTERUN#<startedAt>#<runId>` | Run receipt: mode, status, `stoppedBy`, counts, feedback summary, errors; 30 days |
 
@@ -252,8 +253,12 @@ canonical `KnowledgeCorpus`.
 A publication may list `procedureTriggers` and name its OpenAI key's SSM parameter
 (`openaiKeyParameter`). After a delivery that created a new Reference, the router starts each named
 procedure once for that item by invoking the procedure runner asynchronously, and never waits for it.
-A Reference that already existed starts nothing. See `docs/procedure-runner.md` for the config,
-the input placeholders and the runner.
+A Reference that already existed starts nothing. Before a start the router reads the site's `Automation`
+record for the trigger (`listAutomations`, one read per publication per sweep): a disabled automation starts
+nothing (`skipped`), one at its `maxConcurrent` is deferred and retried on later runs (`deferred`), and the record's timeout goes with the
+request. With no record, or one the router cannot read (including a denied IAM call), it starts exactly as
+before. See `docs/automations.md`, and `docs/procedure-runner.md` for the config, the input placeholders and
+the runner.
 
 ## Feedback
 
@@ -273,7 +278,7 @@ idempotent; the item revision and output come from the stored decision receipt.
 | Logs `CreateLogStream`, `PutLogEvents` on its own group | Logging |
 | `sqs:SendMessage` on its dead-letter queue | Failed invocations and failed schedule deliveries |
 | `sts:AssumeRole` on exactly `CyclotronInvokerRoleArn` | The only way to reach the Cyclotron machine API (the invoker role trusts this role's exact ARN) |
-| `appsync:GraphQL` per API per field, three APIs (parameters `AnthUsApiId`, `PapyrusApiId`, `ThreatIntelApiId`) | Query: `getKnowledgeImportRun`, `getMessage`, `getModelAttachment`, `getReference`, `getReferenceAttachment`, `getSemanticRelation`, `itemBySlug`, `listKnowledgeCorpuses`, `listKnowledgeCorporaByRoleAndName`, `listReferences`. Mutation: `completeModelAttachmentUpload`, `createKnowledgeImportRun`, `createMessage`, `createModelAttachmentUpload`, `createReference`, `createReferenceAttachment`, `createSemanticRelation`, `updateReferenceAttachment` |
+| `appsync:GraphQL` per API per field, three APIs (parameters `AnthUsApiId`, `PapyrusApiId`, `ThreatIntelApiId`); the same fields on Data Parade (`DataParadeApiId`) sit in `RouterDataParadeIntakePolicy`, and its `relevance_decision_is` grants in `RouterDecisionRelationPolicy` | Query: `getKnowledgeImportRun`, `getMessage`, `getModelAttachment`, `getReference`, `getReferenceAttachment`, `getSemanticRelation`, `itemBySlug`, `listKnowledgeCorpuses`, `listKnowledgeCorporaByRoleAndName`, `listReferences`. Mutation: `completeModelAttachmentUpload`, `createKnowledgeImportRun`, `createMessage`, `createModelAttachmentUpload`, `createReference`, `createReferenceAttachment`, `createSemanticRelation`, `updateReferenceAttachment` |
 
 The field list was captured by running the real intake and editorial-context code against a
 recording client. `updateReferenceAttachment` is there because a second HN item for an

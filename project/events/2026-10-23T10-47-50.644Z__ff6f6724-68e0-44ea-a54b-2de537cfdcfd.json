@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "ff6f6724-68e0-44ea-a54b-2de537cfdcfd",
+  "issue_id": "PPY-bf381cd1-c9e7-453a-aa4c-b037eb449ac8",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T10:47:50.644Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Shipped: recursive summarisation and knowledge-base curation (exploratory)",
+    "description": "Ryan intends Shipped to roll summaries up recursively: item summaries feed topic summaries, topics feed trends, trends feed story ideas. Curation should be driven by its knowledge base.\n\nThe vision is not settled. Explore it once Shipped has a real reference feed; today it has seed content and no monitor.\n\nRevisit after the idea pipeline v0 (PPY-8ffc18) has been tried on the Anthus sites.\n\nNo acceptance criteria yet.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 3,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-M"
+    ]
+  }
+}

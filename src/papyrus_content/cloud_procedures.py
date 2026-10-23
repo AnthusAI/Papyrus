@@ -220,6 +220,8 @@ def update_cloud_procedure_run_record(client: PapyrusGraphQLAuthoringClient, pay
                 "output": None if output is None else json.dumps(output),
                 "error": None if error is None else json.dumps(error),
                 "attempt": payload.get("attempt"),
+                # Only sent when the run reported model usage, so a site backend without these fields is not asked for them.
+                **({"usage": json.dumps(payload["usage"]), "costUsd": payload.get("costUsd")} if payload.get("usage") is not None else {}),
             }
         },
     )

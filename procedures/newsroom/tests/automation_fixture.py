@@ -35,7 +35,7 @@ def router_config(*, input_template=None, procedure=PROCEDURE, endpoint=SITE_END
     trigger = [{"procedureKey": procedure, "input": TEMPLATE if input_template is None else input_template}] if with_trigger else []
     return {"pk": PK, "sk": "CONFIG#router", "mode": "live", "enabled": True,
             "publications": [{"publicationId": publication, "site": "distinctive.example", "appsyncEndpoint": endpoint,
-                              "procedureTriggers": trigger}]}
+                              "openaiKeyParameter": "/amplify/shared/app/OPENAI_API_KEY", "procedureTriggers": trigger}]}
 
 
 def rows():
@@ -79,11 +79,30 @@ class FakeMonitoringTable:
         return result
 
 
-def procedure_run(run_id, status, *, started, finished, output=None, error_summary=None, error=None):
-    return {"id": run_id, "procedureId": "procedure-x", "procedureKey": PROCEDURE, "procedureVersionId": "v1", "runStatus": status,
-            "requestedAt": started, "startedAt": started, "finishedAt": finished,
-            "output": json.dumps(output) if output is not None else None, "errorSummary": error_summary,
-            "error": json.dumps(error) if error is not None else None}
+def procedure_run(run_id, status, *, started, finished, output=None, error_summary=None, error=None, cost=None, usage=None,
+                  requested_by=None):
+    row = {"id": run_id, "procedureId": "procedure-x", "procedureKey": PROCEDURE, "procedureVersionId": "v1", "runStatus": status,
+           "requestedAt": started, "startedAt": started, "finishedAt": finished, "requestedBy": requested_by,
+           "output": json.dumps(output) if output is not None else None, "errorSummary": error_summary,
+           "error": json.dumps(error) if error is not None else None}
+    if cost is not None or usage is not None:
+        row.update(costUsd=cost, usage=json.dumps(usage) if usage is not None else None)
+    return row
+
+
+def usage_summary(**changes):
+    return {"calls": 3, "promptTokens": 50000, "completionTokens": 4000, "models": {"gpt-6-luna": 3}, "complete": True,
+            "unpricedModels": [], **changes}
+
+
+def manual_row(automation_id="distinctive.ttab", stamp="2026-10-24T09:00:00Z", status="started", *, run_id=None, by="ryan@example.test", **extra):
+    row = {"pk": PK, "sk": f"MANUAL#{automation_id}#{stamp}", "publicationId": "distinctive", "procedureKey": PROCEDURE,
+           "automationId": automation_id, "requestedBy": by, "createdAt": stamp, "startedAt": stamp, "status": status,
+           "request": {"appsyncEndpoint": SITE_ENDPOINT, "openaiKeyParameter": "/amplify/shared/app/OPENAI_API_KEY"}}
+    if run_id:
+        row["runId"] = run_id
+    row.update(extra)
+    return row
 
 
 def automation_row(**changes):
@@ -104,6 +123,9 @@ def site_client(*automations):
                           output={"story": "story-lineage-1", "version_id": "story-v2", "title": "Board refuses registration"}),
             procedure_run("run-2", "failed", started="2026-10-23T14:00:05Z", finished="2026-10-23T14:01:00Z",
                           error_summary="the opinion could not be downloaded", error={"message": "the opinion could not be downloaded"}),
+            # No trigger row links this one: someone ran the procedure by hand, outside the automation.
+            procedure_run("run-outside", "completed", started="2026-10-22T10:00:00Z", finished="2026-10-22T10:02:00Z",
+                          requested_by="papyrus-cli"),
         ],
     })
     return client
