@@ -51,7 +51,8 @@ function run() {
     );
   }
 
-  assert.match(OVERVIEW_SOURCE, /NEWSROOM_OPS_NAV\.filter/, "landing page destinations must derive from the shared navigation");
+  assert.match(OVERVIEW_SOURCE, /<NotificationCenter/, "the overview leads with the Notification Center");
+  assert.doesNotMatch(OVERVIEW_SOURCE, /Go to|data-newsroom-ops-destination/, "the overview must not repeat navigation cards");
   assert.match(SHELL_SOURCE, /ORGANIZER_NAV_GROUPS\.(flatMap|map)/, "shell sidebar must render the organizer navigation");
 
   console.log("newsroom navigation ok");

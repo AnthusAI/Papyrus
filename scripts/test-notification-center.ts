@@ -93,6 +93,13 @@ async function main() {
       loadState: "ready", requests: FIXTURE_REVIEW_REQUESTS, readIds: new Set(["rr-flag-1"]), held, autoDecided: auto, ...overrides,
     }));
   const html = render();
+  const loadingHtml = render({ loadState: "loading", requests: [], held: [], autoDecided: [] });
+  assert.match(loadingHtml, /data-notification-state="loading"/);
+  assert.match(loadingHtml, /aria-label="Loading Notification Center"/);
+  assert.doesNotMatch(text(loadingHtml), /No hard gates|Nothing unread|Nothing needs attention/);
+  const unavailableHtml = render({ loadState: "unavailable", requests: [], held: [], autoDecided: [] });
+  assert.match(unavailableHtml, /role="alert"/);
+  assert.match(text(unavailableHtml), /current request state is unknown/);
   const page = text(html);
   assert.ok(page.includes("3 waiting for you · 2 proceeding soon · 2 recently decided by the system"));
   const order = ["Waiting for you: hard gates", "Proceeding soon: soft reviews", "Cyclotron items routed to a person", "Flags: for your information", "Answered, and what became of it", "Recently decided by the system (2)"]
@@ -117,7 +124,7 @@ async function main() {
   // Each state says so plainly.
   assert.ok(text(render({ loadState: "forbidden" })).includes("for editors and admins"));
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
-  assert.ok(text(render({ loadState: "loading" })).includes("Loading the Notification Center"));
+  assert.match(render({ loadState: "loading" }), /aria-label="Loading Notification Center"/);
   const empty = text(render({ requests: [], held: [], autoDecided: [] }));
   assert.ok(empty.includes("0 waiting for you · 0 proceeding soon · 0 recently decided by the system"));
   assert.ok(empty.includes("No hard gates. Nothing is blocked on you.") && empty.includes("Nothing unread"));

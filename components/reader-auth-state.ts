@@ -61,7 +61,7 @@ export async function loadReaderSessionSnapshot(options?: { forceRefresh?: boole
 
 export function isUnauthenticatedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /unauth|not authenticated|no current user|not signed in/i.test(message);
+  return /unauth|not.?authorized|not authenticated|no current user|not signed in|session expired|token expired|invalid.*token|\b401\b/i.test(message);
 }
 
 function readIdentityLabel(claims: {

@@ -832,10 +832,8 @@ export async function loadEditorResolvedAccessState(): Promise<EditorAccessState
     };
   }
   try {
-    const snapshot = await loadReaderSessionSnapshot();
-    if (!snapshot.hasSession || snapshot.auth.status === "signedOut") {
-      return { status: "signedOut", isEditor: false, isAdmin: false, auth: snapshot.auth, error: null };
-    }
+    // One refreshed session supplies both identity and current group claims.
+    // A second, sequential session read only extends the blocking access check.
     const refreshed = await loadReaderSessionSnapshot({ forceRefresh: true });
     if (!refreshed.hasSession || refreshed.auth.status === "signedOut") {
       return { status: "signedOut", isEditor: false, isAdmin: false, auth: refreshed.auth, error: null };
@@ -883,9 +881,8 @@ export async function loadEditorNewsDeskDashboard({ isAdmin }: { isAdmin: boolea
     isAdmin ? loadUserDirectory() : Promise.resolve([]),
   ]);
   const summaryError = summaryResult.status === "rejected" ? summaryResult.reason : null;
-  if (summaryError && isUnauthenticatedError(summaryError)) {
-    throw summaryError;
-  }
+  if (summaryError) throw summaryError;
+  if (userDirectoryResult.status === "rejected") throw userDirectoryResult.reason;
   const summary = summaryResult.status === "fulfilled" ? summaryResult.value : null;
   const userDirectory = userDirectoryResult.status === "fulfilled" ? userDirectoryResult.value : [];
 

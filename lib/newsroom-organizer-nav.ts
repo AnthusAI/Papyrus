@@ -8,6 +8,7 @@ export type OrganizerDestination = {
 };
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
+    { key: "overview", label: "Overview", description: "See notifications and work needing attention.", path: "/newsroom", primary: true },
     { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },
@@ -23,7 +24,7 @@ export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly Org
   ] },
 ];
 const all = ORGANIZER_NAV_GROUPS.flatMap(group => group.items);
-export const ORGANIZER_PRIMARY_NAV = ["articles", "references", "messages"].map(key => all.find(item => item.key === key)!);
+export const ORGANIZER_PRIMARY_NAV = ["overview", "articles", "references", "messages"].map(key => all.find(item => item.key === key)!);
 
 export const ORGANIZER_SETTINGS_DESTINATION = {
   label: "Settings", path: "/newsroom/settings", description: "Theme, motion and interface preferences.",

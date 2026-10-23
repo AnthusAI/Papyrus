@@ -1,0 +1,85 @@
+{
+  "id": "PPY-afcf2ae6-a481-4af8-8c29-1aed2d9a1742",
+  "title": "Stabilize newsroom console loading and access UX",
+  "description": "Avoid repeated credential-check interstitials while preserving authorization; show shaped loading skeletons until overview data resolves; prevent overview layout shifts. Cover loading, failures, sessions, responsive and reduced motion.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "762c6522-2aef-452a-b1af-5bc89ea76f50",
+      "author": "home",
+      "text": "Implemented newsroom access and data-loading skeletons, stable overview Notification Center frame, clearer empty/error states, and session-expiration invalidation. Local lint, typecheck, focused newsroom tests, production build, and rendered desktop/mobile checks passed. Draft PR and exact-head CI pending.",
+      "created_at": "2026-10-23T18:09:54.971733Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1 Sol"
+      }
+    },
+    {
+      "id": "f86197cc-9cfa-412c-a533-8471f7744cae",
+      "author": "home",
+      "text": "Draft PR: https://github.com/AnthusAI/Papyrus/pull/660 (fix/PPY-afcf2a-newsroom-loading, targeting develop). Local verification passed: lint, typecheck, production build, test:newsroom, test:newsroom-nav, test:newsroom-articles, test:newsroom-organizer, notification-center assertions, and rendered desktop/mobile cold-load, reload, and navigation checks. Exact-head CI is running; no merge or deployment.",
+      "created_at": "2026-10-23T18:12:16.280458Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1 Sol"
+      }
+    },
+    {
+      "id": "547694ab-b61a-4712-a48c-e40f78077d9f",
+      "author": "home",
+      "text": "Follow-up from Ryan: added Overview to the five-slot mobile newsroom tab bar so the landing/Notification Center page is directly reachable and the tabs occupy all columns evenly. Browser check at 390px confirmed five equal-width columns and the Overview active state; Stories active state also checked.",
+      "created_at": "2026-10-23T18:17:00.319315Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1 Sol"
+      }
+    },
+    {
+      "id": "5a03f8a7-44ec-49ad-9570-27a8814c0ffa",
+      "author": "home",
+      "text": "Follow-up overview scope: removed the redundant Go to cards and made Notification Center the first main panel, with Needs attention directly below. Added Overview to the equal-width mobile tabs. Reconciled the related acceptance scenario from the stopped rollout worker. Rendered 390px reload showed a Notification Center skeleton followed by the populated feed; focused newsroom Chrome and constrained-width layout acceptance scenarios passed. This issue covers the change in draft PR #660; no merge or deployment.",
+      "created_at": "2026-10-23T18:25:30.331374Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1-Sol"
+      }
+    },
+    {
+      "id": "8fd0936e-94a9-4f3d-ab1f-ce2eb76675ae",
+      "author": "home",
+      "text": "Overview follow-up reconciliation: the rollout worker reported local issue PPY-014665 for removing Go to and focusing Notification Center, but that ID is not resolvable through Kanbus in either this isolated branch or its stopped checkout. The complete requested scope and its acceptance scenario are incorporated here and in PR #660. PPY-afcf2a is the durable issue for this UX change; PPY-014665 should be treated as a duplicate if it later appears.",
+      "created_at": "2026-10-23T18:36:35.801818Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "BlackbookM1-Sol"
+      }
+    }
+  ],
+  "created_at": "2026-10-23T17:57:13.960951Z",
+  "updated_at": "2026-10-23T18:36:35.801845Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6.1-sol"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

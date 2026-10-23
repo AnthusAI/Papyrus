@@ -234,11 +234,10 @@ When("I follow the newsroom tab for {string}", async function (label) {
   await waitForNewsroomSection(page, sectionId);
 });
 
-When("I follow the newsroom overview link for {string}", async function (label) {
+When("I follow the newsroom navigation link for {string}", async function (label) {
   const page = requirePage(this);
   const sectionId = getNewsroomSectionId(label);
-  const destinationKey = sectionId === "topics" ? "topics" : sectionId;
-  const link = page.locator(`[data-newsroom-ops-destination="${destinationKey}"]`).first();
+  const link = page.locator(`[data-news-desk-tab="${sectionId}"]`).first();
   await link.waitFor({ state: "visible", timeout: 10_000 });
   await link.click();
   await waitForNewsroomSection(page, sectionId);
@@ -429,9 +428,26 @@ Then("the newsroom should show the knowledge overview", async function () {
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-newsroom-ops-home]").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-newsroom-overview-feeds]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-ops-destination='references']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-ops-destination='assignments']").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-newsroom-ops-destination='messages']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-overview-notifications]").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-overview-feeds] [aria-label='Needs attention']").waitFor({ state: "visible", timeout: 10_000 });
+});
+
+Then("the newsroom overview should focus on the Notification Center", async function () {
+  const page = requirePage(this);
+  const center = page.locator("[data-notification-center]");
+  await center.waitFor({ state: "visible", timeout: 10_000 });
+  const isFirstOverviewSection = await page.locator("[data-newsroom-overview-feeds]").evaluate((overview) => (
+    overview.firstElementChild?.matches("[data-newsroom-overview-notifications]") ?? false
+  ));
+  assert.equal(isFirstOverviewSection, true, "Expected the Notification Center to lead the overview");
+  assert.equal(await page.locator("[aria-label='Destinations']").count(), 0, "Expected no destination-card section on the overview");
+  assert.equal(await page.getByRole("heading", { name: "Go to" }).count(), 0, "Expected no Go to heading on the overview");
+});
+
+Then("the newsroom overview should keep its main navigation available", async function () {
+  const page = requirePage(this);
+  await page.locator("[data-news-desk-tab='references']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-news-desk-tab='assignments']").waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the newsroom ops desks should render as cards", async function () {

@@ -160,7 +160,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
   if (!allowed) return <NewsDeskAccessGate shell={session?.shell ?? null} />;
   return <NewsroomOpsShell activeTab={subject === "contentItem" ? "articles" : subject === "desk" ? "desks" : "assignments"} appTitle={SITE_BRAND.appTitle} backLabel={SITE_BRAND.backToHomeLabel} pageTitle={pageTitle}
     headerActions={<>
-      <span role="status" className="organizer-board-note">{loading ? "Loading records…" : `${issues.length} records loaded.`}</span>
+      {!loading ? <span role="status" className="organizer-board-note">{issues.length} records loaded.</span> : null}
       <div role="group" aria-label="Record presentation" className="organizer-board-view-toggle"><button type="button" className="organizer-header-button" aria-pressed={view === "board"} onClick={() => setView("board")}>Board</button><button type="button" className="organizer-header-button" aria-pressed={view === "list"} onClick={() => setView("list")}>List</button></div>
       {showsContentItems && (
         <Link className="organizer-header-button" data-newsroom-article-new href={getNewsroomNavHref(newsroomHref("articles", "new"))}>
@@ -174,11 +174,16 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
       <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
-        <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
+        {loading && !issues.length ? <div aria-label="Loading board records" className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3" role="status">
+          {Array.from({ length: 3 }, (_, column) => <div className="min-h-64 space-y-3 rounded-xl border bg-card p-4" key={column}>
+            <div className="h-4 w-1/2 rounded bg-muted" />
+            {Array.from({ length: 2 }, (_, row) => <div className="h-24 rounded-lg border bg-background p-3" key={row}><div className="h-4 w-3/4 rounded bg-muted" /><div className="mt-3 h-3 w-1/2 rounded bg-muted" /></div>)}
+          </div>)}
+        </div> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
-          emptyMessage={loading ? "Loading records…" : error ? "Records could not be loaded." : "No records in this selection."} />
+          emptyMessage={error ? "Records could not be loaded." : "No records in this selection."} />}
         {issue && <IssueDetailPanel issue={issue} onClose={() => setSelected(null)} fields={[]}>
           {issue.kind === "contentItem"
             ? <>

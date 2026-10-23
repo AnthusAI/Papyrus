@@ -674,7 +674,7 @@ export function NewsDeskWorkspace({
     );
   }
 
-  if (session && sessionDashboard) {
+  if (session && sessionDashboard && session.shell.phase !== "loadingDesk") {
     return (
       <NewsDeskDashboard
         analysisProfiles={analysisProfiles}
@@ -3081,7 +3081,6 @@ function NewsDeskDashboard({
             decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            messages={messages}
             newsroomSections={newsroomSections}
             references={references}
           />
