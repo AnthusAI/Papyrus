@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import tempfile
+from datetime import timedelta
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -19,7 +20,8 @@ from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content.ideas import commands, dedupe, digest as digest_module, synthesis  # noqa: E402
 from papyrus_content.ideas.context import load_context  # noqa: E402
 from papyrus_content.ideas.pipeline import RunRefused, synthesize  # noqa: E402
-from papyrus_content.ideas.review import load_feedback, request_human_review  # noqa: E402
+from papyrus_content import review_requests  # noqa: E402
+from papyrus_content.ideas.review import load_feedback, merge_feedback, request_human_review  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore, StoreRefused  # noqa: E402
 
 
@@ -167,7 +169,8 @@ class DedupeTests(unittest.TestCase):
 def run_pipeline(client, model, *, root, digest=None, **options):
     digest = digest or digest_module.make_digest(client, publication="example-site", corpus_ids=[CORPUS], now=NOW)
     context = load_context(client, now=NOW)
-    return synthesize(digest=digest, context=context, json_store=JsonStore(Path(root)), transport=model, now=NOW, **options), digest
+    options.setdefault("now", NOW)
+    return synthesize(digest=digest, context=context, json_store=JsonStore(Path(root)), transport=model, **options), digest
 
 
 class PipelineTests(unittest.TestCase):
@@ -255,17 +258,97 @@ class PipelineTests(unittest.TestCase):
             run_pipeline(self.client(), model, root=self.root, maximum_cost_usd=0.000001)
         self.assertEqual(model.requests, [])
 
-    def test_the_run_records_that_a_review_is_pending_and_raises_nothing(self) -> None:
+    def test_without_a_review_client_the_run_only_records_that_review_is_pending(self) -> None:
         run, _ = run_pipeline(self.client(), FakeModel([idea("A", ["R1", "R2"])]), root=self.root)
         self.assertEqual((run["review"]["status"], run["review"]["requested"], run["review"]["ideas"]), ("pending", False, 1))
         self.assertEqual(run["review"]["ideaIds"], [run["ideas"][0]["ideaId"]])
 
-    def test_the_review_seam_is_one_function_taking_the_run_and_its_ideas(self) -> None:
-        run = {"runId": "r1"}
-        with self.assertLogs("papyrus.ideas", level="INFO") as logged:
-            review = request_human_review(run, [{"ideaId": "i1"}, {"ideaId": "i2"}])
-        self.assertIn("review pending: 2 new story ideas", logged.output[0])
-        self.assertEqual((run["review"], review["deadlineDays"]), (review, 7))
+    def test_a_run_raises_one_soft_review_for_its_batch(self) -> None:
+        client = self.client()
+        run, _ = run_pipeline(client, FakeModel([idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident."),
+                                                idea("Model checkpoint signing", ["R3", "R4"], angle="What a signature on a model file proves.")]),
+                              root=self.root, review_client=client)
+        (request,) = client.reviews.values()
+        read = review_requests.read_review(request)
+        self.assertEqual((read["mode"], read["reason"], read["raisedBy"], read["state"]), ("soft_review", "2 new story ideas to review", "idea-pipeline", "open"))
+        self.assertEqual(read["subject"], {"type": "batch", "id": run["runId"]})
+        self.assertEqual([link["id"] for link in read["links"]], [idea_["ideaId"] for idea_ in run["ideas"]])
+        self.assertEqual((run["review"]["status"], run["review"]["requested"], run["review"]["linkedAs"], run["review"]["requestId"]), ("requested", True, "idea", request["id"]))
+        self.assertAlmostEqual((review_requests.parse_time(read["deadline"]) - review_requests.parse_time(read["raisedAt"])).days, 7, delta=0)
+        request_human_review(client, run, run["ideas"])
+        self.assertEqual(len(client.reviews), 1)
+
+    def test_proposal_ideas_are_linked_by_proposal_id(self) -> None:
+        client = self.client()
+        run, _ = run_pipeline(client, FakeModel([idea("A", ["R1", "R2"])]), root=self.root, review_client=client, proposal_store=ProposalStore(client))
+        (request,) = client.reviews.values()
+        self.assertEqual([link["id"] for link in review_requests.read_review(request)["links"]], [run["ideas"][0]["proposalId"]])
+        self.assertEqual(run["review"]["linkedAs"], "proposal")
+
+    def test_no_ideas_raise_no_review(self) -> None:
+        client = self.client()
+        run, _ = run_pipeline(client, FakeModel([]), root=self.root, review_client=client)
+        self.assertEqual((client.reviews, run["review"]["status"]), ({}, "none"))
+
+    def test_a_site_without_review_requests_keeps_its_ideas_and_notes_why(self) -> None:
+        client = self.client()
+        client.reject_review_writes = True
+        run, _ = run_pipeline(client, FakeModel([idea("A", ["R1", "R2"])]), root=self.root, review_client=client)
+        self.assertEqual((run["ideasCreated"], run["review"]["status"], run["review"]["requested"]), (1, "not_raised", False))
+        self.assertIn("createReviewRequest", run["review"]["error"])
+        self.assertEqual(len(list((self.root / "ideas").glob("*.json"))), 1)
+
+    def answered_batch(self, client, decision="reject", **answer):
+        first, _ = run_pipeline(client, FakeModel([idea("Rotating cloud keys safely", ["R1", "R2"], angle="Key rotation for cloud accounts.")]), root=self.root, review_client=client)
+        review_requests.answer_review(client, client.reviews and next(iter(client.reviews)), decision=decision, by="editor", **answer)
+        return first
+
+    def test_a_rejected_batch_steers_the_next_run_and_is_marked_applied(self) -> None:
+        client = self.client()
+        first = self.answered_batch(client, feedback="Too basic; we want incident-driven pieces.", steer="not_this_kind")
+        model = FakeModel([idea("Safely rotating cloud keys", ["R1", "R2"], angle="Key rotation for cloud accounts."), idea("Model checkpoint signing", ["R3", "R4"], angle="What a signature on a model file proves.")])
+        second, _ = run_pipeline(client, model, root=self.root, review_client=client, now=NOW + timedelta(days=1))
+        shown = model.model_input["reviewer_feedback"]
+        self.assertEqual([(e["title"], e["verdict"]) for e in shown], [("Rotating cloud keys safely", "decline")])
+        self.assertIn("Too basic", shown[0]["note"])
+        self.assertIn("not_this_kind", shown[0]["note"])
+        self.assertEqual([i["title"] for i in second["ideas"]], ["Model checkpoint signing"])
+        self.assertIn(second["duplicates"][0]["similarTo"]["kind"], {"declined", "draft"})
+        original = review_requests.get_review(client, second["steering"]["requestIds"][0], sweep=False)
+        self.assertEqual(original["appliedIn"]["runId"], second["runId"])
+        self.assertEqual((second["steering"]["entries"], second["steering"]["requestIds"], second["steering"]["notApplied"]), (1, [original["id"]], []))
+        self.assertEqual(original["subject"]["id"], first["runId"])
+        third = FakeModel([])
+        later, _ = run_pipeline(client, third, root=self.root, review_client=client)
+        self.assertEqual((later["steering"]["entries"], third.model_input["reviewer_feedback"]), (0, []))
+
+    def test_an_approval_with_a_note_comes_back_as_a_revise_entry(self) -> None:
+        client = self.client()
+        self.answered_batch(client, decision="approve", feedback="Good; keep them shorter.")
+        model = FakeModel([])
+        run_pipeline(client, model, root=self.root, review_client=client)
+        self.assertEqual([(e["verdict"], e["note"]) for e in model.model_input["reviewer_feedback"]], [("accept", "Good; keep them shorter.")])
+
+    def test_steering_is_not_marked_applied_when_no_model_call_is_made(self) -> None:
+        client = self.client()
+        self.answered_batch(client, feedback="Narrower please.")
+        small = FakeClient(references=[reference(1)], sections=("Analysis",))
+        small.reviews = client.reviews
+        run, _ = run_pipeline(small, FakeModel([]), root=self.root, review_client=small)
+        self.assertEqual(run["steering"]["entries"], 1)
+        self.assertIsNone(review_requests.get_review(small, run["steering"]["requestIds"][0], sweep=False)["appliedIn"])
+
+    def test_a_site_without_review_requests_gets_no_steering_and_runs_on(self) -> None:
+        client = self.client()
+        with mock.patch.object(review_requests, "steering_for", side_effect=RuntimeError("no such model")):
+            run, _ = run_pipeline(client, FakeModel([idea("A", ["R1", "R2"])]), root=self.root, review_client=client)
+        self.assertEqual((run["steering"]["entries"], run["ideasCreated"]), (0, 1))
+        self.assertIn("no such model", run["steering"]["error"])
+
+    def test_manual_feedback_overrides_steering_for_the_same_title(self) -> None:
+        steering = [{"title": "Same idea", "verdict": "decline", "note": "from steering"}, {"title": "Other", "verdict": "revise", "note": "x"}]
+        manual = [{"title": "same idea", "verdict": "accept", "note": "manual"}]
+        self.assertEqual(merge_feedback(steering, manual), [steering[1], manual[0]])
 
     def test_feedback_files_are_checked(self) -> None:
         path = Path(self.directory.name) / "feedback.json"
@@ -330,7 +413,8 @@ class CommandTests(unittest.TestCase):
             code, output = self.run_cli(["synthesize", "--publication", "example-site", "--digest", digest_id, "--out", directory, "--report", str(report)], client, model)
             self.assertEqual(code, 0, output)
             self.assertIn("created 1", output)
-            self.assertIn("review\tpending\trequested false", output)
+            self.assertIn("review\trequested\trequested true", output)
+            self.assertIn("steering\tentries 0", output)
             text = report.read_text()
             self.assertIn("Proposed by AI", text)
             self.assertNotIn("desk", text.lower())

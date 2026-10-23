@@ -67,10 +67,26 @@ class FakeClient:
         self.doctrine = doctrine or {"editorial-doctrine-mission": "Explain how AI systems fail.", "editorial-doctrine-policy": "Prefer primary sources."}
         self.proposals = list(proposals)
         self.calls: list[tuple[str, Any]] = []
+        self.reviews: dict[str, dict[str, Any]] = {}
+        self.reject_review_writes = False
 
     def list_records(self, model: str) -> list[dict[str, Any]]:
         self.calls.append(("list_records", model))
+        if model == "ReviewRequest":
+            return [dict(row) for row in self.reviews.values()]
         return {"KnowledgeCorpus": self.corpora, "NewsroomSection": self.sections}.get(model, [])
+
+    def get_record(self, model: str, record_id: str) -> dict[str, Any] | None:
+        row = self.reviews.get(record_id) if model == "ReviewRequest" else None
+        return dict(row) if row else None
+
+    def create_record(self, model: str, payload: dict[str, Any]) -> None:
+        if self.reject_review_writes:
+            raise RuntimeError("Cannot query field createReviewRequest on type Mutation.")
+        self.reviews[payload["id"]] = dict(payload)
+
+    def update_record(self, model: str, payload: dict[str, Any]) -> None:
+        self.reviews[payload["id"]] = {**self.reviews[payload["id"]], **payload}
 
     def list_by_index(self, index: str, key: str) -> list[dict[str, Any]]:
         self.calls.append(("list_by_index", key))

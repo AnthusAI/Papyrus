@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from behave import given, then, when
@@ -14,6 +15,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
 from ideas_fixtures import CORPUS, NOW, FakeClient, FakeModel, entity, idea, reference, relevance, story  # noqa: E402,F401
+from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import digest as digest_module  # noqa: E402
 from papyrus_content.ideas.context import load_context  # noqa: E402
 from papyrus_content.ideas.pipeline import RunRefused, synthesize  # noqa: E402
@@ -160,7 +162,7 @@ def run(context, **options):
     try:
         context.run = synthesize(
             digest=context.digest_for_run, context=load_context(client_of(context), now=NOW), json_store=store, transport=context.model,
-            proposal_store=proposal_store, feedback=context.feedback, now=NOW, maximum_cost_usd=options.get("cost_cap", context.cost_cap),
+            proposal_store=proposal_store, review_client=client_of(context) if options.get("reviews") else None, feedback=context.feedback, now=options.get("now", NOW), maximum_cost_usd=options.get("cost_cap", context.cost_cap),
         )
         context.refused = None
     except RunRefused as error:
@@ -171,6 +173,35 @@ def run(context, **options):
 def step_synthesize(context):
     context.digest_for_run = None
     run(context)
+
+
+@when("the operator synthesizes ideas from the digest with review requests")
+def step_synthesize_reviews(context):
+    context.digest_for_run = None
+    run(context, reviews=True)
+
+
+@given("the site has not deployed review requests")
+def step_no_reviews(context):
+    client_of(context).reject_review_writes = True
+
+
+@given('an earlier run proposed "{title}" and an editor rejected the batch saying "{note}"')
+def step_earlier_rejected(context, title, note):
+    context.digest_for_run = None
+    saved_ideas, saved_feedback = context.model_ideas, context.feedback
+    context.model_ideas, context.feedback = [idea(title, ["R1", "R2"], angle="Key rotation for cloud accounts.")], []
+    run(context, reviews=True, now=NOW - timedelta(days=1))
+    context.earlier_run_id = context.run["runId"]
+    (request_id,) = list(client_of(context).reviews)
+    review_requests.answer_review(client_of(context), request_id, decision="reject", by="editor", feedback=note)
+    context.earlier_request_id = request_id
+    context.model_ideas, context.feedback = saved_ideas, saved_feedback
+
+
+@given('a feedback file accepts "{title}" with the note "{note}"')
+def step_feedback_file(context, title, note):
+    context.feedback = [{"title": title, "verdict": "accept", "note": note}]
 
 
 @when("the operator synthesizes ideas from the digest with the reviewer feedback")
@@ -267,3 +298,54 @@ def step_refused(context):
 def step_review(context, count):
     review = context.run["review"]
     assert (review["status"], review["requested"], review["ideas"]) == ("pending", False, count), review
+
+
+@then('one soft review "{reason}" is open with a 7-day deadline')
+def step_one_review(context, reason):
+    (request,) = [review_requests.read_review(row) for row in client_of(context).reviews.values()]
+    assert (request["mode"], request["reason"], request["state"]) == ("soft_review", reason, "open"), request
+    raised, deadline = review_requests.parse_time(request["raisedAt"]), review_requests.parse_time(request["deadline"])
+    assert (deadline - raised).days == 7
+    context.request = request
+
+
+@then("the review is about this run's batch and links the idea")
+def step_review_links(context):
+    assert context.request["subject"] == {"type": "batch", "id": context.run["runId"]}
+    assert [link["id"] for link in context.request["links"]] == [context.run["ideas"][0]["ideaId"]]
+
+
+@then("asking again for the same run raises no second review")
+def step_idempotent(context):
+    from papyrus_content.ideas.review import request_human_review
+
+    request_human_review(client_of(context), context.run, context.run["ideas"])
+    assert len(client_of(context).reviews) == 1
+
+
+@then("no review is raised")
+def step_no_review(context):
+    assert client_of(context).reviews == {} and context.run["review"]["status"] == "none"
+
+
+@then("the run records that the review could not be raised")
+def step_not_raised(context):
+    assert context.run["review"]["status"] == "not_raised" and context.run["review"]["error"]
+
+
+@then('the model was shown the editor\'s rejection of "{title}" with the note "{note}"')
+def step_shown_rejection(context, title, note):
+    shown = context.model.model_input["reviewer_feedback"]
+    assert [(e["title"], e["verdict"]) for e in shown] == [(title, "decline")] and note in shown[0]["note"], shown
+
+
+@then("the editor's review shows it was applied in this run")
+def step_applied(context):
+    applied = review_requests.get_review(client_of(context), context.earlier_request_id, sweep=False)["appliedIn"]
+    assert applied and applied["runId"] == context.run["runId"] != context.earlier_run_id, applied
+
+
+@then('the model was shown only the feedback file\'s verdict "{verdict}" for "{title}"')
+def step_override(context, verdict, title):
+    shown = context.model.model_input["reviewer_feedback"]
+    assert [(e["title"], e["verdict"]) for e in shown] == [(title, verdict)], shown

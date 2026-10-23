@@ -70,6 +70,13 @@ class JsonStore:
             raise ValueError(f"{path} is not an ideas digest.")
         return digest
 
+    def batch_titles(self) -> dict[str, list[str]]:
+        """Run id to the titles of the ideas that run created, for turning a batch review into per-idea feedback."""
+        titles: dict[str, list[str]] = {}
+        for idea in self.ideas():
+            titles.setdefault(idea.get("runId"), []).append(idea["title"])
+        return titles
+
     def ideas(self) -> list[dict[str, Any]]:
         directory = self.root / "ideas"
         if not directory.is_dir():
