@@ -34,10 +34,22 @@
         "model": "gpt-6",
         "name": "email-intake"
       }
+    },
+    {
+      "id": "10259570-2015-49c2-b834-b5a33b0f1aa5",
+      "author": "home",
+      "text": "Draft PR: https://github.com/AnthusAI/Papyrus/pull/657 into develop. Branch feature/PPY-65026c-email-submissions, implementation commit abd92714, based on develop 79bee759. Verified 200 Python tests and 20 Gherkin scenarios; lint, typecheck, staging build, app-shell synth, packaging and guards passed except the identical 41-path baseline backend Node policy violation already documented. Issue stays in_progress pending review and landing. No merge/promotion PR, deploy, live email or DNS change. Separate editor Reference UI task has no file overlap. Private receipts/DLQ visibility and existing site-section sweep activation are explicit runbook tradeoffs. Temporary worktree will be removed after recording delivery; branch remains pushed.",
+      "created_at": "2026-10-23T14:08:52.552389Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-23T14:03:50.431369Z",
+  "updated_at": "2026-10-23T14:08:52.552420Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
