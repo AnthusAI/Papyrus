@@ -327,3 +327,22 @@ def test_a_week_without_an_entry_is_archived(tmp_path):
     assert run_stage("archive", run) == 0
     assert commands(shell, ["papyrus", "knowledge", "archive"])
     assert "--replace" not in commands(shell, ["papyrus", "knowledge", "archive"])[0]
+
+
+def test_the_projection_report_is_found_among_other_output_and_logged(tmp_path, capsys):
+    from .stages import first_json_object
+
+    noisy = 'knowledge\tauth\tiam\thost\n{"written": 3, "deleted": 0, "errors": []}\nProjected: 3 written, 0 deleted\n'
+    assert first_json_object(noisy) == {"written": 3, "deleted": 0, "errors": []}
+    pretty = '{\n  "written": 3,\n  "deleted": 0\n}\ntrailing line\n'
+    assert first_json_object(pretty)["written"] == 3
+    with pytest.raises(StageFailed):
+        first_json_object("no report here")
+
+
+def test_the_projection_stage_logs_its_report_and_records_the_counts(tmp_path, capsys):
+    run, shell = make_run(tmp_path)
+    assert run_stage("projection", run) == 0
+    assert 'projection report: {"written": 3, "deleted": 0}' in capsys.readouterr().out
+    details = run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#projection"})["Item"]["details"]
+    assert details["written"] == 3 and details["deleted"] == 0
