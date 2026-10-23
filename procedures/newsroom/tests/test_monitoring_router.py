@@ -671,9 +671,30 @@ def test_router_role_is_least_privilege():
     assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
     assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
         "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
-    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}"}
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}"}
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
+
+
+def test_data_parade_gets_exactly_the_cyclotron_decided_grants():
+    template = _template()
+    assert template["Parameters"]["DataParadeApiId"]["Default"] == "rgfkmmyyyrc7fb55qd5smbfrpm"
+    inline = {s["Sid"]: s for s in template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]}["PublicationReferenceIntake"]
+    # Intake lives in its own managed policy (the inline policy is near IAM's size limit), like Distinctive's.
+    policy = template["Resources"]["RouterDataParadeIntakePolicy"]["Properties"]
+    assert policy["Roles"] == [("Ref", "RouterRole")]
+    (intake,) = policy["PolicyDocument"]["Statement"]
+    relations = template["Resources"]["RouterDecisionRelationPolicy"]["Properties"]["PolicyDocument"]["Statement"][0]
+    anth_intake = [r[1] for r in inline["Resource"]]
+    anth_fields = {r.rsplit("/fields/", 1)[1] for r in anth_intake if "apis/${AnthUsApiId}/" in r}
+    for statement in (intake, relations):
+        assert statement["Action"] == "appsync:GraphQL"
+        resources = [r[1] for r in statement["Resource"]]
+        assert "*" not in "".join(resources) and all("/types/" in r and "/fields/" in r for r in resources)
+        data_parade = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${DataParadeApiId}/" in r}
+        anth_us = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${AnthUsApiId}/" in r}
+        assert data_parade and data_parade == (anth_fields if statement is intake else anth_us)
+    assert not any("DataParadeApiId" in r for r in anth_intake)
 
 
 def test_router_function_schedule_and_collector_isolation():
