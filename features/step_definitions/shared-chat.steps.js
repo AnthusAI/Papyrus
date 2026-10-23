@@ -5,7 +5,7 @@ const { Given, When, Then } = require("@cucumber/cucumber");
 Given("Papyrus supplies an editorial conversation to the shared chat", function () {});
 for (const [action, mode] of [["the editor sends a new console message", "send"], ["the editor selects a tool's reference action", "reference"]]) {
   When(action, { timeout: 120_000 }, async function () {
-    const result = await promisify(execFile)(process.execPath, ["scripts/test-shared-console-chat.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
+    const result = await promisify(execFile)(process.execPath, ["scripts/shared-console-chat-fixture.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
     this.sharedChatResult = result.stdout;
   });
 }

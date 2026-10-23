@@ -4,6 +4,7 @@ import { build } from "esbuild";
 import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 const mode = process.argv[2];
+assert.ok(["send", "reference"].includes(mode), "Expected send or reference fixture mode");
 const result = await build({ entryPoints: [fileURLToPath(new URL("./fixtures/shared-console-chat.tsx", import.meta.url))], bundle: true, write: false, outfile: "app.js", platform: "browser", jsx: "automatic", define: { "process.env.NODE_ENV": '"development"' } });
 const server = createServer((request, response) => {
   if (request.url === "/app.js") { response.setHeader("Content-Type", "text/javascript"); response.end(result.outputFiles.find((file) => file.path.endsWith(".js")).contents); }
@@ -13,7 +14,7 @@ const server = createServer((request, response) => {
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 let browser;
 try {
-  browser = await chromium.launch({ channel: "chrome", headless: true });
+  browser = await chromium.launch({ executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined, headless: true });
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
