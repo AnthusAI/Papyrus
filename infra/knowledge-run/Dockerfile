@@ -9,13 +9,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# awscrt: the CloudFront KeyValueStore needs SigV4a, which botocore signs only with it.
 # Pinned science stack: the versions of the 2026-10-22 workstation runs (torch is the CPU build on aarch64).
 COPY infra/knowledge-run/constraints.txt /tmp/constraints.txt
 # PyPI's aarch64 torch pulls the CUDA libraries (gigabytes, no GPU here), so torch comes from the CPU index first.
 RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.14.1"
 ARG BIBLICUS_REF=b433d5133287064221d82899206034a310ee1af9
 RUN pip install -c /tmp/constraints.txt \
-        "biblicus[typed-extraction,topic-modeling] @ git+https://github.com/AnthusAI/Biblicus@${BIBLICUS_REF}" boto3 \
+        "biblicus[typed-extraction,topic-modeling] @ git+https://github.com/AnthusAI/Biblicus@${BIBLICUS_REF}" boto3 awscrt \
     && rm -rf /root/.cache
 
 # The models come before the Papyrus source, so a code change rebuilds only the last small layer.
@@ -23,7 +24,7 @@ COPY infra/knowledge-run/bake_models.py /tmp/bake_models.py
 RUN python /tmp/bake_models.py && rm /tmp/bake_models.py
 
 # Papyrus is the release from PyPI (it carries the data files the run needs), not a source tree.
-ARG PAPYRUS_VERSION=5.30.0
+ARG PAPYRUS_VERSION=5.31.0
 ARG PAPYRUS_SPEC=
 RUN pip install -c /tmp/constraints.txt "${PAPYRUS_SPEC:-papyrus-newsroom[markus]==${PAPYRUS_VERSION}}" && rm -rf /root/.cache
 
