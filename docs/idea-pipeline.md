@@ -81,6 +81,24 @@ for `gpt-6-luna`, LiteLLM standard tier, read 2026-10-11). A run whose estimate 
 `--feedback FILE`, a JSON list of `{title, verdict: accept|decline|revise, note}`; synthesis shows it to the model and treats a
 declined title as a reason not to propose that idea again.
 
+## Friction for the run contract
+
+Notes from running v0 by hand, for PPY-433383 (run contract) and PPY-93faf2 (local-pod runtime):
+
+- **No site registry.** The operator has to find each site's AppSync endpoint (the API's `amplify:app-id` tag is the only link to the
+  app) and export `PAPYRUS_GRAPHQL_ENDPOINT`. An automation needs the site, endpoint, account and credential source as data.
+- **Credentials.** The SSO session often needs `aws configure export-credentials` before botocore signs requests. A scheduled local
+  run needs a non-interactive credential source.
+- **Filing Proposals is not open to IAM.** `fileProposal` checks the editor or admin group, so an unattended run cannot file
+  Proposals today; only a person with a `papyrus login` session can. The run contract needs either a service identity the function
+  accepts or a different way to hand ideas to review.
+- **Dedupe memory is local.** Earlier drafts come from the JSON store on one machine (or the site's Proposals). A run on another
+  machine, or a Lambda, would not see them unless it uses the Proposal store.
+- **The run ledger is a local JSON file,** not a `ProcedureRun` record, so the console cannot list these runs yet.
+- **The OpenAI key comes from the operator's environment.** Cloud runtimes read per-site SSM parameters; the local one does not.
+- **Monitors deliver `pending` references,** and only accepted ones are evidence, so an unattended pipeline reads nothing until
+  someone accepts references or a site adopts an auto-accept policy. `--status accepted,pending` is the v0 workaround.
+
 ## Running without a cloud backend
 
 These are local commands against a cloud CMS. A site with no cloud backend (a local pod) has no `Reference` store to read, so the

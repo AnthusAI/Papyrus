@@ -43,7 +43,7 @@ def _client_and_corpora(publication: str) -> tuple[Any, list[str]]:
 def _publication(options: dict[str, Any]) -> str:
     publication = normalize_string(options.get("publication"))
     if not publication:
-        raise ValueError("ideas commands need --publication KEY (the knowledge corpus key, for example threat-intelligence).")
+        raise ValueError("ideas commands need --publication KEY (the knowledge corpus key).")
     return publication
 
 
