@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Proposal: message, tool job and streamed answer",
+    "output": "docs/architecture/chatticus-chat/editor-roundtrip/editor-roundtrip.html",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1080,
+      640
+    ],
+    "column_fit": "spread"
+  },
+  "participants": [
+    {
+      "id": "editor",
+      "type": "frontend",
+      "label": "Editor pane",
+      "sublabel": "shared client"
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "Auth API",
+      "sublabel": "Papyrus adapter"
+    },
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "Chat core",
+      "sublabel": "Chatticus"
+    },
+    {
+      "id": "store",
+      "type": "database",
+      "label": "Chat store",
+      "sublabel": "private state"
+    },
+    {
+      "id": "tools",
+      "type": "security",
+      "label": "Tool gate",
+      "sublabel": "Papyrus"
+    },
+    {
+      "id": "jobs",
+      "type": "backend",
+      "label": "Backend job",
+      "sublabel": "Papyrus"
+    }
+  ],
+  "messages": [
+    {
+      "id": "step-0",
+      "from": "editor",
+      "to": "api",
+      "y": 165,
+      "label": "POST + request key",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-1",
+      "from": "api",
+      "to": "core",
+      "y": 197,
+      "label": "Verified scope + input",
+      "variant": "security"
+    },
+    {
+      "id": "step-2",
+      "from": "core",
+      "to": "store",
+      "y": 229,
+      "label": "Commit input / enqueue",
+      "variant": "default"
+    },
+    {
+      "id": "step-3",
+      "from": "api",
+      "to": "editor",
+      "y": 261,
+      "label": "turnId + channelId",
+      "variant": "return"
+    },
+    {
+      "id": "step-4",
+      "from": "editor",
+      "to": "api",
+      "y": 293,
+      "label": "GET turn SSE + cursor",
+      "variant": "emphasis"
+    },
+    {
+      "id": "step-5",
+      "from": "core",
+      "to": "tools",
+      "y": 325,
+      "label": "Request editorial check",
+      "variant": "default"
+    },
+    {
+      "id": "step-6",
+      "from": "tools",
+      "to": "jobs",
+      "y": 357,
+      "label": "Reauthorize; start job",
+      "variant": "security"
+    },
+    {
+      "id": "step-7",
+      "from": "jobs",
+      "to": "tools",
+      "y": 389,
+      "label": "jobId + running",
+      "variant": "return"
+    },
+    {
+      "id": "step-8",
+      "from": "tools",
+      "to": "core",
+      "y": 421,
+      "label": "Durable job reference",
+      "variant": "return"
+    },
+    {
+      "id": "step-9",
+      "from": "core",
+      "to": "store",
+      "y": 453,
+      "label": "Commit progress + answer",
+      "variant": "default"
+    },
+    {
+      "id": "step-10",
+      "from": "store",
+      "to": "api",
+      "y": 485,
+      "label": "Read ordered turn events",
+      "variant": "return"
+    },
+    {
+      "id": "step-11",
+      "from": "api",
+      "to": "editor",
+      "y": 517,
+      "label": "SSE progress / completed",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Proposal, not a verified live flow",
+      "items": [
+        "Example: check a draft, then approve a consequential action.",
+        "The first turn can finish while a long backend job continues.",
+        "Approval binds tool arguments, target revision, editor and expiry.",
+        "Denied, stale or revoked approval never reaches an execution sink.",
+        "Part 2 shows job completion, approval and reload."
+      ]
+    }
+  ]
+}

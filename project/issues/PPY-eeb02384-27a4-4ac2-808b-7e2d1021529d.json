@@ -17,10 +17,25 @@
       "text": "Scope from Ryan's direction on PPY-de11ec: produce the feature table (core / optional plug-in / Chatticus-only), define the background-job contract the chat agent uses instead of a computer (start a job, stream its progress into the turn, report the result), and identify the seam in Chatticus where computer summoning attaches, so it can be left out by sites that embed the core (Papyrus, Auritus).",
       "created_at": "2026-10-21T12:17:25.537312Z",
       "comment_type": "default"
+    },
+    {
+      "id": "715d716a-e35e-48d3-a762-fe97f1bf355b",
+      "author": "home",
+      "text": "User reviewed the architectural plan, briefly approved implementation, then requested that implementation stop and planning be filed/pushed for a Mac agent. No production code changed. Full plan: docs/chatticus-chat-integration-plan.md; five checked Archify illustrations: docs/architecture/chatticus-chat/. Resume instructions: docs/architecture/chatticus-chat/handoff.md.\n\nClarification: current Chatticus uses TypeScript Pi Durable 1.0.2; no Python package was identified. UI/client extraction does not depend on a Python migration. Later shared-server extraction should reuse the existing TypeScript implementation, with an explicit Papyrus backend-hosting/policy decision. Earlier PyAgents/PyDurable wording should not cause a new Python chat engine to be built.\n\nChatticus planning branch: docs/chatticus-080b0e-papyrus-chat-handoff (chatticus-abde29 / chatticus-080b0e). Papyrus branch: docs/PPY-eeb023-chatticus-chat-plan. Keep all implementation records open. No package publication, merge, deployment or security-access change is authorized by this handoff. Coordinate with the other task owning loading states, Notification Center focus/removal of Go to, and mobile navigation alignment; the chat slice owns shared packages and the console adapter.",
+      "created_at": "2026-10-23T18:37:52.043445Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "Papyrus chat planning handoff",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-21T12:14:25.324633Z",
-  "updated_at": "2026-10-21T12:17:25.537329Z",
+  "updated_at": "2026-10-23T18:37:52.043477Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

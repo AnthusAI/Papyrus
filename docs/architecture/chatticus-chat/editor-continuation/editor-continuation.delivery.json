@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "2c3678df-d944-4814-8de4-7830e14e857a",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/home/Documents/Codex/2026-10-23/task-4/papyrus-implementation/docs/architecture/chatticus-chat/editor-continuation/candidate.json",
+  "output": "/Users/home/Documents/Codex/2026-10-23/task-4/papyrus-implementation/docs/architecture/chatticus-chat/editor-continuation/editor-continuation.html",
+  "specification": {
+    "sha256": "91516cac2d6789a066b00ed88b662585215a1049b704213ab4e32f0bfe298e40",
+    "bytes": 2850
+  },
+  "artifact": {
+    "sha256": "1cadee2905831e75ddacdae05de8f90a9c6c7bde6e9d437cabc81ff42a8a8233",
+    "bytes": 753813
+  }
+}
