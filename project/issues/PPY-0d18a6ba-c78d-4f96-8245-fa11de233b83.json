@@ -1,0 +1,25 @@
+{
+  "id": "PPY-0d18a6ba-c78d-4f96-8245-fa11de233b83",
+  "title": "Define Papyrus shared chat trust boundary contract",
+  "description": "Add a code-local reusable admission contract for site-hosted shared chat. Inject a verified Papyrus principal and membership resolver; derive Account/site/editor on the server; enforce private per-editor transcript ownership and operation-scoped idempotency with payload-reuse rejection. Cover rejection and replay behavior in tests and Gherkin. Document that JWT audience, client_id and token_use are distinct and that the production token type and verifier configuration must be verified before wiring. No exposed endpoint, live AppSync changes, live IAM/OIDC, or deployment.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-839cf737-d3e6-46de-bb24-911bde8d11d4",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-23T20:13:27.231123Z",
+  "updated_at": "2026-10-23T20:13:36.094168Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6-luna",
+    "name": "shared-chat-contract"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
