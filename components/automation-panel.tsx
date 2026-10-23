@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadAutomationOverview } from "../lib/automation-client";
+import { loadAutomationOverview, runAutomationNow } from "../lib/automation-client";
 import { FIXTURE_AUTOMATION_OVERVIEW } from "../lib/automation-fixture";
 import type { AutomationResult } from "../lib/automation-overview";
 import { AutomationView } from "./automation-view";
@@ -35,5 +35,15 @@ export function AutomationPanel({ isDemo }: { isDemo: boolean }) {
     };
   }, [isDemo]);
 
-  return <AutomationView result={result} selectedId={selectedId} onSelect={setSelectedId} demo={isDemo} />;
+  const runNow = isDemo ? undefined : async (automationId: string, input: Record<string, unknown> | null) => {
+    const outcome = await runAutomationNow(automationId, input);
+    try {
+      setResult(await loadAutomationOverview());   // show the new run without waiting for the minute
+    } catch {
+      /* the next refresh will */
+    }
+    return outcome;
+  };
+
+  return <AutomationView result={result} selectedId={selectedId} onSelect={setSelectedId} demo={isDemo} onRunNow={runNow} />;
 }

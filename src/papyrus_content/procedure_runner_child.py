@@ -18,14 +18,38 @@ def json_safe(value):
     return json.loads(json.dumps(value, default=str))
 
 
-def run(source_path: Path, inputs: dict) -> dict:
+class UsageCollector:
+    """A Tactus log handler that keeps only the model usage of each call and ignores every other event.
+
+    Tactus emits one cost event per model call (agent, model, provider, token counts). This keeps those counts, not
+    Tactus's own prices: the runner prices them from the Papyrus table (model_cost.py)."""
+
+    supports_streaming = False
+
+    def __init__(self):
+        self.cost_events: list = []
+        self.calls: list[dict] = []
+
+    def log(self, event) -> None:
+        if not (hasattr(event, "prompt_tokens") and hasattr(event, "completion_tokens") and hasattr(event, "model")):
+            return
+        self.cost_events.append(event)
+        self.calls.append({
+            "agent": getattr(event, "agent_name", None), "model": event.model, "provider": getattr(event, "provider", None),
+            "promptTokens": event.prompt_tokens, "completionTokens": event.completion_tokens,
+            "cachedTokens": getattr(event, "cache_tokens", None) or 0})
+
+
+def run(source_path: Path, inputs: dict, usage: UsageCollector | None = None) -> dict:
     from tactus.adapters.memory import MemoryStorage
     from tactus.core import TactusRuntime
     from tactus.core.mocking import MockManager, set_current_mock_manager
     from tactus.protocols.result import TactusResult
 
+    usage = usage if usage is not None else UsageCollector()
     runtime = TactusRuntime(procedure_id=f"papyrus-procedure-{source_path.parent.name}", storage_backend=MemoryStorage(),
-                            openai_api_key=os.environ.get("OPENAI_API_KEY"), source_file_path=str(source_path))
+                            openai_api_key=os.environ.get("OPENAI_API_KEY"), source_file_path=str(source_path),
+                            log_handler=usage)
     runtime.dependency_mode = "none"
     mock_manager = MockManager()
     mock_manager.disable_mock()
@@ -37,15 +61,18 @@ def run(source_path: Path, inputs: dict) -> dict:
         output = output.output
     return {"success": bool(result.get("success")), "output": json_safe(output),
             "error": None if result.get("success") else str(result.get("error") or "the procedure failed"),
-            "toolsUsed": json_safe(result.get("tools_used") or []), "iterations": result.get("iterations")}
+            "toolsUsed": json_safe(result.get("tools_used") or []), "iterations": result.get("iterations"),
+            "usage": json_safe(usage.calls)}
 
 
 def main(argv: list[str]) -> int:
     source_path, input_path, result_path = (Path(argument) for argument in argv)
+    usage = UsageCollector()
     try:
-        outcome = run(source_path, json.loads(input_path.read_text(encoding="utf-8")))
-    except Exception as error:
-        outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "logTail": traceback.format_exc()[-4000:]}
+        outcome = run(source_path, json.loads(input_path.read_text(encoding="utf-8")), usage)
+    except Exception as error:   # model calls made before the failure are still reported
+        outcome = {"success": False, "error": f"{type(error).__name__}: {error}", "logTail": traceback.format_exc()[-4000:],
+                   "usage": json_safe(usage.calls)}
     result_path.write_text(json.dumps(outcome), encoding="utf-8")
     return 0 if outcome["success"] else 1
 

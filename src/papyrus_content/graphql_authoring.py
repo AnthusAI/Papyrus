@@ -105,6 +105,7 @@ PROCEDURE_RUN_FIELDS = (
     "id procedureId procedureKey procedureVersionId procedureVersionNumber assignmentId runStatus requestedBy "
     "requestedAt startedAt finishedAt input normalizedInput resultSummary errorSummary output error attempt newsroomFeedKey"
 )
+PROCEDURE_RUN_COST_FIELDS = "usage costUsd"   # added after the base list: a backend that predates them refuses a query that names them
 AUTOMATION_FIELDS = (
     "id title description enabled trigger procedureKey inputTemplate limits createdBy createdAt updatedBy updatedAt"
 )
@@ -780,6 +781,36 @@ class PapyrusGraphQLAuthoringClient:
         if not row_belongs_to_tenant(model_name, self.tenant_id, row):
             return None
         return tenant_row_with_bare_record_id(model_name, self.tenant_id, row)
+
+    def get_record_with_fields(self, model_name: str, record_id: str, extra_fields: str) -> dict[str, Any] | None:
+        """`get_record` with more fields than the model's fixed list (for fields a backend may not have yet)."""
+        definition = GET_DEFINITIONS[model_name]
+        query = _get_query(definition["field"], f"{definition['fields']} {extra_fields}")
+        result = self.graphql(query, {"id": self._stored_record_id(model_name, record_id)})
+        row = result.get(definition["field"])
+        if not row_belongs_to_tenant(model_name, self.tenant_id, row):
+            return None
+        return tenant_row_with_bare_record_id(model_name, self.tenant_id, row)
+
+    def recent_procedure_runs(self, procedure_key: str, limit: int = 25) -> list[dict[str, Any]]:
+        """The newest ProcedureRuns of a procedure (one page, newest first), with their usage and cost when the backend has them."""
+        from .cloud_procedures import get_cloud_procedure_definition_by_key
+
+        definition = get_cloud_procedure_definition_by_key(self, procedure_key)
+        if not definition:
+            return []
+        field = "listProcedureRunsByProcedureAndRequestedAt"
+        for fields in (f"{PROCEDURE_RUN_FIELDS} {PROCEDURE_RUN_COST_FIELDS}", PROCEDURE_RUN_FIELDS):
+            query = (f"query RecentProcedureRuns($procedureId: ID!, $limit: Int) {{ {field}(procedureId: $procedureId, "
+                     f"sortDirection: DESC, limit: $limit) {{ items {{ {fields} }} }} }}")
+            try:
+                result = self.graphql(query, {"procedureId": definition["id"], "limit": limit})
+            except Exception:
+                if fields == PROCEDURE_RUN_FIELDS:
+                    raise
+                continue
+            return [entry for entry in (result.get(field) or {}).get("items") or [] if entry]
+        return []
 
     def get_record_unscoped(self, model_name: str, record_id: str) -> dict[str, Any] | None:
         definition = GET_DEFINITIONS[model_name]

@@ -66,6 +66,12 @@ class FakeAuthoringClient:
         model_name = INDEX_MODELS[index_name]
         return [copy.deepcopy(row) for row in self._table(model_name).values() if row.get(partition_key) == key_value]
 
+    def recent_procedure_runs(self, procedure_key: str, limit: int = 25) -> list[dict[str, Any]]:
+        self.calls.append(("recent_procedure_runs", "ProcedureRun", procedure_key))
+        rows = [row for row in self._table("ProcedureRun").values() if row.get("procedureKey") == procedure_key]
+        rows.sort(key=lambda row: str(row.get("requestedAt") or ""), reverse=True)
+        return [copy.deepcopy(row) for row in rows[:limit]]
+
     def upsert(self, model_name: str, payload: dict[str, Any]) -> str:
         self.calls.append(("upsert", model_name, payload["id"]))
         existed = payload["id"] in self._table(model_name)

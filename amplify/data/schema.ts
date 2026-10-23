@@ -1165,6 +1165,8 @@ const definitions = {
       error: a.json(),
       attempt: a.integer(),
       newsroomFeedKey: a.string(),
+      usage: a.json(),
+      costUsd: a.float(),
     })
     .secondaryIndexes((index) => [
       index("procedureId").sortKeys(["requestedAt"]).queryField("listProcedureRunsByProcedureAndRequestedAt"),
