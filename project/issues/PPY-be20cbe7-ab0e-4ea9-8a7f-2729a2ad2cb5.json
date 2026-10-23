@@ -18,9 +18,22 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "252f4497-434e-4cc3-a33a-898223e84e95",
+      "author": "home",
+      "text": "Scoped backend implementation is tracked under PPY-65026c: strict publication/shared submission addresses, auth/scope/retry boundaries, private receipts and existing pending Reference routing. Broader inbox reader remains separate; this story stays open. New sender infrastructure is independent of newsletter enablement. No production email activation or real messages.",
+      "created_at": "2026-10-23T14:03:51.029771Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "email-intake"
+      }
+    }
+  ],
   "created_at": "2026-10-20T03:03:27.446805Z",
-  "updated_at": "2026-10-20T03:11:37.833758Z",
+  "updated_at": "2026-10-23T14:03:51.029805Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

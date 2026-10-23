@@ -85,6 +85,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [category-steering-runbook.md](category-steering-runbook.md): pointer to the category-steering skill.
 - [reference-processing-terminology.md](reference-processing-terminology.md): vocabulary for reference workflows.
 - [inbound-email-submissions.md](inbound-email-submissions.md): suggesting references by email.
+- [email-reference-intake.md](email-reference-intake.md): strict newsletter-link intake, explicit publication/shared routing, and cloud email independent of newsletters.
 - [reference-intake/user-session-intake.md](reference-intake/user-session-intake.md): pending Reference intake with an editor session.
 - [monitoring-cloud.md](monitoring-cloud.md): the Hacker News and TTAB collectors, the router, the shared Cyclotron routing to several sites, and the Monitoring page.
 - [procedure-runner.md](procedure-runner.md): the cloud Lambda that runs a site's registered Tactus procedure; `papyrus procedures register`.

@@ -109,8 +109,10 @@ export function deriveStorageBackupVaultName(identity: SiteBackendIdentity, expl
 /**
  * The `papyrus-site-inbound-` prefix keeps a brand named `p-apyr-us` from
  * colliding with the legacy `papyrus-inbound-p-apyr-us` set.
- * SES allows one ACTIVE receipt rule set per region. A non-legacy site creates
- * its own brand-named rule set and never activates it from CloudFormation.
+ * SES allows one ACTIVE receipt rule set per account and region. A non-legacy
+ * site creates its own brand-named rule set and never activates it from
+ * CloudFormation. SES accounts that receive the same domain process their
+ * matching rules independently; the limit does not span accounts.
  */
 export function deriveReceiptRuleSetName(identity: SiteBackendIdentity, inboundEmailDomain: string): string {
   const name = isLegacyProductionApp(identity)

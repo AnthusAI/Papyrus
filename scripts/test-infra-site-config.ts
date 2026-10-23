@@ -70,7 +70,7 @@ assertRejects(mutatedAnthUs((c) => (c.reader.customHeaders[0].headers = { A: 1 }
 assertRejects(mutatedAnthUs((c) => (c.reader.preBuildCommands = [])), "reader.preBuildCommands");
 assertRejects(mutatedAnthUs((c) => (c.reader.skipContentExport = "yes")), "reader.skipContentExport");
 
-const readerOnlyConfig = parseSiteConfig(mutatedAnthUs((c) => { delete c.cms; delete c.github; }));
+const readerOnlyConfig = parseSiteConfig(mutatedAnthUs((c) => { delete c.cms; delete c.github; delete c.email; }));
 assert.equal(readerOnlyConfig.cms, undefined);
 assert.equal(readerOnlyConfig.reader?.skipContentExport, true);
 assertRejects(mutated("pretext.site.json", (c) => delete c.cms), "cms");
