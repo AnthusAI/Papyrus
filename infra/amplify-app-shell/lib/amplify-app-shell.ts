@@ -3,6 +3,8 @@ import { ArnFormat, CfnOutput, Duration, Fn, Stack, StackProps } from "aws-cdk-l
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as amplify from "aws-cdk-lib/aws-amplify";
 import { SecureStringParameter } from "./secure-string-parameter";
+import { addCloudEmail } from "./cloud-email";
+import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
 import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
@@ -79,6 +81,7 @@ export class AmplifyAppShellStack extends Stack {
     }
 
     const cmsAppName = config.cms.appName ?? `${config.siteId}-cms`;
+    const emailEnvironment = addCloudEmail(this, parseCloudEmail(config.email, true, config.siteId)!);
     const stagingEnabled = isStagingEnabled(config);
     const stagingDomainName = resolveStagingDomainName(config);
     const cmsHostName = resolveCmsHostName(config);
@@ -217,6 +220,7 @@ export class AmplifyAppShellStack extends Stack {
       enablePerformanceMode: false,
       environmentVariables: environmentVariables({
         ...config.cms.environment,
+        ...emailEnvironment,
         PAPYRUS_COGNITO_DOMAIN_PREFIX: config.cms.cognitoDomainPrefix,
         ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,

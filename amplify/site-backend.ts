@@ -601,7 +601,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
     const inboundEventStack = Stack.of(receiveLambda);
 
-    // SES allows one active receipt rule set per region, so a non-legacy site
+    // SES allows one active receipt rule set per account and region, so a non-legacy site
     // creates its own brand-named rule set and never activates it here.
     const inboundSesPlan = planInboundEmailSes(siteBackendIdentity, enableInboundEmail, site.inboundEmailSes);
     if (inboundSesPlan.createReceiptRules) {

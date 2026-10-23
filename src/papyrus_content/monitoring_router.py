@@ -136,6 +136,10 @@ def feedback_partition(monitor_id: str) -> str:
 
 
 def validate_router_config(raw: dict) -> dict:
+    account = raw.get("accountId")
+    if account is not None and (not isinstance(account, str) or not account.strip() or len(account) > 128):
+        raise ValueError("router accountId must be a nonempty Account identifier")
+    account_scope = {"accountId": account} if account is not None else {}
     mode = raw.get("mode")
     if mode not in ("dry-run", "live"):
         raise ValueError("router mode must be dry-run or live")
@@ -151,7 +155,7 @@ def validate_router_config(raw: dict) -> dict:
             raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
         return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
                 "decisions": decisions, "feedback": False, "ceilings": None, "publications": publications,
-                "cyclotron": None}
+                "cyclotron": None, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
     endpoint = urlsplit(str(cyclotron.get("endpoint") or ""))
     match = EXECUTE_API_HOST.match(endpoint.netloc)
@@ -174,7 +178,24 @@ def validate_router_config(raw: dict) -> dict:
             "decisions": decisions, "feedback": raw.get("feedback") is True, "ceilings": ceilings,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
-                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}}
+                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}, **account_scope}
+
+
+def email_routing_fingerprint(config: dict) -> str:
+    """Pin the Account, publication destinations and shared binding across retries.
+
+    Mode, enabled state and batch size can change without redirecting a source.
+    Any identity, endpoint, grant or procedure change requires explicit reconciliation.
+    """
+    scope = {key: config.get(key) for key in ("accountId", "decisions", "publications", "cyclotron", "feedback")}
+    return sha256(json.dumps(scope, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
+    if discovery.get("sourceType") == "email":
+        if (not config.get("accountId") or not discovery.get("emailProvenance")
+                or discovery.get("emailRoutingFingerprint") != email_routing_fingerprint(config)):
+            raise ItemInvalid("Email destination Account or publication binding changed; reconcile explicitly")
 
 
 def validate_router_publications(raw: dict) -> list[dict]:
@@ -267,12 +288,14 @@ def build_item(discovery: dict) -> dict:
     title, url = str(discovery.get("title") or ""), str(discovery.get("canonicalUrl") or "")
     if not SOURCE_ID.match(source_id) or not title.strip() or len(title) > 1000 or not url or len(url) > 2048:
         raise ItemInvalid("discovery is not a valid Cyclotron item")
+    source = "email" if discovery.get("sourceType") == "email" else "hacker-news"
     return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": {
-        "title": title, "url": url, "source": "hacker-news",
+        "title": title, "url": url, "source": source,
         "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""), "text": f"{title}\n{url}"}}
 
 
 def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0) -> dict:
+    validate_email_discovery_scope(discovery, config)
     cyclotron, item = config["cyclotron"], build_item(discovery)
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
@@ -299,9 +322,11 @@ def validate_request(body: dict) -> None:
         values = item.get("values") or {}
         if set(payload) != {"bindingRevision", "item"} or not payload["bindingRevision"]:
             raise ValueError("decide payload shape")
-        if set(item) != {"id", "values"} or not str(item["id"]).startswith("hn-"):
+        email_item = values.get("source") == "email"
+        valid_id = bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}-[A-Za-z0-9_-]{1,64}", str(item.get("id", "")))) if email_item else str(item.get("id", "")).startswith("hn-")
+        if set(item) != {"id", "values"} or not valid_id:
             raise ValueError("decide item shape")
-        if set(values) != {"title", "url", "source", "sourceItemUrl", "text"} or values["source"] != "hacker-news":
+        if set(values) != {"title", "url", "source", "sourceItemUrl", "text"} or values["source"] not in {"hacker-news", "email"}:
             raise ValueError("decide item values shape")
         if any(not isinstance(v, str) or not v for v in values.values()) or values["text"] != f"{values['title']}\n{values['url']}":
             raise ValueError("decide item values content")
@@ -466,6 +491,12 @@ def checked_decision(response: dict, publication: dict, config: dict, item_id: s
     decision = response.get("decision") if isinstance(response, dict) else None
     if not isinstance(decision, dict) or not isinstance(decision.get("decisionId"), str) or not decision["decisionId"]:
         raise ItemInvalid("response has no decisionId")
+    if config.get("accountId"):
+        expected = {"contractVersion": CONTRACT_VERSION, "accountId": config["accountId"],
+                    "publicationId": publication["publicationId"],
+                    "bindingRevision": config["cyclotron"]["bindingRevision"]}
+        if any(response.get(key) != value for key, value in expected.items()) or decision.get("itemId") != item_id:
+            raise ItemInvalid("Account-bound response identity mismatch")
     if decision.get("itemId") not in (None, item_id):
         raise ItemInvalid("decision is for a different item")
     for key, expected in (("publicationId", publication["publicationId"]),
@@ -655,11 +686,12 @@ def lab_decision_records(client, publication: dict, decision: dict, config: dict
 
 def deliver_reference(client, publication: dict, disc: dict, decision: dict, config: dict) -> dict:
     """The existing ReferenceIntake: pending Reference + provenance Message recording how it was chosen."""
+    validate_email_discovery_scope(disc, config)
     from .monitoring_intake import ReferenceIntake
     source_url = str(disc.get("sourceUrl") or "")
     monitor = Monitor(str(disc.get("monitorId") or "hn"), publication["corpusKey"], publication["corpusId"],
                       publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
-                      source_name=source_name_for(source_url))
+                      source_name="Email submission" if disc.get("sourceType") == "email" else source_name_for(source_url))
     item = SourceItem(str(disc["sourceId"]), disc["title"], disc["canonicalUrl"], disc["sourceItemUrl"],
                       disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html", tuple(disc.get("aliases") or ()))
     if item.fingerprint != disc["fingerprint"]:
@@ -677,6 +709,9 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     provenance = {**monitor.binding, "sourceId": item.source_id, "sourceItemUrl": item.source_item_url,
                   "fingerprint": item.fingerprint, "observedAt": disc["observedAt"], "revision": int(disc["revision"]),
                   "machineDecision": chosen}
+    if disc.get("sourceType") == "email":
+        provenance["emailSubmission"] = disc["emailProvenance"]
+        provenance["sectionHandoff"] = "pending-reference-site-sweep"
     intake = ReferenceIntake(client, monitor, auth_mode="iam")
     if config.get("decisions") == "direct":
         return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
@@ -744,6 +779,10 @@ class Router:
 
     def dry_run(self, disc: dict):
         route = self.get_route(disc)
+        try:
+            validate_email_discovery_scope(disc, self.config)
+        except ItemInvalid as error:
+            return self.finish(disc, route, "error", str(error))
         requests = {}
         for publication in self.config["publications"]:
             if self.config["decisions"] == "direct":
@@ -905,6 +944,7 @@ class Router:
 
 
     def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str) -> None:
+        validate_email_discovery_scope(disc, self.config)
         jobs = route.setdefault("jobs", {})
         pub_id = publication["publicationId"]
         built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
@@ -968,6 +1008,7 @@ class Router:
 
     def deliver_positive(self, disc: dict, route: dict) -> bool:
         """Deliver to every positive publication that is not yet delivered; failures stay per publication."""
+        validate_email_discovery_scope(disc, self.config)
         decision = route["decision"]
         all_delivered = True
         for pub_id, state in route["publications"].items():
@@ -1124,6 +1165,7 @@ class Router:
     def live(self, disc: dict):
         route = self.get_route(disc)
         try:
+            validate_email_discovery_scope(disc, self.config)
             if not route.get("decision"):
                 (self.decide_direct if self.config["decisions"] == "direct" else self.decide)(disc, route)
             if not self.deliver_positive(disc, route):

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "568aa65b-7528-4008-be9c-8685259c15e2",
+  "issue_id": "PPY-afcf2ae6-a481-4af8-8c29-1aed2d9a1742",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-23T18:17:00.319Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "547694ab-b61a-4712-a48c-e40f78077d9f",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "BlackbookM1 Sol"
+    }
+  }
+}

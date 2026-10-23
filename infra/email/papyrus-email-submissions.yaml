@@ -1,0 +1,223 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Private email submissions into one explicitly scoped Monitoring destination (PPY-65026c).
+  Uses an existing verified SES domain and receipt rule set. Never changes DNS or activates a rule set.
+Parameters:
+  MonitorId:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,31}$"
+  MonitoringTableName:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_.-]{3,255}$"
+  ExistingReceiptRuleSetName:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]{1,64}$"
+  Recipients:
+    Type: CommaDelimitedList
+    Description: Exact submission addresses, matching CONFIG#email aliases. Never a whole domain.
+    AllowedPattern: "^[a-z0-9][a-z0-9._+-]{0,63}@[a-z0-9.-]+[.][a-z]{2,63}$"
+  CodeBucket:
+    Type: String
+    Description: Artifact bucket in this receiving region.
+  CodeKey:
+    Type: String
+    Description: Content-addressed zip from infra/monitoring/build.py --email.
+  ReservedConcurrency:
+    Type: Number
+    Default: 1
+    AllowedValues: [0, 1]
+    Description: 1 reserves one execution; 0 leaves it unreserved for low-quota accounts. The durable monitor lease still serializes intake.
+  Enabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Enable only after config, grants, rule order and receiving-domain DNS are reviewed.
+  RouterFunctionArn:
+    Type: String
+    AllowedPattern: "^arn:aws[a-z-]*:lambda:[a-z0-9-]+:[0-9]{12}:function:[A-Za-z0-9_-]+$"
+    Description: Existing Monitoring router in this account and region, with separately approved publication and Cyclotron grants.
+  RouterEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Enable the routing sweep only after CONFIG#router is validated. Independent of receipt activation.
+Conditions:
+  ReserveConcurrency: !Equals [!Ref ReservedConcurrency, 1]
+  EnableReceipt: !Equals [!Ref Enabled, "true"]
+  EnableRouter: !Equals [!Ref RouterEnabled, "true"]
+Resources:
+  RawMailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      VersioningConfiguration: {Status: Enabled}
+      LifecycleConfiguration:
+        Rules:
+          - Id: PrivateMailRetention
+            Status: Enabled
+            Prefix: email-submissions/
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration: {NoncurrentDays: 30}
+  RawMailPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RawMailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ses.amazonaws.com}
+            Action: s3:PutObject
+            Resource: !Sub ${RawMailBucket.Arn}/email-submissions/*
+            Condition:
+              StringEquals:
+                AWS:SourceAccount: !Ref AWS::AccountId
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/${ExistingReceiptRuleSetName}:receipt-rule/papyrus-email-${MonitorId}
+          - Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource: [!GetAtt RawMailBucket.Arn, !Sub "${RawMailBucket.Arn}/*"]
+            Condition: {Bool: {"aws:SecureTransport": "false"}}
+  FailureQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+  SubmissionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: lambda.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PrivateEmailIntake
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject]
+                Resource: !Sub ${RawMailBucket.Arn}/email-submissions/*
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:DeleteItem]
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys: [!Sub "MONITOR#${MonitorId}"]
+              - Effect: Allow
+                Action: [sqs:SendMessage]
+                Resource: !GetAtt FailureQueue.Arn
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/papyrus-email-${MonitorId}:*
+  SubmissionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/papyrus-email-${MonitorId}
+      RetentionInDays: 30
+  SubmissionFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: SubmissionLogs
+    Properties:
+      FunctionName: !Sub papyrus-email-${MonitorId}
+      Runtime: python3.12
+      Architectures: [arm64]
+      Handler: papyrus_content.email_submission_intake.handler
+      Role: !GetAtt SubmissionRole.Arn
+      Code: {S3Bucket: !Ref CodeBucket, S3Key: !Ref CodeKey}
+      Timeout: 120
+      MemorySize: 256
+      ReservedConcurrentExecutions: !If [ReserveConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
+      DeadLetterConfig: {TargetArn: !GetAtt FailureQueue.Arn}
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref MonitoringTableName
+          EMAIL_MONITOR_ID: !Ref MonitorId
+          EMAIL_RAW_BUCKET: !Ref RawMailBucket
+          EMAIL_RAW_PREFIX: email-submissions/
+  AsyncRetries:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref SubmissionFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 2
+      MaximumEventAgeInSeconds: 21600
+  SesInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SubmissionFunction
+      Action: lambda:InvokeFunction
+      Principal: ses.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub arn:${AWS::Partition}:ses:${AWS::Region}:${AWS::AccountId}:receipt-rule-set/${ExistingReceiptRuleSetName}:receipt-rule/papyrus-email-${MonitorId}
+  SubmissionRule:
+    Type: AWS::SES::ReceiptRule
+    DependsOn: [RawMailPolicy, SesInvokePermission, AsyncRetries]
+    Properties:
+      RuleSetName: !Ref ExistingReceiptRuleSetName
+      Rule:
+        Name: !Sub papyrus-email-${MonitorId}
+        Recipients: !Ref Recipients
+        Enabled: !If [EnableReceipt, true, false]
+        ScanEnabled: true
+        TlsPolicy: Require
+        Actions:
+          - S3Action:
+              BucketName: !Ref RawMailBucket
+              ObjectKeyPrefix: email-submissions/
+          - LambdaAction:
+              FunctionArn: !GetAtt SubmissionFunction.Arn
+              InvocationType: Event
+          - StopAction: {Scope: RuleSet}
+  FailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Private submission intake exhausted asynchronous retries; inspect the failure queue and monitor receipts.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions: [{Name: QueueName, Value: !GetAtt FailureQueue.QueueName}]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+  RouterSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Classify and deliver collected email discoveries using the existing Monitoring router.
+      ScheduleExpression: rate(5 minutes)
+      State: !If [EnableRouter, ENABLED, DISABLED]
+      Targets:
+        - Id: EmailRouter
+          Arn: !Ref RouterFunctionArn
+          Input: !Sub '{"monitorId":"${MonitorId}"}'
+          RetryPolicy:
+            MaximumRetryAttempts: 2
+            MaximumEventAgeInSeconds: 3600
+  RouterInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RouterFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !GetAtt RouterSchedule.Arn
+Outputs:
+  RawMailBucketName: {Value: !Ref RawMailBucket}
+  FailureQueueUrl: {Value: !Ref FailureQueue}
+  SubmissionFunctionArn: {Value: !GetAtt SubmissionFunction.Arn}
+  ReceiptRuleName: {Value: !Sub "papyrus-email-${MonitorId}"}

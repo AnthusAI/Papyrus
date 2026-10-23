@@ -513,8 +513,10 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     }
     if (!editor) {
       return (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Spinner /> Loading article…
+        <div aria-label="Loading article" className="space-y-5" role="status">
+          <div className="h-8 w-2/3 rounded bg-muted" />
+          <div className="grid gap-4 sm:grid-cols-2"><div className="h-12 rounded bg-muted" /><div className="h-12 rounded bg-muted" /></div>
+          <div className="h-64 rounded-xl border bg-card p-4"><div className="h-4 w-5/6 rounded bg-muted" /><div className="mt-3 h-4 w-3/4 rounded bg-muted" /></div>
         </div>
       );
     }

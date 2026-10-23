@@ -19,7 +19,7 @@
     "content:enrich-references-bulk": "poetry run papyrus batch enrich-references",
     "lint": "eslint .",
     "test:curation-delegation-helpers": "tsx scripts/test-curation-delegation-helpers.ts",
-    "test:newsroom": "node scripts/test-newsroom-session.cjs && node scripts/test-newsroom-forum-routes.cjs && node scripts/test-theme-packs.cjs && tsx scripts/test-kanbus-themes.mts",
+    "test:newsroom": "node scripts/test-newsroom-session.cjs && node --import tsx scripts/test-newsroom-loading.ts && node scripts/test-newsroom-forum-routes.cjs && node scripts/test-theme-packs.cjs && tsx scripts/test-kanbus-themes.mts",
     "test:revalidate-secret-policy": "tsx scripts/test-revalidate-secret-policy.ts",
     "test:rebuild-trigger-settings": "tsx scripts/test-rebuild-trigger-settings.ts",
     "test:newspaper-layout-cursor-continuity": "tsx scripts/test-newspaper-layout-cursor-continuity.ts",

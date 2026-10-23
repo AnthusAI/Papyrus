@@ -8,7 +8,7 @@ import { cn } from "../lib/utils";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, ClipboardList, Menu, Search, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
+import { BookOpen, ClipboardList, House, Menu, Search, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
 import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -55,7 +55,7 @@ function OrganizerSearch({ demo }: { demo: boolean }) {
   </form>;
 }
 
-const ICONS = { articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
+const ICONS = { overview: House, articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
 
 /** Navigation is a presentation layer; existing route and server authorization still own access. */
 function Navigation({ activePath, demo, admin, surface, onNavigate }: { activePath: string; demo: boolean; admin: boolean; surface: string; onNavigate?: () => void }) {
