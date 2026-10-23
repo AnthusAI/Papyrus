@@ -241,7 +241,7 @@
     "use-stick-to-bottom": "^1.1.4",
     "yaml": "^2.9.0",
     "zod": "^3.25.76",
-    "chatticus": "https://github.com/AnthusAI/Chatticus/archive/f94ece3f132a9b3b563f42c35dc8c74921de68de.tar.gz"
+    "chatticus": "https://github.com/AnthusAI/Chatticus/archive/5ff70cd3e1c2a61645ffac53c0a61ad9f9bf1e91.tar.gz"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.22.0",
