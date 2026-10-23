@@ -12,9 +12,17 @@
     "size-S"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "c96a40d4-3020-4977-a22b-26a59e71c9ec",
+      "author": "home",
+      "text": "Not started.",
+      "created_at": "2026-10-23T12:21:50.178027Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T23:04:32.390846Z",
-  "updated_at": "2026-10-22T23:04:32.391881Z",
+  "updated_at": "2026-10-23T12:21:50.178049Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

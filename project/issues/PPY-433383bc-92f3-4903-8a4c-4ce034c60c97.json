@@ -17,9 +17,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "691a9a79-2666-423e-a4d0-9b70a9c219d6",
+      "author": "home",
+      "text": "Findings from the local-run exercise (2026-10-23): there is no readiness check, so add 'papyrus knowledge status' to report a site's knowledge config, accepted-reference counts, state location and pins. Site discovery is awkward: AppSync ids live only in nested stacks or the amplify:app-id tag, so add a site registry. The SDK's SSO refresh fails, so export CLI credentials. Ideas dedupe memory and the run ledger are local only. TI isn't ready for a knowledge run: it has no vocabulary, beats or wiki config and only 11 accepted references.",
+      "created_at": "2026-10-23T12:21:50.007379Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T05:53:02.372148Z",
-  "updated_at": "2026-10-23T06:08:12.280496Z",
+  "updated_at": "2026-10-23T12:21:50.007404Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

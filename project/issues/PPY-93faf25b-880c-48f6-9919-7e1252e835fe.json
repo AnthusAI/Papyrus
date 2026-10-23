@@ -21,9 +21,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b32d1a19-ea92-4204-8c1a-249efaa35c62",
+      "author": "home",
+      "text": "Local-runtime notes: run against the cloud CMS (a 'here' mode sharing the cloud S3 state, ledger and lease) proposed 2026-10-23, and not built. Not yet exercised: the TI local run stopped at the readiness check (TI not configured). Shipped's corpus is seed-only, so it's not a useful local test yet.",
+      "created_at": "2026-10-23T12:21:50.041533Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T05:53:05.951581Z",
-  "updated_at": "2026-10-23T06:08:36.628527Z",
+  "updated_at": "2026-10-23T12:21:50.041555Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

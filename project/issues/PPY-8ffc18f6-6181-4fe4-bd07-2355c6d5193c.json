@@ -32,10 +32,17 @@
       "text": "v0: digest + synthesis on the Anthus sites; ideas stored as private draft Proposals; weekly trends come later.",
       "created_at": "2026-10-23T10:47:43.086349Z",
       "comment_type": "default"
+    },
+    {
+      "id": "fbf389e7-047b-4dd3-ace1-a25d39df838e",
+      "author": "home",
+      "text": "v0 status: digest plus synthesis merged (#641); soft-review wiring and steering read-back merged (#651, in the next release). Tried locally on TI (3 ideas, $0.003) and Anth.us (3 ideas, $0.002); ideas are in ~/Projects/shipped-handover-20261022/ideas-v0-*.md. Key finding: monitors deliver references as pending (Anth.us: 0 accepted / 10 pending; TI: 11 / 1,076), so accepted-only runs have no input. Next: an auto-accept or soft-review policy for pending references, then scheduling via automations, a service identity that can file Proposals, weekly trends and embedding-based dedupe. Proposals are now private by default (proposals.publish opt-in).",
+      "created_at": "2026-10-23T12:21:49.972454Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T06:21:29.259854Z",
-  "updated_at": "2026-10-23T10:47:43.086375Z",
+  "updated_at": "2026-10-23T12:21:49.972497Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
