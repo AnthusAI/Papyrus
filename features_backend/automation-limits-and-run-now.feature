@@ -1,7 +1,9 @@
 Feature: Automations are enforced, costed and can be run by hand
   Step one recorded an automation: a trigger bound to a procedure. Step two makes the record real for monitor
   automations. The monitoring router reads the automation before it starts a procedure, so a disabled automation
-  starts nothing and an automation at its limit refuses another start, each with a recorded reason. The automation's
+  starts nothing, and an automation at its concurrency limit defers another start, each with a recorded reason. A
+  deferred item is not lost: the router starts it on a later run when there is room. With no limit set there is no
+  limit, as before. The automation's
   timeout goes to the procedure runner's deadline. The runner reports the model usage of each call, and the run
   records that usage and an estimated cost, which the history shows and compares with the advisory budget. An editor
   or an operator can also run the procedure now, and the run joins the automation's history. The procedure's other
@@ -48,18 +50,40 @@ Feature: Automations are enforced, costed and can be run by hand
     When the router sweeps
     Then the requests carry a timeout of 840 seconds
 
-  Scenario: An automation at its limit refuses another start and records why
-    Given the site has the TTAB automation with room for 1 at a time
+  Scenario: With no concurrency limit set, three decisions start three procedures
+    Given the TTAB monitor delivers three new decisions
+    And the site has the TTAB automation with no concurrency limit
     When the router sweeps
-    Then one procedure starts
-    And one trigger row says refused because the automation is at its limit of 1 at a time
+    Then 3 procedures start
+    And no trigger row is deferred
+
+  Scenario: At its limit an automation defers the rest and starts them on later runs
+    Given the TTAB monitor delivers three new decisions
+    And the site has the TTAB automation with room for 1 at a time
+    When the router sweeps
+    Then 1 procedures start
+    And 2 trigger rows say deferred because of the concurrency limit
+    When the router sweeps again while that run is still running
+    Then no more procedures start and the 2 stay deferred
+    When the running procedure finishes and the router sweeps
+    Then 1 more procedure starts and 1 trigger row is still deferred
+    When the running procedure finishes and the router sweeps
+    Then 1 more procedure starts and no trigger row is deferred
+    And every decision started exactly once
+
+  Scenario: A deferred item is skipped if the automation is disabled while it waits
+    Given the TTAB monitor delivers three new decisions
+    And the site has the TTAB automation with room for 1 at a time
+    When the router sweeps
+    And the automation is disabled and the running procedure finishes and the router sweeps
+    Then 2 trigger rows say skipped
 
   Scenario: A run started by hand counts against the limit
     Given the site has the TTAB automation with room for 1 at a time
     And a run started by hand is still running
     When the router sweeps
     Then no procedure starts
-    And both trigger rows say refused
+    And both trigger rows say deferred
 
   Scenario: Finished runs and runs that never reported back stop counting
     Given the site has the TTAB automation with room for 1 at a time

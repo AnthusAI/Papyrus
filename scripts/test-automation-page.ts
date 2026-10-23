@@ -4,7 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIXTURE_AUTOMATION_OVERVIEW } from "../lib/automation-fixture";
 import {
-  costText, durationText, inputTemplateText, parseRunInput, runNowMessage, statusMark, statusText, triggerText, whoText,
+  atATimeText, costText, durationText, inputTemplateText, parseRunInput, runNowMessage, statusMark, statusText, triggerText, whoText,
   type AutomationResult,
 } from "../lib/automation-overview";
 
@@ -37,7 +37,7 @@ async function main() {
     "Status: Started, no result recorded yet", "Run record not linked yet", "Story: none recorded",
     "Linked: the router's trigger matches this record.", "proceeding = {sourceIdPrefix}",
     "2 items were not started because the Reference already existed",
-    "about $0.05 per run, advisory", "the budget is advisory and only flagged",
+    "2 at a time, about $0.05 per run, advisory", "the budget is advisory and only flagged",
   ]) assert.ok(detail.includes(expected), `detail shows: ${expected}`);
 
   // Cost is recorded and shown; a run over the advisory budget is flagged in words, not colour.
@@ -50,7 +50,7 @@ async function main() {
 
   // Run now by hand, a refused start and a skipped start are listed with who or why.
   for (const expected of [
-    "Run now by ryan@example.test", "Status: Refused", "Reason: automation at its limit: 1 running, at most 1 at a time",
+    "Run now by ryan@example.test", "Status: Deferred, waiting for room", "Reason: deferred: concurrency limit: 2 running, at most 2 at a time",
     "Status: Skipped", "Reason: automation disabled",
   ]) assert.ok(detail.includes(expected), `history shows: ${expected}`);
 
@@ -72,7 +72,7 @@ async function main() {
   const confirming = renderToStaticMarkup(createElement(RunNowControl, { record, initialPhase: "confirming" }));
   const confirmText = text(confirming);
   for (const expected of [
-    "Run example.ttab.ruling-analysis now?", "calls a model, which costs money", "limit of 1 at a time",
+    "Run example.ttab.ruling-analysis now?", "calls a model, which costs money", "limit (2 at a time)",
     "Input for this run (required)", "Confirm: start the run", "Cancel",
   ]) assert.ok(confirmText.includes(expected), `confirm step shows: ${expected}`);
   assert.match(confirming, /&quot;proceeding&quot;: &quot;&quot;/, "the input box starts from the record's input names");
@@ -121,6 +121,10 @@ async function main() {
   // Wording helpers.
   assert.equal(statusText("startFailed"), "Could not start");
   assert.equal(statusText("refused"), "Refused");
+  assert.equal(statusText("deferred"), "Deferred, waiting for room");
+  assert.equal(statusMark("deferred"), "…");
+  assert.equal(atATimeText({}), "no limit on how many at a time");
+  assert.equal(atATimeText({ maxConcurrent: 3 }), "3 at a time");
   assert.equal(statusText("skipped"), "Skipped");
   assert.equal(statusMark("refused"), "✕");
   assert.equal(statusMark("skipped"), "–");

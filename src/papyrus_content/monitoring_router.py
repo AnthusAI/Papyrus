@@ -19,7 +19,7 @@ A publication may also list `procedureTriggers`: after the router creates a new 
 each named Tactus procedure once per source item by invoking the procedure runner asynchronously
 (docs/procedure-runner.md). A `TRIGGER#` row, written only if absent, makes the start exactly-once.
 Before it starts one, the router reads the site's Automation record for that trigger (docs/automations.md): a
-disabled automation starts nothing (`skipped`), one at its maxConcurrent refuses (`refused`), and its limits travel
+disabled automation starts nothing (`skipped`), one at its maxConcurrent defers (`deferred`, retried on later runs), and its limits travel
 with the request. With no record, or one that cannot be read, the router starts exactly as it always did.
 
 Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing modules.
@@ -700,7 +700,7 @@ class Router:
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
-                       "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureRefused": 0}
+                       "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
         self._parks: dict = {}
         self._automation_rows: dict = {}
 
@@ -1054,10 +1054,12 @@ class Router:
                                        "title": f"{trigger['procedureKey']}: {disc.get('title') or disc['sourceId']}"[:200],
                                        "summary": f"Started by monitor {self.monitor_id} for {disc['canonicalUrl']}"[:500]}}
                 if gate.action != "start":
-                    # Recorded, never started. The row (with the resolved request) keeps the item from starting later by itself.
-                    if self.store.put_new(self.monitor_id, {**record, "status": gate.status, "reason": gate.reason,
+                    # Recorded, not started. A skipped item stays skipped. A deferred item (at its concurrency limit)
+                    # keeps its resolved request on the row, and `retry_deferred` starts it on a later run.
+                    reason = gate.reason if gate.action == "skip" else f"deferred: {gate.reason}"
+                    if self.store.put_new(self.monitor_id, {**record, "status": gate.status, "reason": reason,
                                                             "automationId": gate.automation_id, "request": request}):
-                        self.counts["procedureSkipped" if gate.action == "skip" else "procedureRefused"] += 1
+                        self.counts["procedureSkipped" if gate.action == "skip" else "procedureDeferred"] += 1
                     continue
                 if gate.automation_id:   # an automation record governs this start: its limit goes with the request
                     request["timeoutSeconds"] = gate.timeout_seconds
@@ -1076,6 +1078,48 @@ class Router:
                     self.store.update_fields(self.monitor_id, key, {"status": "startFailed", "error": short(error)})
                 except Exception:
                     pass
+
+    def retry_deferred(self):
+        """Starts the items an earlier run deferred at an automation's concurrency limit, oldest first, while there is
+        room. The row keeps the request the item was deferred with; a failure here never fails the sweep."""
+        for publication in self.publications.values():
+            for trigger in publication.get("procedureTriggers") or []:
+                try:
+                    rows = self.store.query_prefix(self.monitor_id, trigger_prefix(publication["publicationId"], trigger["procedureKey"]))
+                    waiting = sorted((row for row in rows if row.get("status") == "deferred" and isinstance(row.get("request"), dict)),
+                                     key=lambda row: str(row.get("createdAt") or ""))
+                    for row in waiting:
+                        if self.time_left() < MIN_REMAINING_SECONDS:
+                            return
+                        gate = self.gate(publication, trigger)
+                        if gate.action == "defer":
+                            break   # still full: the rest wait too
+                        key = row["sk"]
+                        if gate.action == "skip":   # the automation was disabled while the item waited
+                            self.store.put_any(self.monitor_id, {**row, "status": "skipped", "reason": gate.reason})
+                            self.counts["procedureSkipped"] += 1
+                            continue
+                        request = dict(row["request"])
+                        if gate.automation_id:
+                            request["timeoutSeconds"] = gate.timeout_seconds
+                            request["trigger"] = {**request.get("trigger", {}), "automationId": gate.automation_id}
+                        row = {k: v for k, v in row.items() if k != "reason"}
+                        try:
+                            self.store.put_any(self.monitor_id, {**row, "status": "starting", "request": request, "retriedAt": _iso(self.now)})
+                            if self.start_procedure is None:
+                                raise RuntimeError("no procedure runner is configured for this router")
+                            self.start_procedure(request)
+                            self.store.put_any(self.monitor_id, {**row, "status": "started", "request": request,
+                                                                 "retriedAt": _iso(self.now), "startedAt": _iso(self.now)})
+                            self.counts["procedureRetried"] += 1
+                        except Exception as error:
+                            self.counts["procedureStartFailed"] += 1
+                            try:
+                                self.store.put_any(self.monitor_id, {**row, "status": "startFailed", "error": short(error)})
+                            except Exception:
+                                pass
+                except Exception:
+                    continue
 
     def live(self, disc: dict):
         route = self.get_route(disc)
@@ -1109,6 +1153,8 @@ class Router:
     def sweep(self) -> dict:
         status, stopped = "complete", None
         errors: list = []
+        if self.config["mode"] == "live":
+            self.retry_deferred()
         candidates = self.candidates()
         if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron":
             try:

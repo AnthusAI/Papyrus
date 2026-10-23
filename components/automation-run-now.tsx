@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  atATimeText,
   inputTemplateText,
   parseRunInput,
   runNowMessage,
@@ -74,7 +75,7 @@ export function RunNowControl({
         <div role="group" aria-label={`Confirm Run now for ${record.title}`} data-automation-run-now-confirm>
           <p>
             Run <strong>{record.procedureKey}</strong> now? It calls a model, which costs money, and it counts against the
-            limit of {record.limits.maxConcurrent ?? "?"} at a time. The run is linked to this automation.
+            limit ({atATimeText(record.limits)}). The run is linked to this automation.
           </p>
           {demo ? <p className="news-desk-delegation-note">This is the demo, so nothing will start.</p> : null}
           <label>

@@ -26,7 +26,7 @@ def record(**changes):
 
 def test_a_monitor_automation_is_valid_and_defaults_are_filled_in():
     built = au.build_record(FIELDS, actor="a", now="2026-10-23T00:00:00Z")
-    assert built["enabled"] is True and built["limits"] == {"timeoutSeconds": 840, "maxConcurrent": 1}
+    assert built["enabled"] is True and built["limits"] == {"timeoutSeconds": 840}   # no maxConcurrent: no limit, as before
     assert built["trigger"] == MONITOR and built["createdBy"] == "a" and built["updatedAt"] == "2026-10-23T00:00:00Z"
 
 
@@ -72,7 +72,7 @@ def test_create_stores_json_fields_as_strings_and_refuses_a_duplicate():
     created = au.create_automation(client, FIELDS, actor="a", now="2026-10-23T00:00:00Z")
     stored = client.tables["Automation"]["distinctive.ttab"]
     assert isinstance(stored["trigger"], str) and json.loads(stored["trigger"]) == MONITOR
-    assert json.loads(stored["inputTemplate"]) == fx.TEMPLATE and json.loads(stored["limits"])["maxConcurrent"] == 1
+    assert json.loads(stored["inputTemplate"]) == fx.TEMPLATE and json.loads(stored["limits"]) == {"timeoutSeconds": 840}
     assert created["trigger"] == MONITOR and created["enabled"] is True
     with pytest.raises(AutomationError, match="already exists"):
         au.create_automation(client, FIELDS, actor="a")
@@ -84,7 +84,7 @@ def test_update_changes_only_what_is_set_and_keeps_creation():
     updated = au.update_automation(client, "distinctive.ttab", {"enabled": "false", "limits": {"budgetUsdPerRun": 2.5}},
                                    actor="b", now="2026-10-24T00:00:00Z")
     assert updated["enabled"] is False and updated["title"] == "Analyze new TTAB rulings"
-    assert updated["limits"] == {"timeoutSeconds": 840, "maxConcurrent": 1, "budgetUsdPerRun": 2.5}
+    assert updated["limits"] == {"timeoutSeconds": 840, "budgetUsdPerRun": 2.5}
     assert updated["createdBy"] == "tester" and updated["createdAt"] == "2026-10-23T07:00:00Z"
     assert updated["updatedBy"] == "b" and updated["updatedAt"] == "2026-10-24T00:00:00Z"
     assert json.loads(client.tables["Automation"]["distinctive.ttab"]["inputTemplate"]) == fx.TEMPLATE
@@ -504,6 +504,15 @@ def test_update_can_repoint_the_monitor_and_dry_run_writes_nothing(cli):
     cli("update", "--id", "distinctive.ttab", "--monitor", "hn")
     assert au.read_record(cli.state["client"].tables["Automation"]["distinctive.ttab"])["trigger"]["config"] == {
         "monitorId": "hn", "publicationId": "distinctive"}
+
+
+def test_max_concurrent_can_be_set_and_cleared_from_the_command_line(cli):
+    cli("update", "--id", "distinctive.ttab", "--max-concurrent", "3")
+    assert au.read_record(cli.state["client"].tables["Automation"]["distinctive.ttab"])["limits"]["maxConcurrent"] == 3
+    cli("update", "--id", "distinctive.ttab", "--max-concurrent", "none")
+    assert "maxConcurrent" not in au.read_record(cli.state["client"].tables["Automation"]["distinctive.ttab"])["limits"]
+    with pytest.raises(AutomationError, match="limits.maxConcurrent"):
+        cli("update", "--id", "distinctive.ttab", "--max-concurrent", "0")
 
 
 def test_the_command_is_registered_under_the_papyrus_cli():

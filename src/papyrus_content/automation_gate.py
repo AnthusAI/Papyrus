@@ -9,8 +9,9 @@ The rules:
 * **No record, or a record that cannot be read: start exactly as before.** The router's `procedureTriggers` entry
   stays authoritative, so a missing or unreadable record never stops a run and adds nothing to the request.
 * **Disabled: start nothing**, and record `skipped` with the reason "automation disabled".
-* **maxConcurrent: refuse** a new start while that many runs of the automation are in flight, and record `refused`
-  with the reason. A run is in flight while its row says `starting`, `started` or `running` and it began less than its timeout
+* **maxConcurrent: defer.** With no maxConcurrent in the record there is no limit, as before. While that many runs of
+  the automation are in flight a new start is deferred: the router records `deferred` with the reason and starts it on a
+  later run once there is room, so the item is never lost. A run is in flight while its row says `starting`, `started` or `running` and it began less than its timeout
   plus a grace period ago, so a run whose outcome was never recorded cannot block the automation for ever.
 * **timeoutSeconds** goes to the runner with the request, which caps it at the Lambda's limit.
 """
@@ -22,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 STATUS_SKIPPED = "skipped"
-STATUS_REFUSED = "refused"
+STATUS_DEFERRED = "deferred"
 REASON_DISABLED = "automation disabled"
 IN_FLIGHT = frozenset({"starting", "started", "running"})
 MAX_TIMEOUT_SECONDS = 840           # the runner Lambda's 15 minutes less its recording margin
@@ -34,14 +35,14 @@ MANUAL_PREFIX = "MANUAL#"
 
 @dataclass(frozen=True)
 class Gate:
-    action: str                      # "start", "skip" or "refuse"
+    action: str                      # "start", "skip" or "defer"
     reason: str | None = None
     automation_id: str | None = None
     timeout_seconds: int | None = None
 
     @property
     def status(self) -> str | None:
-        return {"skip": STATUS_SKIPPED, "refuse": STATUS_REFUSED}.get(self.action)
+        return {"skip": STATUS_SKIPPED, "defer": STATUS_DEFERRED}.get(self.action)
 
 
 START_AS_BEFORE = Gate("start")
@@ -149,5 +150,5 @@ def decide(automation: dict | None, rows_in_flight: list[dict] | None, *, now: f
     if maximum is not None:
         running = in_flight_count(rows_in_flight or [], now=now, window_seconds=timeout + GRACE_SECONDS)
         if running >= maximum:
-            return Gate("refuse", f"automation at its limit: {running} running, at most {maximum} at a time", **base)
+            return Gate("defer", f"concurrency limit: {running} running, at most {maximum} at a time", **base)
     return Gate("start", None, timeout_seconds=timeout, **base)

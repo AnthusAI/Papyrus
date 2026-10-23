@@ -3,6 +3,7 @@ import { RunNowControl } from "./automation-run-now";
 import {
   ENABLED_NOTE,
   OUTSIDE_NOTICE,
+  atATimeText,
   costText,
   durationText,
   enabledText,
@@ -80,7 +81,7 @@ function Detail({ record, demo, onRunNow }: { record: AutomationRecord; demo: bo
         <div><dt>Procedure</dt><dd>{record.procedureKey}</dd></div>
         <div><dt>Input</dt><dd>{Object.keys(record.inputTemplate).length ? Object.entries(record.inputTemplate).map(([name, template]) => `${name} = ${template}`).join("; ") : "none"}</dd></div>
         <div><dt>Enabled</dt><dd>{enabledText(record)} ({ENABLED_NOTE})</dd></div>
-        <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {record.limits.maxConcurrent ?? "?"} at a time{record.limits.budgetUsdPerRun !== undefined ? `, about $${record.limits.budgetUsdPerRun} per run, advisory` : ""} ({record.limitsNote})</dd></div>
+        <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {atATimeText(record.limits)}{record.limits.budgetUsdPerRun !== undefined ? `, about $${record.limits.budgetUsdPerRun} per run, advisory` : ""} ({record.limitsNote})</dd></div>
         <div><dt>Router</dt><dd data-automation-link={record.link?.state ?? "unchecked"}>{linkText(record.link)}</dd></div>
       </dl>
       {notice ? <p className="news-desk-delegation-note" data-automation-notice>{notice}</p> : null}

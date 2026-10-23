@@ -40,14 +40,14 @@ ACTIVE_KINDS = frozenset({"monitor"})
 AUTOMATION_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 ENABLED_NOTE = "the router starts nothing for a disabled automation"
-LIMITS_NOTE = "the timeout and the number at a time are enforced when a run starts; the budget is advisory and only flagged"
+LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged"
 COST_NOTE = "not recorded for this run"
 RUNNER_FUNCTION = "papyrus-procedure-runner"
 OUTSIDE_FETCH = 25
 RUN_COST_FIELDS = "usage costUsd"
 NOT_SUPPORTED = "not yet supported"
 ROUTER_CONFIG_SK = "CONFIG#router"
-DEFAULT_LIMITS = {"timeoutSeconds": 840, "maxConcurrent": 1}
+DEFAULT_LIMITS = {"timeoutSeconds": 840}   # no maxConcurrent: no limit on how many run at once, as before slice 2
 MAX_TIMEOUT_SECONDS = 840          # the runner Lambda's 15 minutes less its recording margin
 MAX_TRIGGER_PAGES = 5
 DEFAULT_RUN_LIMIT = 10
@@ -147,6 +147,8 @@ def validate_limits(limits: Any) -> dict[str, Any]:
         raise AutomationError(f"unknown limit(s): {', '.join(unknown)}.")
     merged = {**DEFAULT_LIMITS, **{key: value for key, value in limits.items() if value is not None}}
     for key, low, high in (("timeoutSeconds", 1, MAX_TIMEOUT_SECONDS), ("maxConcurrent", 1, 100)):
+        if key not in merged:
+            continue
         value = merged[key]
         if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
             raise AutomationError(f"limits.{key} must be a whole number from {low} to {high}.")
@@ -534,7 +536,7 @@ def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writ
     table, beside the trigger rows. The runner updates that row with the run id and the outcome, as it does a
     trigger row, so the history reads both the same way. A start is refused, with the reason and no row, when the
     automation is not a monitor automation, is disabled, has no router publication for this site, or is at its
-    maxConcurrent."""
+    maxConcurrent (the router defers such a start and retries it; a person is told at once)."""
     if automation["trigger"]["kind"] not in ACTIVE_KINDS:
         raise AutomationError(f"only monitor automations can be run now; this one is {NOT_SUPPORTED}.")
     if not automation["enabled"]:
@@ -615,16 +617,19 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
         if "publication" in options:
             config["publicationId"] = options["publication"]
         fields["trigger"] = {"kind": kind or current.get("kind") or ("monitor" if "monitor" in options else None), "config": config}
-    limits = {}
+    limits, cleared = {}, set()
     for option, field, cast in (("timeout-seconds", "timeoutSeconds", int), ("max-concurrent", "maxConcurrent", int),
                                 ("budget-usd", "budgetUsdPerRun", float)):
         if option in options:
+            if option == "max-concurrent" and str(options[option]).lower() in {"none", "unlimited"}:
+                cleared.add(field)
+                continue
             try:
                 limits[field] = cast(options[option])
             except (TypeError, ValueError) as error:
                 raise AutomationError(f"--{option} must be a number.") from error
-    if limits:
-        fields["limits"] = {**((existing or {}).get("limits") or {}), **limits}
+    if limits or cleared:
+        fields["limits"] = {key: value for key, value in {**((existing or {}).get("limits") or {}), **limits}.items() if key not in cleared}
     return fields
 
 

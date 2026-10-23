@@ -160,20 +160,109 @@ def test_the_record_is_read_once_per_publication_and_not_when_the_reference_alre
 # --- maxConcurrent -----------------------------------------------------------------------------------------------------------
 
 
-def test_at_maxconcurrent_a_new_start_is_refused_with_a_recorded_reason():
-    table = triggered_table()
-    result, started = sweep(table, SiteClient([automation(limits={"timeoutSeconds": 840, "maxConcurrent": 1})]))
-    assert len(started) == 1 and result["counts"]["proceduresStarted"] == 1 and result["counts"]["procedureRefused"] == 1
-    assert result["counts"]["delivered"] == 2 and result["counts"]["routed"] == 2
-    assert sorted(row["status"] for row in trigger_rows(table)) == ["refused", "started"]
-    refused = next(row for row in trigger_rows(table) if row["status"] == "refused")
-    assert refused["reason"] == "automation at its limit: 1 running, at most 1 at a time" and refused["automationId"] == "distinctive.ttab"
-    assert "runId" not in refused and "startedAt" not in refused
+def three_decisions():
+    """A TTAB monitor with three new decisions collected, delivering to Distinctive with the procedure trigger."""
+    from papyrus_content.monitoring_cloud import DynamoStore
+    from test_monitoring_ttab import OVERLAND, WEMBY, TTAB_CONFIG, decision, direct_router_config, run_collection, search_response, FakeTable
+    from test_procedure_runner import KEY_PARAMETER, TriggerTable
+    from test_monitoring_router import ENDPOINT
+    third = decision("/legal-proceeding/91000001/decision/EXA_30.pdf", 91000001, "Third Corporation", "Refusal Affirmed", kind="EXA")
+    scratch = FakeTable()
+    scratch.put_item(TTAB_CONFIG)
+    run_collection(DynamoStore(scratch), "ttab", fetch=lambda url, body: search_response(WEMBY, OVERLAND, third), now=NOW)
+    table = TriggerTable()
+    table.items.update(scratch.items)
+    table.put_item(direct_router_config(publications=[{"publicationId": "distinctive", "site": "distinctive-mark.com", "appsyncEndpoint": ENDPOINT,
+                                                       "openaiKeyParameter": KEY_PARAMETER, "procedureTriggers": [TRIGGER]}]))
+    return table
 
 
-def test_a_limit_of_two_lets_both_start():
-    result, started = sweep(triggered_table(), SiteClient([automation(limits={"timeoutSeconds": 840, "maxConcurrent": 2})]))
-    assert len(started) == 2 and result["counts"]["procedureRefused"] == 0
+def statuses(table):
+    return sorted(row["status"] for row in trigger_rows(table))
+
+
+def finish_started_runs(table):
+    for row in trigger_rows(table):
+        if row["status"] in ("started", "starting", "running"):
+            table.items[(row["pk"], row["sk"])]["status"] = "completed"
+
+
+def test_with_no_limit_set_a_sweep_of_three_decisions_starts_three():
+    for record in (automation(limits={"timeoutSeconds": 840}), automation(limits={})):   # no maxConcurrent: no limit, as today
+        table = three_decisions()
+        result, started = sweep(table, SiteClient([record]))
+        assert len(started) == 3 and result["counts"]["proceduresStarted"] == 3 and result["counts"]["procedureDeferred"] == 0
+        assert statuses(table) == ["started"] * 3
+
+
+def test_at_maxconcurrent_the_rest_are_deferred_and_started_on_later_runs():
+    table, site = three_decisions(), SiteClient([automation(limits={"timeoutSeconds": 840, "maxConcurrent": 1})])
+    first, started = sweep(table, site)
+    assert len(started) == 1 and first["counts"]["procedureDeferred"] == 2 and first["counts"]["delivered"] == 3
+    assert statuses(table) == ["deferred", "deferred", "started"]
+    deferred = [row for row in trigger_rows(table) if row["status"] == "deferred"]
+    assert all(row["reason"] == "deferred: concurrency limit: 1 running, at most 1 at a time" and row["automationId"] == "distinctive.ttab"
+               and "startedAt" not in row and isinstance(row["request"], dict) for row in deferred)
+
+    # While the first run is still running nothing more starts, and the two stay deferred (not dropped).
+    again, started_again = sweep(table, site, now=NOW + 120)
+    assert started_again == [] and again["counts"]["procedureRetried"] == 0 and statuses(table) == ["deferred", "deferred", "started"]
+
+    # The first run finishes: one deferred item starts, the other keeps waiting.
+    finish_started_runs(table)
+    second, started_second = sweep(table, site, now=NOW + 240)
+    assert len(started_second) == 1 and second["counts"]["procedureRetried"] == 1
+    assert statuses(table) == ["completed", "deferred", "started"]
+    assert started_second[0]["timeoutSeconds"] == 840 and started_second[0]["trigger"]["automationId"] == "distinctive.ttab"
+    retried = next(row for row in trigger_rows(table) if row["status"] == "started" and row.get("retriedAt"))
+    assert "reason" not in retried and retried["request"] == started_second[0]
+
+    # And the last one after that. Oldest first, every item exactly once.
+    finish_started_runs(table)
+    third, started_third = sweep(table, site, now=NOW + 360)
+    assert len(started_third) == 1 and statuses(table) == ["completed", "completed", "started"]
+    sources = [r["trigger"]["sourceId"] for r in started + started_second + started_third]
+    assert len(set(sources)) == 3
+    finish_started_runs(table)
+    final, none_left = sweep(table, site, now=NOW + 480)
+    assert none_left == [] and final["counts"]["procedureRetried"] == 0
+
+
+def test_a_deferred_item_is_skipped_if_the_automation_is_disabled_while_it_waits():
+    table = three_decisions()
+    sweep(table, SiteClient([automation(limits={"maxConcurrent": 1})]))
+    finish_started_runs(table)
+    result, started = sweep(table, SiteClient([automation(enabled=False, limits={"maxConcurrent": 1})]), now=NOW + 240)
+    assert started == [] and result["counts"]["procedureSkipped"] == 2
+    assert statuses(table) == ["completed", "skipped", "skipped"]
+
+
+def test_a_deferred_item_starts_as_before_if_the_record_is_gone():
+    table = three_decisions()
+    sweep(table, SiteClient([automation(limits={"maxConcurrent": 1})]))
+    finish_started_runs(table)
+    result, started = sweep(table, SiteClient([]), now=NOW + 240)
+    assert len(started) == 2 and statuses(table) == ["completed", "started", "started"]
+    assert all("timeoutSeconds" not in request for request in started)
+
+
+def test_a_failing_retry_is_recorded_and_never_fails_the_sweep():
+    table, site = three_decisions(), SiteClient([automation(limits={"maxConcurrent": 1})])
+    sweep(table, site)
+    finish_started_runs(table)
+
+    def unavailable(request):
+        raise RuntimeError("lambda throttled")
+    result = run_router(RouterStore(table), "ttab", now=NOW + 240, cyclotron=None, deliver=Delivery(), appsync=lambda e: site,
+                        start_procedure=unavailable, context_receipt=lambda c, p: {"contextHash": "h", "reason": None})
+    assert result["status"] in ("complete", "partial") and result["counts"]["procedureStartFailed"] >= 1
+    assert "startFailed" in statuses(table)
+
+
+def test_a_limit_of_two_lets_two_start_and_defers_the_third():
+    table = three_decisions()
+    result, started = sweep(table, SiteClient([automation(limits={"timeoutSeconds": 840, "maxConcurrent": 2})]))
+    assert len(started) == 2 and result["counts"]["procedureDeferred"] == 1
 
 
 def test_a_run_now_row_in_flight_counts_against_the_limit():
@@ -183,14 +272,14 @@ def test_a_run_now_row_in_flight_counts_against_the_limit():
     table.put_item({"pk": "MONITOR#ttab", "sk": f"MANUAL#distinctive.ttab#{recent}", "status": "running", "startedAt": recent,
                     "automationId": "distinctive.ttab"})
     result, started = sweep(table, SiteClient([automation(limits={"timeoutSeconds": 840, "maxConcurrent": 1})]))
-    assert started == [] and result["counts"]["procedureRefused"] == 2
+    assert started == [] and result["counts"]["procedureDeferred"] == 2
 
 
 def test_runs_that_finished_do_not_count():
     table = triggered_table()
     from datetime import datetime, timezone
     recent = datetime.fromtimestamp(NOW + 30, timezone.utc).isoformat().replace("+00:00", "Z")
-    for status in ("completed", "failed", "startFailed", "refused", "skipped", "notTriggered", "notRunnable"):
+    for status in ("completed", "failed", "startFailed", "deferred", "skipped", "notTriggered", "notRunnable"):
         table.put_item({"pk": "MONITOR#ttab", "sk": f"TRIGGER#distinctive#{PROCEDURE}#old-{status}", "status": status, "startedAt": recent})
     result, started = sweep(table, SiteClient([automation(limits={"timeoutSeconds": 840, "maxConcurrent": 2})]))
     assert len(started) == 2
@@ -218,7 +307,7 @@ def epoch(text):
 
 
 @pytest.mark.parametrize("status, counts", [("starting", True), ("started", True), ("running", True), ("completed", False),
-                                            ("failed", False), ("startFailed", False), ("refused", False), ("skipped", False)])
+                                            ("failed", False), ("startFailed", False), ("deferred", False), ("skipped", False)])
 def test_only_runs_in_flight_count(status, counts):
     assert gate.in_flight_count([row(status)], now=epoch("2026-10-24T09:05:00Z"), window_seconds=960) == (1 if counts else 0)
 
@@ -234,7 +323,7 @@ def test_the_window_follows_the_automations_own_timeout():
     short = {"id": "a", "enabled": True, "limits": {"timeoutSeconds": 60, "maxConcurrent": 1}}
     now = epoch("2026-10-24T09:10:00Z")
     assert gate.decide(short, [row("started", "2026-10-24T09:05:00Z")], now=now).action == "start"    # 300 s > 60 + 120
-    assert gate.decide(short, [row("started", "2026-10-24T09:08:30Z")], now=now).action == "refuse"   # 90 s
+    assert gate.decide(short, [row("started", "2026-10-24T09:08:30Z")], now=now).action == "defer"   # 90 s
 
 
 def test_decide_returns_the_action_status_and_reason():
@@ -242,8 +331,8 @@ def test_decide_returns_the_action_status_and_reason():
     assert gate.decide(None, [], now=now) == gate.START_AS_BEFORE and gate.START_AS_BEFORE.status is None
     disabled = gate.decide({"id": "a", "enabled": False, "limits": {}}, [], now=now)
     assert (disabled.action, disabled.status, disabled.reason) == ("skip", "skipped", "automation disabled")
-    refused = gate.decide({"id": "a", "enabled": True, "limits": {"maxConcurrent": 1}}, [row("running")], now=now)
-    assert (refused.action, refused.status) == ("refuse", "refused") and "1 running, at most 1" in refused.reason
+    deferred = gate.decide({"id": "a", "enabled": True, "limits": {"maxConcurrent": 1}}, [row("running")], now=now)
+    assert (deferred.action, deferred.status) == ("defer", "deferred") and deferred.reason == "concurrency limit: 1 running, at most 1 at a time"
     unlimited = gate.decide({"id": "a", "enabled": True, "limits": {}}, [row("running")] * 9, now=now)
     assert unlimited.action == "start" and unlimited.timeout_seconds == 840
 

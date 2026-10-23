@@ -126,9 +126,10 @@ const STATUS_WORDS: Record<string, string> = {
   notTriggered: "Not started",
   skipped: "Skipped",
   refused: "Refused",
+  deferred: "Deferred, waiting for room",
 };
 const STATUS_MARKS: Record<string, string> = {
-  completed: "✓", failed: "✕", startFailed: "✕", notRunnable: "✕", refused: "✕", skipped: "–", started: "…", starting: "…", running: "…",
+  completed: "✓", failed: "✕", startFailed: "✕", notRunnable: "✕", refused: "✕", skipped: "–", deferred: "…", started: "…", starting: "…", running: "…",
 };
 
 export function statusText(status: string | null | undefined): string {
@@ -159,7 +160,11 @@ export function whoText(run: Pick<AutomationRun, "origin" | "requestedBy" | "sou
   return run.origin === "manual" ? `Run now by ${run.requestedBy ?? "someone"}` : `Item: ${run.sourceId ?? "unknown"}`;
 }
 
-export const LIMITS_NOTE = "the timeout and the number at a time are enforced when a run starts; the budget is advisory and only flagged";
+export const LIMITS_NOTE = "the timeout and the number at a time (when set) are enforced when a run starts; the budget is advisory and only flagged";
+
+export function atATimeText(limits: { maxConcurrent?: number }): string {
+  return limits.maxConcurrent === undefined ? "no limit on how many at a time" : `${limits.maxConcurrent} at a time`;
+}
 
 export type RunNowResult =
   | { state: "started"; automationId: string; requestedBy: string }

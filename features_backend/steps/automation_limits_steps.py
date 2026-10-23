@@ -111,13 +111,10 @@ def both_start(context):
 
 @then("only the run started in this sweep counts against the limit")
 def only_new_run_counts(context):
-    # Nothing old is in flight, so the first start finds room for 1; the second is refused by the run just started.
-    assert len(context.started) == 1 and context.counts["procedureRefused"] == 1
+    # Nothing old is in flight, so the first start finds room for 1; the second is deferred by the run just started.
+    assert len(context.started) == 1 and context.counts["procedureDeferred"] == 1
 
 
-@then("one procedure starts")
-def one_starts(context):
-    assert len(context.started) == 1 and context.counts["proceduresStarted"] == 1
 
 
 @then("no procedure starts")
@@ -156,15 +153,99 @@ def delivered(context):
     assert context.counts["delivered"] == 2 and context.counts["routed"] == 2
 
 
-@then("one trigger row says refused because the automation is at its limit of {count:d} at a time")
-def one_refused(context, count):
-    refused = [row for row in trigger_rows(context.monitor_table) if row["status"] == "refused"]
-    assert len(refused) == 1 and f"at most {count} at a time" in refused[0]["reason"]
+@then("both trigger rows say deferred")
+def both_deferred(context):
+    assert [row["status"] for row in trigger_rows(context.monitor_table)] == ["deferred", "deferred"]
 
 
-@then("both trigger rows say refused")
-def both_refused(context):
-    assert [row["status"] for row in trigger_rows(context.monitor_table)] == ["refused", "refused"]
+@given("the TTAB monitor delivers three new decisions")
+def three(context):
+    from test_automation_gate import three_decisions
+    context.monitor_table, context.all_started = three_decisions(), []
+
+
+@given("the site has the TTAB automation with no concurrency limit")
+def no_limit(context):
+    context.site = SiteClient([automation_row(limits={"timeoutSeconds": 840})])
+
+
+def statuses(context):
+    return sorted(row["status"] for row in trigger_rows(context.monitor_table))
+
+
+@then("{count:d} procedures start")
+@then("{count:d} procedure starts")
+def n_start(context, count):
+    assert len(context.started) == count, len(context.started)
+    context.all_started += context.started
+
+
+@then("no trigger row is deferred")
+def none_deferred(context):
+    assert "deferred" not in statuses(context)
+
+
+@then("{count:d} trigger rows say deferred because of the concurrency limit")
+def n_deferred(context, count):
+    rows = [row for row in trigger_rows(context.monitor_table) if row["status"] == "deferred"]
+    assert len(rows) == count and all(row["reason"].startswith("deferred: concurrency limit") for row in rows)
+
+
+def sweep_later(context):
+    context.later = getattr(context, "later", 0) + 120
+    context.result, context.started = sweep(context.monitor_table, context.site, now=NOW + 60 + context.later)
+    context.counts = context.result["counts"]
+
+
+@when("the router sweeps again while that run is still running")
+def sweep_again(context):
+    sweep_later(context)
+
+
+def finish(context):
+    for row in trigger_rows(context.monitor_table):
+        if row["status"] in ("started", "starting", "running"):
+            context.monitor_table.items[(row["pk"], row["sk"])]["status"] = "completed"
+
+
+@when("the running procedure finishes and the router sweeps")
+def finish_and_sweep(context):
+    finish(context)
+    sweep_later(context)
+
+
+@when("the automation is disabled and the running procedure finishes and the router sweeps")
+def disable_and_sweep(context):
+    context.site = SiteClient([automation_row(enabled=False, limits={"maxConcurrent": 1})])
+    finish_and_sweep(context)
+
+
+@then("no more procedures start and the 2 stay deferred")
+def stay_deferred(context):
+    assert context.started == [] and statuses(context).count("deferred") == 2
+
+
+@then("{count:d} more procedure starts and {left:d} trigger row is still deferred")
+def more_starts_left(context, count, left):
+    assert len(context.started) == count and statuses(context).count("deferred") == left
+    context.all_started += context.started
+
+
+@then("{count:d} more procedure starts and no trigger row is deferred")
+def more_starts_none(context, count):
+    assert len(context.started) == count and "deferred" not in statuses(context)
+    context.all_started += context.started
+
+
+@then("every decision started exactly once")
+def once_each(context):
+    sources = [request["trigger"]["sourceId"] for request in context.all_started]
+    assert len(sources) == 3 and len(set(sources)) == 3
+
+
+@then("{count:d} trigger rows say skipped")
+def n_skipped(context, count):
+    assert statuses(context).count("skipped") == count
 
 
 # --- cost ---------------------------------------------------------------------------------------------------------------------

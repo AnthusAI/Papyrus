@@ -13,7 +13,7 @@ describes that, links to it, controls it, costs it and shows what it did.
 | `schedule`, `event`, `manual` triggers | Stored, and shown as "not yet supported". Nothing starts them. |
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
-| `limits.maxConcurrent` | **Enforced at the start, by refusing.** At the limit a new start is not made; the trigger row says `refused` and gives the reason. Nothing is queued. |
+| `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
 | `limits.budgetUsdPerRun` | **Advisory.** A run is never stopped for it. The history compares each run's recorded cost with it and flags a run over it. |
 | Cost per run | **Recorded** (below). |
 | Run now | **Live** for monitor automations, from the command line and the console. |
@@ -44,15 +44,19 @@ a run started by hand counts against the limit too. The runner moves a row to `r
 `completed`, `failed` or `notRunnable` when it ends. A run whose outcome was never recorded (a crash)
 stops counting after its timeout plus the grace, so it cannot block the automation for ever.
 
-Things to know before choosing `maxConcurrent`:
+How a deferred item is retried:
 
-* The default is 1. The TTAB monitor can deliver several new decisions in one sweep, and a start the router
-  refuses is not retried by the router: the trigger row is written once per item, and the item's Reference already
-  exists on any later sweep. Set `maxConcurrent` to the number you are willing to run at once (for example
-  `papyrus automations update --id distinctive.ttab --max-concurrent 4`) before the router starts reading records.
-* A `skipped` or `refused` row keeps the resolved request (like any trigger row), so an operator can start that item
-  later by hand: `papyrus automations run --id ... --input ...` with the same input.
-* Run now never writes a row when it is refused; it tells the person at once.
+* The row keeps the request the item was deferred with (the resolved input). At the start of every live router run,
+  before it looks at new items, the router looks for `deferred` rows of each procedure trigger, oldest first. For each it
+  asks the same question as a new start (is the automation still enabled, and is there room?). If there is room it starts
+  the item and the row moves to `starting`, then `started` (with `retriedAt`), and the runner takes it from there. If the
+  automation is full, the rest keep waiting. If the automation was disabled meanwhile the row becomes `skipped`. If the
+  record has gone, the item starts as before. A retry that fails to start is recorded `startFailed`.
+* Retries happen as often as the router runs (every 15 minutes), one per free slot per run at most.
+* Setting the limit: `papyrus automations update --id distinctive.ttab --max-concurrent 4`. Clear it with
+  `--max-concurrent none`. A record created before this change was given `maxConcurrent: 1` by the old default; if you
+  did not mean a limit, clear it.
+* Run now never writes a row when it is refused at the limit; it tells the person at once.
 
 ## Cost
 
@@ -121,7 +125,7 @@ read, the rest of the history still shows.
 | `trigger` | `{kind, config}`. For `monitor`: `{monitorId, publicationId}`, the monitor and the router publication it delivers to. |
 | `procedureKey` | The registered procedure to run (`papyrus procedures register`). |
 | `inputTemplate` | Procedure input as templates over the delivered item, with the placeholders in `docs/procedure-runner.md`. |
-| `limits` | See above. Defaults: 840 s, 1 at a time. |
+| `limits` | See above. Defaults: 840 s and no limit on how many at a time. |
 | `createdBy`, `createdAt`, `updatedBy`, `updatedAt` | Who and when. |
 
 ## The router link
@@ -138,7 +142,7 @@ Each run joins two records:
 * a row in the monitoring table (`MONITOR#<monitorId>`): a `TRIGGER#<publication>#<procedureKey>#<sourceId>` row (which
   item, when it started, how the start ended) or a `MANUAL#<automationId>#<timestamp>` row (a Run now: who, when). Their
   statuses are `starting`, `started`, `running`, `completed`, `failed`, `startFailed`, `notRunnable`, and for a start that
-  never happened `skipped` (the automation is disabled) and `refused` (at its limit), each with its `reason`; and
+  never happened `skipped` (the automation is disabled) and `deferred` (at its limit, waiting for room), each with its `reason`; and
 * the `ProcedureRun` in the site backend, linked by the row's `runId`: its status, start and finish (so the
   duration), error, output, usage and cost. The story the procedure created is the output's `story` (a story lineage
   id), with `version_id` and `title`.
@@ -148,7 +152,7 @@ Details worth knowing:
 * The runner writes `runId` onto the row as soon as the run exists (status `running`) and its outcome when it ends.
   A run that has only just been started shows as "Started" with no run record yet.
 * Items that already had a Reference are never started (`notTriggered`). They are counted, not listed. A `skipped` or
-  `refused` start is listed, with its reason.
+  `deferred` start is listed, with its reason.
 * A row whose run record cannot be found, or read, says so on that row; the rest of the history still reads.
 * A site's console reads only its own publication's rows: the router must list the automation's publication
   with this site's endpoint. The runner's stored request (endpoints, key parameter) is never returned.
@@ -201,8 +205,10 @@ Distinctive's record (`distinctive.ttab`) exists already. Releasing this change 
 
 1. **Release Papyrus and deploy the site backend** (the pipeline does this on a merge to main). The backend gains the
    `usage` and `costUsd` fields on `ProcedureRun`, the `runAutomation` mutation and the wider function role.
-2. **Set the limits you want** on the record before the router starts reading it. In particular
-   `--max-concurrent` (see above): the default of 1 refuses all but the first of several decisions delivered together.
+2. **Check `distinctive.ttab`'s limits** before the router starts reading the record. The record was created with
+   `maxConcurrent: 1` (the slice 1 default). With this change that would run TTAB decisions one at a time, deferring the
+   rest to later router runs. If that is not wanted, run `papyrus automations update --id distinctive.ttab --max-concurrent none`
+   (today's behaviour: no limit).
 3. **Build and deploy the runner image** (`infra/procedures/build_image.sh`, then the `papyrus-procedure-runner`
    stack). It must come after step 1, or runs are recorded without their cost. It needs nothing else changed in the stack.
 4. **Deploy the router** (`papyrus-monitoring`): a new router zip, and the changed template with
