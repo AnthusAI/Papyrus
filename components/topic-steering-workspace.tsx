@@ -40,6 +40,7 @@ import {
   loadEditorReferencesData,
   loadEditorProcedureData,
   loadEditorSemanticRelationsData,
+  loadEditorReferenceReviewDetails,
   loadEditionForumThreads,
   loadNewsroomAssignmentPage,
   loadNewsroomMessagePage,
@@ -167,6 +168,9 @@ import {
 } from "../lib/reference-policy";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { currentRelevanceDecisions } from "../lib/relevance-decisions";
+import { runReferenceReviewRequest } from "../lib/reference-review-request";
+import { useReferenceReviewData } from "../lib/use-reference-review-data";
+import { latestReferenceReviewReasons, latestReferenceReviewSections } from "../lib/reference-review-details";
 import { delegatedCurationsByReference, referencesWithHumanLatestCuration, type ShadowAgreement } from "../lib/cyclotron-suggestions";
 import { createLocalPreviewCyclotronFixtures } from "../lib/local-preview-seed";
 import { createLocalPreviewSectionFixtures } from "../lib/local-preview-section-fixtures";
@@ -902,6 +906,11 @@ function NewsDeskDashboard({
   const [referencesRealtimeStatus, setReferencesRealtimeStatus] = useState<RealtimeSubscriptionStatus>("idle");
   const [referencesRealtimeError, setReferencesRealtimeError] = useState<string | null>(null);
   const referencesRef = useRef(references);
+  const referenceReviewsPending = useRef(new Map<string, Promise<void>>());
+  const [selectedReviewRead, setSelectedReviewRead] = useState<{ lineageId: string; state: "loading" | "ready" | "error"; error: string | null }>({ lineageId: "", state: "ready", error: null });
+  const [selectedReviewAttempt, setSelectedReviewAttempt] = useState(0);
+  const reviewReasons = useMemo(() => latestReferenceReviewReasons(messages), [messages]);
+  const reviewSectionIds = useMemo(() => latestReferenceReviewSections(messages), [messages]);
 
   useEffect(() => {
     referencesRef.current = references;
@@ -1231,17 +1240,6 @@ function NewsDeskDashboard({
     if (dashboard.isDemo) return;
     let active = true;
 
-    if (activeTab === "messages" && !loadedSections.messages) {
-      setLoadedSections((current) => ({ ...current, messages: true }));
-      void loadEditorMessagesData()
-        .then((nextMessages) => {
-          if (active) setMessages(nextMessages);
-        })
-        .catch((error) => {
-          if (active) setActionState({ id: "messages-load", message: error instanceof Error ? error.message : "messages load failed", tone: "error" });
-        });
-    }
-
     if (activeTab === "assignments" && !loadedSections.assignments) {
       setLoadedSections((current) => ({ ...current, assignments: true }));
       void loadEditorAssignmentsData()
@@ -1267,23 +1265,6 @@ function NewsDeskDashboard({
         .catch((error) => {
           if (active) setActionState({ id: "sections-load", message: error instanceof Error ? error.message : "sections load failed", tone: "error" });
         });
-    }
-
-    if ((activeTab === "assignments" || activeTab === "references" || activeTab === "messages") && !loadedSections.semanticRelations) {
-      setLoadedSections((current) => ({ ...current, semanticRelations: true }));
-      void loadEditorSemanticRelationsData()
-        .then((relations) => {
-          if (active) setSemanticRelations(relations);
-        })
-        .catch(() => {
-          if (active) setSemanticRelations([]);
-        });
-      if (!loadedSections.messages) {
-        setLoadedSections((current) => ({ ...current, messages: true }));
-        void loadEditorMessagesData().then((nextMessages) => {
-          if (active) setMessages(nextMessages);
-        }).catch(() => undefined);
-      }
     }
 
     if ((activeTab === "topics" || activeTab === "desks" || activeTab === "concepts" || activeTab === "administration") && !loadedSections.fullDashboard) {
@@ -1339,6 +1320,37 @@ function NewsDeskDashboard({
     loadedSections.semanticRelations,
     refreshNewsroomSections,
   ]);
+
+  const needsReferenceReviewData = activeTab === "references" || activeTab === "assignments" || activeTab === "messages";
+  const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
+  const referenceReviewData = useReferenceReviewData({
+    enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
+    loadRelations: loadEditorSemanticRelationsData,
+    loadMessages: loadEditorMessagesData,
+    onRelations: setSemanticRelations,
+    onMessages: setMessages,
+  });
+
+  useEffect(() => {
+    if (!canLoadPrivateCorpus || activeTab !== "references" || !selectedReviewLineageId) return;
+    let active = true;
+    setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "loading", error: null });
+    void loadEditorReferenceReviewDetails(selectedReviewLineageId).then(({ relations, messages: history }) => {
+      if (!active) return;
+      setSemanticRelations((current) => [...current.filter((relation) => relation.subjectLineageId !== selectedReviewLineageId || relation.subjectKind !== "reference"), ...relations]);
+      setMessages((current) => [...current.filter((message) => !history.some((entry) => entry.id === message.id)), ...history]);
+      setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "ready", error: null });
+    }).catch((error) => {
+      if (active) setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "error", error: error instanceof Error ? error.message : "Reference review details could not be loaded." });
+    });
+    return () => { active = false; };
+  }, [activeTab, canLoadPrivateCorpus, selectedReviewLineageId, selectedReviewAttempt]);
+  const selectedReviewIsCurrent = selectedReviewLineageId && !dashboard.isDemo;
+  const predictionState = selectedReviewIsCurrent
+    ? selectedReviewRead.lineageId === selectedReviewLineageId ? selectedReviewRead.state : "loading"
+    : referenceReviewData.state;
+  const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : referenceReviewData.error;
+  const retryReferenceReviewData = () => { referenceReviewData.retry(); setSelectedReviewAttempt((current) => current + 1); };
 
   const applyReferenceRecord = useCallback((nextReference: ReferenceRecord) => {
     const { nextRecords, nextRecord, previousRecord } = upsertReferenceRecords(referencesRef.current, nextReference);
@@ -1594,96 +1606,98 @@ function NewsDeskDashboard({
     reasonCode?: ReferenceRejectionReasonCode | null,
     relevance?: { decisionRelationId: string; shareable: boolean },
     sectionId?: string | null,
-  ) {
-    const nextStatus = referenceCurationStatusForAction(action);
-    setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
-    if (dashboard.isDemo) {
-      const now = new Date().toISOString();
-      const messageId = `message-demo-${reference.id}-${action}-${now.replace(/[^0-9]/g, "")}`;
-      const relationId = `semantic-relation-demo-${messageId}`;
-      applyReferenceRecord(buildReviewedReferenceRecord(referencesRef.current, reference, {
-        actorLabel: authState.label,
-        nextStatus,
-        note: note ?? null,
-        now,
-      }));
-      setMessages((current) => [{
-        id: messageId,
-        messageKind: "reference_curation",
-        messageDomain: "commentary",
-        status: "active",
-        body: note?.trim() || `${authState.label} marked this reference ${nextStatus}.`,
-        summary: `${reference.title ?? reference.externalItemId}: ${nextStatus}`,
-        source: "newsroom",
-        authorLabel: authState.label,
-        createdAt: now,
-        updatedAt: now,
-        metadata: {
-          action,
-          curationStatus: nextStatus,
-          reasonCode: action === "reject" ? reasonCode ?? null : null,
-          ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
-          ...(action === "accept" && sectionId ? { sectionId } : {}),
-        },
-      }, ...current]);
-      setSemanticRelations((current) => [{
-        id: relationId,
-        relationState: "current",
-        predicate: "comment",
-        relationTypeId: "semantic-relation-type-comment",
-        relationTypeKey: "comment",
-        relationDomain: "commentary",
-        subjectKind: "message",
-        subjectId: messageId,
-        subjectLineageId: messageId,
-        subjectVersionNumber: 1,
-        objectKind: "reference",
-        objectId: reference.id,
-        objectLineageId: reference.lineageId ?? reference.id,
-        objectVersionNumber: reference.versionNumber ?? null,
-        subjectStateKey: `message#${messageId}#current`,
-        objectStateKey: `reference#${reference.lineageId ?? reference.id}#current`,
-        objectSubjectStateKey: `reference#${reference.lineageId ?? reference.id}#current#message`,
-        predicateObjectStateKey: `comment#reference#${reference.lineageId ?? reference.id}#current`,
-        subjectVersionKey: `message#${messageId}`,
-        objectVersionKey: `reference#${reference.id}`,
-        rank: 1,
-        reviewRecommended: false,
-        importedAt: now,
-      }, ...current]);
-      setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
-      return;
-    }
-    startTransition(() => {
-      void (async () => {
-        try {
-          const response = await dataClient.mutations.reviewReferenceCuration(
-            {
-              referenceId: reference.id,
-              action,
-              actorLabel: authState.label,
-              note: note?.trim() || undefined,
-              reasonCode: action === "reject" ? reasonCode ?? undefined : undefined,
-              decisionRelationId: relevance?.decisionRelationId,
-              shareable: relevance ? relevance.shareable : undefined,
-              sectionId: action === "accept" ? sectionId ?? undefined : undefined,
-            },
-            { authMode: USER_POOL_AUTH_MODE },
-          );
-          const review = assertReferenceReviewMutationSucceeded(response, reference.id);
-          const status = review.status ?? nextStatus;
-          const now = new Date().toISOString();
-          applyReferenceRecord(buildReviewedReferenceRecord(referencesRef.current, reference, {
+  ): Promise<void> {
+    return runReferenceReviewRequest(referenceReviewsPending.current, reference.lineageId ?? reference.id, async () => {
+      if (!canEdit) throw new Error("Your session does not have permission to review references.");
+      const nextStatus = referenceCurationStatusForAction(action);
+      setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
+      if (dashboard.isDemo) {
+        const now = new Date().toISOString();
+        const messageId = `message-demo-${reference.id}-${action}-${now.replace(/[^0-9]/g, "")}`;
+        const relationId = `semantic-relation-demo-${messageId}`;
+        applyReferenceRecord(buildReviewedReferenceRecord(referencesRef.current, reference, {
+          actorLabel: authState.label,
+          nextStatus,
+          note: note ?? null,
+          now,
+        }));
+        setMessages((current) => [{
+          id: messageId,
+          messageKind: "reference_curation",
+          messageDomain: "commentary",
+          status: "active",
+          body: note?.trim() || `${authState.label} marked this reference ${nextStatus}.`,
+          summary: `${reference.title ?? reference.externalItemId}: ${nextStatus}`,
+          source: "newsroom",
+          authorLabel: authState.label,
+          createdAt: now,
+          updatedAt: now,
+          metadata: {
+            referenceLineageId: reference.lineageId ?? reference.id,
+            action,
+            curationStatus: nextStatus,
+            reasonCode: action === "reject" ? reasonCode ?? null : null,
+            ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
+            ...(action === "accept" && sectionId ? { sectionId } : {}),
+          },
+        }, ...current]);
+        setSemanticRelations((current) => [{
+          id: relationId,
+          relationState: "current",
+          predicate: "comment",
+          relationTypeId: "semantic-relation-type-comment",
+          relationTypeKey: "comment",
+          relationDomain: "commentary",
+          subjectKind: "message",
+          subjectId: messageId,
+          subjectLineageId: messageId,
+          subjectVersionNumber: 1,
+          objectKind: "reference",
+          objectId: reference.id,
+          objectLineageId: reference.lineageId ?? reference.id,
+          objectVersionNumber: reference.versionNumber ?? null,
+          subjectStateKey: `message#${messageId}#current`,
+          objectStateKey: `reference#${reference.lineageId ?? reference.id}#current`,
+          objectSubjectStateKey: `reference#${reference.lineageId ?? reference.id}#current#message`,
+          predicateObjectStateKey: `comment#reference#${reference.lineageId ?? reference.id}#current`,
+          subjectVersionKey: `message#${messageId}`,
+          objectVersionKey: `reference#${reference.id}`,
+          rank: 1,
+          reviewRecommended: false,
+          importedAt: now,
+        }, ...current]);
+        setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
+        return;
+      }
+      try {
+        const response = await dataClient.mutations.reviewReferenceCuration(
+          {
+            referenceId: reference.id,
+            action,
             actorLabel: authState.label,
-            nextStatus: status,
-            note: note?.trim() || null,
-            now,
-          }));
-          setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
-        } catch (error) {
-          setActionState({ id: reference.id, message: error instanceof Error ? error.message : `${action} failed`, tone: "error" });
-        }
-      })();
+            note: note?.trim() || undefined,
+            reasonCode: action === "reject" ? reasonCode ?? undefined : undefined,
+            decisionRelationId: relevance?.decisionRelationId,
+            shareable: relevance ? relevance.shareable : undefined,
+            sectionId: action === "accept" ? sectionId ?? undefined : undefined,
+          },
+          { authMode: USER_POOL_AUTH_MODE },
+        );
+        const review = assertReferenceReviewMutationSucceeded(response, reference.id);
+        const status = review.status ?? nextStatus;
+        const now = new Date().toISOString();
+        applyReferenceRecord(buildReviewedReferenceRecord(referencesRef.current, reference, {
+          actorLabel: authState.label,
+          nextStatus: status,
+          note: note?.trim() || null,
+          now,
+        }));
+        setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
+        retryReferenceReviewData();
+      } catch (error) {
+        setActionState({ id: reference.id, message: error instanceof Error ? error.message : `${action} failed`, tone: "error" });
+        throw error;
+      }
     });
   }
 
@@ -3127,7 +3141,7 @@ function NewsDeskDashboard({
           <NewsroomReferencesView
             demo={Boolean(dashboard.isDemo)}
             disabled={controlsDisabled}
-            initialReferenceLineageId={initialSelection.reference ?? pathnameReferenceLineageId}
+            initialReferenceLineageId={selectedReviewLineageId}
             cyclotronStatus={cyclotronStatus}
             cyclotronPriming={{
               labels: primingLabels,
@@ -3139,8 +3153,8 @@ function NewsDeskDashboard({
               },
             }}
             decisions={relevanceDecisions}
-            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            delegatedCurations={delegatedCurations}
+            humanCuratedReferenceLineageIds={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : humanCuratedReferenceLineageIds}
+            delegatedCurations={selectedReviewIsCurrent && predictionState !== "ready" ? undefined : delegatedCurations}
             shadowAgreement={shadowAgreement}
             onRequestReviewRate={relevanceCyclotronId ? async (choice) => {
               const request = buildReviewRateRequest(choice, authState.label);
@@ -3153,11 +3167,19 @@ function NewsDeskDashboard({
               curation.note ?? undefined,
               normalizeReferenceRejectionReasonCode(curation.reasonCode),
               { decisionRelationId: curation.decisionRelationId, shareable: curation.shareable },
+              curation.sectionId,
             )}
             sections={sectionChoices}
             sectionSuggestions={sectionSuggestions}
             sectionAgreement={siteSectionAgreement}
-            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, undefined, undefined, undefined, options?.sectionId)}
+            predictionState={predictionState}
+            predictionError={predictionError}
+            onRetryPredictions={retryReferenceReviewData}
+            reviewReasons={reviewReasons}
+            reviewSectionIds={reviewSectionIds}
+            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
+              options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined,
+              options?.sectionId)}
             referenceAttachments={referenceAttachments}
             references={references}
           />

@@ -122,6 +122,11 @@ async function main() {
     decidedAt: "2026-10-17T08:30:00.000Z",
   });
   assert.equal(provenanceSummary(includeDecision), null);
+  const sharedProvenance = currentRelevanceDecisions([relation({
+    provenance: { system: "cyclotron-lab", publicationId: "example", output: "example-relevance", labelSet: ["include", "exclude"] },
+  })]).get("reference-a")!;
+  assert.equal(provenanceSummary(sharedProvenance)?.teachingLabelsSentence, null, "an unrecorded teaching count is not zero");
+  assert.equal(provenanceSummary(sharedProvenance)?.primingExamplesSentence, null, "an unrecorded example count is not zero");
 
   const { ReferenceSuggestionBlock, ReferenceSuggestionProvenance, CountsAsTrainingLabelNote, DelegatedCurationNote } =
     await import("../components/reference-cyclotron-suggestion");
@@ -130,7 +135,7 @@ async function main() {
   const block = renderToStaticMarkup(createElement(ReferenceSuggestionBlock, {
     decision: withProvenance, onCurate: () => undefined, referenceLineageId: "reference-a", settled: false, statusLabel: "Pending",
   }));
-  for (const text of ["Suggestion", "never changes the status until an editor acts", "Agree (accept)", "Overrule (reject)"]) {
+  for (const text of ["Publication prediction", "never changes the status until an editor acts", "Agree (accept)", "Overrule (reject)"]) {
     assert.ok(block.includes(text), `suggestion shows: ${text}`);
   }
   assert.ok(!/decision/i.test(block.replace(/data-[a-z-]+/g, "")), "a suggestion is never worded as a decision");
@@ -143,6 +148,9 @@ async function main() {
   for (const text of ["How this suggestion was made", "6 example references", "3f9c2a71", "revision 4", "2026-10-17 08:30 UTC"]) {
     assert.ok(provenanceMarkup.includes(text), `provenance shows: ${text}`);
   }
+  const sharedMarkup = renderToStaticMarkup(createElement(ReferenceSuggestionProvenance, { decision: sharedProvenance }));
+  assert.ok(sharedMarkup.includes("Shared publication classifier"));
+  assert.ok(!sharedMarkup.includes("0 decisions") && !sharedMarkup.includes("0 example references"));
   assert.ok(renderToStaticMarkup(createElement(CountsAsTrainingLabelNote, { referenceLineageId: "x" })).includes("Recorded as an editor"));
 
   const delegatedMarkup = renderToStaticMarkup(createElement(DelegatedCurationNote, { delegated: delegations.get("delegated-ref")!, referenceLineageId: "delegated-ref" }));

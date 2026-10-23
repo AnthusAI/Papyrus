@@ -13,7 +13,7 @@ import {
   ThumbsUpIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import {
+  buildReferencesIndexQuery,
   parseReferenceLineageIdFromNewsroomPathname,
   syncBrowserNewsroomIndexUrl,
 } from "../lib/newsroom-index-filters";
@@ -45,7 +46,7 @@ import {
   type ReferenceCurationAction,
   type ReferenceStatusFilter,
 } from "../lib/newsroom-references";
-import { normalizeReferenceCurationStatus } from "../lib/reference-policy";
+import { normalizeReferenceCurationStatus, referenceReasonCode, REFERENCE_REJECTION_REASON_CODES, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceRelevanceReview } from "./reference-relevance-review";
@@ -61,7 +62,14 @@ import { SectionPicker, SectionSuggestionBlock, type SectionChoice } from "./ref
 import type { SectionSuggestion, SiteSectionAgreement } from "../lib/site-section-suggestions";
 
 /** What an editor adds to an accept: the Section the reference belongs in, which becomes a training label. */
-export type ReferenceReviewOptions = { sectionId?: string | null };
+export type ReferenceReviewOptions = {
+  sectionId?: string | null;
+  note?: string;
+  reasonCode?: ReferenceRejectionReasonCode | null;
+  decisionRelationId?: string;
+  shareable?: boolean;
+};
+type PredictionState = "loading" | "ready" | "error";
 import type { DelegatedCuration, ShadowAgreement } from "../lib/cyclotron-suggestions";
 import type { PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
@@ -102,9 +110,14 @@ type NewsroomReferencesViewProps = {
   sectionSuggestions?: Map<string, SectionSuggestion>;
   /** How often the Section suggestions matched later editor decisions. */
   sectionAgreement?: SiteSectionAgreement | null;
-  onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => void;
+  reviewReasons?: Map<string, ReferenceRejectionReasonCode>;
+  reviewSectionIds?: Map<string, string>;
+  predictionState?: PredictionState;
+  predictionError?: string | null;
+  onRetryPredictions?: () => void;
+  onRelevanceReview?: (reference: ReferenceRecord, curation: RelevanceCuration) => Promise<void> | void;
   initialReferenceLineageId?: string | null;
-  onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => void;
+  onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
   referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
 };
@@ -251,6 +264,9 @@ function ReferenceDetailPanel({
   disabled,
   onRelevanceReview,
   onReview,
+  predictionState = "ready",
+  reviewReason,
+  reviewSectionId,
   previewAttachments,
   reference,
   onClose,
@@ -263,8 +279,11 @@ function ReferenceDetailPanel({
   decision?: RelevanceDecisionView;
   demo?: boolean;
   disabled?: boolean;
-  onRelevanceReview?: (curation: RelevanceCuration) => void;
-  onReview: (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => void;
+  onRelevanceReview?: (curation: RelevanceCuration) => Promise<void> | void;
+  onReview: (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
+  predictionState?: PredictionState;
+  reviewReason?: ReferenceRejectionReasonCode;
+  reviewSectionId?: string;
   sectionAgreement?: SiteSectionAgreement | null;
   sectionSuggestion?: SectionSuggestion;
   sections?: SectionChoice[];
@@ -273,13 +292,77 @@ function ReferenceDetailPanel({
   onClose?: () => void;
 }) {
   const lineageId = referenceLineageId(reference);
-  const [chosenSectionId, setChosenSectionId] = useState<string | null>(null);
-  useEffect(() => { setChosenSectionId(null); }, [lineageId]);
+  const sourceNote = normalizeReferenceCurationStatus(reference.curationStatus) === "pending" ? "" : reference.curationStatusReason ?? "";
+  const sourceReason = reviewReason ?? referenceReasonCode(reference) ?? "";
+  const [note, setNote] = useState(sourceNote);
+  const [reasonCode, setReasonCode] = useState<ReferenceRejectionReasonCode | "">(sourceReason);
+  const [savedNote, setSavedNote] = useState(sourceNote);
+  const [savedReason, setSavedReason] = useState<ReferenceRejectionReasonCode | "">(sourceReason);
+  const [busy, setBusy] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const saving = useRef(false);
+  const noteEdited = useRef(false);
+  const reasonEdited = useRef(false);
+  useEffect(() => {
+    setSavedNote(sourceNote);
+    if (!noteEdited.current) setNote(sourceNote);
+  }, [sourceNote]);
+  useEffect(() => {
+    setSavedReason(sourceReason);
+    if (!reasonEdited.current) setReasonCode(sourceReason);
+  }, [sourceReason]);
+  const [chosenSectionId, setChosenSectionId] = useState<string | null>(reviewSectionId ?? null);
+  const [savedSectionId, setSavedSectionId] = useState<string | null>(reviewSectionId ?? null);
+  const sectionEdited = useRef(false);
+  useEffect(() => {
+    setSavedSectionId(reviewSectionId ?? null);
+    if (!sectionEdited.current) setChosenSectionId(reviewSectionId ?? null);
+  }, [reviewSectionId]);
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
   const url = referenceUrl(reference);
-  const acceptDisabled = disabled || status === "accepted";
-  const rejectDisabled = disabled || status === "rejected";
-  const archiveDisabled = disabled || status === "archived";
+  const locked = disabled || busy;
+  const acceptDisabled = locked || status === "accepted";
+  const rejectDisabled = locked || status === "rejected";
+  const archiveDisabled = locked || status === "archived";
+
+  async function save(action: ReferenceCurationAction, review?: RelevanceCuration) {
+    if (disabled || saving.current) return;
+    const rejectionReason = review?.reasonCode ?? reasonCode;
+    if (action === "reject" && !rejectionReason) {
+      setReviewError("Choose a rejection reason before saving. An explanation is optional.");
+      return;
+    }
+    saving.current = true;
+    setBusy(true);
+    setSaved(false);
+    setReviewError(null);
+    try {
+      if (review && onRelevanceReview) await onRelevanceReview({ ...review, ...(action === "accept" && chosenSectionId ? { sectionId: chosenSectionId } : {}) });
+      else await onReview(action, {
+        note: note.trim(),
+        reasonCode: action === "reject" ? reasonCode || null : null,
+        ...(action === "accept" && chosenSectionId ? { sectionId: chosenSectionId } : {}),
+        ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
+      });
+      if (review) {
+        setNote(review.note ?? "");
+        setReasonCode((review.reasonCode as ReferenceRejectionReasonCode) ?? "");
+      }
+      setSavedNote(review ? review.note ?? "" : note.trim());
+      setSavedReason(action === "reject" ? rejectionReason as ReferenceRejectionReasonCode : "");
+      setSavedSectionId(action === "accept" ? chosenSectionId : null);
+      noteEdited.current = false;
+      reasonEdited.current = false;
+      sectionEdited.current = false;
+      setSaved(true);
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "Review could not be saved. Try again.");
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
 
   return (
     <div
@@ -304,8 +387,8 @@ function ReferenceDetailPanel({
           <div className="space-y-3" data-reference-relevance-decision={lineageId}>
             <ReferenceSuggestionBlock
               decision={decision}
-              disabled={disabled}
-              onCurate={onRelevanceReview}
+              disabled={locked}
+              onCurate={onRelevanceReview ? (review) => { void save(review.action, { ...review, note: note.trim() || null, reasonCode: review.action === "reject" ? reasonCode || null : null }); } : undefined}
               referenceLineageId={lineageId}
               settled={status !== "pending"}
               statusLabel={referenceStatusLabel(status)}
@@ -317,31 +400,54 @@ function ReferenceDetailPanel({
                 <div className="mt-2">
                   <ReferenceRelevanceReview
                     decision={decision}
-                    disabled={disabled}
-                    onCurate={onRelevanceReview}
+                    disabled={locked}
+                    onCurate={(review) => save(review.action, review)}
                     referenceLineageId={lineageId}
                   />
                 </div>
               </details>
             ) : null}
           </div>
+        ) : predictionState === "ready" ? (
+          <section aria-label="Publication prediction" className="space-y-1 rounded-md border p-3">
+            <h3 className="text-sm font-semibold">No prediction recorded</h3>
+            <p className="text-sm text-muted-foreground">No publication relevance prediction was returned for this reference. You can still review it. Pending is its editorial status, not a prediction status.</p>
+          </section>
         ) : null}
-        {status === "pending" && sectionSuggestion ? (
-          <SectionSuggestionBlock agreement={sectionAgreement} referenceLineageId={lineageId} sections={sections} suggestion={sectionSuggestion} />
-        ) : null}
-        {status === "pending" && sections.length ? (
-          <SectionPicker
+        {sectionSuggestion || ((status === "pending" || status === "accepted") && sections.length) ? (
+          <details className="rounded-md border p-3 text-sm">
+            <summary className="cursor-pointer font-semibold">Section placement (optional)</summary>
+            <div className="mt-3 space-y-3">
+            {sectionSuggestion ? <SectionSuggestionBlock agreement={sectionAgreement} referenceLineageId={lineageId} sections={sections} suggestion={sectionSuggestion} /> : null}
+            {(status === "pending" || status === "accepted") && sections.length ? <SectionPicker
             agreement={sectionAgreement}
             chosenSectionId={chosenSectionId}
-            disabled={disabled}
-            onChoose={setChosenSectionId}
+            disabled={locked}
+            onChoose={(sectionId) => { setChosenSectionId(sectionId); sectionEdited.current = true; setSaved(false); }}
             referenceLineageId={lineageId}
             sections={sections}
             suggestedSectionId={sectionSuggestion?.sectionId ?? null}
-          />
+            /> : null}
+            </div>
+          </details>
         ) : null}
         {delegated ? <DelegatedCurationNote delegated={delegated} referenceLineageId={lineageId} /> : countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
 
+        <section aria-label="Editor feedback" className="space-y-3">
+          <h3 className="text-sm font-semibold">Editor feedback</h3>
+          {disabled ? <p className="text-sm text-muted-foreground">Editor access is required to change this reference.</p> : null}
+          <label className="block text-sm">
+            Review explanation (optional)
+            <textarea aria-label="Review explanation (optional)" className="mt-1 block min-h-20 w-full rounded-md border bg-background p-2" disabled={locked} value={note} onChange={(event) => { setNote(event.target.value); noteEdited.current = true; setSaved(false); }} />
+          </label>
+          <label className="block text-sm">
+            Rejection reason
+            <select aria-label="Rejection reason" className="mt-1 block w-full rounded-md border bg-background p-2" disabled={locked} value={reasonCode} onChange={(event) => { setReasonCode(event.target.value as ReferenceRejectionReasonCode | ""); reasonEdited.current = true; setSaved(false); }}>
+              <option value="">Choose a reason when rejecting</option>
+              {REFERENCE_REJECTION_REASON_CODES.map((code) => <option key={code} value={code}>{code.charAt(0).toUpperCase() + code.slice(1).replaceAll("_", " ")}</option>)}
+            </select>
+          </label>
+          <p className="text-xs text-muted-foreground">Only out of scope and policy exclusion are negative relevance labels. Other rejection reasons do not teach relevance.</p>
         <div
           className="flex flex-wrap items-center gap-2"
           data-news-desk-reference-curation-cluster
@@ -352,7 +458,7 @@ function ReferenceDetailPanel({
             aria-pressed={status === "accepted"}
             data-news-desk-reference-accept
             disabled={acceptDisabled}
-            onClick={() => onReview("accept", chosenSectionId ? { sectionId: chosenSectionId } : undefined)}
+            onClick={() => { void save("accept"); }}
             size="sm"
             type="button"
             variant={status === "accepted" ? "default" : "outline"}
@@ -365,7 +471,7 @@ function ReferenceDetailPanel({
             aria-pressed={status === "rejected"}
             data-news-desk-reference-reject
             disabled={rejectDisabled}
-            onClick={() => onReview("reject")}
+            onClick={() => { void save("reject"); }}
             size="sm"
             type="button"
             variant={status === "rejected" ? "destructive" : "outline"}
@@ -376,7 +482,7 @@ function ReferenceDetailPanel({
           <Button
             aria-label="Archive reference"
             disabled={archiveDisabled}
-            onClick={() => onReview("archive")}
+            onClick={() => { void save("archive"); }}
             size="sm"
             type="button"
             variant="outline"
@@ -384,7 +490,14 @@ function ReferenceDetailPanel({
             <ArchiveIcon className="size-4" />
             Archive
           </Button>
+          {status === "accepted" || status === "rejected" ? (
+            <Button disabled={locked || predictionState !== "ready" || (note.trim() === savedNote.trim() && (status !== "rejected" || reasonCode === savedReason) && (status !== "accepted" || chosenSectionId === savedSectionId))} onClick={() => { void save(status === "accepted" ? "accept" : "reject"); }} size="sm" type="button" variant="outline">Save feedback</Button>
+          ) : null}
         </div>
+        {status !== "pending" && predictionState !== "ready" ? <p className="text-sm text-muted-foreground">Load the review details before revising saved feedback.</p> : null}
+        {busy ? <p role="status" className="text-sm">Saving review…</p> : saved ? <p role="status" className="text-sm">Review saved.</p> : null}
+        {reviewError ? <p role="alert" className="text-sm text-destructive">{reviewError}</p> : null}
+        </section>
 
         <Separator />
 
@@ -398,7 +511,7 @@ function ReferenceDetailPanel({
             <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Why</dt>
             <dd className="mt-1 text-foreground">
               {reference.curationStatusReason?.trim()
-                || "Private corpus item awaiting editorial review for evidence use."}
+                || "No explanation recorded."}
             </dd>
           </div>
           {url ? (
@@ -476,6 +589,11 @@ export function NewsroomReferencesView({
   demo = false,
   disabled = false,
   onRelevanceReview,
+  predictionState = "ready",
+  predictionError,
+  reviewReasons,
+  reviewSectionIds,
+  onRetryPredictions,
   sections = [],
   sectionSuggestions,
   sectionAgreement = null,
@@ -492,7 +610,7 @@ export function NewsroomReferencesView({
     () => parseReferenceLineageIdFromNewsroomPathname(pathname),
     [pathname],
   );
-  const routeLineageId = initialReferenceLineageId ?? pathnameLineageId ?? "";
+  const routeLineageId = pathname ? pathnameLineageId ?? "" : initialReferenceLineageId ?? "";
 
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
@@ -531,17 +649,21 @@ export function NewsroomReferencesView({
 
   const syncStatusUrl = useCallback((nextStatus: ReferenceListFilter) => {
     if (demo) return;
-    syncBrowserNewsroomIndexUrl("references", {
+    const filters = {
       status: nextStatus === "all" ? "" : nextStatus,
       processing: "",
-      order: "published",
-    }, { replace: true });
-  }, [demo]);
+      order: "published" as const,
+    };
+    if (selectedLineageId && typeof window !== "undefined") {
+      window.history.replaceState(null, "", `${buildReferenceDetailPath(selectedLineageId)}${buildReferencesIndexQuery(filters)}`);
+    } else {
+      syncBrowserNewsroomIndexUrl("references", filters, { replace: true });
+    }
+  }, [demo, selectedLineageId]);
 
   useEffect(() => {
-    if (!routeLineageId) return;
     setSelectedLineageId(routeLineageId);
-    if (isMobileDetail) setMobileDetailOpen(true);
+    if (isMobileDetail) setMobileDetailOpen(Boolean(routeLineageId));
   }, [isMobileDetail, routeLineageId]);
 
   useEffect(() => {
@@ -571,7 +693,7 @@ export function NewsroomReferencesView({
 
   const runReview = (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => {
     if (!selectedReference) return;
-    onReview(selectedReference, action, options);
+    return onReview(selectedReference, action, options);
   };
 
   const emptyLabel = canonicalReferences.length
@@ -591,6 +713,17 @@ export function NewsroomReferencesView({
             Review source intake before it becomes accepted evidence.
           </p>
         </div>
+        {predictionState === "loading" ? <p role="status">Loading predictions…</p> : null}
+        {predictionState === "error" ? (
+          <div role="alert" className="space-y-2 rounded-md border p-3">
+            <p>Predictions unavailable. {predictionError}</p>
+            <p className="text-sm">You can still review references. Existing suggestions may be out of date.</p>
+            {onRetryPredictions ? <Button onClick={onRetryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
+          </div>
+        ) : null}
+        <details className="shrink-0 overflow-y-auto rounded-md border p-3 text-sm" style={{ maxHeight: "35dvh" }}>
+          <summary className="cursor-pointer font-semibold">Add a reference and prediction activity</summary>
+          <div className="mt-3 space-y-4">
         <ReferenceLiveAgreement agreement={shadowAgreement} />
         <ReferenceAddEntry
           importOptions={disabled ? null : priming ?? sessionImport?.panel}
@@ -606,6 +739,8 @@ export function NewsroomReferencesView({
             <ReferenceCyclotronStatus onRequestRate={disabled ? undefined : onRequestReviewRate} status={cyclotronStatus} />
           </div>
         ) : null}
+          </div>
+        </details>
 
         <Tabs
           className="shrink-0"
@@ -717,6 +852,10 @@ export function NewsroomReferencesView({
         <ScrollArea className="min-h-0 flex-1">
           {selectedReference ? (
             <ReferenceDetailPanel
+              key={referenceLineageId(selectedReference)}
+              predictionState={predictionState}
+              reviewReason={reviewReasons?.get(referenceLineageId(selectedReference))}
+              reviewSectionId={reviewSectionIds?.get(referenceLineageId(selectedReference))}
               countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
               delegated={delegatedCurations?.get(referenceLineageId(selectedReference))}
               decision={decisions?.get(referenceLineageId(selectedReference))}
@@ -753,6 +892,10 @@ export function NewsroomReferencesView({
             {selectedReference ? (
               <ScrollArea className="max-h-[75dvh]">
                 <ReferenceDetailPanel
+                  key={referenceLineageId(selectedReference)}
+                  predictionState={predictionState}
+              reviewReason={reviewReasons?.get(referenceLineageId(selectedReference))}
+              reviewSectionId={reviewSectionIds?.get(referenceLineageId(selectedReference))}
                   countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
               delegated={delegatedCurations?.get(referenceLineageId(selectedReference))}
                   decision={decisions?.get(referenceLineageId(selectedReference))}
