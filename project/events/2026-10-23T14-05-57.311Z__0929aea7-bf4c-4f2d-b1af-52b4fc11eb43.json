@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "0929aea7-bf4c-4f2d-b1af-52b4fc11eb43",
+  "issue_id": "PPY-f6303b08-575d-44a6-bda9-4f8a6d86c47c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T14:05:57.311Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Restore editor Reference selection and truthful review feedback",
+    "description": "As an editor, I can select pending References, inspect actual publication and Section prediction state, approve or reject with optional explanation, and revise persisted feedback through authorized existing APIs. Scope: editor UI and required API integration; no email intake (PPY-65026c), training, production labels, merge or deployment. Reuse existing curation/relevance work. Acceptance: executable Gherkin plus fixture unit/integration/browser coverage of selection, prediction absence/error, optional explanation, persistence, authorization, failure recovery and repeated-click protection.",
+    "issue_type": "bug",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-7a0ac806-eb1a-4481-a010-928bf12d9b11",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6"
+    }
+  }
+}

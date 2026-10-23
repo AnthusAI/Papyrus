@@ -15,4 +15,17 @@ const defaultProfile = {
   publishQuiet: true,
 };
 
-module.exports = { default: defaultProfile };
+module.exports = {
+  default: defaultProfile,
+  // Hermetic component/browser acceptance: no server, credentials or production reads.
+  referenceEditor: {
+    paths: ["features/newsroom-reference-editor-review.feature"],
+    require: ["features/step_definitions/reference-editor.steps.js"],
+    format: ["summary"],
+  },
+  referenceEditorLayout: {
+    paths: ["features/newsroom-reference-editor-layout.feature"],
+    require: ["features/step_definitions/reference-editor.steps.js"],
+    format: ["summary"],
+  },
+};

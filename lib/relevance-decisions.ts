@@ -7,8 +7,12 @@ export type RelevanceProvenance = {
   labelSet: string[];
   doctrineFingerprint: string | null;
   teachingFingerprint: string | null;
-  teachingLabels: number;
-  primingExamples: number;
+  teachingLabels: number | null;
+  primingExamples: number | null;
+  /** Recorded by the shared monitoring router, absent on local sweep provenance. */
+  system?: string;
+  publicationId?: string;
+  output?: string;
 };
 
 /** The relevance cyclotron's current decision about one reference, as the References tab shows it. */
@@ -28,6 +32,7 @@ export type RelevanceDecisionView = {
   /** Thumbs for a two-class decision with a positive label; per-class buttons otherwise. */
   reviewControl: "thumbs" | "labels";
   cyclotronId: string | null;
+  classifierId?: string;
   /** When the cyclotron made the suggestion, if the decision recorded it. */
   decidedAt: string | null;
   /** Null for decisions made before provenance was recorded. */
@@ -44,6 +49,7 @@ export type RelevanceReview = {
 
 /** The existing curation action an editor's review becomes. */
 export type RelevanceCuration = {
+  sectionId?: string | null;
   action: "accept" | "reject";
   reasonCode: string | null;
   note: string | null;
@@ -65,7 +71,7 @@ function parseMetadata(value: unknown): Record<string, unknown> {
 function parseProvenance(value: unknown): RelevanceProvenance | null {
   const record = parseMetadata(value);
   if (!Object.keys(record).length) return null;
-  const count = (entry: unknown) => (Number.isFinite(Number(entry)) ? Number(entry) : 0);
+  const count = (entry: unknown) => typeof entry === "number" && Number.isInteger(entry) && entry >= 0 ? entry : null;
   const text = (entry: unknown) => (typeof entry === "string" && entry ? entry : null);
   return {
     labelSet: Array.isArray(record.labelSet) ? record.labelSet.map(String) : [],
@@ -73,7 +79,26 @@ function parseProvenance(value: unknown): RelevanceProvenance | null {
     teachingFingerprint: text(record.teachingFingerprint),
     teachingLabels: count(record.teachingLabels),
     primingExamples: count(record.primingExamples),
+    ...(text(record.system) ? { system: text(record.system)! } : {}),
+    ...(text(record.publicationId) ? { publicationId: text(record.publicationId)! } : {}),
+    ...(text(record.output) ? { output: text(record.output)! } : {}),
   };
+}
+
+function recordedVersion(value: unknown): number | null {
+  if ((typeof value !== "number" && typeof value !== "string") || String(value).trim() === "") return null;
+  const version = Number(value);
+  return Number.isInteger(version) && version >= 0 ? version : null;
+}
+
+function decisionTime(relation: SemanticRelationRecord): number {
+  const metadata = parseMetadata(relation.metadata);
+  for (const value of [metadata.decidedAt, relation.importedAt, relation.createdAt]) {
+    if (typeof value !== "string") continue;
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+  return 0;
 }
 
 /**
@@ -82,18 +107,24 @@ function parseProvenance(value: unknown): RelevanceProvenance | null {
  */
 export function currentRelevanceDecisions(relations: SemanticRelationRecord[]): Map<string, RelevanceDecisionView> {
   const decisions = new Map<string, RelevanceDecisionView>();
-  for (const relation of relations) {
-    if (relation.predicate !== RELEVANCE_RELATION || relation.relationState !== "current") continue;
+  // Realtime events can briefly expose both sides of a superseding write. The
+  // result must not depend on list pagination or subscription arrival order.
+  const ordered = [...relations].sort((left, right) => decisionTime(left) - decisionTime(right) || left.id.localeCompare(right.id));
+  for (const relation of ordered) {
+    if (relation.predicate !== RELEVANCE_RELATION || relation.relationState !== "current" || relation.subjectKind !== "reference") continue;
     const metadata = parseMetadata(relation.metadata);
+    if (!relation.subjectLineageId || typeof metadata.label !== "string" || !metadata.label.trim()
+      || typeof metadata.decisionId !== "string" || !metadata.decisionId.trim()) continue;
     const probabilities = parseMetadata(metadata.probabilities);
     const reason = metadata.reviewReason === "program" || metadata.reviewReason === "audit" ? metadata.reviewReason : null;
-    const version = Number(relation.modelVersion ?? metadata.version);
+    const version = recordedVersion(relation.modelVersion ?? metadata.version);
     decisions.set(relation.subjectLineageId, {
       decisionRelationId: relation.id,
-      decisionId: String(metadata.decisionId ?? ""),
-      label: String(metadata.label ?? ""),
-      confidence: typeof relation.confidence === "number" ? relation.confidence : null,
-      version: Number.isFinite(version) ? version : null,
+      decisionId: metadata.decisionId,
+      label: metadata.label,
+      confidence: typeof relation.confidence === "number" && Number.isFinite(relation.confidence)
+        && relation.confidence >= 0 && relation.confidence <= 1 ? relation.confidence : null,
+      version,
       reviewRecommended: Boolean(relation.reviewRecommended),
       reviewReason: reason,
       reviewDetail: typeof metadata.reviewDetail === "string" ? metadata.reviewDetail : null,
@@ -104,6 +135,7 @@ export function currentRelevanceDecisions(relations: SemanticRelationRecord[]): 
       question: typeof metadata.question === "string" ? metadata.question : null,
       reviewControl: metadata.reviewControl === "thumbs" ? "thumbs" : "labels",
       cyclotronId: typeof metadata.cyclotronId === "string" ? metadata.cyclotronId : null,
+      ...(relation.classifierId ? { classifierId: relation.classifierId } : {}),
       decidedAt: typeof metadata.decidedAt === "string" ? metadata.decidedAt : null,
       provenance: parseProvenance(metadata.provenance),
     });

@@ -1,5 +1,7 @@
 "use client";
 
+import { loadReferenceReviewDetails } from "../lib/reference-review-details";
+
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments, createLocalPreviewContentItemVersions, createLocalPreviewReferences } from "../lib/local-preview-seed";
@@ -1852,7 +1854,27 @@ export async function loadEditorSemanticRelationsData(): Promise<SemanticRelatio
     pageCount += 1;
   } while (nextToken && pageCount < 40);
 
+  if (nextToken) throw new Error("The activity feed is incomplete. Select a reference to load its prediction directly.");
   return rows;
+}
+
+/** Selected-reference details use indexes, not the bounded global activity feed. */
+export async function loadEditorReferenceReviewDetails(lineageId: string) {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  return loadReferenceReviewDetails(lineageId, {
+    relations: async (direction) => {
+      if (testMock?.semanticRelations) return testMock.semanticRelations;
+      return loadSemanticRelationsByState({
+        field: direction === "outgoing" ? "listSemanticRelationsBySubjectState" : "listSemanticRelationsByObjectState",
+        keyName: direction === "outgoing" ? "subjectStateKey" : "objectStateKey",
+        keyValue: `reference#${lineageId}#current`,
+        query: direction === "outgoing" ? LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY : LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY,
+      });
+    },
+    message: async (id) => testMock?.messages ? testMock.messages.find((message) => message.id === id) ?? null : getMessageRecordById(id),
+    payloads: (id) => loadModelPayloadsForOwner("message", id, ["metadata"]),
+  });
 }
 
 export async function loadNewsroomSemanticRelationPage(options: NewsroomSemanticRelationPageOptions = {}): Promise<NewsroomRecordPage<SemanticRelationRecord>> {
@@ -3134,7 +3156,7 @@ async function loadSemanticRelationsByState({
     });
     assertNoGraphQLErrors(response.errors);
     const connection = response.data?.[field];
-    if (!connection) break;
+    if (!connection) throw new Error(`Missing GraphQL connection payload for ${field}.`);
     for (const item of (connection.items ?? []).filter(Boolean) as SemanticRelationRecord[]) {
       if (!item.id || seenIds.has(item.id)) continue;
       seenIds.add(item.id);
@@ -3142,6 +3164,7 @@ async function loadSemanticRelationsByState({
     }
     nextToken = connection.nextToken ?? null;
   } while (nextToken && pageCount < 200);
+  if (nextToken) throw new Error("Reference details are incomplete. Try again before reviewing its prediction.");
   return rows;
 }
 

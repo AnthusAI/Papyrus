@@ -57,11 +57,12 @@ export function ReferenceSuggestionBlock({
   const choose = (choice: SuggestionChoice) => onCurate?.(curationForSuggestionChoice(decision, choice));
   const suggestsAccept = decision.positiveLabel !== null && decision.label === decision.positiveLabel;
   return (
-    <section aria-label="Suggestion" className="space-y-2 border-y border-foreground py-3" data-reference-suggestion={referenceLineageId}>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Suggestion</h3>
+    <section aria-label="Publication prediction" className="space-y-2 border-y border-foreground py-3" data-reference-suggestion={referenceLineageId}>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-foreground">Publication prediction</h3>
       <p className="text-sm text-foreground">
         Papyrus suggests <span className="font-semibold">{decision.label}</span> ({suggestionConfidenceWords(decision)}).
       </p>
+      {decision.reviewDetail ? <p className="text-xs text-foreground">Why review was requested: {decision.reviewDetail}</p> : null}
       <p className="text-xs text-foreground" data-reference-suggestion-notice>
         A suggestion never changes the status until an editor acts. This reference is {statusLabel.toLowerCase()}.
       </p>
@@ -99,14 +100,17 @@ export function ReferenceSuggestionProvenance({ decision }: { decision: Relevanc
       <summary className="cursor-pointer font-semibold underline-offset-4 hover:underline">How this suggestion was made</summary>
       {summary ? (
         <ul className="mt-2 space-y-1">
-          <li>{summary.teachingLabelsSentence}.</li>
-          <li>{summary.primingExamplesSentence}.</li>
+          {summary.teachingLabelsSentence ? <li>{summary.teachingLabelsSentence}.</li> : null}
+          {summary.primingExamplesSentence ? <li>{summary.primingExamplesSentence}.</li> : null}
+          {decision.provenance?.system ? <li>Source: {decision.provenance.system === "cyclotron-lab" ? "Shared publication classifier" : decision.provenance.system}.</li> : null}
+          {decision.provenance?.output ? <li>Publication output: {decision.provenance.output}.</li> : null}
+          {decision.classifierId ? <li>Classifier: {decision.classifierId}.</li> : null}
           <li>Guidelines code {summary.doctrineShortHash ?? "not recorded"}.</li>
           <li>Suggestion {summary.modelVersion ?? "revision not recorded"}.</li>
           <li>Decided {formatSuggestionTime(summary.decidedAt)}.</li>
         </ul>
       ) : (
-        <p className="mt-2">This suggestion was made before the details were recorded. Only its revision and confidence are known.</p>
+        <p className="mt-2">Additional provenance was not recorded for this prediction.</p>
       )}
     </details>
   );
