@@ -79,8 +79,8 @@ def item_markdown(entry, source_text: str, canonical: str | None, notes: tuple[s
     if not _opens_with_heading(body):
         lines += [f"# {entry.title}", ""]
     facts = []
-    if entry.authors:
-        facts.append("By " + byline_markdown(entry.authors, origin))
+    if entry.author_details:
+        facts.append("By " + byline_markdown(entry.author_details, origin))
     if entry.date:
         facts.append(f"Published {entry.date}")
     if entry.updated and entry.updated != entry.date:

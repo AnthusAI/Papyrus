@@ -76,7 +76,7 @@ def rss_bytes(selection: list[StandardEntry], settings: StandardSettings, enviro
         ]
         if entry.date and rfc822(entry.date):
             parts.append(f"<pubDate>{rfc822(entry.date)}</pubDate>")
-        parts.extend(f"<dc:creator>{escape(author.name)}</dc:creator>" for author in entry.authors)
+        parts.extend(f"<dc:creator>{escape(author.name)}</dc:creator>" for author in entry.author_details)
         parts.extend(f"<category>{escape(tag)}</category>" for tag in entry.tags)
         items.append("<item>" + "".join(parts) + "</item>")
     channel = [
@@ -91,7 +91,7 @@ def rss_bytes(selection: list[StandardEntry], settings: StandardSettings, enviro
         channel.append(
             f'<atom:link href={quoteattr(_link(environment, "/" + _root(settings) + settings.feeds.rss_path))} rel="self" type="application/rss+xml"/>'
         )
-    dc_namespace = f' xmlns:dc="{DC_NS}"' if any(entry.authors for entry in selection) else ""
+    dc_namespace = f' xmlns:dc="{DC_NS}"' if any(entry.author_details for entry in selection) else ""
     return (
         f'{XML_DECLARATION}\n<rss version="2.0" xmlns:atom="{ATOM_NS}"{dc_namespace}><channel>'
         + "".join(channel)
@@ -129,7 +129,7 @@ def atom_bytes(selection: list[StandardEntry], settings: StandardSettings, envir
             parts.append(f"<published>{rfc3339(entry.date)}</published>")
         if entry.summary_text:
             parts.append(f"<summary>{escape(entry.summary_text)}</summary>")
-        parts.extend(_atom_author(author, environment) for author in entry.authors)
+        parts.extend(_atom_author(author, environment) for author in entry.author_details)
         parts.extend(f"<category term={quoteattr(tag)}/>" for tag in entry.tags)
         entries.append("<entry>" + "".join(parts) + "</entry>")
     return (

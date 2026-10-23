@@ -75,7 +75,7 @@ class StandardEntry:
     date: str
     updated: str
     image: str | None
-    authors: tuple[Author, ...]   # names and optional urls; render ``.name``, never ``str()`` a raw front matter value
+    authors: tuple[str, ...]      # author names, plain strings: site hooks may ``", ".join(entry.authors)``
     type: str
     canonical: str | None
     feed_eligible: bool
@@ -85,6 +85,7 @@ class StandardEntry:
     link: str | None         # external target of a link-only item
     derived: dict            # fields a site's ``derive`` hook computed from the item (a tier, a week); open for new shapes
     draft: bool = False      # served and noindexed, but never selected by a listing, a tag page or a feed
+    author_details: tuple[Author, ...] = ()   # the same authors with their optional urls; renderers read this
 
     @property
     def slug(self) -> str:
@@ -108,7 +109,7 @@ class StandardEntry:
 
     def fingerprint(self, *, full: bool = False) -> list:
         """What a listing card renders from. ``full`` is for pages a hook composes: every field, plus the raw front matter."""
-        card = [self.key, self.title, self.summary_text, self.date, self.image, [[author.name, author.url] for author in self.authors], self.link, self.derived]
+        card = [self.key, self.title, self.summary_text, self.date, self.image, [[author.name, author.url] for author in self.author_details], self.link, self.derived]
         if not full:
             return card
         return card + [
@@ -171,6 +172,7 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
     )
     date = calendar_date(front_matter.get("date")) or calendar_date(summary.published_at)
     updated = calendar_date(first_text(front_matter, UPDATED_FIELDS)) or calendar_date(summary.published_at) or date
+    details = authors_of(front_matter)
     return StandardEntry(
         summary=summary,
         section=section,
@@ -181,7 +183,8 @@ def entry_for_summary(summary: ItemSummary, settings: StandardSettings, policy: 
         date=date,
         updated=updated,
         image=first_text(front_matter, IMAGE_FIELDS) or None,
-        authors=authors_of(front_matter),
+        authors=tuple(author.name for author in details),
+        author_details=details,
         type=summary.type,
         canonical=first_text(front_matter, ("canonical",)) or None,
         feed_eligible=feed_eligible,

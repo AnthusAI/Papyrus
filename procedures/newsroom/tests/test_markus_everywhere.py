@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
+from papyrus_content.authors import Author
 from papyrus_content.projection.standard.config import PageActionSettings
 from papyrus_content.projection.standard.markdown import home_markdown, item_markdown, listing_markdown, llms_full_txt
 from papyrus_content.projection.standard.page_actions import render_page_actions
@@ -32,7 +33,7 @@ ASSERTED_BLOCKS = (
     '::column{panel="card"}',
     'summary="A bar chart of accuracy by model: 2B leads."',
 )
-ENTRY = SimpleNamespace(title="Wide", authors=("Ada",), date="2026-10-01", updated="", summary_text="A summary.")
+ENTRY = SimpleNamespace(title="Wide", authors=("Ada",), author_details=(Author("Ada"),), date="2026-10-01", updated="", summary_text="A summary.")
 
 
 @pytest.fixture(scope="module")

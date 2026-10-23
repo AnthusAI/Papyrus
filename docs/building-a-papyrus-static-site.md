@@ -81,6 +81,11 @@ or `blurb`), `date` (front matter `date`, ISO or written out as in "Sunday, Sept
 `section`, `feed_eligible` (not `feed: false`, in a feeding section, has a page), `noindex` (`noindex: true`,
 `robots: noindex` or `draft: true`), `listed`, and the raw `data` for hooks.
 
+Hooks read an entry's authors two ways. `entry.authors` is a tuple of plain name strings (`("Ann Lee", "Bo Reed")`), however
+the front matter wrote them, so `", ".join(entry.authors)` works in any hook. `entry.author_details` is the same authors as a
+tuple of `Author` objects (`papyrus_content.authors.Author`: `name`, and `url`, empty when the front matter gave none);
+read it to link a name. `str(author)` is the name.
+
 `authors` (or `author`) may be a string (`Ann Lee, Bo Reed`), a list of strings, or a list of `{name, url}` objects
 (`url` optional). One shared reader (`papyrus_content.authors.normalize_authors`) turns each into authors, so every output
 shows the name: Atom `<author><name>` plus `<uri>` (made absolute with the site origin), RSS `<dc:creator>`, the Markdown

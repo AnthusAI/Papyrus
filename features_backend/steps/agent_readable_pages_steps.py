@@ -60,7 +60,7 @@ def agent_article_body(context, slug: str) -> None:
 
 @when("the twin of an article is built from this source")
 def build_twin(context) -> None:
-    entry = SimpleNamespace(title="Wide", authors=(), date="", updated="", summary_text="")
+    entry = SimpleNamespace(title="Wide", authors=(), author_details=(), date="", updated="", summary_text="")
     context.twin_text = item_markdown(entry, context.text, None)
 
 

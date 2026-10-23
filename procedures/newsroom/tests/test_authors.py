@@ -70,7 +70,7 @@ def test_the_twin_accepts_raw_forms_through_the_same_normaliser():
         (["Ann Lee", "Bo Reed"], "By Ann Lee, Bo Reed · Published 2026-01-01"),
         (OBJECTS, "By [Ryan Porter](https://a.example/ryan), [Derek Norrbom](https://www.linkedin.com/in/dereknorrbom/) · Published 2026-01-01"),
     ):
-        entry = SimpleNamespace(title="T", authors=authors, date="2026-01-01", updated="", summary_text="")
+        entry = SimpleNamespace(title="T", authors=(), author_details=authors, date="2026-01-01", updated="", summary_text="")
         assert line in item_markdown(entry, "Body.", None, (), "https://a.example")
 
 

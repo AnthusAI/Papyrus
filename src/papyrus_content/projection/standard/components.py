@@ -33,9 +33,9 @@ def time_tag(date: str, *, class_name: str = "markus-time", date_format: str = "
 
 def byline(entry: StandardEntry, date_format: str = "") -> str:
     parts = []
-    if entry.authors:
+    if entry.author_details:
         names = ", ".join(
-            f'<a href="{esc(author.url)}">{esc(author.name)}</a>' if author.url else esc(author.name) for author in entry.authors
+            f'<a href="{esc(author.url)}">{esc(author.name)}</a>' if author.url else esc(author.name) for author in entry.author_details
         )
         parts.append(f'<span class="markus-byline-authors">{names}</span>')
     if entry.date:

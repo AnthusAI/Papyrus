@@ -105,3 +105,26 @@ def public_has_authors(context, url: str, authors: str) -> None:
 @then('the public data entry "{url}" has no authors key')
 def public_has_no_authors(context, url: str) -> None:
     assert "authors" not in public_record(context, url)
+
+
+def entry_for_slug(context, slug: str):
+    site = context.authors_site
+    return next(entry for entry in site.projector._entries(site.context.source.site_index()) if entry.slug == slug)
+
+
+@then('the entry "{slug}" has the authors "{authors}" as plain names that join with commas')
+def entry_authors_are_names(context, slug: str, authors: str) -> None:
+    entry = entry_for_slug(context, slug)
+    assert all(isinstance(name, str) for name in entry.authors), entry.authors
+    assert ", ".join(entry.authors) == ", ".join(names(authors)), entry.authors
+
+
+@then('the entry "{slug}" has no author names')
+def entry_has_no_author_names(context, slug: str) -> None:
+    assert entry_for_slug(context, slug).authors == ()
+
+
+@then('the entry "{slug}" keeps the url of the author "{name}" in its author details')
+def entry_details_keep_url(context, slug: str, name: str) -> None:
+    details = {author.name: author for author in entry_for_slug(context, slug).author_details}
+    assert details[name].url, details
