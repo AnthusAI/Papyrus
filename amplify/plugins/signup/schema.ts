@@ -1,5 +1,6 @@
 import { a } from "@aws-amplify/backend";
 import { signupSubmit } from "./function/resource";
+import { functionHandler } from "../../data/function-handler";
 
 /**
  * SignupEntry is never guest-readable and has no create rule for anyone: only the
@@ -36,6 +37,6 @@ export function signupSchemaDefinitions() {
       })
       .returns(a.ref("SignupReceipt"))
       .authorization((allow) => [allow.guest()])
-      .handler(a.handler.function(signupSubmit)),
+      .handler(functionHandler("signupSubmit", signupSubmit)),
   };
 }
