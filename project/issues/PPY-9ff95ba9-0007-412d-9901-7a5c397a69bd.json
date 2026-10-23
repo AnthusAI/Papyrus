@@ -1,0 +1,20 @@
+{
+  "id": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "title": "Continuous background automation for Papyrus sites",
+  "description": "Papyrus sites increasingly run work by themselves, unattended: the weekly knowledge run (PPY-dca7cd), reader snapshots, and next the trend-story pipeline (PPY-fb4dfa) and AI drafting. Before more automation is built on the Tactus procedures, clean up how procedures are packaged, named, registered and run, so any procedure can run as a scheduled background job from the published package, for any site, including site-supplied procedures.\n\nChildren are the procedure chores filed 2026-10-23, plus the story that makes a procedure schedulable.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-23T05:51:38.896492Z",
+  "updated_at": "2026-10-23T05:51:38.896590Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
