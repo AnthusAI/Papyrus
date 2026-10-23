@@ -74,6 +74,7 @@ try {
   const readerOnlySitePath = path.join(work, "anth-us-reader-only.site.json");
   const readerOnlySite = { ...anthUsSite };
   delete readerOnlySite.cms;
+  delete readerOnlySite.email;
   delete readerOnlySite.github;
   delete readerOnlySite.hostedZoneId;
   readerOnlySite.reader = { ...anthUsSite.reader };
@@ -88,6 +89,7 @@ try {
   assert.equal(readerOnlyApps[0].Properties.Platform, "WEB", "reader-only: the app is the reader");
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Branch").length, 1, "reader-only: one branch");
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Domain").length, 0, "reader-only: no domain");
+  assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::SES::EmailIdentity").length, 0, "reader-only: no email identity");
   assert.deepEqual(resourcesOfType(readerOnlyTemplate, "AWS::IAM::Role").map((role) => role.Properties.RoleName).filter(Boolean), ["anth-us-github-deploy"], "reader-only: the reader service role and the merge-to-main deploy role");
   assert.deepEqual(Object.keys(readerOnlyTemplate.Outputs).sort(), ["GithubDeployRoleArn", "ReaderAppId", "ReaderOrigin"], "reader-only: reader and deploy outputs only");
   assert.equal(resourcesOfType(readerOnlyTemplate, "AWS::Amplify::Branch")[0].Properties.EnableAutoBuild, false, "reader-only: Amplify auto-build is off, GitHub Actions starts the job");
