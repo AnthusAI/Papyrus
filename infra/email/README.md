@@ -64,10 +64,44 @@ Confirm that the region supports SES receiving in the
 The receiver imports `ExistingReceiptRuleSetName`, stores MIME under `email-submissions/`,
 then invokes the Python worker directly with the trusted SES event, then stops rule-set
 evaluation. It does not use raw-message headers or a bucket event as authentication authority.
-It never creates another receipt rule set, activates a rule set, verifies a domain, or changes
-MX. SES permits only one active receipt rule set per account/region. Check the active set,
-domain verification and rule ordering before preparing a change set; the strict rule must
-precede any broader legacy console-agent rule that could otherwise consume these addresses.
+It never activates a rule set, verifies a domain, or changes MX. If the receiving account has
+no rule set to own, `papyrus-email-receiving-set.yaml` creates one inactive, retained set for
+that account and region. Create it once; all scoped receivers in that account/region add their
+own exact-recipient rules to it. SES permits one active set per account/region, while distinct
+SES accounts can each process matching rules for the same domain. Moving a destination between
+accounts therefore requires disabling the old account's matching rule after the new route is
+ready, or the same email may be stored and processed twice. Verify the domain identity separately
+in each receiving account. Check active sets and rule ordering before preparing a change set; the
+strict rule must precede any broader legacy console-agent rule that could consume these addresses.
+
+### p.apyr.us account correction (read-only inventory, 2026-10-23)
+
+The current site and its Monitoring router are in `papyrus-production` (`712236451410`,
+`us-east-1`). The SES receiver left behind is in `legacy` (`335163751677`): CloudFormation
+identifies its owner as `amplify-dbsyytcm9drqa-main-branch-cb38ada667-storage0EC3F24A-1CP824J3CJ16B`.
+That stack created `papyrus-inbound-p-apyr-us` and its `submissions@`/`suggestions@` rule on
+2026-05-30. The legacy `p.apyr.us` identity now reports `Failed`; production has no `p.apyr.us`
+identity and no receiving rule set. The legacy receipt rule stores MIME in the old Amplify media
+bucket; it has no configured S3 event notification. This is historical state, not the target
+ownership for the current site.
+
+CloudTrail has no retained event for the May creation: event history returns no matching event,
+and the legacy account reports no trail or event data store. The repository commit that introduced
+the feature and CloudFormation's resource timestamps prove the code path and stack ownership, but
+do not identify who ran that deployment.
+
+Both known `apyr.us` Route 53 zones currently list the same SES MX record, but their assigned
+name-server sets differ. Public authoritative delegation could not be confirmed, and the domain
+is not registered in the management or legacy Route 53 Domains accounts. The active zone for
+publishing SES verification records is therefore still unknown. Do not copy the old account's
+verification status or token into production.
+
+The safe production shape is one retained receipt set in `712236451410`, the scoped receiver
+stack attached to that set, and the existing `papyrus-monitoring` router in the same account.
+Keep its receipt rule and router sweep disabled while reviewing `CONFIG#email` and `CONFIG#router`.
+At an approved cutover, activate the production set and disable the legacy rule for the same
+addresses; keep the old bucket and messages for rollback. Do not delete the old rule set, MX
+record, DNS, identity or bucket as part of that cutover.
 
 Build the receiver artifact with `python infra/monitoring/build.py --email`; the template's
 `CodeBucket` and `CodeKey` refer to that content-addressed artifact. Raw messages expire after

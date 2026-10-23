@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Creates an inactive, account-and-region-owned Amazon SES receiving rule set for
+  Papyrus email destinations. It does not verify identities, alter DNS, create
+  receipt rules, or activate mail receiving.
+Parameters:
+  ReceiptRuleSetName:
+    Type: String
+    Default: papyrus-email-receiving
+    AllowedPattern: "^[A-Za-z0-9_-]{1,64}$"
+    Description: One receiving rule set shared by explicitly scoped destinations in this account and region.
+Resources:
+  PapyrusEmailReceivingRuleSet:
+    Type: AWS::SES::ReceiptRuleSet
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RuleSetName: !Ref ReceiptRuleSetName
+Outputs:
+  ReceiptRuleSetName:
+    Description: Inactive rule set name for the scoped submission receiver stack.
+    Value: !Ref PapyrusEmailReceivingRuleSet

@@ -94,10 +94,40 @@
         "model": "gpt-6",
         "name": "email-intake"
       }
+    },
+    {
+      "id": "b310ef16-e013-4b72-8cac-978c916284d3",
+      "author": "home",
+      "text": "Read-only AWS reconciliation corrected the Papyrus endpoint mapping: production Amplify app ds6yswxui41yi (account 712236451410, us-east-1) reports AppSync API ID 36xh4ckhhvfyrlxxbltoy246ea; AWS confirms its GraphQL URI host is 632qpvm7w5emhb2zo2vomc5rae, and the Monitoring router already has field grants for that API. Keep the processor, raw bucket, Monitoring table, and email router schedule in account 712236451410. SES owns the active receipt set papyrus-inbound-p-apyr-us in account 335163751677, so the intake IaC must split the exact-recipient receipt rule into an SES-account stack. The production bucket and Lambda resource policies must accept SES only from account 335163751677 and the exact receipt-rule ARN; the function role keeps same-account DynamoDB access limited to MONITOR#<monitor-id>. Add Gherkin/synth coverage for those exact conditions. Do not change DNS, identity, AWS resources, permissions, aliases, or send mail in this task.",
+      "created_at": "2026-10-23T16:48:02.803789Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "74cab354-66ec-4818-8631-5ba87e1323ee",
+      "author": "home",
+      "text": "Correction to the earlier account-split note: the production receiver and router belong together in papyrus-production (712236451410); this work does not require cross-account S3/Lambda grants. Read-only ownership evidence shows the legacy SES set papyrus-inbound-p-apyr-us and old Amplify media bucket are owned by stack amplify-dbsyytcm9drqa-main-branch-cb38ada667-storage0EC3F24A-1CP824J3CJ16B, created 2026-05-30. Git history shows the initial email feature was wired to the old app production main pipeline; CloudTrail has no retained matching event or trail/data store, so the AWS deployment actor is unknown. Current legacy identity p.apyr.us is Failed; production has no p.apyr.us identity or receiving set. Public authoritative DNS remains unresolved because the two known Route 53 zones have different name-server sets. Local correction adds a retained inactive production receiving-set template and updates the cutover runbook to require account-local identity verification, same-account scoped receiver/router, an approved disable of the old matching rule to avoid duplicate delivery, and a privately configured exact test sender. No AWS, DNS, IAM, SES rule, email or publishing change performed.",
+      "created_at": "2026-10-23T17:00:43.972260Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-23T14:28:13.950375Z",
+  "updated_at": "2026-10-23T17:00:43.972297Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

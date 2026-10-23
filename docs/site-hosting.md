@@ -720,7 +720,7 @@ brand id (`defaultBrand`) or by a hash of its stack name:
 | Feature | Resource | Scope | Name for a new site |
 | --- | --- | --- | --- |
 | always | S3 Vectors index | region | `papyrus-knowledge-<brand>` (legacy: `papyrus-knowledge`) |
-| inboundEmail | SES receipt rule set | region, one ACTIVE | `papyrus-site-inbound-<brand>`, created and never activated by CloudFormation |
+| inboundEmail | SES receipt rule set | account + region, one ACTIVE per account | `papyrus-site-inbound-<brand>`, created and never activated by CloudFormation |
 | inboundEmail | SES receipt rule | inside the rule set | `<brand>-inbound-submissions` |
 | inboundEmail | SES domain identity and `_amazonses` TXT | account | not created (verify once by hand); `inboundEmailSes.manageDomainIdentity: true` opts in |
 | inboundEmail | SES rule set that another stack owns | account | `inboundEmailSes.existingReceiptRuleSetName` adds only this site's rule to it |
@@ -735,47 +735,41 @@ a sandbox or on a `staging` branch.
 
 ### Coexisting with a live SES rule set (human steps)
 
-SES allows one active receipt rule set per region, and mail for `p.apyr.us` can
-reach only one backend. The old backend's active set is
-`papyrus-inbound-p-apyr-us`; the new site creates its own set and leaves the
-old one active. Run these with `AWS_PROFILE=legacy` (account 335163751677,
-`us-east-1`). Nothing here is run by the deploy.
+SES allows one active receipt rule set per account and region. That limit does not
+span accounts: SES can process matching rules in multiple accounts for the same
+domain. SES identities are also account-owned, so a verified identity in one account
+does not verify it in another. The receiving identity and active set must belong to
+the same account as the receiver resources. Nothing here is run by the deploy.
 
-Before the first deploy with `inboundEmail: true`, check that the domain
-identity exists (the old backend already verified `p.apyr.us`; reuse it):
+For p.apyr.us, the current site and Monitoring router are in account
+`712236451410` (`papyrus-production`). The old active rule set
+`papyrus-inbound-p-apyr-us`, its identity and its Amplify media bucket are in
+account `335163751677` (`legacy`), under the retired app's storage stack. The old
+identity currently reports `Failed`; the production account has no `p.apyr.us`
+identity or receipt rule set. Do not treat the old identity or rule set as a
+production resource. A new receiver belongs in `papyrus-production`.
 
-```bash
-aws ses get-identity-verification-attributes --identities p.apyr.us --region us-east-1
-aws ses describe-active-receipt-rule-set --region us-east-1
-```
+Create one retained, inactive set in the receiving account and region with
+`infra/email/papyrus-email-receiving-set.yaml`, then add scoped rules through
+`papyrus-email-submissions.yaml`. The receiver's `Enabled` and `RouterEnabled`
+parameters stay false until configuration and grants have been reviewed. At an
+approved cutover, enable the production route and disable the old matching rule;
+otherwise the two AWS accounts can both store/process the same message. Keep the
+legacy bucket and messages for rollback. Do not delete the legacy stack as part of
+the first cutover because its custom resource can alter its own account's active
+receipt rule set on deletion.
 
-A domain no other backend verified needs a one-time `aws ses verify-domain-identity --domain <domain> --region us-east-1`,
-the returned token as a TXT record `_amazonses.<domain>`, and an MX record
-`10 inbound-smtp.us-east-1.amazonaws.com` for the mail host.
+For domains that have not been verified in the receiving account, publish that
+account's SES verification TXT record at `_amazonses.<domain>` after confirming the
+publicly authoritative DNS zone. The domain name `apyr.us` has two Route 53 hosted
+zones with different assigned name-server sets; the public delegation is not yet
+confirmed. Both zones currently contain the SES MX record for us-east-1. Preserve
+it unless the receiving region changes. See the account-specific p.apyr.us status
+and cutover steps in [email infrastructure](../infra/email/README.md).
 
-After the deploy, the new rule set exists but is inactive. Confirm and review it:
-
-```bash
-aws ses list-receipt-rule-sets --region us-east-1
-aws ses describe-receipt-rule-set --rule-set-name papyrus-site-inbound-<brand> --region us-east-1
-```
-
-At cutover, the single switch (atomic; mail goes to the new media bucket from the next message):
-
-```bash
-aws ses set-active-receipt-rule-set --rule-set-name papyrus-site-inbound-<brand> --region us-east-1
-```
-
-Rollback is the same command with `papyrus-inbound-p-apyr-us`. Do not delete the
-old rule set while it is the rollback. Do not let the old stack's CloudFormation
-delete run after the switch without first re-activating a rule set: its custom
-resource deactivates ALL rules on delete (`setActiveReceiptRuleSet` with no name).
-
-To share one rule set instead, set `inboundEmailSes.existingReceiptRuleSetName`
-to the live set; the new site then adds only its own rule, named
-`<brand>-inbound-submissions`. Two rules in one set cannot share a recipient
-(`submissions@p.apyr.us` would be claimed twice), so this suits sites with
-different recipient domains.
+Within one account and rule set, receipt rule names must be unique and exact
+recipient addresses must not overlap. Reuse an existing set only when it is owned
+by that account and the rule order is reviewed.
 
 ## S3 projection publication (Markus sites)
 

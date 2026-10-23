@@ -143,17 +143,24 @@ newsletter stack. Reader-only static sites create no email resources. Existing
 sites must adopt the explicit configuration before their next app-shell synth;
 reuse the existing SES identity instead of recreating it.
 
-SES identities are regional, and only one receipt rule set is active per account
-and region. The submission stack adds a disabled rule to an explicitly selected
-existing rule set. It does not activate a set or change DNS. Its dedicated raw
-bucket and `email-submissions/` prefix must not feed the legacy console-agent
-receiver. Review rule order so the new rule handles submission addresses before
-any broader legacy rule.
+SES identities are regional and account-owned. Only one receipt rule set is active
+per account and region; this limit does not span AWS accounts. SES processes matching
+receipt rules independently in every account configured to receive the same domain.
+The submission stack adds a disabled rule to an explicitly selected rule set. If the
+receiving account has no set, create one with
+[`papyrus-email-receiving-set.yaml`](../infra/email/papyrus-email-receiving-set.yaml).
+Neither stack activates a set or changes DNS. Verify the domain identity separately
+in the receiving account. Its dedicated raw bucket and `email-submissions/` prefix
+must not feed the legacy console-agent receiver. Review rule order so the new rule
+handles submission addresses before any broader rule in that account.
 
 Production activation, performed separately by the authorized operators:
 
-1. Inventory the region's existing identities, configuration sets and active
-   receipt rules; select the owners and reuse shared resources.
+1. Inventory identities, configuration sets, receipt rules and active rule sets
+   in the intended receiving account. For p.apyr.us that is `papyrus-production`
+   (`712236451410`, `us-east-1`), where no inbound identity or rule set currently
+   exists. The old `p.apyr.us` identity in account `335163751677` reports `Failed`;
+   identity status cannot be reused across accounts.
 2. Review the cloud site's explicit sender configuration and IAM grants. Verify
    DKIM/domain ownership and sending access for editor notifications. Newsletter
    subscription/send features remain optional.
@@ -161,15 +168,19 @@ Production activation, performed separately by the authorized operators:
    bindings. Keep routing disabled or dry-run while checking configuration.
 4. Build the email and updated router artifacts locally, review the CloudFormation
    change sets with the shared Monitoring owner, then deploy only with approval.
-5. Review any DNS/MX change separately. Prefer a dedicated receiving subdomain
-   when the primary domain already receives mail elsewhere. Receiving Lambda and
-   SES must use the same supported receiving region.
-6. Enable the exact receipt rule and router after grants and configuration are
-   verified. Check private intake outcomes, Monitoring routing status, pending
-   References and the site section sweep. The email stack's separate router
-   schedule must also be enabled; the older HN/TTAB schedules do not drain an
-   email Monitor. Send a real test email only with
-   authorization. Inspect DLQ/error alarms and verify retries.
+5. Confirm the publicly delegated DNS zone before publishing the production SES
+   verification TXT. Two `apyr.us` Route 53 hosted zones are present and have different
+   name-server sets. Their MX records both currently point to
+   `inbound-smtp.us-east-1.amazonaws.com`; preserve the existing MX unless the
+   receiving region changes. SES accounts process matching rules independently, so
+   avoid overlapping enabled rules during cutover.
+6. Enable the production rule and router only after grants, configuration and the
+   site's existing section sweep are verified. Disable the corresponding legacy
+   rule at the approved cutover to prevent duplicate intake; retain its bucket and
+   messages through the rollback window. Then send one authorized test email and
+   verify private receipt outcomes, Monitoring routing, pending References, section
+   predictions, DLQ/alarm and retries. The exact test sender must first be added to
+   the private sender allowlist. No test message has been sent.
 
 Local artifact build (no upload):
 

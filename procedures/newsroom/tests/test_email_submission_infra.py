@@ -65,3 +65,17 @@ def test_receiver_can_rely_on_its_durable_lease_when_account_cannot_reserve_conc
     assert parameter["Default"] == 1
     assert parameter["AllowedValues"] == [0, 1]
     assert template["Conditions"]["ReserveConcurrency"] == {"Equals": [{"Ref": "ReservedConcurrency"}, 1]}
+
+
+def test_receiving_rule_set_is_account_owned_inactive_and_retained():
+    path = Path(__file__).resolve().parents[3] / "infra/email/papyrus-email-receiving-set.yaml"
+    template = yaml.load(path.read_text(), Loader=CloudFormationLoader)
+    resources = template["Resources"]
+    assert list(resources) == ["PapyrusEmailReceivingRuleSet"]
+    rule_set = resources["PapyrusEmailReceivingRuleSet"]
+    assert rule_set["Type"] == "AWS::SES::ReceiptRuleSet"
+    assert rule_set["Properties"]["RuleSetName"] == {"Ref": "ReceiptRuleSetName"}
+    assert rule_set["DeletionPolicy"] == "Retain"
+    assert rule_set["UpdateReplacePolicy"] == "Retain"
+    assert template["Parameters"]["ReceiptRuleSetName"]["Default"] == "papyrus-email-receiving"
+    assert not any(r["Type"] in {"AWS::SES::ReceiptRule", "AWS::SES::EmailIdentity", "AWS::Route53::RecordSet"} for r in resources.values())
