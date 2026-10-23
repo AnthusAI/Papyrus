@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "83985900-cf49-451d-820b-d0ccb3982e8d",
+  "issue_id": "PPY-b3aaea05-0a38-4967-bb59-3e3f6e0fb47a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T06:21:25.770Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story similarity index and group locks (M)",
+    "description": "An index of stories so that automations can find neighbours and coordinate cross-story decisions. Smallest first version: embeddings over in-flight and recently published stories plus a neighbourhood query; entities and clusters and group locks follow once the query is in use.\n\nScope:\n- An index over published stories (within a configurable window) and in-flight stories: text embeddings plus shared entities and clusters.\n- A \"neighbourhood of story X\" query returning nearest stories with overlap scores and the shared entities and clusters.\n- Group locks: a soft lock on a set of stories while a cross-story decision is open. Per-story bots skip locked stories.\n\nAcceptance criteria:\n- A story entering or changing is indexed; stories outside the window are excluded.\n- The neighbourhood query returns neighbours ranked by similarity with shared entities and clusters.\n- A group lock can be taken and released on a set of stories, shows on each story, and per-story bots skip locked stories.\n- Gherkin specs (narrative, complete) required.\n\nDepends on the human review points story.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-M"
+    ]
+  }
+}

@@ -25,11 +25,23 @@
     {
       "target": "PPY-0af7dbbf-2185-4f18-a4b5-3bcec43972e1",
       "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8ffc18f6-6181-4fe4-bd07-2355c6d5193c",
+      "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e90997f9-1abf-440b-b667-f262b1ae30dd",
+      "author": "home",
+      "text": "Folded into PPY-8ffc18 (Idea pipeline: research digest, weekly trends, idea synthesis into Proposals, epic PPY-9ff95b). That story subsumes this one; this issue is now blocked by it and stays for history. Do not build it separately.",
+      "created_at": "2026-10-23T06:22:28.273881Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-22T15:31:41.086240Z",
-  "updated_at": "2026-10-22T15:32:32.780435Z",
+  "updated_at": "2026-10-23T06:22:28.273906Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

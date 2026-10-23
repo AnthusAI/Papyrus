@@ -1,7 +1,7 @@
 {
   "id": "PPY-433383bc-92f3-4903-8a4c-4ce034c60c97",
-  "title": "Background jobs: one job definition, cloud and local-pod runners (M)",
-  "description": "Generalise the scheduled container job from PPY-dca7cd into a backend-neutral background job. A site declares jobs in config: a registered procedure (core or site-supplied) or a pipeline such as the knowledge run, plus its arguments and schedule. The job then runs on whichever backend the site has, behind the operator CLI's existing local/cloud backend split (src/papyrus/operator/backends).\n\nThe same guarantees hold on both runners:\n- the pinned Papyrus release;\n- the site's deployed or current commit;\n- the projection lease, and never reconcile;\n- idempotency keys and a run ledger;\n- a failure that stops before projection and leaves the site unchanged;\n- clear failure and missed-run reporting.\n\nCloud runner: the existing Step Functions + Fargate construct, now driven by the job definition.\n\nLocal-pod runner: see the sibling story for sites with no cloud backend.\n\nAcceptance:\n- One example job configured but disabled.\n- A deliberate-failure test on each runner.\n- Gherkin specs and CDK assertions.\n\nDepends on the packaging chore. The trend-story pipeline (PPY-fb4dfa) should use this instead of its own runner.",
+  "title": "One procedure run contract across Lambda, Fargate and local-pod runtimes (L)",
+  "description": "Define one run contract that every procedure run follows, whatever the trigger and wherever it runs: load the published version, record the run, execute, write back. This replaces the four paths (CLI cloud-source fetch, assignment-action key dispatch, runner Lambda, Fargate construct from PPY-dca7cd).\n\nScope:\n- The shared contract, with three runtimes: the papyrus-procedure-runner Lambda (default); Fargate for procedures marked long or heavy; local pod (the local-pod runtime is built in PPY-93faf2).\n- A per-procedure runtime field (lambda | container | local) on the definition, defaulting to lambda.\n- The Fargate runtime reuses the Step Functions + Fargate construct from PPY-dca7cd, driven by the contract.\n- Guardrails in the contract: a cost estimate per run; the projection lease for anything touching pages, and never reconcile; failure before projection leaves the site unchanged; idempotency keys and a run record.\n- Retire amplify/functions/assignment-action's fixed key dispatch; its kinds run through the contract.\n- The knowledge pipeline is expressed as a container-runtime automation (stale-checkout guard and projection-deletion guard preserved). PPY-dca7cd remains blocked on Ryan's approval to run it in AWS.\n- The trend-story pipeline (PPY-fb4dfa) uses the contract instead of its own runner.\n\nAcceptance criteria:\n- The same procedure runs unchanged on the Lambda and container runtimes and records the same ProcedureRun shape.\n- A deliberate failure on each runtime stops before projection and leaves the site unchanged.\n- assignment-action no longer dispatches by fixed key.\n- CDK assertions for the container runtime; one example automation configured but disabled.\n- Gherkin specs (narrative, complete) required.\n\nDepends on PPY-1b2edd.",
   "type": "story",
   "status": "open",
   "priority": 1,
@@ -9,12 +9,17 @@
   "creator": null,
   "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
   "labels": [
-    "size-M"
+    "size-L"
   ],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [],
   "created_at": "2026-10-23T05:53:02.372148Z",
-  "updated_at": "2026-10-23T05:53:02.372214Z",
+  "updated_at": "2026-10-23T06:08:12.280496Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

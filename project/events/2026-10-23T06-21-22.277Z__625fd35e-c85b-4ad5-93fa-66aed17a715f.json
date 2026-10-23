@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "625fd35e-c85b-4ad5-93fa-66aed17a715f",
+  "issue_id": "PPY-f0914799-0aab-4205-812a-d09d02118a56",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T06:21:22.277Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Story-state triggers: bots act as a story moves between states (M)",
+    "description": "Bots act as a story moves between states. Smallest first version: one automation fires on one state (for example copy -> copywriter), writes a new revision and moves the story on, with the idempotent claim and the hop limit. Budget and further states come after use shows what is needed.\n\nScope:\n- An automation fires on \"story entered state X\".\n- One claim per (story, state, revision), so runs are idempotent.\n- A bot writes a new revision, then moves the story on. Wherever human input is wanted, it raises a review request (human review points story); the state itself never signals \"needs a human\".\n- Bot transitions are labelled as bot actions.\n- A per-story limit on bot hops and a per-story budget, to prevent loops.\n\nAcceptance criteria:\n- Entering the configured state starts exactly one run per (story, state, revision), even if the event is delivered twice.\n- The bot's revision and transition are recorded and labelled as bot actions.\n- A story exceeding its hop limit or budget stops with a review request instead of continuing.\n- Bots skip stories under a group lock once the similarity story lands.\n- Gherkin specs (narrative, complete) required.\n\nDepends on PPY-433383, the automation records story (PPY-2e6e2b) and the human review points story.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-M"
+    ]
+  }
+}
