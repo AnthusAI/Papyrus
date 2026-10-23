@@ -80,7 +80,7 @@ import boto3
 
 
 def handler(event, context):
-    states = boto3.client("states")
+    states = boto3.client("stepfunctions")
     found = states.list_executions(stateMachineArn=os.environ["STATE_MACHINE_ARN"], statusFilter="SUCCEEDED", maxResults=1)["executions"]
     now = datetime.datetime.now(datetime.timezone.utc)
     days = (now - found[0]["stopDate"]).total_seconds() / 86400 if found else 999.0
