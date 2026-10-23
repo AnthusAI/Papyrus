@@ -47,6 +47,8 @@ export interface ChatMembership {
   siteId: string;
   editorSub: string;
   active: boolean;
+  /** Host-derived authorization for the editorial chat surface (editor/admin policy). */
+  canUseEditorialChat: boolean;
 }
 
 export interface TranscriptOwner {
@@ -119,7 +121,8 @@ export async function admitSharedChatMessage(
   assertCredential(credential, dependencies.trust, now);
 
   const membership = await dependencies.resolveMembership(credential.subject, dependencies.trust.configuredSiteId);
-  if (!membership || !membership.active || membership.editorSub !== credential.subject || membership.siteId !== dependencies.trust.configuredSiteId) {
+  if (!membership || !membership.active || !membership.canUseEditorialChat
+    || membership.editorSub !== credential.subject || membership.siteId !== dependencies.trust.configuredSiteId) {
     return reject("forbidden");
   }
   if ((request.message.authorSub && request.message.authorSub !== membership.editorSub)

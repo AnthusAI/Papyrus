@@ -33,7 +33,7 @@ function dependencies(overrides: Partial<SharedChatAdmissionDependencies> = {}):
     nowEpochSeconds: () => 1_000,
     verifyCredential: async (raw) => raw === "good-token" ? token : null,
     resolveMembership: async (subject, siteId) => subject === "editor-sub-a" && siteId === "site-a"
-      ? { accountId: "account-a", siteId: "site-a", editorSub: subject, active: true }
+      ? { accountId: "account-a", siteId: "site-a", editorSub: subject, active: true, canUseEditorialChat: true }
       : null,
     resolveTranscriptOwner: async (channelId) => ({ accountId: "account-a", siteId: "site-a", editorSub: "editor-sub-a", channelId }),
     ...overrides,
@@ -83,8 +83,9 @@ async function main() {
   })), "unauthorized", "not-yet-valid credential rejected");
   await rejectsCode(admitSharedChatMessage(request({ authorization: undefined }), dependencies()), "unauthorized", "missing bearer rejected");
   await rejectsCode(admitSharedChatMessage(request(), dependencies({ resolveMembership: async () => null })), "forbidden", "non-member rejected");
-  await rejectsCode(admitSharedChatMessage(request(), dependencies({ resolveMembership: async (subject, siteId) => ({ accountId: "account-a", siteId, editorSub: subject, active: false }) })), "forbidden", "inactive membership rejected");
-  await rejectsCode(admitSharedChatMessage(request(), dependencies({ resolveMembership: async () => ({ accountId: "account-a", siteId: "other-site", editorSub: "editor-sub-a", active: true }) })), "forbidden", "membership from another site rejected");
+  await rejectsCode(admitSharedChatMessage(request(), dependencies({ resolveMembership: async (subject, siteId) => ({ accountId: "account-a", siteId, editorSub: subject, active: false, canUseEditorialChat: true }) })), "forbidden", "inactive membership rejected");
+  await rejectsCode(admitSharedChatMessage(request(), dependencies({ resolveMembership: async (subject, siteId) => ({ accountId: "account-a", siteId, editorSub: subject, active: true, canUseEditorialChat: false }) })), "forbidden", "active non-editor membership rejected");
+  await rejectsCode(admitSharedChatMessage(request(), dependencies({ resolveMembership: async () => ({ accountId: "account-a", siteId: "other-site", editorSub: "editor-sub-a", active: true, canUseEditorialChat: true }) })), "forbidden", "membership from another site rejected");
   await rejectsCode(admitSharedChatMessage(request({ message: { text: "Hello", authorSub: "editor-sub-b" } }), dependencies()), "forbidden", "client cannot claim another author");
   await rejectsCode(admitSharedChatMessage(request({ message: { text: "Hello", accountId: "account-b" } }), dependencies()), "forbidden", "client cannot select another Account");
   await rejectsCode(admitSharedChatMessage(request(), dependencies({
@@ -116,7 +117,7 @@ async function main() {
 
   const otherEditorDependencies = dependencies({
     verifyCredential: async () => ({ ...token, subject: "editor-sub-b" }),
-    resolveMembership: async (subject, siteId) => ({ accountId: "account-a", siteId, editorSub: subject, active: true }),
+    resolveMembership: async (subject, siteId) => ({ accountId: "account-a", siteId, editorSub: subject, active: true, canUseEditorialChat: true }),
     resolveTranscriptOwner: async (channelId) => ({ accountId: "account-a", siteId: "site-a", editorSub: "editor-sub-b", channelId }),
   });
   const otherEditor = await admitSharedChatMessage(request(), otherEditorDependencies);
