@@ -1,6 +1,6 @@
-# Package skeletons (SPIKE, PPY-82be6c)
+# Package skeletons (origin: spike PPY-82be6c)
 
-Proof-of-approach for `docs/standard-site.md` section 1.3/1.4. **Nothing here is published.**
+Proof-of-approach for `docs/standard-site.md` section 1.3/1.4. **Both packages are published**: `@anthusai/papyrus` on npm and `papyrus-newsroom` on PyPI, released in lockstep by semantic-release when `develop` or `main` is pushed (see `docs/releasing.md`).
 The Papyrus repo root is unchanged as an app; packages are assembled from it.
 
 ```bash
