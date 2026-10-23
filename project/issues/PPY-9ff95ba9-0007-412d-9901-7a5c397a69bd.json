@@ -31,10 +31,17 @@
       "text": "Status 2026-10-23 (end of day, before a usage pause).\nDone and merged to develop: PPY-2e6e2b automation records (#630, released 5.32.0); PPY-112007 slice 2: enabled, limits, cost, run now (#639); review requests and the Notification Center as the console home v0 (#642); idea pipeline v0 (#641) wired to review requests (#651); the PPY-36ee96 docs task filed.\nRelease: promotion PR #649 to 5.33.0 is in CI and merges by itself when green; #650 and #651 follow in the next release.\nDistinctive (test site): TTAB automation record created (slice 1 tested). The slice 2 router deploy waits for the release plus Distinctive's OK, after the Cyclotron router change sets.\nOpen decisions for Ryan: Data Parade articles' consent (reuse CookieYes vs the Papyrus banner); Shipped's switch to standard consent (confirm directly in the Shipped thread); auto-accept policy for Cyclotron-delivered pending references (proposed: a soft review per batch).\nBlocked: the Cyclotron criteria migration (p.apyr.us fix, plus the Data Parade and Pilobolus classifiers): the lab's Anthus workspace returns 'API call failed', and the Cyclotron session is diagnosing.",
       "created_at": "2026-10-23T12:21:49.936847Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5ad36efc-fe3c-418b-9d35-7c384f77f761",
+      "author": "home",
+      "text": "Throttle pause (2026-10-23, about 13:00 UTC). Papyrus 5.33.0 is released, but its backend fails to deploy: the Amplify data FunctionDirectiveStack reaches 505 resources, over the 500 limit (Shipped job 69 failed at CDK assembly; nothing was deployed). Fix: Papyrus #654 (stack goes 510 → 230 resources, plus a CI test), merging on green CI. NEXT ON RESUME: promote develop → main as a 5.33.1 patch, then tell Shipped to re-apply 5.33.x with proposals.publish true, and Distinctive to redo step 1 of its deploy plan (backend → runner image rebuild → Cyclotron router change set with Ryan's go → Distinctive verifies). Shipped is reverted to 5.31.0; Distinctive is reverted to 5.32.0; both live sites are fine.",
+      "created_at": "2026-10-23T13:24:24.617488Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T05:51:38.896492Z",
-  "updated_at": "2026-10-23T12:21:49.936875Z",
+  "updated_at": "2026-10-23T13:24:24.617526Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
