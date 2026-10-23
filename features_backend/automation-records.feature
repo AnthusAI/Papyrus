@@ -2,7 +2,8 @@ Feature: Automation records describe what starts a procedure by itself
   An automation is a named record in a site's backend: a trigger, the procedure it starts, and the input
   that procedure is given. Step one wraps what already runs. Distinctive Mark's TTAB monitor already starts
   its ruling-analysis procedure for each new decision through the monitoring router's procedure triggers,
-  and a monitor automation mirrors that trigger without changing it. The record never starts anything.
+  and a monitor automation mirrors that trigger without changing it. The record never starts anything itself;
+  the router reads it before each start, which is covered in automation-limits-and-run-now.feature.
   Editors and admins read an automation's recent runs, joined from the monitor's trigger rows and the
   procedure runs recorded in the site's backend. Only monitor automations are live; the other kinds are
   stored and say they are not yet supported.
@@ -56,19 +57,19 @@ Feature: Automation records describe what starts a procedure by itself
     Then 2 items are reported as not started because the Reference already existed
     And no listed run has the status "notTriggered"
 
-  Scenario: Cost is unknown and the page says where it would come from
+  Scenario: A run recorded without a cost says so
     Given a site backend with the TTAB automation and its recorded runs
     And the TTAB monitor's trigger rows
     When an editor opens the automation overview
     Then every run reports its cost as unknown
-    And the cost note says the procedure runner does not record token use or cost
+    And the cost note says the cost was not recorded for that run
 
-  Scenario: Enabled is a display flag the router does not read
+  Scenario: Disabling an automation changes only the record
     Given a site backend with the TTAB automation
     And the TTAB monitor's trigger rows
     When an operator disables the automation "distinctive.ttab"
     Then the record shows the automation as disabled
-    And the record says enabled is display only until the router honours it
+    And the record says the router starts nothing for a disabled automation
     And the router's configuration and the trigger rows are unchanged
 
   Scenario: Only editors and admins can read automations
@@ -104,8 +105,8 @@ Feature: Automation records describe what starts a procedure by itself
     When an operator runs "automations list"
     Then the output has one line for "distinctive.ttab" showing monitor, the procedure, enabled and the last run status
     When an operator runs "automations show --id distinctive.ttab"
-    Then the output says enabled is display only until the router honours it
-    And the output says the limits are recorded only
+    Then the output says the router starts nothing for a disabled automation
+    And the output says the limits are enforced when a run starts
 
   Scenario: An operator reads an automation's run history from the command line
     Given a site backend with the TTAB automation and its recorded runs
@@ -113,7 +114,7 @@ Feature: Automation records describe what starts a procedure by itself
     When an operator runs "automations runs --id distinctive.ttab"
     Then the output lists the run for "97752244-EXA_26" with its run id and story
     And the output reports 2 items not started because the Reference already existed
-    And the output says cost is not recorded
+    And the output says the cost is unknown for runs without a recorded cost
 
   Scenario: Run history needs the monitoring table but listing does not
     Given a site backend with the TTAB automation

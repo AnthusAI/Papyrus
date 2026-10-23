@@ -93,7 +93,11 @@ class FakeTable:
             raise Conditional()
         del self.items[(Key["pk"], Key["sk"])]
 
-    def query(self, IndexName, KeyConditionExpression, ExpressionAttributeValues, ScanIndexForward=True, Limit=None):
+    def query(self, KeyConditionExpression, ExpressionAttributeValues, IndexName=None, ScanIndexForward=True, Limit=None, **_):
+        if IndexName is None:   # the base table: one partition, sort keys that start with a prefix
+            assert KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)"
+            return {"Items": [deepcopy(v) for k, v in sorted(self.items.items())
+                              if k[0] == ExpressionAttributeValues[":pk"] and k[1].startswith(ExpressionAttributeValues[":prefix"])]}
         assert IndexName == "routing" and KeyConditionExpression == "gsi1pk = :p"
         rows = sorted((v for v in self.items.values() if v.get("gsi1pk") == ExpressionAttributeValues[":p"]),
                       key=lambda v: v["gsi1sk"], reverse=not ScanIndexForward)

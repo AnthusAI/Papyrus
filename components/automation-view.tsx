@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { RunNowControl } from "./automation-run-now";
 import {
   ENABLED_NOTE,
+  OUTSIDE_NOTICE,
+  costText,
   durationText,
   enabledText,
   formatUtc,
@@ -11,9 +14,12 @@ import {
   statusText,
   storyHref,
   triggerText,
+  whoText,
+  type AutomationOutsideRun,
   type AutomationRecord,
   type AutomationResult,
   type AutomationRun,
+  type RunNowResult,
 } from "../lib/automation-overview";
 
 function Message({ title, children, kind }: { title: string; children?: React.ReactNode; kind: string }) {
@@ -30,7 +36,8 @@ function RunLine({ run, demo }: { run: AutomationRun; demo: boolean }) {
     <li data-automation-run={run.runId ?? run.sourceId ?? "unlinked"} data-run-status={run.status ?? "unknown"}>
       <strong>{formatUtc(run.startedAt)}</strong>
       <span><span aria-hidden="true">{statusMark(run.status)} </span>Status: {statusText(run.status)} &middot; {durationText(run.durationSeconds)}</span>
-      <span>Item: {run.sourceId ?? "unknown"}</span>
+      <span>{whoText(run)}</span>
+      {run.reason ? <span data-automation-run-reason>Reason: {run.reason}</span> : null}
       {run.error ? <span data-automation-run-error>Error: {run.error}</span> : null}
       <span>
         {run.runId ? <>Run {run.runId} (<Link href={proceduresHref(demo)}>Procedures</Link>)</> : run.triggerStatus === "started" ? "Run record not linked yet" : "No run record"}
@@ -40,12 +47,30 @@ function RunLine({ run, demo }: { run: AutomationRun; demo: boolean }) {
       <span>
         {run.storyId ? <>Story: <Link href={storyHref(run.storyId, demo)} data-automation-story-link>{run.storyTitle ?? run.storyId}</Link></> : "Story: none recorded"}
       </span>
-      <span>Cost: unknown ({run.costNote})</span>
+      <span data-automation-run-cost data-over-budget={run.overBudget || undefined}>
+        <span aria-hidden="true">{run.overBudget ? "! " : ""}</span>{costText(run)}
+      </span>
     </li>
   );
 }
 
-function Detail({ record, demo }: { record: AutomationRecord; demo: boolean }) {
+function OutsideRunLine({ run, demo }: { run: AutomationOutsideRun; demo: boolean }) {
+  return (
+    <li data-automation-outside-run={run.runId ?? "unlinked"} data-run-status={run.status ?? "unknown"}>
+      <strong>{formatUtc(run.startedAt)}</strong>
+      <span><span aria-hidden="true">{statusMark(run.status)} </span>Status: {statusText(run.status)} &middot; {durationText(run.durationSeconds)}</span>
+      <span>Started by: {run.requestedBy ?? "unknown"}</span>
+      {run.error ? <span data-automation-run-error>Error: {run.error}</span> : null}
+      <span>{run.runId ? <>Run {run.runId} (<Link href={proceduresHref(demo)}>Procedures</Link>)</> : "No run id"}</span>
+      <span>
+        {run.storyId ? <>Story: <Link href={storyHref(run.storyId, demo)}>{run.storyTitle ?? run.storyId}</Link></> : "Story: none recorded"}
+      </span>
+      <span data-automation-run-cost>{costText({ ...run, budgetUsd: null })}</span>
+    </li>
+  );
+}
+
+function Detail({ record, demo, onRunNow }: { record: AutomationRecord; demo: boolean; onRunNow?: RunNowHandler }) {
   const notice = noticeText(record.notice);
   return (
     <article className="news-desk-doctrine-card" data-automation-detail={record.id}>
@@ -55,10 +80,11 @@ function Detail({ record, demo }: { record: AutomationRecord; demo: boolean }) {
         <div><dt>Procedure</dt><dd>{record.procedureKey}</dd></div>
         <div><dt>Input</dt><dd>{Object.keys(record.inputTemplate).length ? Object.entries(record.inputTemplate).map(([name, template]) => `${name} = ${template}`).join("; ") : "none"}</dd></div>
         <div><dt>Enabled</dt><dd>{enabledText(record)} ({ENABLED_NOTE})</dd></div>
-        <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {record.limits.maxConcurrent ?? "?"} at a time{record.limits.budgetUsdPerRun !== undefined ? `, about $${record.limits.budgetUsdPerRun} per run` : ""} ({record.limitsNote})</dd></div>
+        <div><dt>Limits</dt><dd>timeout {record.limits.timeoutSeconds ?? "?"} s, {record.limits.maxConcurrent ?? "?"} at a time{record.limits.budgetUsdPerRun !== undefined ? `, about $${record.limits.budgetUsdPerRun} per run, advisory` : ""} ({record.limitsNote})</dd></div>
         <div><dt>Router</dt><dd data-automation-link={record.link?.state ?? "unchecked"}>{linkText(record.link)}</dd></div>
       </dl>
       {notice ? <p className="news-desk-delegation-note" data-automation-notice>{notice}</p> : null}
+      <RunNowControl record={record} demo={demo} onRun={onRunNow} />
       <h4>Recent runs</h4>
       {record.runs.length ? (
         <ul className="news-desk-monitoring__list" data-automation-runs>
@@ -69,6 +95,18 @@ function Detail({ record, demo }: { record: AutomationRecord; demo: boolean }) {
         <p className="news-desk-delegation-note" data-automation-skipped>
           {record.skippedAlreadyHadReference} {record.skippedAlreadyHadReference === 1 ? "item was" : "items were"} not started because the Reference already existed.
         </p>
+      ) : null}
+      {record.outsideRuns.length || record.outsideNotice ? (
+        <>
+          <h4>Started outside this automation</h4>
+          <p className="news-desk-delegation-note">Other runs of {record.procedureKey} that this automation did not start.</p>
+          {record.outsideNotice ? <p className="news-desk-delegation-note" data-automation-notice>{OUTSIDE_NOTICE}</p> : null}
+          {record.outsideRuns.length ? (
+            <ul className="news-desk-monitoring__list" data-automation-outside-runs>
+              {record.outsideRuns.map((run) => <OutsideRunLine key={run.runId ?? run.startedAt ?? "run"} run={run} demo={demo} />)}
+            </ul>
+          ) : null}
+        </>
       ) : null}
     </article>
   );
@@ -95,16 +133,20 @@ function ListItem({ record, selected, onSelect }: { record: AutomationRecord; se
 }
 
 /** Presentation only: the panel fetches, this renders any result, so every state is testable from fixtures. */
+export type RunNowHandler = (automationId: string, input: Record<string, unknown> | null) => Promise<RunNowResult>;
+
 export function AutomationView({
   result,
   selectedId,
   onSelect,
   demo = false,
+  onRunNow,
 }: {
   result: AutomationResult | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   demo?: boolean;
+  onRunNow?: RunNowHandler;
 }) {
   let body: React.ReactNode;
   if (result === null) {
@@ -128,7 +170,7 @@ export function AutomationView({
           </ul>
           {result.monitoring === "not_configured" ? <p className="news-desk-delegation-note" data-automation-notice>{noticeText("monitoring_not_configured")}</p> : null}
         </article>
-        {selected ? <Detail record={selected} demo={demo} /> : <p className="news-desk-delegation-note" data-automation-pick>Choose an automation to see its recent runs.</p>}
+        {selected ? <Detail record={selected} demo={demo} onRunNow={onRunNow} /> : <p className="news-desk-delegation-note" data-automation-pick>Choose an automation to see its recent runs.</p>}
       </>
     );
   }
@@ -138,10 +180,10 @@ export function AutomationView({
         <div className="news-desk-doctrine-card__header">
           <div>
             <h3>Automation</h3>
-            <span>Procedures that start on their own. Read only here; an operator changes them with the command line.</span>
+            <span>Procedures that start on their own. Editors and admins can run one now; an operator changes the settings with the command line.</span>
           </div>
         </div>
-        {result && "asOf" in result ? <p className="news-desk-delegation-note" data-automation-as-of>As of {formatUtc(result.asOf)}. The enabled setting is {ENABLED_NOTE}.</p> : null}
+        {result && "asOf" in result ? <p className="news-desk-delegation-note" data-automation-as-of>As of {formatUtc(result.asOf)}. Enabled: {ENABLED_NOTE}.</p> : null}
       </article>
       {body}
     </div>

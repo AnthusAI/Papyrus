@@ -18,9 +18,14 @@ The runner receives one request:
   "procedureKey": "distinctive.ttab.ruling-analysis",
   "input": {"proceeding": "97752244", "opinion_url": "https://.../EXA_26.pdf"},
   "actorLabel": "Papyrus monitor ttab",
-  "trigger": {"kind": "monitor", "monitorId": "ttab", "sourceId": "97752244-EXA_26", "pk": "MONITOR#ttab", "sk": "TRIGGER#..."}
+  "timeoutSeconds": 840,
+  "trigger": {"kind": "monitor", "monitorId": "ttab", "sourceId": "97752244-EXA_26", "pk": "MONITOR#ttab", "sk": "TRIGGER#...",
+              "automationId": "distinctive.ttab"}
 }
 ```
+
+`timeoutSeconds` and `trigger.automationId` are present only when an Automation record governs the start
+(`docs/automations.md`); a run started by hand has `trigger.kind` `manual` and a `MANUAL#...` sort key.
 
 For each request, the runner does these steps:
 
@@ -34,11 +39,13 @@ For each request, the runner does these steps:
 4. It writes the skills at their registered paths in a fresh working directory, so a procedure's
    `skills = {".claude/skills/..."}` resolves exactly as it does in the site repository.
 5. It runs the procedure in a child process (`python -m papyrus_content.procedure_runner_child`) with
-   every tool real. The child process has a deadline 60 seconds inside the Lambda's own.
-6. It updates the ProcedureRun to `completed` with the procedure's output, or to `failed` with the error.
-   A run that overruns the deadline is recorded as `failed` ("timed out"), never left `running`.
-7. When the request came from a trigger, it records the outcome (run id, status, error) on the trigger's
-   row in the monitoring table.
+   every tool real. The child process has a deadline 60 seconds inside the Lambda's own, or the request's
+   `timeoutSeconds` if that is shorter. The child reports the model usage of each call.
+6. It updates the ProcedureRun to `completed` with the procedure's output, or to `failed` with the error,
+   and stores the usage and an estimated cost (`docs/automations.md`). A run that overruns the deadline is recorded
+   as `failed` ("timed out"), never left `running`.
+7. When the request came from a trigger, it names the run on the trigger's row in the monitoring table as soon
+   as the run exists (status `running`, `runId`) and records the outcome (status, error) there when it ends.
 
 The runner signs its AppSync calls with its own role. The procedure tools in the child process do the
 same (`PAPYRUS_GRAPHQL_AUTH=iam`). The OpenAI key comes from the publication's Amplify secret in SSM.
@@ -110,8 +117,9 @@ The router never waits for a run, and a failed start never fails the delivery. B
 only once, a source item starts each procedure at most once, even when it is redelivered or redesignated.
 The run receipt counts `proceduresStarted`, `procedureStartFailed` and `procedureNotTriggered`.
 
-An automation record (`docs/automations.md`) mirrors a trigger like this one and shows its run history.
-It does not change how the router starts runs.
+An automation record (`docs/automations.md`) mirrors a trigger like this one, shows its run history and governs it:
+the router reads the record before each start (a disabled automation starts nothing, one at its limit refuses, its
+timeout goes with the request), and falls back to starting as described here when there is no record or it cannot be read.
 
 To run a procedure again for an item, delete its `TRIGGER#` row and invoke the runner with the request
 stored on that row.
@@ -139,5 +147,5 @@ To run a procedure by hand, invoke the runner with a request like the one above:
   Distinctive's today), because a procedure's tools may call any of them. Grant a new publication by
   adding its API id to the template.
 - **Records.** Logs go to CloudWatch (`/aws/lambda/papyrus-procedure-runner`). The ProcedureRun keeps the
-  output, the error and its log tail. Token use and cost are not recorded yet.
+  output, the error and its log tail, and the run's model usage and estimated cost (`usage`, `costUsd`).
 - **Interactive runs.** A procedure that waits for a human is not supported. It fails.

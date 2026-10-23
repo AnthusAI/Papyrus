@@ -375,6 +375,7 @@ PORTED_COMMANDS = frozenset(
         "automations:runs",
         "automations:create",
         "automations:update",
+        "automations:run",
         "newsroom:purge-planning",
         "relations:import-types",
         "relations:backfill",
@@ -1652,7 +1653,7 @@ def print_usage() -> None:
     print("  assignments list, analysis profiles/validate-profiles/reindex-plan/preview-reindex/")
     print("  create-reindex-assignment/run-now/execute-assignment (auto sync-from-cloud when local catalog is stale;")
     print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/doctor-entity-graph,")
-    print("  automations list|show|runs [--id ID] [--limit N] [--json] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
+    print("  automations list|show|runs [--id ID] [--limit N] [--json] / run --id ID [--input JSON] [--dry-run] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")

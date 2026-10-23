@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { schema } from "../amplify/data/schema";
 import { AUTOMATION_VIEW_TIMEOUT_SECONDS } from "../amplify/functions/automation-view/resource";
-import { AUTOMATION_VIEW_FUNCTION_FIELDS } from "../amplify/functions/automation-view/wire";
+import {
+  AUTOMATION_RUN_NOW_LEADING_KEYS,
+  AUTOMATION_RUN_NOW_TABLE_ACTIONS,
+  AUTOMATION_VIEW_FUNCTION_FIELDS,
+  PROCEDURE_RUNNER_FUNCTION_NAME,
+} from "../amplify/functions/automation-view/wire";
 
 const text = schema.transform().schema;
 
@@ -14,9 +19,27 @@ assert.match(query, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(query), "no public, API-key or guest access");
 assert.ok(AUTOMATION_VIEW_TIMEOUT_SECONDS < 30, "the resolver finishes inside AppSync's 30 seconds");
 
-// The function reads two fields of its own API and writes nothing.
-assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), ["Query/fields/getProcedureRun", "Query/fields/listAutomations"]);
+// Run now is a mutation for editors and admins only; no IAM, guest or API-key rule is declared on it.
+const mutation = /runAutomation\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(mutation, "the base schema defines runAutomation");
+assert.match(mutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(mutation), "no public, API-key or guest access");
+assert.match(mutation, /automationId: String!/, "the automation is required");
+
+// The function only reads its own site's API (no Mutation field is granted there).
+assert.deepEqual([...AUTOMATION_VIEW_FUNCTION_FIELDS].sort(), [
+  "Query/fields/getAutomation",
+  "Query/fields/getNewsroomProcedureDefinition",
+  "Query/fields/getProcedureRun",
+  "Query/fields/listAutomations",
+  "Query/fields/listProcedureRunsByProcedureAndRequestedAt",
+]);
 assert.ok(AUTOMATION_VIEW_FUNCTION_FIELDS.every((field) => field.startsWith("Query/")), "no mutation is granted");
+
+// Run now writes one monitoring row in a monitor's partition and starts the runner, and does nothing else.
+assert.deepEqual(AUTOMATION_RUN_NOW_TABLE_ACTIONS, ["dynamodb:PutItem"]);
+assert.deepEqual(AUTOMATION_RUN_NOW_LEADING_KEYS, ["MONITOR#*"]);
+assert.equal(PROCEDURE_RUNNER_FUNCTION_NAME, "papyrus-procedure-runner");
 
 // The Automation model: editors read, create and update; only admins delete; no guest, public or identity-pool access.
 const model = /type Automation @model[\s\S]*?\n}\n/.exec(text)?.[0] ?? "";

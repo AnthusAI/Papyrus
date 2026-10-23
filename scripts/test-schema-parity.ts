@@ -6,7 +6,7 @@ const SCHEMA_FILES = ["amplify/data/schema.ts", "amplify/data/resource.ts"];
 // for every model the Python authoring client reads with a fixed field list.
 const MODEL_NAMES = [
   "Item", "PublishedItem", "SemanticNode", "SemanticRelation", "Reference", "Message",
-  "Assignment", "KnowledgeRawPayload", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation",
+  "Assignment", "KnowledgeRawPayload", "ModelAttachment", "MediaAsset", "PublishedMediaAsset", "NewsroomSection", "Automation", "ProcedureRun",
 ];
 const REQUIRED_FIELDS: Record<string, string[]> = {
   Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],

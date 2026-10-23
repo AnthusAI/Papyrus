@@ -17,7 +17,7 @@ Operator groups:
   sections      Newsroom section maintenance
   editions      Edition planning
   procedures    Tactus and policy commands
-  automations   Automation records: list, show, runs, create, update
+  automations   Automation records: list, show, runs, run (now), create, update
   analysis      Analysis and reindex tooling
   ops           Content, corpora, categories, and messages
   videos        Video pipeline commands

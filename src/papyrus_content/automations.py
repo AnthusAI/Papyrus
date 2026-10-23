@@ -1,10 +1,10 @@
-"""Automation records: a named, bound "when X happens, run procedure Y" (PPY-9ff95b, step 1).
+"""Automation records: a named, bound "when X happens, run procedure Y" (PPY-9ff95b).
 
-An Automation is a record in a site's own backend. Step 1 wraps what already runs: a monitor automation
-*mirrors* the `procedureTriggers` entry that the monitoring router already reads from `CONFIG#router`
-(`docs/monitoring-cloud.md`, `docs/procedure-runner.md`). The router, the monitoring stack and the procedure
-runner are unchanged, so the record never starts anything: it describes a trigger, links to it, and joins the
-runs that trigger caused. `enabled` and `limits` are recorded and shown but the router does not read them yet.
+An Automation is a record in a site's own backend. A monitor automation *mirrors* the `procedureTriggers` entry
+that the monitoring router reads from `CONFIG#router` (`docs/monitoring-cloud.md`, `docs/procedure-runner.md`),
+and the router's entry stays authoritative: it is what starts a run. Since step 2 (PPY-112007) the router also
+reads the record before it starts one (`automation_gate.py`): `enabled` and the limits are real, the cost of a run
+is recorded and shown, and "Run now" starts a run by hand (`run_now`, from the CLI and the console).
 
 Run history joins two sources the site backend alone cannot see together:
 
@@ -26,6 +26,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from .automation_gate import (
+    MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
 from .monitoring_router import (
     PROCEDURE_INPUT_NAME,
     PROCEDURE_KEY,
@@ -37,8 +39,12 @@ KINDS = ("monitor", "schedule", "event", "manual")
 ACTIVE_KINDS = frozenset({"monitor"})
 AUTOMATION_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
-ENABLED_NOTE = "display only until the router honours it"
-COST_NOTE = "not recorded: the procedure runner does not record token use or cost on a ProcedureRun yet"
+ENABLED_NOTE = "the router starts nothing for a disabled automation"
+LIMITS_NOTE = "the timeout and the number at a time are enforced when a run starts; the budget is advisory and only flagged"
+COST_NOTE = "not recorded for this run"
+RUNNER_FUNCTION = "papyrus-procedure-runner"
+OUTSIDE_FETCH = 25
+RUN_COST_FIELDS = "usage costUsd"
 NOT_SUPPORTED = "not yet supported"
 ROUTER_CONFIG_SK = "CONFIG#router"
 DEFAULT_LIMITS = {"timeoutSeconds": 840, "maxConcurrent": 1}
@@ -204,10 +210,23 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
         "procedureKey": row.get("procedureKey"),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
-        "limitsNote": "recorded only: the runner does not enforce these yet",
+        "limitsNote": LIMITS_NOTE,
+        "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind,
+                                        "template": _parse(row.get("inputTemplate"), {})}),
         "createdBy": row.get("createdBy"), "createdAt": row.get("createdAt"),
         "updatedBy": row.get("updatedBy"), "updatedAt": row.get("updatedAt"),
     }
+
+
+def run_now_availability(info: dict[str, Any]) -> dict[str, Any]:
+    """Whether Run now is offered, and whether the person must give the input (the template names item placeholders)."""
+    template = info["template"] if isinstance(info["template"], dict) else {}
+    placeholders = sorted({field for text in template.values() for _, field, _, _ in string.Formatter().parse(str(text)) if field})
+    if info["kind"] not in ACTIVE_KINDS:
+        return {"available": False, "reason": NOT_SUPPORTED, "needsInput": False, "inputNames": []}
+    if not info["enabled"]:
+        return {"available": False, "reason": "disabled", "needsInput": False, "inputNames": []}
+    return {"available": True, "reason": None, "needsInput": bool(placeholders), "inputNames": sorted(template)}
 
 
 def create_automation(client, fields: dict[str, Any], *, actor: str, now: str | None = None) -> dict[str, Any]:
@@ -254,25 +273,34 @@ class MonitoringReader:
         return _clean(item) if item else None
 
     def trigger_rows(self, monitor_id: str, publication_id: str, procedure_key: str) -> list[dict]:
-        prefix = f"TRIGGER#{publication_id}#{procedure_key}#"
-        rows, start = [], None
-        for _ in range(MAX_TRIGGER_PAGES):
-            extra = {"ExclusiveStartKey": start} if start else {}
-            result = self.table.query(KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
-                                      ExpressionAttributeValues={":pk": f"MONITOR#{monitor_id}", ":prefix": prefix}, **extra)
-            rows += [_clean(item) for item in result.get("Items", [])]
-            start = result.get("LastEvaluatedKey")
-            if not start:
-                break
-        return rows
+        return [_clean(item) for item in query_prefix(self.table, monitor_id, trigger_prefix(publication_id, procedure_key))]
+
+    def manual_rows(self, monitor_id: str, automation_id: str) -> list[dict]:
+        """The rows Run now wrote for this automation."""
+        return [_clean(item) for item in query_prefix(self.table, monitor_id, manual_prefix(automation_id))]
 
 
-def monitoring_reader_from_environment(env=None) -> MonitoringReader | None:
+class MonitoringWriter:
+    """PutItem of a Run now row on the monitoring table, and nothing else."""
+
+    def __init__(self, table):
+        self.table = table
+
+    def put(self, row: dict) -> None:
+        self.table.put_item(Item=row)
+
+
+def monitoring_table_from_environment(env=None):
     """The monitoring table through the SSM parameter its stack writes (see monitoring_view). None when it is absent."""
     from .monitoring_view import default_store_factory
 
     store = default_store_factory(os.environ if env is None else env)()
-    return MonitoringReader(store.table) if store is not None else None
+    return store.table if store is not None else None
+
+
+def monitoring_reader_from_environment(env=None) -> MonitoringReader | None:
+    table = monitoring_table_from_environment(env)
+    return MonitoringReader(table) if table is not None else None
 
 
 # --- the router link --------------------------------------------------------------------------------------
@@ -323,17 +351,53 @@ def _run_error(row: dict, run: dict | None) -> str | None:
     return str(error)[:MAX_TEXT] if error else None
 
 
-def run_entry(row: dict, run: dict | None, lookup_failed: bool = False) -> dict[str, Any]:
-    """One trigger row joined with its ProcedureRun. The story is the procedure output's `story` (a lineage id)."""
+def read_run(client, run_id: str) -> dict | None:
+    """A ProcedureRun with its usage and cost. A backend that predates those fields refuses the longer query;
+    the run is then read without them (its cost shows as not recorded)."""
+    with_fields = getattr(client, "get_record_with_fields", None)
+    if with_fields is not None:
+        try:
+            return with_fields("ProcedureRun", run_id, RUN_COST_FIELDS)
+        except Exception:
+            pass
+    return client.get_record("ProcedureRun", run_id)
+
+
+def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
+    """The recorded cost of a run, what it was estimated from, and whether it went over the advisory budget."""
+    cost = (run or {}).get("costUsd")
+    cost = float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
+    usage = _parse((run or {}).get("usage"), None)
+    usage = usage if isinstance(usage, dict) else None
+    if cost is None and usage is None:
+        note = COST_NOTE if run else "no run record, so no cost"
+    elif cost is None:
+        note = "model usage recorded, but no model in it has a price: " + ", ".join(usage.get("unpricedModels") or ["unknown"])
+    elif usage is not None and usage.get("complete") is False:
+        note = "estimated, partly: " + ", ".join(usage.get("unpricedModels") or ["a model"]) + " has no price"
+    else:
+        note = "estimated from the model usage reported by the run"
+    over = cost is not None and isinstance(budget, (int, float)) and not isinstance(budget, bool) and cost > budget
+    return {"costUsd": cost, "costNote": note, "budgetUsd": budget if isinstance(budget, (int, float)) else None, "overBudget": bool(over),
+            "usage": None if usage is None else {key: usage.get(key) for key in
+                                                 ("calls", "promptTokens", "completionTokens", "models", "complete", "unpricedModels")}}
+
+
+def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: Any = None) -> dict[str, Any]:
+    """One trigger or Run now row joined with its ProcedureRun. The story is the procedure output's `story` (a lineage id)."""
     output = _parse((run or {}).get("output"), None)
     output = output if isinstance(output, dict) else {}
     started = (run or {}).get("startedAt") or row.get("startedAt") or row.get("createdAt")
     finished = (run or {}).get("finishedAt") or row.get("finishedAt")
     story = output.get("story")
+    manual = str(row.get("sk") or "").startswith(MANUAL_PREFIX)
     return {
+        "origin": "manual" if manual else "monitor",
+        "requestedBy": row.get("requestedBy"),
         "sourceId": row.get("sourceId"), "referenceId": row.get("referenceId"),
         "triggerStatus": row.get("status"), "runId": row.get("runId"),
         "status": (run or {}).get("runStatus") or row.get("status"),
+        "reason": row.get("reason"),
         "startedAt": started, "finishedAt": finished,
         "durationSeconds": _seconds_between((run or {}).get("startedAt"), (run or {}).get("finishedAt")),
         "error": _run_error(row, run),
@@ -341,19 +405,44 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False) -> dict[
         "storyId": story if isinstance(story, str) and story else None,
         "storyVersionId": output.get("version_id") if isinstance(output.get("version_id"), str) else None,
         "storyTitle": output.get("title") if isinstance(output.get("title"), str) else None,
-        "costUsd": None, "costNote": COST_NOTE,
+        **cost_fields(run, budget),
     }
+
+
+def outside_entry(run: dict, budget: Any = None) -> dict[str, Any]:
+    """A ProcedureRun of the same procedure that no trigger row of this automation links to."""
+    entry = run_entry({"runId": run.get("id"), "startedAt": run.get("startedAt") or run.get("requestedAt"),
+                       "requestedBy": run.get("requestedBy")}, run, False, budget)
+    return {key: entry[key] for key in ("runId", "status", "startedAt", "finishedAt", "durationSeconds", "error", "requestedBy",
+                                        "storyId", "storyVersionId", "storyTitle", "costUsd", "costNote", "overBudget")}
+
+
+def _row_time(row: dict) -> str:
+    return str(row.get("startedAt") or row.get("createdAt") or "")
+
+
+def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit: int, budget: Any) -> dict[str, Any]:
+    """The procedure's newest runs that this automation did not start: `Started outside this automation`."""
+    fetch = getattr(client, "recent_procedure_runs", None)
+    if fetch is None:
+        return {"runs": [], "notice": None}
+    try:
+        rows = fetch(automation["procedureKey"], OUTSIDE_FETCH)
+    except Exception:   # the rest of the history still reads
+        return {"runs": [], "notice": "outside_unavailable"}
+    return {"runs": [outside_entry(run, budget) for run in rows if run.get("id") not in linked_ids][:limit], "notice": None}
 
 
 def automation_history(automation: dict[str, Any], *, reader: MonitoringReader | None, client, limit: int = DEFAULT_RUN_LIMIT,
                        site_endpoint: str | None = None) -> dict[str, Any]:
-    """Router link, recent runs (newest first) and the last run for one automation.
+    """Router link, recent runs (newest first), the last run and the procedure's other runs for one automation.
 
     `site_endpoint` confines a site's console to its own publication's rows: the router must list the
     automation's publication with this site's endpoint, so a record that names another publication gets no
     history, however an editor wrote it."""
     limit = max(1, min(int(limit), MAX_RUN_LIMIT))
-    empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None}
+    empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None,
+             "outsideRuns": [], "outsideNotice": None}
     if automation["trigger"]["kind"] != "monitor":
         return {**empty, "link": router_link(automation, None), "notice": NOT_SUPPORTED}
     if reader is None:
@@ -369,19 +458,23 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
         if publication.get("appsyncEndpoint") != site_endpoint:
             return {**empty, "notice": "other_publication"}
     rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"])
+    rows += reader.manual_rows(config["monitorId"], automation["id"])
+    budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
     skipped = sum(1 for row in rows if row.get("status") == "notTriggered")
-    started = sorted((row for row in rows if row.get("status") != "notTriggered"),
-                     key=lambda row: str(row.get("startedAt") or row.get("createdAt") or ""), reverse=True)[:limit]
+    started = sorted((row for row in rows if row.get("status") != "notTriggered"), key=_row_time, reverse=True)[:limit]
     runs = []
     for row in started:
         run, failed = None, False
         if row.get("runId"):
             try:
-                run = client.get_record("ProcedureRun", row["runId"])
+                run = read_run(client, row["runId"])
             except Exception:   # a lookup failure is shown on the row; the rest of the history still reads
                 failed = True
-        runs.append(run_entry(row, run, failed))
-    return {"link": link, "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": skipped, "notice": None}
+        runs.append(run_entry(row, run, failed, budget))
+    outside = outside_runs(automation, client, {row["runId"] for row in rows if row.get("runId")}, limit, budget)
+    return {
+        "link": link, "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": skipped, "notice": None,
+        "outsideRuns": outside["runs"], "outsideNotice": outside["notice"]}
 
 
 def automation_overview(client, *, reader: MonitoringReader | None, limit: int = DEFAULT_RUN_LIMIT, automation_id: str | None = None,
@@ -397,10 +490,97 @@ def automation_overview(client, *, reader: MonitoringReader | None, limit: int =
             history = automation_history(record, reader=reader, client=client, limit=limit, site_endpoint=site_endpoint)
         except Exception as error:   # the records still list when the monitoring table cannot be read
             history = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0,
-                       "notice": "monitoring_unavailable", "noticeDetail": type(error).__name__}
+                       "notice": "monitoring_unavailable", "noticeDetail": type(error).__name__,
+                       "outsideRuns": [], "outsideNotice": None}
         automations.append({**record, **history})
     return {"state": "ready" if automations else "empty", "asOf": now or _now(), "automations": automations,
             "monitoring": "ready" if reader is not None else "not_configured"}
+
+
+# --- run now --------------------------------------------------------------------------------------------------
+
+
+def lambda_invoker(function_name: str | None = None):
+    """Starts the procedure runner asynchronously, as the router does."""
+    name = function_name or os.environ.get("PAPYRUS_PROCEDURE_RUNNER_FUNCTION") or RUNNER_FUNCTION
+
+    def invoke(request: dict) -> None:
+        import boto3  # provided by the Lambda runtime and the operator's environment
+        boto3.client("lambda").invoke(FunctionName=name, InvocationType="Event", Payload=json.dumps(request).encode("utf-8"))
+    return invoke
+
+
+def resolve_manual_input(automation: dict[str, Any], supplied: Any) -> dict[str, Any]:
+    """The input for a Run now: what the person gave, else the record's template when it names no item placeholder."""
+    if supplied is not None:
+        if not isinstance(supplied, dict):
+            raise AutomationError("the input must be a JSON object of name to value.")
+        for name in supplied:
+            if not PROCEDURE_INPUT_NAME.match(str(name)):
+                raise AutomationError(f"input name {name!r} is not a valid procedure input name.")
+        return dict(supplied)
+    availability = automation.get("runNow") or {}
+    if availability.get("needsInput"):
+        raise AutomationError("this automation's input uses placeholders for an item (" + ", ".join(availability.get("inputNames") or [])
+                              + "); give the input for this run, for example --input '{\"name\": \"value\"}'.")
+    return dict(automation.get("inputTemplate") or {})
+
+
+def run_now(automation: dict[str, Any], *, reader: MonitoringReader | None, writer: MonitoringWriter | None, invoke, actor: str,
+            supplied_input: Any = None, site_endpoint: str | None = None, now: str | None = None, dry_run: bool = False) -> dict[str, Any]:
+    """Starts a run of the automation's procedure by hand and links it to the automation's history.
+
+    The run is linked by a `MANUAL#<automationId>#<timestamp>` row in the monitor's partition of the monitoring
+    table, beside the trigger rows. The runner updates that row with the run id and the outcome, as it does a
+    trigger row, so the history reads both the same way. A start is refused, with the reason and no row, when the
+    automation is not a monitor automation, is disabled, has no router publication for this site, or is at its
+    maxConcurrent."""
+    if automation["trigger"]["kind"] not in ACTIVE_KINDS:
+        raise AutomationError(f"only monitor automations can be run now; this one is {NOT_SUPPORTED}.")
+    if not automation["enabled"]:
+        raise AutomationError("this automation is disabled; enable it before running it.")
+    if reader is None or (writer is None and not dry_run):
+        raise AutomationError("Run now needs the monitoring table, which is not connected to this site's account.")
+    config = automation["trigger"]["config"]
+    router = reader.router_config(config["monitorId"])
+    publication = next((entry for entry in (router or {}).get("publications") or []
+                        if entry.get("publicationId") == config["publicationId"]), None)
+    if publication is None:
+        raise AutomationError("the router does not deliver to this automation's publication, so there is nothing to run it with.")
+    if site_endpoint is not None and publication.get("appsyncEndpoint") != site_endpoint:
+        raise AutomationError("this automation's publication belongs to another site.")
+    if not publication.get("openaiKeyParameter"):
+        raise AutomationError("the router publication has no openaiKeyParameter for the procedure's model calls.")
+    input_values = resolve_manual_input(automation, supplied_input)
+    rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"]) \
+        + reader.manual_rows(config["monitorId"], automation["id"])
+    stamp = now or _now()
+    gate = decide({"id": automation["id"], "enabled": True, "limits": limits_of({"limits": automation["limits"]})}, rows,
+                  now=datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp())
+    if gate.action != "start":
+        raise AutomationError(gate.reason or "the automation cannot start another run now.")
+    key = f"{MANUAL_PREFIX}{automation['id']}#{stamp}"
+    pk = f"MONITOR#{config['monitorId']}"
+    request = {"publicationId": publication["publicationId"], "appsyncEndpoint": publication["appsyncEndpoint"],
+               "openaiKeyParameter": publication["openaiKeyParameter"], "procedureKey": automation["procedureKey"],
+               "input": input_values, "actorLabel": f"{actor} (run now)"[:200], "timeoutSeconds": gate.timeout_seconds,
+               "trigger": {"kind": "manual", "automationId": automation["id"], "monitorId": config["monitorId"], "pk": pk, "sk": key,
+                           "title": f"{automation['procedureKey']}: run now by {actor}"[:200],
+                           "summary": f"Started by {actor} with Run now on automation {automation['id']}"[:500]}}
+    result = {"started": not dry_run, "dryRun": dry_run, "automationId": automation["id"], "procedureKey": automation["procedureKey"],
+              "input": input_values, "timeoutSeconds": gate.timeout_seconds, "requestedBy": actor, "key": key}
+    if dry_run:
+        return result
+    row = {"pk": pk, "sk": key, "publicationId": publication["publicationId"], "procedureKey": automation["procedureKey"],
+           "automationId": automation["id"], "requestedBy": actor, "createdAt": stamp, "startedAt": stamp, "status": "starting",
+           "request": request}
+    writer.put(row)
+    try:
+        invoke(request)
+    except Exception as error:   # nothing started: the row says so, and the person is told
+        writer.put({**row, "status": "startFailed", "error": f"{type(error).__name__}"})
+        raise AutomationError(f"the procedure runner could not be started ({type(error).__name__}).") from error
+    return result
 
 
 # --- the command line -----------------------------------------------------------------------------------------
@@ -454,11 +634,27 @@ def _line(record: dict[str, Any], history: dict[str, Any] | None = None) -> str:
                       record["procedureKey"] or "", "enabled" if record["enabled"] else "disabled", last.get("status") or "no runs"])
 
 
+def cost_text(entry: dict[str, Any]) -> str:
+    if entry.get("costUsd") is None:
+        return "cost unknown"
+    return f"${entry['costUsd']:.4f}" + (" OVER BUDGET" if entry.get("overBudget") else "")
+
+
 def _print_runs(runs: list[dict[str, Any]]) -> None:
     for run in runs:
+        who = f"run now by {run['requestedBy']}" if run.get("origin") == "manual" else (run["sourceId"] or "")
         print("\t".join(str(part) for part in (
             "run", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
-            run["sourceId"] or "", run["runId"] or "-", run["storyId"] or "-", run["error"] or "")))
+            who, run["runId"] or "-", run["storyId"] or "-", cost_text(run), run["reason"] or run["error"] or "")))
+
+
+def _print_outside_runs(runs: list[dict[str, Any]]) -> None:
+    if runs:
+        print("outside\tStarted outside this automation:")
+    for run in runs:
+        print("\t".join(str(part) for part in (
+            "outside", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
+            run["requestedBy"] or "", run["runId"] or "-", run["storyId"] or "-", cost_text(run), run["error"] or "")))
 
 
 def noticeless(automation: dict[str, Any]) -> str:
@@ -466,7 +662,7 @@ def noticeless(automation: dict[str, Any]) -> str:
 
 
 def run_command(command: str, flags: list[str]) -> None:
-    """`papyrus automations list|show|runs|create|update`. Reads use the selected GraphQL lane; the monitoring table uses AWS credentials."""
+    """`papyrus automations list|show|runs|run|create|update`. Reads use the selected GraphQL lane; the monitoring table uses AWS credentials."""
     from .graphql_authoring import create_authoring_client
     from .options import parse_boolean_option, parse_options, resolve_mutation_apply
 
@@ -498,6 +694,26 @@ def run_command(command: str, flags: list[str]) -> None:
             print(json.dumps({"ok": True, "command": f"automations {command}", "dryRun": not apply, "automation": result}, indent=2))
         else:
             print(_line(result) + ("\t(dry run, nothing written)" if not apply else f"\t{command}d"))
+        return
+    if command == "run":
+        record_id = options.get("id")
+        if not isinstance(record_id, str):
+            raise AutomationError("papyrus automations run needs --id <automation id>.")
+        dry_run = not resolve_mutation_apply(options, "automations run")
+        client = create_authoring_client()[0]
+        row = client.get_record("Automation", record_id)
+        if not row:
+            raise AutomationError(f"automation {record_id} does not exist.")
+        table = monitoring_table_from_environment()
+        result = run_now(read_record(row), reader=MonitoringReader(table) if table is not None else None,
+                         writer=MonitoringWriter(table) if table is not None else None, invoke=lambda_invoker(),
+                         actor=os.environ.get("PAPYRUS_ACTOR_LABEL") or "papyrus-cli", supplied_input=_json_option(options, "input"),
+                         dry_run=dry_run)
+        if as_json:
+            print(json.dumps({"ok": True, "command": "automations run", **result}, indent=2))
+        else:
+            print("\t".join(["automations", record_id, "dry run, nothing started" if dry_run else "started",
+                             f"timeout {result['timeoutSeconds']} s", json.dumps(result["input"])]))
         return
     if command not in {"list", "show", "runs"}:
         raise ValueError(f"Unsupported papyrus automations command: {command}")
@@ -532,6 +748,10 @@ def run_command(command: str, flags: list[str]) -> None:
                 print(f"runs\t{reader_error}")
         else:
             _print_runs(automation["runs"])
+            _print_outside_runs(automation["outsideRuns"])
+            if automation["outsideNotice"]:
+                print(f"outside\tthe procedure's other runs could not be read ({automation['outsideNotice']})")
             if automation["skippedAlreadyHadReference"]:
                 print(f"skipped\t{automation['skippedAlreadyHadReference']} item(s) not started because the Reference already existed")
-            print(f"cost\t{COST_NOTE}")
+            known = [run["costUsd"] for run in automation["runs"] if run["costUsd"] is not None]
+            print(f"cost\t${sum(known):.4f} over {len(known)} of {len(automation['runs'])} listed run(s) with a recorded cost (an estimate)")
