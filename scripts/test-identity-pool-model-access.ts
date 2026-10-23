@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const MODELS_WITHOUT_IDENTITY_POOL_ACCESS = ["Assignment", "MessageThread"];
+const MODELS_WITHOUT_IDENTITY_POOL_ACCESS = ["Assignment", "MessageThread", "ReviewRequest", "ReviewReadMark", "ReviewRecipientRule"];
 
 function extractModelBlock(source: string, modelName: string): string {
   const start = new RegExp(`^  ${modelName}: `, "m").exec(source);

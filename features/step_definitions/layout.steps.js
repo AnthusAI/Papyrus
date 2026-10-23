@@ -51,7 +51,7 @@ Then("I should see the newsroom app shell", async function () {
   await page.waitForSelector("[data-newsroom-ops-shell='true']", { state: "visible", timeout: 15_000 });
   await page.waitForSelector("[data-newsroom-ops-topbar]", { state: "visible", timeout: 15_000 });
   const title = await page.locator("[data-newsroom-ops-title]").innerText();
-  assert.match(title, /Overview|Newsroom|Assignments|References|Topics|Concepts|Messages|Administration/i);
+  assert.match(title, /Overview|Notification Center|Newsroom|Assignments|References|Topics|Concepts|Messages|Administration/i);
 });
 
 Then("I should not see a newspaper masthead or paper page in the newsroom chrome", async function () {
@@ -411,7 +411,7 @@ Then("the newsroom should render", async function () {
   const page = requirePage(this);
   await page.locator("[data-news-desk]").waitFor({ state: "visible", timeout: 10_000 });
   assert.equal(await page.locator("[data-news-desk]").getAttribute("data-category-steering-demo"), "true");
-  await page.locator("[data-newsroom-ops-title]", { hasText: "Overview" }).waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-newsroom-ops-title]", { hasText: "Notification Center" }).waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-section='overview']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='desks']").waitFor({ state: "visible", timeout: 10_000 });
   await page.locator("[data-news-desk-tab='concepts']").waitFor({ state: "visible", timeout: 10_000 });
