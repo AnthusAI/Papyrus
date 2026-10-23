@@ -23,6 +23,7 @@ Operator groups:
   videos        Video pipeline commands
   reader        Reader steering exports (reader feedback export)
   proposals     File, decide and publish map proposals (proposals create|list|show|transition|publish)
+  ideas         Digest recent references and synthesise private story ideas (ideas digest|synthesize)
   editorial     Editorial context and quality loop commands
   publication   Create the backend's canonical publication (publication init)
   site          Site repository operations (site google-secrets set|check)
