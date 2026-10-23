@@ -29,6 +29,8 @@ import { applyCognitoDomainPrefix, authConfigFromEnv, defineSiteAuth, siteAuthRe
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient } from "./auth/prospectus-google-client";
 import { defineSiteData } from "./data/resource";
 import { editorialChecks } from "./functions/editorial-checks/resource";
+import { automationView } from "./functions/automation-view/resource";
+import { wireAutomationView } from "./functions/automation-view/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
 import { wireMonitoringView } from "./functions/monitoring-view/wire";
 import { wireEditorialChecks } from "./functions/editorial-checks/wire";
@@ -115,6 +117,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const backend = defineBackend({
     ...pluginFunctions,
     assignmentAction,
+    automationView,
     auth: defineSiteAuth(authConfig),
     categoryAction,
     contentActions,
@@ -766,6 +769,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   });
   wireEditorialChecks(backend);
   wireMonitoringView(backend);
+  wireAutomationView(backend);
   wirePlugins(backend, plugins, contentActionsLambda);
 
   return backend;

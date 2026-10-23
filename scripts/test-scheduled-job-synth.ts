@@ -218,6 +218,11 @@ template.hasResourceProperties("AWS::CloudWatch::Alarm", {
 });
 template.hasResourceProperties("AWS::Lambda::Function", { Runtime: "python3.12", Architectures: ["arm64"], Environment: { Variables: Match.objectLike({ JOB: "knowledge-run", PUBLICATION: "shipped" }) } });
 template.hasResourceProperties("AWS::Events::Rule", { ScheduleExpression: "cron(17 12 * * ? *)" });
+// boto3 names the Step Functions client "stepfunctions" ("states" is the IAM prefix, not a boto3 service); the first deploy had it wrong.
+const watchdog: any = Object.values(template.findResources("AWS::Lambda::Function")).find((fn: any) => fn.Properties.Description?.startsWith("Publishes the days since"));
+assert.ok(watchdog, "the watchdog function exists");
+assert.match(watchdog.Properties.Code.ZipFile, /boto3\.client\("stepfunctions"\)/);
+assert.doesNotMatch(watchdog.Properties.Code.ZipFile, /boto3\.client\("states"\)/);
 const watchdogStatements = policyStatements(template, "JobMissedWeekWatchdogServiceRoleDefaultPolicy");
 assert.deepEqual(watchdogStatements.map((statement: any) => statement.Action).sort(), ["cloudwatch:PutMetricData", "states:ListExecutions"]);
 

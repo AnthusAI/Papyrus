@@ -1,0 +1,31 @@
+{
+  "id": "PPY-93faf25b-880c-48f6-9919-7e1252e835fe",
+  "title": "Run background jobs on a local pod, with no cloud backend (M)",
+  "description": "Some Papyrus sites (Tactus-web, for example) have no cloud backend. They run from a Papyrus local pod and publish a static site, for example via GitHub Pages. Their procedures and pipelines currently have to be run by hand. This story is the local-pod runtime of the run contract (PPY-433383), so they get the same automations as cloud sites.\n\nScope:\n- Local ledger: a run ledger stored as a file in the pod, in the ProcedureRun shape.\n- File lock: the projection lease as a local lock with owner and expiry, taken by every projection on that pod.\n- 'papyrus automations run <key>', 'papyrus automations list' and 'papyrus automations history' against the local pod, using the same automation records the cloud uses.\n- OS scheduler install and uninstall for schedule triggers: 'papyrus automations schedule install' writes a launchd agent (macOS) or cron/systemd timer (Linux) that calls 'run'; 'uninstall' removes it. Nothing runs unless the operator installs it.\n- Failure and missed-run reporting: non-zero exit, a ledger entry, and an optional per-site notification command.\n- Publish step: the site's own publish step (for example commit and push for a Pages site), declared in config, runs only after projection succeeds.\n- Secrets come from the operator's environment or keychain and are never stored in the pod.\n- Docs: a 'Running Papyrus without a cloud backend' guide.\n\nAcceptance criteria:\n- The knowledge pipeline and one packaged procedure run end to end on a local pod without a Papyrus checkout.\n- A deliberate failure leaves the static output unchanged.\n- Scheduler install and uninstall are idempotent.\n- Gherkin specs (narrative, complete) required.\n\nDepends on PPY-433383 and PPY-e95a0c.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-M"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-433383bc-92f3-4903-8a4c-4ce034c60c97",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-e95a0cf3-0d2f-479f-b2c4-7137b10e21b1",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-23T05:53:05.951581Z",
+  "updated_at": "2026-10-23T06:08:36.628527Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

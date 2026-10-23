@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "572a7c5b-3318-4d9a-bc3f-30986ce9b9b9",
+  "issue_id": "PPY-8ffc18f6-6181-4fe4-bd07-2355c6d5193c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T06:21:29.259Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Idea pipeline: research digest, weekly trends, idea synthesis into Proposals (L)",
+    "description": "Scheduled jobs that turn research into story ideas filed as Proposals. This subsumes the trend story pipeline (PPY-fb4dfa). Smallest first version: the daily digest and the idea-synthesis job filing story_draft Proposals with a fixed ideas-per-week limit; weekly trends and section quotas follow once the first Proposals have been judged.\n\nScope:\n- A daily digest of newly accepted research, grouped by cluster and entity.\n- Weekly trends from the knowledge history archive (rising clusters, new concepts, momentum), run after the knowledge run.\n- Idea synthesis that reads the digest, the trends and existing published or in-flight stories (using the similarity index when available), and files story_draft Proposals with cited signals and a novelty reason.\n- Site knobs: ideas per week, section quotas, priority for uncovered sections.\n- An approved idea becomes a story in its first state, which triggers the story-state triggers story.\n- All three are automations on the run contract, outputs to review by default.\n\nAcceptance criteria:\n- The digest, trends and synthesis jobs run on schedule as automations and record runs.\n- Each filed Proposal cites its signals and gives a novelty reason; the weekly limit and section quotas are honoured.\n- Approving a story_draft Proposal creates a story in its first state.\n- Gherkin specs (narrative, complete) required.\n\nDepends on the human review points story, the story-state triggers story and the automation records story (PPY-2e6e2b). PPY-fb4dfa is folded into this story.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-L"
+    ]
+  }
+}

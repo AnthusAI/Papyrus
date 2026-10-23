@@ -14,6 +14,7 @@ import type { ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import amplifyOutputs from "papyrus-amplify-outputs";
 import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
+import { AutomationPanel } from "./automation-panel";
 import { MonitoringPanel } from "./monitoring-panel";
 import { ModerationPanel } from "./moderation-panel";
 import { NewsletterPanel } from "./newsletter-panel";
@@ -251,7 +252,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "delegations" | "signups" | "newsletter" | "moderation" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "editorial-checks" | "monitoring";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4316,6 +4317,15 @@ function AdministrationDeskView({
                 <span>Procedure registry and versioned Tactus code</span>
               </Link>
               <Link
+                href={administrationPanelHref("automations", isDemo)}
+                data-news-desk-admin-nav="automations"
+                data-active={administrationPanel === "automations" || undefined}
+                onClick={() => onPanelChange("automations")}
+              >
+                <strong>Automation</strong>
+                <span>Procedures that start on their own</span>
+              </Link>
+              <Link
                 href={administrationPanelHref("delegations", isDemo)}
                 data-news-desk-admin-nav="delegations"
                 data-active={administrationPanel === "delegations" || undefined}
@@ -4381,6 +4391,7 @@ function AdministrationDeskView({
               {administrationPanel === "newsletter" ? <NewsletterPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
+              {administrationPanel === "automations" ? <AutomationPanel isDemo={isDemo} /> : null}
               {administrationPanel === "monitoring" ? <MonitoringPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
               {administrationPanel === "delegations" ? <AdministrationDelegationsPanel disabled={disabled} /> : null}
               {administrationPanel === "users" ? (
@@ -12855,7 +12866,7 @@ function readerPluginEnabled(): boolean {
 }
 
 function normalizeAdministrationPanel(value: string | null | undefined, demo = false): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures" || value === "delegations" || value === "editorial-checks" || value === "monitoring") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
   if (value === "newsletter" && newsletterPluginEnabled(demo)) return value;
   if (value === "moderation" && readerPluginEnabled()) return value;

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "d8f2cd38-1971-4bf1-8fd8-09141d0f5db4",
+  "issue_id": "PPY-2e6e2b38-10ff-4102-ae18-d967d5bd64f1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T06:07:50.469Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Automation records: triggers (monitor, schedule, event, manual) bound to procedures (M)",
+    "description": "Add automation records to each site's backend: a trigger bound to a procedure key plus an input template, run through the one run contract (PPY-433383).\n\nScope:\n- Backend model: an Automation record with trigger, procedure key, input template, enabled flag, budget/timeout, concurrency limit, idempotency key and alarm settings.\n- Trigger kinds: monitor, schedule, event, manual.\n- Schedule triggers use EventBridge Scheduler, created from the record by IaC; nothing manual.\n- Event triggers come from existing domain events: reference ingested, story approved, proposal enters review.\n- Migrate the existing monitor trigger (as used by Distinctive's TTAB monitor) onto an Automation record without changing its behaviour.\n- Enable/disable per automation. Budget, concurrency limit and idempotency key are enforced at run start; a duplicate or over-limit start is recorded and refused.\n- Alarms on failure and on a missed schedule.\n\nAcceptance criteria:\n- Each of the four trigger kinds starts a run of a registered procedure with its input template.\n- A disabled automation never starts; a duplicate idempotency key does not start a second run; the concurrency limit is honoured.\n- The migrated monitor starts the same run as before.\n- A failure and a missed schedule raise an alarm.\n- Gherkin specs (narrative, complete) required, plus CDK assertions for the scheduler and alarms.\n\nDepends on PPY-433383.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": [
+      "size-M"
+    ]
+  }
+}

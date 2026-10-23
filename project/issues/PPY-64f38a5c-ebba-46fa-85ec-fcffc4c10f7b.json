@@ -3,7 +3,7 @@
   "title": "Enable newsletters on Shipped end to end",
   "description": "Shipped-web: pin bump, newsletter plugin config, signup component on the roundup page, roundup archive at /roundup/. Verify with a test inbox Ryan controls. Tracks ship-7e99a6.",
   "type": "story",
-  "status": "blocked",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -24,11 +24,18 @@
       "text": "Board reconciliation 2026-10-22 (live checks 10:30-10:45Z). Blocked. Shipped is live with the newsletter plugin and /roundup/ signup (Shipped-web #30, #33). Waiting on: (1) the email lead's fix to the confirmation page (reported unstyled and a 404 after submit), then (2) Ryan's real-inbox test of confirm, a test alert and one-click unsubscribe. Close when that passes.",
       "created_at": "2026-10-22T10:45:14.056988Z",
       "comment_type": "default"
+    },
+    {
+      "id": "5bd36373-7cd5-4dfc-b6b8-032f07da1ebd",
+      "author": "home",
+      "text": "Verified live on Shipped (2026-10-22/23): double opt-in through clean /newsletter/* pages (simulator retest 10/10 on 5.26.0; Ryan's own confirmation recorded 16:14:13Z with consent fields); branded alert REAX 1.1 delivered to the only subscriber (SES 010001a165670336-dad65713-bce2-46e3-b052-7be7aa408aad-000000, queued 1 sent 1 delivered 1); RFC 8058 one-click POST tested server-side with Ryan's approval: 200, no redirect, body Unsubscribed.; alerts-decisions unsubscribed at 2026-10-23T05:44:57Z (profile history 'unsubscribed:alerts-decisions', byList count 0, COUNT row 0 confirmed / 1 unsubscribed) while weekly, alerts-shipped and alerts-open-weights stay subscribed. Server side proven; the mail client's own Unsubscribe button was not exercised. Simulator bounce/complaint suppression, pause alarms OK, sending enabled.",
+      "created_at": "2026-10-23T05:45:27.590874Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-22T02:43:40.960263Z",
-  "updated_at": "2026-10-22T10:45:14.057014Z",
-  "closed_at": null,
+  "updated_at": "2026-10-23T05:45:27.623754Z",
+  "closed_at": "2026-10-23T05:45:27.623718Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

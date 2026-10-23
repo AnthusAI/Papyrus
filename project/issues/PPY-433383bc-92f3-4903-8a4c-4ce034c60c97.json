@@ -1,0 +1,27 @@
+{
+  "id": "PPY-433383bc-92f3-4903-8a4c-4ce034c60c97",
+  "title": "One procedure run contract across Lambda, Fargate and local-pod runtimes (L)",
+  "description": "Define one run contract that every procedure run follows, whatever the trigger and wherever it runs: load the published version, record the run, execute, write back. This replaces the four paths (CLI cloud-source fetch, assignment-action key dispatch, runner Lambda, Fargate construct from PPY-dca7cd).\n\nScope:\n- The shared contract, with three runtimes: the papyrus-procedure-runner Lambda (default); Fargate for procedures marked long or heavy; local pod (the local-pod runtime is built in PPY-93faf2).\n- A per-procedure runtime field (lambda | container | local) on the definition, defaulting to lambda.\n- The Fargate runtime reuses the Step Functions + Fargate construct from PPY-dca7cd, driven by the contract.\n- Guardrails in the contract: a cost estimate per run; the projection lease for anything touching pages, and never reconcile; failure before projection leaves the site unchanged; idempotency keys and a run record.\n- Retire amplify/functions/assignment-action's fixed key dispatch; its kinds run through the contract.\n- The knowledge pipeline is expressed as a container-runtime automation (stale-checkout guard and projection-deletion guard preserved). PPY-dca7cd remains blocked on Ryan's approval to run it in AWS.\n- The trend-story pipeline (PPY-fb4dfa) uses the contract instead of its own runner.\n\nAcceptance criteria:\n- The same procedure runs unchanged on the Lambda and container runtimes and records the same ProcedureRun shape.\n- A deliberate failure on each runtime stops before projection and leaves the site unchanged.\n- assignment-action no longer dispatches by fixed key.\n- CDK assertions for the container runtime; one example automation configured but disabled.\n- Gherkin specs (narrative, complete) required.\n\nDepends on PPY-1b2edd.",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-L"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-1b2edd12-5a13-4a0a-aff6-5208cb8acfa3",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-23T05:53:02.372148Z",
+  "updated_at": "2026-10-23T06:08:12.280496Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

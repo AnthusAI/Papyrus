@@ -102,6 +102,10 @@ Inspect: the Step Functions console (one state per stage), the log group of the 
 
 Seeding state for a new publication: upload `vocabulary.yml`, `stop-words.txt` and `amplify_outputs.json` to `config/`, and, to carry cluster identity from an earlier workstation run, the whole workstation corpus to `corpus/` (its `knowledge-run.json` names the previous run, and that run's analysis must be in the corpus).
 
+### Building and pushing the image
+
+`infra/knowledge-run/build_image.sh` builds the arm64 image from `infra/knowledge-run/Dockerfile` (Papyrus and Biblicus from PyPI at `PAPYRUS_VERSION` and `BIBLICUS_VERSION`, `awscrt`, the models baked in at pinned revisions) and pushes it with the tag you give in `IMAGE_TAG` (default the git sha). `PAPYRUS_SPEC='papyrus-newsroom[markus] @ git+https://github.com/AnthusAI/Papyrus@<sha>'` builds a commit that is not released yet. The first build takes about 15 minutes, later ones one layer. If Docker Desktop's credential helper hangs, point `DOCKER_CONFIG` at an empty directory containing `{}` and set `DOCKER_HOST=unix://$HOME/.docker/run/docker.sock`. Deploy the tag with `cdk deploy ... -c imageTag=<tag>` (a new task-definition revision; the state machine picks up the latest revision at the start of each stage, so do not deploy during a run).
+
 ### Testing a failure
 
 ```bash
@@ -111,9 +115,42 @@ aws stepfunctions start-execution --state-machine-arn <arn> --name test-fail-$(d
 
 The stage `ai-review` fails on entry, the machine stops, the failure alarm publishes to SNS and the site is unchanged. A scheduled execution never carries `failStage`, and a name that does not start with `test-` ignores it.
 
+## First runs
+
+Shipped, October 2026, 4 vCPU and 16 GB ARM64 for every stage, image `papyrus-newsroom` 5.31.0 and Biblicus 1.16.0 on CPU.
+
+| Execution | Result | Time |
+| --- | --- | --- |
+| `manual-20261022T211018` | Nine stages passed. `projection` failed all three attempts: botocore needs `awscrt` to sign the CloudFront KeyValueStore call (SigV4a), at the first line of the projection, before any write. The failure alarm fired and published to SNS. Fixed by adding `awscrt` to the image. | 75 min (a backlog: the first AI review judged 719 entities, 35 calls, 80 accepted and 577 rejected) |
+| `manual-20261023T041010` | Succeeded: 10 stages. Projection wrote 1,224 files and deleted 0. | 46 min |
+| `test-fail-20261023T045833` (`failStage` `ai-review`) | Failed at `ai-review` after three attempts, stopped before `snapshot`; alarm fired. Site byte-identical before and after (all 2,110 keys, the `newsletter/` and `_plugins/` listings with sizes and ETags, the knowledge index and archive). | 24 min |
+| `da6adaf1-...` (started by the weekly schedule at a test time, then the cron was set back) | Succeeded: 10 stages, nobody involved. Projection wrote 1,224 files and deleted 0. | 42 min |
+
+Stage times of the second run (state entered to next state, including about 1.5 minutes of task start and image pull): `corpus-sync` 3.0, `topic-model` 3.4, `typed-extraction` 6.5, `publish-run` 5.9, `ai-review` 6.8, `publish-relations` 5.5, `snapshot` 2.7, `archive` 1.6, `wiki-sync` 7.7, `projection` 4.2 minutes.
+
+What the first runs taught:
+
+- `awscrt` is needed for the redirect store, so it is in the image.
+- A week that has an archive entry already (the one-off run made it) keeps that entry: the archive stage skips and says so in the ledger, `archive: kept-existing (run <id>)`. A corrupt entry, or one for another week, fails the stage.
+- The Amplify job list is ordered by job id, which is not the order deploys finish in, so the deployed commit is the `SUCCEED` job with the latest `endTime`.
+- CloudWatch refuses an alarm that looks back more than 7 days, hence the watchdog Lambda for the missed-week alarm (it needs the `stepfunctions` boto3 client; `states` is only the IAM prefix).
+- The deploys of the site itself also render the wiki pages that the run publishes, so the wiki can show new pages before the run's own projection.
+
 ## Cost
 
-The design estimate was 1.50 to 2.50 USD a month. Measured figures are in the "First runs" section below. The levers: the stage list runs about two hours of Fargate a week, so vCPU-hours dominate; Graviton ARM64 is about 20 percent cheaper than x86; there is no NAT gateway (tasks run in public subnets with egress-only security groups) and S3 and DynamoDB are reached through free gateway endpoints; the other costs are cents (ECR storage of the image, CloudWatch Logs, DynamoDB on demand, Step Functions state transitions).
+The design estimate was 1.50 to 2.50 USD a month. Measured with the run times above at the ARM64 Fargate rate (4 vCPU at 0.03238 USD per hour, 16 GB at 0.00356 per GB-hour, 20 GB of extra storage, about 0.189 USD per hour):
+
+| Item | Per run | Per month (4.33 runs) |
+| --- | --- | --- |
+| Fargate, 42 to 46 minutes | about 0.14 USD | about 0.6 USD |
+| Public IPv4 of the tasks, Step Functions, logs | under 0.01 USD | about 0.03 USD |
+| Alarms (the failure alarm sums three metrics) | | 0.40 USD |
+| ECR storage of the image (about 4 GB per image, layers shared) | | 0.5 to 1.2 USD |
+| DynamoDB, S3 state, Lambda, EventBridge, SNS | | cents |
+| GPT-6 Luna reviews (35 calls on the first backlog, a handful in a normal week) | | cents |
+| Total | | about 2 USD |
+
+No NAT gateway (tasks run in public subnets with egress-only security groups) and S3 and DynamoDB are reached through the free gateway endpoints. Cost Explorer lags a day and does not yet break Fargate out by tag; check `Amazon Elastic Container Service` after a week. The stages that do little (`snapshot`, `archive`, `wiki-sync`, `projection`) could run at 2 vCPU and 8 GB for under 0.1 USD a month; that is a per-stage `vCpu` and `memoryMiB` in the pipeline definition if the bill ever matters.
 
 ## Another job
 

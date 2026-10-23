@@ -1,0 +1,42 @@
+{
+  "id": "PPY-2e6e2b38-10ff-4102-ae18-d967d5bd64f1",
+  "title": "Automation records: triggers (monitor, schedule, event, manual) bound to procedures (M)",
+  "description": "Add automation records to each site's backend: a trigger bound to a procedure key plus an input template, run through the one run contract (PPY-433383).\n\nScope:\n- Backend model: an Automation record with trigger, procedure key, input template, enabled flag, budget/timeout, concurrency limit, idempotency key and alarm settings.\n- Trigger kinds: monitor, schedule, event, manual.\n- Schedule triggers use EventBridge Scheduler, created from the record by IaC; nothing manual.\n- Event triggers come from existing domain events: reference ingested, story approved, proposal enters review.\n- Migrate the existing monitor trigger (as used by Distinctive's TTAB monitor) onto an Automation record without changing its behaviour.\n- Enable/disable per automation. Budget, concurrency limit and idempotency key are enforced at run start; a duplicate or over-limit start is recorded and refused.\n- Alarms on failure and on a missed schedule.\n\nAcceptance criteria:\n- Each of the four trigger kinds starts a run of a registered procedure with its input template.\n- A disabled automation never starts; a duplicate idempotency key does not start a second run; the concurrency limit is honoured.\n- The migrated monitor starts the same run as before.\n- A failure and a missed schedule raise an alarm.\n- Gherkin specs (narrative, complete) required, plus CDK assertions for the scheduler and alarms.\n\nDepends on PPY-433383.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [
+    "size-M"
+  ],
+  "dependencies": [
+    {
+      "target": "PPY-433383bc-92f3-4903-8a4c-4ce034c60c97",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "977a578a-70eb-44df-82dd-912fd615869b",
+      "author": "home",
+      "text": "Landed in develop: feature PR #630 merge dca96b48, board PR #629 merge c2328d32. Not promoted to main. See docs/automations.md.",
+      "created_at": "2026-10-23T07:25:01.765831Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6dad3c16-115f-4939-8650-cd17784a6140",
+      "author": "home",
+      "text": "Landed in develop: feature PR #630 merge dca96b48, board PR #629 merge c2328d32. Not promoted to main. See docs/automations.md.",
+      "created_at": "2026-10-23T07:25:11.803197Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-23T06:07:50.469599Z",
+  "updated_at": "2026-10-23T07:25:11.803227Z",
+  "closed_at": "2026-10-23T07:25:01.805096Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

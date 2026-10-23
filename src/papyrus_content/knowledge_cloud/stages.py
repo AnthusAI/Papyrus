@@ -433,7 +433,26 @@ def projection(run: Run) -> dict:
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages
     run.install_pinned_papyrus()
     run.shell(arguments, cwd=run.work, env={**run.command_env(), "PYTHONPATH": str(run.pinned)}, stdout=run.work / "projection.json")
-    return json.loads((run.work / "projection.json").read_text() or "{}")
+    raw = (run.work / "projection.json").read_text()
+    print(f"projection report: {raw.strip()}", flush=True)  # the report is the evidence of what a run wrote and deleted
+    return first_json_object(raw)
+
+
+def first_json_object(text: str) -> dict:
+    """The projection report in a command's output: the first JSON object with a `written` count. The output also carries
+    other lines, among them CloudWatch metric lines that are JSON too."""
+    decoder = json.JSONDecoder()
+    start = text.find("{")
+    while start != -1:
+        try:
+            value, end = decoder.raw_decode(text[start:])
+        except ValueError:
+            start = text.find("{", start + 1)
+            continue
+        if isinstance(value, dict) and "written" in value:
+            return value
+        start = text.find("{", start + end)
+    raise StageFailed("The projection printed no report (a JSON object with a `written` count).")
 
 
 STAGE_FUNCTIONS: dict[str, Callable[[Run], dict]] = {
