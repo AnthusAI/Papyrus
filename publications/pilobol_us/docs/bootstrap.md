@@ -50,7 +50,7 @@ Create a **new** Amplify app (console or authenticated CLI):
 
 ### Branch environment variables
 
-Set on the CMS branch (mirror Threat Intelligence `d3on1y5vlrxmam` / `main`):
+Set on the CMS branch (mirror Threat Intelligence `d12wnrx15qbcc2` / `main`):
 
 ```bash
 PAPYRUS_SITE_BRAND=pilobol-us
