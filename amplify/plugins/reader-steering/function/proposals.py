@@ -99,6 +99,11 @@ MAXIMUM_BODY = 50_000
 MAXIMUM_REASON = 500
 MAXIMUM_EVIDENCE_SOURCE = 200
 MAXIMUM_EVIDENCE_SIGNALS = 1_000_000
+#: An optional figure spec kept in ``evidence.figure``: a small chart of cited series (no image), approved with the copy.
+FIGURE_TYPES = ("line", "bar")
+MAXIMUM_FIGURE_POINTS = 60
+MAXIMUM_FIGURE_SERIES = 6
+MAXIMUM_FIGURE_BYTES = 8_000
 
 
 @dataclass
@@ -190,18 +195,53 @@ def clean_targets(kind: str, raw: Any) -> list[dict[str, str]] | Outcome:
     return targets
 
 
+def clean_figure(raw: Any) -> dict[str, Any] | None:
+    """A chart spec ``{type, title, caption, unit, source, x, series: [{signal, label, values}]}``, or None when it is malformed.
+
+    Unknown keys are dropped. Every series has exactly one value per ``x`` label; values are whole or decimal numbers, never text."""
+    if not isinstance(raw, dict) or raw.get("type") not in FIGURE_TYPES:
+        return None
+    title, caption, unit, source = (clean_text(raw.get(key), limit) for key, limit in (("title", 200), ("caption", 300), ("unit", 60), ("source", MAXIMUM_EVIDENCE_SOURCE)))
+    x, series = raw.get("x"), raw.get("series")
+    if None in (title, caption, unit, source) or not isinstance(x, list) or not isinstance(series, list):
+        return None
+    if not 2 <= len(x) <= MAXIMUM_FIGURE_POINTS or not 1 <= len(series) <= MAXIMUM_FIGURE_SERIES:
+        return None
+    labels = [clean_text(label, 20) for label in x]
+    if None in labels:
+        return None
+    cleaned = []
+    for entry in series:
+        if not isinstance(entry, dict):
+            return None
+        signal, label, values = clean_text(entry.get("signal"), 130), clean_text(entry.get("label"), 120), entry.get("values")
+        if signal is None or label is None or not isinstance(values, list) or len(values) != len(labels):
+            return None
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1_000_000_000 for value in values):
+            return None
+        cleaned.append({"signal": signal, "label": label, "values": list(values)})
+    figure = {"type": raw["type"], "title": title, "caption": caption, "unit": unit, "source": source, "x": labels, "series": cleaned}
+    return figure if len(json.dumps(figure)) <= MAXIMUM_FIGURE_BYTES else None
+
+
 def clean_evidence(raw: Any) -> dict[str, Any] | None | Outcome:
     parsed = parse_json(raw) if raw is not None else None
     if parsed is None:
         return None
     if not isinstance(parsed, dict):
-        return refused("invalid_evidence", "evidence must be {signals, source}.")
+        return refused("invalid_evidence", "evidence must be {signals, source} with an optional figure.")
     signals, source = parsed.get("signals"), parsed.get("source")
     if not isinstance(signals, int) or isinstance(signals, bool) or not 0 <= signals <= MAXIMUM_EVIDENCE_SIGNALS:
         return refused("invalid_evidence", "evidence.signals must be a whole number of signals.")
     if source is not None and clean_text(source, MAXIMUM_EVIDENCE_SOURCE) is None:
         return refused("invalid_evidence", "evidence.source must be short text.")
-    return {"signals": signals, "source": source.strip() if isinstance(source, str) else None}
+    evidence = {"signals": signals, "source": source.strip() if isinstance(source, str) else None}
+    if parsed.get("figure") is not None:
+        figure = clean_figure(parsed["figure"])
+        if figure is None:
+            return refused("invalid_evidence", "evidence.figure must be a small chart spec: type line or bar, title, caption, unit, source, x labels and series with one value per label.")
+        evidence["figure"] = figure
+    return evidence
 
 
 def file_proposal(arguments: dict[str, Any], *, actor_sub: str, now_iso: str, proposal_id: str | None = None) -> tuple[dict[str, Any] | None, Outcome | None]:

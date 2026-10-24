@@ -130,6 +130,29 @@ def editor_files_titled(context, kind: str, title: str) -> None:
     file_proposal(context, arguments_for(kind, title))
 
 
+FIGURE = {
+    "type": "line", "title": "Items per week", "caption": "Two weeks of counts.", "unit": "items per week", "source": "knowledge snapshot 2026-10-19",
+    "x": ["2026-10-12", "2026-10-19"], "series": [{"signal": "entity:platform--hugging-face", "label": "Hugging Face", "values": [3, 2]}],
+}
+
+
+@when('the editor files a "story_draft" proposal with a chart spec in its evidence')
+def editor_files_figure(context) -> None:
+    file_proposal(context, arguments_for("story_draft", evidence=json.dumps({"signals": 1, "source": "knowledge snapshot", "figure": FIGURE})))
+
+
+@when('the editor files a "story_draft" proposal whose chart has a value for only one of its two weeks')
+def editor_files_broken_figure(context) -> None:
+    broken = {**FIGURE, "series": [{**FIGURE["series"][0], "values": [3]}]}
+    file_proposal(context, arguments_for("story_draft", evidence=json.dumps({"signals": 1, "source": "knowledge snapshot", "figure": broken})))
+
+
+@then("the stored evidence holds the chart spec as filed")
+def stored_figure(context) -> None:
+    (row,) = backend_of(context).proposals()
+    assert json.loads(row["evidence"])["figure"] == FIGURE, row
+
+
 @when("the editor files proposals of every kind")
 def editor_files_every_kind(context) -> None:
     for kind in TARGETS:
