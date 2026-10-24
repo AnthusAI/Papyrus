@@ -83,12 +83,11 @@ def test_all_unique_links_inside_message_byte_bound_are_extracted_without_editor
     assert len(extract_submission(raw)["links"]) == 1100
 
 
-def test_known_beehiiv_click_tracker_is_excluded_without_resolution():
+def test_known_beehiiv_click_tracker_is_retained_unresolved_without_resolution():
     tracker = "https://link.mail.beehiiv.com/ss/c/opaque-recipient-route"
     result = extract_submission(message(tracker + "\nhttps://example.org/article"))
-    assert [link["url"] for link in result["links"]] == ["https://example.org/article"]
-    assert result["excludedLinkCount"] == 1
-    assert "excluded_links" in result["warnings"]
+    assert [link["url"] for link in result["links"]] == [tracker, "https://example.org/article"]
+    assert result["links"][0]["resolutionStatus"] == "unresolved"
 
 
 def test_base64_and_quoted_printable_text_are_decoded():

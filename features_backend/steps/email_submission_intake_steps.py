@@ -101,7 +101,9 @@ def email_rejected(context):
 def email_receipt_verdict_diagnostics(context):
     receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
     diagnostics = receipt["sesDiagnostics"]
-    assert receipt["status"] == "queued" and receipt["emailTrustMode"] == "data-only"
+    assert receipt["status"] == "pending_review" and receipt["emailTrustMode"] == "data-only"
+    assert receipt["reviewRequired"] is True
+    assert context.email_fixture.table.by_prefix("DISC#") == []
     assert diagnostics["provenance"] == "ses-invocation-receipt-untrusted-auth-signals"
     assert diagnostics["verdicts"]["dmarc"] == "FAIL"
     assert diagnostics["warnings"] == ["spf_not_passed", "dkim_not_passed", "dmarc_not_passed"]
@@ -111,11 +113,32 @@ def email_receipt_verdict_diagnostics(context):
 
 @then("the message is queued only within its configured destination")
 def email_is_queued_in_explicit_destination(context):
-    assert context.email_results[0]["status"] == "queued"
+    receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    expected_status = "pending_review" if receipt.get("reviewRequired") else "queued"
+    assert context.email_results[0]["status"] == expected_status
     rows = context.email_fixture.table.by_prefix("DISC#")
     expected = context.email_fixture.config["publicationIds"]
-    assert rows and all(row["emailTrustMode"] == "data-only"
-                        and row["emailDestinationPublicationIds"] == expected for row in rows)
+    if receipt.get("reviewRequired"):
+        assert rows == []
+    else:
+        assert rows and all(row["emailTrustMode"] == "data-only"
+                            and row["emailDestinationPublicationIds"] == expected for row in rows)
+
+
+@then("the message is held for private review within its configured destination")
+def email_held_for_review(context):
+    result = context.email_results[0]
+    receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    assert result["status"] == "pending_review"
+    assert receipt["reviewRequired"] is True
+    assert receipt["emailDestinationPublicationIds"] == context.email_fixture.config["publicationIds"]
+    assert context.email_fixture.table.by_prefix("DISC#") == []
+
+
+@then("no discoveries are created for the classifier or router")
+def email_has_no_discoveries(context):
+    assert context.email_fixture.table.by_prefix("DISC#") == []
+    assert context.email_fixture.table.by_prefix("ROUTE#") == []
 
 
 @then("no Cognito editor membership lookup is made")
@@ -154,6 +177,12 @@ def shared_membership_destination(context):
     context.email_fixture = shared_fixture()
 
 
+@given("an isolated shared email destination and a newsletter email")
+def email_shared_destination(context):
+    from procedures.newsroom.tests.test_email_submission_intake import shared_fixture
+    context.email_fixture = shared_fixture()
+
+
 @then("the discovery carries only the two configured destination publications")
 def discovery_has_exact_destination_scope(context):
     rows = context.email_fixture.table.by_prefix("DISC#")
@@ -183,6 +212,9 @@ def cyclotron_selection_stays_in_destination(context):
 @given("a prior authentication-rejected SES delivery with passing spam and virus checks")
 def prior_authentication_rejection(context):
     fixture = email_fixture()
+    ses_receipt = fixture.event["Records"][0]["ses"]["receipt"]
+    for field in ("spfVerdict", "dkimVerdict", "dmarcVerdict"):
+        ses_receipt[field]["status"] = "FAIL"
     message_id = fixture.event["Records"][0]["ses"]["mail"]["messageId"]
     receipt_id = "EMAIL#" + sha256(message_id.encode()).hexdigest()
     from papyrus_content.email_submission_intake import validate_email_config
@@ -208,17 +240,17 @@ def replay_stored_email(context):
     context.email_results = [collect_email(context.email_fixture), collect_email(context.email_fixture)]
 
 
-@then("the original private receipt is queued as data-only")
+@then("the original private receipt is held for review as data-only")
 def replay_receipt_queued(context):
-    assert context.email_results[0]["status"] == "queued"
-    assert context.email_results[1]["status"] == "duplicate"
-    assert context.email_fixture.table.by_prefix("EMAIL#")[0]["emailTrustMode"] == "data-only"
+    assert context.email_results[0]["status"] == "pending_review", context.email_results
+    assert context.email_results[1]["status"] == "duplicate", context.email_results
+    receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    assert receipt["emailTrustMode"] == "data-only" and receipt["reviewRequired"] is True, receipt
 
 
 @then("replay does not create duplicate discoveries")
 def replay_is_idempotent(context):
-    rows = context.email_fixture.table.by_prefix("DISC#")
-    assert len(rows) == 2 and len({row["sourceId"] for row in rows}) == 2
+    assert context.email_fixture.table.by_prefix("DISC#") == []
 
 
 @when("the router Account binding changes before delivery")

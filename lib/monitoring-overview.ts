@@ -35,12 +35,13 @@ export type MonitoringItem = {
 export type MonitoringEmailSummary = {
   receiptId: string; observedAt: string | null; status: string; subject: string | null;
   envelopeSender: string | null; headerFrom: string | null; warnings: string[];
-  verdicts: Record<string, string>; linkCount: number; processedCount: number; errorCode: string | null;
+  verdicts: Record<string, string>; linkCount: number; processedCount: number; unresolvedLinkCount: number;
+  reviewRequired: boolean; errorCode: string | null;
 };
 
 export type MonitoringEmailDetails = {
   submission: MonitoringEmailSummary; safeBodyText: string;
-  candidateLinks: { url: string; title: string }[]; sourceMaterialIsUntrusted: true;
+  candidateLinks: { url: string; title: string; resolutionStatus?: "unresolved" }[]; sourceMaterialIsUntrusted: true;
 } | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
 
 export type MonitoringRun = {

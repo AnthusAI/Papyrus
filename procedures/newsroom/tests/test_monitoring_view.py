@@ -205,6 +205,9 @@ def test_email_submission_details_are_editor_only_and_publication_scoped():
     assert result["safeBodyText"] == "Read as plain text\n"
     assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
     assert result["sourceMaterialIsUntrusted"] is True
+    store.table[receipt_id]["status"] = "pending_review"
+    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    assert result["submission"]["status"] == "pending_review"
     denied = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=lambda: store)
     assert denied == {"error": "forbidden"}
     refused = mv.handle({**event, "identity": {"groups": ["reader"]}},

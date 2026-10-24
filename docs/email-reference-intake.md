@@ -43,9 +43,12 @@ The receiver trusts only an SES-origin invocation, its exact envelope recipients
 and passing spam and virus verdicts. To/Cc, From, Authentication-Results and other
 MIME headers cannot grant access or select a destination. SPF, DKIM and DMARC are
 recorded as untrusted provenance signals; failed or unavailable results do not
-block safe data-only intake. A sender address never grants an editor role or causes
-a privileged action. Destination publications come only from the exact recipient's
-private configuration, and the router checks that same scope before delivery.
+block safe data-only intake. Instead, those messages and their extracted links are
+visible only to editors of the configured destination in `pending_review`; they do
+not create discoveries or reach the Cyclotron/router automatically. A sender address
+never grants an editor role or causes a privileged action. Destination publications
+come only from the exact recipient's private configuration, and the router checks
+that same scope before delivery.
 
 Parsing is bounded to 1 MiB, 64 MIME parts, nesting depth 12 and 2,048 characters
 per candidate URL. There is no editorial link-count ceiling: every unique eligible
@@ -55,16 +58,14 @@ notifications are rejected; ordinary newsletters are allowed. HTML is parsed as
 text and never rendered or executed. A legacy `maxLinks` configuration field is
 ignored; it does not truncate or reject message content.
 
-Only public-looking HTTP/HTTPS URLs survive. Credentials, unusual ports, literal
-nonpublic IPs, local hosts, unsubscribe/preferences/login/confirmation actions,
-tracking redirectors and secret-bearing links are excluded. Tracking parameters
-and fragments are removed before deduplication. No URL is fetched, followed or
-resolved during intake, including to unwrap a tracker. This bounds intake
-network activity to the configured S3 and DynamoDB resources. It intentionally
-misses newsletters whose only article links are opaque tracking redirects.
-Known Beehiiv `link.mail.beehiiv.com/ss/c/` click wrappers are excluded without
-storing their recipient-specific URL; Papyrus does not resolve them or contact
-tracking hosts.
+Only public-looking HTTP/HTTPS article URLs become discoveries. Credentials,
+unusual ports, literal nonpublic IPs, local hosts, unsubscribe/preferences/login/
+confirmation actions and secret-bearing links are excluded. Tracking parameters
+and fragments are removed from ordinary article URLs before deduplication. Known
+Beehiiv `link.mail.beehiiv.com/ss/c/` wrappers are retained as private unresolved
+candidates for editor review, but are not emitted as discoveries or made clickable.
+No URL is fetched, followed or resolved during intake, including to unwrap a
+tracker. This bounds intake network activity to configured S3 and DynamoDB resources.
 
 An offline-tested resolver helper exists for a future explicitly approved
 integration. It accepts only that exact Beehiiv HTTPS wrapper, uses injected DNS
@@ -85,6 +86,8 @@ own safe-fetch policy; this change does not authorize fetching private resources
 The raw MIME is retained in the private 30-day S3 prefix. Editors can read a safe
 text rendering, bounded SES verdicts and every extracted candidate link through the
 existing authenticated Monitoring page, scoped to their configured publication.
+Authentication-warning submissions show as `pending_review` and do not create
+router discoveries; the editor UI renders unresolved tracking URLs as non-clickable text.
 HTML is converted to inert text: scripts, styles, remote images, markup and active
 content are never rendered. Email body text is not sent to the classifier; only
 normalized candidate URLs and bounded link titles enter discovery. These private

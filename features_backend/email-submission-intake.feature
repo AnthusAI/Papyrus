@@ -18,12 +18,20 @@ Feature: Email submissions enter the existing reference discovery queue
     Then the receipt remains processing after 25 links and finishes after 16 more
     And all 41 unique links have one durable discovery
 
-  Scenario: Failed sender authentication is recorded but does not block data-only intake
+  Scenario: Failed sender authentication is recorded for private review
     Given an isolated publication email destination and a newsletter email
     And the SES receipt reports failed SPF, DKIM and DMARC checks
     When the email collector receives the SES delivery
-    Then the message is queued only within its configured destination
+    Then the message is held for private review within its configured destination
     And the private receipt records untrusted authentication signals as warnings
+    And the original body is available only as inert text to that publication's editors
+
+  Scenario: Authentication-warning mail cannot reach the classifier or reference router
+    Given an isolated shared email destination and a newsletter email
+    And the SES receipt reports failed SPF, DKIM and DMARC checks
+    When the email collector receives the SES delivery
+    Then the message is held for private review within its configured destination
+    And no discoveries are created for the classifier or router
     And the original body is available only as inert text to that publication's editors
 
   Scenario: Sender headers do not grant authority or choose a destination
@@ -39,10 +47,10 @@ Feature: Email submissions enter the existing reference discovery queue
     Then the discovery carries only the two configured destination publications
     And the Cyclotron can choose only among those publications
 
-  Scenario: Rejected authentication-only delivery can be replayed idempotently
+  Scenario: Previously rejected authentication delivery can be replayed for private review
     Given a prior authentication-rejected SES delivery with passing spam and virus checks
     When the operator replays its stored SES message
-    Then the original private receipt is queued as data-only
+    Then the original private receipt is held for review as data-only
     And replay does not create duplicate discoveries
 
   Scenario: One email cannot cross destination scopes

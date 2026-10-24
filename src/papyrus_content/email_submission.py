@@ -448,23 +448,35 @@ def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
             continue
         if is_supported_beehiiv_tracking_url(raw_url):
             if tracking_resolver is None:
-                url = None
+                # Preserve the publisher's original click wrapper as private,
+                # unresolved source material. Never dereference subscriber URLs
+                # during extraction; the monitoring UI renders these as text.
+                url = raw_url.strip()
+                resolution_status = "unresolved"
             else:
                 try:
                     resolved = tracking_resolver(raw_url)
                 except Exception:
                     warnings.add("tracking_resolution_failed")
-                    excluded_count += 1
-                    continue
-                url = safe_editorial_url(resolved)
+                    url = raw_url.strip()
+                    resolution_status = "unresolved"
+                else:
+                    url = safe_editorial_url(resolved)
+                    resolution_status = "resolved" if url is not None else "unresolved"
+                    if url is None:
+                        url = raw_url.strip()
         else:
             url = safe_editorial_url(raw_url)
+            resolution_status = "resolved" if url is not None else "unresolved"
         if url is None:
             warnings.add("excluded_links")
             excluded_count += 1
             continue
         if url not in links or title:
-            links[url] = {"url": url, "title": _link_title(title, url)}
+            link = {"url": url, "title": _link_title(title, url)}
+            if resolution_status != "resolved":
+                link["resolutionStatus"] = "unresolved"
+            links[url] = link
     result_links = [item for url, item in links.items() if url not in excluded]
     if plain_bodies:
         safe_body = "\n\n".join(plain_bodies)

@@ -342,8 +342,9 @@ def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
         for link, next_cursor in links:
             if time.monotonic() >= deadline:
                 break
-            store.put_discovery(monitor_id, _discovery(
-                monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications))
+            if link.get("resolutionStatus") != "unresolved":
+                store.put_discovery(monitor_id, _discovery(
+                    monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications))
             cursor = next_cursor
             processed += 1
     done = cursor >= size
@@ -388,7 +389,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
     try:
         config = validate_email_config(store.get(monitor_id, EMAIL_CONFIG_SK), store.get(monitor_id, "CONFIG#router"))
         row = store.get(monitor_id, receipt_key)
-        if row and row.get("status") == "queued":
+        if row and row.get("status") in {"queued", "pending_review"}:
             return {"status": "duplicate", "previousStatus": row["status"], "receiptId": receipt_key}
         if row and row.get("status") == "rejected":
             # Replay only the former authentication/membership refusals when SES
@@ -452,6 +453,22 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
         store.put_email_detail_chunks(monitor_id, receipt_key, detail_body, parsed["links"], row["ttl"])
         row["safeBodyBytes"] = len(detail_body.encode("utf-8"))
         row["safeBodyChunks"] = max(1, (row["safeBodyBytes"] + EMAIL_DETAIL_CHUNK_BYTES - 1) // EMAIL_DETAIL_CHUNK_BYTES)
+        row["unresolvedLinkCount"] = sum(link.get("resolutionStatus") == "unresolved"
+                                         for link in parsed["links"])
+        if diagnostics["warnings"]:
+            # Authentication failures are visible to editors with the inert
+            # source and extracted links, but never enter the shared router.
+            row.update(status="pending_review", processingStage="pending_review",
+                       reviewRequired=True, pendingReviewLinkCount=len(parsed["links"]),
+                       processedCount=0, updatedAt=_iso(time.time()))
+            row.pop("gsi1pk", None)
+            row.pop("gsi1sk", None)
+            store.put(monitor_id, row)
+            store.put(monitor_id, {"sk": f"EMAILINDEX#{row['observedAt']}#{receipt_key.removeprefix('EMAIL#')}",
+                                   "receiptId": receipt_key, "destinationPublicationIds": config["publicationIds"],
+                                   "ttl": row["ttl"]})
+            return {"status": "pending_review", "receiptId": receipt_key,
+                    "linkCount": row["linkCount"], "processedCount": 0}
         if not row.get("manifestKey"):
             manifest = _manifest_bytes(parsed["links"])
             manifest_key = _manifest_key(receipt_key)
