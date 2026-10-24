@@ -98,12 +98,13 @@ type SignInFailureBranch = "pending_cookie" | "provider_error" | "missing_parame
 
 /**
  * One structured line per failed callback: `prospectus_sign_in_failed {"code":...,"branch":...}`. It carries only the
- * code, the branch, and (for errors from completing the sign-in) the HTTP status, Prospectus error code and error name.
+ * code, the branch, and (for errors from completing the sign-in) the HTTP status, Prospectus error code, its rule text
+ * (`prospectusMessage`, which names the broken rule and carries no personal data) and error name.
  * Never tokens, authorization codes, state, emails or subjects.
  */
 function logSignInFailure(
   options: ProspectusSignInRouteOptions,
-  entry: { code: string; branch: SignInFailureBranch; httpStatus?: number; prospectusError?: string; errorName?: string },
+  entry: { code: string; branch: SignInFailureBranch; httpStatus?: number; prospectusError?: string; prospectusMessage?: string; errorName?: string },
 ): void {
   (options.log ?? console.error)(`prospectus_sign_in_failed ${JSON.stringify(entry)}`);
 }
@@ -186,7 +187,7 @@ async function completeCallback(
   options: ProspectusSignInRouteOptions,
   nowInSeconds: number,
 ): Promise<NextResponse> {
-  const failed = (code: string, branch: SignInFailureBranch, detail: { httpStatus?: number; prospectusError?: string; errorName?: string } = {}) => {
+  const failed = (code: string, branch: SignInFailureBranch, detail: { httpStatus?: number; prospectusError?: string; prospectusMessage?: string; errorName?: string } = {}) => {
     logSignInFailure(options, { code, branch, ...detail });
     return signInFailedRedirect(request, options, pendingSignIn?.returnPath ?? null, code);
   };
@@ -220,7 +221,7 @@ async function completeCallback(
     );
     return response;
   } catch (error) {
-    if (error instanceof ProspectusAccountsError) return failed(error.code, "completion", { httpStatus: error.status, prospectusError: error.code });
+    if (error instanceof ProspectusAccountsError) return failed(error.code, "completion", { httpStatus: error.status, prospectusError: error.code, prospectusMessage: error.message.slice(0, 300) });
     return failed("sign_in_failed", "unexpected", { errorName: error instanceof Error ? error.name : "error" });
   }
 }

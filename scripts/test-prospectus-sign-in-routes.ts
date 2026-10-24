@@ -588,6 +588,38 @@ async function loopbackDevelopmentFallbackTests() {
   assert.equal((await handleProspectusSignInStart(lookalike, { ...routeOptions(runtime), environment: {} })).status, 503, "a non-loopback host never falls back");
 }
 
+/** A Prospectus that signs its challenges stores nothing, so the signed token must survive the pending cookie byte for byte and be the only challenge reference resolve receives. */
+async function signedChallengeTests() {
+  const person = { id: "person-1", createdAt: "2026-10-17T00:00:00Z" };
+  const challengeToken = `v1.k1.${"A".repeat(520)}_-.${"B".repeat(43)}`;
+  const { runtime, requests } = prospectusRuntime({
+    "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300, challengeToken },
+    "POST /v1/identities/google/resolve": { person },
+  });
+  const start = await handleProspectusSignInStart(browserRequest("/api/auth/prospectus/sign-in"), routeOptions(runtime));
+  const authorization = new URL(start.headers.get("location")!);
+  assert.equal(authorization.searchParams.get("nonce"), "prospectus-nonce", "the authorize request carries the challenge nonce");
+  const pendingCookie = cookieValue(setCookie(start, PROSPECTUS_PENDING_SIGN_IN_COOKIE));
+  assert.ok(pendingCookie.length < 3_000, "the sealed pending cookie stays well under the 4 KB cookie limit");
+  assert.equal(pendingCookie.includes(challengeToken), false, "the token is sealed in the cookie");
+  assert.equal(
+    openProspectusCookie<{ challengeToken?: string }>(sealingSecret, PROSPECTUS_PENDING_SIGN_IN_COOKIE, pendingCookie, nowInSeconds)?.challengeToken,
+    challengeToken,
+    "the token round-trips byte-exact",
+  );
+  const callback = await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?code=code-1&state=${authorization.searchParams.get("state")}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie }),
+    routeOptions(runtime, { completionOverrides: { fetcher: cognitoTokenEndpoint({ access_token: "access-jwt", id_token: "id-jwt", expires_in: 3600 }), verifyCognitoTokens: async () => {} } }),
+  );
+  assert.equal(callback.status, 303);
+  assert.ok(setCookie(callback, PROSPECTUS_SESSION_COOKIE), "the sign-in completes");
+  assert.deepEqual(requests.find((request) => request.path === "/v1/identities/google/resolve")!.body, { challengeToken }, "resolve gets the signed token alone, not the unstored ID");
+
+  // Two starts (a reload or prefetch) each seal their own challenge, so the later cookie never carries the earlier token.
+  const second = await handleProspectusSignInStart(browserRequest("/api/auth/prospectus/sign-in"), routeOptions(runtime));
+  assert.equal(new URL(second.headers.get("location")!).searchParams.get("nonce"), "prospectus-nonce");
+}
+
 /** Every callback failure logs exactly one structured line with the code and branch, and nothing secret. */
 async function failureLoggingTests() {
   const person = { id: "person-1", createdAt: "2026-10-17T00:00:00Z" };
@@ -623,7 +655,7 @@ async function failureLoggingTests() {
   const incomplete = await logged(`/api/auth/prospectus/callback?state=${state}`, pending, {});
   assert.deepEqual(entryOf(incomplete.lines), { code: "sign_in_incomplete", branch: "missing_parameters" });
   const forged = await logged(`/api/auth/prospectus/callback?code=secret-code&state=forged`, pending, { completionOverrides: { fetcher: cognitoTokenEndpoint(tokenBody), verifyCognitoTokens: verifyOk } });
-  assert.deepEqual(entryOf(forged.lines), { code: "state_mismatch", branch: "completion", httpStatus: 401, prospectusError: "state_mismatch" });
+  assert.deepEqual(entryOf(forged.lines), { code: "state_mismatch", branch: "completion", httpStatus: 401, prospectusError: "state_mismatch", prospectusMessage: "Sign-in response does not belong to this browser's sign-in." });
   const refused = await logged(`/api/auth/prospectus/callback?code=secret-code&state=${state}`, pending, {
     completionOverrides: { fetcher: cognitoTokenEndpoint({ error: "invalid_grant" }, 400), verifyCognitoTokens: verifyOk },
   });
@@ -634,12 +666,25 @@ async function failureLoggingTests() {
       verifyCognitoTokens: async () => { throw new ProspectusAccountsError(401, "nonce_mismatch", "Sign-in did not carry this site's Prospectus challenge."); },
     },
   });
-  assert.deepEqual(entryOf(mismatch.lines), { code: "nonce_mismatch", branch: "completion", httpStatus: 401, prospectusError: "nonce_mismatch" });
+  assert.deepEqual(entryOf(mismatch.lines), { code: "nonce_mismatch", branch: "completion", httpStatus: 401, prospectusError: "nonce_mismatch", prospectusMessage: "Sign-in did not carry this site's Prospectus challenge." });
   assertFailureRedirect(mismatch.response, "/", "nonce_mismatch");
   const unexpected = await logged(`/api/auth/prospectus/callback?code=secret-code&state=${state}`, pending, {
     completionOverrides: { fetcher: cognitoTokenEndpoint(tokenBody), verifyCognitoTokens: async () => { throw new TypeError("boom secret-id-jwt"); } },
   });
   assert.deepEqual(entryOf(unexpected.lines), { code: "sign_in_failed", branch: "unexpected", errorName: "TypeError" });
+
+  // A Prospectus refusal is logged with its rule text, so the broken rule is visible without a debugger.
+  const { runtime: refusingRuntime } = prospectusRuntime({
+    "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 },
+    "POST /v1/identities/google/resolve": new ProspectusAccountsError(401, "challenge_invalid", "Challenge does not exist."),
+  });
+  const refusedStart = await handleProspectusSignInStart(browserRequest("/api/auth/prospectus/sign-in"), routeOptions(refusingRuntime));
+  const refusedLines: string[] = [];
+  await handleProspectusSignInCallback(
+    browserRequest(`/api/auth/prospectus/callback?code=secret-code&state=${new URL(refusedStart.headers.get("location")!).searchParams.get("state")}`, { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: cookieValue(setCookie(refusedStart, PROSPECTUS_PENDING_SIGN_IN_COOKIE)) }),
+    routeOptions(refusingRuntime, { log: (line) => refusedLines.push(line), completionOverrides: { fetcher: cognitoTokenEndpoint(tokenBody), verifyCognitoTokens: verifyOk } }),
+  );
+  assert.deepEqual(entryOf(refusedLines), { code: "challenge_invalid", branch: "completion", httpStatus: 401, prospectusError: "challenge_invalid", prospectusMessage: "Challenge does not exist." });
 
   for (const { lines } of [noCookie, declined, incomplete, forged, refused, mismatch, unexpected]) {
     for (const secret of ["secret-code", "secret-access-jwt", "secret-id-jwt", state, pendingCookie, "person-1", "prospectus-nonce"]) {
@@ -658,6 +703,7 @@ async function main() {
   await loopbackDevelopmentFallbackTests();
   publicationAccessTests();
   googleOnlyClientTests();
+  await signedChallengeTests();
   await failureLoggingTests();
   console.log("prospectus sign-in routes: ok");
 }

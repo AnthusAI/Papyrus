@@ -99,6 +99,20 @@ async function main() {
   assert.deepEqual(signedIn, { person: { id: "person-1", createdAt: "2026-10-17T00:00:00Z" }, accessToken: "access-jwt", refreshToken: "refresh", accessTokenExpiresAt: 4_600 });
   assert.equal("idToken" in signedIn, false, "the identity token is discarded once Prospectus has resolved the person");
 
+  const signedToken = ["v1", "k1", "cGF5bG9hZA", "bWFj"].join(".");
+  const signed = recordingProspectus({
+    "POST /v1/identities/google/challenge": { ...challenge, challengeToken: signedToken },
+    "POST /v1/identities/google/resolve": { person: { id: "person-1", createdAt: "2026-10-17T00:00:00Z" } },
+  });
+  const signedBegin = await beginProspectusGoogleSignIn(signed.accounts, cognitoClient);
+  assert.equal(signedBegin.pendingSignIn.challengeToken, signedToken, "a signed challenge is kept for the callback");
+  assert.equal(new URL(signedBegin.authorizationUrl).searchParams.get("nonce"), challenge.nonce, "the authorize nonce is the challenge nonce");
+  await completeProspectusGoogleSignIn({
+    accounts: signed.accounts, cognitoClient, pendingSignIn: signedBegin.pendingSignIn, returnedState: signedBegin.pendingSignIn.state,
+    authorizationCode: "code", verifyCognitoTokens, fetcher: cognitoTokenEndpoint(issuedTokens).fetcher, nowInSeconds: 1_000,
+  });
+  assert.deepEqual(signed.requests.find((request) => request.path === "/v1/identities/google/resolve")!.body, { challengeToken: signedToken });
+
   const allowed = { allowed: true, accountId: "account-a", personId: "person-1", product: "papyrus-p-apyr-us", role: "member", operation: "console:read", revision: 3 };
   const authorized = recordingProspectus({
     "GET /v1/identities/me": { person: { id: "person-1", createdAt: "x" } },

@@ -34,3 +34,9 @@ Feature: Reader sign-in failures can be diagnosed
   Scenario: An odd code is never shown
     Given a reader returns to the page with a sign_in_error that is not a plain lower-case code
     Then the Sign in control says "Sign-in did not complete. Try again." with no code
+
+  Scenario: A Prospectus refusal is logged with its rule text
+    Given Prospectus refuses to resolve the sign-in with a 401 "challenge_invalid" and the message "Challenge does not exist."
+    When the callback runs
+    Then the logged line carries the code, the branch, the HTTP status, the Prospectus error code and "prospectusMessage" with that rule text
+    And the line still contains no token, code, state, email or subject
