@@ -12,6 +12,7 @@
 .papyrus-reader-count, .papyrus-reader-own, .papyrus-reader-stats, .papyrus-reader-hint, .papyrus-reader-karma, .papyrus-reader-freshness { font-size: .9em; }
 .papyrus-reader-status { font-size: .9em; font-style: italic; }
 .papyrus-reader-status:empty { display: none; }
+.papyrus-reader-status-code { font-size: .8em; font-style: normal; opacity: .8; }
 .papyrus-reader-handle { font-weight: 700; }
 .papyrus-reader-handle-form { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
 .papyrus-reader-handle-input { font: inherit; padding: .25rem .5rem; border: 2px solid currentColor; border-radius: .35rem; background: transparent; color: inherit; }

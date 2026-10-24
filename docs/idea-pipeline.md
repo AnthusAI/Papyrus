@@ -59,9 +59,13 @@ Ideas are private by default.
 - **`--store json` (default).** One JSON file per digest, idea and run under `~/.papyrus/ideas/<publication>` (or `--out`,
   `PAPYRUS_IDEAS_DIR`). The directory is refused if it sits inside `_data`, `public` or `static-root`.
 - **`--store proposals`.** Each idea is filed as a `story_draft` Proposal in state `draft`, proposer AI, with the digest in the
-  evidence. This needs the reader-steering plugin's Proposal model on the site and an editor or admin session
-  (`papyrus login`): `fileProposal` is not open to IAM. Cited references are listed in the body, because proposal targets cannot
-  name references.
+  evidence. This needs the reader-steering plugin's Proposal model on the site. It works with an editor or admin session
+  (`papyrus login`) and with `PAPYRUS_GRAPHQL_AUTH=iam` as an operator role of the site's own AWS account, so an unattended run can
+  file drafts ([reader-steering.md](reader-steering.md#operator-filing)). Under IAM the proposer is still AI and the history records
+  `operator:<principal ARN>`; the role needs `appsync:GraphQL` on `Mutation/fields/fileProposal`. Only editors and admins can read
+  Proposals, so an IAM run cannot dedupe against earlier drafts held as Proposals: it skips them, says so in the run record
+  (`proposalDedupe`), and still dedupes against the JSON store, stories and declined ideas. Cited references are listed in the body,
+  because proposal targets cannot name references.
 - **Publishing is opt-in.** The reader snapshot used to publish every proposal in every state. It now writes
   `_data/proposals/` only when the site sets `proposals.publish: true` in its reader-steering config (default off). See
   [reader-steering.md](reader-steering.md#proposals). The ideas commands never call `proposals publish`.
@@ -99,9 +103,9 @@ Notes from running v0 by hand, for PPY-433383 (run contract) and PPY-93faf2 (loc
   app) and export `PAPYRUS_GRAPHQL_ENDPOINT`. An automation needs the site, endpoint, account and credential source as data.
 - **Credentials.** The SSO session often needs `aws configure export-credentials` before botocore signs requests. A scheduled local
   run needs a non-interactive credential source.
-- **Filing Proposals is not open to IAM.** `fileProposal` checks the editor or admin group, so an unattended run cannot file
-  Proposals today; only a person with a `papyrus login` session can. The run contract needs either a service identity the function
-  accepts or a different way to hand ideas to review.
+- **Filing Proposals under IAM is narrow.** An operator role of the site's own account can file AI proposals and move a draft to
+  `in_steering` or `declined`; it cannot read Proposals or take an editor action. The run contract still needs the role named as
+  data, and a way to dedupe against earlier Proposals without reading them.
 - **Dedupe memory is local.** Earlier drafts come from the JSON store on one machine (or the site's Proposals). A run on another
   machine, or a Lambda, would not see them unless it uses the Proposal store.
 - **The run ledger is a local JSON file,** not a `ProcedureRun` record, so the console cannot list these runs yet.

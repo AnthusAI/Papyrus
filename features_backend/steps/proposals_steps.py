@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from reader_fixtures import ReaderBackend, run_snapshot  # noqa: E402
+from reader_fixtures import OPERATOR_ACCOUNT, OPERATOR_ARN, ReaderBackend, operator_identity, run_snapshot  # noqa: E402
 from papyrus_content.projection.plugins import is_plugin_runtime_key  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering.proposals import proposal_subject_key  # noqa: E402
@@ -242,6 +242,16 @@ def none_stored(context) -> None:
     assert backend_of(context).proposals() == []
 
 
+@then("the editor is told it is filed")
+def editor_told_filed(context) -> None:
+    assert context.proposal_answer["status"] == "ok", context.proposal_answer
+
+
+@then("{count:d} proposal is stored as a draft")
+def one_stored_as_draft(context, count: int) -> None:
+    stored_as_drafts(context, count)
+
+
 @then("{count:d} proposals are stored as drafts")
 def stored_as_drafts(context, count: int) -> None:
     rows = backend_of(context).proposals()
@@ -328,3 +338,98 @@ def runtime_file(context, key: str) -> None:
 @then('the second editor is told "{error}"')
 def second_editor_told(context, error: str) -> None:
     editor_told(context, error)
+
+
+# Operators: IAM callers of the function's own account (features_backend/proposals_operator.feature)
+
+def operator_file(context, arguments: dict, **call) -> dict:
+    answer = backend_of(context).operator_proposal_call("fileProposal", arguments, **call)
+    context.proposal_answer = answer
+    if answer["status"] == "ok":
+        context.proposal_id = answer["id"]
+    return answer
+
+
+def operator_move(context, state: str, **extra) -> dict:
+    answer = backend_of(context).operator_proposal_call("transitionProposal", {"proposalId": context.proposal_id, "state": state, **extra})
+    context.proposal_answer = answer
+    return answer
+
+
+def stored(context) -> dict:
+    return backend_of(context).table("proposal").get_item(Key={"id": context.proposal_id})["Item"]
+
+
+@given("an operator role in the site's own account")
+def operator_role(context) -> None:
+    context.operator_arn = OPERATOR_ARN
+
+
+@given('the operator filed a "{kind}" proposal')
+def operator_filed(context, kind: str) -> None:
+    assert operator_file(context, arguments_for(kind))["status"] == "ok"
+
+
+@given('the operator moves it to "{state}"')
+@when('the operator moves it to "{state}"')
+def operator_moves(context, state: str) -> None:
+    operator_move(context, state)
+
+
+@when('the operator sends it to "{state}" because "{reason}"')
+def operator_moves_saying(context, state: str, reason: str) -> None:
+    operator_move(context, state, reason=reason)
+
+
+@when('the operator files a "{kind}" proposal titled "{title}"')
+def operator_files_titled(context, kind: str, title: str) -> None:
+    operator_file(context, arguments_for(kind, title))
+
+
+@when('the operator files a "{kind}" proposal naming a reader as the proposer')
+def operator_files_as_reader(context, kind: str) -> None:
+    operator_file(context, arguments_for(kind, proposer="reader-subject-1"))
+
+
+@when('an identity-pool user tries to file a "{kind}" proposal')
+def pooled_files(context, kind: str) -> None:
+    identity = operator_identity(cognitoIdentityId="eu-west-1:1111", cognitoIdentityPoolId="eu-west-1_pool", cognitoIdentityAuthType="authenticated")
+    operator_file(context, arguments_for(kind), identity=identity)
+
+
+@when('a principal of another account tries to file a "{kind}" proposal')
+def foreign_files(context, kind: str) -> None:
+    identity = operator_identity(accountId="999999999999", userArn="arn:aws:sts::999999999999:assumed-role/ideas-pipeline/run-1")
+    operator_file(context, arguments_for(kind), identity=identity)
+
+
+@then('the operator is told "{error}"')
+def operator_told(context, error: str) -> None:
+    answer = context.proposal_answer
+    assert (answer["status"] if error == "ok" else answer["error"]) == error, answer
+
+
+@then('the stored proposal is a draft proposed by "{proposer}"')
+def stored_draft(context, proposer: str) -> None:
+    row = stored(context)
+    assert (row["state"], row["proposer"]) == ("draft", proposer), row
+
+
+@then("the stored history records the filing by the operator's principal")
+def history_filing(context) -> None:
+    first = json.loads(stored(context)["history"])[0]
+    assert first["actor"] == f"operator:{context.operator_arn}" and first["by"] == "ai", first
+
+
+@then("the stored history records the move by the operator's principal")
+def history_move(context) -> None:
+    last = json.loads(stored(context)["history"])[-1]
+    assert last["actor"] == f"operator:{context.operator_arn}" and last["by"] == "operator", last
+
+
+@then("no public proposal file names the operator")
+def no_operator_named(context) -> None:
+    text = "".join(entry.key + (context.proposal_site.get(entry.key) or b"").decode() for entry in context.proposal_site.list() if "proposals" in entry.key)
+    assert text, "no proposal files were written"
+    for private in ("operator", OPERATOR_ACCOUNT, "ideas-pipeline"):
+        assert private not in text, private

@@ -612,7 +612,7 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 | `evidence` | Optional JSON `{signals, source}`: how many signals back the proposal and where they came from |
 | `proposer` | `ai`, or a reader's siteSubject. Stored, never published, and never a Person ID. `fileProposal` files AI proposals only; a reader route is not built |
 | `state` | `draft`, `in_steering`, `editor_review`, `approved`, `declined`, `overridden_by_editor` |
-| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject and is never published |
+| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject, or `operator:<principal ARN>` for an IAM operator (`by` is `operator`), and is never published |
 | `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Written once, never overwritten |
 
 **Transitions.** Anything not listed is refused (`transition_not_allowed`); approved, declined and overridden are final.
@@ -625,7 +625,8 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 
 `overridden_by_editor` needs a public `reason` (`reason_required`) and a `result` of `approved` or `declined`, the editor's decision against
 the community's view (`result_required`); no other transition takes a result. Every reason is public text of at most 500 characters. Both
-mutations are open to the `editor` and `admin` groups only (the function checks the groups again) and answer a receipt `{status, id, error,
+mutations are open to the `editor` and `admin` groups (the function checks the groups again), and, narrowly, to an IAM operator (see
+[Operator filing](#operator-filing)), and answer a receipt `{status, id, error,
 message}` that never throws. A move is conditioned on the state the caller saw: if someone else moved the proposal first the answer is
 `refused / target_changed` and nothing is written. The full editor tier (PPY-0af7db) adds what it needs beyond these.
 
@@ -666,7 +667,7 @@ minus down), so proposals publish before votes on them do. `up` and `down` are w
 be fractional and is published unrounded; a site rounds it to one decimal for display. To take votes on proposals a publication lists `"proposal"` in its
 `subjects.types`, and the page casts them with `POST /api/reader/vote {subject: {type: "proposal", id}, value: 1 | -1 | null}`.
 
-**The CLI.** Signed in as an editor or admin (`papyrus login`):
+**The CLI.** Signed in as an editor or admin (`papyrus login`); `create`, `transition` (draft to `in_steering` or `declined`) and `publish` also work with `PAPYRUS_GRAPHQL_AUTH=iam` ([Operator filing](#operator-filing)):
 
 ```bash
 papyrus proposals create --kind merge --title "Merge the agent clusters" --body-file draft.md \
@@ -681,6 +682,41 @@ papyrus proposals publish        # runs the reader snapshot, which writes _data/
 A refusal prints `error: message` and exits 2. `create` files a private draft. It becomes public only on a site that sets `proposals.publish: true`, at the next snapshot, which every `publish` and
 every scheduled run starts.
 
+### Operator filing
+
+An unattended automation or an agent has no browser sign-in and no `editor` group, so an operator's IAM role may file AI proposals
+and send a draft on its way. The rule is deliberately narrow.
+
+| Caller | `fileProposal` | `transitionProposal` |
+|---|---|---|
+| Editor or admin (Cognito) | any valid proposal | every allowed transition |
+| IAM principal of the function's own account | yes, always as an AI proposal | only `draft` to `in_steering`, and `draft` to `declined` |
+| Cognito identity-pool user, a principal of another account, anyone else | `not_staff` | `not_staff` |
+
+* **Who counts as an operator.** The AppSync identity names an IAM `userArn` in the same account as the reader-actions function
+  (read from the function's own ARN), and carries no Cognito identity id, identity pool, or subject. This is the same check
+  `automationOverview` uses (see [automations](automations.md#who-may-read-and-who-may-write)). A Cognito identity-pool user is an IAM principal of
+  the account too, and is refused for exactly that reason.
+* **What an operator files.** The proposer is forced to `ai`; an IAM caller cannot name a reader. The history records the filing
+  as `{by: "ai", actor: "operator:<principal ARN>"}` and each later move as `{by: "operator", actor: "operator:<principal ARN>"}`.
+  Nothing in a public file shows the actor.
+* **What an operator can never do.** Approve, decline after review, override the community, or send a proposal to `editor_review`:
+  those answer `operator_not_allowed` and write nothing. `moderateReader` stays editors and admins only. Specs:
+  `features_backend/proposals_operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
+* **What a site must deploy.** The schema does not change: the logic is in the `reader-actions` function, so a site gets the
+  operator path when it deploys a backend that includes this release. The operator's IAM policy must allow
+  `appsync:GraphQL` on `Mutation/fields/fileProposal` and `Mutation/fields/transitionProposal` of the site's API. Reading proposals
+  (`papyrus proposals list|show`, `listProposals`) is still editors and admins only.
+
+```bash
+export PAPYRUS_GRAPHQL_AUTH=iam PAPYRUS_GRAPHQL_ENDPOINT=https://....appsync-api.eu-west-1.amazonaws.com/graphql
+papyrus proposals create --kind new_concept --title "Name the agents cluster" --body-file draft.md
+papyrus proposals transition prop-... --to in_steering
+papyrus proposals publish        # invokes the content-actions function with the operator's AWS credentials
+```
+
+The idea pipeline files its drafts this way: [`papyrus ideas synthesize --store proposals`](idea-pipeline.md#storage-and-privacy).
+
 ## The page components
 
 Static assets shipped to the site bucket when the plugin is enabled: `_plugins/papyrus-reader@1.js` and
@@ -690,7 +726,7 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 
 | Island | Props | Shows |
 |---|---|---|
-| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words and then removes from the address; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
+| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words, with the code in small print so a reader can report it (for example "(code: nonce_mismatch)"), and then removes from the address; the server logs each failure as one `prospectus_sign_in_failed {code, branch, httpStatus?, prospectusError?}` line with no tokens, codes or subjects; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
 | `Vote` (any subject type) | `type`, `id`, optional `up`, `down` | Two buttons, "△ Vote up" and "▽ Vote down" ("▲ Voted up" and "▼ Voted down" once chosen, with `aria-pressed`), and "N votes up, M votes down" read from `items.json` under the subject key. Choosing the chosen button again removes the vote. Posts `{subject: {type, id}, value: 1 \| -1 \| null}`; a refused vote is rolled back and the reason shown in words. |
 | `Flag` | `type`, `id`, optional `targetTypes` (default `concept`, `story`, `proposal`, `item`) | A "⚑ Flag" button that opens a form: what is the problem (This is wrong, This belongs under…, Suggest a better name), the target type and id for "belongs under", the suggested name for "better name", and a required reason of at most 500 characters. Posts `/api/reader/flag`, then says "Flag sent. Thank you." |
