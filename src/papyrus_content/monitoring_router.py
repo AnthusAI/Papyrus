@@ -207,12 +207,18 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
         if (not config.get("accountId") or not discovery.get("emailProvenance")
                 or discovery.get("emailRoutingFingerprint") != email_routing_fingerprint(config)):
             raise ItemInvalid("Email destination Account or publication binding changed; reconcile explicitly")
-        allowed = discovery.get("emailAuthorizedPublicationIds")
         configured = {row["publicationId"] for row in config["publications"]}
+        if discovery.get("emailTrustMode") == "data-only":
+            allowed = discovery.get("emailDestinationPublicationIds")
+            if discovery.get("emailProvenance", {}).get("inputTrust") != "untrusted-source-material":
+                raise ItemInvalid("Data-only email trust provenance is missing")
+        else:
+            # Compatibility for discoveries queued by the earlier editor-gated path.
+            allowed = discovery.get("emailAuthorizedPublicationIds")
         if (not isinstance(allowed, list) or not allowed
                 or any(not isinstance(value, str) or not value for value in allowed)
                 or len(allowed) != len(set(allowed)) or not set(allowed) <= configured):
-            raise ItemInvalid("Email editor publication authorization is missing or outside its configured scope")
+            raise ItemInvalid("Email publication scope is missing or outside its configured destination")
 
 
 def validate_router_publications(raw: dict) -> list[dict]:
@@ -814,7 +820,7 @@ class Router:
             if disc.get("sourceType") == "email":
                 self.active_publications = self.authorized_email_publications(disc)
                 if not self.active_publications:
-                    return self.finish(disc, route, "refused", "sender is no longer an active editor")
+                    return self.finish(disc, route, "refused", "email destination no longer permits this publication")
         except ItemInvalid as error:
             return self.finish(disc, route, "error", str(error))
         requests = {}
@@ -863,6 +869,10 @@ class Router:
         return False
 
     def authorized_email_publications(self, disc: dict) -> list[dict]:
+        if disc.get("emailTrustMode") == "data-only":
+            validate_email_discovery_scope(disc, self.config)
+            allowed = set(disc["emailDestinationPublicationIds"])
+            return [p for p in self.config["publications"] if p["publicationId"] in allowed]
         if self.cognito is None:
             raise ItemInvalid("Email editor membership lookup is unavailable")
         try:
@@ -1239,7 +1249,7 @@ class Router:
                 self.active_publications = self.authorized_email_publications(disc)
                 allowed = {p["publicationId"] for p in self.active_publications}
                 if not allowed:
-                    self.finish(disc, route, "refused", "sender is no longer an active editor")
+                    self.finish(disc, route, "refused", "email destination no longer permits this publication")
                     return
                 route["publications"] = {key: value for key, value in route.get("publications", {}).items()
                                           if key in allowed}

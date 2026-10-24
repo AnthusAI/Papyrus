@@ -129,8 +129,8 @@ def test_table_store_uses_only_get_item_and_query():
     assert len(result["items"]) == 5 and set(table.calls) == {"get_item", "query"}
 
 
-def event(groups, scope="publication"):
-    return {"info": {"fieldName": "monitoringOverview"}, "arguments": {"scope": scope},
+def event(groups, scope="publication", field="monitoringOverview", **arguments):
+    return {"info": {"fieldName": field}, "arguments": {"scope": scope, **arguments},
             "identity": {"groups": groups, "sub": "u1"}}
 
 
@@ -168,3 +168,45 @@ def test_router_run_reports_publications_waiting_for_classifier():
     run = _router_run({"runId": "r", "status": "complete", "waitingForClassifier": ["data-parade"]})
     assert run["waitingForClassifier"] == ["data-parade"]
     assert _router_run({"runId": "r"})["waitingForClassifier"] == []
+
+
+def email_rows(destination=("anth-us",)):
+    receipt_id = "EMAIL#" + "a" * 64
+    return [
+        {"pk": fx.PK, "sk": "EMAILINDEX#2026-10-21T02:30:00Z#" + "a" * 64,
+         "receiptId": receipt_id, "destinationPublicationIds": list(destination)},
+        {"pk": fx.PK, "sk": receipt_id, "status": "queued", "emailTrustMode": "data-only",
+         "emailDestinationPublicationIds": list(destination), "observedAt": "2026-10-21T02:30:00Z",
+         "subject": "Newsletter", "sender": "envelope@example.net", "headerFrom": "forged@example.net",
+         "warnings": ["ses_authentication_unverified"], "linkCount": 2, "processedCount": 2,
+         "sesDiagnostics": {"verdicts": {"spf": "FAIL", "dkim": "PASS", "dmarc": "FAIL", "spam": "PASS", "virus": "PASS"}}},
+        {"pk": fx.PK, "sk": "EMAILDETAIL#" + "a" * 64 + "#BODY#0000", "text": "Read as plain text\n", "ttl": 123},
+        {"pk": fx.PK, "sk": "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000",
+         "json": '[{"url":"https://example.org/article","title":"Article"}]', "ttl": 123},
+    ]
+
+
+def test_email_submission_list_is_scoped_to_this_publication_and_contains_signals():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    result = overview(store=store)
+    assert len(result["emailSubmissions"]) == 1
+    item = result["emailSubmissions"][0]
+    assert item["subject"] == "Newsletter" and item["linkCount"] == 2
+    assert item["verdicts"]["spf"] == "FAIL" and item["warnings"] == ["ses_authentication_unverified"]
+    assert "https://example.org/article" not in json.dumps(result)
+
+
+def test_email_submission_details_are_editor_only_and_publication_scoped():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    event = {"info": {"fieldName": "monitoringEmailSubmission"}, "arguments": {"receiptId": receipt_id},
+             "identity": {"groups": ["editor"]}}
+    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    assert result["safeBodyText"] == "Read as plain text\n"
+    assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
+    assert result["sourceMaterialIsUntrusted"] is True
+    denied = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=lambda: store)
+    assert denied == {"error": "forbidden"}
+    refused = mv.handle({**event, "identity": {"groups": ["reader"]}},
+                        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    assert refused == {"error": "forbidden"}

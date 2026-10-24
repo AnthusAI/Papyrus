@@ -89,5 +89,10 @@ class FakeViewStore:
         found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"], reverse=True)
         return deepcopy(found[:limit])
 
+    def email_details(self, receipt_digest):
+        prefix = f"EMAILDETAIL#{receipt_digest}#"
+        found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"])
+        return deepcopy(found)
+
     def decision_times(self):
         return [r["decision"]["decidedAt"] for sk, r in sorted(self.table.items()) if sk.startswith("ROUTE#") and r.get("decision")]

@@ -17,8 +17,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import json
 import logging
 import os
+import re
 
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
@@ -30,6 +32,7 @@ MAX_RUNS = 15
 MAX_ROUTER_RUNS = 10
 MAX_ERROR_TEXT = 160
 MAX_DECISION_PAGES = 20
+MAX_EMAIL_SUBMISSIONS = 20
 
 
 class Forbidden(Exception):
@@ -79,6 +82,19 @@ class TableViewStore:
             if not start:
                 break
         return times
+
+    def email_details(self, receipt_digest: str) -> list[dict]:
+        """Read private, inert rendering chunks for one bounded email receipt."""
+        prefix, rows, start = f"EMAILDETAIL#{receipt_digest}#", [], None
+        while True:
+            extra = {"ScanIndexForward": True}
+            if start:
+                extra["ExclusiveStartKey"] = start
+            result = self._query(prefix, **extra)
+            rows.extend(_clean(item) for item in result.get("Items", []))
+            start = result.get("LastEvaluatedKey")
+            if not start:
+                return rows
 
 
 def _iso(epoch) -> str | None:
@@ -162,6 +178,17 @@ def _item(disc: dict, route: dict | None, publications: list[dict]) -> dict:
             "relevance": [_relevance(p, route) for p in publications]}
 
 
+def _email_summary(row: dict) -> dict:
+    diagnostics = row.get("sesDiagnostics") if isinstance(row.get("sesDiagnostics"), dict) else {}
+    verdicts = diagnostics.get("verdicts") if isinstance(diagnostics.get("verdicts"), dict) else {}
+    return {"receiptId": row.get("sk"), "observedAt": row.get("observedAt"), "status": row.get("status"),
+            "subject": _short(row.get("subject")), "envelopeSender": _short(row.get("sender")),
+            "headerFrom": _short(row.get("headerFrom")), "warnings": [str(value) for value in row.get("warnings", [])],
+            "verdicts": {key: verdicts.get(key, "UNAVAILABLE") for key in ("spf", "dkim", "dmarc", "spam", "virus")},
+            "linkCount": int(row.get("linkCount") or 0), "processedCount": int(row.get("processedCount") or 0),
+            "errorCode": _short(row.get("errorCode"))}
+
+
 def _latest_revisions(rows: list[dict]) -> list[dict]:
     latest: dict = {}
     for row in rows:
@@ -189,11 +216,22 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
     base = {"asOf": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     if not (config or router or discoveries or runs):
         return {**base, "state": "empty", "scope": {"mode": scope, "publicationId": None, "site": None, "canViewAll": is_admin},
-                "feeds": [], "runs": [], "routerRuns": [], "router": None, "usage": None, "items": [], "hiddenNotRelevant": 0}
+                "feeds": [], "runs": [], "routerRuns": [], "router": None, "usage": None, "items": [],
+                "emailSubmissions": [], "hiddenNotRelevant": 0}
 
     configured = (router or {}).get("publications") or []
     own = next((p for p in configured if p.get("appsyncEndpoint") == site_endpoint), None) if site_endpoint else None
     selected = configured if scope == "all" else ([own] if own else [])
+    allowed_publications = {p["publicationId"] for p in selected}
+    submissions = []
+    for index in store.newest("EMAILINDEX#", MAX_EMAIL_SUBMISSIONS):
+        if not allowed_publications.intersection(index.get("destinationPublicationIds") or []):
+            continue
+        receipt = store.get(index.get("receiptId", ""))
+        if (not receipt or receipt.get("emailTrustMode") != "data-only"
+                or not allowed_publications.intersection(receipt.get("emailDestinationPublicationIds") or [])):
+            continue
+        submissions.append(_email_summary(receipt))
     result_scope = {"mode": scope, "publicationId": (own or {}).get("publicationId"), "site": (own or {}).get("site"), "canViewAll": is_admin}
 
     routes = {(r.get("sourceId"), r.get("revision")): r for r in store.newest("ROUTE#", MAX_ITEMS * 2)}
@@ -212,10 +250,37 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
     out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state), "runs": runs, "routerRuns": router_runs,
            "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False,
                        "maxItemsPerRun": router.get("maxItemsPerRun")} if router else None),
-           "usage": usage, "items": items, "hiddenNotRelevant": hidden}
+           "usage": usage, "items": items, "emailSubmissions": submissions, "hiddenNotRelevant": hidden}
     if scope == "publication" and not own:
         out["notice"] = "publication_not_routed"
     return out
+
+
+def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> dict:
+    """Return one safe rendering only to an editor of an explicitly routed destination."""
+    if not set(groups or []) & EDITOR_GROUPS:
+        raise Forbidden("email submissions are for editors and admins")
+    if not isinstance(receipt_id, str) or not re.fullmatch(r"EMAIL#[a-f0-9]{64}", receipt_id):
+        return {"error": "bad_request"}
+    router = store.get("CONFIG#router") or {}
+    publication = next((p for p in router.get("publications", [])
+                        if site_endpoint and p.get("appsyncEndpoint") == site_endpoint), None)
+    if not publication:
+        raise Forbidden("site endpoint is not a configured publication")
+    row = store.get(receipt_id)
+    publication_id = publication["publicationId"]
+    if (not row or row.get("status") not in {"queued", "processing", "failed"}
+            or row.get("emailTrustMode") != "data-only"
+            or publication_id not in (row.get("emailDestinationPublicationIds") or [])):
+        raise Forbidden("email receipt is outside this publication")
+    details = store.email_details(receipt_id.removeprefix("EMAIL#"))
+    body = "".join(item.get("text", "") for item in details if "#BODY#" in item.get("sk", ""))
+    links = []
+    for item in details:
+        if "#LINKS#" in item.get("sk", ""):
+            links.extend(json.loads(item.get("json", "[]")))
+    return {"submission": _email_summary(row), "safeBodyText": body,
+            "candidateLinks": links, "sourceMaterialIsUntrusted": True}
 
 
 # --- the Lambda boundary --------------------------------------------------------------------------
@@ -245,15 +310,24 @@ def handle(event: dict, *, env=None, store_factory=None, now: float | None = Non
     env = os.environ if env is None else env
     groups = (event.get("identity") or {}).get("groups")
     groups = [g for g in groups if isinstance(g, str)] if isinstance(groups, list) else []
-    scope = (event.get("arguments") or {}).get("scope") or "publication"
-    if not set(groups) & EDITOR_GROUPS or (scope == "all" and "admin" not in groups):
+    field_name = (event.get("info") or {}).get("fieldName", "monitoringOverview")
+    args = event.get("arguments") or {}
+    scope = args.get("scope") or "publication"
+    if (not set(groups) & EDITOR_GROUPS
+            or (field_name == "monitoringOverview" and scope == "all" and "admin" not in groups)):
         return {"error": "forbidden"}
-    if scope not in SCOPES:
+    if field_name == "monitoringOverview" and scope not in SCOPES:
         return {"error": "bad_request"}
     try:
         store = (store_factory or default_store_factory(env))()
         if store is None:
             return {"state": "not_configured"}
+        if field_name == "monitoringEmailSubmission":
+            return monitoring_email_submission(store, groups=groups,
+                                               site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
+                                               receipt_id=args.get("receiptId"))
+        if field_name != "monitoringOverview":
+            return {"error": "bad_request"}
         return monitoring_overview(store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope,
                                    now=time.time() if now is None else now)
     except Forbidden:

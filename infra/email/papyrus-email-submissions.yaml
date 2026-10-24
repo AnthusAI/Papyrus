@@ -117,11 +117,20 @@ Resources:
                 Action: [s3:GetObject]
                 Resource: !Sub ${RawMailBucket.Arn}/email-submissions/*
               - Effect: Allow
+                Action: [s3:PutObject]
+                Resource: !Sub ${RawMailBucket.Arn}/email-submissions/manifests/*
+              - Effect: Allow
                 Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:DeleteItem]
                 Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}
                 Condition:
                   ForAllValues:StringEquals:
                     dynamodb:LeadingKeys: [!Sub "MONITOR#${MonitorId}"]
+              - Effect: Allow
+                Action: [dynamodb:Query]
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}/index/routing
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys: [!Sub "EMAIL_PENDING#${MonitorId}"]
               - Effect: Allow
                 Action: [sqs:SendMessage]
                 Resource: !GetAtt FailureQueue.Arn
@@ -233,6 +242,27 @@ Resources:
       Principal: events.amazonaws.com
       SourceAccount: !Ref AWS::AccountId
       SourceArn: !GetAtt RouterSchedule.Arn
+  EmailResumeSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Resume manifest-backed email link batches without truncating accepted messages.
+      ScheduleExpression: rate(1 minute)
+      State: !If [EnableReceipt, ENABLED, DISABLED]
+      Targets:
+        - Id: ResumeEmailSubmissions
+          Arn: !GetAtt SubmissionFunction.Arn
+          Input: !Sub '{"task":"resume","monitorId":"${MonitorId}"}'
+          RetryPolicy:
+            MaximumRetryAttempts: 2
+            MaximumEventAgeInSeconds: 3600
+  EmailResumeInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SubmissionFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !GetAtt EmailResumeSchedule.Arn
 Outputs:
   RawMailBucketName: {Value: !Ref RawMailBucket}
   FailureQueueUrl: {Value: !Ref FailureQueue}
