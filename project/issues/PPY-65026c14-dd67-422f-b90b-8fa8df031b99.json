@@ -176,10 +176,25 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "0ed5308b-0183-444e-b228-95562efbb8d7",
+      "author": "home",
+      "text": "Added and pushed a diagnostic-only extension on PR #667, commit cb497657833ad0275f6bdc0610a2f9328a947146. The existing private EMAIL receipt now stores a bounded SES invocation-verdict snapshot (five status enums), provenance, and derived failed-gate codes; it does not copy raw event fields, MIME headers, signatures, or reasons supplied outside the SES event. Receipts also record processingStage so SES auth, sender rate, current editor membership, MIME read/parse, manifest queue, and resumed work are distinguishable. The acceptance predicate, sender trust policy, IAM and live configuration are unchanged. Focused local checks: test_email_submission_intake.py 46 passed; email-submission-intake.feature 12 scenarios / 51 steps passed; Ruff passed; git diff --check passed. No deployment.",
+      "created_at": "2026-10-24T16:16:01.537617Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T15:34:47.147674Z",
+  "updated_at": "2026-10-24T16:16:01.537667Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
