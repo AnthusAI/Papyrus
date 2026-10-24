@@ -12,9 +12,17 @@
     "size-S"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "0a8fdab8-2d4a-45e9-9990-4ebc071a6a7f",
+      "author": "home",
+      "text": "UI copy and docs prose are done in #688 (2026-10-24). Left for this story, identifiers only: NewsDeskTab, NewsDeskShellState, newsroomDeskKind, deskId/deskTitle/deskKey, the \"desks\" tab id and /newsroom/desks route, components/news-desk-*.tsx with news-desk-* CSS and data-news-desk-* attributes, desk references in procedures/newsroom/*.tac, the 'Desk Doctrine'/'Desk: <title>' editorial-context text in amplify/functions/shared/editorial-context.ts (consumed by procedures and asserted in test_newsroom_tools.py), Gherkin step text, code comments, and seed/publication content.",
+      "created_at": "2026-10-24T19:56:51.112302Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T05:52:55.286504Z",
-  "updated_at": "2026-10-23T06:07:34.369485Z",
+  "updated_at": "2026-10-24T19:56:51.112324Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
