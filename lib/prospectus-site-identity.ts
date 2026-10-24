@@ -132,19 +132,28 @@ export function signedProspectusTransport(options: SignedProspectusTransportOpti
 export class ProspectusSiteAccounts {
   constructor(private readonly transport: ProspectusTransport) {}
 
-  requestGoogleSignInChallenge(): Promise<{ challengeId: string; nonce: string; expiresAt: number }> {
+  requestGoogleSignInChallenge(): Promise<{ challengeId: string; nonce: string; expiresAt: number; challengeToken?: string }> {
     return this.transport({ path: "/v1/identities/google/challenge", method: "POST", body: {} }) as Promise<{
       challengeId: string;
       nonce: string;
       expiresAt: number;
+      challengeToken?: string;
     }>;
   }
 
-  resolveGoogleSignIn(challengeId: string, humanAccessToken: string, identityToken: string): Promise<{ person: ProspectusPerson }> {
+  /**
+   * When Prospectus signs its challenges it stores nothing, so the signed `challengeToken` is the only proof the
+   * challenge exists and must be sent back unchanged. Without a token (a service that stores challenges) the ID is sent.
+   */
+  resolveGoogleSignIn(
+    challenge: { challengeId: string; challengeToken?: string },
+    humanAccessToken: string,
+    identityToken: string,
+  ): Promise<{ person: ProspectusPerson }> {
     return this.transport({
       path: "/v1/identities/google/resolve",
       method: "POST",
-      body: { challengeId },
+      body: challenge.challengeToken ? { challengeToken: challenge.challengeToken } : { challengeId: challenge.challengeId },
       humanAccessToken,
       identityToken,
     }) as Promise<{ person: ProspectusPerson }>;
@@ -197,6 +206,8 @@ export interface GoogleOnlyCognitoClient {
 export interface PendingProspectusSignIn {
   challengeId: string;
   nonce: string;
+  /** The signed challenge from Prospectus, present when it signs challenges instead of storing them. */
+  challengeToken?: string;
   state: string;
   codeVerifier: string;
   expiresAt: number;
@@ -242,7 +253,13 @@ export async function beginProspectusGoogleSignIn(
   }).toString();
   return {
     authorizationUrl: authorizationUrl.toString(),
-    pendingSignIn: { challengeId: challenge.challengeId, nonce: challenge.nonce, state, codeVerifier, expiresAt: challenge.expiresAt },
+    pendingSignIn: {
+      challengeId: challenge.challengeId,
+      nonce: challenge.nonce,
+      ...(challenge.challengeToken ? { challengeToken: challenge.challengeToken } : {}),
+      state, codeVerifier,
+      expiresAt: challenge.expiresAt,
+    },
   };
 }
 
@@ -303,7 +320,7 @@ export async function completeProspectusGoogleSignIn(
     expiresInSeconds: Number(tokenBody.expires_in) || 0,
   };
   await (input.verifyCognitoTokens ?? cognitoTokenVerifier(input.cognitoClient))(tokens, input.pendingSignIn.nonce);
-  const { person } = await input.accounts.resolveGoogleSignIn(input.pendingSignIn.challengeId, tokens.accessToken, tokens.idToken);
+  const { person } = await input.accounts.resolveGoogleSignIn(input.pendingSignIn, tokens.accessToken, tokens.idToken);
   return {
     person,
     accessToken: tokens.accessToken,
