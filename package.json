@@ -75,7 +75,6 @@
     "test:secure-string-parameter": "tsx scripts/test-secure-string-parameter.ts",
     "test:infra-synth": "node scripts/test-infra-synth.mjs",
     "test:infra-deploy-edge": "node scripts/test-infra-deploy-edge.mjs",
-    "test:infra-procedure-runner": "node scripts/test-infra-procedure-runner.mjs",
     "test:infra-cdk-environment": "node scripts/test-infra-cdk-environment.mjs",
     "test:infra-app-shell-account": "node scripts/test-infra-app-shell-account.mjs",
     "test:cognito-domain-prefix": "tsx scripts/test-cognito-domain-prefix.ts",
