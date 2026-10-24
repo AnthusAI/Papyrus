@@ -1,10 +1,10 @@
 """Bounded extraction of reference candidates from untrusted MIME email.
 
 This module supplies no authentication or authorization: From/To and all other
-message headers are untrusted provenance. The SES intake verifies trusted receipt
-verdicts, sender and envelope destinations before using this result. No URL is
-fetched by default; the optional redirect helper requires an explicitly injected
-resolver and transport. No HTML is rendered, and body text is never an instruction.
+message headers are untrusted provenance. The SES intake validates its event source,
+scan verdicts and exact envelope destination; SPF/DKIM/DMARC remain signals only.
+No URL is fetched by default; the optional redirect helper requires explicit
+injection. The body view is inert text and never an instruction.
 """
 from __future__ import annotations
 
@@ -39,6 +39,9 @@ _SECRET_KEY = re.compile(
 _OPAQUE = re.compile(r"^[A-Za-z0-9_-]{32,}$")
 _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _IGNORED_HTML = {"script", "style", "head", "template", "noscript"}
+_BLOCK_HTML = {"address", "article", "blockquote", "br", "div", "dl", "fieldset", "figcaption", "figure",
+               "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr", "li", "main",
+               "ol", "p", "pre", "section", "table", "tr", "ul"}
 MAX_REDIRECTS = 5
 REDIRECT_HOP_TIMEOUT_SECONDS = 2.0
 REDIRECT_TOTAL_TIMEOUT_SECONDS = 8.0
@@ -303,6 +306,32 @@ class _Links(HTMLParser):
         self._finish_anchor()
 
 
+class _SafeText(HTMLParser):
+    """Convert HTML to inert readable text; never preserve markup or remote content."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts = []
+        self.ignored = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _IGNORED_HTML:
+            self.ignored.append(tag)
+        elif not self.ignored and tag in _BLOCK_HTML:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if self.ignored:
+            if tag == self.ignored[-1]:
+                self.ignored.pop()
+        elif tag in _BLOCK_HTML:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self.ignored:
+            self.parts.append(data)
+
+
 def _addresses(message, name, *, single=False):
     headers = message.get_all(name, [])
     try:
@@ -328,15 +357,14 @@ def _addresses(message, name, *, single=False):
 
 
 def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
-    """Extract every safe unique link within the bounded MIME message.
+    """Extract every safe unique link and an inert readable body within the MIME bound.
 
     Ordinary attachments are ignored; bounded attached message/rfc822 bodies are
     inspected only for links and never used to authenticate the sender. Multi-part bodies
-    contribute both HTML and plain text links. This first slice forwards no message
-    prose or original unsafe URL into a classifier; retain the original privately
-    in the intake's restricted object storage for inspection. Tracking wrappers
-    remain excluded unless a caller explicitly supplies an offline-tested resolver;
-    the production intake does not supply one.
+    contribute both HTML and plain text links. Classifiers receive only normalized links,
+    not email prose. The safe body is stored in private, expiring text chunks for editors
+    and rendered as text, never HTML. Tracking wrappers remain excluded unless a caller
+    explicitly supplies an offline-tested resolver; production intake does not supply one.
     """
     if not isinstance(raw, bytes) or not raw:
         raise SubmissionRejected("invalid_message")
@@ -351,9 +379,18 @@ def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
             or str(message.get("Return-Path") or "").strip() == "<>"
             or message.get_content_type() in {"multipart/report", "message/delivery-status", "message/disposition-notification"}):
         raise SubmissionRejected("automated_message")
-    sender = _addresses(message, "From", single=True)[0]
-    recipients = sorted(set(_addresses(message, "To") + _addresses(message, "Cc")))
-    candidates, warnings = [], set()
+    warnings, candidates = set(), []
+    try:
+        sender = _addresses(message, "From", single=True)[0]
+    except SubmissionRejected:
+        sender = "unknown"
+        warnings.add("mime_from_unavailable")
+    try:
+        recipients = sorted(set(_addresses(message, "To") + _addresses(message, "Cc")))
+    except SubmissionRejected:
+        recipients = []
+        warnings.add("mime_recipients_unavailable")
+    plain_bodies, html_bodies = [], []
     pending, count = [(message, 0, False)], 0
     while pending:
         part, depth, ignored_parent = pending.pop()
@@ -385,11 +422,13 @@ def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
         if part.defects:
             raise SubmissionRejected("invalid_encoding")
         if part.get_content_type() == "text/html":
+            html_bodies.append(body)
             parser = _Links()
             parser.feed(body)
             parser.close()
             candidates.extend(parser.links)
         else:
+            plain_bodies.append(body)
             for line in body.splitlines():
                 for match in _URL.finditer(line):
                     url = match.group(0).rstrip(".,;:!?\u201d\u2019]")
@@ -427,6 +466,19 @@ def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
         if url not in links or title:
             links[url] = {"url": url, "title": _link_title(title, url)}
     result_links = [item for url, item in links.items() if url not in excluded]
+    if plain_bodies:
+        safe_body = "\n\n".join(plain_bodies)
+    elif html_bodies:
+        parser = _SafeText()
+        for body in html_bodies:
+            parser.feed(body)
+            parser.parts.append("\n\n")
+        parser.close()
+        safe_body = "".join(parser.parts)
+    else:
+        safe_body = ""
+    safe_body = "\n".join(line.rstrip() for line in safe_body.replace("\r", "").split("\n")).strip()
     return {"sender": sender, "recipients": recipients, "subject": _text(message.get("Subject")),
             "messageId": _text(message.get("Message-ID")), "date": _text(message.get("Date"), 128),
-            "links": result_links, "warnings": sorted(warnings), "excludedLinkCount": excluded_count}
+            "links": result_links, "warnings": sorted(warnings), "excludedLinkCount": excluded_count,
+            "safeBodyText": safe_body}

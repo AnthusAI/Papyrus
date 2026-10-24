@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadMonitoringOverview } from "../lib/monitoring-client";
+import { loadMonitoringEmailSubmission, loadMonitoringOverview } from "../lib/monitoring-client";
 import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../lib/monitoring-overview-fixture";
-import type { MonitoringResult } from "../lib/monitoring-overview";
+import type { MonitoringEmailDetails, MonitoringResult } from "../lib/monitoring-overview";
 import { MonitoringOverviewView, type MonitoringMode } from "./monitoring-overview-view";
 
 const REFRESH_MILLISECONDS = 60_000;
@@ -12,6 +12,7 @@ const REFRESH_MILLISECONDS = 60_000;
 export function MonitoringPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo: boolean }) {
   const [mode, setMode] = useState<MonitoringMode>("publication");
   const [result, setResult] = useState<MonitoringResult | null>(null);
+  const [emailDetail, setEmailDetail] = useState<MonitoringEmailDetails | null>(null);
 
   useEffect(() => {
     if (isDemo) {
@@ -36,5 +37,12 @@ export function MonitoringPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo:
     };
   }, [mode, isDemo]);
 
-  return <MonitoringOverviewView result={result} canViewAll={isAdmin} mode={mode} onModeChange={setMode} demo={isDemo} />;
+  const openEmail = async (receiptId: string) => {
+    setEmailDetail({ state: "unavailable" });
+    const next = await loadMonitoringEmailSubmission(receiptId);
+    setEmailDetail(next);
+  };
+
+  return <MonitoringOverviewView result={result} canViewAll={isAdmin} mode={mode} onModeChange={setMode} demo={isDemo}
+    emailDetail={emailDetail} onEmailOpen={openEmail} />;
 }

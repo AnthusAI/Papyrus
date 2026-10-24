@@ -1,4 +1,5 @@
 from copy import deepcopy
+from hashlib import sha256
 
 from behave import given, then, when
 
@@ -10,7 +11,7 @@ from procedures.newsroom.tests.email_submission_fixture import (
 )
 
 
-@given("an isolated publication email destination and an authenticated newsletter")
+@given("an isolated publication email destination and a newsletter email")
 def email_destination(context):
     context.email_fixture = email_fixture()
 
@@ -48,9 +49,11 @@ def email_all_links_durable(context):
     assert len({row["sourceId"] for row in rows}) == 41
 
 
-@given("the trusted SES receipt fails DMARC authentication")
+@given("the SES receipt reports failed SPF, DKIM and DMARC checks")
 def email_authentication_failure(context):
-    context.email_fixture.event["Records"][0]["ses"]["receipt"]["dmarcVerdict"]["status"] = "FAIL"
+    receipt = context.email_fixture.event["Records"][0]["ses"]["receipt"]
+    for name in ("spfVerdict", "dkimVerdict", "dmarcVerdict"):
+        receipt[name]["status"] = "FAIL"
 
 
 @given("another publication is present in the SES envelope recipients")
@@ -94,37 +97,54 @@ def email_rejected(context):
     assert context.email_fixture.table.by_prefix("DISC#") == []
 
 
-@then("the private receipt records bounded SES verdict diagnostics")
+@then("the private receipt records untrusted authentication signals as warnings")
 def email_receipt_verdict_diagnostics(context):
     receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
     diagnostics = receipt["sesDiagnostics"]
-    assert receipt["errorCode"] == "sender_authentication_failed"
-    assert receipt["processingStage"] == "ses_authentication"
-    assert diagnostics["provenance"] == "ses-invocation-receipt"
+    assert receipt["status"] == "queued" and receipt["emailTrustMode"] == "data-only"
+    assert diagnostics["provenance"] == "ses-invocation-receipt-untrusted-auth-signals"
     assert diagnostics["verdicts"]["dmarc"] == "FAIL"
-    assert diagnostics["failedGateCodes"] == ["dmarc_verdict_not_passed"]
-    assert set(diagnostics) == {"provenance", "verdicts", "failedGateCodes"}
+    assert diagnostics["warnings"] == ["spf_not_passed", "dkim_not_passed", "dmarc_not_passed"]
+    assert diagnostics["blockedGateCodes"] == []
+    assert set(diagnostics) == {"provenance", "verdicts", "warnings", "blockedGateCodes"}
 
 
-@given("the outer sender has a verified email on an enabled user in that publication's editor group")
-def active_editor(context):
-    pass  # the isolated fixture's default sender is a verified enabled editor
+@then("the message is queued only within its configured destination")
+def email_is_queued_in_explicit_destination(context):
+    assert context.email_results[0]["status"] == "queued"
+    rows = context.email_fixture.table.by_prefix("DISC#")
+    expected = context.email_fixture.config["publicationIds"]
+    assert rows and all(row["emailTrustMode"] == "data-only"
+                        and row["emailDestinationPublicationIds"] == expected for row in rows)
 
 
-@given("the outer sender has a verified email on an enabled user in that publication's admin group")
-def active_admin(context):
-    context.email_fixture.cognito.groups["us-east-1_fixture"] = {"admin"}
+@then("no Cognito editor membership lookup is made")
+def email_does_not_lookup_editor_membership(context):
+    assert context.email_fixture.cognito.calls == []
 
 
-@then("only that publication is added to the authorized destination set")
+@then("the original body is available only as inert text to that publication's editors")
+def email_body_is_inert_private_text(context):
+    row = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    details = context.email_fixture.table.by_prefix("EMAILDETAIL#")
+    body = "".join(item.get("text", "") for item in details if "#BODY#" in item["sk"])
+    assert row["emailTrustMode"] == "data-only" and row["safeBodyChunks"] >= 1
+    assert "https://example.org/alpha" in body and "<script" not in body
+    assert all(item["ttl"] == row["ttl"] for item in details)
+
+
+@then("only that publication is added to the configured destination set")
 def only_publication_authorized(context):
     rows = context.email_fixture.table.by_prefix("DISC#")
-    assert rows and all(row["emailAuthorizedPublicationIds"] == ["publication"] for row in rows)
+    assert rows and all(row["emailDestinationPublicationIds"] == ["publication"] for row in rows)
+    assert all("emailAuthorizedPublicationIds" not in row for row in rows)
 
 
-@given("the SES-authenticated outer sender is not a verified active editor")
-def sender_not_editor(context):
-    context.email_fixture.cognito.editors["us-east-1_fixture"].clear()
+@given("the MIME sender and SES sender headers disagree")
+def sender_headers_disagree(context):
+    context.email_fixture.event["Records"][0]["ses"]["mail"]["commonHeaders"]["from"] = ["attacker@example.net"]
+    context.email_fixture.s3.raw = context.email_fixture.s3.raw.replace(
+        b"Editor <editor@example.org>", b"Editor <other@example.net>")
 
 
 @given("a shared destination grants two publications")
@@ -134,19 +154,15 @@ def shared_membership_destination(context):
     context.email_fixture = shared_fixture()
 
 
-@given("the outer sender is an editor in only the first publication")
-def sender_is_first_publication_editor(context):
-    context.email_fixture.cognito.editors["us-east-1_second"].clear()
-
-
-@then("the discovery is authorized for the first publication only")
-def only_first_publication_authorized(context):
+@then("the discovery carries only the two configured destination publications")
+def discovery_has_exact_destination_scope(context):
     rows = context.email_fixture.table.by_prefix("DISC#")
-    assert rows and all(row["emailAuthorizedPublicationIds"] == ["publication"] for row in rows)
+    assert rows and all(row["emailDestinationPublicationIds"] == ["publication", "second"] for row in rows)
+    assert all("emailAuthorizedPublicationIds" not in row for row in rows)
 
 
-@then("the second publication receives no classifier request or reference")
-def second_publication_not_contacted(context):
+@then("the Cyclotron can choose only among those publications")
+def cyclotron_selection_stays_in_destination(context):
     from papyrus_content.monitoring_router import (
         CyclotronClient,
         validate_router_config,
@@ -157,55 +173,52 @@ def second_publication_not_contacted(context):
     client = CyclotronClient(validate_router_config(context.email_fixture.router), sign=lambda *_: {}, http=model.http,
                              sleep=lambda _: None, clock=lambda: 0)
     result, delivered = route_email(context.email_fixture, cyclotron=client)
-    assert result["counts"]["delivered"] == 2
-    assert delivered and {entry[0]["publicationId"] for entry in delivered} == {"publication"}
-    assert model.posts() and all("/publications/publication/" in row[1] for row in model.posts())
+    allowed = {"publication", "second"}
+    assert result["counts"]["delivered"] == 4
+    assert delivered and {entry[0]["publicationId"] for entry in delivered} <= allowed
+    assert model.posts() and all(any(f"/publications/{pub}/" in row[1] for pub in allowed)
+                                 for row in model.posts())
 
 
-@given("a shared destination has queued a discovery for an editor")
-def queued_editor_destination(context):
-    from procedures.newsroom.tests.test_email_submission_intake import shared_fixture
+@given("a prior authentication-rejected SES delivery with passing spam and virus checks")
+def prior_authentication_rejection(context):
+    fixture = email_fixture()
+    message_id = fixture.event["Records"][0]["ses"]["mail"]["messageId"]
+    receipt_id = "EMAIL#" + sha256(message_id.encode()).hexdigest()
+    from papyrus_content.email_submission_intake import validate_email_config
 
-    context.email_fixture = shared_fixture()
-    collect_email(context.email_fixture)
-
-
-@given("that editor is deactivated before routing or classifier backfill")
-def revoke_queued_editor(context):
-    for members in context.email_fixture.cognito.editors.values():
-        members.clear()
-
-
-@when("the router rechecks publication membership")
-def router_checks_membership(context):
-    from papyrus_content.monitoring_router import (
-        CyclotronClient,
-        validate_router_config,
-    )
-    from procedures.newsroom.tests.test_email_submission_intake import AccountCyclotron
-
-    model = AccountCyclotron()
-    client = CyclotronClient(validate_router_config(context.email_fixture.router), sign=lambda *_: {}, http=model.http,
-                             sleep=lambda _: None, clock=lambda: 0)
-    context.email_routing, context.email_deliveries = route_email(context.email_fixture, cyclotron=client)
+    config = validate_email_config(fixture.config, fixture.router)
+    fixture.table.put_item(Item={
+        "pk": "MONITOR#email-publication", "sk": receipt_id,
+        "status": "rejected", "errorCode": "sender_authentication_failed",
+        "sesMessageId": message_id, "firstSeen": 1000, "observedAt": "1970-01-01T00:16:40Z",
+        "s3Bucket": "mail-fixture", "s3Key": "email-submissions/" + message_id,
+        "accountId": config["accountId"], "routingFingerprint": config["routingFingerprint"],
+        "destinationFingerprint": config["destinationFingerprint"], "ttl": 999999,
+        "sesDiagnostics": {"provenance": "ses-invocation-receipt",
+                            "verdicts": {"spam": "PASS", "virus": "PASS", "spf": "FAIL",
+                                         "dkim": "FAIL", "dmarc": "FAIL"},
+                            "failedGateCodes": ["sender_authentication_failed"]},
+    })
+    context.email_fixture = fixture
 
 
-@then("the discovery is not delivered to the deactivated publication")
-def revoked_editor_not_delivered(context):
-    assert context.email_deliveries == []
-    assert context.email_routing["counts"]["refused"] == 2
+@when("the operator replays its stored SES message")
+def replay_stored_email(context):
+    context.email_results = [collect_email(context.email_fixture), collect_email(context.email_fixture)]
 
 
-@given("Cognito editor membership cannot be checked")
-def cognito_lookup_fails(context):
-    context.email_fixture.cognito.fail = True
+@then("the original private receipt is queued as data-only")
+def replay_receipt_queued(context):
+    assert context.email_results[0]["status"] == "queued"
+    assert context.email_results[1]["status"] == "duplicate"
+    assert context.email_fixture.table.by_prefix("EMAIL#")[0]["emailTrustMode"] == "data-only"
 
 
-@then("processing fails for retry without reading the MIME object")
-def lookup_fails_closed(context):
-    assert isinstance(context.email_results[0], RuntimeError)
-    assert context.email_fixture.s3.calls == []
-    assert context.email_fixture.table.by_prefix("EMAIL#")[0]["status"] == "failed"
+@then("replay does not create duplicate discoveries")
+def replay_is_idempotent(context):
+    rows = context.email_fixture.table.by_prefix("DISC#")
+    assert len(rows) == 2 and len({row["sourceId"] for row in rows}) == 2
 
 
 @when("the router Account binding changes before delivery")

@@ -1,12 +1,13 @@
 Feature: Email submissions enter the existing reference discovery queue
   Publication and shared research addresses are explicit operator configuration.
   Email is untrusted source material, never an instruction to an editorial agent.
-  SES-authenticated active editors can submit links without selecting human labels
-  or publishing anything. Shared relevance chooses publications; each receiving
-  publication's existing pending-reference sweep suggests sections.
+  SES spam and virus verdicts remain safety gates; SPF, DKIM and DMARC are recorded
+  as untrusted signals. Editors can read an inert private rendering and review links.
+  No sender identity grants roles, chooses destinations, creates human labels or publishes.
+  Shared relevance chooses publications; each publication's section sweep suggests sections.
 
   Scenario: Retried newsletter submission queues each source once
-    Given an isolated publication email destination and an authenticated newsletter
+    Given an isolated publication email destination and a newsletter email
     When the email collector receives the same SES delivery twice
     Then each newsletter source has one queued discovery with private email provenance
     And the email collector has not fetched sources or called an agent
@@ -17,58 +18,41 @@ Feature: Email submissions enter the existing reference discovery queue
     Then the receipt remains processing after 25 links and finishes after 16 more
     And all 41 unique links have one durable discovery
 
-  Scenario: Failed sender authentication cannot be rescued by MIME headers
-    Given an isolated publication email destination and an authenticated newsletter
-    And the trusted SES receipt fails DMARC authentication
+  Scenario: Failed sender authentication is recorded but does not block data-only intake
+    Given an isolated publication email destination and a newsletter email
+    And the SES receipt reports failed SPF, DKIM and DMARC checks
     When the email collector receives the SES delivery
-    Then the email is rejected before reading the MIME object
-    And the private receipt records bounded SES verdict diagnostics
+    Then the message is queued only within its configured destination
+    And the private receipt records untrusted authentication signals as warnings
+    And the original body is available only as inert text to that publication's editors
 
-  Scenario: A verified active editor can submit
-    Given an isolated publication email destination and an authenticated newsletter
-    And the outer sender has a verified email on an enabled user in that publication's editor group
+  Scenario: Sender headers do not grant authority or choose a destination
+    Given an isolated publication email destination and a newsletter email
+    And the MIME sender and SES sender headers disagree
     When the email collector receives the SES delivery
-    Then only that publication is added to the authorized destination set
+    Then the message is queued only within its configured destination
+    And no Cognito editor membership lookup is made
 
-  Scenario: An active admin can submit where application content writes permit it
-    Given an isolated publication email destination and an authenticated newsletter
-    And the outer sender has a verified email on an enabled user in that publication's admin group
-    When the email collector receives the SES delivery
-    Then only that publication is added to the authorized destination set
-
-  Scenario: A newsletter From header cannot impersonate an editor
-    Given an isolated publication email destination and an authenticated newsletter
-    And the SES-authenticated outer sender is not a verified active editor
-    When the email collector receives the SES delivery
-    Then the email is rejected before reading the MIME object
-
-  Scenario: Shared intake respects each editor's publication membership
+  Scenario: Shared intake stays inside the recipient's configured publication scope
     Given a shared destination grants two publications
-    And the outer sender is an editor in only the first publication
     When the email collector receives the SES delivery
-    Then the discovery is authorized for the first publication only
-    And the second publication receives no classifier request or reference
+    Then the discovery carries only the two configured destination publications
+    And the Cyclotron can choose only among those publications
 
-  Scenario: Revoked editor membership blocks queued delivery
-    Given a shared destination has queued a discovery for an editor
-    And that editor is deactivated before routing or classifier backfill
-    When the router rechecks publication membership
-    Then the discovery is not delivered to the deactivated publication
-
-  Scenario: Cognito lookup failure fails closed
-    Given an isolated publication email destination and an authenticated newsletter
-    And Cognito editor membership cannot be checked
-    When the email collector receives the SES delivery
-    Then processing fails for retry without reading the MIME object
+  Scenario: Rejected authentication-only delivery can be replayed idempotently
+    Given a prior authentication-rejected SES delivery with passing spam and virus checks
+    When the operator replays its stored SES message
+    Then the original private receipt is queued as data-only
+    And replay does not create duplicate discoveries
 
   Scenario: One email cannot cross destination scopes
-    Given an isolated publication email destination and an authenticated newsletter
+    Given an isolated publication email destination and a newsletter email
     And another publication is present in the SES envelope recipients
     When the email collector receives the SES delivery
     Then the email is rejected before reading the MIME object
 
   Scenario: A changed Account binding cannot reroute queued submissions
-    Given an isolated publication email destination and an authenticated newsletter
+    Given an isolated publication email destination and a newsletter email
     When the email collector receives the SES delivery
     And the router Account binding changes before delivery
     Then the router refuses the discovery without delivering references

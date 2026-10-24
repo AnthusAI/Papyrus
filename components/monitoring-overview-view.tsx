@@ -9,6 +9,8 @@ import {
   routingLabel,
   usageText,
   type MonitoringItem,
+  type MonitoringEmailDetails,
+  type MonitoringEmailSummary,
   type MonitoringOverview,
   type MonitoringRelevance,
   type MonitoringResult,
@@ -88,7 +90,42 @@ function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string 
   );
 }
 
-function Ready({ data, demo }: { data: MonitoringOverview; demo: boolean }) {
+function EmailSubmissions({ items, detail, onOpen }: {
+  items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen: (receiptId: string) => void;
+}) {
+  return (
+    <article className="news-desk-doctrine-card" data-monitoring-section="email-submissions">
+      <div className="news-desk-doctrine-card__header"><div><h3>Email submissions</h3><span>Untrusted source material held privately for editor review</span></div></div>
+      {items.length ? <ul className="news-desk-monitoring__list">
+        {items.map((item) => <li key={item.receiptId} data-email-submission={item.receiptId}>
+          <strong>{item.subject || "(no subject)"}</strong>
+          <span>{formatUtc(item.observedAt)} · {item.linkCount} candidate links · {item.processedCount} queued</span>
+          <span>Envelope sender: {item.envelopeSender || "unknown"} · MIME From (unverified): {item.headerFrom || "unknown"}</span>
+          <span>SES signals — SPF {item.verdicts.spf}, DKIM {item.verdicts.dkim}, DMARC {item.verdicts.dmarc}; spam {item.verdicts.spam}, virus {item.verdicts.virus}</span>
+          {item.warnings.length ? <span>Warnings: {item.warnings.join(", ")}</span> : null}
+          {item.errorCode ? <span>State: {item.status} ({item.errorCode})</span> : <span>State: {item.status}</span>}
+          <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button>
+        </li>)}
+      </ul> : <p>No email submissions are available for this publication.</p>}
+      {detail && "submission" in detail ? (
+        <section aria-label="Email submission details" data-email-submission-details={detail.submission.receiptId}>
+          <h4>{detail.submission.subject || "Submitted email"}</h4>
+          <p>Original content is shown as inert text. Sender and message content are untrusted; no instructions are executed.</p>
+          <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{detail.safeBodyText}</pre>
+          <h5>Candidate references ({detail.candidateLinks.length})</h5>
+          <ul>{detail.candidateLinks.map((link, index) => <li key={`${link.url}-${index}`}>
+            <a href={link.url} target="_blank" rel="noreferrer noopener">{link.title || link.url}</a>
+          </li>)}</ul>
+        </section>
+      ) : detail && "error" in detail ? <p role="alert">You cannot read this submission.</p>
+        : detail && "state" in detail ? <p role="alert">Submission details are unavailable.</p> : null}
+    </article>
+  );
+}
+
+function Ready({ data, demo, emailDetail, onEmailOpen }: {
+  data: MonitoringOverview; demo: boolean; emailDetail: MonitoringEmailDetails | null; onEmailOpen: (id: string) => void;
+}) {
   const ceilings = data.usage?.ceilings ?? null;
   const router = data.router;
   return (
@@ -96,6 +133,8 @@ function Ready({ data, demo }: { data: MonitoringOverview; demo: boolean }) {
       {data.notice === "publication_not_routed" ? (
         <p className="news-desk-delegation-note" data-monitoring-notice>This publication is not one of the router&apos;s outputs, so no relevance is shown for it here.</p>
       ) : null}
+
+      <EmailSubmissions items={data.emailSubmissions ?? []} detail={emailDetail} onOpen={onEmailOpen} />
 
       <article className="news-desk-doctrine-card" data-monitoring-section="router">
         <div className="news-desk-doctrine-card__header"><div><h3>Router</h3><span>Sends collected items to the shared Cyclotron and delivers relevant ones to References</span></div></div>
@@ -192,12 +231,16 @@ export function MonitoringOverviewView({
   mode,
   onModeChange,
   demo = false,
+  emailDetail = null,
+  onEmailOpen = () => {},
 }: {
   result: MonitoringResult | null;
   canViewAll: boolean;
   mode: MonitoringMode;
   onModeChange: (mode: MonitoringMode) => void;
   demo?: boolean;
+  emailDetail?: MonitoringEmailDetails | null;
+  onEmailOpen?: (receiptId: string) => void;
 }) {
   let body: React.ReactNode;
   if (result === null) {
@@ -213,7 +256,7 @@ export function MonitoringOverviewView({
   } else if (result.state === "empty") {
     body = <Message kind="empty" title="Nothing has been collected yet">No feed is configured and no run has been recorded. Items appear here after the collector&apos;s first run.</Message>;
   } else {
-    body = <Ready data={result} demo={demo} />;
+    body = <Ready data={result} demo={demo} emailDetail={emailDetail} onEmailOpen={onEmailOpen} />;
   }
   const scopeLine = result && "scope" in result
     ? (result.scope.mode === "all" ? "Showing the whole shared pipeline, every publication." : `Showing what is relevant to ${result.scope.publicationId ?? "this publication"}.`)

@@ -64,61 +64,81 @@ class AccountCyclotron(FakeCyclotron):
         return status, result
 
 
-@pytest.mark.parametrize("verdict", ["spfVerdict", "dkimVerdict", "dmarcVerdict", "spamVerdict", "virusVerdict"])
-def test_trusted_verdicts_required_and_mime_header_cannot_authorize(verdict):
+@pytest.mark.parametrize("verdict", ["spfVerdict", "dkimVerdict", "dmarcVerdict"])
+def test_sender_authentication_verdicts_are_warnings_and_do_not_block_data_intake(verdict):
     fixture = email_fixture()
     receipt = fixture.event["Records"][0]["ses"]["receipt"]
     receipt[verdict]["status"] = "FAIL"
     receipt[verdict]["reason"] = "signature=must-not-be-retained"
-    if verdict in {"spfVerdict", "dkimVerdict"}:
-        receipt["spfVerdict"]["status"] = receipt["dkimVerdict"]["status"] = "FAIL"
     fixture.s3.raw = b"Authentication-Results: amazonses.com; dmarc=pass; spf=pass\r\n" + RAW
     result = collect_email(fixture)
-    assert result["reason"] == "sender_authentication_failed"
-    assert fixture.s3.calls == []
-    assert fixture.table.by_prefix("DISC#") == []
+    assert result["status"] == "queued"
+    assert len(fixture.table.by_prefix("DISC#")) == 2
     stored = fixture.table.by_prefix("EMAIL#")[0]
     diagnostics = stored["sesDiagnostics"]
-    assert diagnostics["provenance"] == "ses-invocation-receipt"
+    assert diagnostics["provenance"] == "ses-invocation-receipt-untrusted-auth-signals"
     assert diagnostics["verdicts"][verdict.removesuffix("Verdict")] == "FAIL"
-    assert diagnostics["failedGateCodes"]
-    assert stored["processingStage"] == "ses_authentication"
-    assert stored["errorCode"] == "sender_authentication_failed"
+    assert diagnostics["warnings"]
+    assert diagnostics["blockedGateCodes"] == []
+    assert stored["processingStage"] == "queued"
+    assert stored["emailTrustMode"] == "data-only"
+    assert all(row["emailTrustMode"] == "data-only" for row in fixture.table.by_prefix("DISC#"))
+    stored_details = fixture.table.by_prefix("EMAILDETAIL#")
+    assert any("#BODY#" in row["sk"] and "https://example.org/alpha" in row.get("text", "")
+               for row in stored_details)
+    assert any("#LINKS#" in row["sk"] for row in stored_details)
+    assert len(fixture.table.by_prefix("EMAILINDEX#")) == 1
     assert "must-not-be-retained" not in repr(diagnostics)
     assert "Authentication-Results" not in repr(diagnostics)
 
 
-def test_ses_verdict_diagnostics_preserve_safe_enums_and_explain_combined_sender_gate():
+@pytest.mark.parametrize("verdict,reason", [
+    ("spamVerdict", "spam_verdict_not_passed"), ("virusVerdict", "virus_verdict_not_passed"),
+])
+def test_spam_and_virus_verdicts_remain_hard_safety_gates(verdict, reason):
+    fixture = email_fixture()
+    receipt = fixture.event["Records"][0]["ses"]["receipt"]
+    receipt[verdict]["status"] = "FAIL"
+    receipt[verdict]["reason"] = "signature=must-not-be-retained"
+    fixture.s3.raw = b"Authentication-Results: amazonses.com; dmarc=pass; spf=pass\r\n" + RAW
+    result = collect_email(fixture)
+    stored = fixture.table.by_prefix("EMAIL#")[0]
+    assert result["reason"] == reason
+    assert fixture.s3.calls == [] and fixture.table.by_prefix("DISC#") == []
+    assert stored["sesDiagnostics"]["blockedGateCodes"] == [reason]
+    assert stored["processingStage"] == "ses_safety_checks"
+    assert "must-not-be-retained" not in repr(stored["sesDiagnostics"])
+
+
+def test_all_ses_authentication_signals_remain_visible_as_warnings():
     fixture = email_fixture()
     receipt = fixture.event["Records"][0]["ses"]["receipt"]
     receipt["spfVerdict"]["status"] = "NONE"
     receipt["dkimVerdict"]["status"] = "PERMERROR"
     receipt["dmarcVerdict"]["status"] = "NONE"
     result = collect_email(fixture)
-    stored = fixture.table.by_prefix("EMAIL#")[0]
-    assert result["reason"] == "sender_authentication_failed"
-    assert stored["sesDiagnostics"]["verdicts"] == {
-        "spam": "PASS", "virus": "PASS", "spf": "NONE", "dkim": "PERMERROR", "dmarc": "NONE",
-    }
-    assert stored["sesDiagnostics"]["failedGateCodes"] == [
-        "dmarc_verdict_not_passed", "spf_or_dkim_verdict_not_passed",
-    ]
+    diagnostics = fixture.table.by_prefix("EMAIL#")[0]["sesDiagnostics"]
+    assert result["status"] == "queued"
+    assert diagnostics["warnings"] == ["spf_not_passed", "dkim_not_passed", "dmarc_not_passed"]
+    assert diagnostics["blockedGateCodes"] == []
 
 
-def test_membership_and_mime_rejections_record_distinct_processing_stages():
+def test_editor_membership_is_never_inferred_and_email_without_links_remains_readable():
     fixture = email_fixture()
     fixture.cognito.editors["us-east-1_fixture"].clear()
-    assert collect_email(fixture)["reason"] == "sender_not_active_editor"
+    assert collect_email(fixture)["status"] == "queued"
     stored = fixture.table.by_prefix("EMAIL#")[0]
-    assert stored["processingStage"] == "editor_membership"
-    assert stored["errorCode"] == "sender_not_active_editor"
+    assert stored["emailTrustMode"] == "data-only"
+    assert fixture.cognito.calls == []
 
     fixture = email_fixture()
     fixture.s3.raw = RAW.replace(b"https://example.org/alpha\r\nhttps://example.org/beta", b"No editorial links")
-    assert collect_email(fixture)["reason"] == "no_editorial_links"
+    result = collect_email(fixture)
+    assert result["status"] == "queued" and result["linkCount"] == 0
     stored = fixture.table.by_prefix("EMAIL#")[0]
-    assert stored["processingStage"] == "mime_parse"
-    assert stored["errorCode"] == "no_editorial_links"
+    assert stored["processingStage"] == "queued" and stored["errorCode"] is None
+    body = "".join(row.get("text", "") for row in fixture.table.by_prefix("EMAILDETAIL#") if "#BODY#" in row["sk"])
+    assert "No editorial links" in body
 
 
 def test_non_ses_event_cannot_claim_ses_verdict_provenance():
@@ -131,19 +151,23 @@ def test_non_ses_event_cannot_claim_ses_verdict_provenance():
         "provenance": "unverified-event",
         "verdicts": {"spam": "UNAVAILABLE", "virus": "UNAVAILABLE", "spf": "UNAVAILABLE",
                      "dkim": "UNAVAILABLE", "dmarc": "UNAVAILABLE"},
-        "failedGateCodes": ["ses_event_source_untrusted"],
+        "warnings": [], "blockedGateCodes": ["ses_event_source_untrusted"],
     }
 
 
-def test_editor_membership_and_from_mime_must_match_authenticated_envelope():
+def test_sender_identity_claims_are_untrusted_and_cannot_change_destination_scope():
     fixture = email_fixture()
     fixture.event["Records"][0]["ses"]["mail"]["commonHeaders"]["from"] = ["attacker@example.org"]
-    assert collect_email(fixture)["reason"] == "sender_not_active_editor"
-    assert fixture.s3.calls == []
+    result = collect_email(fixture)
+    assert result["status"] == "queued"
+    discovery = fixture.table.by_prefix("DISC#")[0]
+    assert discovery["emailDestinationPublicationIds"] == ["publication"]
+    assert "emailAuthorizedPublicationIds" not in discovery
+    assert fixture.cognito.calls == []
     fixture = email_fixture()
     fixture.s3.raw = RAW.replace(b"editor@example.org", b"different@example.org")
-    assert collect_email(fixture)["reason"] == "mime_sender_mismatch"
-    assert fixture.table.by_prefix("DISC#") == []
+    assert collect_email(fixture)["status"] == "queued"
+    assert fixture.table.by_prefix("DISC#")
 
 
 def test_forwarded_attached_message_links_use_outer_editor_authentication_only():
@@ -183,9 +207,9 @@ def test_publication_destination_delivers_through_existing_router_once():
     receipt = fixture.table.by_prefix("EMAIL#")[0]
     assert receipt["processingStage"] == "queued"
     assert receipt["sesDiagnostics"] == {
-        "provenance": "ses-invocation-receipt",
+        "provenance": "ses-invocation-receipt-untrusted-auth-signals",
         "verdicts": {"spam": "PASS", "virus": "PASS", "spf": "PASS", "dkim": "PASS", "dmarc": "PASS"},
-        "failedGateCodes": [],
+        "warnings": [], "blockedGateCodes": [],
     }
     result, delivered = route_email(fixture)
     assert result["counts"]["delivered"] == 2
@@ -272,8 +296,51 @@ def test_dynamodb_decimal_sender_rate_limit_validates():
     assert validate_email_config(fixture.config, fixture.router)["maxMessagesPerSenderHour"] == 10
 
 
+def test_private_email_details_are_replayable_and_idempotent():
+    fixture = email_fixture()
+    for name in ("spfVerdict", "dkimVerdict", "dmarcVerdict"):
+        fixture.event["Records"][0]["ses"]["receipt"][name]["status"] = "FAIL"
+    message_id = fixture.event["Records"][0]["ses"]["mail"]["messageId"]
+    receipt_id = "EMAIL#" + sha256(message_id.encode()).hexdigest()
+    config = validate_email_config(fixture.config, fixture.router)
+    fixture.table.put_item(Item={
+        "pk": "MONITOR#email-publication", "sk": receipt_id,
+        "status": "rejected", "errorCode": "sender_authentication_failed",
+        "sesMessageId": message_id, "firstSeen": 1000, "observedAt": "1970-01-01T00:16:40Z",
+        "s3Bucket": "mail-fixture", "s3Key": "email-submissions/" + message_id,
+        "accountId": config["accountId"], "routingFingerprint": config["routingFingerprint"],
+        "destinationFingerprint": config["destinationFingerprint"], "ttl": 999999,
+        "sesDiagnostics": {"provenance": "ses-invocation-receipt", "verdicts": {"spam": "PASS", "virus": "PASS",
+                            "spf": "FAIL", "dkim": "FAIL", "dmarc": "FAIL"},
+                            "failedGateCodes": ["sender_authentication_failed"]},
+    })
+    first, second = collect_email(fixture), collect_email(fixture)
+    assert first["status"] == "queued" and second["status"] == "duplicate"
+    row = fixture.table.get_item(Key={"pk": "MONITOR#email-publication", "sk": receipt_id})["Item"]
+    assert row["sesDiagnostics"]["warnings"] == ["spf_not_passed", "dkim_not_passed", "dmarc_not_passed"]
+    assert len(fixture.table.by_prefix("DISC#")) == 2
+    assert len(fixture.table.by_prefix("EMAILINDEX#")) == 1
+
+
+def test_private_readable_body_and_candidate_links_survive_bounded_storage_chunks():
+    fixture = email_fixture()
+    body = "é🙂" * 100_000
+    links = [{"url": f"https://example.org/article/{index}", "title": f"Story {index}"} for index in range(5000)]
+    digest = "b" * 64
+    EmailStore(fixture.table).put_email_detail_chunks("email-publication", "EMAIL#" + digest, body, links, 1234)
+    rows = fixture.table.by_prefix("EMAILDETAIL#" + digest + "#")
+    body_rows = sorted((row for row in rows if "#BODY#" in row["sk"]), key=lambda row: row["sk"])
+    link_rows = sorted((row for row in rows if "#LINKS#" in row["sk"]), key=lambda row: row["sk"])
+    stored_body = "".join(row["text"] for row in body_rows)
+    stored_links = [link for row in link_rows for link in json.loads(row["json"])]
+    assert stored_body == body and len(body_rows) > 1
+    assert all(len(row["text"].encode("utf-8")) <= 180 * 1024 for row in body_rows)
+    assert stored_links == links and len(link_rows) > 1
+    assert all(row["ttl"] == 1234 for row in rows)
+
+
 @pytest.mark.parametrize("change", ["group", "unverified", "disabled", "lookup"])
-def test_only_enabled_verified_editor_is_eligible_and_lookup_fails_closed(change):
+def test_sender_directory_state_never_controls_data_only_email_intake(change):
     fixture = email_fixture()
     if change == "group":
         fixture.cognito.groups["us-east-1_fixture"].clear()
@@ -283,49 +350,42 @@ def test_only_enabled_verified_editor_is_eligible_and_lookup_fails_closed(change
         fixture.cognito.enabled = False
     else:
         fixture.cognito.fail = True
-    if change == "lookup":
-        with pytest.raises(RuntimeError, match="editor_membership_lookup_unavailable"):
-            collect_email(fixture)
-    else:
-        assert collect_email(fixture)["reason"] == "sender_not_active_editor"
-        assert fixture.table.by_prefix("EMAIL#")[0]["processingStage"] == "editor_membership"
-    assert fixture.s3.calls == []
-    assert fixture.table.by_prefix("DISC#") == []
+    assert collect_email(fixture)["status"] == "queued"
+    assert fixture.table.by_prefix("EMAIL#")[0]["emailTrustMode"] == "data-only"
+    assert fixture.table.by_prefix("DISC#")
+    assert fixture.cognito.calls == []
 
 
-def test_active_admin_is_eligible_because_application_allows_admin_content_writes():
+def test_admin_role_does_not_grant_any_email_submission_privilege():
     fixture = email_fixture()
     fixture.cognito.groups["us-east-1_fixture"] = {"admin"}
     assert collect_email(fixture)["status"] == "queued"
     assert fixture.table.by_prefix("DISC#")
 
 
-def test_shared_route_is_limited_to_editor_publications_and_revocation_rechecked():
+def test_shared_route_is_limited_to_recipient_destination_not_sender_membership():
     fixture, model = shared_fixture(), AccountCyclotron()
     fixture.cognito.editors["us-east-1_second"].clear()
     assert collect_email(fixture)["status"] == "queued"
     discovery = fixture.table.by_prefix("DISC#")[0]
-    assert discovery["emailAuthorizedPublicationIds"] == ["publication"]
+    assert discovery["emailDestinationPublicationIds"] == ["publication", "second"]
+    assert "emailAuthorizedPublicationIds" not in discovery
+    for row in fixture.table.by_prefix("DISC#"):
+        model.labels[("email-publication-" + row["sourceId"], "second")] = "exclude"
     result, delivered = route_email(fixture, cyclotron=CyclotronClient(
         validate_router_config(fixture.router), sign=lambda *_: {}, http=model.http,
         sleep=lambda _: None, clock=lambda: 0))
-    assert result["counts"]["delivered"] == 2  # one authorized publication for each of two links
+    assert result["counts"]["delivered"] == 2  # the shared classifier selected only the first publication
     assert {entry[0]["publicationId"] for entry in delivered} == {"publication"}
 
-    # Another queued discovery cannot survive membership revocation.
-    next_delivery(fixture, "new")
-    assert collect_email(fixture)["status"] == "queued"
-    fixture.cognito.editors["us-east-1_fixture"].clear()
-    result, delivered = route_email(fixture)
-    assert delivered == [] and result["counts"]["refused"] == 2
 
-
-def test_router_membership_lookup_failure_fails_closed():
+def test_router_does_not_use_untrusted_sender_for_editor_authorization():
     fixture = email_fixture()
     collect_email(fixture)
     fixture.cognito.fail = True
     result, delivered = route_email(fixture)
-    assert delivered == [] and result["counts"]["error"] == 2
+    assert len(delivered) == 2 and result["counts"]["delivered"] == 2
+    assert fixture.cognito.calls == []
 
 
 def test_classifier_backfill_rechecks_membership_before_delivery():

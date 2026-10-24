@@ -15,6 +15,10 @@ const query = /monitoringOverview\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? ""
 assert.ok(query, "the base schema defines monitoringOverview");
 assert.match(query, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "editors and admins only");
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(query), "no public, API-key or guest access");
+const emailQuery = /monitoringEmailSubmission\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(emailQuery, "the base schema defines the private email detail query");
+assert.match(emailQuery, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/,
+  "email details are limited to editors and admins");
 
 // The resolver finishes inside AppSync's 30 second limit.
 assert.ok(MONITORING_VIEW_TIMEOUT_SECONDS < 30);

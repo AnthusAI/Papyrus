@@ -3,8 +3,8 @@
 The strict submission receiver (PPY-65026c) accepts newsletters and forwarded links
 as untrusted source data. It is separate from the older command-capable inbound
 console described in [inbound email submissions](inbound-email-submissions.md).
-Deploy and enable it only after reviewing its destination, sender authorization,
-account grants, SES rules and DNS. This implementation does not activate email.
+Its destination and account grants are explicit; sender-authentication verdicts remain
+provenance signals. This code change does not itself activate email.
 
 ## Routing and classification
 
@@ -39,13 +39,13 @@ It sends no acknowledgement and does not execute console commands.
 
 ## Untrusted content and limits
 
-The receiver trusts the SES invocation's envelope recipients and scan/authentication
-verdicts. To/Cc, From, Authentication-Results and other MIME headers cannot grant
-access. The outer sender must also match a current verified editor or admin in the
-destination publication. DMARC, spam and virus checks must pass, alongside SPF or
-DKIM. A failed or unavailable check is held
-out of reference intake; arbitrary mail forwarding that breaks authentication
-may therefore need to be resubmitted by an authorized sender.
+The receiver trusts only an SES-origin invocation, its exact envelope recipients,
+and passing spam and virus verdicts. To/Cc, From, Authentication-Results and other
+MIME headers cannot grant access or select a destination. SPF, DKIM and DMARC are
+recorded as untrusted provenance signals; failed or unavailable results do not
+block safe data-only intake. A sender address never grants an editor role or causes
+a privileged action. Destination publications come only from the exact recipient's
+private configuration, and the router checks that same scope before delivery.
 
 Parsing is bounded to 1 MiB, 64 MIME parts, nesting depth 12 and 2,048 characters
 per candidate URL. There is no editorial link-count ceiling: every unique eligible
@@ -82,9 +82,16 @@ privacy policy.
 Later accession/enrichment remains a separate existing workflow and needs its
 own safe-fetch policy; this change does not authorize fetching private resources.
 
-The original MIME stays private for operator inspection. Operational errors use
-codes rather than message text or URLs. The broader mailbox reader, subscription
-management and deliberate unsubscribe UI remain separate work in PPY-68d06c.
+The raw MIME is retained in the private 30-day S3 prefix. Editors can read a safe
+text rendering, bounded SES verdicts and every extracted candidate link through the
+existing authenticated Monitoring page, scoped to their configured publication.
+HTML is converted to inert text: scripts, styles, remote images, markup and active
+content are never rendered. Email body text is not sent to the classifier; only
+normalized candidate URLs and bounded link titles enter discovery. These private
+DynamoDB detail chunks expire with the receipt after 30 days. Operational errors
+use codes rather than raw message text or URLs. The broader mailbox reader,
+subscription management and deliberate unsubscribe UI remain separate work in
+PPY-68d06c.
 
 ## Destination configuration and receipts
 
@@ -134,35 +141,19 @@ grant list. The shared Cyclotron independently enforces the machine invoker's
 grants. Procedure triggers and automated feedback are prohibited for email
 destinations. No additional inference about site ownership is made.
 
-The sender is authorized only when the outer SES-authenticated From address exactly
-matches a unique, enabled Cognito user with `email_verified=true` and current
-membership in that publication's `editor` or `admin` group. This matches the
-application's `contentWriteGroups` authorization and its managed role assignments
-mirror those roles into Cognito. The receiver checks only the
-configured publications' user pools; a shared destination records and routes only
-the subset where the sender is an editor. The router repeats this check before
-normal delivery, retries, and classifier backfill, so revoked access fails closed.
-The receiver and router Lambda roles need read-only `cognito-idp:ListUsers` and
-`cognito-idp:AdminListGroupsForUser` on the exact configured pool ARNs. This is
-pool-scoped directory read access; it does not grant Cognito writes. Cognito user
-directory reads can be eventually consistent, so group revocation propagation is
-not a synchronous revocation guarantee.
-
-Papyrus maps Google's `email_verified` claim into Cognito's standard
-`email_verified` attribute for Google-federated accounts. Cognito treats mapped
-email addresses as unverified unless the provider's verification claim is also
-mapped. The mapping is part of the auth stack configuration, and Cognito refreshes
-mapped values on a subsequent Google sign-in; do not administratively mark a sender
-verified. After an auth deployment adds or repairs this mapping, the user must sign
-out and sign back in at the publication newsroom before email intake will recognize
-the updated verification state. Cognito's one-time verification-code flow does not
-verify an email address that came from a federated provider.
+Email source identity is provenance only. SES's envelope source and the MIME
+`From` header are displayed separately and labeled unverified; neither is matched
+to Cognito or used to infer who submitted content. Editors who can read the site's
+Monitoring page may read only submissions explicitly routed to that publication.
+The existing site-pool membership check used by legacy queued receipts remains
+for those legacy records; new data-only submissions do not consult Cognito or gain
+editor privileges.
 
 Forwarded inline bodies and bounded attached `message/rfc822` parts contribute
-links only. Attached message headers never authorize the submission; SES verdicts
-and the outer sender still govern authorization. Ordinary attachments are ignored.
-SES DMARC PASS is required (plus spam/virus checks and SPF or DKIM PASS), so
-automatic forwarding that breaks DMARC is rejected.
+links and safe readable text only. Attached message headers never authorize the
+submission or alter its destination. Ordinary attachments are ignored. SES spam
+and virus verdicts must pass; SPF, DKIM and DMARC results are preserved as signals,
+so ordinary forwarding that changes those results can still be reviewed.
 
 Before storing configuration, validate the two ordinary JSON documents offline
 with `validate_email_config(email_config, router_config)` from
@@ -173,7 +164,9 @@ publication endpoint or shared binding makes old queued discoveries fail closed
 until an operator reconciles them.
 
 Within the partition, `EMAIL#<hash>` records `processing`, `queued`, `rejected` or
-`failed`, private sender/receipt/MIME provenance and a safe error code. A compact
+`failed`, private sender/receipt/MIME provenance and a safe error code. Accepted
+submissions also write a timestamp-ordered `EMAILINDEX#` row and size-bounded
+`EMAILDETAIL#` text/link chunks that expire with the receipt. A compact
 JSONL manifest of eligible normalized links is written beside the private MIME in
 the same 30-day S3 lifecycle prefix. The receipt records its digest, length, byte
 cursor, total link count and processed count. A private one-minute resume schedule
@@ -183,9 +176,9 @@ span multiple invocations without losing content. Each batch checkpoints its byt
 cursor after conditional discovery writes; replay after a crash is idempotent and
 does not overwrite discoveries already routed onward. `queued` means every
 eligible unique discovery is durable, not classified or delivered. `DISC#` and `ROUTE#` rows and
-`ROUTERUN#` receipts show routing progress. The existing Monitoring console is
-currently tied to its original monitor; inspect these private records and the
-receiver's failure queue for this slice. A queued/rejected SES delivery is terminal
+`ROUTERUN#` receipts show routing progress. The editor-only Monitoring console lists recent email receipts in the configured
+publication and opens one receipt's inert text and complete extracted link list.
+Inspect private receipts and the receiver's failure queue for operational failures. A queued/rejected SES delivery is terminal
 and retries return the original outcome. A failed manifest-backed receipt retains
 its cursor in the pending index so the resume schedule retries it; failures remain
 visible by safe error code. Initial transient failures also use bounded Lambda
@@ -223,8 +216,9 @@ Production activation, performed separately by the authorized operators:
 2. Review the cloud site's explicit sender configuration and IAM grants. Verify
    DKIM/domain ownership and sending access for editor notifications. Newsletter
    subscription/send features remain optional.
-3. Configure the email Monitor and router, allowed senders and Account/publication
-   bindings. Keep routing disabled or dry-run while checking configuration.
+3. Configure the email Monitor and router, exact recipient addresses and
+   Account/publication bindings. Keep routing disabled or dry-run while checking
+   configuration.
 4. Build the email and updated router artifacts locally, review the CloudFormation
    change sets with the shared Monitoring owner, then deploy only with approval.
 5. Confirm the publicly delegated DNS zone before publishing the production SES
@@ -234,12 +228,12 @@ Production activation, performed separately by the authorized operators:
    receiving region changes. SES accounts process matching rules independently, so
    avoid overlapping enabled rules during cutover.
 6. Enable the production rule and router only after grants, configuration and the
-   site's existing section sweep are verified. Disable the corresponding legacy
+   site's existing section sweep are verified. Disable only the matching legacy
    rule at the approved cutover to prevent duplicate intake; retain its bucket and
-   messages through the rollback window. Then send one authorized test email and
-   verify private receipt outcomes, Monitoring routing, pending References, section
-   predictions, DLQ/alarm and retries. The exact test sender must first be added to
-   the private sender allowlist. No test message has been sent.
+   messages through the rollback window. Then send one test message and verify the
+   private readable receipt, per-check signals, extracted links, Monitoring routing,
+   pending References, section predictions, DLQ/alarm and retries. A sender
+   allowlist is not required; source identity remains untrusted.
 
 Local artifact build (no upload):
 
