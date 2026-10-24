@@ -22,6 +22,7 @@ Feature: Email submissions enter the existing reference discovery queue
     And the trusted SES receipt fails DMARC authentication
     When the email collector receives the SES delivery
     Then the email is rejected before reading the MIME object
+    And the private receipt records bounded SES verdict diagnostics
 
   Scenario: A verified active editor can submit
     Given an isolated publication email destination and an authenticated newsletter

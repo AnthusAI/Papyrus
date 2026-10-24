@@ -69,6 +69,7 @@ def test_trusted_verdicts_required_and_mime_header_cannot_authorize(verdict):
     fixture = email_fixture()
     receipt = fixture.event["Records"][0]["ses"]["receipt"]
     receipt[verdict]["status"] = "FAIL"
+    receipt[verdict]["reason"] = "signature=must-not-be-retained"
     if verdict in {"spfVerdict", "dkimVerdict"}:
         receipt["spfVerdict"]["status"] = receipt["dkimVerdict"]["status"] = "FAIL"
     fixture.s3.raw = b"Authentication-Results: amazonses.com; dmarc=pass; spf=pass\r\n" + RAW
@@ -76,6 +77,62 @@ def test_trusted_verdicts_required_and_mime_header_cannot_authorize(verdict):
     assert result["reason"] == "sender_authentication_failed"
     assert fixture.s3.calls == []
     assert fixture.table.by_prefix("DISC#") == []
+    stored = fixture.table.by_prefix("EMAIL#")[0]
+    diagnostics = stored["sesDiagnostics"]
+    assert diagnostics["provenance"] == "ses-invocation-receipt"
+    assert diagnostics["verdicts"][verdict.removesuffix("Verdict")] == "FAIL"
+    assert diagnostics["failedGateCodes"]
+    assert stored["processingStage"] == "ses_authentication"
+    assert stored["errorCode"] == "sender_authentication_failed"
+    assert "must-not-be-retained" not in repr(diagnostics)
+    assert "Authentication-Results" not in repr(diagnostics)
+
+
+def test_ses_verdict_diagnostics_preserve_safe_enums_and_explain_combined_sender_gate():
+    fixture = email_fixture()
+    receipt = fixture.event["Records"][0]["ses"]["receipt"]
+    receipt["spfVerdict"]["status"] = "NONE"
+    receipt["dkimVerdict"]["status"] = "PERMERROR"
+    receipt["dmarcVerdict"]["status"] = "NONE"
+    result = collect_email(fixture)
+    stored = fixture.table.by_prefix("EMAIL#")[0]
+    assert result["reason"] == "sender_authentication_failed"
+    assert stored["sesDiagnostics"]["verdicts"] == {
+        "spam": "PASS", "virus": "PASS", "spf": "NONE", "dkim": "PERMERROR", "dmarc": "NONE",
+    }
+    assert stored["sesDiagnostics"]["failedGateCodes"] == [
+        "dmarc_verdict_not_passed", "spf_or_dkim_verdict_not_passed",
+    ]
+
+
+def test_membership_and_mime_rejections_record_distinct_processing_stages():
+    fixture = email_fixture()
+    fixture.cognito.editors["us-east-1_fixture"].clear()
+    assert collect_email(fixture)["reason"] == "sender_not_active_editor"
+    stored = fixture.table.by_prefix("EMAIL#")[0]
+    assert stored["processingStage"] == "editor_membership"
+    assert stored["errorCode"] == "sender_not_active_editor"
+
+    fixture = email_fixture()
+    fixture.s3.raw = RAW.replace(b"https://example.org/alpha\r\nhttps://example.org/beta", b"No editorial links")
+    assert collect_email(fixture)["reason"] == "no_editorial_links"
+    stored = fixture.table.by_prefix("EMAIL#")[0]
+    assert stored["processingStage"] == "mime_parse"
+    assert stored["errorCode"] == "no_editorial_links"
+
+
+def test_non_ses_event_cannot_claim_ses_verdict_provenance():
+    fixture = email_fixture()
+    fixture.event["Records"][0]["eventSource"] = "untrusted"
+    result = collect_email(fixture)
+    stored = fixture.table.by_prefix("EMAIL#")[0]
+    assert result["reason"] == "ses_event_required"
+    assert stored["sesDiagnostics"] == {
+        "provenance": "unverified-event",
+        "verdicts": {"spam": "UNAVAILABLE", "virus": "UNAVAILABLE", "spf": "UNAVAILABLE",
+                     "dkim": "UNAVAILABLE", "dmarc": "UNAVAILABLE"},
+        "failedGateCodes": ["ses_event_source_untrusted"],
+    }
 
 
 def test_editor_membership_and_from_mime_must_match_authenticated_envelope():
@@ -123,6 +180,13 @@ def test_mime_to_headers_are_provenance_and_cannot_choose_destination():
 def test_publication_destination_delivers_through_existing_router_once():
     fixture = email_fixture()
     assert collect_email(fixture)["status"] == "queued"
+    receipt = fixture.table.by_prefix("EMAIL#")[0]
+    assert receipt["processingStage"] == "queued"
+    assert receipt["sesDiagnostics"] == {
+        "provenance": "ses-invocation-receipt",
+        "verdicts": {"spam": "PASS", "virus": "PASS", "spf": "PASS", "dkim": "PASS", "dmarc": "PASS"},
+        "failedGateCodes": [],
+    }
     result, delivered = route_email(fixture)
     assert result["counts"]["delivered"] == 2
     assert {row[0]["publicationId"] for row in delivered} == {"publication"}
@@ -224,6 +288,7 @@ def test_only_enabled_verified_editor_is_eligible_and_lookup_fails_closed(change
             collect_email(fixture)
     else:
         assert collect_email(fixture)["reason"] == "sender_not_active_editor"
+        assert fixture.table.by_prefix("EMAIL#")[0]["processingStage"] == "editor_membership"
     assert fixture.s3.calls == []
     assert fixture.table.by_prefix("DISC#") == []
 

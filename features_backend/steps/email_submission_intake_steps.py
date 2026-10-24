@@ -94,6 +94,18 @@ def email_rejected(context):
     assert context.email_fixture.table.by_prefix("DISC#") == []
 
 
+@then("the private receipt records bounded SES verdict diagnostics")
+def email_receipt_verdict_diagnostics(context):
+    receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    diagnostics = receipt["sesDiagnostics"]
+    assert receipt["errorCode"] == "sender_authentication_failed"
+    assert receipt["processingStage"] == "ses_authentication"
+    assert diagnostics["provenance"] == "ses-invocation-receipt"
+    assert diagnostics["verdicts"]["dmarc"] == "FAIL"
+    assert diagnostics["failedGateCodes"] == ["dmarc_verdict_not_passed"]
+    assert set(diagnostics) == {"provenance", "verdicts", "failedGateCodes"}
+
+
 @given("the outer sender has a verified email on an enabled user in that publication's editor group")
 def active_editor(context):
     pass  # the isolated fixture's default sender is a verified enabled editor

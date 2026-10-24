@@ -38,6 +38,14 @@ MANIFEST_READ_BYTES = 128 * 1024
 MONITOR_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 SES_ID = re.compile(r"^[A-Za-z0-9_-]{1,200}$")
 ADDRESS = re.compile(r"^[^\s@<>*,;]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,63}$")
+SES_VERDICTS = {
+    "spam": "spamVerdict",
+    "virus": "virusVerdict",
+    "spf": "spfVerdict",
+    "dkim": "dkimVerdict",
+    "dmarc": "dmarcVerdict",
+}
+SES_VERDICT_STATUS = re.compile(r"^(?:PASS|FAIL|GRAY|PROCESSING_FAILED|PERMERROR|NEUTRAL|NONE)$")
 
 
 class ConfigurationError(ValueError):
@@ -122,6 +130,32 @@ def validate_email_config(raw, raw_router):
             "destinationFingerprint": destination_fingerprint, "publications": router["publications"]}
 
 
+def _ses_diagnostics(record):
+    """Keep bounded SES receipt statuses and derived policy failures, never raw headers."""
+    if record.get("eventSource") != "aws:ses":
+        return {"provenance": "unverified-event", "verdicts": {name: "UNAVAILABLE" for name in SES_VERDICTS},
+                "failedGateCodes": ["ses_event_source_untrusted"]}
+    ses = record.get("ses") or {}
+    receipt = ses.get("receipt") or {}
+    verdicts = {}
+    for name, field in SES_VERDICTS.items():
+        raw = receipt.get(field)
+        status = raw.get("status") if isinstance(raw, dict) else None
+        verdicts[name] = status if isinstance(status, str) and SES_VERDICT_STATUS.fullmatch(status) else "UNAVAILABLE"
+
+    failed = []
+    for name in ("spam", "virus", "dmarc"):
+        if verdicts[name] != "PASS":
+            failed.append(f"{name}_verdict_not_passed")
+    if verdicts["spf"] != "PASS" and verdicts["dkim"] != "PASS":
+        failed.append("spf_or_dkim_verdict_not_passed")
+    return {
+        "provenance": "ses-invocation-receipt",
+        "verdicts": verdicts,
+        "failedGateCodes": failed,
+    }
+
+
 class EmailStore(DynamoStore):
     """All access stays in one configured MONITOR partition."""
 
@@ -177,9 +211,9 @@ def _trusted_envelope(record, config):
         raise SubmissionRejected("ses_event_required")
     # These verdicts come from SES's invocation payload, never Authentication-Results
     # in an untrusted MIME object. DMARC PASS supplies From-domain alignment.
-    passed = lambda name: (receipt.get(name) or {}).get("status") == "PASS"
-    if (not all(passed(name) for name in ("spamVerdict", "virusVerdict", "dmarcVerdict"))
-            or not (passed("spfVerdict") or passed("dkimVerdict"))):
+    verdicts = _ses_diagnostics(record)["verdicts"]
+    if (not all(verdicts[name] == "PASS" for name in ("spam", "virus", "dmarc"))
+            or not (verdicts["spf"] == "PASS" or verdicts["dkim"] == "PASS")):
         raise SubmissionRejected("sender_authentication_failed")
     try:
         recipients = _addresses(mail.get("destination"), 10)
@@ -301,11 +335,13 @@ def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
     # The checkpoint counts records consumed, not successful conditional puts: a
     # replay after a crash can safely encounter discoveries already routed onward.
     if done:
-        row.update(status="queued", errorCode=None, sectionHandoff="pending-reference-site-sweep")
+        row.update(status="queued", processingStage="queued", errorCode=None,
+                   sectionHandoff="pending-reference-site-sweep")
         row.pop("gsi1pk", None)
         row.pop("gsi1sk", None)
     else:
-        row.update(status="processing", errorCode=None, gsi1pk=f"EMAIL_PENDING#{monitor_id}",
+        row.update(status="processing", processingStage="discovery_queue", errorCode=None,
+                   gsi1pk=f"EMAIL_PENDING#{monitor_id}",
                    gsi1sk=f"{row['observedAt']}#{receipt_key}")
     store.put(monitor_id, row)
     return {"status": row["status"], "receiptId": receipt_key, "linkCount": row["linkCount"],
@@ -332,6 +368,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
     if not store.acquire_email_lock(monitor_id, owner, now):
         raise IntakeBusy("email_intake_busy")
     row = None
+    stage = "configuration"
     try:
         config = validate_email_config(store.get(monitor_id, EMAIL_CONFIG_SK), store.get(monitor_id, "CONFIG#router"))
         row = store.get(monitor_id, receipt_key)
@@ -340,22 +377,33 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
         if row and (row.get("routingFingerprint") != config["routingFingerprint"]
                     or row.get("manifestKey") and row.get("destinationFingerprint") != config["destinationFingerprint"]):
             raise ConfigurationError("email_retry_binding_changed")
+        diagnostics = _ses_diagnostics(record)
         row = row or {"sk": receipt_key, "sesMessageId": message_id, "firstSeen": int(now),
                       "observedAt": _iso(now), "s3Bucket": bucket, "s3Key": key,
                       "accountId": config["accountId"], "routingFingerprint": config["routingFingerprint"],
                       "destinationFingerprint": config["destinationFingerprint"],
+                      "sesDiagnostics": diagnostics,
                       "ttl": int(now + RECEIPT_SECONDS)}
+        if "sesDiagnostics" not in row:
+            row["sesDiagnostics"] = diagnostics
         if row["s3Bucket"] != bucket or row["s3Key"] != key:
             raise ConfigurationError("email_retry_object_changed")
-        row.update(status="processing", updatedAt=_iso(now))
+        stage = "destination_configuration"
+        row.update(status="processing", processingStage=stage, updatedAt=_iso(now))
         store.put(monitor_id, row)
         if not config["enabled"]:
             raise SubmissionRejected("email_destination_disabled")
+        stage = "ses_authentication"
+        row["processingStage"] = stage
         sender, recipients = _trusted_envelope(record, config)
         row.update(sender=sender, recipients=recipients)
         # Charge authenticated but unauthorized senders to the same per-address
         # ceiling so directory lookups cannot be used as an unbounded oracle.
+        stage = "sender_rate_limit"
+        row["processingStage"] = stage
         store.reserve_rate(monitor_id, sender, message_id, row["firstSeen"], config["maxMessagesPerSenderHour"])
+        stage = "editor_membership"
+        row["processingStage"] = stage
         try:
             authorized_publications = publication_ids_for_editor(sender, config["publications"], cognito)
         except EditorLookupUnavailable as error:
@@ -366,15 +414,21 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
                                              & set(row["emailAuthorizedPublicationIds"]))
         if not authorized_publications:
             raise SubmissionRejected("sender_not_active_editor")
+        stage = "mime_read"
+        row["processingStage"] = stage
         raw = _mime(s3, bucket, key, config["maxMessageBytes"])
         digest = sha256(raw).hexdigest()
         if row.get("mimeSha256") and row["mimeSha256"] != digest:
             raise SubmissionRejected("email_mime_changed")
+        stage = "mime_parse"
+        row["processingStage"] = stage
         parsed = extract_submission(raw)
         if parsed["sender"] != sender:
             raise SubmissionRejected("mime_sender_mismatch")
         if not parsed["links"]:
             raise SubmissionRejected("no_editorial_links")
+        stage = "discovery_queue"
+        row["processingStage"] = stage
         row.update(mimeSha256=digest, subject=parsed["subject"], rfcMessageId=parsed["messageId"],
                    warnings=parsed["warnings"], linkCount=len(parsed["links"]),
                    destinationFingerprint=config["destinationFingerprint"],
@@ -395,14 +449,15 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
     except SubmissionRejected as error:
         if row is None:
             row = {"sk": receipt_key, "sesMessageId": message_id, "ttl": int(now + RECEIPT_SECONDS)}
-        row.update(status="rejected", errorCode=error.code, updatedAt=_iso(now))
+        row.update(status="rejected", processingStage=stage, errorCode=error.code, updatedAt=_iso(now))
         row.pop("gsi1pk", None)
         row.pop("gsi1sk", None)
         store.put(monitor_id, row)
         return {"status": "rejected", "receiptId": receipt_key, "reason": error.code}
     except Exception:
         if row is not None:
-            row.update(status="failed", errorCode="intake_dependency_failed", updatedAt=_iso(now))
+            row.update(status="failed", processingStage=stage, errorCode="intake_dependency_failed",
+                       updatedAt=_iso(now))
             # A manifest-backed checkpoint remains discoverable by the resume sweep.
             if row.get("manifestKey"):
                 row.update(gsi1pk=f"EMAIL_PENDING#{monitor_id}", gsi1sk=f"{row['observedAt']}#{receipt_key}")
@@ -420,10 +475,12 @@ def _resume_pending(store, monitor_id, bucket, s3, cognito, *, now=None, limit=1
         owner = uuid.uuid4().hex
         if not store.acquire_email_lock(monitor_id, owner, now):
             continue
+        stage = "receipt_load"
         try:
             row = store.get(monitor_id, receipt_key)
             if not row or row.get("gsi1pk") != f"EMAIL_PENDING#{monitor_id}":
                 continue
+            stage = "destination_configuration"
             config = validate_email_config(store.get(monitor_id, EMAIL_CONFIG_SK),
                                            store.get(monitor_id, "CONFIG#router"))
             if not config["enabled"]:
@@ -431,33 +488,38 @@ def _resume_pending(store, monitor_id, bucket, s3, cognito, *, now=None, limit=1
             if (row.get("routingFingerprint") != config["routingFingerprint"]
                     or row.get("destinationFingerprint") != config["destinationFingerprint"]
                     or not set(row.get("recipients", [])) <= set(config["addresses"])):
-                row.update(status="failed", errorCode="email_retry_binding_changed", updatedAt=_iso(now))
+                row.update(status="failed", processingStage=stage,
+                           errorCode="email_retry_binding_changed", updatedAt=_iso(now))
                 row.pop("gsi1pk", None)
                 row.pop("gsi1sk", None)
                 store.put(monitor_id, row)
                 results.append({"status": "failed", "receiptId": receipt_key,
                                 "reason": "email_retry_binding_changed"})
                 continue
+            stage = "editor_membership"
             current = publication_ids_for_editor(row["sender"], config["publications"], cognito)
             authorized = sorted(set(current) & set(config["publicationIds"])
                                 & set(row.get("emailAuthorizedPublicationIds", current)))
             if not authorized:
-                row.update(status="rejected", errorCode="sender_not_active_editor", updatedAt=_iso(now))
+                row.update(status="rejected", processingStage=stage,
+                           errorCode="sender_not_active_editor", updatedAt=_iso(now))
                 row.pop("gsi1pk", None)
                 row.pop("gsi1sk", None)
                 store.put(monitor_id, row)
                 results.append({"status": "rejected", "receiptId": receipt_key,
                                 "reason": "sender_not_active_editor"})
                 continue
+            stage = "manifest_resume"
             if (row.get("s3Bucket") != bucket or row.get("manifestKey") != _manifest_key(receipt_key)
                     or int(row.get("manifestBytes", 0)) <= 0):
                 raise RuntimeError("email_manifest_binding_invalid")
-            row.update(status="processing", updatedAt=_iso(now))
+            row.update(status="processing", processingStage=stage, updatedAt=_iso(now))
             store.put(monitor_id, row)
             results.append(_drain_manifest(store, s3, monitor_id, config, row, receipt_key,
                                            row["sesMessageId"], authorized))
         except Exception:
-            row.update(status="failed", errorCode="intake_dependency_failed", updatedAt=_iso(now),
+            row.update(status="failed", processingStage=stage,
+                       errorCode="intake_dependency_failed", updatedAt=_iso(now),
                        gsi1pk=f"EMAIL_PENDING#{monitor_id}",
                        gsi1sk=f"{row['observedAt']}#{receipt_key}")
             store.put(monitor_id, row)
