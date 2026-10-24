@@ -175,7 +175,11 @@ def snapshot_files() -> dict[str, object]:
     }
     entities = {
         "platform--hugging-face": {"key": "platform--hugging-face", "neighbours": [{"key": "licence--apache-2-0", "kind": "licence", "name": "Apache-2.0", "relation": "mentioned_with", "weight": 5}],
-                                   "relatedItems": [{"title": "A model card worth reading", "url": "/posts/a-model-card/", "publishedAt": "2026-10-14", "reason": "platform--hugging-face"}]},
+                                   "relatedItems": [{"title": "A model card worth reading", "url": "/posts/a-model-card/", "publishedAt": "2026-10-14", "reason": "platform--hugging-face"},
+                                                    {"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "platform--hugging-face"}]},
+        "licence--apache-2-0": {"key": "licence--apache-2-0",
+                                "relatedItems": [{"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "licence--apache-2-0"},
+                                                 {"title": "An older release outside the window", "url": "/posts/older/", "publishedAt": "2026-08-01T00:00:00Z", "reason": "licence--apache-2-0"}]},
     }
     return {"index": index, "clusters": clusters, "entities": entities}
 
@@ -205,6 +209,39 @@ def trend_draft(headline: str = "Hugging Face and Apache-2.0 climb together", *,
             {"sentences": [sentence("The two are mentioned together in 5 items.", "S3", "S4")]},
         ],
         "figure_signals": list(figure),
+        "figure_title": "Items per week",
+        "figure_caption": "Hugging Face peaked at 7 items in one week.",
+    }
+
+
+SITE_BASE = "https://site.example"
+ITEM_PAGES = {
+    f"{SITE_BASE}/posts/zed-7b.md": "# Zed releases Zed-7B\n\n> A 7B coding model with 32k context, trained on permissively licensed code.\n\nPublished 2026-10-17\n\nBody text.\n",
+    f"{SITE_BASE}/posts/a-model-card.md": "# A model card worth reading\n\n> The card lists its evaluation limits.\n\nBody text.\n",
+}
+
+
+def read_item_page(url: str) -> str:
+    """Stands in for reading the published ``.md`` of an item."""
+    if url not in ITEM_PAGES:
+        raise OSError(f"no page at {url}")
+    return ITEM_PAGES[url]
+
+
+def release_draft(headline: str = "Zed-7B brings an Apache-2.0 coding model to Hugging Face") -> dict[str, object]:
+    """A draft about the releases that passes the check once the items are read: S3 is Hugging Face, S4 Apache-2.0, I1 the Zed-7B release, I2 the model card."""
+    return {
+        "headline": sentence(headline, "I1"),
+        "dek": sentence("Zed's release on 2026-10-17 is one of 15 Hugging Face items in four weeks.", "I1", "S3"),
+        "section": "Analysis",
+        "paragraphs": [
+            {"sentences": [
+                sentence("Zed released Zed-7B, a 7B coding model with 32k context, under Apache-2.0.", "I1"),
+                sentence("Apache-2.0 appeared in 12 items over the last four weeks.", "S4"),
+            ]},
+            {"sentences": [sentence("Another release on Hugging Face ships a model card that lists its evaluation limits, which suggests documentation is part of the pattern.", "I2", "S3")]},
+        ],
+        "figure_signals": ["S3"],
         "figure_title": "Items per week",
         "figure_caption": "Hugging Face peaked at 7 items in one week.",
     }

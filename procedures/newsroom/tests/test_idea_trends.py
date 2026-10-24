@@ -17,7 +17,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ideas_fixtures import AS_OF, NOW, FakeClient, FakeTrendModel, history_entry, sentence, snapshot_files, trend_draft  # noqa: E402
+from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import commands, trends  # noqa: E402
@@ -216,6 +216,122 @@ class CitationCheckTests(unittest.TestCase):
     def test_drafts_over_the_maximum_are_dropped_and_said_so(self) -> None:
         valid, invalid = self.check(trend_draft("One"), trend_draft("Two"), maximum=1)
         self.assertEqual(([d["headline"]["text"] for d in valid], [(i["title"], i["reason"]) for i in invalid]), (["One"], [("Two", "over_the_maximum")]))
+
+
+class ItemTests(unittest.TestCase):
+    """The releases behind a signal: what the model is shown, what a sentence may cite, and how the sources are listed."""
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.snapshot = {**snapshot_from_entry(self.directory.name), "siteBase": SITE_BASE}
+        self.signals = trends.build_signals(self.snapshot, read_item_page)
+        self.by_id = {signal["id"]: signal for signal in self.signals}
+        self.handles = trends.handles_for(self.signals)
+
+    def check(self, *drafts):
+        return trends.validate_drafts(list(drafts), self.handles, self.by_id, ["Analysis", "News"], 3)
+
+    def reasons(self, draft):
+        valid, invalid = self.check(draft)
+        self.assertEqual(valid, [])
+        return [problem["reason"] for problem in invalid[0]["citationCheck"]["problems"]]
+
+    def test_an_entity_signal_carries_the_newest_items_in_the_window_with_title_summary_date_and_site_url(self) -> None:
+        items = self.by_id["entity:platform--hugging-face"]["items"]
+        self.assertEqual([item["date"] for item in items], ["2026-10-17", "2026-10-14"])
+        zed = items[0]
+        self.assertEqual((zed["title"], zed["url"]), ("Zed releases Zed-7B, a small coding model under Apache-2.0", "https://site.example/posts/zed-7b/"))
+        self.assertEqual(zed["summary"], "A 7B coding model with 32k context, trained on permissively licensed code.")
+        self.assertNotIn("items", self.by_id["cluster:cl-fb1252e1da52"])  # the snapshot lists no members of a cluster
+
+    def test_an_item_older_than_the_four_week_window_is_left_out_and_a_missing_page_is_only_a_missing_summary(self) -> None:
+        self.assertEqual([item["date"] for item in self.by_id["entity:licence--apache-2-0"]["items"]], ["2026-10-17"])
+        signals = trends.build_signals(self.snapshot, lambda url: (_ for _ in ()).throw(OSError("down")))
+        self.assertEqual([item.get("summary") for item in signals[2]["items"]], [None, None])
+
+    def test_items_are_capped_per_signal_and_in_total(self) -> None:
+        related = [{"title": f"Release {n}", "url": f"/posts/r{n}/", "publishedAt": f"2026-10-{n:02d}"} for n in range(1, 13)]
+        kept = trends.window_items(related, AS_OF, SITE_BASE)
+        self.assertEqual([item["title"] for item in kept], [f"Release {n}" for n in range(12, 7, -1)])
+        many = [{"id": f"entity:{n}", "items": [{"id": f"item:/{n}-{m}/", "title": "t", "date": "2026-10-01", "path": "/x/", "url": None} for m in range(5)]} for n in range(12)]
+        trends.attach_summaries(many, None)
+        self.assertEqual(len(trends.collect_items(many)), trends.MAXIMUM_ITEMS)
+
+    def test_the_model_input_lists_each_item_once_with_the_signals_behind_it_and_names_them_on_the_signal(self) -> None:
+        model_input = trends.build_input(self.snapshot, self.signals, {"sections": [{"title": "Analysis"}], "stories": []}, 3)
+        self.assertEqual([item["handle"] for item in model_input["items"]], ["I1", "I2"])
+        zed = model_input["items"][0]
+        self.assertEqual((zed["published"], zed["behind_signals"], zed["url"]), ("2026-10-17", ["S3", "S4"], "https://site.example/posts/zed-7b/"))
+        self.assertEqual(model_input["signals"][2]["items"], ["I1", "I2"])
+        self.assertEqual(model_input["signals"][3]["items"], ["I1"])
+        self.assertLess(len(trends.SYSTEM_PROMPT) + len(str(model_input)), trends.synthesis.MAXIMUM_INPUT_CHARACTERS)
+
+    def test_a_story_about_the_releases_passes_when_its_sentences_cite_items_and_signals(self) -> None:
+        valid, invalid = self.check(release_draft())
+        self.assertEqual(invalid, [])
+        draft = valid[0]
+        self.assertEqual(draft["citedSignalIds"], ["entity:platform--hugging-face", "entity:licence--apache-2-0"])
+        self.assertEqual(draft["citedItemIds"], ["item:/posts/zed-7b/", "item:/posts/a-model-card/"])
+        self.assertEqual(draft["headline"]["signalIds"], [])  # a headline may rest on an item alone
+        self.assertEqual(draft["headline"]["itemIds"], ["item:/posts/zed-7b/"])
+
+    def test_item_citations_never_count_as_signals(self) -> None:
+        draft = release_draft()
+        draft["headline"] = sentence("Zed-7B arrives", "I1")
+        draft["dek"] = sentence("Zed's release on 2026-10-17 is the news.", "I1")
+        draft["paragraphs"] = [{"sentences": [sentence("Zed released Zed-7B under Apache-2.0.", "I1"), sentence("The card lists its evaluation limits.", "I2"), sentence("Hugging Face appeared in 15 items.", "S3")]}]
+        self.assertEqual(self.reasons(draft), ["fewer_than_two_signals_cited"])
+
+    def test_a_date_or_number_must_come_from_the_cited_item_or_signal(self) -> None:
+        draft = release_draft()
+        draft["paragraphs"][0]["sentences"][0] = sentence("Zed released Zed-7B on 2026-10-14.", "I1")  # the other item's date
+        self.assertEqual(self.reasons(draft), ["number_not_in_cited_signals:2026-10-14"])
+        draft = release_draft()
+        draft["paragraphs"][0]["sentences"][0] = sentence("Zed released Zed-7B with 64k context.", "I1")
+        self.assertEqual(self.reasons(draft), ["number_not_in_cited_signals:64"])
+        draft = release_draft()
+        draft["paragraphs"][0]["sentences"][0] = sentence("Zed released Zed-7B on 2026-10-17, 15 items in all.", "I1")  # 15 is a signal's number, not the item's
+        self.assertEqual(self.reasons(draft), ["number_not_in_cited_signals:15"])
+
+    def test_a_handle_is_a_signal_or_an_item_in_the_input_and_nothing_else(self) -> None:
+        draft = release_draft()
+        draft["paragraphs"][1]["sentences"][0] = sentence("Another release ships a model card.", "I9")
+        self.assertEqual(self.reasons(draft), ["unknown_signal:I9"])
+
+    def test_the_body_numbers_signals_first_then_lists_the_sources_with_title_date_and_url(self) -> None:
+        valid, _ = self.check(release_draft())
+        figure = trends.figure_spec(valid[0], self.by_id, AS_OF)
+        body = trends.draft_body(valid[0], self.by_id, figure)
+        self.assertIn("Zed released Zed-7B, a 7B coding model with 32k context, under Apache-2.0. [3]", body)
+        self.assertIn("## Signals cited", body)
+        self.assertIn("## Sources", body)
+        self.assertIn("3. Zed releases Zed-7B, a small coding model under Apache-2.0 (2026-10-17) https://site.example/posts/zed-7b/", body)
+        self.assertLess(body.index("## Signals cited"), body.index("## Sources"))
+        self.assertIn("1. Hugging Face", body)
+
+    def test_the_prompt_asks_for_a_story_about_the_releases(self) -> None:
+        for phrase in ("what shipped, who made it", "Lead with the releases", "suggests", "item handles (I1, I2, ...)", "citing items does not count"):
+            self.assertIn(phrase, trends.SYSTEM_PROMPT)
+
+    def test_a_run_reads_the_item_pages_and_files_the_draft_with_its_sources(self) -> None:
+        client = FakeClient(sections=("Analysis", "News"), stories=[])
+        model = FakeTrendModel([release_draft()])
+        run = trends.draft_trends(
+            snapshot=self.snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "Explain.", "policy": "Be careful."},
+            json_store=None, transport=model, proposal_store=ProposalStore(client), review_client=client, dry_run=False, now=NOW, fetch_text=read_item_page)
+        self.assertEqual((run["inputs"]["items"], run["inputs"]["itemsWithSummary"], run["ideasCreated"]), (2, 2, 1))
+        sent = json.loads(model.requests[0]["input"]) if isinstance(model.requests[0]["input"], str) else model.requests[0]["input"]
+        self.assertIn("A 7B coding model with 32k context", json.dumps(sent))
+        (row,) = [row for row in client.proposals if "kind" in row]
+        self.assertIn("## Sources", row["body"])
+        self.assertEqual(json.loads(row["targets"]), [{"type": "entity", "id": "platform--hugging-face"}, {"type": "entity", "id": "licence--apache-2-0"}])
+        self.assertEqual(run["drafts"][0]["citedItems"][0]["url"], "https://site.example/posts/zed-7b/")
+
+    def test_the_summary_is_the_first_block_quote_line_and_is_trimmed(self) -> None:
+        self.assertEqual(trends.summary_of("# T\n\n>  One   line\n> two\n"), "One line")
+        self.assertEqual(len(trends.summary_of("> " + "word " * 200)), trends.SUMMARY_LIMIT - 1)
+        self.assertIsNone(trends.summary_of("# T\n\nNo quote\n"))
 
 
 class RunTests(unittest.TestCase):
