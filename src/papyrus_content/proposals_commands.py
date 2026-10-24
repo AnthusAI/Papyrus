@@ -1,14 +1,18 @@
 """``papyrus proposals create|list|show|transition|publish``: file, decide and publish proposals (docs/reader-steering.md).
 
 A proposal is a change to the map written down where readers can see it. These commands call the ``fileProposal`` and
-``transitionProposal`` mutations as the signed-in editor or admin (``papyrus login``); the function validates the kind, the
-targets and the transition, and answers a receipt. ``publish`` asks the site to run the reader snapshot, which writes the
+``transitionProposal`` mutations as the signed-in editor or admin (``papyrus login``), or, for an unattended run, with
+``PAPYRUS_GRAPHQL_AUTH=iam`` as an operator role of the site's own AWS account. An operator can create (always an AI proposal)
+and move a draft to ``in_steering`` or ``declined``; approving, reviewing and overriding need an editor, and ``list`` and ``show``
+read the Proposal model, which only editors and admins may. The function validates the kind, the targets and the transition, and
+answers a receipt. ``publish`` asks the site to run the reader snapshot, which writes the
 public proposal files only when the site has opted in with ``proposals.publish``; otherwise proposals stay private.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from typing import Any
 
@@ -23,6 +27,8 @@ USAGE = (
     "  papyrus proposals show PROPOSAL_ID [--json]\n"
     "  papyrus proposals transition PROPOSAL_ID --to STATE [--reason TEXT] [--result approved|declined] [--json]\n"
     "  papyrus proposals publish [--json]   (writes public files only if the site sets proposals.publish)\n"
+    "With PAPYRUS_GRAPHQL_AUTH=iam (an operator role of the site's own account) create, transition (draft to in_steering or declined only) and publish\n"
+    "work; list and show, and every other transition, need an editor session (papyrus login).\n"
     "Kinds: story_draft, new_concept, rename, merge, split, new_column, element_symbol.\n"
     "States: draft, in_steering, editor_review, approved, declined, overridden_by_editor."
 )
@@ -54,6 +60,15 @@ query GetProposal($id: ID!) {
 
 class ProposalRefused(ValueError):
     pass
+
+
+def using_iam() -> bool:
+    return os.environ.get("PAPYRUS_GRAPHQL_AUTH", "").strip().lower() == "iam"
+
+
+def reading_needs_an_editor(error: Exception) -> ValueError:
+    """Reading proposals is for editors and admins; under IAM say so instead of surfacing a bare authorization error."""
+    return ValueError(f"Could not read proposals ({error}). Reading them needs an editor or admin session (papyrus login); with PAPYRUS_GRAPHQL_AUTH=iam an operator can only create proposals and move a draft to in_steering or declined.")
 
 
 def parse_targets(values: list[str]) -> list[dict[str, str]]:
@@ -136,7 +151,13 @@ def list_command(flags: list[str]) -> None:
     options = parse_options(flags)
     state = normalize_string(options.get("state"))
     client, _ = create_authoring_client()
-    rows = [row for row in list_proposals(client) if not state or row["state"] == state]
+    try:
+        everything = list_proposals(client)
+    except Exception as error:  # noqa: BLE001 - only an IAM caller gets the hint; an editor sees the real error
+        if using_iam():
+            raise reading_needs_an_editor(error) from error
+        raise
+    rows = [row for row in everything if not state or row["state"] == state]
     if options.get("json"):
         print(json.dumps({"ok": True, "command": "proposals list", "count": len(rows), "proposals": [summary_of(row) for row in rows]}, indent=2))
         return
@@ -153,7 +174,12 @@ def show_command(flags: list[str]) -> None:
         raise ValueError("proposals show requires a proposal id.")
     options = parse_options(flags[1:])
     client, _ = create_authoring_client()
-    row = client.graphql(GET_QUERY, {"id": flags[0]}).get("getProposal")
+    try:
+        row = client.graphql(GET_QUERY, {"id": flags[0]}).get("getProposal")
+    except Exception as error:  # noqa: BLE001
+        if using_iam():
+            raise reading_needs_an_editor(error) from error
+        raise
     if not row:
         raise ValueError(f"Proposal not found: {flags[0]}")
     if options.get("json"):

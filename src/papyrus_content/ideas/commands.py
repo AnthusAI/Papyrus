@@ -1,8 +1,8 @@
 """``papyrus ideas digest|synthesize``: the first version of the idea pipeline (docs/idea-pipeline.md).
 
 Both run on this machine against the site named by PAPYRUS_GRAPHQL_ENDPOINT, with the operator's IAM credentials
-(PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. ``synthesize --store proposals`` needs the editor session, because
-filing a Proposal is not open to IAM.
+(PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. ``synthesize --store proposals`` files draft Proposals either way: an
+IAM operator role of the site's own account may file AI proposals (it cannot read earlier Proposals, so dedupe skips them).
 """
 
 from __future__ import annotations

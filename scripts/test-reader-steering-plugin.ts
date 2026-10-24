@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
@@ -403,4 +405,13 @@ for (const name of ["fileProposal", "transitionProposal"]) {
   assert.match(proposalMutation, /groups: \["editor"\]/);
   assert.match(proposalMutation, /groups: \["admin"\]/);
 }
+
+// The operator (IAM) path lives in the function, not in the schema: no IAM rule is declared above, and the function
+// admits an operator only for filing and for draft -> in_steering / declined, in its own account.
+const proposalRules = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/proposals.py"), "utf8");
+assert.match(proposalRules, /OPERATOR_TRANSITIONS = frozenset\(\{\(DRAFT, IN_STEERING\), \(DRAFT, DECLINED\)\}\)/, "an operator may only send a draft to steering or decline it");
+assert.match(proposalRules, /parts\[4\] != account_id/, "an operator must belong to the function's own account");
+assert.match(proposalRules, /"cognitoIdentityId"/, "an identity-pool user is not an operator");
+const readerHandler = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/handler.py"), "utf8");
+assert.match(readerHandler, /account_id=function_account\(_context\)/, "the account comes from the function's own ARN");
 console.log("reader steering schema ok");

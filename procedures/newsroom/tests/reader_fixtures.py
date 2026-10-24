@@ -83,6 +83,15 @@ class ScriptedRetirementPoll:
         return page
 
 
+OPERATOR_ACCOUNT = "123456789012"
+OPERATOR_ARN = f"arn:aws:sts::{OPERATOR_ACCOUNT}:assumed-role/ideas-pipeline/run-1"
+
+
+def operator_identity(**overrides) -> dict:
+    """The ``identity`` AppSync sends for an IAM caller: an ARN and an account, and no Cognito subject or identity id."""
+    return {"accountId": OPERATOR_ACCOUNT, "userArn": OPERATOR_ARN, "username": "AROAEXAMPLE:run-1", "sourceIp": ["203.0.113.9"], "cognitoIdentityPoolId": None, "cognitoIdentityId": None, **overrides}
+
+
 class ReaderBackend:
     def __init__(self, *, dimensions=("real", "useful"), allow_interim=False, actions_per_hour=120, snapshot_enabled=True, **settings) -> None:
         self.settings = reader_handler.ReaderSettings(
@@ -212,6 +221,11 @@ class ReaderBackend:
         """``fileProposal`` or ``transitionProposal`` as AppSync delivers it to the function."""
         event = {"arguments": arguments, "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}}, "info": {"fieldName": field}}
         return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+
+    def operator_proposal_call(self, field: str, arguments: dict, *, identity: dict | None = None, account_id: str | None = OPERATOR_ACCOUNT) -> dict:
+        """``fileProposal`` or ``transitionProposal`` as AppSync delivers an IAM caller (by default an operator role of the function's own account)."""
+        event = {"arguments": arguments, "identity": operator_identity() if identity is None else identity, "info": {"fieldName": field}}
+        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now, account_id=account_id)
 
     def proposals(self) -> list[dict]:
         return sorted(self.table("proposal").scan()["Items"], key=lambda row: row["createdAt"])

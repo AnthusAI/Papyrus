@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from papyrus_content.projection.plugins import is_plugin_runtime_key  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering import proposals as public  # noqa: E402
-from reader_fixtures import ReaderBackend, reader_handler, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import OPERATOR_ACCOUNT, OPERATOR_ARN, ReaderBackend, operator_identity, reader_handler, run_snapshot, subject_for  # noqa: E402
 
 rules = reader_handler.proposal_rules
 BODY = "# Name the agents cluster\n\nThe cluster mixes **tool use** with *planning*.\n"
@@ -98,6 +98,124 @@ class FilingTests(unittest.TestCase):
             outsider = backend.proposal_call("transitionProposal", {"proposalId": identifier, "state": "in_steering"}, groups=("reader",))
             self.assertEqual(outsider["error"], "not_staff")
             self.assertEqual(row_of(backend, identifier)["state"], "draft")
+
+
+def operator_file(backend: ReaderBackend, **overrides) -> str:
+    answer = backend.operator_proposal_call("fileProposal", {"kind": "story_draft", "title": "Filed by automation", "body": BODY, **overrides})
+    assert answer["status"] == "ok", answer
+    return answer["id"]
+
+
+def operator_move(backend: ReaderBackend, proposal: str, state: str, **extra) -> dict:
+    return backend.operator_proposal_call("transitionProposal", {"proposalId": proposal, "state": state, **extra})
+
+
+class OperatorTests(unittest.TestCase):
+    """An IAM operator of the function's own account files AI proposals and sends a draft to steering; editors decide."""
+
+    def test_an_operator_files_an_ai_proposal_recorded_as_the_operator(self) -> None:
+        with ReaderBackend() as backend:
+            identifier = operator_file(backend, proposer="reader-subject", summary="One line.")
+            row = row_of(backend, identifier)
+            history = json.loads(row["history"])
+            self.assertEqual((row["state"], row["proposer"]), ("draft", "ai"))
+            self.assertEqual(history[0]["actor"], f"operator:{OPERATOR_ARN}")
+            self.assertEqual((history[0]["from"], history[0]["to"], history[0]["by"]), (None, "draft", "ai"))
+
+    def test_an_operator_moves_a_draft_to_steering_or_declines_it(self) -> None:
+        with ReaderBackend() as backend:
+            steered, dropped = operator_file(backend), operator_file(backend, title="Another")
+            self.assertEqual(operator_move(backend, steered, "in_steering")["status"], "ok")
+            self.assertEqual(operator_move(backend, dropped, "declined", reason="Duplicate.")["status"], "ok")
+            for identifier, state in ((steered, "in_steering"), (dropped, "declined")):
+                row = row_of(backend, identifier)
+                entry = json.loads(row["history"])[-1]
+                self.assertEqual((row["state"], entry["to"], entry["by"], entry["actor"]), (state, state, "operator", f"operator:{OPERATOR_ARN}"))
+
+    def test_an_operator_can_never_take_an_editor_action(self) -> None:
+        with ReaderBackend() as backend:
+            draft = operator_file(backend)
+            for state, extra in (("approved", {}), ("editor_review", {}), ("overridden_by_editor", {"reason": "No.", "result": "declined"})):
+                with self.subTest(state=state, from_state="draft"):
+                    answer = operator_move(backend, draft, state, **extra)
+                    self.assertEqual((answer["status"], answer["error"]), ("refused", "operator_not_allowed"))
+            self.assertEqual(row_of(backend, draft)["state"], "draft")
+            for final, extra in (("approved", {}), ("declined", {"reason": "Not now."}), ("overridden_by_editor", {"reason": "No.", "result": "approved"})):
+                with self.subTest(final=final):
+                    reviewed = file_one(backend)
+                    self.assertEqual(move(backend, reviewed, "in_steering")["status"], "ok")
+                    self.assertEqual(move(backend, reviewed, "editor_review")["status"], "ok")
+                    answer = operator_move(backend, reviewed, final, **extra)
+                    self.assertEqual((answer["status"], answer["error"]), ("refused", "operator_not_allowed"))
+                    self.assertEqual(row_of(backend, reviewed)["state"], "editor_review")
+            steered = operator_file(backend)
+            self.assertEqual(operator_move(backend, steered, "in_steering")["status"], "ok")
+            self.assertEqual(operator_move(backend, steered, "declined")["error"], "operator_not_allowed")
+            self.assertEqual(operator_move(backend, steered, "editor_review")["error"], "operator_not_allowed")
+            self.assertEqual(row_of(backend, steered)["state"], "in_steering")
+
+    def test_the_operator_road_is_exactly_draft_to_steering_or_declined(self) -> None:
+        self.assertEqual(rules.OPERATOR_TRANSITIONS, {("draft", "in_steering"), ("draft", "declined")})
+        self.assertTrue(rules.OPERATOR_TRANSITIONS <= {(a, b) for a, targets in rules.TRANSITIONS.items() for b in targets})
+
+    def test_an_identity_pool_caller_is_refused(self) -> None:
+        pooled = [
+            operator_identity(cognitoIdentityId="eu-west-1:1111", cognitoIdentityPoolId="eu-west-1_pool", cognitoIdentityAuthType="authenticated"),
+            operator_identity(cognitoIdentityId="eu-west-1:1111"),
+            operator_identity(sub="a-user", claims={"sub": "a-user"}),
+        ]
+        with ReaderBackend() as backend:
+            existing = file_one(backend)
+            for identity in pooled:
+                with self.subTest(identity=identity):
+                    self.assertEqual(backend.operator_proposal_call("fileProposal", {"kind": "story_draft", "title": "T", "body": BODY}, identity=identity)["error"], "not_staff")
+                    self.assertEqual(backend.operator_proposal_call("transitionProposal", {"proposalId": existing, "state": "in_steering"}, identity=identity)["error"], "not_staff")
+            self.assertEqual(len(backend.proposals()), 1)
+            self.assertEqual(row_of(backend, existing)["state"], "draft")
+
+    def test_another_account_is_refused(self) -> None:
+        foreign = operator_identity(accountId="999999999999", userArn="arn:aws:sts::999999999999:assumed-role/ideas-pipeline/run-1")
+        mismatched = operator_identity(accountId=OPERATOR_ACCOUNT, userArn="arn:aws:sts::999999999999:assumed-role/x/y")
+        with ReaderBackend() as backend:
+            for identity in (foreign, mismatched):
+                with self.subTest(identity=identity):
+                    self.assertEqual(backend.operator_proposal_call("fileProposal", {"kind": "story_draft", "title": "T", "body": BODY}, identity=identity)["error"], "not_staff")
+            self.assertEqual(backend.proposals(), [])
+
+    def test_an_unknown_function_account_or_a_malformed_principal_is_refused(self) -> None:
+        with ReaderBackend() as backend:
+            arguments = {"kind": "story_draft", "title": "T", "body": BODY}
+            self.assertEqual(backend.operator_proposal_call("fileProposal", arguments, account_id=None)["error"], "not_staff")
+            for identity in ({}, operator_identity(userArn=None), operator_identity(userArn="not-an-arn"), operator_identity(accountId=None)):
+                with self.subTest(identity=identity):
+                    self.assertEqual(backend.operator_proposal_call("fileProposal", arguments, identity=identity)["error"], "not_staff")
+            self.assertEqual(backend.proposals(), [])
+
+    def test_an_operator_cannot_moderate_readers(self) -> None:
+        with ReaderBackend() as backend:
+            event = {"arguments": {"action": "hide", "targetType": "comment", "target": "c1"}, "identity": operator_identity(), "info": {"fieldName": "moderateReader"}}
+            answer = reader_handler.handle_staff_event(event, store=backend.store, settings=backend.settings, now_seconds=backend.now, account_id=OPERATOR_ACCOUNT)
+            self.assertEqual(answer["error"], "not_staff")
+
+    def test_operator_filings_still_obey_the_filing_rules(self) -> None:
+        with ReaderBackend() as backend:
+            answer = backend.operator_proposal_call("fileProposal", {"kind": "poem", "title": "T", "body": BODY})
+            self.assertEqual((answer["status"], answer["error"]), ("refused", "invalid_kind"))
+            self.assertEqual(backend.proposals(), [])
+
+    def test_the_operator_never_reaches_a_public_file(self) -> None:
+        with ReaderBackend() as backend, tempfile.TemporaryDirectory() as directory:
+            identifier = operator_file(backend)
+            self.assertEqual(operator_move(backend, identifier, "in_steering")["status"], "ok")
+            site = LocalDirectoryWriter(Path(directory))
+            backend.now += 120
+            run_snapshot(backend, site)
+            texts = [site.get(entry.key).decode() for entry in site.list() if "proposals" in entry.key]
+            self.assertTrue(texts)
+            for text in texts:
+                self.assertNotIn("operator", text)
+                self.assertNotIn(OPERATOR_ACCOUNT, text)
+                self.assertNotIn("ideas-pipeline", text)
 
 
 class TransitionTests(unittest.TestCase):
