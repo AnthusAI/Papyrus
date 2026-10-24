@@ -72,6 +72,10 @@ export type AutomationRecord = {
   enabled: boolean;
   enabledNote: string;
   trigger: { kind: "monitor" | "schedule" | "event" | "manual"; config: Record<string, unknown> };
+  /** Story-stage automations only: the stage that fires it, where the engine moves the story after, and the bot-hop limit. */
+  onStage?: string | null;
+  nextStage?: string | null;
+  maxHops?: number | null;
   supported: boolean;
   supportNote: string | null;
   procedureKey: string;
@@ -105,6 +109,10 @@ export function triggerText(trigger: AutomationRecord["trigger"]): string {
   const kind = KIND_WORDS[trigger.kind] ?? trigger.kind;
   if (trigger.kind === "monitor") {
     return `${kind} ${String(trigger.config.monitorId ?? "?")}, delivering to ${String(trigger.config.publicationId ?? "?")}`;
+  }
+  if (trigger.kind === "event" && trigger.config.event === "story.stage_entered") {
+    const next = trigger.config.nextStage ? `, then moves it to ${String(trigger.config.nextStage)}` : "";
+    return `${kind}: a story enters ${String(trigger.config.onStage ?? "?")}${next}`;
   }
   return kind;
 }

@@ -136,6 +136,10 @@ async function main() {
   assert.equal(durationText(null), "duration not recorded");
   assert.equal(durationText(190), "3 min 10 s");
   assert.equal(triggerText({ kind: "manual", config: {} }), "Manual");
+  assert.equal(
+    triggerText({ kind: "event", config: { event: "story.stage_entered", onStage: "copywriting", nextStage: "typesetting" } }),
+    "Event: a story enters copywriting, then moves it to typesetting",
+  );
 
   console.log("automation page: ok");
 }

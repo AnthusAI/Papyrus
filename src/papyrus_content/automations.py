@@ -28,6 +28,7 @@ from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
+from .story_triggers import MAX_HOPS, STAGE_ENTERED, is_stage_trigger
 from .monitoring_router import (
     PROCEDURE_INPUT_NAME,
     PROCEDURE_KEY,
@@ -113,6 +114,21 @@ def validate_trigger(trigger: Any) -> dict[str, Any]:
         if not PUBLICATION_ID.match(publication_id):
             raise AutomationError("a monitor trigger needs config.publicationId, the router publication it delivers to.")
         config = {"monitorId": monitor_id, "publicationId": publication_id}
+    if kind == "event" and config.get("event") == STAGE_ENTERED:
+        from .content_item_lifecycle import CONTENT_ITEM_STAGES
+
+        monitor_id, publication_id, stage = (str(config.get(key) or "") for key in ("monitorId", "publicationId", "onStage"))
+        if stage not in CONTENT_ITEM_STAGES:
+            raise AutomationError(f"a story-stage trigger needs config.onStage, one of {', '.join(CONTENT_ITEM_STAGES)}.")
+        next_stage = config.get("nextStage")
+        if next_stage is not None and (next_stage not in CONTENT_ITEM_STAGES or next_stage == stage):
+            raise AutomationError(f"config.nextStage must be a different stage, one of {', '.join(CONTENT_ITEM_STAGES)}.")
+        if not MONITOR_ID.match(monitor_id) or not PUBLICATION_ID.match(publication_id):
+            raise AutomationError("a story-stage trigger needs config.monitorId and config.publicationId: the monitor partition "
+                                  "that holds its run rows and the router publication that supplies the endpoint and model key.")
+        config = {"event": STAGE_ENTERED, "onStage": stage, "monitorId": monitor_id, "publicationId": publication_id}
+        if next_stage:
+            config["nextStage"] = next_stage
     return {"kind": kind, "config": config}
 
 
@@ -126,6 +142,9 @@ def validate_input_template(template: Any, trigger: dict[str, Any]) -> dict[str,
         if not PROCEDURE_INPUT_NAME.match(str(name)):
             raise AutomationError(f"inputTemplate name {name!r} is not a valid procedure input name.")
         text = str(value)
+        if is_stage_trigger(trigger) and "{" in text:
+            raise AutomationError(f"inputTemplate {name}: a story-stage automation's input is static; the engine adds story, version, "
+                                  "versionNumber, stage, runKey, automationId and hop.")
         if trigger["kind"] == "monitor":
             used = {field for _, field, _, _ in string.Formatter().parse(text) if field is not None}
             unknown = sorted(used - TRIGGER_PLACEHOLDERS)
@@ -142,11 +161,11 @@ def validate_limits(limits: Any) -> dict[str, Any]:
         return dict(DEFAULT_LIMITS)
     if not isinstance(limits, dict):
         raise AutomationError("limits must be an object.")
-    unknown = sorted(set(limits) - {"timeoutSeconds", "maxConcurrent", "budgetUsdPerRun"})
+    unknown = sorted(set(limits) - {"timeoutSeconds", "maxConcurrent", "budgetUsdPerRun", "maxHops"})
     if unknown:
         raise AutomationError(f"unknown limit(s): {', '.join(unknown)}.")
     merged = {**DEFAULT_LIMITS, **{key: value for key, value in limits.items() if value is not None}}
-    for key, low, high in (("timeoutSeconds", 1, MAX_TIMEOUT_SECONDS), ("maxConcurrent", 1, 100)):
+    for key, low, high in (("timeoutSeconds", 1, MAX_TIMEOUT_SECONDS), ("maxConcurrent", 1, 100), ("maxHops", 1, MAX_HOPS)):
         if key not in merged:
             continue
         value = merged[key]
@@ -201,19 +220,22 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
     """A stored row as the record the CLI and console show, with what is and is not live said in words."""
     trigger = _parse(row.get("trigger"), {})
     kind = str(trigger.get("kind") or "")
-    supported = kind in ACTIVE_KINDS
+    supported = kind in ACTIVE_KINDS or is_stage_trigger(trigger)
     return {
         "id": row.get("id"), "title": row.get("title"), "description": row.get("description"),
         "enabled": row.get("enabled") is not False,
         "enabledNote": ENABLED_NOTE,
         "trigger": {"kind": kind, "config": trigger.get("config") or {}},
+        "onStage": (trigger.get("config") or {}).get("onStage") if is_stage_trigger(trigger) else None,
+        "nextStage": (trigger.get("config") or {}).get("nextStage") if is_stage_trigger(trigger) else None,
+        "maxHops": _parse(row.get("limits"), {}).get("maxHops") if is_stage_trigger(trigger) else None,
         "supported": supported,
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
         "limitsNote": LIMITS_NOTE,
-        "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind,
+        "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind, "stageTrigger": is_stage_trigger(trigger),
                                         "template": _parse(row.get("inputTemplate"), {})}),
         "createdBy": row.get("createdBy"), "createdAt": row.get("createdAt"),
         "updatedBy": row.get("updatedBy"), "updatedAt": row.get("updatedAt"),
@@ -224,6 +246,8 @@ def run_now_availability(info: dict[str, Any]) -> dict[str, Any]:
     """Whether Run now is offered, and whether the person must give the input (the template names item placeholders)."""
     template = info["template"] if isinstance(info["template"], dict) else {}
     placeholders = sorted({field for text in template.values() for _, field, _, _ in string.Formatter().parse(str(text)) if field})
+    if info.get("stageTrigger"):
+        return {"available": False, "reason": "starts when a story enters its stage, not by hand", "needsInput": False, "inputNames": []}
     if info["kind"] not in ACTIVE_KINDS:
         return {"available": False, "reason": NOT_SUPPORTED, "needsInput": False, "inputNames": []}
     if not info["enabled"]:
@@ -277,6 +301,10 @@ class MonitoringReader:
     def trigger_rows(self, monitor_id: str, publication_id: str, procedure_key: str) -> list[dict]:
         return [_clean(item) for item in query_prefix(self.table, monitor_id, trigger_prefix(publication_id, procedure_key))]
 
+    def rows_with_prefix(self, monitor_id: str, prefix: str) -> list[dict]:
+        """Rows of the monitor's partition by sort-key prefix (the story-stage run rows)."""
+        return [_clean(item) for item in query_prefix(self.table, monitor_id, prefix)]
+
     def manual_rows(self, monitor_id: str, automation_id: str) -> list[dict]:
         """The rows Run now wrote for this automation."""
         return [_clean(item) for item in query_prefix(self.table, monitor_id, manual_prefix(automation_id))]
@@ -290,6 +318,16 @@ class MonitoringWriter:
 
     def put(self, row: dict) -> None:
         self.table.put_item(Item=row)
+
+    def claim(self, row: dict) -> bool:
+        """Put the row only if its key is new. False when it exists already: someone else holds the claim."""
+        try:
+            self.table.put_item(Item=row, ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)")
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return False
+            raise
+        return True
 
 
 def monitoring_table_from_environment(env=None):
@@ -607,7 +645,9 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
     if "input" in options:
         fields["inputTemplate"] = _json_option(options, "input")
     kind = options.get("kind")
-    if kind or "monitor" in options or "publication" in options or "config" in options:
+    if "on-stage" in options and kind is None:
+        kind = "event"
+    if kind or "monitor" in options or "publication" in options or "config" in options or "on-stage" in options or "next-stage" in options:
         current = (existing or {}).get("trigger") or {}
         config = dict(current.get("config") or {}) if (kind in (None, current.get("kind"))) else {}
         if "config" in options:
@@ -616,10 +656,15 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
             config["monitorId"] = options["monitor"]
         if "publication" in options:
             config["publicationId"] = options["publication"]
+        if "on-stage" in options:
+            config["event"], config["onStage"] = STAGE_ENTERED, options["on-stage"]
+        if "next-stage" in options:
+            config["nextStage"] = options["next-stage"]
         fields["trigger"] = {"kind": kind or current.get("kind") or ("monitor" if "monitor" in options else None), "config": config}
     limits, cleared = {}, set()
     for option, field, cast in (("timeout-seconds", "timeoutSeconds", int), ("max-concurrent", "maxConcurrent", int),
-                                ("budget-usd", "budgetUsdPerRun", float)):
+                                ("budget-usd", "budgetUsdPerRun", float),
+                                ("max-hops", "maxHops", int)):
         if option in options:
             if option == "max-concurrent" and str(options[option]).lower() in {"none", "unlimited"}:
                 cleared.add(field)

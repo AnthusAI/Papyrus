@@ -210,7 +210,8 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         update_cloud_procedure_run_record(client, record)
     return {"runId": run_id, "procedureKey": request["procedureKey"], "versionId": procedure["version"]["id"],
             "runStatus": "completed" if succeeded else "failed", "seconds": outcome.get("seconds"),
-            "error": None if succeeded else outcome.get("error"), "costUsd": cost_usd, "costRecorded": cost_recorded}
+            "error": None if succeeded else outcome.get("error"), "costUsd": cost_usd, "costRecorded": cost_recorded,
+            "output": outcome.get("output") if succeeded else None}
 
 
 def child_environment(request: dict, openai_api_key: str | None) -> dict:
@@ -267,4 +268,20 @@ def handler(event, context):
         result = {"runStatus": "notRunnable", "runId": None, "error": str(error)}
     print(json.dumps(result, default=str))
     record_trigger_outcome(table, trigger, result)
+    if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
+        finish_story_stage_run(table, trigger, result)
     return result
+
+
+def finish_story_stage_run(table, trigger: dict, result: dict) -> None:
+    """A story-stage run ended: the engine advances the story or raises a review request (story_triggers.finish_stage_run).
+    Never raises: the run's outcome is already recorded."""
+    try:
+        from .automations import MonitoringReader, MonitoringWriter, lambda_invoker
+        from .graphql_authoring import PapyrusGraphQLAuthoringClient
+        from .story_triggers import finish_stage_run
+
+        finish_stage_run(PapyrusGraphQLAuthoringClient(), trigger, result, reader=MonitoringReader(table), writer=MonitoringWriter(table),
+                         invoke=lambda_invoker())
+    except Exception as error:
+        print(f"story stage run could not be finished: {type(error).__name__}: {error}")
