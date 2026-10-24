@@ -262,6 +262,23 @@ def request_item_check(item_id: str, execute=None) -> dict[str, Any]:
     return _awsjson_document(execute(CHECK_ITEM_VERSION, {"itemId": item_id})["checkItemVersion"])
 
 
+GET_CHECK_RUN = "query GetEditorialCheckRun($id: ID!) { getEditorialCheckRun(id: $id) { id itemId lineageId versionNumber section contentHash packVersion violations reviews findings lanes checkedAt } }"
+
+
+def read_item_check_run(item_id: str, execute=None) -> dict[str, Any] | None:
+    """The stored check of one saved version (counts, findings, lane status), or None if it has none yet."""
+    if execute is None:
+        from .graphql_http import execute_graphql
+
+        execute = execute_graphql
+    from .editorial_checks import _awsjson_document
+
+    run = (execute(GET_CHECK_RUN, {"id": item_id}) or {}).get("getEditorialCheckRun")
+    if not run:
+        return None
+    return {**run, "findings": _awsjson_document(run.get("findings")) or [], "lanes": _awsjson_document(run.get("lanes"))}
+
+
 def check_summary_line(result: dict[str, Any]) -> str:
     if result.get("skipped"):
         return f"editorial\tcheck\t{result.get('itemId')}\tskipped\t{result['skipped']}"
