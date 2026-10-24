@@ -22,7 +22,7 @@ export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
   models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Proposal"],
-  mutations: ["moderateReader", "fileProposal", "transitionProposal"],
+  mutations: ["moderateReader", "fileProposal", "transitionProposal", "editProposal"],
   guest: { mutations: [] },
   newsroomPanels: [{ id: "moderation", label: "Moderation" }],
   staticAssets: ["_plugins/papyrus-reader@1.js", "_plugins/papyrus-reader@1.css"],

@@ -1,4 +1,8 @@
-"""``papyrus proposals create|list|show|transition|publish``: file, decide and publish proposals (docs/reader-steering.md).
+"""``papyrus proposals``: file, decide, steer and publish proposals (docs/reader-steering.md).
+
+``create|list|show|transition|publish`` are the filing and deciding commands. The editor tier adds ``approve``, ``decline``,
+``override``, ``pin``, ``unpin``, ``hold``, ``release``, ``exclude-votes``, ``undo-exclusion`` and ``needs-a-look``: editors and
+admins only (an IAM operator is refused all of them by the function).
 
 A proposal is a change to the map written down where readers can see it. These commands call the ``fileProposal`` and
 ``transitionProposal`` mutations as the signed-in editor or admin (``papyrus login``), or, for an unattended run, with
@@ -26,9 +30,16 @@ USAGE = (
     "  papyrus proposals list [--state STATE] [--json]\n"
     "  papyrus proposals show PROPOSAL_ID [--json]\n"
     "  papyrus proposals transition PROPOSAL_ID --to STATE [--reason TEXT] [--result approved|declined] [--json]\n"
+    "  papyrus proposals approve PROPOSAL_ID [--reason TEXT] [--json]       (editor review -> approved)\n"
+    "  papyrus proposals decline PROPOSAL_ID [--reason TEXT] [--json]       (draft or editor review -> declined)\n"
+    "  papyrus proposals override PROPOSAL_ID --result approved|declined --reason TEXT [--json]   (against the community; the reason is public)\n"
+    "  papyrus proposals pin|unpin|hold|release PROPOSAL_ID [--json]\n"
+    "  papyrus proposals exclude-votes PROPOSAL_ID --rule new-accounts-24h [--json]   (prints the exclusion id)\n"
+    "  papyrus proposals undo-exclusion PROPOSAL_ID --exclusion EXCLUSION_ID [--json]\n"
+    "  papyrus proposals needs-a-look [--json]   (editor-only: vote spikes, new-account surges, community vs AI)\n"
     "  papyrus proposals publish [--json]   (writes public files only if the site sets proposals.publish)\n"
     "With PAPYRUS_GRAPHQL_AUTH=iam (an operator role of the site's own account) create, transition (draft to in_steering or declined only) and publish\n"
-    "work; list and show, and every other transition, need an editor session (papyrus login).\n"
+    "work; list and show, every other transition and every editor action above need an editor session (papyrus login).\n"
     "Kinds: story_draft, new_concept, rename, merge, split, new_column, element_symbol.\n"
     "States: draft, in_steering, editor_review, approved, declined, overridden_by_editor."
 )
@@ -43,19 +54,29 @@ mutation TransitionProposal($proposalId: String!, $state: String!, $reason: Stri
   transitionProposal(proposalId: $proposalId, state: $state, reason: $reason, result: $result) { status id error message }
 }
 """
+EDIT_MUTATION = """
+mutation EditProposal($proposalId: String!, $action: String!, $rule: String, $exclusionId: String) {
+  editProposal(proposalId: $proposalId, action: $action, rule: $rule, exclusionId: $exclusionId) { status id error message }
+}
+"""
+FIELDS = "id kind title summary body targets evidence proposer state history communityResult pinned held override exclusions needsLook createdAt updatedAt"
 LIST_QUERY = """
 query ListProposals($limit: Int, $nextToken: String) {
   listProposals(limit: $limit, nextToken: $nextToken) {
-    items { id kind title summary body targets evidence proposer state history communityResult createdAt updatedAt }
+    items { %FIELDS% }
     nextToken
   }
 }
 """
 GET_QUERY = """
 query GetProposal($id: ID!) {
-  getProposal(id: $id) { id kind title summary body targets evidence proposer state history communityResult createdAt updatedAt }
+  getProposal(id: $id) { %FIELDS% }
 }
 """
+
+
+LIST_QUERY = LIST_QUERY.replace("%FIELDS%", FIELDS)
+GET_QUERY = GET_QUERY.replace("%FIELDS%", FIELDS)
 
 
 class ProposalRefused(ValueError):
@@ -183,9 +204,16 @@ def show_command(flags: list[str]) -> None:
     if not row:
         raise ValueError(f"Proposal not found: {flags[0]}")
     if options.get("json"):
-        print(json.dumps({"ok": True, "command": "proposals show", "proposal": {**row, "targets": parsed(row.get("targets")), "history": parsed(row.get("history")), "evidence": parsed(row.get("evidence"))}}, indent=2))
+        print(json.dumps({"ok": True, "command": "proposals show", "proposal": {**row, "targets": parsed(row.get("targets")), "history": parsed(row.get("history")), "evidence": parsed(row.get("evidence")), "exclusions": parsed(row.get("exclusions")), "needsLook": parsed(row.get("needsLook"))}}, indent=2))
         return
     print(f"{row['id']}\t{row['state']}\t{row['kind']}\t{row['title']}")
+    flags = [name for name in ("pinned", "held") if row.get(name)]
+    if flags:
+        print("flags\t" + ", ".join(flags))
+    for exclusion in parsed(row.get("exclusions")) or []:
+        print("\t".join(["exclusion", exclusion["id"], exclusion["rule"], exclusion["at"], "undone " + exclusion["undoneAt"] if exclusion.get("undoneAt") else "active"]))
+    for found in (parsed(row.get("needsLook")) or {}).get("reasons", []):
+        print(f"needs-a-look\t{found['code']}\t{found['detail']}")
     for target in parsed(row.get("targets")) or []:
         print(f"target\t{target['type']}\t{target['id']}")
     for entry in parsed(row.get("history")) or []:
@@ -208,6 +236,89 @@ def transition_command(flags: list[str]) -> None:
     emit(options, {"ok": True, "command": "proposals transition", "id": proposal_id, "state": state}, f"proposals\ttransition\t{proposal_id}\t{state}")
 
 
+def proposal_argument(flags: list[str], command: str) -> tuple[str, dict[str, Any]]:
+    if not flags or flags[0].startswith("--"):
+        raise ValueError(f"proposals {command} requires a proposal id.")
+    return flags[0], parse_options(flags[1:])
+
+
+def decide_command(command: str, state: str):
+    """``approve`` and ``decline``: the transition to ``state`` with the editor's optional public reason."""
+
+    def run_command(flags: list[str]) -> None:
+        proposal_id, options = proposal_argument(flags, command)
+        variables = {"proposalId": proposal_id, "state": state, "reason": normalize_string(options.get("reason")), "result": None}
+        client, _ = create_authoring_client()
+        receipt(client.graphql(TRANSITION_MUTATION, variables), "transitionProposal")
+        emit(options, {"ok": True, "command": f"proposals {command}", "id": proposal_id, "state": state}, f"proposals\t{command}\t{proposal_id}\t{state}")
+
+    return run_command
+
+
+def override_command(flags: list[str]) -> None:
+    proposal_id, options = proposal_argument(flags, "override")
+    result, reason = normalize_string(options.get("result")), normalize_string(options.get("reason"))
+    if result not in ("approved", "declined"):
+        raise ValueError("proposals override requires --result approved or --result declined.")
+    if not reason:
+        raise ValueError("proposals override requires --reason: the reason is public.")
+    variables = {"proposalId": proposal_id, "state": "overridden_by_editor", "reason": reason, "result": result}
+    client, _ = create_authoring_client()
+    receipt(client.graphql(TRANSITION_MUTATION, variables), "transitionProposal")
+    emit(options, {"ok": True, "command": "proposals override", "id": proposal_id, "state": "overridden_by_editor", "result": result}, f"proposals\toverride\t{proposal_id}\t{result}")
+
+
+def edit_command(command: str, action: str):
+    """``pin``, ``unpin``, ``hold`` and ``release`` take only the proposal id."""
+
+    def run_command(flags: list[str]) -> None:
+        proposal_id, options = proposal_argument(flags, command)
+        client, _ = create_authoring_client()
+        receipt(client.graphql(EDIT_MUTATION, {"proposalId": proposal_id, "action": action}), "editProposal")
+        emit(options, {"ok": True, "command": f"proposals {command}", "id": proposal_id}, f"proposals\t{command}\t{proposal_id}")
+
+    return run_command
+
+
+def exclude_votes_command(flags: list[str]) -> None:
+    proposal_id, options = proposal_argument(flags, "exclude-votes")
+    rule = normalize_string(options.get("rule"))
+    if not rule:
+        raise ValueError("proposals exclude-votes requires --rule (for example new-accounts-24h).")
+    client, _ = create_authoring_client()
+    exclusion = receipt(client.graphql(EDIT_MUTATION, {"proposalId": proposal_id, "action": "exclude_votes", "rule": rule}), "editProposal")
+    emit(options, {"ok": True, "command": "proposals exclude-votes", "id": proposal_id, "exclusion": exclusion, "rule": rule}, f"proposals\texclude-votes\t{proposal_id}\t{exclusion}")
+
+
+def undo_exclusion_command(flags: list[str]) -> None:
+    proposal_id, options = proposal_argument(flags, "undo-exclusion")
+    exclusion = normalize_string(options.get("exclusion"))
+    if not exclusion:
+        raise ValueError("proposals undo-exclusion requires --exclusion EXCLUSION_ID (papyrus proposals show lists them).")
+    client, _ = create_authoring_client()
+    receipt(client.graphql(EDIT_MUTATION, {"proposalId": proposal_id, "action": "undo_exclusion", "exclusionId": exclusion}), "editProposal")
+    emit(options, {"ok": True, "command": "proposals undo-exclusion", "id": proposal_id, "exclusion": exclusion}, f"proposals\tundo-exclusion\t{proposal_id}\t{exclusion}")
+
+
+def needs_a_look_command(flags: list[str]) -> None:
+    """The proposals whose last snapshot found reasons for an editor to look; the reasons are stored on the private row, never published."""
+    options = parse_options(flags)
+    client, _ = create_authoring_client()
+    try:
+        everything = list_proposals(client)
+    except Exception as error:  # noqa: BLE001
+        if using_iam():
+            raise reading_needs_an_editor(error) from error
+        raise
+    found = [(row, (parsed(row.get("needsLook")) or {}).get("reasons") or []) for row in everything]
+    found = [(row, reasons) for row, reasons in found if reasons]
+    if options.get("json"):
+        print(json.dumps({"ok": True, "command": "proposals needs-a-look", "count": len(found), "proposals": [{**summary_of(row), "reasons": reasons} for row, reasons in found]}, indent=2))
+        return
+    for row, reasons in found:
+        print("\t".join([row["id"], row["state"], row["title"], "; ".join(f"{reason['label']}: {reason['detail']}" for reason in reasons)]))
+
+
 def publish_command(flags: list[str]) -> None:
     from .projection_trigger import trigger_projection
 
@@ -222,7 +333,23 @@ def emit(options: dict[str, Any], payload: dict[str, Any], line: str) -> None:
     print(json.dumps(payload, indent=2) if options.get("json") else line)
 
 
-COMMANDS = {"create": create_command, "list": list_command, "show": show_command, "transition": transition_command, "publish": publish_command}
+COMMANDS = {
+    "create": create_command,
+    "list": list_command,
+    "show": show_command,
+    "transition": transition_command,
+    "approve": decide_command("approve", "approved"),
+    "decline": decide_command("decline", "declined"),
+    "override": override_command,
+    "pin": edit_command("pin", "pin"),
+    "unpin": edit_command("unpin", "unpin"),
+    "hold": edit_command("hold", "hold"),
+    "release": edit_command("release", "release"),
+    "exclude-votes": exclude_votes_command,
+    "undo-exclusion": undo_exclusion_command,
+    "needs-a-look": needs_a_look_command,
+    "publish": publish_command,
+}
 
 
 def proposals_command(command: str, flags: list[str]) -> None:

@@ -1015,15 +1015,22 @@ class DynamoReaderStore:
             raise
         return True
 
-    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool:
+    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool:
+        """Apply ``changes`` if the state (and, when given, ``updatedAt``) is still what the caller saw; a value of ``None`` removes the attribute."""
         names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
-        assignments = ", ".join(f"#c{index} = :c{index}" for index in range(len(changes)))
-        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values())}}
+        sets = ", ".join(f"#c{index} = :c{index}" for index, value in enumerate(changes.values()) if value is not None)
+        removes = ", ".join(f"#c{index}" for index, value in enumerate(changes.values()) if value is None)
+        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values()) if value is not None}}
+        condition = "#st = :expected"
+        if expected_updated_at is not None:
+            condition += " AND #u = :seen"
+            values[":seen"] = expected_updated_at
+        expression = f"SET {sets + ', ' if sets else ''}#u = :now" + (f" REMOVE {removes}" if removes else "")
         try:
             self._table("proposal").update_item(
                 Key={"id": proposal_id},
-                UpdateExpression=f"SET {assignments}, #u = :now",
-                ConditionExpression="#st = :expected",
+                UpdateExpression=expression,
+                ConditionExpression=condition,
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=values,
             )
