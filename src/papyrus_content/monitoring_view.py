@@ -186,6 +186,8 @@ def _email_summary(row: dict) -> dict:
             "headerFrom": _short(row.get("headerFrom")), "warnings": [str(value) for value in row.get("warnings", [])],
             "verdicts": {key: verdicts.get(key, "UNAVAILABLE") for key in ("spf", "dkim", "dmarc", "spam", "virus")},
             "linkCount": int(row.get("linkCount") or 0), "processedCount": int(row.get("processedCount") or 0),
+            "unresolvedLinkCount": int(row.get("unresolvedLinkCount") or 0),
+            "reviewRequired": row.get("reviewRequired") is True,
             "errorCode": _short(row.get("errorCode"))}
 
 
@@ -269,7 +271,7 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
         raise Forbidden("site endpoint is not a configured publication")
     row = store.get(receipt_id)
     publication_id = publication["publicationId"]
-    if (not row or row.get("status") not in {"queued", "processing", "failed"}
+    if (not row or row.get("status") not in {"queued", "processing", "failed", "pending_review"}
             or row.get("emailTrustMode") != "data-only"
             or publication_id not in (row.get("emailDestinationPublicationIds") or [])):
         raise Forbidden("email receipt is outside this publication")

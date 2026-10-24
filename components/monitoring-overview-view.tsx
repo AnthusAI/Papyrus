@@ -100,6 +100,8 @@ function EmailSubmissions({ items, detail, onOpen }: {
         {items.map((item) => <li key={item.receiptId} data-email-submission={item.receiptId}>
           <strong>{item.subject || "(no subject)"}</strong>
           <span>{formatUtc(item.observedAt)} · {item.linkCount} candidate links · {item.processedCount} queued</span>
+          {item.reviewRequired ? <span>Authentication warnings: private review required; nothing was routed automatically.</span> : null}
+          {item.unresolvedLinkCount ? <span>{item.unresolvedLinkCount} tracking links remain unresolved and were not opened.</span> : null}
           <span>Envelope sender: {item.envelopeSender || "unknown"} · MIME From (unverified): {item.headerFrom || "unknown"}</span>
           <span>SES signals — SPF {item.verdicts.spf}, DKIM {item.verdicts.dkim}, DMARC {item.verdicts.dmarc}; spam {item.verdicts.spam}, virus {item.verdicts.virus}</span>
           {item.warnings.length ? <span>Warnings: {item.warnings.join(", ")}</span> : null}
@@ -114,7 +116,8 @@ function EmailSubmissions({ items, detail, onOpen }: {
           <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{detail.safeBodyText}</pre>
           <h5>Candidate references ({detail.candidateLinks.length})</h5>
           <ul>{detail.candidateLinks.map((link, index) => <li key={`${link.url}-${index}`}>
-            <a href={link.url} target="_blank" rel="noreferrer noopener">{link.title || link.url}</a>
+            {link.resolutionStatus === "unresolved" ? <span>{link.title || link.url} (unresolved; not opened)</span>
+              : <a href={link.url} target="_blank" rel="noreferrer noopener">{link.title || link.url}</a>}
           </li>)}</ul>
         </section>
       ) : detail && "error" in detail ? <p role="alert">You cannot read this submission.</p>

@@ -65,24 +65,25 @@ class AccountCyclotron(FakeCyclotron):
 
 
 @pytest.mark.parametrize("verdict", ["spfVerdict", "dkimVerdict", "dmarcVerdict"])
-def test_sender_authentication_verdicts_are_warnings_and_do_not_block_data_intake(verdict):
+def test_sender_authentication_verdicts_require_private_review_without_router_discoveries(verdict):
     fixture = email_fixture()
     receipt = fixture.event["Records"][0]["ses"]["receipt"]
     receipt[verdict]["status"] = "FAIL"
     receipt[verdict]["reason"] = "signature=must-not-be-retained"
     fixture.s3.raw = b"Authentication-Results: amazonses.com; dmarc=pass; spf=pass\r\n" + RAW
     result = collect_email(fixture)
-    assert result["status"] == "queued"
-    assert len(fixture.table.by_prefix("DISC#")) == 2
+    assert result["status"] == "pending_review"
+    assert fixture.table.by_prefix("DISC#") == []
     stored = fixture.table.by_prefix("EMAIL#")[0]
     diagnostics = stored["sesDiagnostics"]
     assert diagnostics["provenance"] == "ses-invocation-receipt-untrusted-auth-signals"
     assert diagnostics["verdicts"][verdict.removesuffix("Verdict")] == "FAIL"
     assert diagnostics["warnings"]
     assert diagnostics["blockedGateCodes"] == []
-    assert stored["processingStage"] == "queued"
+    assert stored["processingStage"] == "pending_review"
     assert stored["emailTrustMode"] == "data-only"
-    assert all(row["emailTrustMode"] == "data-only" for row in fixture.table.by_prefix("DISC#"))
+    assert stored["reviewRequired"] is True and stored["pendingReviewLinkCount"] == 2
+    assert "gsi1pk" not in stored
     stored_details = fixture.table.by_prefix("EMAILDETAIL#")
     assert any("#BODY#" in row["sk"] and "https://example.org/alpha" in row.get("text", "")
                for row in stored_details)
@@ -90,6 +91,20 @@ def test_sender_authentication_verdicts_are_warnings_and_do_not_block_data_intak
     assert len(fixture.table.by_prefix("EMAILINDEX#")) == 1
     assert "must-not-be-retained" not in repr(diagnostics)
     assert "Authentication-Results" not in repr(diagnostics)
+
+
+def test_shared_auth_warning_receipt_never_reaches_cyclotron_or_reference_intake():
+    fixture, model = shared_fixture(), AccountCyclotron()
+    for name in ("spfVerdict", "dkimVerdict", "dmarcVerdict"):
+        fixture.event["Records"][0]["ses"]["receipt"][name]["status"] = "FAIL"
+    assert collect_email(fixture)["status"] == "pending_review"
+    result, delivered = route_email(fixture, cyclotron=CyclotronClient(
+        validate_router_config(fixture.router), sign=lambda *_: {}, http=model.http,
+        sleep=lambda _: None, clock=lambda: 0))
+    assert delivered == []
+    assert result["counts"]["decided"] == result["counts"]["delivered"] == 0
+    assert model.posts() == []
+    assert fixture.table.by_prefix("DISC#") == []
 
 
 @pytest.mark.parametrize("verdict,reason", [
@@ -118,9 +133,26 @@ def test_all_ses_authentication_signals_remain_visible_as_warnings():
     receipt["dmarcVerdict"]["status"] = "NONE"
     result = collect_email(fixture)
     diagnostics = fixture.table.by_prefix("EMAIL#")[0]["sesDiagnostics"]
-    assert result["status"] == "queued"
+    assert result["status"] == "pending_review"
     assert diagnostics["warnings"] == ["spf_not_passed", "dkim_not_passed", "dmarc_not_passed"]
     assert diagnostics["blockedGateCodes"] == []
+
+
+def test_unresolved_subscriber_tracking_url_is_private_and_never_routed():
+    from procedures.newsroom.tests.test_email_submission_redirects import TRACKER
+    fixture = email_fixture()
+    fixture.s3.raw = fixture.s3.raw.replace(b"https://example.org/alpha", TRACKER.encode())
+    assert collect_email(fixture)["status"] == "queued"
+    receipt = fixture.table.by_prefix("EMAIL#")[0]
+    details = fixture.table.by_prefix("EMAILDETAIL#")
+    stored_links = [json.loads(row["json"]) for row in details if "#LINKS#" in row["sk"]]
+    links = [link for batch in stored_links for link in batch]
+    unresolved = next(link for link in links if link.get("resolutionStatus") == "unresolved")
+    assert unresolved["url"] == TRACKER
+    assert receipt["unresolvedLinkCount"] == 1
+    assert all(row["canonicalUrl"] != TRACKER for row in fixture.table.by_prefix("DISC#"))
+    _, delivered = route_email(fixture)
+    assert all(row[1]["canonicalUrl"] != TRACKER for row in delivered)
 
 
 def test_editor_membership_is_never_inferred_and_email_without_links_remains_readable():
@@ -315,10 +347,10 @@ def test_private_email_details_are_replayable_and_idempotent():
                             "failedGateCodes": ["sender_authentication_failed"]},
     })
     first, second = collect_email(fixture), collect_email(fixture)
-    assert first["status"] == "queued" and second["status"] == "duplicate"
+    assert first["status"] == "pending_review" and second["status"] == "duplicate"
     row = fixture.table.get_item(Key={"pk": "MONITOR#email-publication", "sk": receipt_id})["Item"]
     assert row["sesDiagnostics"]["warnings"] == ["spf_not_passed", "dkim_not_passed", "dmarc_not_passed"]
-    assert len(fixture.table.by_prefix("DISC#")) == 2
+    assert fixture.table.by_prefix("DISC#") == []
     assert len(fixture.table.by_prefix("EMAILINDEX#")) == 1
 
 
@@ -386,6 +418,16 @@ def test_router_does_not_use_untrusted_sender_for_editor_authorization():
     result, delivered = route_email(fixture)
     assert len(delivered) == 2 and result["counts"]["delivered"] == 2
     assert fixture.cognito.calls == []
+
+
+def test_router_rejects_auth_warning_discovery_even_if_one_is_injected():
+    fixture = email_fixture()
+    collect_email(fixture)
+    discovery = fixture.table.by_prefix("DISC#")[0]
+    discovery["emailProvenance"]["sesDiagnostics"]["warnings"] = ["dmarc_not_passed"]
+    from papyrus_content.monitoring_router import validate_email_discovery_scope, ItemInvalid
+    with pytest.raises(ItemInvalid, match="require editor review"):
+        validate_email_discovery_scope(discovery, validate_router_config(fixture.router))
 
 
 def test_classifier_backfill_rechecks_membership_before_delivery():

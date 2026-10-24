@@ -180,7 +180,8 @@ def test_parser_uses_only_explicit_resolver_and_excludes_action_anchors_before_c
     raw = message(f'<a href="{TRACKER}?id=article">Read story</a>'
                   f'<a href="{TRACKER}?id=unsubscribe">Unsubscribe</a>')
     ordinary = extract_submission(raw)
-    assert ordinary["links"] == []
+    assert ordinary["links"] == [{"url": TRACKER + "?id=article", "title": "Read story",
+                                   "resolutionStatus": "unresolved"}]
     assert called == []
 
     result = extract_submission(raw, tracking_resolver=resolver)

@@ -212,6 +212,9 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
             allowed = discovery.get("emailDestinationPublicationIds")
             if discovery.get("emailProvenance", {}).get("inputTrust") != "untrusted-source-material":
                 raise ItemInvalid("Data-only email trust provenance is missing")
+            diagnostics = discovery.get("emailProvenance", {}).get("sesDiagnostics") or {}
+            if diagnostics.get("warnings"):
+                raise ItemInvalid("Email authentication warnings require editor review before routing")
         else:
             # Compatibility for discoveries queued by the earlier editor-gated path.
             allowed = discovery.get("emailAuthorizedPublicationIds")
