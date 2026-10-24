@@ -173,7 +173,8 @@ def test_the_runner_materializes_skills_records_the_run_and_its_output(tmp_path)
                                       environment={}, workroot=tmp_path)
 
     assert result == {"runId": "run-1", "procedureKey": REQUEST["procedureKey"], "versionId": "version-1",
-                      "runStatus": "completed", "seconds": 42, "error": None, "costUsd": None, "costRecorded": False}
+                      "runStatus": "completed", "seconds": 42, "error": None, "costUsd": None, "costRecorded": False,
+                      "output": {"title": "Wemby"}}
     assert seen["skill"] == "# Example" and "Procedure {" in seen["source"] and seen["timeout"] == 840
     assert json.loads(client.started[0]["input"])["__papyrusExecutionMode"] == "external_cli"
     assert client.updates[0]["runStatus"] == "completed" and json.loads(client.updates[0]["output"]) == {"title": "Wemby"}

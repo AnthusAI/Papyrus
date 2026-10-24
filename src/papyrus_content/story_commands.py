@@ -66,6 +66,10 @@ def stories_save_version(flags: list[str]) -> None:
         stage = advance_stage(latest.get("stage"))
     record = save_story_version(client, lineage_id, front_matter_yaml=front_matter, body_markus=body, actor=author, change_reason=reason, stage=stage)
     print(f"stories\tsave-version\tsaved\t{record['id']}")
+    if stage and stage != (latest.get("stage") or "idea"):
+        from .story_triggers import deliver_from_environment
+
+        deliver_from_environment(client, lineage_id)
     if not options.get("no-check"):
         from .editorial_commands import check_after_save
 
@@ -232,6 +236,9 @@ def stories_create(flags: list[str]) -> None:
     item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
     lineage_id = item["lineageId"]
     print(f"stories\tcreate\tcreated\t{item['id']}")
+    from .story_triggers import deliver_from_environment
+
+    deliver_from_environment(client, lineage_id)   # a story created at a stage has entered it
     if options.get("with-assignment"):
         from .assignments_workflow import create_reporting_assignment
 
@@ -256,3 +263,19 @@ def stories_move(flags: list[str]) -> None:
         reason=normalize_string(options.get("reason")),
     )
     print(f"stories\tmove\t{'moved' if result['changed'] else 'unchanged'}\t{result['from']}\t{result['stage']}")
+    if result["changed"]:
+        from .story_triggers import deliver_from_environment
+
+        deliver_from_environment(client, lineage_id)
+
+
+def stories_fire_triggers(flags: list[str]) -> None:
+    """papyrus stories fire-triggers --story <lineage>: deliver the stage-entry triggers for the story's current stage and version.
+
+    Safe to repeat: a story, stage and version that already started a run starts nothing. Use it after a move made in the console,
+    or to retry a start that was deferred."""
+    options = parse_options(flags)
+    from .story_triggers import deliver_from_environment
+
+    client, _ = create_authoring_client()
+    deliver_from_environment(client, _required_option(options, "story"))
