@@ -135,7 +135,23 @@ function coreDependencies() {
       ids: { next: (() => { let value = 0; return () => `message-${++value}`; })() },
       clock: { now: () => new Date(now * 1000) },
       mailbox: { client: dynamo.client as never, tableName: "injected-private-test-store" },
-      turns: { async openTurn() { return null; }, async startTurn() { return false; }, async steerTurn() { return false; }, async recordLogicalEnqueue() { return true; } },
+      turns: {
+        async openTurn() { return null; },
+        async startTurn(request: any) {
+          const item = request.initialItem;
+          if (item) {
+            const pk = `MB#${item.tenantId}#${item.botId}#${item.channelId}`;
+            const sk = String(item.seq).padStart(10, "0");
+            dynamo.items.set(`${pk}\0${sk}`, {
+              pk: { S: pk }, sk: { S: sk }, seq: { N: String(item.seq) }, message_id: { S: item.messageId },
+              author_kind: { S: item.authorKind }, author_id: { S: item.authorId }, body: { S: item.body },
+              addressed_to_bot_id: { S: item.addressedToBotId ?? "" }, created_at: { S: item.createdAt },
+            });
+          }
+          return true;
+        },
+        async steerTurn() { return true; }, async recordLogicalEnqueue() { return true; },
+      },
       turnRuns: { async enqueue() {} }, turnProbes: { async send() {} },
       listing: {
         client: dynamo.client as never, s3: {} as never,
@@ -187,7 +203,7 @@ async function main() {
   const options = {
     privateChatEnabled: true,
     siteProduct,
-    environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct },
+    environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: "editorial-assistant" },
     nowInSeconds: () => now,
     resolveRuntime: async () => auth.runtime,
     resolvePrivateDependencies: async () => core.dependencies,
@@ -199,16 +215,18 @@ async function main() {
     ["channels", core.channelId, "messages"], options,
   );
   assert.equal(send.status, 200);
-  const sendBody = await send.json() as { message: { author_id: string; tenant_id: string; body: string } };
+  const sendBody = await send.json() as { message: { author_kind: string; author_id: string; tenant_id: string; body: string; addressed_to_bot_id: string | null } };
   const expectedScope = derivePapyrusChatScope(siteProduct, accountId, "editor-a");
   assert.equal(sendBody.message.author_id, expectedScope.editorId, "the endpoint replaces client identity with server-derived editor id");
+  assert.equal(sendBody.message.author_kind, "human", "the endpoint replaces client actor kind with the authenticated editor");
   assert.equal(sendBody.message.tenant_id, expectedScope.tenantId, "tenant scope includes the configured site and selected Account");
   assert.equal(sendBody.message.body, "A private newsroom message");
+  assert.equal(sendBody.message.addressed_to_bot_id, "editorial-assistant", "the endpoint chooses the private assistant from server configuration");
 
   const read = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
   assert.equal(read.status, 200);
   const readBody = await read.json() as { messages: Array<{ author_id: string; body: string }> };
-  assert.equal(readBody.messages[0]?.author_id, expectedScope.editorId);
+  assert.equal(readBody.messages[0]?.author_id, expectedScope.editorId, JSON.stringify(readBody.messages));
   const nonparticipantRead = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-b", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
   assert.equal(nonparticipantRead.status, 403, "same-Account nonparticipants cannot read another private transcript");
 

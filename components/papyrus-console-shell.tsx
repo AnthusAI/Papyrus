@@ -35,6 +35,7 @@ import {
   type ReaderMotionSetting,
 } from "./reader-settings";
 import { PapyrusConsoleConversation, type ConsoleConversationMessage } from "./papyrus-console-conversation";
+import { PapyrusPrivateChatPanel } from "./papyrus-private-chat-panel";
 import { ModelSelector } from "./ai-elements/model-selector";
 import { Suggestion, Suggestions } from "./ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "./ai-elements/tool";
@@ -104,6 +105,7 @@ const CONSOLE_MODEL_OPTIONS = [
 
 type PapyrusConsoleShellProps = {
   children: ReactNode;
+  privateChatEnabled?: boolean;
 };
 
 type PapyrusConsoleContextValue = {
@@ -144,7 +146,7 @@ type ConsoleAuthorIdentity = {
 
 const PapyrusConsoleContext = createContext<PapyrusConsoleContextValue | null>(null);
 
-export function PapyrusConsoleShell({ children }: PapyrusConsoleShellProps) {
+export function PapyrusConsoleShell({ children, privateChatEnabled = false }: PapyrusConsoleShellProps) {
   const pathname = usePathname();
   const [session, setSession] = useState<ReaderSessionSnapshot | null>(null);
   const [open, setOpen] = useState(false);
@@ -363,7 +365,9 @@ export function PapyrusConsoleShell({ children }: PapyrusConsoleShellProps) {
         <aside className={open ? "papyrus-console papyrus-console--open" : "papyrus-console"} aria-label="Papyrus console">
           {open ? (
             canUseConsole
-              ? <ConsolePanel actorEmail={session?.auth.status === "signedIn" ? (session.auth.email ?? null) : null} actorLabel={session?.auth.label ?? "Papyrus editor"} onClose={toggleOpen} />
+              ? privateChatEnabled
+                ? <PapyrusPrivateChatPanel onClose={toggleOpen} />
+                : <ConsolePanel actorEmail={session?.auth.status === "signedIn" ? (session.auth.email ?? null) : null} actorLabel={session?.auth.label ?? "Papyrus editor"} onClose={toggleOpen} />
               : <ConsoleAccessPanel onClose={toggleOpen} session={session} />
           ) : null}
         </aside>

@@ -183,17 +183,18 @@ export async function handlePapyrusHostedChatRequest(
   if (request.method === "POST" && isMessageRoute) {
     const idempotencyKey = request.headers.get("idempotency-key")?.trim();
     const input = await request.json().catch(() => null) as Record<string, unknown> | null;
-    if (!idempotencyKey || typeof input?.body !== "string" || !input.body.trim() ||
-      (input.addressed_to_bot_id !== undefined && input.addressed_to_bot_id !== null && typeof input.addressed_to_bot_id !== "string")) {
+    const privateBotId = environment.PAPYRUS_CHAT_PRIVATE_BOT_ID?.trim();
+    if (!idempotencyKey || typeof input?.body !== "string" || !input.body.trim()) {
       return jsonFailure(422, "message_body_and_idempotency_key_required");
     }
+    if (!privateBotId) return jsonFailure(503, "private_chat_storage_unavailable");
     headers.set("content-type", "application/json");
     headers.set("idempotency-key", idempotencyKey);
     body = JSON.stringify({
       author_kind: "human",
       author_id: authorization.principal.userId,
       body: input.body,
-      addressed_to_bot_id: input.addressed_to_bot_id ?? null,
+      addressed_to_bot_id: privateBotId,
     });
   }
 

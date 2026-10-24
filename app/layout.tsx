@@ -154,7 +154,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {showStagingBanner() ? <StagingBanner /> : null}
         <AmplifyClientProvider>
           <TooltipProvider>
-            <PapyrusConsoleShell>{children}</PapyrusConsoleShell>
+            <PapyrusConsoleShell privateChatEnabled={process.env.PAPYRUS_PRIVATE_CHAT_ENABLED === "true"}>
+              {children}
+            </PapyrusConsoleShell>
           </TooltipProvider>
         </AmplifyClientProvider>
       </body>

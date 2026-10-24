@@ -59,6 +59,13 @@ When("the Papyrus shared worker integration suite runs", { timeout: 120_000 }, a
   const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-chat-worker-integration-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
   this.papyrusWorkerIntegrationResult = result.stdout;
 });
+When("the private console browser integration runs", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs"], { maxBuffer: 4 * 1024 * 1024 });
+  this.privateChatUiResult = result.stdout;
+});
+Then("same-origin sends retain editor session scope, allow a pending-reply send and render the hosted reply", function () {
+  assert.ok(this.privateChatUiResult.includes("shared UI sends through the private host route once"));
+});
 Then("the sealed editor creates the private channel and sees one persisted reply after refresh and replay", function () {
   assert.ok(this.papyrusWorkerIntegrationResult.includes("PASS: Papyrus private channel, hosted send, shared worker reply, refresh/replay, and foreign-editor denial"));
 });

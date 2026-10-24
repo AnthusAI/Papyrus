@@ -364,7 +364,7 @@ async function main() {
 	};
 	const options = {
 		siteProduct,
-		environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct },
+		environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: botId },
 		nowInSeconds: () => now,
 		resolveRuntime: async () => prospectusRuntime(),
 		resolvePrivateDependencies: async () => privateDependencies as never,
@@ -392,13 +392,14 @@ async function main() {
 	prices.register("openai", scripted.modelId, { inputPerMillionUsd: Decimal.parse("1"), outputPerMillionUsd: Decimal.parse("2") });
 	const sendHeaders = { origin: "https://papyrus.example", "idempotency-key": "newsroom-message-1" };
 	const sent = await handlePapyrusHostedChatRequest(
-		requestFor("POST", editorId, `channels/${created.channel_id}/messages`, { body: "Draft an update", addressed_to_bot_id: botId }, sendHeaders),
+		requestFor("POST", editorId, `channels/${created.channel_id}/messages`, { body: "Draft an update", addressed_to_bot_id: "attacker-selected-bot" }, sendHeaders),
 		["channels", created.channel_id, "messages"],
 		options,
 	);
 	if (sent.status !== 200) throw new Error(`Hosted message send returned ${sent.status}: ${await sent.text()}`);
-	const sentBody = await sent.json() as { message: { author_id: string; seq: number }; turn_id: string };
+	const sentBody = await sent.json() as { message: { author_id: string; addressed_to_bot_id: string; seq: number }; turn_id: string };
 	assert.equal(sentBody.message.author_id, scope.editorId);
+	assert.equal(sentBody.message.addressed_to_bot_id, botId, "server-configured private assistant wins over client input");
 	assert.equal(sentBody.message.seq, 1);
 	const sentMessageId = (sentBody as any).message.message_id as string;
 	assert.equal(core.jobs.length, 1);
@@ -443,7 +444,7 @@ async function main() {
 		["bot", answer, 2],
 	]);
 	const replay = await handlePapyrusHostedChatRequest(
-		requestFor("POST", editorId, `channels/${created.channel_id}/messages`, { body: "Draft an update", addressed_to_bot_id: botId }, sendHeaders),
+		requestFor("POST", editorId, `channels/${created.channel_id}/messages`, { body: "Draft an update", addressed_to_bot_id: "attacker-selected-bot" }, sendHeaders),
 		["channels", created.channel_id, "messages"],
 		options,
 	);

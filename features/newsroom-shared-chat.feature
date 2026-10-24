@@ -53,3 +53,7 @@ Feature: Shared newsroom chat presentation
   Scenario: Open a private newsroom conversation and complete a shared worker turn
     When the Papyrus shared worker integration suite runs
     Then the sealed editor creates the private channel and sees one persisted reply after refresh and replay
+
+  Scenario: Use the shared console UI with the private hosted runtime
+    When the private console browser integration runs
+    Then same-origin sends retain editor session scope, allow a pending-reply send and render the hosted reply

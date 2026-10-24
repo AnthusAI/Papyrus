@@ -172,7 +172,9 @@
     "test:shared-chat-admission": "node --experimental-strip-types scripts/test-shared-chat-admission.ts",
     "test:papyrus-chat-admission": "node scripts/run-papyrus-chat-admission-test.mjs",
     "test:papyrus-hosted-chat": "node scripts/run-papyrus-hosted-chat-test.mjs",
-    "test:papyrus-chat-worker": "node scripts/run-papyrus-chat-worker-integration-test.mjs"
+    "test:papyrus-chat-worker": "node scripts/run-papyrus-chat-worker-integration-test.mjs",
+    "test:papyrus-private-chat-client": "node --import tsx scripts/test-papyrus-private-chat-client.ts",
+    "test:papyrus-private-chat-ui": "node scripts/private-chat-ui-fixture.mjs"
   },
   "keywords": [
     "nextjs",

@@ -40,14 +40,17 @@ derives an opaque site/Account tenant and per-editor principal on the server.
 Chatticus's shared core then enforces channel participation for transcript and
 turn reads. Client-supplied tenant and author values are never trusted.
 
-The route returns 503 until a private durable Chatticus storage runtime is
-configured. No Papyrus chat table, queue, runtime composition, schema or IAM
-policy has been created here. Before enabling it, the deployment needs an
-approved private messaging table and conversation storage, run and deadline
-queues, runtime composition using the pinned `chat-server` export, and the
-minimum DynamoDB, S3 and SQS permissions for that runtime. The UI's AppSync send
-path remains unchanged. The endpoint contract test injects only local storage
-and queue fakes and does not verify AWS durability or deployed permissions.
+The private UI candidate uses a same-origin browser adapter and the route returns
+503 until its private durable Chatticus runtime is configured. The feature is
+default-off; `PAPYRUS_PRIVATE_CHAT_ENABLED=true` switches the console to it, and
+without that setting the existing AppSync path remains unchanged. The runtime
+candidate is in `infra/shared-chat-runtime`; it defines private messaging and
+conversation-index tables, a versioned private session bucket, run/probe queues,
+worker entry points and scoped policies. Its queue event mappings are disabled
+by default, so the candidate cannot produce replies until they are deliberately
+enabled. No production stack, role or site environment has been changed. The
+endpoint and worker tests use injected local stores/queues; they do not verify
+AWS durability or deployed permissions.
 
 `lib/papyrus-chat-admission.ts` binds the Chatticus admission client to an
 injected Papyrus endpoint and fresh-header provider. It requires an
@@ -58,11 +61,12 @@ console does not call this adapter: the live AppSync send path remains in place
 until the host endpoint and production identity mapping are separately
 implemented and reviewed.
 
-This change does not yet replace the Rust responder, adopt the shared SSE API
-in Papyrus, add per-editor transcript isolation, change backend permissions or
-implement job/approval continuations. The old backend remains the only chat
-writer. Those later gates are defined by the reviewed integration plan in
-PR #661; the initiative is not complete when only this UI increment lands.
+The private path derives site, account and editor identity from the sealed
+Prospectus session and uses per-editor channels. It does not forward bearer
+tokens or accept client-supplied authorship. The old AppSync path remains active
+until the feature flag and private runtime are configured in a reviewed
+deployment. This increment does not change backend permissions or implement
+job/approval continuations; those gates remain in PR #661's integration plan.
 
 The dependency is a source commit for review/testing, not a registry release.
 Do not merge, release, publish packages or deploy from this task without the

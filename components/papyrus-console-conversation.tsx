@@ -45,8 +45,10 @@ export function PapyrusConsoleConversation({ messages, isSending, isRunning, onS
   error?: string | null;
 }) {
   const sharedMessages = useMemo(() => consoleConversationMessages(messages), [messages]);
-  return <div className="papyrus-console-conversation">
-    <ChatRuntime messages={sharedMessages} isRunning={isRunning} isSendDisabled={isSending}
+  return <div className="papyrus-console-conversation" data-reply-running={isRunning || undefined}>
+    {/* Papyrus routes can accept another editor message while the current reply runs.
+        The pending assistant message carries its own running status for display. */}
+    <ChatRuntime messages={sharedMessages} isRunning={false} isSendDisabled={isSending}
       onSendMessage={onSendMessage} presentation={presentation}
       threadProps={{ composerPlaceholder: "Write a message...", composerActions, emptyState, streamError: error }} />
   </div>;
