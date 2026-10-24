@@ -58,6 +58,27 @@ def test_submission_receipt_preserves_ses_authority_and_separates_legacy_command
     assert resources["RouterInvokePermission"]["Properties"]["SourceArn"] == {"GetAtt": "RouterSchedule.Arn"}
 
 
+def test_membership_permissions_are_read_only_and_limited_to_explicit_pools():
+    email_path = Path(__file__).resolve().parents[3] / "infra/email/papyrus-email-submissions.yaml"
+    email_template = yaml.load(email_path.read_text(), Loader=CloudFormationLoader)
+    assert email_template["Conditions"]["HasEditorUserPools"] == {
+        "Not": [{"Equals": [{"Join": ["", {"Ref": "EditorUserPoolArns"}]}, ""]}]}
+    email_policy = email_template["Resources"]["SubmissionEditorMembershipPolicy"]
+    assert email_policy["Condition"] == "HasEditorUserPools"
+    email_grant = email_policy["Properties"]["PolicyDocument"]["Statement"][0]
+    assert set(email_grant["Action"]) == {"cognito-idp:ListUsers", "cognito-idp:AdminListGroupsForUser"}
+    assert email_grant["Resource"] == {"Ref": "EditorUserPoolArns"}
+
+    router_path = Path(__file__).resolve().parents[3] / "infra/monitoring/papyrus-monitoring.yaml"
+    router_template = yaml.load(router_path.read_text(), Loader=CloudFormationLoader)
+    router_policy = router_template["Resources"]["RouterEditorMembershipPolicy"]
+    assert router_policy["Condition"] == "HasEditorUserPools"
+    grant = router_policy["Properties"]["PolicyDocument"]["Statement"][0]
+    assert grant["Sid"] == "EmailEditorMembership"
+    assert set(grant["Action"]) == {"cognito-idp:ListUsers", "cognito-idp:AdminListGroupsForUser"}
+    assert grant["Resource"] == {"Ref": "EditorUserPoolArns"}
+
+
 def test_receiver_can_rely_on_its_durable_lease_when_account_cannot_reserve_concurrency():
     path = Path(__file__).resolve().parents[3] / "infra/email/papyrus-email-submissions.yaml"
     template = yaml.load(path.read_text(), Loader=CloudFormationLoader)

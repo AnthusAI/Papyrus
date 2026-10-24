@@ -7,14 +7,13 @@ fetched, no HTML is rendered, and body text is never an agent instruction.
 """
 from __future__ import annotations
 
+import ipaddress
+import re
 from email import policy
 from email.parser import BytesParser
 from html import unescape
 from html.parser import HTMLParser
-import ipaddress
-import re
 from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
-
 
 MAX_MESSAGE_BYTES = 1_048_576
 MAX_MIME_PARTS = 64
@@ -196,7 +195,8 @@ def _addresses(message, name, *, single=False):
 def extract_submission(raw: bytes) -> dict:
     """Extract at most 25 safe unique links and private, explicitly untrusted headers.
 
-    Attachments (including attached message/rfc822) are ignored. Multi-part bodies
+    Ordinary attachments are ignored; bounded attached message/rfc822 bodies are
+    inspected only for links and never used to authenticate the sender. Multi-part bodies
     contribute both HTML and plain text links. This first slice forwards no message
     prose or original unsafe URL into a classifier; retain the original privately
     in the intake's restricted object storage for inspection.
@@ -227,12 +227,14 @@ def extract_submission(raw: bytes) -> dict:
             raise SubmissionRejected("mime_too_deep")
         if part.defects:
             raise SubmissionRejected("malformed_mime")
-        ignored = ignored_parent or part.get_content_disposition() == "attachment" or part.get_filename() is not None
+        forwarded_message = part.get_content_type() == "message/rfc822"
+        ignored = ignored_parent or (not forwarded_message and
+                                     (part.get_content_disposition() == "attachment" or part.get_filename() is not None))
         if ignored:
             warnings.add("ignored_attachments")
         if part.is_multipart():
             children = list(part.iter_parts())
-            pending.extend((child, depth + 1, ignored or part.get_content_maintype() == "message")
+            pending.extend((child, depth + 1, ignored or (part.get_content_maintype() == "message" and not forwarded_message))
                            for child in reversed(children))
             continue
         if ignored or part.get_content_type() not in {"text/plain", "text/html"}:

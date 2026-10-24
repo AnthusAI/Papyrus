@@ -26,22 +26,33 @@ Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing mod
 """
 from __future__ import annotations
 
-from decimal import Decimal
-from hashlib import sha256
 import json
 import os
-from pathlib import Path
 import re
 import string
 import time
-from typing import Any, Callable
 import urllib.error
 import urllib.request
-from urllib.parse import quote, urlsplit
 import uuid
+from decimal import Decimal
+from hashlib import sha256
+from pathlib import Path
+from typing import Any, Callable
+from urllib.parse import quote, urlsplit
 
 from .automation_gate import (
-    START_AS_BEFORE, Gate, decide, manual_prefix, matching_automation, query_prefix, trigger_prefix)
+    START_AS_BEFORE,
+    Gate,
+    decide,
+    manual_prefix,
+    matching_automation,
+    query_prefix,
+    trigger_prefix,
+)
+from .email_submission_authorization import (
+    EditorLookupUnavailable,
+    publication_ids_for_editor,
+)
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 
@@ -196,6 +207,12 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
         if (not config.get("accountId") or not discovery.get("emailProvenance")
                 or discovery.get("emailRoutingFingerprint") != email_routing_fingerprint(config)):
             raise ItemInvalid("Email destination Account or publication binding changed; reconcile explicitly")
+        allowed = discovery.get("emailAuthorizedPublicationIds")
+        configured = {row["publicationId"] for row in config["publications"]}
+        if (not isinstance(allowed, list) or not allowed
+                or any(not isinstance(value, str) or not value for value in allowed)
+                or len(allowed) != len(set(allowed)) or not set(allowed) <= configured):
+            raise ItemInvalid("Email editor publication authorization is missing or outside its configured scope")
 
 
 def validate_router_publications(raw: dict) -> list[dict]:
@@ -210,8 +227,12 @@ def validate_router_publications(raw: dict) -> list[dict]:
             raise ValueError(f"router publication {publication_id or '?'} is invalid or duplicated")
         seen.add(publication_id)
         corpus_id = str(entry.get("corpusId") or f"knowledge-corpus-{publication_id}")
+        pool_id = entry.get("userPoolId")
+        if pool_id is not None and (not isinstance(pool_id, str) or not re.fullmatch(r"[A-Za-z0-9-]+_[A-Za-z0-9]+", pool_id)):
+            raise ValueError(f"router publication {publication_id} has an invalid editor user pool")
         publications.append({
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
+            **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
             "output": str(entry.get("output") or f"{publication_id}-relevance"),
             "positiveLabel": str(entry.get("positiveLabel") or "include"),
@@ -724,14 +745,16 @@ class Router:
     def __init__(self, store, config: dict, *, monitor_id="hn", now: float, run_id: str,
                  cyclotron: CyclotronClient | None, appsync: Callable[[str], Any], deliver=deliver_reference,
                  context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
-                 start_procedure: Callable[[dict], None] | None = None):
+                 start_procedure: Callable[[dict], None] | None = None, cognito=None):
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
         self.start_procedure = start_procedure
+        self.cognito = cognito
         self.cyclotron, self.appsync_factory, self.deliver = cyclotron, appsync, deliver
         self.context_receipt, self.time_left = context_receipt, time_left
         self._clients: dict = {}
         self._contexts: dict = {}
         self.publications = {p["publicationId"]: p for p in config["publications"]}
+        self.active_publications = None
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
@@ -778,13 +801,24 @@ class Router:
     # dry-run ----------------------------------------------------------------------------------------
 
     def dry_run(self, disc: dict):
+        original_active = self.active_publications
+        try:
+            self._dry_run_scoped(disc)
+        finally:
+            self.active_publications = original_active
+
+    def _dry_run_scoped(self, disc: dict):
         route = self.get_route(disc)
         try:
             validate_email_discovery_scope(disc, self.config)
+            if disc.get("sourceType") == "email":
+                self.active_publications = self.authorized_email_publications(disc)
+                if not self.active_publications:
+                    return self.finish(disc, route, "refused", "sender is no longer an active editor")
         except ItemInvalid as error:
             return self.finish(disc, route, "error", str(error))
         requests = {}
-        for publication in self.config["publications"]:
+        for publication in (self.active_publications or self.config["publications"]):
             if self.config["decisions"] == "direct":
                 requests[publication["publicationId"]] = {"direct": True, "wouldDeliver": True}
                 continue
@@ -795,7 +829,7 @@ class Router:
             requests[publication["publicationId"]] = {
                 "path": built["path"], "requestId": built["body"]["requestId"], "bytes": len(json.dumps(built["body"], separators=(",", ":"))),
                 "body": built["body"]}
-        contexts = {p["publicationId"]: self.context_for(p) for p in self.config["publications"]}
+        contexts = {p["publicationId"]: self.context_for(p) for p in (self.active_publications or self.config["publications"])}
         previous = route.get("dryRun") or {}
         route["dryRun"] = {"count": int(previous.get("count", 0)) + 1, "validatedAt": _iso(self.now),
                            "runId": self.run_id, "requests": requests, "contexts": contexts}
@@ -828,6 +862,17 @@ class Router:
             return True
         return False
 
+    def authorized_email_publications(self, disc: dict) -> list[dict]:
+        if self.cognito is None:
+            raise ItemInvalid("Email editor membership lookup is unavailable")
+        try:
+            current = set(publication_ids_for_editor(
+                disc["emailProvenance"]["sender"], self.config["publications"], self.cognito))
+        except (EditorLookupUnavailable, KeyError) as error:
+            raise ItemInvalid("Email editor membership lookup failed closed") from error
+        allowed = set(disc["emailAuthorizedPublicationIds"]) & current
+        return [p for p in self.config["publications"] if p["publicationId"] in allowed]
+
     def note_not_ready(self, pub_id: str, disc: dict, route: dict, reason: str):
         park = self.park(pub_id) or {"pk": pk(self.monitor_id), "sk": PARK_PREFIX + pub_id, "publicationId": pub_id,
                                       "since": _iso(self.now), "backoffSeconds": PARK_BACKOFF_FIRST,
@@ -855,7 +900,7 @@ class Router:
     def backfill(self) -> int:
         """Decide parked items for bindings whose output became ready; bounded by the per-run item budget."""
         done, budget = 0, self.config["maxItemsPerRun"]
-        for publication in self.config["publications"]:
+        for publication in (self.active_publications or self.config["publications"]):
             pub_id = publication["publicationId"]
             park = self.park(pub_id)
             while park and park.get("ready") and park.get("items") and done < budget:
@@ -875,6 +920,28 @@ class Router:
         return done
 
     def backfill_one(self, publication: dict, disc: dict, route: dict):
+        original_active = self.active_publications
+        if disc.get("sourceType") == "email":
+            try:
+                authorized = self.authorized_email_publications(disc)
+            except ItemInvalid as error:
+                route.setdefault("notReady", {})[publication["publicationId"]] = {"reason": str(error)[:200], "at": _iso(self.now)}
+                self.save(route)
+                return
+            allowed = {p["publicationId"] for p in authorized}
+            if publication["publicationId"] not in allowed:
+                return
+            self.active_publications = authorized
+            route["publications"] = {key: value for key, value in route.get("publications", {}).items() if key in allowed}
+            if route.get("decision"):
+                route["decision"]["publications"] = {key: value for key, value in
+                                                       route["decision"].get("publications", {}).items() if key in allowed}
+        try:
+            self._backfill_one(publication, disc, route)
+        finally:
+            self.active_publications = original_active
+
+    def _backfill_one(self, publication: dict, disc: dict, route: dict):
         pub_id = publication["publicationId"]
         item_id = item_id_for(self.monitor_id, disc["sourceId"])
         try:
@@ -909,7 +976,7 @@ class Router:
         A binding whose output is not ready (criteria_pending) is skipped for this item and parked."""
         jobs = route.setdefault("jobs", {})
         item_id = item_id_for(self.monitor_id, disc["sourceId"])
-        for publication in self.config["publications"]:
+        for publication in (self.active_publications or self.config["publications"]):
             pub_id = publication["publicationId"]
             if not jobs.get(pub_id, {}).get("checked"):
                 if not self.gate_open(pub_id):
@@ -921,9 +988,10 @@ class Router:
                     self.note_not_ready(pub_id, disc, route, str(error))
                     continue
                 self.note_ready(pub_id)
-        if not any(jobs.get(p["publicationId"], {}).get("checked") for p in self.config["publications"]):
+        active = self.active_publications or self.config["publications"]
+        if not any(jobs.get(p["publicationId"], {}).get("checked") for p in active):
             raise AllBindingsNotReady()
-        checked = {pid: jobs[pid]["checked"] for pid in (p["publicationId"] for p in self.config["publications"])
+        checked = {pid: jobs[pid]["checked"] for pid in (p["publicationId"] for p in active)
                    if jobs.get(pid, {}).get("checked")}
         if len({c["decisionId"] for c in checked.values()}) != 1:
             raise ItemInvalid("publications did not share one native decision")
@@ -999,9 +1067,9 @@ class Router:
             "decisionId": decision_id, "source": {"revision": int(disc["revision"])}, "decidedAt": _iso(self.now),
             "system": "direct", "bindingRevision": "direct",
             "publications": {p["publicationId"]: {"output": f"{self.monitor_id}-direct", "label": p["positiveLabel"]}
-                             for p in self.config["publications"]}}
+        for p in (self.active_publications or self.config["publications"])}}
         route["publications"] = {p["publicationId"]: {"label": p["positiveLabel"], "delivered": False, "attempts": 0}
-                                 for p in self.config["publications"]}
+                                 for p in (self.active_publications or self.config["publications"])}
         route.pop("nextAttemptAt", None)
         self.save(route)
         self.counts["decided"] += 1
@@ -1164,8 +1232,21 @@ class Router:
 
     def live(self, disc: dict):
         route = self.get_route(disc)
+        original_active_publications = self.active_publications
         try:
             validate_email_discovery_scope(disc, self.config)
+            if disc.get("sourceType") == "email":
+                self.active_publications = self.authorized_email_publications(disc)
+                allowed = {p["publicationId"] for p in self.active_publications}
+                if not allowed:
+                    self.finish(disc, route, "refused", "sender is no longer an active editor")
+                    return
+                route["publications"] = {key: value for key, value in route.get("publications", {}).items()
+                                          if key in allowed}
+                if route.get("decision"):
+                    route["decision"]["publications"] = {
+                        key: value for key, value in route["decision"].get("publications", {}).items()
+                        if key in allowed}
             if not route.get("decision"):
                 (self.decide_direct if self.config["decisions"] == "direct" else self.decide)(disc, route)
             if not self.deliver_positive(disc, route):
@@ -1183,6 +1264,8 @@ class Router:
             self.finish(disc, route, "uncertain", str(error))
         except ItemInvalid as error:
             self.finish(disc, route, "error", str(error))
+        finally:
+            self.active_publications = original_active_publications
 
     def finish(self, disc: dict, route: dict, routing: str, reason: str):
         route["final"] = {"routing": routing, "reason": reason[:300], "at": _iso(self.now)}
@@ -1306,7 +1389,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
-               start_procedure: Callable[[dict], None] | None = None) -> dict:
+               start_procedure: Callable[[dict], None] | None = None, cognito=None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -1322,7 +1405,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
-                        start_procedure=start_procedure)
+                        start_procedure=start_procedure, cognito=cognito)
         outcome = {"status": "skipped"} if task == "feedback" else router.sweep()
         feedback = {"status": "skipped"} if task == "route" else router.feedback()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
@@ -1347,6 +1430,7 @@ def handler(event, context):
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining,
+                        cognito=boto3.client("cognito-idp"),
                         start_procedure=lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION")))
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}

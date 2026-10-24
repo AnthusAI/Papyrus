@@ -3,7 +3,7 @@
 The strict submission receiver (PPY-65026c) accepts newsletters and forwarded links
 as untrusted source data. It is separate from the older command-capable inbound
 console described in [inbound email submissions](inbound-email-submissions.md).
-Deploy and enable it only after reviewing its destination, sender allowlist,
+Deploy and enable it only after reviewing its destination, sender authorization,
 account grants, SES rules and DNS. This implementation does not activate email.
 
 ## Routing and classification
@@ -41,8 +41,9 @@ It sends no acknowledgement and does not execute console commands.
 
 The receiver trusts the SES invocation's envelope recipients and scan/authentication
 verdicts. To/Cc, From, Authentication-Results and other MIME headers cannot grant
-access. An exact sender allowlist is additionally required. DMARC, spam and virus
-checks must pass, alongside SPF or DKIM. A failed or unavailable check is held
+access. The outer sender must also match a current verified editor or admin in the
+destination publication. DMARC, spam and virus checks must pass, alongside SPF or
+DKIM. A failed or unavailable check is held
 out of reference intake; arbitrary mail forwarding that breaks authentication
 may therefore need to be resubmitted by an authorized sender.
 
@@ -82,7 +83,6 @@ must agree. An example publication destination is:
   "accountId": "account-example",
   "kind": "publication",
   "addresses": ["submissions@publication.example"],
-  "allowedSenders": ["editor@example.org"],
   "publicationIds": ["publication"],
   "maxMessagesPerSenderHour": 10
 }
@@ -101,6 +101,7 @@ must agree. An example publication destination is:
   "publications": [{
     "publicationId": "publication",
     "site": "publication.example",
+    "userPoolId": "us-east-1_examplePool",
     "appsyncEndpoint": "https://example.appsync-api.us-east-1.amazonaws.com/graphql"
   }]
 }
@@ -114,9 +115,39 @@ grant list. The shared Cyclotron independently enforces the machine invoker's
 grants. Procedure triggers and automated feedback are prohibited for email
 destinations. No additional inference about site ownership is made.
 
+The sender is authorized only when the outer SES-authenticated From address exactly
+matches a unique, enabled Cognito user with `email_verified=true` and current
+membership in that publication's `editor` or `admin` group. This matches the
+application's `contentWriteGroups` authorization and its managed role assignments
+mirror those roles into Cognito. The receiver checks only the
+configured publications' user pools; a shared destination records and routes only
+the subset where the sender is an editor. The router repeats this check before
+normal delivery, retries, and classifier backfill, so revoked access fails closed.
+The receiver and router Lambda roles need read-only `cognito-idp:ListUsers` and
+`cognito-idp:AdminListGroupsForUser` on the exact configured pool ARNs. This is
+pool-scoped directory read access; it does not grant Cognito writes. Cognito user
+directory reads can be eventually consistent, so group revocation propagation is
+not a synchronous revocation guarantee.
+
+Papyrus maps Google's `email_verified` claim into Cognito's standard
+`email_verified` attribute for Google-federated accounts. Cognito treats mapped
+email addresses as unverified unless the provider's verification claim is also
+mapped. The mapping is part of the auth stack configuration, and Cognito refreshes
+mapped values on a subsequent Google sign-in; do not administratively mark a sender
+verified. After an auth deployment adds or repairs this mapping, the user must sign
+out and sign back in at the publication newsroom before email intake will recognize
+the updated verification state. Cognito's one-time verification-code flow does not
+verify an email address that came from a federated provider.
+
+Forwarded inline bodies and bounded attached `message/rfc822` parts contribute
+links only. Attached message headers never authorize the submission; SES verdicts
+and the outer sender still govern authorization. Ordinary attachments are ignored.
+SES DMARC PASS is required (plus spam/virus checks and SPF or DKIM PASS), so
+automatic forwarding that breaks DMARC is rejected.
+
 Before storing configuration, validate the two ordinary JSON documents offline
 with `validate_email_config(email_config, router_config)` from
-`papyrus_content.email_submission_intake`. Allowlist changes belong in private
+`papyrus_content.email_submission_intake`. User-pool IDs belong in private
 AWS configuration, not this repository. The receiver uses a consistent read for
 each document and pins the routing scope into each discovery; changing an Account,
 publication endpoint or shared binding makes old queued discoveries fail closed

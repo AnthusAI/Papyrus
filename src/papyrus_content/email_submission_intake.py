@@ -6,15 +6,25 @@ has no source-fetch, model, AppSync, feedback-mail or console-agent capability.
 """
 from __future__ import annotations
 
-from email.utils import getaddresses
-from hashlib import sha256
 import json
 import os
 import re
 import time
 import uuid
+from decimal import Decimal
+from email.utils import getaddresses
+from hashlib import sha256
 
-from .email_submission import MAX_LINKS, MAX_MESSAGE_BYTES, SubmissionRejected, extract_submission
+from .email_submission import (
+    MAX_LINKS,
+    MAX_MESSAGE_BYTES,
+    SubmissionRejected,
+    extract_submission,
+)
+from .email_submission_authorization import (
+    EditorLookupUnavailable,
+    publication_ids_for_editor,
+)
 from .monitoring import SourceItem, _digest, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_router import email_routing_fingerprint, validate_router_config
@@ -54,7 +64,8 @@ def _addresses(values, maximum):
 def _limit(raw, name, default, maximum):
     value = raw.get(name, default)
     # DynamoDB numbers arrive as Decimal; reject fractional/bool/string values.
-    if isinstance(value, (bool, str)) or not isinstance(value, (int, float)) or int(value) != value or not 1 <= value <= maximum:
+    if (isinstance(value, (bool, str)) or not isinstance(value, (int, float, Decimal))
+            or int(value) != value or not 1 <= value <= maximum):
         raise ConfigurationError(f"{name}_invalid")
     return int(value)
 
@@ -62,7 +73,7 @@ def _limit(raw, name, default, maximum):
 def validate_email_config(raw, raw_router):
     if not isinstance(raw, dict) or not isinstance(raw_router, dict):
         raise ConfigurationError("email_and_router_configuration_required")
-    allowed = {"pk", "sk", "schemaVersion", "enabled", "accountId", "kind", "addresses", "allowedSenders",
+    allowed = {"pk", "sk", "schemaVersion", "enabled", "accountId", "kind", "addresses",
                "publicationIds", "maxMessageBytes", "maxLinks", "maxMessagesPerSenderHour"}
     if set(raw) - allowed or raw.get("schemaVersion") != 1 or type(raw.get("enabled")) is not bool:
         raise ConfigurationError("email_configuration_shape_invalid")
@@ -83,6 +94,8 @@ def validate_email_config(raw, raw_router):
         raise ConfigurationError("email_publication_grants_mismatch")
     if any(row["procedureTriggers"] for row in router["publications"]):
         raise ConfigurationError("email_does_not_execute_procedures")
+    if any(not row.get("userPoolId") for row in router["publications"]):
+        raise ConfigurationError("email_editor_directory_required")
     if router["feedback"]:
         raise ConfigurationError("email_feedback_must_be_disabled")
     kind = raw.get("kind")
@@ -98,12 +111,11 @@ def validate_email_config(raw, raw_router):
         raise ConfigurationError("email_destination_kind_invalid")
     return {"enabled": raw["enabled"], "accountId": account, "kind": kind,
             "addresses": _addresses(raw.get("addresses"), 10),
-            "allowedSenders": _addresses(raw.get("allowedSenders"), 100),
             "publicationIds": publications,
             "maxMessageBytes": _limit(raw, "maxMessageBytes", MAX_MESSAGE_BYTES, MAX_MESSAGE_BYTES),
             "maxLinks": _limit(raw, "maxLinks", MAX_LINKS, MAX_LINKS),
             "maxMessagesPerSenderHour": _limit(raw, "maxMessagesPerSenderHour", 10, 100),
-            "routingFingerprint": email_routing_fingerprint(router)}
+            "routingFingerprint": email_routing_fingerprint(router), "publications": router["publications"]}
 
 
 class EmailStore(DynamoStore):
@@ -174,8 +186,6 @@ def _trusted_envelope(record, config):
         sender = _address(senders[0][1]) if len(senders) == 1 else ""
     except ConfigurationError as error:
         raise SubmissionRejected("sender_invalid") from error
-    if sender not in config["allowedSenders"]:
-        raise SubmissionRejected("sender_not_allowed")
     return sender, sorted(recipients)
 
 
@@ -193,7 +203,7 @@ def _mime(s3, bucket, key, limit):
     return raw
 
 
-def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submissions/", s3, now=None):
+def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submissions/", s3, cognito, now=None):
     """Process one authenticated SES delivery; expected refusals are durable receipts.
 
     Infrastructure failures are recorded and raised for Lambda retries/DLQ.
@@ -232,7 +242,16 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
             raise SubmissionRejected("email_destination_disabled")
         sender, recipients = _trusted_envelope(record, config)
         row.update(sender=sender, recipients=recipients)
+        # Charge authenticated but unauthorized senders to the same per-address
+        # ceiling so directory lookups cannot be used as an unbounded oracle.
         store.reserve_rate(monitor_id, sender, message_id, row["firstSeen"], config["maxMessagesPerSenderHour"])
+        try:
+            authorized_publications = publication_ids_for_editor(sender, config["publications"], cognito)
+        except EditorLookupUnavailable as error:
+            raise RuntimeError("editor_membership_lookup_unavailable") from error
+        authorized_publications = sorted(set(authorized_publications) & set(config["publicationIds"]))
+        if not authorized_publications:
+            raise SubmissionRejected("sender_not_active_editor")
         raw = _mime(s3, bucket, key, config["maxMessageBytes"])
         digest = sha256(raw).hexdigest()
         if row.get("mimeSha256") and row["mimeSha256"] != digest:
@@ -261,6 +280,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
                          "eventId": _digest([monitor_id, source_id, item.fingerprint]), "sourceUrl": source_url,
                          "runId": receipt_key, "routing": "collected", "emailProvenance": provenance,
                          "emailRoutingFingerprint": config["routingFingerprint"],
+                         "emailAuthorizedPublicationIds": authorized_publications,
                          "gsi1pk": f"ROUTING#{monitor_id}#collected",
                          "gsi1sk": f"{row['observedAt']}#{source_id}#000001"}
             store.put_discovery(monitor_id, discovery)
@@ -291,6 +311,7 @@ def handler(event, context):
         raise SubmissionRejected("one_ses_record_required")
     result = process_ses_record(records[0], EmailStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"])),
                                 monitor_id=os.environ["EMAIL_MONITOR_ID"], bucket=os.environ["EMAIL_RAW_BUCKET"],
-                                prefix=os.environ.get("EMAIL_RAW_PREFIX", "email-submissions/"), s3=boto3.client("s3"))
+                                prefix=os.environ.get("EMAIL_RAW_PREFIX", "email-submissions/"), s3=boto3.client("s3"),
+                                cognito=boto3.client("cognito-idp"))
     print(json.dumps(result))  # safe status codes and hashed receipt id, never raw email/body/sender
     return result

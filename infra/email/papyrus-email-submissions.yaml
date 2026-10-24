@@ -41,10 +41,15 @@ Parameters:
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: Enable the routing sweep only after CONFIG#router is validated. Independent of receipt activation.
+  EditorUserPoolArns:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: Exact Cognito user-pool ARNs configured for destination publications; grants read-only sender membership checks.
 Conditions:
   ReserveConcurrency: !Equals [!Ref ReservedConcurrency, 1]
   EnableReceipt: !Equals [!Ref Enabled, "true"]
   EnableRouter: !Equals [!Ref RouterEnabled, "true"]
+  HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
 Resources:
   RawMailBucket:
     Type: AWS::S3::Bucket
@@ -123,6 +128,18 @@ Resources:
               - Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents]
                 Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/papyrus-email-${MonitorId}:*
+  SubmissionEditorMembershipPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasEditorUserPools
+    Properties:
+      Description: Read-only sender membership checks in the explicitly configured publication pools.
+      Roles: [!Ref SubmissionRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [cognito-idp:ListUsers, cognito-idp:AdminListGroupsForUser]
+            Resource: !Ref EditorUserPoolArns
   SubmissionLogs:
     Type: AWS::Logs::LogGroup
     Properties:
