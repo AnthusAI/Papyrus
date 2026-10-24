@@ -131,6 +131,23 @@ class CitationCheckTests(unittest.TestCase):
         self.assertEqual(valid[0]["citationCheck"]["status"], "passed")
         self.assertEqual(valid[0]["citedSignalIds"], ["entity:platform--hugging-face", "entity:licence--apache-2-0"])
 
+    def test_the_one_signal_two_sentence_draft_the_live_model_returned_fails_and_the_run_record_keeps_its_text(self) -> None:
+        # The shape observed against gpt-6-luna on 2026-10-24: one signal, two single-sentence paragraphs.
+        draft = trend_draft(
+            "Routing's recent run paused in the week of 2026-10-19", cites=("S3", "S3"),
+            body=[{"sentences": [sentence("The weekly count peaked at 7 on 2026-10-05.", "S3")]}, {"sentences": [sentence("The signal records 15 items.", "S3")]}],
+        )
+        valid, invalid = self.check(draft)
+        self.assertEqual(valid, [])
+        reasons = [problem["reason"] for problem in invalid[0]["citationCheck"]["problems"]]
+        self.assertIn("fewer_than_three_body_sentences", reasons)
+        self.assertIn("fewer_than_two_signals_cited", reasons)
+        self.assertEqual(invalid[0]["draft"], draft)  # title, dek, body and citations, so a person can see why
+
+    def test_the_prompt_states_the_minimums_the_check_enforces(self) -> None:
+        for phrase in ("at least three body sentences", "at least two different signals", "Return maximum_drafts drafts"):
+            self.assertIn(phrase, trends.SYSTEM_PROMPT)
+
     def test_an_uncited_sentence_blocks_the_draft_and_the_check_says_which(self) -> None:
         draft = trend_draft()
         draft["paragraphs"][0]["sentences"].append(sentence("Hugging Face is the main model hub."))

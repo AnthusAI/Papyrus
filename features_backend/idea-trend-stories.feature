@@ -52,6 +52,14 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     Then 0 trend drafts are filed
     And the run record says that sentence failed with "number_not_in_cited_signals:40"
 
+  Scenario: A draft that rests on one signal with two body sentences fails, and the run record keeps its text
+    When the model drafts a trend story with two body sentences that cite one signal
+    And the operator drafts trend stories and files them as Proposals
+    Then 0 trend drafts are filed
+    And the run record says that sentence failed with "fewer_than_three_body_sentences"
+    And the run record says that sentence failed with "fewer_than_two_signals_cited"
+    And the failed draft in the run record keeps its headline, dek, body and citations
+
   Scenario: The run never approves, moves or publishes anything
     When the model drafts a trend story citing Hugging Face and Apache-2.0
     And the operator drafts trend stories and files them as Proposals
