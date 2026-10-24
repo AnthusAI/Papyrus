@@ -18,6 +18,10 @@ When("the shared chat admission contract rejection suite runs", { timeout: 120_0
   const result = await promisify(execFile)(process.execPath, ["--experimental-strip-types", "scripts/test-shared-chat-admission.ts"], { maxBuffer: 4 * 1024 * 1024 });
   this.chatAdmissionResult = result.stdout;
 });
+When("Papyrus retries an uncertain Chatticus admission", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-chat-admission-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
+  this.papyrusAdmissionTransportResult = result.stdout;
+});
 Given("the assistant is still replying to the previous message", function () {});
 Given("Papyrus has temporarily disabled sending", function () {});
 Then("Papyrus receives no message", function () {
@@ -37,4 +41,7 @@ Then("wrong trust profiles, inactive memberships and foreign transcript owners a
 });
 Then("an identical retry returns the original result and a changed payload conflicts", function () {
   assert.ok(this.chatAdmissionResult.includes("scoped idempotency"));
+});
+Then("it reuses the logical message key and body with newly obtained auth headers", function () {
+  assert.ok(this.papyrusAdmissionTransportResult.includes("fresh host auth, stable explicit retry key"));
 });

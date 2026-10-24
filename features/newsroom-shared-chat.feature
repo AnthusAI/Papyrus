@@ -37,3 +37,7 @@ Feature: Shared newsroom chat presentation
   Scenario: Replay an admitted send once within its private editor scope
     When the shared chat admission contract rejection suite runs
     Then an identical retry returns the original result and a changed payload conflicts
+
+  Scenario: Retry one Chatticus admission explicitly with fresh Papyrus auth
+    When Papyrus retries an uncertain Chatticus admission
+    Then it reuses the logical message key and body with newly obtained auth headers

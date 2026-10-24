@@ -1,9 +1,10 @@
 # Shared newsroom chat UI
 
-First increment of PPY-a438d0 / PPY-61ee23. The newsroom console now consumes
+First increment of PPY-a438d0 / PPY-61ee23. The newsroom console consumes
 Chatticus's reusable `chat-react` surface and scoped `chat.css` from an exact
-Git commit dependency. The same implementation is used by Chatticus's own
-workspace; Papyrus does not copy its components or its model loop.
+Git commit dependency. Papyrus now pins Chatticus PR #637's head, which stacks
+the message admission transport on PR #636's UI exports. Papyrus does not copy
+Chatticus components or its model loop.
 
 `components/papyrus-console-conversation.tsx` maps console presentation records
 into shared messages. `papyrus-console-shell.tsx` still owns its existing
@@ -34,6 +35,15 @@ The separate site-hosted auth boundary is only a code-local contract so far;
 see [shared chat trust contract](shared-chat-trust-contract.md). Its injected
 verifier and membership fakes are test-only. This increment does not wire a
 route or replace the current AppSync send path.
+
+`lib/papyrus-chat-admission.ts` binds the Chatticus admission client to an
+injected Papyrus endpoint and fresh-header provider. It requires an
+`Authorization` header but leaves the token type and claims to the host. Its
+hermetic test proves one POST per explicit send, fresh auth headers on retry,
+stable key/body reuse, and no fallback request on auth failure. The current
+console does not call this adapter: the live AppSync send path remains in place
+until the host endpoint and production identity mapping are separately
+implemented and reviewed.
 
 This change does not yet replace the Rust responder, adopt the shared SSE API
 in Papyrus, add per-editor transcript isolation, change backend permissions or
