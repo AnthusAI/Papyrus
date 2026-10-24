@@ -13,6 +13,8 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
 - **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
 
+- **Shared chat UI implementation**: [shared-chat-ui.md](shared-chat-ui.md), the first Chatticus presentation dependency increment; backend migration remains planned.
+
 ## Features at a glance
 
 - [agent-readable-sites.md](agent-readable-sites.md): Markdown twins, llms.txt, Accept negotiation, page actions, feeds, sitemap and robots on Markus sites.

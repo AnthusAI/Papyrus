@@ -36,6 +36,8 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npx playwright install --with-deps chromium
+      - name: Shared chat browser acceptance
+        run: npm run test:shared-chat
       - run: npm ci
         working-directory: infra/amplify-app-shell
       # The app-shell CDK app must type-check cleanly with no TS_NODE_TRANSPILE_ONLY escape hatch.

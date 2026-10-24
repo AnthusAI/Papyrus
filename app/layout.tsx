@@ -1,3 +1,5 @@
+import "chatticus/chat.css";
+import "../components/papyrus-console-conversation.css";
 import type { Metadata } from "next";
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import Script from "next/script";
