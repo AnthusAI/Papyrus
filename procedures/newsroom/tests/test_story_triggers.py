@@ -310,3 +310,51 @@ def test_the_default_limit_is_five_and_a_record_can_override_it():
     assert world.deliver()[0]["status"] == "blocked" and world.invoked == []
     raised = World(stage_automation(max_hops=6), stage="copywriting", metadata={st.CHAIN_KEY: {"hops": 5}})
     assert raised.deliver()[0]["status"] == "started"
+
+
+# --- a procedure that created the story through a tool ---------------------------------------------------
+
+RUN_TRIGGER = {"event": "monitor.matched", "pk": "MONITOR#ttab", "sk": "RUN#1"}
+
+
+def completed(story=LINEAGE):
+    return {"runStatus": "completed", "output": {"story": story, "version_id": LINEAGE}}
+
+
+def deliver_after(world, result, trigger=None):
+    return st.deliver_after_run(world.client, trigger, result, reader=MonitoringReader(world.table), writer=MonitoringWriter(world.table),
+                                invoke=world.invoked.append, now=NOW)
+
+
+def test_a_completed_run_that_names_a_story_fires_its_stage_triggers_once():
+    world = World(stage_automation("distinctive.ruling.fact-check", "reporting", "copywriting"), stage="reporting")
+    (outcome,) = deliver_after(world, completed(), RUN_TRIGGER)
+    assert outcome["status"] == "started"
+    assert deliver_after(world, completed(), RUN_TRIGGER)[0]["status"] == "duplicate"
+    assert len(world.invoked) == 1
+
+
+@pytest.mark.parametrize("result", [
+    {"runStatus": "failed", "output": None},
+    {"runStatus": "completed", "output": None},
+    {"runStatus": "completed", "output": {"title": "no story"}},
+    {"runStatus": "completed", "output": {"story": 5}},
+])
+def test_a_run_that_failed_or_names_no_story_fires_nothing(result):
+    world = World(stage="copywriting")
+    assert deliver_after(world, result) == [] and world.invoked == []
+
+
+def test_a_stage_runs_own_story_is_left_to_the_engine_but_another_story_is_not(capsys):
+    world = World(stage="copywriting")
+    own = {"event": st.STAGE_ENTERED, "story": LINEAGE}
+    assert deliver_after(world, completed(), own) == [] and world.invoked == []
+    assert capsys.readouterr().out == ""
+    deliver_after(world, completed("another-story"), own)   # attempted (and, with no such story, logged)
+    assert "not delivered after the run" in capsys.readouterr().out
+
+
+def test_a_delivery_failure_never_raises(capsys):
+    world = World(stage="copywriting")
+    assert deliver_after(world, completed("missing-story"), RUN_TRIGGER) == []
+    assert "not delivered after the run" in capsys.readouterr().out

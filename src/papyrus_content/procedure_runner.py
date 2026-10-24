@@ -270,7 +270,23 @@ def handler(event, context):
     record_trigger_outcome(table, trigger, result)
     if table is not None and isinstance(trigger, dict) and trigger.get("event") == "story.stage_entered":
         finish_story_stage_run(table, trigger, result)
+    if table is not None:
+        fire_story_triggers_after_run(table, trigger, result)
     return result
+
+
+def fire_story_triggers_after_run(table, trigger: dict | None, result: dict) -> None:
+    """A run completed and named a story (a tool may have created or moved it): deliver that story's stage triggers.
+    Never raises: the run's outcome is already recorded."""
+    try:
+        from .automations import MonitoringReader, MonitoringWriter, lambda_invoker
+        from .graphql_authoring import PapyrusGraphQLAuthoringClient
+        from .story_triggers import deliver_after_run
+
+        deliver_after_run(PapyrusGraphQLAuthoringClient(), trigger, result, reader=MonitoringReader(table),
+                          writer=MonitoringWriter(table), invoke=lambda_invoker())
+    except Exception as error:
+        print(f"story triggers could not be delivered after the run: {type(error).__name__}: {error}")
 
 
 def finish_story_stage_run(table, trigger: dict, result: dict) -> None:

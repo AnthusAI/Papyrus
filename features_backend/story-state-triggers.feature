@@ -108,6 +108,14 @@ Feature: Bots act as a story moves between stages
     When a person moves the story to copywriting and the triggers are delivered
     Then only the copy-edit bot starts
 
+  Scenario: A monitor-triggered procedure creates a story at reporting through a tool and its completed run starts the reporting bot once
+    Given a story in the reporting stage and the fact-check and copy-edit bots
+    And a procedure run started by a monitor created that story through a tool, so nothing delivered its triggers
+    When the run completes and its output names the story
+    Then the fact-check bot starts exactly once
+    And a second look at the same completed run starts nothing more
+    And a run that failed fires no trigger
+
   Scenario: At the hop limit nothing starts and a hard gate is raised once
     Given a story in the copywriting stage and a copywriting bot limited to 2 hops
     When the story has already had 2 bot hops

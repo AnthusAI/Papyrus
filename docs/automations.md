@@ -103,6 +103,12 @@ monitor automation names). No schema change: the three fields are read back as `
 missing monitoring table or AWS credentials prints `not delivered` and never undoes the change. A move made on the console board
 writes the Item directly and fires nothing yet; run `papyrus stories fire-triggers --story <lineage>` (safe to repeat).
 
+A procedure that creates or moves a story through a Tactus tool (`papyrus_create_story`, `papyrus_save_story_version`) fires nothing
+at that moment. Instead the procedure runner, when any run completes and its output names a story (`{"story": "<lineage id>"}`),
+delivers that story's current-stage triggers after recording the run (`story_triggers.deliver_after_run`). It is the same idempotent
+delivery, so a story already delivered starts nothing twice; a stage-entry run's own story is left to the engine's advance; a
+failed run or a delivery error is logged and never changes the recorded run.
+
 **One run per story, stage and version.** The claim is a conditional put of `STAGE#<automation>#<story>#<stage>#<version>` in the
 monitor's partition (`attribute_not_exists`); a second delivery finds it and starts nothing. The same row is the one the runner
 updates with the run id and outcome. `enabled` and `maxConcurrent` apply as for any automation; a start at the limit is
