@@ -30,6 +30,24 @@ record-plan builders. The older compatibility shims under
 `procedures/newsroom/tools/` still exist for path-based tooling, but the
 canonical implementation now lives in `src/papyrus_newsroom/`.
 
+Story tools in `src/papyrus_newsroom/tactus_tools.py` (a procedure loads the
+module as a plugin toolset; every public function is a tool) include
+`papyrus_check_story_version`, which a copy-edit procedure uses to run the
+editorial checks on one saved version. Name the version with `version` (an item
+id) or with `story` (the lineage id) plus an optional `version_number` (0 means
+the newest). It calls the site's `checkItemVersion` mutation, the same call as
+`papyrus editorial check-version`, then reads the stored check back and returns
+`status` (`checked`, `skipped` when editorial checks are off, or `pending` if
+no stored result appears within `wait_seconds`), `clean` (true only when
+checked with no violations and nothing for review), `versionId`, `lineageId`,
+`versionNumber`, `packVersion`, `contentHash`, `checkedAt`, `violations`,
+`reviews`, `lanes` and `findings`. Each finding has `id`, `rule` (the policy
+id), `severity`, `status`, `message`, `quote` and `probability`. The stored
+check does not keep character spans, the detecting lane per finding, or
+suggested fixes. The loop is: check, fix with `papyrus_save_story_version`,
+check the new version id, stop when `clean` is true. Specs:
+`features_backend/tactus-check-story-version.feature`.
+
 Coverage Theme orchestration is Python-first. `signals trend-report` is the
 assignment-desk signal feed, `editions plan` turns signals plus section slots
 into private assignment graphs, `assignments run-story-cycle` advances that graph
