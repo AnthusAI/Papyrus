@@ -969,7 +969,7 @@ Inspect: `aws dynamodb get-item --table-name papyrus-projection-locks --key '{"p
 | **Pod-only README** | Next agent copies Pilobolus by accident; no Papyrus template |
 | **Cargo-cult SSR `amplify.yml`** | Markus site runs `npm run build`, `ampx pipeline-deploy`, ships `.next`; build breaks or wrong stack |
 | **Shared p.apyr.us Amplify app** | Couples unrelated publications; forbidden for Pilobolus CMS |
-| **Expect `/newsroom` on static reader** | Markus `WEB` app has no Next.js server; use desk subdomain on CMS app |
+| **Expect `/newsroom` on static reader** | Markus `WEB` app has no Next.js server; use the newsroom subdomain on the CMS app |
 | **Wrong domain zone** (`pilobil.us`) | Typo domain; certs and links diverge from **pilobol.us** |
 | **Commit `web/dist/`** | Stale HTML in git; CI drift |
 

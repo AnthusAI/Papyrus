@@ -218,7 +218,7 @@ export function EditorialChecksAdminPanel() {
             {policies.map((policy) => (
               <tr data-editorial-policy-row={policy.id} key={policy.id}>
                 <td>{policy.title}<br /><small>{policy.policyKey} · v{policy.version}</small></td>
-                <td>{policy.scope === "publication" ? "Whole publication" : `Desk: ${policy.scope}`}</td>
+                <td>{policy.scope === "publication" ? "Whole publication" : `Section: ${policy.scope}`}</td>
                 <td>{policy.severity}</td>
                 <td>{policy.detectors.length === 0 ? "Guidance only" : policy.detectors.length}</td>
                 <td>
@@ -251,7 +251,7 @@ export function EditorialChecksAdminPanel() {
           <label>Key <Input disabled={!draft.isNew} onChange={(event) => patchDraft({ policyKey: event.target.value })} value={draft.record.policyKey} /></label>
           <label>Title <Input onChange={(event) => patchDraft({ title: event.target.value })} value={draft.record.title} /></label>
           <label>
-            Applies to (publication, or a desk key){" "}
+            Applies to (publication, or a section key){" "}
             <Input disabled={!draft.isNew} onChange={(event) => patchDraft({ scope: event.target.value.trim() || "publication" })} value={draft.record.scope} />
           </label>
           <label>

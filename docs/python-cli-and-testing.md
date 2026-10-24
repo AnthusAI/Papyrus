@@ -25,7 +25,7 @@ poetry run python procedures/newsroom/tests/test_newsroom_tools.py
 Newsroom agents use the single-tool Tactus pattern from Plexus. Their Tactus
 procedures load only `execute_tactus` from `procedures/newsroom/tactus_tools/`;
 inside that tool, snippets use the packaged `papyrus` host module for GraphQL
-reads, desk context assembly, Biblicus evidence, docs/API discovery, and dry-run
+reads, section context assembly, Biblicus evidence, docs/API discovery, and dry-run
 record-plan builders. The older compatibility shims under
 `procedures/newsroom/tools/` still exist for path-based tooling, but the
 canonical implementation now lives in `src/papyrus_newsroom/`.
@@ -53,7 +53,7 @@ check the new version id, stop when `clean` is true. Specs:
 `features_backend/tactus-check-story-version.feature`.
 
 Coverage Theme orchestration is Python-first. `signals trend-report` is the
-assignment-desk signal feed, `editions plan` turns signals plus section slots
+assignment-section signal feed, `editions plan` turns signals plus section slots
 into private assignment graphs, `assignments run-story-cycle` advances that graph
 through research or reporting packet creation, and `assignments story-cycle-output`
 rediscovers the applied private state from GraphQL. The older
@@ -195,10 +195,10 @@ Knowledge search quick recipes:
 # General semantic knowledge search
 poetry run papyrus knowledge query --query "text classifier benchmarking" --max-tokens 600 --format both
 
-# Desk-anchored semantic knowledge search (section/desk anchor)
+# Section-anchored semantic knowledge search (section anchor)
 poetry run papyrus knowledge query --query "AI in games" --anchor newsroomSection:technology --max-tokens 600 --format structured
 
-# Build the exact desk-aware assignment agent context used by research/reporting
+# Build the exact section-aware assignment agent context used by research/reporting
 poetry run papyrus assignments build-assignment-agent-context --assignment-id <assignment-id> --max-tokens 4000 --recent-days 30
 ```
 
