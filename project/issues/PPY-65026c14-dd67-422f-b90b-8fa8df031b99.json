@@ -191,10 +191,25 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "b78daed8-27b3-4ae2-8927-511f635333fc",
+      "author": "home",
+      "text": "Offline-only redirect hardening added to the existing email-intake branch: an explicit resolver seam recognizes only Beehiiv HTTPS click wrappers, rechecks every redirect host, rejects private/mixed DNS, unsafe actions, HTTPS downgrade and loops, and bounds redirect count, header size, per-hop/total time. Synthetic fixtures assert HEAD-only, no response body, no automatic redirects, pinned public IPs and bounded DNS. Production intake still does not inject the resolver, so no recipient-specific tracking URL is contacted or persisted. Verification: 118 focused Python tests passed; extraction/intake BDD 17 scenarios and 68 steps passed; Ruff and diff check passed. No deployment or live URL fetch.",
+      "created_at": "2026-10-24T18:33:26.350691Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T16:16:01.537667Z",
+  "updated_at": "2026-10-24T18:33:36.812628Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
