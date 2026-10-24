@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { DeleteItemCommand, PutItemCommand, QueryCommand, TransactWriteItemsCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand, TransactWriteItemsCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { BACKGROUND_CONTEXT, withoutAbortSignal } from "@earendil-works/chord/context";
 import { createProvider } from "@earendil-works/pi-ai/models";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
@@ -38,7 +38,10 @@ function requestFor(method: string, personId: string, path: string, body?: unkno
 	});
 	Object.defineProperty(request, "nextUrl", { value: new URL(request.url) });
 	const cookie = request.headers.get("cookie") ?? "";
-	const values = new Map(cookie.split(";").map((part) => part.trim().split(/=(.*)/s).slice(0, 2)));
+	const values = new Map(cookie.split(";").map((part) => {
+		const [name, value] = part.trim().split(/=(.*)/s);
+		return [name ?? "", value ?? ""] as const;
+	}));
 	Object.defineProperty(request, "cookies", { value: { get: (name: string) => values.has(name) ? { value: values.get(name) } : undefined } });
 	return request as unknown as NextRequest;
 }
@@ -460,7 +463,7 @@ async function main() {
 		options,
 	);
 	assert.equal(foreignRead.status, 403);
-	for (const storage of core.sessions.values()) await storage.close();
+	for (const storage of core.sessions.values()) await storage.close(BACKGROUND_CONTEXT);
 	console.log("PASS: Papyrus private channel, hosted send, shared worker reply, refresh/replay, and foreign-editor denial");
 }
 
