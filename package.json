@@ -170,7 +170,8 @@
     "test:newsroom-organizer": "node --import tsx scripts/test-newsroom-organizer-nav.ts && node --import tsx scripts/test-newsroom-section-routing.ts && node --import tsx scripts/test-newsroom-board.ts && node --import tsx scripts/test-editor-override.ts",
     "test:shared-chat": "node node_modules/@cucumber/cucumber/bin/cucumber.js --config cucumber-shared-chat.cjs",
     "test:shared-chat-admission": "node --experimental-strip-types scripts/test-shared-chat-admission.ts",
-    "test:papyrus-chat-admission": "node scripts/run-papyrus-chat-admission-test.mjs"
+    "test:papyrus-chat-admission": "node scripts/run-papyrus-chat-admission-test.mjs",
+    "test:papyrus-hosted-chat": "node scripts/run-papyrus-hosted-chat-test.mjs"
   },
   "keywords": [
     "nextjs",
@@ -218,7 +219,7 @@
     "aws-amplify": "^6.17.0",
     "aws-cdk-lib": "^2.257.0",
     "aws-jwt-verify": "4.0.1",
-    "chatticus": "https://github.com/AnthusAI/Chatticus/archive/b332fb88e194f0fd100d449765e1e851d4c538f3.tar.gz",
+    "chatticus": "https://github.com/AnthusAI/Chatticus/archive/2d669be2d4da04ea0b96181d95c3f198e56cf474.tar.gz",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

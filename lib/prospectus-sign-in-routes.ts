@@ -12,6 +12,7 @@ import {
   PROSPECTUS_SESSION_COOKIE,
   openProspectusCookie,
   resolveProspectusSignInRuntime,
+  signedInProspectusSession,
   sameSiteReturnPath,
   sealProspectusCookie,
   sealedCookieAttributes,
@@ -97,18 +98,7 @@ function signInFailedRedirect(request: NextRequest, options: ProspectusSignInRou
   return NextResponse.redirect(target, { status: 303, headers: NO_STORE_HEADERS });
 }
 
-export function signedInProspectusSession(
-  request: NextRequest,
-  sealingSecret: string,
-  nowInSeconds?: number,
-): ProspectusSignedInSession | null {
-  return openProspectusCookie<ProspectusSignedInSession>(
-    sealingSecret,
-    PROSPECTUS_SESSION_COOKIE,
-    request.cookies.get(PROSPECTUS_SESSION_COOKIE)?.value,
-    nowInSeconds,
-  );
-}
+export { signedInProspectusSession } from "./prospectus-session";
 
 /** `returnTo` from the query (a link) or, for the POST form the reader plugin's button submits, from the form body. */
 async function requestedReturnPath(request: NextRequest): Promise<string | null> {

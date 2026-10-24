@@ -41,3 +41,7 @@ Feature: Shared newsroom chat presentation
   Scenario: Retry one Chatticus admission explicitly with fresh Papyrus auth
     When Papyrus retries an uncertain Chatticus admission
     Then it reuses the logical message key and body with newly obtained auth headers
+
+  Scenario: Route private newsroom chat through the hosted Chatticus core
+    When the Papyrus hosted chat endpoint contract suite runs
+    Then account and editor scope come from the sealed session and private channel access is enforced

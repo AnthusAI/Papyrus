@@ -2,9 +2,10 @@
 
 First increment of PPY-a438d0 / PPY-61ee23. The newsroom console consumes
 Chatticus's reusable `chat-react` surface and scoped `chat.css` from an exact
-Git commit dependency. Papyrus now pins Chatticus PR #637's head, which stacks
-the message admission transport on PR #636's UI exports. Papyrus does not copy
-Chatticus components or its model loop.
+Git commit dependency. The current consumer candidate pins Chatticus commit
+`2d669be2d4da04ea0b96181d95c3f198e56cf474`, which includes the shared server
+core extraction and recovery fixes on top of PR #637 and PR #636. Papyrus does
+not copy Chatticus components or its model loop.
 
 `components/papyrus-console-conversation.tsx` maps console presentation records
 into shared messages. `papyrus-console-shell.tsx` still owns its existing
@@ -31,10 +32,22 @@ package in a temporary local browser fixture. They prove a send reaches the
 host once, shared markdown refuses executable links, and editorial reference
 actions remain host callbacks. They do not access AWS or make model calls.
 
-The separate site-hosted auth boundary is only a code-local contract so far;
-see [shared chat trust contract](shared-chat-trust-contract.md). Its injected
-verifier and membership fakes are test-only. This increment does not wire a
-route or replace the current AppSync send path.
+`app/api/newsroom/chat/[...path]/route.ts` is an undeployed site-owned gateway
+candidate for Chatticus message send/list and turn event/stream routes. It opens
+the existing sealed Prospectus session, rechecks the selected Account's active
+Papyrus product and fresh `console:read` or `console:write` authorization, and
+derives an opaque site/Account tenant and per-editor principal on the server.
+Chatticus's shared core then enforces channel participation for transcript and
+turn reads. Client-supplied tenant and author values are never trusted.
+
+The route returns 503 until a private durable Chatticus storage runtime is
+configured. No Papyrus chat table, queue, runtime composition, schema or IAM
+policy has been created here. Before enabling it, the deployment needs an
+approved private messaging table and conversation storage, run and deadline
+queues, runtime composition using the pinned `chat-server` export, and the
+minimum DynamoDB, S3 and SQS permissions for that runtime. The UI's AppSync send
+path remains unchanged. The endpoint contract test injects only local storage
+and queue fakes and does not verify AWS durability or deployed permissions.
 
 `lib/papyrus-chat-admission.ts` binds the Chatticus admission client to an
 injected Papyrus endpoint and fresh-header provider. It requires an

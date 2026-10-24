@@ -45,3 +45,10 @@ Then("an identical retry returns the original result and a changed payload confl
 Then("it reuses the logical message key and body with newly obtained auth headers", function () {
   assert.ok(this.papyrusAdmissionTransportResult.includes("fresh host auth, stable explicit retry key"));
 });
+When("the Papyrus hosted chat endpoint contract suite runs", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-hosted-chat-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
+  this.papyrusHostedChatResult = result.stdout;
+});
+Then("account and editor scope come from the sealed session and private channel access is enforced", function () {
+  assert.ok(this.papyrusHostedChatResult.includes("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core"));
+});
