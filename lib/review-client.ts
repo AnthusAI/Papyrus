@@ -97,3 +97,21 @@ export async function markReviewRead(userKey: string, requestId: string, now: Da
     await run(`mutation Mark($input: UpdateReviewReadMarkInput!) { updateReviewReadMark(input: $input) { id } }`, { input });
   }
 }
+
+const MAX_TITLE_LOOKUPS = 40;
+
+/** Titles of the stories that review requests are about, by lineage id. A story that cannot be read simply has no entry (the card falls back to the id). */
+export async function loadStoryTitles(ids: string[]): Promise<Record<string, string>> {
+  const titles: Record<string, string> = {};
+  await Promise.all([...new Set(ids)].slice(0, MAX_TITLE_LOOKUPS).map(async (id) => {
+    const result = await run(
+      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title } } }`,
+      { lineageId: id },
+    );
+    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string }[];
+    const newest = items.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
+    const title = newest?.headline || newest?.title;
+    if (title) titles[id] = title;
+  }));
+  return titles;
+}

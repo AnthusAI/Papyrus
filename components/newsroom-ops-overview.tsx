@@ -1,24 +1,13 @@
 "use client";
 
-import {
-  BookOpenIcon,
-  ClipboardListIcon,
-  FileTextIcon,
-  LayersIcon,
-  MessageSquareIcon,
-  NetworkIcon,
-  SearchIcon,
-  SettingsIcon,
-} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AssignmentRecord, MessageRecord, NewsroomSectionRecord, ReferenceRecord } from "../lib/category-repository";
-import { getNewsroomNavHref, NEWSROOM_OPS_NAV, type NewsroomNavTabId } from "../lib/newsroom-nav";
+import type { AssignmentRecord, NewsroomSectionRecord, ReferenceRecord } from "../lib/category-repository";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import {
-  countReferencesByStatus,
   filterReferencesByStatus,
   formatReferenceListDate,
   referenceDisplayTitle,
@@ -42,7 +31,6 @@ type NewsroomOpsOverviewProps = {
   decisions?: ReadonlyMap<string, RelevanceDecisionView>;
   demo?: boolean;
   humanCuratedReferenceLineageIds?: ReadonlySet<string>;
-  messages: MessageRecord[];
   newsroomSections: NewsroomSectionRecord[];
   references: ReferenceRecord[];
 };
@@ -50,51 +38,17 @@ type NewsroomOpsOverviewProps = {
 const NO_DECISIONS: ReadonlyMap<string, RelevanceDecisionView> = new Map();
 const NO_IDS: ReadonlySet<string> = new Set();
 
-type DestinationKey = Exclude<NewsroomNavTabId, "overview" | "desks">;
-
-const DESTINATION_ICONS: Record<DestinationKey, typeof BookOpenIcon> = {
-  articles: FileTextIcon,
-  assignments: ClipboardListIcon,
-  references: BookOpenIcon,
-  messages: MessageSquareIcon,
-  topics: LayersIcon,
-  concepts: NetworkIcon,
-  administration: SettingsIcon,
-  search: SearchIcon,
-};
-
-const DESTINATIONS = NEWSROOM_OPS_NAV.filter((item) => item.id !== "overview").map((item) => ({
-  key: item.id as DestinationKey,
-  label: item.label,
-  detail: item.detail,
-  href: item.href,
-  icon: DESTINATION_ICONS[item.id as DestinationKey],
-}));
-
-function openAssignmentCount(assignments: AssignmentRecord[]): number {
-  return assignments.filter((assignment) => {
-    const status = assignment.status?.trim().toLowerCase() ?? "";
-    return status === "open" || status === "claimed" || status === "pending";
-  }).length;
-}
-
-function recentMessageCount(messages: MessageRecord[]): number {
-  return messages.filter((message) => message.status !== "archived").length;
-}
-
 export function NewsroomOpsOverview({
   actorLabel = "",
   assignments,
   decisions = NO_DECISIONS,
   demo = false,
   humanCuratedReferenceLineageIds = NO_IDS,
-  messages,
   newsroomSections,
   references,
 }: NewsroomOpsOverviewProps) {
   const pathname = usePathname();
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const referenceCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
   const pendingReferences = useMemo(
     () => filterReferencesByStatus(canonicalReferences, "pending").slice(0, 5),
     [canonicalReferences],
@@ -115,12 +69,6 @@ export function NewsroomOpsOverview({
   const coreDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "core"), [desks]);
   const rotatingDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "rotating"), [desks]);
 
-  const destinationCounts: Partial<Record<DestinationKey, number | null>> = {
-    references: referenceCounts.pending ?? 0,
-    assignments: openAssignmentCount(assignments),
-    messages: recentMessageCount(messages),
-  };
-
   return (
     <div
       className="space-y-8 font-sans"
@@ -128,51 +76,15 @@ export function NewsroomOpsOverview({
       data-newsroom-ops-home="true"
     >
       <div className="space-y-8" data-newsroom-overview-feeds>
-        <NotificationCenter
-          actorLabel={actorLabel}
-          decisions={decisions}
-          demo={demo}
-          humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-          references={canonicalReferences}
-        />
-        <section aria-label="Destinations" className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Go to</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {DESTINATIONS.map((meta) => {
-              const key = meta.key;
-              const Icon = meta.icon;
-              const count = destinationCounts[key];
-              const href = getNewsroomNavHref(meta.href, demo);
-              return (
-                <Link
-                  className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  data-newsroom-ops-destination={key}
-                  data-newsroom-overview-section={key}
-                  href={href}
-                  key={key}
-                >
-                  <Card className="h-full transition-colors group-hover:border-primary/40">
-                    <CardHeader className="space-y-3 p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <Icon className="size-4" aria-hidden="true" />
-                        </span>
-                        {count != null && count > 0 ? (
-                          <Badge variant="default">{count}</Badge>
-                        ) : null}
-                      </div>
-                      <div className="space-y-0.5">
-                        <CardTitle className="text-base font-semibold">{meta.label}</CardTitle>
-                        <CardDescription>{meta.detail}</CardDescription>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-
+        <div aria-label="Notification Center feed" className="newsroom-overview-feed-frame rounded-xl border bg-card p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-newsroom-overview-notifications role="region" tabIndex={0}>
+          <NotificationCenter
+            actorLabel={actorLabel}
+            decisions={decisions}
+            demo={demo}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            references={canonicalReferences}
+          />
+        </div>
         <section aria-label="Needs attention" className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Needs attention</h2>
           {pendingReferences.length || attentionAssignments.length ? (
@@ -226,16 +138,16 @@ export function NewsroomOpsOverview({
           ) : (
             <Card>
               <CardContent className="p-4 text-sm text-muted-foreground">
-                Nothing needs attention right now. Check References for new intake or open Assignments from the destinations above.
+                No pending references or open assignments. Check those destinations for other work.
               </CardContent>
             </Card>
           )}
         </section>
 
         {desks.length ? (
-          <section aria-label="Desks" className="space-y-3" data-newsroom-ops-desks>
-            <h2 className="text-sm font-medium text-muted-foreground">Desks</h2>
-            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core desks</h3> : null}
+          <section aria-label="Sections" className="space-y-3" data-newsroom-ops-desks>
+            <h2 className="text-sm font-medium text-muted-foreground">Sections</h2>
+            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core sections</h3> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {coreDesks.map((section) => (
                 <Link
@@ -255,7 +167,7 @@ export function NewsroomOpsOverview({
                 </Link>
               ))}
             </div>
-            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating desks <small>appear for a while, then rotate out</small></h3> : null}
+            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating sections <small>appear for a while, then rotate out</small></h3> : null}
             {rotatingDesks.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rotatingDesks.map((section) => (
                 <Link

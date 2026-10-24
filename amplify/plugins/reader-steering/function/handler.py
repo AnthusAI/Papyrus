@@ -1015,15 +1015,22 @@ class DynamoReaderStore:
             raise
         return True
 
-    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool:
+    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool:
+        """Apply ``changes`` if the state (and, when given, ``updatedAt``) is still what the caller saw; a value of ``None`` removes the attribute."""
         names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
-        assignments = ", ".join(f"#c{index} = :c{index}" for index in range(len(changes)))
-        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values())}}
+        sets = ", ".join(f"#c{index} = :c{index}" for index, value in enumerate(changes.values()) if value is not None)
+        removes = ", ".join(f"#c{index}" for index, value in enumerate(changes.values()) if value is None)
+        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values()) if value is not None}}
+        condition = "#st = :expected"
+        if expected_updated_at is not None:
+            condition += " AND #u = :seen"
+            values[":seen"] = expected_updated_at
+        expression = f"SET {sets + ', ' if sets else ''}#u = :now" + (f" REMOVE {removes}" if removes else "")
         try:
             self._table("proposal").update_item(
                 Key={"id": proposal_id},
-                UpdateExpression=f"SET {assignments}, #u = :now",
-                ConditionExpression="#st = :expected",
+                UpdateExpression=expression,
+                ConditionExpression=condition,
                 ExpressionAttributeNames=names,
                 ExpressionAttributeValues=values,
             )
@@ -1499,10 +1506,10 @@ def run_ai_worker(
     return result
 
 
-def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float) -> dict[str, Any]:
+def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float, account_id: str | None = None) -> dict[str, Any]:
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
-    if (event.get("info") or {}).get("fieldName") in proposal_rules.MUTATIONS:
-        return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds))
+    if proposal_rules.event_field_name(event) in proposal_rules.MUTATIONS:
+        return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds), account_id=account_id)
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []
@@ -1527,14 +1534,20 @@ def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSet
     return outcome.to_dict()
 
 
+def function_account(context: Any) -> str | None:
+    """The AWS account this function runs in, from its own ARN: the only account whose IAM operators may file proposals."""
+    parts = str(getattr(context, "invoked_function_arn", None) or "").split(":")
+    return parts[4] if len(parts) > 4 and parts[4] else None
+
+
 def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     import boto3
 
     settings = settings_from_environment()
     store = store_from_environment()
     now_seconds = time.time()
-    if "arguments" in event and "info" in event:
-        return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds)
+    if proposal_rules.is_appsync_event(event):
+        return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds, account_id=function_account(_context))
     target = snapshot_target_from_environment()
     if settings.moderation_mode == "ai" and target is not None and _context is not None:
         if event.get("worker") == AI_WORKER:

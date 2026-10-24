@@ -128,6 +128,8 @@ def synthesize(
     feedback = merge_feedback(steering, feedback or [])
     run["steering"] = {"entries": len(steering), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
     drafts = proposal_store.story_drafts() if proposal_store else []
+    if proposal_store is not None and proposal_store.dedupe_unavailable:
+        run["proposalDedupe"] = proposal_store.dedupe_unavailable
     documents = comparison_documents(context, stored, drafts, feedback)
     run["inputs"] = count_inputs(digest, context, documents, feedback)
     handles = synthesis.handles_for(digest)

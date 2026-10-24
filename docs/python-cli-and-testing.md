@@ -25,13 +25,35 @@ poetry run python procedures/newsroom/tests/test_newsroom_tools.py
 Newsroom agents use the single-tool Tactus pattern from Plexus. Their Tactus
 procedures load only `execute_tactus` from `procedures/newsroom/tactus_tools/`;
 inside that tool, snippets use the packaged `papyrus` host module for GraphQL
-reads, desk context assembly, Biblicus evidence, docs/API discovery, and dry-run
+reads, section context assembly, Biblicus evidence, docs/API discovery, and dry-run
 record-plan builders. The older compatibility shims under
 `procedures/newsroom/tools/` still exist for path-based tooling, but the
 canonical implementation now lives in `src/papyrus_newsroom/`.
 
+Story tools in `src/papyrus_newsroom/tactus_tools.py` (a procedure loads the
+module as a plugin toolset; every public function is a tool) include
+`papyrus_check_story_version`, which a copy-edit procedure uses to run the
+editorial checks on one saved version. Name the version with `version` (an item
+id) or with `story` (the lineage id) plus an optional `version_number` (0 means
+the newest). It calls the site's `checkItemVersion` mutation, the same call as
+`papyrus editorial check-version`, then reads the stored check back and returns
+`status` (`checked`, `skipped` when editorial checks are off, or `pending` if
+no stored result appears within `wait_seconds`), `clean` (true only when
+checked with no violations and nothing for review), `versionId`, `lineageId`,
+`versionNumber`, `packVersion`, `contentHash`, `checkedAt`, `violations`,
+`reviews`, `lanes` and `findings`. Each finding has `id`, `rule` (the policy
+id), `severity`, `status`, `message`, `quote`, `scope` and `probability`. `scope` is `quote` when the
+finding quotes the text and `document` when `quote` is empty: that finding is about the
+whole document (review rules such as general-meaning-first), so a bot judges it against
+the full text instead of searching for a quote; a `paragraph` is returned only when the
+stored finding names one. The stored
+check does not keep character spans, the detecting lane per finding, or
+suggested fixes. The loop is: check, fix with `papyrus_save_story_version`,
+check the new version id, stop when `clean` is true. Specs:
+`features_backend/tactus-check-story-version.feature`.
+
 Coverage Theme orchestration is Python-first. `signals trend-report` is the
-assignment-desk signal feed, `editions plan` turns signals plus section slots
+assignment-section signal feed, `editions plan` turns signals plus section slots
 into private assignment graphs, `assignments run-story-cycle` advances that graph
 through research or reporting packet creation, and `assignments story-cycle-output`
 rediscovers the applied private state from GraphQL. The older
@@ -173,10 +195,10 @@ Knowledge search quick recipes:
 # General semantic knowledge search
 poetry run papyrus knowledge query --query "text classifier benchmarking" --max-tokens 600 --format both
 
-# Desk-anchored semantic knowledge search (section/desk anchor)
+# Section-anchored semantic knowledge search (section anchor)
 poetry run papyrus knowledge query --query "AI in games" --anchor newsroomSection:technology --max-tokens 600 --format structured
 
-# Build the exact desk-aware assignment agent context used by research/reporting
+# Build the exact section-aware assignment agent context used by research/reporting
 poetry run papyrus assignments build-assignment-agent-context --assignment-id <assignment-id> --max-tokens 4000 --recent-days 30
 ```
 

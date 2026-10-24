@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "f8da0f6d-0efe-4491-a800-9e94ffe83a54",
+  "issue_id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T13:42:33.927Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Route authorized email submissions into existing Monitoring intake",
+    "description": "As an editor, I want publication and explicitly shared Cyclotron submission addresses to ingest safe newsletter links into pending Reference workflows. User authorized implementation on 2026-10-23; this scoped backend slice does not close the broader inbox-reader milestone. Feature: Authorized email reference intake\nScenario: Route a submitted newsletter\nGiven an explicitly configured publication or shared destination and authenticated allowed sender\nWhen a multipart newsletter with multiple editorial links is received\nThen safe links enter existing deduplicated Monitoring and Reference workflows with private provenance\nAnd publication selection precedes section classification\nAnd retries are idempotent and failures visible\nAnd instructions, action links, human labels and automatic publishing are never executed\nScenario: Cloud email without newsletters\nGiven a cloud-backed site without the newsletter plugin\nWhen its infrastructure is synthesized\nThen sender identity and configured email intake are supported independently\nAnd a static-only site requires no email resources\nScope: code, IaC, local fixtures, tests and draft PR only. No deployment, DNS/MX, policy changes, credentials, real email or merges.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-68d06cab-8724-415e-8e6a-afdc8bdc9c9e",
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6"
+    }
+  }
+}

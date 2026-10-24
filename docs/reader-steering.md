@@ -609,11 +609,16 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 | `kind` | `story_draft`, `new_concept`, `rename`, `merge`, `split`, `new_column`, `element_symbol` |
 | `title`, `summary`, `body` | Title (200 characters), an optional one-line summary (300) and the body as Markus, kept byte for byte (50,000) |
 | `targets` | JSON list of `{type, id}` with a type of `concept`, `entity`, `column`, `story` or `cluster`. A `rename`, `split` or `element_symbol` names exactly one, a `merge` two to ten, the rest none to ten |
-| `evidence` | Optional JSON `{signals, source}`: how many signals back the proposal and where they came from |
+| `evidence` | Optional JSON `{signals, source, figure?}`: how many signals back the proposal and where they came from, and optionally a `figure`: a small chart spec (`{type: line\|bar, title, caption, unit, source, x: [week labels], series: [{signal, label, values}]}`, one value per label, at most 8,000 bytes) that an editor approves with the copy. Malformed figures are refused with `invalid_evidence`; [trend stories](idea-pipeline.md#trend-stories) file them |
 | `proposer` | `ai`, or a reader's siteSubject. Stored, never published, and never a Person ID. `fileProposal` files AI proposals only; a reader route is not built |
 | `state` | `draft`, `in_steering`, `editor_review`, `approved`, `declined`, `overridden_by_editor` |
-| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject and is never published |
-| `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Written once, never overwritten |
+| `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject, or `operator:<principal ARN>` for an IAM operator (`by` is `operator`), and is never published |
+| `communityResult` | The votes (`{up, down, net, at}`) fixed by the first snapshot that sees the proposal in editor review or later. Fixed again, with the exclusions applied, after an editor excludes or restores votes (see [The editor tier](#the-editor-tier)) |
+| `pinned`, `held` | Editor flags (booleans). Published |
+| `override` | `{result, reason, at}` of an override: what the editor decided against the community, and the public reason. Published as `override`; the community result stays beside it |
+| `exclusions` | JSON list of `{id, rule, at, actor, undoneAt?, undoneBy?}`: the batches of votes an editor excluded. An undone one stays here. Staff-only; the public files show the active ones without `actor` |
+| `editorLog` | JSON list of `{action, by, actor, at, detail?}` for every pin, hold and exclusion (last 200). Staff-only, never published |
+| `needsLook` | `{reasons: [{code, label, detail}], at}` written by the reader snapshot while an editor should look at the proposal; removed when no reason is left. Staff-only, never published |
 
 **Transitions.** Anything not listed is refused (`transition_not_allowed`); approved, declined and overridden are final.
 
@@ -625,9 +630,10 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 
 `overridden_by_editor` needs a public `reason` (`reason_required`) and a `result` of `approved` or `declined`, the editor's decision against
 the community's view (`result_required`); no other transition takes a result. Every reason is public text of at most 500 characters. Both
-mutations are open to the `editor` and `admin` groups only (the function checks the groups again) and answer a receipt `{status, id, error,
+mutations are open to the `editor` and `admin` groups (the function checks the groups again), and, narrowly, to an IAM operator (see
+[Operator filing](#operator-filing)), and answer a receipt `{status, id, error,
 message}` that never throws. A move is conditioned on the state the caller saw: if someone else moved the proposal first the answer is
-`refused / target_changed` and nothing is written. The full editor tier (PPY-0af7db) adds what it needs beyond these.
+`refused / target_changed` and nothing is written. `transitionProposal` is also the editor's approve, decline and override. A proposal on hold (below) refuses every move with `proposal_held`. Pin, hold and vote exclusion are `editProposal` ([The editor tier](#the-editor-tier)).
 
 **The files.** Publishing is opt-in: the files below are written only when the site sets `proposals: { publish: true }` (default `false`; the snapshot task reads `PAPYRUS_READER_PUBLISH_PROPOSALS`). With it off, proposals stay private records, the snapshot still freezes the community result of a proposal that reaches editor review and still counts the stored proposals in its report, and `papyrus proposals publish` and the scheduled snapshot write no public proposal files. Turning it off later stops further updates; files already published stay until the site removes them. With it on, the snapshot reads every proposal and writes `_data/proposals/index.json` and one `_data/proposals/<id>.json` under the
 projection's URL policy (so `urls.basePath: "posts"` gives `posts/_data/proposals/index.json`). Every state is published, so a site can
@@ -646,7 +652,14 @@ change. The page reconcile never reports them as orphans.
       "createdAt": "2026-10-21T10:00:00Z", "updatedAt": "2026-10-22T09:00:00Z",
       "votes": {"up": 42, "down": 3, "net": 39}, "comments": 5,
       "communityResult": {"up": 42, "down": 3, "net": 39, "at": "2026-10-22T08:00:00Z"},
-      "decision": {"state": "overridden_by_editor", "result": "declined", "by": "Editor", "reason": "Coordinated votes from new accounts.", "at": "2026-10-22T09:00:00Z"}
+      "decision": {"state": "overridden_by_editor", "result": "declined", "by": "Editor", "reason": "Coordinated votes from new accounts.", "at": "2026-10-22T09:00:00Z"},
+      "override": {"result": "declined", "reason": "Coordinated votes from new accounts.", "by": "Editor", "at": "2026-10-22T09:00:00Z"},
+      "pinned": false, "held": false,
+      "excluded": {
+        "votes": 7,
+        "rules": [{"id": "exc-0123456789ab", "rule": "new-accounts-24h", "label": "accounts under 24 h", "votes": 7, "at": "2026-10-22T08:30:00Z"}],
+        "note": "Excluded 7 votes from accounts under 24 h"
+      }
     }
   ]
 }
@@ -656,7 +669,13 @@ change. The page reconcile never reports them as orphans.
 (`{from, to, by, reason, at, result?}` with `by` of `AI`, `Staff` or `Editor`). `group` is `stories` (story drafts), `concepts` (new
 concepts) or `map_changes` (everything else), the tabs a site shows. `label` is `<State> · Proposed by AI` (`Reader` for a reader proposer).
 `communityResult` is `null` before editor review, live until the snapshot has fixed it, then frozen; `decision` is `null` until an editor
-decides. Sort orders (Top, New, Controversial) are the site's to compute from `votes` and `createdAt`. No file holds a siteSubject, a
+decides. The editor-tier fields are always present: `override` is `null` unless the editor overrode the community (then `decision` holds the same
+result, and `communityResult` is still the community's own); `pinned` and `held` are booleans (a site floats pinned proposals and may badge held ones); `excluded` is
+`{votes: 0, rules: [], note: null}` when nothing was left out. `votes`, `communityResult` and every other tally count only the votes that were not excluded. `excluded.rules` has
+one entry per active exclusion (`id` is what `undo-exclusion` takes; `votes` is how many of that batch's votes were counted out) and, when readers whose accounts are limited or
+banned (spam) voted, one `{id: null, rule: "limited-or-spam", label: "limited or spam accounts", votes, at: null}`. An undone exclusion is gone from the file. `note` is the
+sentence to show ("Excluded 7 votes from accounts under 24 h", `1 vote` in the singular, entries joined with " and "), or `null`. Needs-a-look reasons, the editor log and
+who acted are never in a public file. Sort orders (Top, New, Controversial) are the site's to compute from `votes` and `createdAt`. No file holds a siteSubject, a
 Cognito subject or an email.
 
 **Votes.** Votes on a proposal are keyed `{type: "proposal", id}`; the vote model (PPY-c97ce4) is the only place votes are cast or counted.
@@ -666,7 +685,35 @@ minus down), so proposals publish before votes on them do. `up` and `down` are w
 be fractional and is published unrounded; a site rounds it to one decimal for display. To take votes on proposals a publication lists `"proposal"` in its
 `subjects.types`, and the page casts them with `POST /api/reader/vote {subject: {type: "proposal", id}, value: 1 | -1 | null}`.
 
-**The CLI.** Signed in as an editor or admin (`papyrus login`):
+### The editor tier
+
+The editor tier (PPY-0af7db) is everything an editor or admin does to a proposal besides the filing and the move through the states. All of it is
+for the `editor` and `admin` groups (the function checks again). A reader, an anonymous caller and an IAM operator are refused: `not_staff`, or `operator_not_allowed`
+for an operator, whose reach stays exactly what [Operator filing](#operator-filing) says.
+
+* **Approve, decline, override** are `transitionProposal` (`approved`, `declined`, `overridden_by_editor` with a `result` and a public `reason`). An override is
+  stored on the proposal (`override`) and published as `override`; the community result is fixed when review begins and stays visible next to it.
+* **Pin, hold** are `editProposal(proposalId, action)` with `action` of `pin`, `unpin`, `hold` or `release` (`already_pinned`, `not_pinned`, `already_held`,
+  `not_held` when it would change nothing). A held proposal refuses every state change with `proposal_held` until it is released; a decided proposal cannot be put on hold
+  (`proposal_decided`). A pin changes nothing but the flag, which sites use to float the proposal.
+* **Exclude votes** is `editProposal(proposalId, "exclude_votes", rule)` with a rule from a short fixed list (`invalid_rule` otherwise); today
+  `new-accounts-24h`, the votes of accounts that were under 24 hours old when they voted. It covers the votes cast so far on that proposal (a later vote from a new account
+  counts; run it again). The receipt's `id` is the exclusion id. `undo_exclusion` with `exclusionId` puts the votes back (`unknown_exclusion`, `already_undone`). The function
+  never counts votes; the exclusion takes effect at the next reader snapshot (`papyrus proposals publish` runs one), which drops the excluded votes before any tally, so
+  `votes`, the ranking and the community result all agree. Changing an exclusion removes the stored `communityResult`, and the next snapshot fixes it again without the excluded votes.
+* **Spam and limited accounts.** `moderateReader` already marks a reader `limit` (limited) or `ban` (the spam case) and undoes it; there is no separate spam state. On a
+  proposal, votes of a reader whose account is limited or banned at snapshot time never count and are reported under `limited-or-spam`; unbanning counts them again. This is
+  for proposals only: item and submission tallies are unchanged.
+* **Needs a look.** Each reader snapshot decides, deterministically and without a model, which undecided proposals (`draft`, `in_steering`, `editor_review`) an editor should
+  open, from the counted votes: *vote spike* (at least 10 votes in the last hour and at least three times the hourly pace of the 23 hours before), *new-account surge* (at least 5
+  counted votes in the last 24 hours from accounts under 24 hours old when they voted, and at least 40% of that day's votes), and *community and AI disagree* (an AI proposal that
+  is past draft with at least 5 votes, down ahead of up by at least 3 and at least 60% down). The reasons (`{code, label, detail}`) are stored on the private proposal row as
+  `needsLook` and cleared when none is left, so excluding a batch clears the surge. Editors read them with `listProposals`/`getProposal` or `papyrus proposals needs-a-look`;
+  the thresholds are constants in `src/papyrus_content/reader_steering/proposal_votes.py`.
+
+The CMS console has no Proposals view yet, so the CLI and the API are the editor tier's interface for now; the Moderation panel already has limit and ban for readers.
+
+**The CLI.** Signed in as an editor or admin (`papyrus login`); `create`, `transition` (draft to `in_steering` or `declined`) and `publish` also work with `PAPYRUS_GRAPHQL_AUTH=iam`; the editor-tier commands (`approve`, `decline`, `override`, `pin`, `unpin`, `hold`, `release`, `exclude-votes`, `undo-exclusion`, `needs-a-look`) need an editor session ([Operator filing](#operator-filing)):
 
 ```bash
 papyrus proposals create --kind merge --title "Merge the agent clusters" --body-file draft.md \
@@ -675,11 +722,53 @@ papyrus proposals list [--state in_steering] [--json]
 papyrus proposals show prop-... [--json]
 papyrus proposals transition prop-... --to in_steering
 papyrus proposals transition prop-... --to overridden_by_editor --result declined --reason "Coordinated votes."
+papyrus proposals approve prop-... [--reason "Clear evidence."]
+papyrus proposals decline prop-... [--reason "Not now."]
+papyrus proposals override prop-... --result declined --reason "Coordinated votes."   # the reason is public
+papyrus proposals pin prop-...                  # also: unpin, hold, release
+papyrus proposals exclude-votes prop-... --rule new-accounts-24h   # prints the exclusion id
+papyrus proposals undo-exclusion prop-... --exclusion exc-0123456789ab
+papyrus proposals needs-a-look [--json]         # proposals with reasons from the last snapshot; editor-only
 papyrus proposals publish        # runs the reader snapshot, which writes _data/proposals/ only when proposals.publish is on
 ```
 
 A refusal prints `error: message` and exits 2. `create` files a private draft. It becomes public only on a site that sets `proposals.publish: true`, at the next snapshot, which every `publish` and
 every scheduled run starts.
+
+### Operator filing
+
+An unattended automation or an agent has no browser sign-in and no `editor` group, so an operator's IAM role may file AI proposals
+and send a draft on its way. The rule is deliberately narrow.
+
+| Caller | `fileProposal` | `transitionProposal` |
+|---|---|---|
+| Editor or admin (Cognito) | any valid proposal | every allowed transition |
+| IAM principal of the function's own account | yes, always as an AI proposal | only `draft` to `in_steering`, and `draft` to `declined` |
+| Cognito identity-pool user, a principal of another account, anyone else | `not_staff` | `not_staff` |
+
+* **Who counts as an operator.** The AppSync identity names an IAM `userArn` in the same account as the reader-actions function
+  (read from the function's own ARN), and carries no Cognito identity id, identity pool, or subject. This is the same check
+  `automationOverview` uses (see [automations](automations.md#who-may-read-and-who-may-write)). A Cognito identity-pool user is an IAM principal of
+  the account too, and is refused for exactly that reason.
+* **What an operator files.** The proposer is forced to `ai`; an IAM caller cannot name a reader. The history records the filing
+  as `{by: "ai", actor: "operator:<principal ARN>"}` and each later move as `{by: "operator", actor: "operator:<principal ARN>"}`.
+  Nothing in a public file shows the actor.
+* **What an operator can never do.** Approve, decline after review, override the community, or send a proposal to `editor_review`:
+  those answer `operator_not_allowed` and write nothing. `moderateReader` stays editors and admins only. Specs:
+  `features_backend/proposals_operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
+* **What a site must deploy.** The schema does not change: the logic is in the `reader-actions` function, so a site gets the
+  operator path when it deploys a backend that includes this release. The operator's IAM policy must allow
+  `appsync:GraphQL` on `Mutation/fields/fileProposal` and `Mutation/fields/transitionProposal` of the site's API. Reading proposals
+  (`papyrus proposals list|show`, `listProposals`) is still editors and admins only.
+
+```bash
+export PAPYRUS_GRAPHQL_AUTH=iam PAPYRUS_GRAPHQL_ENDPOINT=https://....appsync-api.eu-west-1.amazonaws.com/graphql
+papyrus proposals create --kind new_concept --title "Name the agents cluster" --body-file draft.md
+papyrus proposals transition prop-... --to in_steering
+papyrus proposals publish        # invokes the content-actions function with the operator's AWS credentials
+```
+
+The idea pipeline files its drafts this way: [`papyrus ideas synthesize --store proposals`](idea-pipeline.md#storage-and-privacy) and [`papyrus ideas trends --store proposals`](idea-pipeline.md#trend-stories).
 
 ## The page components
 
@@ -690,7 +779,7 @@ bundle) and place mount points where the site owns the HTML; they follow the isl
 
 | Island | Props | Shows |
 |---|---|---|
-| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words and then removes from the address; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
+| `ReaderSignIn` | none | Header control. Signed out: a "Sign in" button, a form that POSTs `returnTo=<path>` to `/api/auth/prospectus/sign-in` (a machine endpoint that answers 303 to Google, so people are never sent to an `/api` URL; a GET link with `?returnTo=` still works for the newsroom). A failed sign-in comes back to that page with `?sign_in_error=<code>`, which the control shows in words, with the code in small print so a reader can report it (for example "(code: nonce_mismatch)"), and then removes from the address; the server logs each failure as one `prospectus_sign_in_failed {code, branch, httpStatus?, prospectusError?}` line with no tokens, codes or subjects; the callback never leaves the browser on `/api`. Signed in with no handle: a handle picker. Otherwise: the handle, karma and a "Sign out" button. |
 | `Vote` | `subject`, `up` | Upvote toggle with a count. |
 | `Vote` (any subject type) | `type`, `id`, optional `up`, `down` | Two buttons, "△ Vote up" and "▽ Vote down" ("▲ Voted up" and "▼ Voted down" once chosen, with `aria-pressed`), and "N votes up, M votes down" read from `items.json` under the subject key. Choosing the chosen button again removes the vote. Posts `{subject: {type, id}, value: 1 \| -1 \| null}`; a refused vote is rolled back and the reason shown in words. |
 | `Flag` | `type`, `id`, optional `targetTypes` (default `concept`, `story`, `proposal`, `item`) | A "⚑ Flag" button that opens a form: what is the problem (This is wrong, This belongs under…, Suggest a better name), the target type and id for "belongs under", the suggested name for "better name", and a required reason of at most 500 characters. Posts `/api/reader/flag`, then says "Flag sent. Thank you." |

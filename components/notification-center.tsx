@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import {
   cyclotronAutoDecided, cyclotronHeldForReview, formatWhen, isUnread, modeLabel, modeMark, nextText, sectionReviews,
-  steeringText, subjectHref, summarize, summaryText,
+  steeringText, subjectHref, subjectLabel, summarize, summaryText,
   type AnswerInput, type CyclotronEntry, type ReviewRequest,
 } from "../lib/review-requests";
 import type { ReferenceRecord } from "../lib/category-repository";
@@ -22,6 +22,7 @@ type ViewProps = {
   readIds: ReadonlySet<string>;
   held: CyclotronEntry[];
   autoDecided: CyclotronEntry[];
+  storyTitles?: Readonly<Record<string, string>>;
   demo?: boolean;
   busyId?: string | null;
   error?: string | null;
@@ -30,8 +31,8 @@ type ViewProps = {
   onMarkAllRead?: () => void;
 };
 
-function Entry({ request, unread, demo, busy, onAnswer, onMarkRead }: {
-  request: ReviewRequest; unread: boolean; demo: boolean; busy: boolean;
+function Entry({ request, unread, demo, busy, titles, onAnswer, onMarkRead }: {
+  request: ReviewRequest; unread: boolean; demo: boolean; busy: boolean; titles: Readonly<Record<string, string>>;
   onAnswer?: ViewProps["onAnswer"]; onMarkRead?: ViewProps["onMarkRead"];
 }) {
   const [note, setNote] = useState("");
@@ -48,7 +49,7 @@ function Entry({ request, unread, demo, busy, onAnswer, onMarkRead }: {
       </div>
       <p className="text-xs text-muted-foreground">
         Raised by {request.raisedBy} on {formatWhen(request.raisedAt)}
-        {" · "}About: {href ? <Link href={href} onClick={() => onMarkRead?.(request.id)}>{request.subject.type.replace("_", " ")} {request.subject.id}</Link> : <span>{request.subject.type} {request.subject.id}</span>}
+        {" · "}About: {href ? <Link href={href} onClick={() => onMarkRead?.(request.id)}>{subjectLabel(request.subject, titles)}</Link> : <span>{subjectLabel(request.subject, titles)}</span>}
       </p>
       {request.ask ? <p className="text-sm">{request.ask}</p> : null}
       {request.links.length ? (
@@ -124,16 +125,27 @@ function Section({ id, title, count, children, empty }: { id: string; title: str
 }
 
 /** The CMS console home: what needs a person, what will proceed on its own, and what the system decided. Ignore-safe by design. */
-export function NotificationCenterView({ loadState, requests, readIds, held, autoDecided, demo = false, busyId = null, error = null, onAnswer, onMarkRead, onMarkAllRead }: ViewProps) {
+export function NotificationCenterView({ loadState, requests, readIds, held, autoDecided, demo = false, storyTitles = {}, busyId = null, error = null, onAnswer, onMarkRead, onMarkAllRead }: ViewProps) {
   const sections = useMemo(() => sectionReviews(requests), [requests]);
   const unreadCount = requests.filter((request) => isUnread(request, readIds)).length;
   const summary = summarize(sections, held, autoDecided, unreadCount);
   const entry = (request: ReviewRequest) => (
-    <Entry busy={busyId === request.id} demo={demo} key={request.id} onAnswer={onAnswer} onMarkRead={onMarkRead} request={request} unread={isUnread(request, readIds)} />
+    <Entry busy={busyId === request.id} demo={demo} key={request.id} titles={storyTitles} onAnswer={onAnswer} onMarkRead={onMarkRead} request={request} unread={isUnread(request, readIds)} />
   );
-  if (loadState === "loading") return <div role="status" data-notification-state="loading"><strong>Loading the Notification Center</strong></div>;
+  if (loadState === "loading") return (
+    <section aria-label="Loading Notification Center" className="space-y-4" data-notification-state="loading" role="status">
+      <div className="h-6 w-48 rounded bg-muted" />
+      <div className="h-4 w-3/4 max-w-xl rounded bg-muted" />
+      <div className="h-4 w-2/3 max-w-lg rounded bg-muted" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {Array.from({ length: 4 }, (_, index) => <div className="h-28 rounded-xl border bg-card p-4" key={index}>
+          <div className="h-4 w-2/3 rounded bg-muted" /><div className="mt-4 h-3 w-1/2 rounded bg-muted" />
+        </div>)}
+      </div>
+    </section>
+  );
   if (loadState === "forbidden") return <div role="alert" data-notification-state="forbidden"><strong>The Notification Center is for editors and admins</strong></div>;
-  if (loadState === "unavailable") return <div role="alert" data-notification-state="unavailable"><strong>Review requests could not be read right now</strong><p>Try again in a minute. Nothing waiting on a person has changed.</p></div>;
+  if (loadState === "unavailable") return <div role="alert" data-notification-state="unavailable"><strong>Review requests could not be read right now</strong><p>Try again in a minute. The current request state is unknown.</p></div>;
   return (
     <div className="space-y-6" data-notification-center>
       <header className="space-y-1">
@@ -193,6 +205,7 @@ export function NotificationCenter({ references, decisions, humanCuratedReferenc
   const [userKey, setUserKey] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [storyTitles, setStoryTitles] = useState<Record<string, string>>({});
 
   const refresh = useCallback(async () => {
     if (demo) {
@@ -212,6 +225,8 @@ export function NotificationCenter({ references, decisions, humanCuratedReferenc
       setReadIds(new Set(loaded.readIds));
       setUserKey(loaded.userKey);
       setLoadState("ready");
+      const { loadStoryTitles } = await import("../lib/review-client");
+      setStoryTitles(await loadStoryTitles(loaded.requests.filter((request) => request.subject.type === "story").map((request) => request.subject.id)).catch(() => ({})));
     } catch {
       setLoadState("unavailable");
     }
@@ -255,7 +270,7 @@ export function NotificationCenter({ references, decisions, humanCuratedReferenc
 
   return (
     <NotificationCenterView
-      autoDecided={autoDecided} busyId={busyId} demo={demo} error={error} held={held} loadState={loadState}
+      autoDecided={autoDecided} busyId={busyId} storyTitles={storyTitles} demo={demo} error={error} held={held} loadState={loadState}
       onAnswer={answer} onMarkAllRead={markAllRead} onMarkRead={markRead} readIds={readIds} requests={requests}
     />
   );

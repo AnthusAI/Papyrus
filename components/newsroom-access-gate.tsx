@@ -6,11 +6,13 @@ import { SITE_BRAND } from "../lib/site-brand";
 import type { NewsDeskShellState } from "../lib/news-desk-session";
 import { cn } from "../lib/utils";
 import { NewsroomOpsShell } from "./newsroom-ops-shell";
+import { NewsroomOverviewSkeleton } from "./newsroom-overview-skeleton";
 import { ReaderAuthControl } from "./reader-auth-control";
 import { buttonVariants } from "./ui/button";
 
 export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
   const accessPhase = shell?.phase ?? "checkingAccess";
+  const pending = accessPhase === "checkingAccess" || accessPhase === "loadingDesk";
 
   return (
     <NewsroomOpsShell
@@ -21,9 +23,20 @@ export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: 
       headerActions={(
         <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
       )}
-      pageTitle="Newsroom"
+      pageTitle={showSectionTabs ? "Notification Center" : "Newsroom"}
       showNavigation={showSectionTabs}
     >
+      {pending ? (showSectionTabs ? <NewsroomOverviewSkeleton /> : (
+        <div aria-label="Loading newsroom" className="space-y-4" data-newsroom-page-skeleton role="status">
+          <div className="h-6 w-48 rounded bg-muted" />
+          <div className="h-4 w-3/4 rounded bg-muted" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }, (_, index) => <div className="h-32 rounded-xl border bg-card p-4" key={index}>
+              <div className="h-4 w-2/3 rounded bg-muted" /><div className="mt-4 h-3 w-1/2 rounded bg-muted" />
+            </div>)}
+          </div>
+        </div>
+      )) : (
       <section aria-live="polite" data-news-desk-access={accessPhase} data-news-desk-access-phase={accessPhase}>
         <div className="space-y-3 rounded-xl border border-border bg-card p-6">
           <p className="m-0 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access</p>
@@ -38,12 +51,13 @@ export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: 
           ) : null}
         </div>
       </section>
+      )}
     </NewsroomOpsShell>
   );
 }
 
 function formatAccessTitle(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "Checking Desk Credentials";
+  if (!state || state.phase === "checkingAccess") return "Checking Credentials";
   if (state.phase === "loadingDesk") return "Loading Newsroom Records";
   if (state.phase === "forbidden") return "Editor Role Required";
   if (state.phase === "error") return "Newsroom Unavailable";

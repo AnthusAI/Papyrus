@@ -3,7 +3,10 @@
 A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge,
 a split, a new column or an element symbol. It is filed by AI (a reader proposer is part of the record but has no route yet)
 and steered by votes; an editor decides. Staff reach this through the ``fileProposal`` and ``transitionProposal``
-mutations (editors and admins only; the function checks the groups again). Every state change is appended to the proposal's
+mutations (editors and admins; the function checks the groups again). An operator's IAM role in the function's own account
+(an unattended automation or an agent without a browser sign-in) may also file an AI proposal and move it from draft to
+in_steering or declined, and nothing else: approving, deciding after review and overriding stay with editors and admins.
+``editProposal`` is the editor tier (pin, hold, exclude and restore votes): editors and admins only, never an operator. Every state change is appended to the proposal's
 ``history`` in the same conditional write that changes the state, so the history and the state cannot disagree.
 
 Nothing here knows a person id. The proposer is ``"ai"`` or a reader's siteSubject, which is stored and never published; the
@@ -53,9 +56,41 @@ TARGET_COUNTS: dict[str, tuple[int, int]] = {
 }
 TARGET_TYPES = ("concept", "entity", "column", "story", "cluster")
 
-MUTATIONS = ("fileProposal", "transitionProposal")
+MUTATIONS = ("fileProposal", "transitionProposal", "editProposal")
+
+#: What ``editProposal`` does beyond moving the state. Editors and admins only: an operator is refused every one of them.
+PIN, UNPIN, HOLD, RELEASE, EXCLUDE_VOTES, UNDO_EXCLUSION = "pin", "unpin", "hold", "release", "exclude_votes", "undo_exclusion"
+EDIT_ACTIONS = (PIN, UNPIN, HOLD, RELEASE, EXCLUDE_VOTES, UNDO_EXCLUSION)
+FINAL_STATES = (APPROVED, DECLINED, OVERRIDDEN_BY_EDITOR)
+#: The batch rules for excluding votes. A rule excludes the votes on one proposal that were already cast, by accounts that were
+#: younger than ``hours`` when they voted; the snapshot applies it (votes are not counted here). ``label`` is the public wording.
+EXCLUSION_RULES: dict[str, dict[str, Any]] = {
+    "new-accounts-24h": {"hours": 24, "label": "accounts under 24 h"},
+}
+EXCLUSION_ID = re.compile(r"exc-[0-9a-f]{12}")
+MAXIMUM_EDITOR_LOG = 200
+
+
+def event_field_name(event: dict[str, Any]) -> str | None:
+    """The GraphQL field an AppSync invocation is for.
+
+    The Amplify Gen 2 Lambda data source sends ``fieldName`` at the top level with no ``info`` key; a direct resolver nests it
+    under ``info``. Accept both.
+    """
+    info = event.get("info")
+    name = (info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName")
+    return name if isinstance(name, str) and name else None
+
+
+def is_appsync_event(event: dict[str, Any]) -> bool:
+    """True for an AppSync invocation (arguments plus ``info`` or a top-level ``fieldName``); the public path sends siteSubject, action and payload."""
+    return "arguments" in event and ("info" in event or event_field_name(event) is not None)
 PROPOSER_AI = "ai"
 STAFF_GROUPS = frozenset({"editor", "admin"})
+#: The only moves an operator's IAM role may make, as (from, to). Everything after the draft is an editor's decision.
+OPERATOR_TRANSITIONS = frozenset({(DRAFT, IN_STEERING), (DRAFT, DECLINED)})
+BY_STAFF, BY_OPERATOR = "staff", "operator"
+MAXIMUM_OPERATOR_LABEL = 256
 PROPOSAL_ID = re.compile(r"prop-[0-9a-f]{32}")
 TARGET_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}")
 MAXIMUM_TITLE = 200
@@ -64,6 +99,11 @@ MAXIMUM_BODY = 50_000
 MAXIMUM_REASON = 500
 MAXIMUM_EVIDENCE_SOURCE = 200
 MAXIMUM_EVIDENCE_SIGNALS = 1_000_000
+#: An optional figure spec kept in ``evidence.figure``: a small chart of cited series (no image), approved with the copy.
+FIGURE_TYPES = ("line", "bar")
+MAXIMUM_FIGURE_POINTS = 60
+MAXIMUM_FIGURE_SERIES = 6
+MAXIMUM_FIGURE_BYTES = 8_000
 
 
 @dataclass
@@ -86,7 +126,7 @@ class ProposalStore(Protocol):
 
     def create_proposal(self, row: dict[str, Any]) -> bool: ...
 
-    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool: ...
+    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool: ...
 
 
 def staff_subject(identity: dict[str, Any]) -> str | None:
@@ -99,6 +139,24 @@ def staff_subject(identity: dict[str, Any]) -> str | None:
     if not isinstance(subject, str) or not subject or not STAFF_GROUPS.intersection(groups):
         return None
     return subject
+
+
+def operator_actor(identity: dict[str, Any], account_id: str | None) -> str | None:
+    """``operator:<principal ARN>`` for an IAM principal (a role or user) of the function's own account, or ``None``.
+
+    A Cognito identity-pool user is also an IAM principal of this account, but it carries a Cognito identity id (and a
+    user-pool caller carries a subject); neither is an operator. A principal of another account is refused, and so is a
+    caller whose ARN names another account than the one AppSync reports.
+    """
+    if not isinstance(identity, dict) or not account_id:
+        return None
+    arn = identity.get("userArn")
+    parts = arn.split(":") if isinstance(arn, str) else []
+    if len(parts) < 6 or parts[0] != "arn" or parts[4] != account_id or identity.get("accountId") != account_id:
+        return None
+    if any(identity.get(key) for key in ("cognitoIdentityId", "cognitoIdentityPoolId", "cognitoIdentityAuthType", "sub", "claims")):
+        return None
+    return f"operator:{arn}"[:MAXIMUM_OPERATOR_LABEL]
 
 
 def clean_text(value: Any, limit: int) -> str | None:
@@ -137,18 +195,53 @@ def clean_targets(kind: str, raw: Any) -> list[dict[str, str]] | Outcome:
     return targets
 
 
+def clean_figure(raw: Any) -> dict[str, Any] | None:
+    """A chart spec ``{type, title, caption, unit, source, x, series: [{signal, label, values}]}``, or None when it is malformed.
+
+    Unknown keys are dropped. Every series has exactly one value per ``x`` label; values are whole or decimal numbers, never text."""
+    if not isinstance(raw, dict) or raw.get("type") not in FIGURE_TYPES:
+        return None
+    title, caption, unit, source = (clean_text(raw.get(key), limit) for key, limit in (("title", 200), ("caption", 300), ("unit", 60), ("source", MAXIMUM_EVIDENCE_SOURCE)))
+    x, series = raw.get("x"), raw.get("series")
+    if None in (title, caption, unit, source) or not isinstance(x, list) or not isinstance(series, list):
+        return None
+    if not 2 <= len(x) <= MAXIMUM_FIGURE_POINTS or not 1 <= len(series) <= MAXIMUM_FIGURE_SERIES:
+        return None
+    labels = [clean_text(label, 20) for label in x]
+    if None in labels:
+        return None
+    cleaned = []
+    for entry in series:
+        if not isinstance(entry, dict):
+            return None
+        signal, label, values = clean_text(entry.get("signal"), 130), clean_text(entry.get("label"), 120), entry.get("values")
+        if signal is None or label is None or not isinstance(values, list) or len(values) != len(labels):
+            return None
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1_000_000_000 for value in values):
+            return None
+        cleaned.append({"signal": signal, "label": label, "values": list(values)})
+    figure = {"type": raw["type"], "title": title, "caption": caption, "unit": unit, "source": source, "x": labels, "series": cleaned}
+    return figure if len(json.dumps(figure)) <= MAXIMUM_FIGURE_BYTES else None
+
+
 def clean_evidence(raw: Any) -> dict[str, Any] | None | Outcome:
     parsed = parse_json(raw) if raw is not None else None
     if parsed is None:
         return None
     if not isinstance(parsed, dict):
-        return refused("invalid_evidence", "evidence must be {signals, source}.")
+        return refused("invalid_evidence", "evidence must be {signals, source} with an optional figure.")
     signals, source = parsed.get("signals"), parsed.get("source")
     if not isinstance(signals, int) or isinstance(signals, bool) or not 0 <= signals <= MAXIMUM_EVIDENCE_SIGNALS:
         return refused("invalid_evidence", "evidence.signals must be a whole number of signals.")
     if source is not None and clean_text(source, MAXIMUM_EVIDENCE_SOURCE) is None:
         return refused("invalid_evidence", "evidence.source must be short text.")
-    return {"signals": signals, "source": source.strip() if isinstance(source, str) else None}
+    evidence = {"signals": signals, "source": source.strip() if isinstance(source, str) else None}
+    if parsed.get("figure") is not None:
+        figure = clean_figure(parsed["figure"])
+        if figure is None:
+            return refused("invalid_evidence", "evidence.figure must be a small chart spec: type line or bar, title, caption, unit, source, x labels and series with one value per label.")
+        evidence["figure"] = figure
+    return evidence
 
 
 def file_proposal(arguments: dict[str, Any], *, actor_sub: str, now_iso: str, proposal_id: str | None = None) -> tuple[dict[str, Any] | None, Outcome | None]:
@@ -190,13 +283,15 @@ def file_proposal(arguments: dict[str, Any], *, actor_sub: str, now_iso: str, pr
     return row, None
 
 
-def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_sub: str, now_iso: str, result: Any = None) -> dict[str, Any] | Outcome:
+def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_sub: str, now_iso: str, result: Any = None, by: str = BY_STAFF) -> dict[str, Any] | Outcome:
     """The changes that move ``row`` to ``to_state``, or why it may not move."""
     state = row.get("state")
     if to_state not in STATES:
         return refused("invalid_state", f"state must be one of {', '.join(STATES)}.")
     if to_state not in TRANSITIONS.get(state, ()):
         return refused("transition_not_allowed", f"A proposal in {state} cannot move to {to_state}.")
+    if row.get("held"):
+        return refused("proposal_held", "That proposal is on hold. Release it before it moves.")
     text = None
     if reason is not None and str(reason).strip():
         text = clean_text(reason, MAXIMUM_REASON)
@@ -209,20 +304,38 @@ def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_su
             return refused("result_required", f"An override says what the editor decided: {' or '.join(OVERRIDE_RESULTS)}.")
     elif result is not None:
         return refused("result_not_allowed", "Only an override carries a result; approve and decline are their own.")
-    entry = {"from": state, "to": to_state, "by": "staff", "actor": actor_sub, "reason": text, "at": now_iso}
+    entry = {"from": state, "to": to_state, "by": by, "actor": actor_sub, "reason": text, "at": now_iso}
     if result is not None:
         entry["result"] = result
     history = [*(parse_json(row.get("history")) or []), entry]
-    return {"state": to_state, "history": json.dumps(history)}
+    changes: dict[str, Any] = {"state": to_state, "history": json.dumps(history)}
+    if to_state == OVERRIDDEN_BY_EDITOR:
+        # Stored on the proposal beside the community result, which stays as it was: readers see both.
+        changes["override"] = json.dumps({"result": result, "reason": text, "at": now_iso})
+    return changes
 
 
-def apply_transition(store: ProposalStore, *, proposal_id: Any, to_state: Any, reason: Any, actor_sub: str, now_iso: str, result: Any = None) -> Outcome:
+def apply_transition(
+    store: ProposalStore,
+    *,
+    proposal_id: Any,
+    to_state: Any,
+    reason: Any,
+    actor_sub: str,
+    now_iso: str,
+    result: Any = None,
+    by: str = BY_STAFF,
+    allowed: frozenset[tuple[str, str]] | None = None,
+) -> Outcome:
+    """Move a proposal. ``allowed`` (as (from, to) pairs) narrows the road for a caller who may not take all of it."""
     if not isinstance(proposal_id, str) or not PROPOSAL_ID.fullmatch(proposal_id):
         return refused("invalid_proposal", "That is not a proposal id.")
     row = store.get_proposal(proposal_id)
     if row is None:
         return refused("not_found", "There is no such proposal.")
-    plan = transition_plan(row, to_state, reason, actor_sub=actor_sub, now_iso=now_iso, result=result)
+    if allowed is not None and (row.get("state"), to_state) not in allowed:
+        return refused("operator_not_allowed", "An operator can only move a draft to in_steering or declined; the rest is for editors and admins.")
+    plan = transition_plan(row, to_state, reason, actor_sub=actor_sub, now_iso=now_iso, result=result, by=by)
     if isinstance(plan, Outcome):
         return plan
     if not store.change_proposal(proposal_id, plan, row["state"], now_iso):
@@ -230,13 +343,101 @@ def apply_transition(store: ProposalStore, *, proposal_id: Any, to_state: Any, r
     return Outcome("ok", id=proposal_id)
 
 
-def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_iso: str) -> dict[str, Any]:
-    """``fileProposal`` or ``transitionProposal`` from AppSync. Answers a receipt, never an exception."""
-    actor = staff_subject(event.get("identity") or {})
+def log_entry(action: str, actor_sub: str, now_iso: str, detail: dict[str, Any] | None = None) -> dict[str, Any]:
+    entry: dict[str, Any] = {"action": action, "by": BY_STAFF, "actor": actor_sub, "at": now_iso}
+    if detail:
+        entry["detail"] = detail
+    return entry
+
+
+def edit_plan(row: dict[str, Any], action: Any, *, rule: Any = None, exclusion_id: Any = None, actor_sub: str, now_iso: str) -> dict[str, Any] | Outcome:
+    """The changes for a pin, hold or vote-exclusion action on ``row``, or why it may not be done.
+
+    Every action is appended to the private ``editorLog`` in the same write. Changing the exclusions clears the frozen
+    ``communityResult`` so the next snapshot fixes it again with the exclusions applied; the function never counts votes itself.
+    """
+    if action not in EDIT_ACTIONS:
+        return refused("invalid_action", f"action must be one of {', '.join(EDIT_ACTIONS)}.")
+    detail: dict[str, Any] | None = None
+    changes: dict[str, Any] = {}
+    if action in (PIN, UNPIN):
+        if bool(row.get("pinned")) == (action == PIN):
+            return refused("already_pinned" if action == PIN else "not_pinned", "That proposal is already pinned." if action == PIN else "That proposal is not pinned.")
+        changes["pinned"] = action == PIN
+    elif action in (HOLD, RELEASE):
+        if action == HOLD and row.get("state") in FINAL_STATES:
+            return refused("proposal_decided", "A decided proposal cannot be put on hold.")
+        if bool(row.get("held")) == (action == HOLD):
+            return refused("already_held" if action == HOLD else "not_held", "That proposal is already on hold." if action == HOLD else "That proposal is not on hold.")
+        changes["held"] = action == HOLD
+    else:
+        exclusions = parse_json(row.get("exclusions")) or []
+        if action == EXCLUDE_VOTES:
+            if rule not in EXCLUSION_RULES:
+                return refused("invalid_rule", f"rule must be one of {', '.join(EXCLUSION_RULES)}.")
+            identifier = "exc-" + uuid.uuid4().hex[:12]
+            exclusions = [*exclusions, {"id": identifier, "rule": rule, "at": now_iso, "actor": actor_sub}]
+            detail = {"exclusion": identifier, "rule": rule}
+        else:
+            if not isinstance(exclusion_id, str) or not EXCLUSION_ID.fullmatch(exclusion_id):
+                return refused("invalid_exclusion", "That is not an exclusion id.")
+            found = next((entry for entry in exclusions if entry.get("id") == exclusion_id), None)
+            if found is None:
+                return refused("unknown_exclusion", "That proposal has no such exclusion.")
+            if found.get("undoneAt"):
+                return refused("already_undone", "That exclusion was already undone.")
+            found["undoneAt"], found["undoneBy"] = now_iso, actor_sub
+            detail = {"exclusion": exclusion_id, "rule": found.get("rule")}
+        changes["exclusions"] = json.dumps(exclusions)
+        if row.get("communityResult"):
+            changes["communityResult"] = None  # removed: the next snapshot fixes it again without the excluded votes
+    log = [*(parse_json(row.get("editorLog")) or []), log_entry(action, actor_sub, now_iso, detail)][-MAXIMUM_EDITOR_LOG:]
+    changes["editorLog"] = json.dumps(log)
+    return changes
+
+
+def apply_edit(store: ProposalStore, *, proposal_id: Any, action: Any, rule: Any, exclusion_id: Any, actor_sub: str, now_iso: str) -> Outcome:
+    if not isinstance(proposal_id, str) or not PROPOSAL_ID.fullmatch(proposal_id):
+        return refused("invalid_proposal", "That is not a proposal id.")
+    row = store.get_proposal(proposal_id)
+    if row is None:
+        return refused("not_found", "There is no such proposal.")
+    plan = edit_plan(row, action, rule=rule, exclusion_id=exclusion_id, actor_sub=actor_sub, now_iso=now_iso)
+    if isinstance(plan, Outcome):
+        return plan
+    if not store.change_proposal(proposal_id, plan, row["state"], now_iso, expected_updated_at=row.get("updatedAt")):
+        return refused("target_changed", "Someone else changed that proposal first.")
+    # An exclusion's id is what undo_exclusion takes; the pin and hold receipts carry the proposal id.
+    created = json.loads(plan["exclusions"])[-1]["id"] if action == EXCLUDE_VOTES else proposal_id
+    return Outcome("ok", id=created)
+
+
+def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_iso: str, account_id: str | None = None) -> dict[str, Any]:
+    """``fileProposal``, ``transitionProposal`` or ``editProposal`` from AppSync. Answers a receipt, never an exception.
+
+    Editors and admins act as themselves. An IAM principal of ``account_id`` (the function's own account) acts as an operator:
+    it files AI proposals and moves draft to in_steering or declined, recorded as ``operator:<ARN>``. Anyone else is refused.
+    """
+    identity = event.get("identity") or {}
+    staff = staff_subject(identity)
+    operator = None if staff is not None else operator_actor(identity, account_id)
+    actor = staff or operator
     if actor is None:
-        return refused("not_staff", "Only editors and admins can file or decide proposals.").to_dict()
+        return refused("not_staff", "Only editors, admins and operators of this account can file proposals; only editors and admins decide them.").to_dict()
     arguments = event.get("arguments") or {}
-    field = (event.get("info") or {}).get("fieldName")
+    field = event_field_name(event)
+    if field == "editProposal":
+        if staff is None:
+            return refused("operator_not_allowed", "Pinning, holding and excluding votes are for editors and admins; an operator can only file proposals and move a draft to in_steering or declined.").to_dict()
+        return apply_edit(
+            store,
+            proposal_id=arguments.get("proposalId"),
+            action=arguments.get("action"),
+            rule=arguments.get("rule"),
+            exclusion_id=arguments.get("exclusionId"),
+            actor_sub=staff,
+            now_iso=now_iso,
+        ).to_dict()
     if field == "fileProposal":
         row, problem = file_proposal(arguments, actor_sub=actor, now_iso=now_iso)
         if problem is not None:
@@ -252,4 +453,6 @@ def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_is
         result=arguments.get("result"),
         actor_sub=actor,
         now_iso=now_iso,
+        by=BY_OPERATOR if operator else BY_STAFF,
+        allowed=OPERATOR_TRANSITIONS if operator else None,
     ).to_dict()

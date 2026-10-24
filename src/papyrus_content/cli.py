@@ -325,6 +325,7 @@ PORTED_COMMANDS = frozenset(
         "stories:show",
         "stories:create",
         "stories:move",
+        "stories:fire-triggers",
         "stories:repair-versions",
         "stories:set-slug",
         "assignments:backfill-content-items",
@@ -401,10 +402,21 @@ PORTED_COMMANDS = frozenset(
         "reader:feedback",
         "ideas:digest",
         "ideas:synthesize",
+        "ideas:trends",
         "proposals:create",
         "proposals:list",
         "proposals:show",
         "proposals:transition",
+        "proposals:approve",
+        "proposals:decline",
+        "proposals:override",
+        "proposals:pin",
+        "proposals:unpin",
+        "proposals:hold",
+        "proposals:release",
+        "proposals:exclude-votes",
+        "proposals:undo-exclusion",
+        "proposals:needs-a-look",
         "proposals:publish",
         "messages:list",
         "messages:handle",
@@ -695,6 +707,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         from .story_commands import stories_move
 
         stories_move(flags)
+    elif route == "stories:fire-triggers":
+        from .story_commands import stories_fire_triggers
+
+        stories_fire_triggers(flags)
     elif route == "stories:create":
         from .story_commands import stories_create
 
@@ -1671,7 +1687,7 @@ def print_usage() -> None:
     print("  create-reindex-assignment/run-now/execute-assignment (auto sync-from-cloud when local catalog is stale;")
     print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/doctor-entity-graph,")
     print("  reviews list|show|raise|answer|withdraw|wait|steering|applied|recipients [--id ID] [--mode flag|soft_review|hard_gate] [--decision approve|reject|feedback] [--feedback T] [--steer adjust|not_this_kind] [--json],")
-    print("  automations list|show|runs [--id ID] [--limit N] [--json] / run --id ID [--input JSON] [--dry-run] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
+    print("  automations list|show|runs [--id ID] [--limit N] [--json] / run --id ID [--input JSON] [--dry-run] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P | --on-stage S [--next-stage T] --monitor M --publication P [--max-hops N]] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")
     print("  relations import-types/backfill, ontology preflight/rank/status/explain/profile/associate/dedupe/recompute-authority/doctor,")

@@ -1,3 +1,5 @@
+import { parseCloudEmail, type CloudEmailConfig } from "./cloud-email-config";
+
 export type CmsRedirect = {
   source: string;
   status: 301 | 302;
@@ -63,6 +65,8 @@ export type AmplifyAppShellSiteConfig = {
   stackName?: string;
   aws?: SiteAwsConfig;
   cms?: CmsConfig;
+  /** Required for cloud CMS sites; independent of newsletter feature enablement. */
+  email?: CloudEmailConfig;
   reader?: {
     appName?: string;
     domainName?: string;
@@ -157,7 +161,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -494,7 +498,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "reader", "papyrusVersion", "storagePreviewPrefix", "knowledgeRun", "autoDeploy", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "knowledgeRun", "autoDeploy", "github"],
     "site",
   );
 
@@ -604,6 +608,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     stackName,
     aws,
     cms,
+    email: parseCloudEmail(record.email, cms !== undefined, siteId),
     reader,
     papyrusVersion,
     storagePreviewPrefix,

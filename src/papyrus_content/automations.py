@@ -28,6 +28,7 @@ from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
+from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
     PROCEDURE_INPUT_NAME,
     PROCEDURE_KEY,
@@ -113,6 +114,21 @@ def validate_trigger(trigger: Any) -> dict[str, Any]:
         if not PUBLICATION_ID.match(publication_id):
             raise AutomationError("a monitor trigger needs config.publicationId, the router publication it delivers to.")
         config = {"monitorId": monitor_id, "publicationId": publication_id}
+    if kind == "event" and config.get("event") == STAGE_ENTERED:
+        from .content_item_lifecycle import CONTENT_ITEM_STAGES
+
+        monitor_id, publication_id, stage = (str(config.get(key) or "") for key in ("monitorId", "publicationId", "onStage"))
+        if stage not in CONTENT_ITEM_STAGES:
+            raise AutomationError(f"a story-stage trigger needs config.onStage, one of {', '.join(CONTENT_ITEM_STAGES)}.")
+        next_stage = config.get("nextStage")
+        if next_stage is not None and (next_stage not in CONTENT_ITEM_STAGES or next_stage == stage):
+            raise AutomationError(f"config.nextStage must be a different stage, one of {', '.join(CONTENT_ITEM_STAGES)}.")
+        if not MONITOR_ID.match(monitor_id) or not PUBLICATION_ID.match(publication_id):
+            raise AutomationError("a story-stage trigger needs config.monitorId and config.publicationId: the monitor partition "
+                                  "that holds its run rows and the router publication that supplies the endpoint and model key.")
+        config = {"event": STAGE_ENTERED, "onStage": stage, "monitorId": monitor_id, "publicationId": publication_id}
+        if next_stage:
+            config["nextStage"] = next_stage
     return {"kind": kind, "config": config}
 
 
@@ -126,6 +142,9 @@ def validate_input_template(template: Any, trigger: dict[str, Any]) -> dict[str,
         if not PROCEDURE_INPUT_NAME.match(str(name)):
             raise AutomationError(f"inputTemplate name {name!r} is not a valid procedure input name.")
         text = str(value)
+        if is_stage_trigger(trigger) and "{" in text:
+            raise AutomationError(f"inputTemplate {name}: a story-stage automation's input is static; the engine adds story, version, "
+                                  "versionNumber, stage, runKey, automationId and hop.")
         if trigger["kind"] == "monitor":
             used = {field for _, field, _, _ in string.Formatter().parse(text) if field is not None}
             unknown = sorted(used - TRIGGER_PLACEHOLDERS)
@@ -142,11 +161,11 @@ def validate_limits(limits: Any) -> dict[str, Any]:
         return dict(DEFAULT_LIMITS)
     if not isinstance(limits, dict):
         raise AutomationError("limits must be an object.")
-    unknown = sorted(set(limits) - {"timeoutSeconds", "maxConcurrent", "budgetUsdPerRun"})
+    unknown = sorted(set(limits) - {"timeoutSeconds", "maxConcurrent", "budgetUsdPerRun", "maxHops"})
     if unknown:
         raise AutomationError(f"unknown limit(s): {', '.join(unknown)}.")
     merged = {**DEFAULT_LIMITS, **{key: value for key, value in limits.items() if value is not None}}
-    for key, low, high in (("timeoutSeconds", 1, MAX_TIMEOUT_SECONDS), ("maxConcurrent", 1, 100)):
+    for key, low, high in (("timeoutSeconds", 1, MAX_TIMEOUT_SECONDS), ("maxConcurrent", 1, 100), ("maxHops", 1, MAX_HOPS)):
         if key not in merged:
             continue
         value = merged[key]
@@ -201,19 +220,22 @@ def read_record(row: dict[str, Any]) -> dict[str, Any]:
     """A stored row as the record the CLI and console show, with what is and is not live said in words."""
     trigger = _parse(row.get("trigger"), {})
     kind = str(trigger.get("kind") or "")
-    supported = kind in ACTIVE_KINDS
+    supported = kind in ACTIVE_KINDS or is_stage_trigger(trigger)
     return {
         "id": row.get("id"), "title": row.get("title"), "description": row.get("description"),
         "enabled": row.get("enabled") is not False,
         "enabledNote": ENABLED_NOTE,
         "trigger": {"kind": kind, "config": trigger.get("config") or {}},
+        "onStage": (trigger.get("config") or {}).get("onStage") if is_stage_trigger(trigger) else None,
+        "nextStage": (trigger.get("config") or {}).get("nextStage") if is_stage_trigger(trigger) else None,
+        "maxHops": _parse(row.get("limits"), {}).get("maxHops") if is_stage_trigger(trigger) else None,
         "supported": supported,
         "supportNote": None if supported else NOT_SUPPORTED,
         "procedureKey": row.get("procedureKey"),
         "inputTemplate": _parse(row.get("inputTemplate"), {}),
         "limits": _parse(row.get("limits"), dict(DEFAULT_LIMITS)),
         "limitsNote": LIMITS_NOTE,
-        "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind,
+        "runNow": run_now_availability({"enabled": row.get("enabled") is not False, "kind": kind, "stageTrigger": is_stage_trigger(trigger),
                                         "template": _parse(row.get("inputTemplate"), {})}),
         "createdBy": row.get("createdBy"), "createdAt": row.get("createdAt"),
         "updatedBy": row.get("updatedBy"), "updatedAt": row.get("updatedAt"),
@@ -224,6 +246,8 @@ def run_now_availability(info: dict[str, Any]) -> dict[str, Any]:
     """Whether Run now is offered, and whether the person must give the input (the template names item placeholders)."""
     template = info["template"] if isinstance(info["template"], dict) else {}
     placeholders = sorted({field for text in template.values() for _, field, _, _ in string.Formatter().parse(str(text)) if field})
+    if info.get("stageTrigger"):
+        return {"available": False, "reason": "starts when a story enters its stage, not by hand", "needsInput": False, "inputNames": []}
     if info["kind"] not in ACTIVE_KINDS:
         return {"available": False, "reason": NOT_SUPPORTED, "needsInput": False, "inputNames": []}
     if not info["enabled"]:
@@ -277,6 +301,10 @@ class MonitoringReader:
     def trigger_rows(self, monitor_id: str, publication_id: str, procedure_key: str) -> list[dict]:
         return [_clean(item) for item in query_prefix(self.table, monitor_id, trigger_prefix(publication_id, procedure_key))]
 
+    def rows_with_prefix(self, monitor_id: str, prefix: str) -> list[dict]:
+        """Rows of the monitor's partition by sort-key prefix (the story-stage run rows)."""
+        return [_clean(item) for item in query_prefix(self.table, monitor_id, prefix)]
+
     def manual_rows(self, monitor_id: str, automation_id: str) -> list[dict]:
         """The rows Run now wrote for this automation."""
         return [_clean(item) for item in query_prefix(self.table, monitor_id, manual_prefix(automation_id))]
@@ -290,6 +318,16 @@ class MonitoringWriter:
 
     def put(self, row: dict) -> None:
         self.table.put_item(Item=row)
+
+    def claim(self, row: dict) -> bool:
+        """Put the row only if its key is new. False when it exists already: someone else holds the claim."""
+        try:
+            self.table.put_item(Item=row, ConditionExpression="attribute_not_exists(pk) AND attribute_not_exists(sk)")
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return False
+            raise
+        return True
 
 
 def monitoring_table_from_environment(env=None):
@@ -370,7 +408,7 @@ def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
     cost = (run or {}).get("costUsd")
     cost = float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
     usage = _parse((run or {}).get("usage"), None)
-    usage = usage if isinstance(usage, dict) else None
+    usage = usage if isinstance(usage, dict) and "calls" in usage else None   # a run with tools but no model call has no usage
     if cost is None and usage is None:
         note = COST_NOTE if run else "no run record, so no cost"
     elif cost is None:
@@ -385,6 +423,15 @@ def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
                                                  ("calls", "promptTokens", "completionTokens", "models", "complete", "unpricedModels")}}
 
 
+def tools_used_of(run: dict | None) -> dict[str, int] | None:
+    """Tool name -> calls, as the runner recorded it with the run's usage; None when the run recorded none."""
+    usage = _parse((run or {}).get("usage"), None)
+    tools = usage.get("toolsUsed") if isinstance(usage, dict) else None
+    if not isinstance(tools, dict) or not tools:
+        return None
+    return {str(name): int(count) for name, count in tools.items() if isinstance(count, (int, float)) and not isinstance(count, bool)}
+
+
 def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: Any = None) -> dict[str, Any]:
     """One trigger or Run now row joined with its ProcedureRun. The story is the procedure output's `story` (a lineage id)."""
     output = _parse((run or {}).get("output"), None)
@@ -393,8 +440,11 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
     finished = (run or {}).get("finishedAt") or row.get("finishedAt")
     story = output.get("story")
     manual = str(row.get("sk") or "").startswith(MANUAL_PREFIX)
+    stage = str(row.get("sk") or "").startswith(STAGE_ROW_PREFIX)
+    story = story if isinstance(story, str) and story else row.get("storyId")
     return {
-        "origin": "manual" if manual else "monitor",
+        "origin": "manual" if manual else ("stage" if stage else "monitor"),
+        "stage": row.get("stage") if stage else None,
         "requestedBy": row.get("requestedBy"),
         "sourceId": row.get("sourceId"), "referenceId": row.get("referenceId"),
         "triggerStatus": row.get("status"), "runId": row.get("runId"),
@@ -405,6 +455,8 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
         "error": _run_error(row, run),
         "runRecord": "found" if run else ("unavailable" if lookup_failed else ("missing" if row.get("runId") else "none")),
         "storyId": story if isinstance(story, str) and story else None,
+        "storyExists": None,   # filled in by the history, which can look the story up
+        "toolsUsed": tools_used_of(run),
         "storyVersionId": output.get("version_id") if isinstance(output.get("version_id"), str) else None,
         "storyTitle": output.get("title") if isinstance(output.get("title"), str) else None,
         **cost_fields(run, budget),
@@ -435,6 +487,23 @@ def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit
     return {"runs": [outside_entry(run, budget) for run in rows if run.get("id") not in linked_ids][:limit], "notice": None}
 
 
+def mark_deleted_stories(client, runs: list[dict[str, Any]]) -> None:
+    """Sets `storyExists` on each run that names a story: False when no version of that lineage remains (the story was deleted),
+    None when the lookup failed or is not offered by the client."""
+    lookup = getattr(client, "list_by_index", None)
+    known: dict[str, bool | None] = {}
+    for run in runs:
+        story = run.get("storyId")
+        if not story or lookup is None:
+            continue
+        if story not in known:
+            try:
+                known[story] = bool(lookup("itemsByLineageAndVersion", story))
+            except Exception:   # a lookup failure never hides the run
+                known[story] = None
+        run["storyExists"] = known[story]
+
+
 def automation_history(automation: dict[str, Any], *, reader: MonitoringReader | None, client, limit: int = DEFAULT_RUN_LIMIT,
                        site_endpoint: str | None = None) -> dict[str, Any]:
     """Router link, recent runs (newest first), the last run and the procedure's other runs for one automation.
@@ -445,7 +514,8 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
     limit = max(1, min(int(limit), MAX_RUN_LIMIT))
     empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None,
              "outsideRuns": [], "outsideNotice": None}
-    if automation["trigger"]["kind"] != "monitor":
+    stage_trigger = is_stage_trigger(automation["trigger"])
+    if automation["trigger"]["kind"] != "monitor" and not stage_trigger:
         return {**empty, "link": router_link(automation, None), "notice": NOT_SUPPORTED}
     if reader is None:
         return {**empty, "notice": "monitoring_not_configured"}
@@ -459,8 +529,11 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
             return {**empty, "link": link, "notice": "publication_not_routed"}
         if publication.get("appsyncEndpoint") != site_endpoint:
             return {**empty, "notice": "other_publication"}
-    rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"])
-    rows += reader.manual_rows(config["monitorId"], automation["id"])
+    if stage_trigger:   # the runs a story entering the stage started: one claim row per story, stage and version
+        rows = reader.rows_with_prefix(config["monitorId"], stage_prefix(automation["id"]))
+    else:
+        rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"])
+        rows += reader.manual_rows(config["monitorId"], automation["id"])
     budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
     skipped = sum(1 for row in rows if row.get("status") == "notTriggered")
     started = sorted((row for row in rows if row.get("status") != "notTriggered"), key=_row_time, reverse=True)[:limit]
@@ -473,6 +546,7 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
             except Exception:   # a lookup failure is shown on the row; the rest of the history still reads
                 failed = True
         runs.append(run_entry(row, run, failed, budget))
+    mark_deleted_stories(client, runs)
     outside = outside_runs(automation, client, {row["runId"] for row in rows if row.get("runId")}, limit, budget)
     return {
         "link": link, "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": skipped, "notice": None,
@@ -607,7 +681,9 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
     if "input" in options:
         fields["inputTemplate"] = _json_option(options, "input")
     kind = options.get("kind")
-    if kind or "monitor" in options or "publication" in options or "config" in options:
+    if "on-stage" in options and kind is None:
+        kind = "event"
+    if kind or "monitor" in options or "publication" in options or "config" in options or "on-stage" in options or "next-stage" in options:
         current = (existing or {}).get("trigger") or {}
         config = dict(current.get("config") or {}) if (kind in (None, current.get("kind"))) else {}
         if "config" in options:
@@ -616,10 +692,15 @@ def fields_from_options(options: dict[str, Any], *, existing: dict[str, Any] | N
             config["monitorId"] = options["monitor"]
         if "publication" in options:
             config["publicationId"] = options["publication"]
+        if "on-stage" in options:
+            config["event"], config["onStage"] = STAGE_ENTERED, options["on-stage"]
+        if "next-stage" in options:
+            config["nextStage"] = options["next-stage"]
         fields["trigger"] = {"kind": kind or current.get("kind") or ("monitor" if "monitor" in options else None), "config": config}
     limits, cleared = {}, set()
     for option, field, cast in (("timeout-seconds", "timeoutSeconds", int), ("max-concurrent", "maxConcurrent", int),
-                                ("budget-usd", "budgetUsdPerRun", float)):
+                                ("budget-usd", "budgetUsdPerRun", float),
+                                ("max-hops", "maxHops", int)):
         if option in options:
             if option == "max-concurrent" and str(options[option]).lower() in {"none", "unlimited"}:
                 cleared.add(field)
@@ -645,12 +726,25 @@ def cost_text(entry: dict[str, Any]) -> str:
     return f"${entry['costUsd']:.4f}" + (" OVER BUDGET" if entry.get("overBudget") else "")
 
 
+def tools_text(run: dict[str, Any]) -> str:
+    """`tools: name x2, other x1`, or `tools: none recorded` (the run recorded no tool calls, or predates the record)."""
+    tools = run.get("toolsUsed")
+    return "tools: " + (", ".join(f"{name} x{count}" for name, count in sorted(tools.items())) if tools else "none recorded")
+
+
+def cost_summary_text(runs: list[dict[str, Any]]) -> str:
+    known = [run["costUsd"] for run in runs if run["costUsd"] is not None]
+    return f"${sum(known):.4f} total across {len(known)} run{'' if len(known) == 1 else 's'} with a recorded cost ({len(known)} of {len(runs)} listed run{'' if len(runs) == 1 else 's'}; an estimate)"
+
+
 def _print_runs(runs: list[dict[str, Any]]) -> None:
     for run in runs:
-        who = f"run now by {run['requestedBy']}" if run.get("origin") == "manual" else (run["sourceId"] or "")
+        who = (f"run now by {run['requestedBy']}" if run.get("origin") == "manual"
+               else f"story entered {run.get('stage') or 'stage'}" if run.get("origin") == "stage" else (run["sourceId"] or ""))
+        story = "-" if not run["storyId"] else (f"{run['storyId']} (story deleted)" if run.get("storyExists") is False else run["storyId"])
         print("\t".join(str(part) for part in (
             "run", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
-            who, run["runId"] or "-", run["storyId"] or "-", cost_text(run), run["reason"] or run["error"] or "")))
+            who, run["runId"] or "-", story, cost_text(run), tools_text(run), run["reason"] or run["error"] or "")))
 
 
 def _print_outside_runs(runs: list[dict[str, Any]]) -> None:
@@ -758,5 +852,4 @@ def run_command(command: str, flags: list[str]) -> None:
                 print(f"outside\tthe procedure's other runs could not be read ({automation['outsideNotice']})")
             if automation["skippedAlreadyHadReference"]:
                 print(f"skipped\t{automation['skippedAlreadyHadReference']} item(s) not started because the Reference already existed")
-            known = [run["costUsd"] for run in automation["runs"] if run["costUsd"] is not None]
-            print(f"cost\t${sum(known):.4f} over {len(known)} of {len(automation['runs'])} listed run(s) with a recorded cost (an estimate)")
+            print(f"cost\t{cost_summary_text(automation['runs'])}")

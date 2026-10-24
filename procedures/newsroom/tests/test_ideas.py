@@ -390,6 +390,22 @@ class PrivacyTests(unittest.TestCase):
         self.assertEqual(evidence["signals"], 2)
         self.assertIn(run["digestId"], evidence["source"])
 
+    def test_an_iam_run_files_proposals_without_reading_earlier_ones(self) -> None:
+        class DeniedRead(FakeClient):
+            def graphql(self, query, variables=None):
+                if "listProposals" in query:
+                    raise RuntimeError("Not Authorized to access listProposals on type Query")
+                return super().graphql(query, variables)
+
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
+            client = DeniedRead(references=five_references(), sections=("Analysis",))
+            store = ProposalStore(client)
+            run, _ = run_pipeline(client, FakeModel([idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident.")]), root=Path(directory) / "ideas", proposal_store=store)
+        self.assertEqual([row["kind"] for row in client.proposals if "kind" in row], ["story_draft"])
+        self.assertIn("cannot be read with IAM", run["proposalDedupe"])
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), self.assertRaises(RuntimeError):
+            ProposalStore(DeniedRead()).story_drafts()
+
 
 class CommandTests(unittest.TestCase):
     def run_cli(self, argv, client, model=None):

@@ -150,6 +150,12 @@ export function readerSteeringSchemaDefinitions() {
         state: a.string().required(),
         history: a.json().required(),
         communityResult: a.json(),
+        pinned: a.boolean(),
+        held: a.boolean(),
+        override: a.json(),
+        exclusions: a.json(),
+        editorLog: a.json(),
+        needsLook: a.json(),
         createdAt: a.datetime().required(),
       })
       .disableOperations(["subscriptions"])
@@ -161,6 +167,9 @@ export function readerSteeringSchemaDefinitions() {
       error: a.string(),
       message: a.string(),
     }),
+    // Editors and admins file as themselves. AppSync also admits an IAM principal whose own policy allows the field (the
+    // schema accepts IAM callers for the functions that call it); the function files an AI proposal for an IAM principal
+    // of its own account only, and refuses an identity-pool user and any other account. No IAM rule is declared here.
     fileProposal: a
       .mutation()
       .arguments({
@@ -174,6 +183,8 @@ export function readerSteeringSchemaDefinitions() {
       .returns(a.ref("ProposalReceipt"))
       .authorization((allow) => [allow.group("editor"), allow.group("admin")])
       .handler(functionHandler("readerActions", readerActions)),
+    // The same IAM rule as fileProposal, narrower: an operator may move only draft to in_steering or declined.
+    // Approving, deciding after review and overriding are refused for IAM in the function (`operator_not_allowed`).
     transitionProposal: a
       .mutation()
       .arguments({
@@ -181,6 +192,19 @@ export function readerSteeringSchemaDefinitions() {
         state: a.string().required(),
         reason: a.string(),
         result: a.string(),
+      })
+      .returns(a.ref("ProposalReceipt"))
+      .authorization((allow) => [allow.group("editor"), allow.group("admin")])
+      .handler(functionHandler("readerActions", readerActions)),
+    // Editors and admins only, and the function refuses an IAM operator: pin, unpin, hold, release, exclude_votes and
+    // undo_exclusion. `rule` is a batch rule for exclude_votes; `exclusionId` names the exclusion undo_exclusion reverses.
+    editProposal: a
+      .mutation()
+      .arguments({
+        proposalId: a.string().required(),
+        action: a.string().required(),
+        rule: a.string(),
+        exclusionId: a.string(),
       })
       .returns(a.ref("ProposalReceipt"))
       .authorization((allow) => [allow.group("editor"), allow.group("admin")])

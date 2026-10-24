@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import time
 import urllib.request
 from typing import Any
 
@@ -173,3 +174,91 @@ def papyrus_story_versions(story: str) -> list[dict[str, Any]]:
     client, _ = create_authoring_client()
     fields = ("id", "versionNumber", "versionState", "status", "stage", "versionCreatedAt", "versionCreatedBy", "changeReason")
     return [{field: version.get(field) for field in fields} for version in story_versions(client, story)]
+
+
+CHECK_WAIT_SECONDS = 10
+CHECK_POLL_SECONDS = 1
+
+
+def _finding(finding: dict[str, Any]) -> dict[str, Any]:
+    """One finding for a bot. A finding with no quote is about the whole document (a review rule such as
+    general-meaning-first), so it says `scope: "document"`; a paragraph is returned only when the stored finding names one."""
+    quote = finding.get("excerpt")
+    result = {
+        "id": finding.get("id"),
+        "rule": finding.get("policyId"),
+        "severity": finding.get("severity"),
+        "status": finding.get("status"),
+        "message": finding.get("message"),
+        "quote": quote,
+        "scope": "quote" if isinstance(quote, str) and quote.strip() else "document",
+        "probability": finding.get("probability"),
+    }
+    if finding.get("paragraph") not in (None, ""):
+        result["paragraph"] = finding["paragraph"]
+    return result
+
+
+def _check_result(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
+    findings = [_finding(finding) for finding in run["findings"]]
+    violations, reviews = int(run.get("violations") or 0), int(run.get("reviews") or 0)
+    return {
+        "status": "checked",
+        "clean": violations == 0 and reviews == 0,
+        "versionId": item["id"],
+        "lineageId": run.get("lineageId") or item.get("lineageId"),
+        "versionNumber": int(run.get("versionNumber") or item.get("versionNumber") or 0),
+        "packVersion": run.get("packVersion"),
+        "contentHash": run.get("contentHash"),
+        "checkedAt": run.get("checkedAt"),
+        "violations": violations,
+        "reviews": reviews,
+        "findings": findings,
+        "lanes": run.get("lanes"),
+    }
+
+
+def papyrus_check_story_version(story: str = "", version: str = "", version_number: int = 0, wait_seconds: int = CHECK_WAIT_SECONDS) -> dict:
+    """Run the editorial checks (the publication's and the section's policies, rules and classifier lanes) on
+    one saved version of a story and return the findings. Name the version by its id (from papyrus_save_story_version
+    or papyrus_story_versions), or give the story's lineage id with a version_number (0 = the newest version).
+    The version is checked against its own section's policy pack and the result is stored with it.
+    Returns status "checked", "skipped" (editorial checks are turned off) or "pending" (no stored result within
+    wait_seconds); clean is true only when checked with no violations and nothing for review. Each finding has
+    id, rule (policy id), severity, status ("violation" or "review"), message, quote, scope and probability.
+    scope is "quote" when the finding quotes the text, and "document" when quote is empty: the finding is about the whole
+    document, so judge it against the full text instead of searching for the quote."""
+
+    from papyrus_content.editorial_commands import read_item_check_run, request_item_check
+    from papyrus_content.graphql_authoring import create_authoring_client
+    from papyrus_content.story_reporting import story_versions
+
+    client, _ = create_authoring_client()
+    if version:
+        item = client.get_record("Item", version)
+        if item is None:
+            raise ValueError(f"Story version not found: {version}")
+        if story and item.get("lineageId") != story:
+            raise ValueError(f"Version {version} is not a version of story {story}.")
+    elif story:
+        versions = story_versions(client, story)
+        if version_number:
+            versions = [row for row in versions if int(row.get("versionNumber") or 0) == version_number]
+        if not versions:
+            raise ValueError(f"Story {story} has no version {version_number}." if version_number else f"Story not found: {story}")
+        item = versions[0]
+    else:
+        raise ValueError("Give a version id, or a story lineage id (with an optional version_number).")
+
+    summary = request_item_check(item["id"], client.graphql)
+    base = {"versionId": item["id"], "lineageId": item.get("lineageId"), "versionNumber": int(item.get("versionNumber") or 0)}
+    if summary.get("skipped"):
+        return {**base, "status": "skipped", "clean": False, "reason": summary["skipped"], "findings": []}
+    deadline = time.monotonic() + max(wait_seconds, 0)
+    while True:
+        run = read_item_check_run(item["id"], client.graphql)
+        if run is not None:
+            return _check_result(item, run)
+        if time.monotonic() >= deadline:
+            return {**base, "status": "pending", "clean": False, "findings": []}
+        time.sleep(CHECK_POLL_SECONDS)

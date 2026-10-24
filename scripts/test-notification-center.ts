@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -7,7 +8,7 @@ import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import {
   answerUpdate, cyclotronAutoDecided, cyclotronHeldForReview, isDue, nextText, normalizeReviewRow, sectionReviews,
-  steeringText, subjectHref, summarize, summaryText, timeoutUpdate, type ReviewRequest,
+  steeringText, subjectHref, subjectLabel, summarize, summaryText, timeoutUpdate, type ReviewRequest,
 } from "../lib/review-requests";
 
 function text(html: string): string {
@@ -93,6 +94,13 @@ async function main() {
       loadState: "ready", requests: FIXTURE_REVIEW_REQUESTS, readIds: new Set(["rr-flag-1"]), held, autoDecided: auto, ...overrides,
     }));
   const html = render();
+  const loadingHtml = render({ loadState: "loading", requests: [], held: [], autoDecided: [] });
+  assert.match(loadingHtml, /data-notification-state="loading"/);
+  assert.match(loadingHtml, /aria-label="Loading Notification Center"/);
+  assert.doesNotMatch(text(loadingHtml), /No hard gates|Nothing unread|Nothing needs attention/);
+  const unavailableHtml = render({ loadState: "unavailable", requests: [], held: [], autoDecided: [] });
+  assert.match(unavailableHtml, /role="alert"/);
+  assert.match(text(unavailableHtml), /current request state is unknown/);
   const page = text(html);
   assert.ok(page.includes("3 waiting for you · 2 proceeding soon · 2 recently decided by the system"));
   const order = ["Waiting for you: hard gates", "Proceeding soon: soft reviews", "Cyclotron items routed to a person", "Flags: for your information", "Answered, and what became of it", "Recently decided by the system (2)"]
@@ -110,6 +118,23 @@ async function main() {
   assert.match(html, /<details data-notification-section="auto-decided">/, "the stream is collapsible");
   assert.equal((html.match(/data-review-controls/g) ?? []).length, 4, "controls only on open requests");
 
+  // A story request shows the story's title, linked, with the id as the fallback.
+  const titled = text(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }));
+  assert.ok(titled.includes("About: Board refuses registration"), "a known story shows its title");
+  assert.ok(page.includes("About: story story-ruling-1"), "an unknown story shows its id");
+  assert.match(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }), /href="\/newsroom\/articles\/story-ruling-1"[^>]*>Board refuses registration</);
+  assert.equal(subjectLabel({ type: "story", id: "s1" }, { s1: "Title" }), "Title");
+  assert.equal(subjectLabel({ type: "proposal", id: "p1" }), "proposal p1");
+
+  // The console home: the Notification Center does not scroll inside the page on a phone, and the section headings avoid the avoided word.
+  const css = readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8");
+  const frame = css.split("\n").filter((line) => line.includes(".newsroom-overview-feed-frame"));
+  assert.ok(frame.length === 2 && !frame[0].includes("height:3") && !frame[0].includes("overflow"), "no fixed height or overflow below 640px");
+  assert.ok(frame[1].includes("@media(min-width:640px)"), "a fixed scrolling frame only from 640px");
+  const overview = readFileSync(new URL("../components/newsroom-ops-overview.tsx", import.meta.url), "utf8");
+  assert.ok(!/frame[^"]*overflow-y-auto/.test(overview.match(/className="newsroom-overview-feed-frame[^"]*"/)?.[0] ?? ""), "no inline scroll class on the feed");
+  assert.ok(!/\b(Core |Rotating )?Desks\b|\b(Core|Rotating) desks\b/.test(overview), "the home has no desk heading");
+
   // Words and marks, no colour encoding, and not the avoided word.
   assert.ok(!/ style=/.test(html), "no inline style");
   assert.ok(!/\bdesk\b/i.test(page), "no avoided vocabulary");
@@ -117,7 +142,7 @@ async function main() {
   // Each state says so plainly.
   assert.ok(text(render({ loadState: "forbidden" })).includes("for editors and admins"));
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
-  assert.ok(text(render({ loadState: "loading" })).includes("Loading the Notification Center"));
+  assert.match(render({ loadState: "loading" }), /aria-label="Loading Notification Center"/);
   const empty = text(render({ requests: [], held: [], autoDecided: [] }));
   assert.ok(empty.includes("0 waiting for you · 0 proceeding soon · 0 recently decided by the system"));
   assert.ok(empty.includes("No hard gates. Nothing is blocked on you.") && empty.includes("Nothing unread"));

@@ -10,7 +10,8 @@ describes that, links to it, controls it, costs it and shows what it did.
 | Part | Today |
 |---|---|
 | `monitor` triggers | Live, because the monitoring router already runs them. The router's `procedureTriggers` entry still says what starts and with what input; the record mirrors it and now governs it (below). |
-| `schedule`, `event`, `manual` triggers | Stored, and shown as "not yet supported". Nothing starts them. |
+| `event` trigger "story enters a stage" | **Live from the command line and the runner** (below, "Story-state triggers"). |
+| `schedule`, `manual` triggers, other `event` kinds | Stored, and shown as "not yet supported". Nothing starts them. |
 | `enabled` | **Real for monitor automations.** The router reads the record before each start. A disabled automation starts nothing, and the trigger row says `skipped` with the reason "automation disabled". |
 | `limits.timeoutSeconds` | **Enforced.** It goes to the runner with the request and becomes the procedure's deadline, capped at 840 s (the runner Lambda's 15 minutes less its recording margin). |
 | `limits.maxConcurrent` | **Optional; unset means no limit, as before.** When set, a new start at the limit is **deferred**, not dropped: the trigger row says `deferred` with the reason ("deferred: concurrency limit: 1 running, at most 1 at a time") and the router starts it on a later run when there is room. |
@@ -58,6 +59,79 @@ How a deferred item is retried:
   did not mean a limit, clear it.
 * Run now never writes a row when it is refused at the limit; it tells the person at once.
 
+## Story-state triggers
+
+A bot acts when a story moves between stages (PPY-f0914799). Human input is never a stage: wherever a person is wanted, the
+engine raises a [review request](review-requests.md). The code is `src/papyrus_content/story_triggers.py`; the behaviour is
+specified in `features_backend/story-state-triggers.feature`.
+
+The example chain is `reporting` then `distinctive.ruling.fact-check`, then `copywriting`, then `distinctive.ruling.copy-edit`,
+then `typesetting`, where no bot waits:
+
+```bash
+papyrus automations create --id distinctive.ruling.fact-check --title "Fact-check a ruling story" \
+  --on-stage reporting --next-stage copywriting --monitor ttab --publication distinctive \
+  --procedure distinctive.ruling.fact-check --input '{"tone":"plain"}' --max-hops 5
+papyrus automations create --id distinctive.ruling.copy-edit --title "Copy-edit a ruling story" \
+  --on-stage copywriting --next-stage typesetting --monitor ttab --publication distinctive \
+  --procedure distinctive.ruling.copy-edit
+```
+
+The stored record is an `event` automation, `trigger.config` = `{"event": "story.stage_entered", "onStage", "nextStage",
+"monitorId", "publicationId"}`; `limits.maxHops` is the hop limit. `monitorId` names the monitoring-table partition that holds
+the run rows, and `publicationId` the router publication that supplies the site's endpoint and model key (the same two things a
+monitor automation names). No schema change: the three fields are read back as `onStage`, `nextStage` and `maxHops`.
+
+**Contract with the procedure.**
+
+* Input: the record's static `inputTemplate` (no placeholders) merged under `{story, version, versionNumber, stage, runKey,
+  automationId, hop}`, which win. `version` is the id of the version that entered the stage; `hop` counts the bot runs on this
+  story so far, including this one.
+* Output: `{"version": <new version id>}`, optionally `{"hold": true, "reason": "..."}`.
+* The engine, not the procedure, moves the stage. After a run that completed with a new version and no hold, the runner moves the
+  story to `nextStage` as `automation:<id>` (the trail note and the move), labels the new version `metadata.botAction`, and delivers
+  the next stage's triggers, which is how the chain continues. With no `nextStage` the story stays. If the story was moved by
+  someone else while the bot ran, it is not moved again.
+* The move is recorded twice. The trail gets a note (`Stage: a -> b (moved to b by automation:<id> (no changes))`, or
+  `(new version vN)`), and the version keeps `metadata.stageMoves` (time, from, to, by, reason; the last 20), because the
+  stage changes in place and would otherwise leave no actor or reason on the version. `papyrus stories show` lists them.
+* A bot that finds nothing to change returns the version it received (`{"version": <entering version>, "hold": false}`). That is
+  success: the story advances, the trail says "no changes", no version is labelled. Extra output keys (corrections, unverifiable,
+  remaining_findings) are not interpreted and are stored with the run record, which keeps the whole output.
+* A failed or timed-out run, a hold, or a run that returns no version leaves the story where it is and raises a **flag** review
+  request carrying the error or the reason.
+
+**When it fires.** A story enters a stage by `papyrus stories move`, `stories save-version --stage/--advance`, `stories create`
+(the story has entered its stage), or the engine's own move. These deliver the stage's triggers after the change, best effort: a
+missing monitoring table or AWS credentials prints `not delivered` and never undoes the change. A move made on the console board
+writes the Item directly and fires nothing yet; run `papyrus stories fire-triggers --story <lineage>` (safe to repeat).
+
+A procedure that creates or moves a story through a Tactus tool (`papyrus_create_story`, `papyrus_save_story_version`) fires nothing
+at that moment. Instead the procedure runner, when any run completes and its output names a story (`{"story": "<lineage id>"}`),
+delivers that story's current-stage triggers after recording the run (`story_triggers.deliver_after_run`). It is the same idempotent
+delivery, so a story already delivered starts nothing twice; a stage-entry run's own story is left to the engine's advance; a
+failed run or a delivery error is logged and never changes the recorded run.
+
+**One run per story, stage and version.** The claim is a conditional put of `STAGE#<automation>#<story>#<stage>#<version>` in the
+monitor's partition (`attribute_not_exists`); a second delivery finds it and starts nothing. The same row is the one the runner
+updates with the run id and outcome. `enabled` and `maxConcurrent` apply as for any automation; a start at the limit is
+reported `deferred` and starts when the triggers are delivered again.
+
+**Hop limit.** `Item.metadata.botChain.hops` counts the bot runs started on the story; the default limit is 5, overridden by the
+record's `maxHops`. At the limit nothing starts, the story stays where it is, and a **hard-gate** review request "bot hop limit
+reached" is raised once. Raise `maxHops` on the automation to let the bots continue.
+
+**Deployment needs.** `infra/procedures/papyrus-procedure-runner.yaml` now grants the runner's role what story-state triggers use:
+`dynamodb:PutItem`, `GetItem` and `Query` on the monitoring table (leading keys `MONITOR#*`; the conditional put of the `STAGE#` claim,
+the `startFailed` rewrite, the router-config read and the `STAGE#` prefix query; `UpdateItem` on the run rows was already there), and
+`lambda:InvokeFunction` on `papyrus-procedure-runner` itself, to start the next stage. The existing `appsync:GraphQL` grant on every
+Query and Mutation field of the Distinctive API already covers `listAutomations`, `getAutomation`, the Item fields, Messages and
+review-request mutations; no other API is needed. What remains is the operator's: rebuild the image (`infra/procedures/build_image.sh`)
+and update the `papyrus-procedure-runner` stack with the new `ImageUri` (see docs/procedure-runner.md, "Deploying").
+
+**Not built yet:** the per-story budget cap from recorded cost (`botChain.costUsd` is reserved), a group lock, firing from the
+console board, and a sweeper that retries `deferred` starts without a new delivery.
+
 ## Cost
 
 `procedure_runner_child` reports the model usage of each call (agent, model, prompt, completion and cached tokens)
@@ -79,7 +153,15 @@ A site backend that predates the two new fields refuses them. The runner then re
 (its outcome is never lost), and the history shows the cost as not recorded. Deploy the site backend before the
 runner image to get costs.
 
-`papyrus automations runs` prints each run's cost and flags `OVER BUDGET`; the console shows it beside each run.
+`papyrus automations runs` prints each run's cost and flags `OVER BUDGET`; the console shows it beside each run. The last line
+reads `$X total across N runs with a recorded cost (N of K listed runs; an estimate)`.
+
+### Tools used
+
+The runner also stores which tools the procedure called, by name and count (never arguments or results), as `usage.toolsUsed`
+on the run, so an editor can check that a fact-check really read the opinion (`papyrus_fetch_pdf_text x2`). A run with tools
+but no model call stores only `toolsUsed` (no cost). `automations runs` prints `tools: name xN, ...` or `tools: none recorded`
+(a run from before this was recorded, or one that called no tool); the console shows the same line.
 
 ## Run now
 
@@ -153,6 +235,11 @@ Details worth knowing:
   A run that has only just been started shows as "Started" with no run record yet.
 * Items that already had a Reference are never started (`notTriggered`). They are counted, not listed. A `skipped` or
   `deferred` start is listed, with its reason.
+* A story-stage automation lists the runs its stage entries started, from the `STAGE#<automationId>#...` claim rows (origin
+  `stage`, shown as "story entered <stage>"). The row names the story, so a run whose record has not been written yet still
+  shows its story.
+* A run whose story no longer exists (no version of its lineage remains) shows "(story deleted)" instead of a link
+  (`storyExists: false`).
 * A row whose run record cannot be found, or read, says so on that row; the rest of the history still reads.
 * A site's console reads only its own publication's rows: the router must list the automation's publication
   with this site's endpoint. The runner's stored request (endpoints, key parameter) is never returned.

@@ -26,8 +26,8 @@ Operating manual for any coding agent (Codex, Cursor, Claude Code) or person wor
 | Shared relevance Cyclotron | `src/papyrus_content/relevance_cyclotron.py`, `pyproject.toml` group `cyclotron` | [Cyclotron](docs/cyclotron-priming.md), [steering and relevance](docs/steering-and-relevance.md) |
 | Procedure runner and Tactus procedures | `infra/procedures/`, `procedures/newsroom/`, `papyrus procedures` | [procedure runner](docs/procedure-runner.md), [newsroom procedures runbook](docs/newsroom-procedures-runbook.md) |
 | Knowledge run (local and cloud), weekly archive, projection lease | `infra/scheduled-jobs/`, `infra/knowledge-run/`, `amplify/publication/projection-lease.ts`, `papyrus knowledge` | [workstation run](docs/knowledge-workstation-run.md), [cloud run](docs/knowledge-cloud-run.md), [knowledge snapshot](docs/knowledge-snapshot.md), [lease](docs/site-hosting.md#projection-lease-one-projection-at-a-time) |
-| Automations | `src/papyrus_content/automations.py`, `amplify/functions/automation-view`, `papyrus automations` | [automations](docs/automations.md) |
-| Idea pipeline v0 | `src/papyrus_content/ideas/`, `papyrus ideas` | [idea pipeline](docs/idea-pipeline.md) |
+| Automations (including story-state triggers) | `src/papyrus_content/automations.py`, `src/papyrus_content/story_triggers.py`, `amplify/functions/automation-view`, `papyrus automations`, `papyrus stories fire-triggers` | [automations](docs/automations.md) |
+| Idea pipeline v0, trend stories | `src/papyrus_content/ideas/` (`trends.py`), `papyrus ideas digest\|synthesize\|trends` | [idea pipeline](docs/idea-pipeline.md) |
 | Review requests and the Notification Center (console home) | `src/papyrus_content/review_requests.py`, `components/notification-center.tsx`, `lib/review-requests.ts`, `papyrus reviews`. Merged to `develop` (#642); live on a site after its data API deploys | [notification center](docs/notification-center.md), [review requests](docs/review-requests.md) |
 | GA4 and consent | `src/papyrus_content/markus_renderer/consent.py`, `analytics_events.py` | [site hosting: Analytics](docs/site-hosting.md#analytics-google-analytics-4) |
 | Pretext layout solver and reader | `lib/`, `renderers/`, `features/` | [layout system](docs/layout-system.md), [solver and data contracts](docs/solver-and-data-contracts.md) |
@@ -149,7 +149,7 @@ papyrus automations run --id <site>.<name> --input '{...}' --dry-run
 papyrus automations runs --id <site>.<name> --limit 20
 ```
 
-`create`, `update` and `run` need `papyrus login` (editor or admin) or `PAPYRUS_GRAPHQL_AUTH=iam`. Only monitor triggers start anything today ([automations](docs/automations.md)).
+`create`, `update` and `run` need `papyrus login` (editor or admin) or `PAPYRUS_GRAPHQL_AUTH=iam`. Monitor triggers and "story enters a stage" event triggers (`--on-stage S --next-stage T`) start anything today ([automations](docs/automations.md)).
 
 ### Add a site to the Hacker News routing
 

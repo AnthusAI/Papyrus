@@ -26,7 +26,7 @@ still run.
 
 | Model | Who | What |
 |---|---|---|
-| `EditorialPolicy` | editors read, admins manage | One policy: key, scope (`publication` or a desk key), version, title, guidance, severity (`info`/`warn`/`error`), enabled, detectors (Humanus `policy-pack-v1` detectors), examples, rewrite guidance, source (`custom` or `starter:<pack>`). A desk policy replaces the publication policy with the same key for that desk's articles. |
+| `EditorialPolicy` | editors read, admins manage | One policy: key, scope (`publication` or a section key), version, title, guidance, severity (`info`/`warn`/`error`), enabled, detectors (Humanus `policy-pack-v1` detectors), examples, rewrite guidance, source (`custom` or `starter:<pack>`). A section policy replaces the publication policy with the same key for that section's articles. |
 | `EditorialCheckSettings` | editors read, admins manage | One row, id `settings`: `enabled` (default true), lanes, decision and rewrite models, the judgment-check deadline (default 20 s, inside AppSync's 30 s), token budget, examples per question, house guidance, check while typing, publish warning. |
 | `EditorialFeedback` | editors create and read, admins manage | An editor's decision on a finding (`accepted`, `fixed`, `dismissed`, optional reason). Judgment decisions keep the sentence's text so later checks can use it as an example; `recalibrateEditorialPolicies` turns them into per-detector calibration. |
 

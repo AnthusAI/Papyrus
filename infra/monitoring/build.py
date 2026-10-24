@@ -3,6 +3,7 @@
 
   python3 infra/monitoring/build.py                         # collector zip: print SHA256 and S3 key
   python3 infra/monitoring/build.py --router                # router zip (package closure, YAML data, pure-Python PyYAML)
+  python3 infra/monitoring/build.py --email                 # strict SES submission receiver
   python3 infra/monitoring/build.py --router --upload BUCKET  # also upload (needs AWS_PROFILE; asserts the account)
 
 Each zip holds only the modules its Lambda imports. The collector zip is unchanged by the
@@ -23,6 +24,7 @@ MODULES = ("__init__.py", "monitoring.py", "monitoring_cloud.py")
 ACCOUNT = "712236451410"
 OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring.zip"
 ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-router.zip"
+EMAIL_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-email-submissions.zip"
 PACKAGE = ROOT / "src" / "papyrus_content"
 ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http")
 # Imported lazily on paths the router never runs; they need packages the Lambda does not have.
@@ -41,9 +43,9 @@ def build(out: Path = OUT) -> str:
     return hashlib.sha256(out.read_bytes()).hexdigest()
 
 
-def router_modules() -> list[str]:
-    """Transitive closure of in-package imports (module level and lazy) from the router roots."""
-    seen, stack = set(), list(ROUTER_ROOTS)
+def package_modules(roots) -> list[str]:
+    """Transitive closure of in-package imports (module level and lazy)."""
+    seen, stack = set(), list(roots)
     while stack:
         name = stack.pop()
         if name in seen or name in ROUTER_EXCLUDED:
@@ -55,6 +57,10 @@ def router_modules() -> list[str]:
     return sorted(seen)
 
 
+def router_modules() -> list[str]:
+    return package_modules(ROUTER_ROOTS)
+
+
 def _add(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
     info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
     info.external_attr = 0o644 << 16
@@ -62,8 +68,8 @@ def _add(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
     archive.writestr(info, data)
 
 
-def build_router(out: Path = ROUTER_OUT) -> str:
-    """Router zip: package modules, the two YAML data files they read, and pure-Python PyYAML.
+def build_package(out: Path, roots) -> str:
+    """Worker zip: package modules, the two YAML data files they read, and pure-Python PyYAML.
 
     The Lambda runtime has boto3/botocore only. PyYAML is copied without its C extension, so it
     runs in its pure-Python mode on arm64. PAPYRUS_ROOT=/var/task makes `corpora/` resolve.
@@ -71,7 +77,7 @@ def build_router(out: Path = ROUTER_OUT) -> str:
     import yaml
 
     out.parent.mkdir(parents=True, exist_ok=True)
-    entries = {f"papyrus_content/{name}.py": (PACKAGE / f"{name}.py").read_bytes() for name in router_modules()}
+    entries = {f"papyrus_content/{name}.py": (PACKAGE / f"{name}.py").read_bytes() for name in package_modules(roots)}
     entries["papyrus_content/__init__.py"] = (PACKAGE / "__init__.py").read_bytes()
     for relative in ROUTER_DATA:
         entries[relative] = (ROOT / relative).read_bytes()
@@ -83,13 +89,25 @@ def build_router(out: Path = ROUTER_OUT) -> str:
     return hashlib.sha256(out.read_bytes()).hexdigest()
 
 
+def build_router(out: Path = ROUTER_OUT) -> str:
+    return build_package(out, ROUTER_ROOTS)
+
+
+def build_email(out: Path = EMAIL_OUT) -> str:
+    return build_package(out, ("email_submission_intake",))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--upload", metavar="BUCKET")
-    parser.add_argument("--router", action="store_true", help="build the router zip instead of the collector zip")
+    worker = parser.add_mutually_exclusive_group()
+    worker.add_argument("--router", action="store_true", help="build the router zip instead of the collector zip")
+    worker.add_argument("--email", action="store_true", help="build the strict email submission receiver zip")
     args = parser.parse_args()
-    digest, out = (build_router(), ROUTER_OUT) if args.router else (build(), OUT)
-    key = f"papyrus-monitoring/{'router-' if args.router else ''}{digest}.zip"
+    digest, out = ((build_email(), EMAIL_OUT) if args.email else
+                   (build_router(), ROUTER_OUT) if args.router else (build(), OUT))
+    prefix = "email-" if args.email else "router-" if args.router else ""
+    key = f"papyrus-monitoring/{prefix}{digest}.zip"
     print(f"SHA256 {digest}\nCodeKey {key}\nSize {out.stat().st_size} bytes")
     if args.upload:
         account = subprocess.run(["aws", "sts", "get-caller-identity", "--query", "Account", "--output", "text"],

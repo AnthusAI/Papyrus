@@ -166,7 +166,7 @@ export type PapyrusSiteBackendConfig = {
   /**
    * SES receipt options for a site that is not the legacy p.apyr.us backend.
    * By default the site gets its own brand-named rule set that is never
-   * activated by CloudFormation (SES allows one active rule set per region).
+   * activated by CloudFormation (SES allows one active rule set per account/region).
    */
   inboundEmailSes?: {
     /** Add this site's rule to a rule set another stack owns instead of creating one. */

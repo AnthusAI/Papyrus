@@ -667,14 +667,14 @@ export function NewsDeskWorkspace({
         editorShellReady
         initialSelection={initialSelection}
         initialTab={initialTab}
-        authState={{ status: "signedIn", label: "Demo Desk" }}
+        authState={{ status: "signedIn", label: "Demo section" }}
         isRefreshing={false}
         shellError={null}
       />
     );
   }
 
-  if (session && sessionDashboard) {
+  if (session && sessionDashboard && session.shell.phase !== "loadingDesk") {
     return (
       <NewsDeskDashboard
         analysisProfiles={analysisProfiles}
@@ -3081,7 +3081,6 @@ function NewsDeskDashboard({
             decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            messages={messages}
             newsroomSections={newsroomSections}
             references={references}
           />
@@ -3904,7 +3903,7 @@ function NewsroomSectionRail({
     <aside className="newsroom-section-rail" data-newsroom-section-rail aria-labelledby="newsroom-section-rail-title" ref={railRef}>
       <header className="newsroom-section-rail__header">
         <p className="story-label">Sections</p>
-        <h2 id="newsroom-section-rail-title">Section Desk</h2>
+        <h2 id="newsroom-section-rail-title">Section</h2>
       </header>
       <div className="newsroom-section-rail__body">
         {canonicalSections.length ? (
@@ -5744,7 +5743,7 @@ function DesksDeskView({
     <div className="news-desk-columns news-desk-columns--administration news-desk-columns--taxonomy" data-news-desk-section="desks">
       <div className="news-desk-main-column">
         <section className="category-steering-section category-steering-section--lead" aria-labelledby="newsroom-desks-title">
-          <SectionHeader title="News Desks" detail={`${roots.length} root topic desks`} />
+          <SectionHeader title="News sections" detail={`${roots.length} root topic sections`} />
           <div className="news-desk-desk-list">
             {roots.length ? roots.map((root) => {
               const rootNode = root.node ?? categoryToCategoryTreeNode(root.category);
@@ -5764,11 +5763,11 @@ function DesksDeskView({
                 >
                   <span>{rootNode.shortTitle ?? deriveShortTitle(rootNode.displayName)}</span>
                   <strong>{rootNode.displayName}</strong>
-                  <p>{rootNode.description ?? "No desk description yet."}</p>
+                  <p>{rootNode.description ?? "No section description yet."}</p>
                   <small>{referenceCount} refs / {assignmentCount} assignments / {root.subcategorys.length} subtopics / {doctrineStatus.savedCount} of 2 doctrine slots</small>
                 </Link>
               );
-            }) : <EmptyRow label="No root topic desks are available in the canonical category set" />}
+            }) : <EmptyRow label="No root topic sections are available in the canonical category set" />}
           </div>
         </section>
 
@@ -5789,18 +5788,18 @@ function DesksDeskView({
 
       <aside className="news-desk-rail-column">
         <section className="category-steering-section" aria-labelledby="desk-index-notes-title">
-          <SectionHeader title="Desk Rules" detail="Root topics only" />
+          <SectionHeader title="Section rules" detail="Root topics only" />
           <div className="news-desk-ledger-list">
             <article className="news-desk-ledger-item">
               <header>
-                <strong>Desk Identity</strong>
+                <strong>Section identity</strong>
                 <span>Category</span>
               </header>
               <p>Official name, short title, subtitle, and description stay on the accepted root Category record.</p>
             </article>
             <article className="news-desk-ledger-item">
               <header>
-                <strong>Desk Doctrine</strong>
+                <strong>Section doctrine</strong>
                 <span>Private Item</span>
               </header>
               <p>Mission and policies are private doctrine Items tied to the root category lineage.</p>
@@ -5850,7 +5849,7 @@ function DeskDetailPanel({
     <section className="category-steering-section news-desk-desk-detail" aria-labelledby="selected-desk-title">
       <header className="news-desk-topic-detail__header">
         <div>
-          <p className="story-label">News Desk</p>
+          <p className="story-label">News section</p>
           <h3 id="selected-desk-title">{rootNode.displayName}</h3>
           <span>{rootNode.shortTitle ?? deriveShortTitle(rootNode.displayName)}</span>
         </div>
@@ -5933,7 +5932,7 @@ function CategoryDoctrineEditorCard({
     <article className="news-desk-doctrine-card" data-news-desk-doctrine={definition.slug}>
       <header className="news-desk-doctrine-card__header">
         <div>
-          <p className="story-label">Desk Doctrine</p>
+          <p className="story-label">Section doctrine</p>
           <h3>{definition.label}</h3>
         </div>
         <span>{record ? "Saved record" : "Empty slot"}</span>
@@ -12298,7 +12297,7 @@ function AssignmentRow({
             {context ? (
               <>
                 <p className="news-desk-assignment-row__angle">
-                  <span>{context.deskTitle ?? context.deskKey ?? "Desk"}</span>
+                  <span>{context.deskTitle ?? context.deskKey ?? "Section"}</span>
                   {`${context.focusTitle ?? context.focusKey ?? "focus"} / ${context.targetSystemType ?? context.contextProfile ?? "context"}`}
                 </p>
                 {context.contextProfile || context.contextTokenBudget ? (
@@ -12413,7 +12412,7 @@ function normalizeAnalysisReindexMode(value: string | null | undefined): Analysi
 function formatAnalysisReindexModeLabel(mode: AnalysisReindexMode): string {
   if (mode === "online-update") return "Online update - new or changed accepted references";
   if (mode === "classifier-retrain") return "Classifier retrain - rebuild topic classifier";
-  if (mode === "scoped-topic-rebuild") return "Scoped topic rebuild - one desk or focus";
+  if (mode === "scoped-topic-rebuild") return "Scoped topic rebuild - one section or focus";
   if (mode === "entity-graph-rebuild") return "Entity graph rebuild - generated graph outputs";
   return "Generated analysis rebuild - clear and rebuild targeted generated outputs";
 }
@@ -12443,7 +12442,7 @@ function mergeAnalysisCorpora(configuredCorpora: CategorySteeringCorpus[], liveC
 function analysisReindexModeHelp(mode: AnalysisReindexMode): string {
   if (mode === "generated-analysis-rebuild") return "Use this for a full generated-output rebuild for the selected profile. It still creates an assignment only; the worker/operator executes it later.";
   if (mode === "classifier-retrain") return "Use this when authoritative labels or accepted references should retrain the semi-supervised topic classifier.";
-  if (mode === "scoped-topic-rebuild") return "Use this when proposals for a desk or focus topic should be regenerated from the accepted taxonomy plus steering feedback.";
+  if (mode === "scoped-topic-rebuild") return "Use this when proposals for a section or focus topic should be regenerated from the accepted taxonomy plus steering feedback.";
   if (mode === "entity-graph-rebuild") return "Use this when generated ontology/entity graph records should be rebuilt from accepted references.";
   return "Use this for incremental processing of new or changed accepted references without clearing broader generated outputs.";
 }
@@ -13093,7 +13092,7 @@ function formatDeskSectionHeadline(section: NewsDeskTab): string {
 
 function formatDeskSectionLede(section: NewsDeskTab): string {
   if (section === "search") return "Search the newsroom knowledge base with semantic and ontology context.";
-  if (section === "desks") return "The desks and topic categories that organize coverage, with each desk's mission and policies.";
+  if (section === "desks") return "The sections and topic categories that organize coverage, with each section's mission and policies.";
   if (section === "topics") return "Review suggested changes to the subject areas the newsroom covers.";
   if (section === "concepts") return "Browse people, organizations, places, and ideas found in the source material.";
   if (section === "references") return "Review source materials before they become usable evidence.";

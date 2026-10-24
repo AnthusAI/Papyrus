@@ -20,6 +20,16 @@ def test_move_updates_the_item_stage_and_records_it_in_the_trail():
     assert "reporting -> copywriting" in message["summary"] and "draft is ready" in message["summary"]
 
 
+def test_move_keeps_who_when_and_why_on_the_version_and_keeps_its_other_metadata():
+    client = client_with_one_story()
+    move_story_stage(client, LINEAGE, "copywriting", actor="agent", reason="draft is ready", now=NOW)
+    move_story_stage(client, LINEAGE, "typesetting", actor="other", now=NOW)
+    metadata = json.loads(client.tables["Item"][LINEAGE]["metadata"])
+    assert metadata["frontMatterYaml"]
+    assert [(m["from"], m["to"], m["by"], m["reason"]) for m in metadata["stageMoves"]] == [
+        ("reporting", "copywriting", "agent", "draft is ready"), ("copywriting", "typesetting", "other", None)]
+
+
 def test_move_to_the_same_stage_changes_nothing():
     client = client_with_one_story()
     assert move_story_stage(client, LINEAGE, "reporting", actor="agent")["changed"] is False

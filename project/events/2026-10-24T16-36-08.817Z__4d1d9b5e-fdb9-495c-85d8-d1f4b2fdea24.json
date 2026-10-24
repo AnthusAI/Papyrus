@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "4d1d9b5e-fdb9-495c-85d8-d1f4b2fdea24",
+  "issue_id": "PPY-bb05a367-08fa-4963-90b0-0bbc641ff91a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-24T16:36:08.817Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Operator identity can file AI proposals (S)",
+    "description": "An IAM operator role of the site's own account can file AI proposals (fileProposal) and move a draft to in_steering or declined (transitionProposal), recorded as operator:<ARN> in the history. IAM can never approve, review-decide or override; identity-pool users and other accounts are refused. CLI (papyrus proposals create|transition|publish with PAPYRUS_GRAPHQL_AUTH=iam) and the idea pipeline --store proposals use it. Unblocks PPY-8ffc18, scheduled automations and Shipped's first proposal. Docs: reader-steering.md Operator filing, idea-pipeline.md.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+    "labels": []
+  }
+}

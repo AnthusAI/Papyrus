@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "d7bf928f-a106-4529-8249-77ac776573aa",
+  "issue_id": "PPY-afcf2ae6-a481-4af8-8c29-1aed2d9a1742",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T17:57:13.960Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stabilize newsroom console loading and access UX",
+    "description": "Avoid repeated credential-check interstitials while preserving authorization; show shaped loading skeletons until overview data resolves; prevent overview layout shifts. Cover loading, failures, sessions, responsive and reduced motion.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol"
+    }
+  }
+}

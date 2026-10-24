@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { App, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { AttributeType, Table } from "aws-cdk-lib/aws-dynamodb";
@@ -173,7 +175,7 @@ assert.deepEqual(
   "the schema defines exactly the manifest's models and mutations, plus the receipt types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal"]);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal", "editProposal"]);
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -394,7 +396,7 @@ assert.match(mutation, /@function/);
 assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(mutation), false, `moderateReader is open to groups only: ${mutation}`);
 assert.match(mutation, /groups: \["editor"\]/);
 assert.match(mutation, /groups: \["admin"\]/);
-for (const name of ["fileProposal", "transitionProposal"]) {
+for (const name of ["fileProposal", "transitionProposal", "editProposal"]) {
   const start = transformed.indexOf(`${name}(`);
   assert.ok(start > 0, `${name} is in the deployed schema`);
   const proposalMutation = transformed.slice(start, start + 400).split("\n\n")[0];
@@ -403,4 +405,14 @@ for (const name of ["fileProposal", "transitionProposal"]) {
   assert.match(proposalMutation, /groups: \["editor"\]/);
   assert.match(proposalMutation, /groups: \["admin"\]/);
 }
+
+// The operator (IAM) path lives in the function, not in the schema: no IAM rule is declared above, and the function
+// admits an operator only for filing and for draft -> in_steering / declined, in its own account.
+const proposalRules = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/proposals.py"), "utf8");
+assert.match(proposalRules, /OPERATOR_TRANSITIONS = frozenset\(\{\(DRAFT, IN_STEERING\), \(DRAFT, DECLINED\)\}\)/, "an operator may only send a draft to steering or decline it");
+assert.match(proposalRules, /if staff is None:\n\s+return refused\("operator_not_allowed"/, "an operator is refused every editProposal action");
+assert.match(proposalRules, /parts\[4\] != account_id/, "an operator must belong to the function's own account");
+assert.match(proposalRules, /"cognitoIdentityId"/, "an identity-pool user is not an operator");
+const readerHandler = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/handler.py"), "utf8");
+assert.match(readerHandler, /account_id=function_account\(_context\)/, "the account comes from the function's own ARN");
 console.log("reader steering schema ok");
