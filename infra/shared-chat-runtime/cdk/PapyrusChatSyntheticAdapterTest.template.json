@@ -314,7 +314,7 @@
   "TurnRuns2149914B": {
    "Type": "AWS::SQS::Queue",
    "Properties": {
-    "MessageRetentionPeriod": 345600,
+    "MessageRetentionPeriod": 1209600,
     "RedrivePolicy": {
      "deadLetterTargetArn": {
       "Fn::GetAtt": [
@@ -366,7 +366,7 @@
   "TurnProbes3E4AFDA6": {
    "Type": "AWS::SQS::Queue",
    "Properties": {
-    "MessageRetentionPeriod": 345600,
+    "MessageRetentionPeriod": 1209600,
     "RedrivePolicy": {
      "deadLetterTargetArn": {
       "Fn::GetAtt": [
@@ -486,7 +486,10 @@
        ]
       },
       {
-       "Action": "s3:GetObject",
+       "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+       ],
        "Effect": "Allow",
        "Resource": {
         "Fn::Join": [
@@ -498,7 +501,7 @@
             "Arn"
            ]
           },
-          "/conversations/*"
+          "/conversations/synthetic-adapter-tests/*"
          ]
         ]
        }
@@ -520,6 +523,41 @@
          ]
         }
        ]
+      },
+      {
+       "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:ChangeMessageVisibility",
+        "sqs:GetQueueAttributes"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnRuns2149914B",
+         "Arn"
+        ]
+       }
+      },
+      {
+       "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "SyntheticAdapterTestLogs22E1D3B4",
+            "Arn"
+           ]
+          },
+          ":*"
+         ]
+        ]
+       }
       }
      ],
      "Version": "2012-10-17"
@@ -531,6 +569,71 @@
      }
     ]
    }
+  },
+  "SyntheticAdapterTestLogs22E1D3B4": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": "/aws/lambda/papyrus-chat-synthetic-adapter-test",
+    "RetentionInDays": 7
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain"
+  },
+  "SyntheticAdapterTestB3162B88": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "d9b5b2d12b923acb8fbb1082f627403a69e2ab3061b55c567731b21fec0adf8b.zip"
+    },
+    "Description": "Manually invoked synthetic-only adapter assertions; no model calls or production site access.",
+    "Environment": {
+     "Variables": {
+      "PAPYRUS_CHAT_MESSAGING_TABLE": {
+       "Ref": "PrivateMessagingAEAE53CD"
+      },
+      "PAPYRUS_CHAT_CONVERSATIONS_TABLE": {
+       "Ref": "PrivateConversationIndex81B3261A"
+      },
+      "PAPYRUS_CHAT_SESSION_BUCKET": {
+       "Ref": "PrivateSessionObjects8FA7D9DB"
+      },
+      "PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL": {
+       "Ref": "TurnRuns2149914B"
+      },
+      "PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL": {
+       "Ref": "TurnProbes3E4AFDA6"
+      },
+      "PAPYRUS_CHAT_PRIVATE_BOT_ID": {
+       "Ref": "PrivateAssistantBotId"
+      },
+      "PAPYRUS_CHAT_PRIVATE_BOT_NAME": {
+       "Ref": "PrivateAssistantBotName"
+      }
+     }
+    },
+    "Handler": "synthetic-adapter-test.handler",
+    "LoggingConfig": {
+     "LogGroup": {
+      "Ref": "SyntheticAdapterTestLogs22E1D3B4"
+     }
+    },
+    "MemorySize": 512,
+    "Role": {
+     "Fn::GetAtt": [
+      "SyntheticAdapterGatewayRole3BA84762",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 60
+   },
+   "DependsOn": [
+    "SyntheticAdapterGatewayRoleDefaultPolicy905115BF",
+    "SyntheticAdapterGatewayRole3BA84762"
+   ]
   }
  },
  "Outputs": {
@@ -618,6 +721,14 @@
      "Arn"
     ]
    }
+  },
+  "SyntheticAdapterTestFunctionName": {
+   "Value": {
+    "Ref": "SyntheticAdapterTestB3162B88"
+   }
+  },
+  "SyntheticAdapterInvocation": {
+   "Value": "Explicit Lambda Invoke only; no event source or schedule"
   }
  },
  "Rules": {

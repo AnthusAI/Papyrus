@@ -7,7 +7,7 @@ const dependencyRoot = process.env.PAPYRUS_CHAT_CANDIDATE_DEPS || papyrusRoot;
 const requireDependencies = createRequire(path.resolve(dependencyRoot, "package.json"));
 const mode = process.env.PAPYRUS_CHAT_CANDIDATE_MODE || "runtime";
 if (!["runtime", "synthetic"].includes(mode)) throw new Error("PAPYRUS_CHAT_CANDIDATE_MODE must be runtime or synthetic");
-const esbuild = mode === "runtime" ? requireDependencies("esbuild") : null;
+const esbuild = requireDependencies("esbuild");
 const cdk = requireDependencies("aws-cdk-lib");
 const dynamodb = requireDependencies("aws-cdk-lib/aws-dynamodb");
 const iam = requireDependencies("aws-cdk-lib/aws-iam");
@@ -18,24 +18,21 @@ const s3 = requireDependencies("aws-cdk-lib/aws-s3");
 const sqs = requireDependencies("aws-cdk-lib/aws-sqs");
 
 const lambdaAssetDirectory = "/tmp/papyrus-chat-candidate-lambda";
-if (mode === "runtime") {
-  await esbuild.build({
-    absWorkingDir: papyrusRoot,
-    entryPoints: [
-      "infra/shared-chat-runtime/lambda/run-worker.ts",
-      "infra/shared-chat-runtime/lambda/probe-worker.ts",
-    ],
-    outdir: lambdaAssetDirectory,
-    bundle: true,
-    packages: "bundle",
-    platform: "node",
-    format: "cjs",
-    target: "node22",
-    alias: {
-      "chatticus/chat-runtime": requireDependencies.resolve("chatticus/chat-runtime"),
-    },
-  });
-}
+await esbuild.build({
+  absWorkingDir: papyrusRoot,
+  entryPoints: mode === "runtime"
+    ? ["infra/shared-chat-runtime/lambda/run-worker.ts", "infra/shared-chat-runtime/lambda/probe-worker.ts"]
+    : ["infra/shared-chat-runtime/lambda/synthetic-adapter-test.ts"],
+  outdir: lambdaAssetDirectory,
+  bundle: true,
+  packages: "bundle",
+  platform: "node",
+  format: "cjs",
+  target: "node22",
+  alias: {
+    "chatticus/chat-runtime": requireDependencies.resolve("chatticus/chat-runtime"),
+  },
+});
 
 class PapyrusChatDataCandidate extends cdk.Stack {
   constructor(scope, id, props) {
@@ -109,14 +106,14 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     });
     const runs = new sqs.Queue(this, "TurnRuns", {
       visibilityTimeout: cdk.Duration.seconds(1800),
-      retentionPeriod: cdk.Duration.days(4),
+      retentionPeriod: cdk.Duration.days(syntheticMode ? 14 : 4),
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       enforceSSL: true,
       deadLetterQueue: { queue: runDlq, maxReceiveCount: 5 },
     });
     const probes = new sqs.Queue(this, "TurnProbes", {
       visibilityTimeout: cdk.Duration.minutes(2),
-      retentionPeriod: cdk.Duration.days(4),
+      retentionPeriod: cdk.Duration.days(syntheticMode ? 14 : 4),
       encryption: sqs.QueueEncryption.SQS_MANAGED,
       enforceSSL: true,
       deadLetterQueue: { queue: probeDlq, maxReceiveCount: 5 },
@@ -137,12 +134,17 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       resources: [conversations.tableArn, `${conversations.tableArn}/index/*`],
     }));
     gateway.addToPolicy(new iam.PolicyStatement({
-      actions: ["s3:GetObject"],
-      resources: [objects.arnForObjects("conversations/*")],
+      actions: syntheticMode ? ["s3:GetObject", "s3:PutObject"] : ["s3:GetObject"],
+      resources: [objects.arnForObjects(syntheticMode ? "conversations/synthetic-adapter-tests/*" : "conversations/*")],
     }));
     gateway.addToPolicy(new iam.PolicyStatement({ actions: ["sqs:SendMessage"], resources: [runs.queueArn, probes.queueArn] }));
+    if (syntheticMode) {
+      gateway.addToPolicy(new iam.PolicyStatement({
+        actions: ["sqs:ReceiveMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"],
+        resources: [runs.queueArn],
+      }));
+    }
 
-    if (!syntheticMode) {
     const hostedEnvironment = {
       PAPYRUS_CHAT_MESSAGING_TABLE: messaging.tableName,
       PAPYRUS_CHAT_CONVERSATIONS_TABLE: conversations.tableName,
@@ -152,6 +154,9 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       PAPYRUS_CHAT_PRIVATE_BOT_ID: privateBotId.valueAsString,
       PAPYRUS_CHAT_PRIVATE_BOT_NAME: privateBotName.valueAsString,
     };
+
+    let syntheticHarnessFunction;
+    if (!syntheticMode) {
     const runLogGroup = new logs.LogGroup(this, "RunWorkerLogs", {
       logGroupName: "/aws/lambda/papyrus-private-chat-run-worker",
       retention: logs.RetentionDays.ONE_MONTH,
@@ -240,6 +245,27 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     });
     runWorkerFunction.addEventSource(new eventSources.SqsEventSource(runs, { enabled: false, batchSize: 1 }));
     probeWorkerFunction.addEventSource(new eventSources.SqsEventSource(probes, { enabled: false, batchSize: 1 }));
+    } else {
+      const syntheticLogGroup = new logs.LogGroup(this, "SyntheticAdapterTestLogs", {
+        logGroupName: "/aws/lambda/papyrus-chat-synthetic-adapter-test",
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      });
+      gateway.addToPolicy(new iam.PolicyStatement({
+        actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
+        resources: [`${syntheticLogGroup.logGroupArn}:*`],
+      }));
+      syntheticHarnessFunction = new lambda.Function(this, "SyntheticAdapterTest", {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: "synthetic-adapter-test.handler",
+        code: lambda.Code.fromAsset(lambdaAssetDirectory),
+        role: gateway,
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(60),
+        logGroup: syntheticLogGroup,
+        environment: hostedEnvironment,
+        description: "Manually invoked synthetic-only adapter assertions; no model calls or production site access.",
+      });
     }
 
     new cdk.CfnOutput(this, "MessagingTableName", { value: messaging.tableName });
@@ -263,6 +289,8 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     new cdk.CfnOutput(this, "PrivateAssistantBotNameValue", { value: privateBotName.valueAsString });
     if (syntheticMode) {
       new cdk.CfnOutput(this, "SyntheticAdapterRoleArn", { value: gateway.roleArn });
+      new cdk.CfnOutput(this, "SyntheticAdapterTestFunctionName", { value: syntheticHarnessFunction.functionName });
+      new cdk.CfnOutput(this, "SyntheticAdapterInvocation", { value: "Explicit Lambda Invoke only; no event source or schedule" });
     } else {
       new cdk.CfnOutput(this, "WorkerModelKeyParameterName", { value: "/amplify/shared/papyrus/OPENAI_API_KEY" });
       new cdk.CfnOutput(this, "RunWorkerFunctionName", { value: runWorkerFunction.functionName });

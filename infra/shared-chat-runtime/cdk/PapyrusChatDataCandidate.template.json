@@ -897,7 +897,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "8530a01ebcd80abc28890efbc63040b439981b7a7fa34bbf3d48feb96f1317e3.zip"
+     "S3Key": "d9b5b2d12b923acb8fbb1082f627403a69e2ab3061b55c567731b21fec0adf8b.zip"
     },
     "Description": "Runs Papyrus private chat turns with the computerless Chatticus execution profile.",
     "Environment": {
@@ -970,7 +970,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "8530a01ebcd80abc28890efbc63040b439981b7a7fa34bbf3d48feb96f1317e3.zip"
+     "S3Key": "d9b5b2d12b923acb8fbb1082f627403a69e2ab3061b55c567731b21fec0adf8b.zip"
     },
     "Description": "Recovers and finalizes Papyrus private chat turns.",
     "Environment": {
