@@ -122,7 +122,8 @@ function jsonFailure(status: number, error: string): Response {
 }
 
 function supportedPath(path: readonly string[]): boolean {
-  return (path.length === 3 && path[0] === "channels" && path[2] === "messages") ||
+  return (path.length === 1 && path[0] === "private-channel") ||
+    (path.length === 3 && path[0] === "channels" && path[2] === "messages") ||
     (path.length === 3 && path[0] === "turns" && (path[2] === "events" || path[2] === "stream"));
 }
 
@@ -140,11 +141,13 @@ export async function handlePapyrusHostedChatRequest(
   }
   if (request.method !== "GET" && request.method !== "POST") return jsonFailure(405, "method_not_allowed");
   const isMessageRoute = path[0] === "channels";
-  if ((isMessageRoute && path[2] === "messages" && request.method === "POST") || (!isMessageRoute && request.method !== "GET")) {
-    if (!isMessageRoute) return jsonFailure(405, "method_not_allowed");
+  const isPrivateChannelRoute = path[0] === "private-channel";
+  if (isPrivateChannelRoute && request.method !== "POST") return jsonFailure(405, "method_not_allowed");
+  if ((isMessageRoute && path[2] === "messages" && request.method === "POST") || (!isMessageRoute && !isPrivateChannelRoute && request.method !== "GET")) {
+    if (!isMessageRoute && !isPrivateChannelRoute) return jsonFailure(405, "method_not_allowed");
   }
   if (isMessageRoute && request.method === "GET" && path[2] !== "messages") return jsonFailure(405, "method_not_allowed");
-  if (isMessageRoute && request.method === "POST") {
+  if ((isMessageRoute || isPrivateChannelRoute) && request.method === "POST") {
     let origin: string;
     try {
       origin = publicSiteOrigin(request, options.environment ?? process.env);
@@ -163,7 +166,7 @@ export async function handlePapyrusHostedChatRequest(
 
   const headers = new Headers({ accept: request.headers.get("accept") ?? "application/json" });
   let body: string | undefined;
-  if (request.method === "POST") {
+  if (request.method === "POST" && isMessageRoute) {
     const idempotencyKey = request.headers.get("idempotency-key")?.trim();
     const input = await request.json().catch(() => null) as Record<string, unknown> | null;
     if (!idempotencyKey || typeof input?.body !== "string" || !input.body.trim() ||

@@ -52,3 +52,10 @@ When("the Papyrus hosted chat endpoint contract suite runs", { timeout: 120_000 
 Then("account and editor scope come from the sealed session and private channel access is enforced", function () {
   assert.ok(this.papyrusHostedChatResult.includes("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core"));
 });
+When("the Papyrus shared worker integration suite runs", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-chat-worker-integration-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
+  this.papyrusWorkerIntegrationResult = result.stdout;
+});
+Then("the sealed editor creates the private channel and sees one persisted reply after refresh and replay", function () {
+  assert.ok(this.papyrusWorkerIntegrationResult.includes("PASS: Papyrus private channel, hosted send, shared worker reply, refresh/replay, and foreign-editor denial"));
+});

@@ -171,7 +171,8 @@
     "test:shared-chat": "node node_modules/@cucumber/cucumber/bin/cucumber.js --config cucumber-shared-chat.cjs",
     "test:shared-chat-admission": "node --experimental-strip-types scripts/test-shared-chat-admission.ts",
     "test:papyrus-chat-admission": "node scripts/run-papyrus-chat-admission-test.mjs",
-    "test:papyrus-hosted-chat": "node scripts/run-papyrus-hosted-chat-test.mjs"
+    "test:papyrus-hosted-chat": "node scripts/run-papyrus-hosted-chat-test.mjs",
+    "test:papyrus-chat-worker": "node scripts/run-papyrus-chat-worker-integration-test.mjs"
   },
   "keywords": [
     "nextjs",

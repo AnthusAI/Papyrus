@@ -45,3 +45,7 @@ Feature: Shared newsroom chat presentation
   Scenario: Route private newsroom chat through the hosted Chatticus core
     When the Papyrus hosted chat endpoint contract suite runs
     Then account and editor scope come from the sealed session and private channel access is enforced
+
+  Scenario: Open a private newsroom conversation and complete a shared worker turn
+    When the Papyrus shared worker integration suite runs
+    Then the sealed editor creates the private channel and sees one persisted reply after refresh and replay
