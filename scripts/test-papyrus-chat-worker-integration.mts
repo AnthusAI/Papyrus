@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { DeleteItemCommand, GetItemCommand, PutItemCommand, QueryCommand, TransactWriteItemsCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-import { BACKGROUND_CONTEXT, withoutAbortSignal } from "@earendil-works/chord/context";
-import { createProvider } from "@earendil-works/pi-ai/models";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
-import { createModels } from "@earendil-works/pi-ai/models";
-import { createRegistry, Harness, MemoryStorage, type Storage } from "@earendil-works/pi-durable";
+import type { Storage } from "@earendil-works/pi-durable";
 import { consumeRunJob, Decimal, VendorPriceBook } from "chatticus/chat-worker";
 import type { NextRequest } from "next/server";
 import { derivePapyrusChatScope, handlePapyrusHostedChatRequest } from "../lib/papyrus-hosted-chat";
@@ -71,7 +67,13 @@ function prospectusRuntime() {
 	return { sealingSecret, accounts: accounts as never, cognitoClient: {} as never };
 }
 
-function deterministicModel(text: string) {
+function deterministicModel(
+	text: string,
+	piAi: {
+		createProvider: (...args: any[]) => any;
+		createAssistantMessageEventStream: (...args: any[]) => any;
+	},
+) {
 	const modelId = "papyrus-deterministic-model";
 	const model = {
 		id: modelId,
@@ -88,7 +90,7 @@ function deterministicModel(text: string) {
 	let callCount = 0;
 	const stream = (requestModel: any) => {
 		callCount += 1;
-		const outer = createAssistantMessageEventStream();
+			const outer = piAi.createAssistantMessageEventStream();
 		queueMicrotask(() => {
 			const blank = {
 				role: "assistant",
@@ -111,7 +113,7 @@ function deterministicModel(text: string) {
 		});
 		return outer;
 	};
-	const provider = createProvider({
+	const provider = piAi.createProvider({
 		id: "openai",
 		auth: { apiKey: { name: "Local deterministic model", resolve: async () => ({ auth: {} }) } },
 		models: [model],
@@ -123,7 +125,17 @@ function deterministicModel(text: string) {
 	return { modelId, provider, get callCount() { return callCount; } };
 }
 
-function makeRuntimeDependencies() {
+function makeRuntimeDependencies(
+	contextHelpers: {
+	BACKGROUND_CONTEXT: unknown;
+	withoutAbortSignal(context: unknown): unknown;
+	},
+	piDurable: {
+		createRegistry: (...args: any[]) => any;
+		Harness: { open: (...args: any[]) => Promise<any> };
+		MemoryStorage: new (...args: any[]) => Storage;
+	},
+) {
 	const scope = derivePapyrusChatScope(siteProduct, accountId, editorId);
 	const bot = { tenantId: scope.tenantId, botId, name: "Editorial assistant", memory: {} };
 	let channel: any = null;
@@ -330,7 +342,7 @@ function makeRuntimeDependencies() {
 		privateConversation: { assistantBotId: botId },
 	};
 	const sessionFactory = async (storageId: string, sessionDeps: any) => {
-		const storage = new MemoryStorage();
+		const storage = new piDurable.MemoryStorage();
 		const wrapped = new Proxy(storage, {
 			get(target, property) {
 				if (property === "close") return async () => undefined;
@@ -338,18 +350,22 @@ function makeRuntimeDependencies() {
 				return typeof value === "function" ? value.bind(target) : value;
 			},
 		}) as Storage;
-		const registry = createRegistry();
+		const registry = piDurable.createRegistry();
 		for (const extension of sessionDeps.extensions) registry.install(extension);
-		const harness = await Harness.open(wrapped, { models: sessionDeps.models, registry, settings: sessionDeps.settings }, sessionDeps.context);
+		const harness = await piDurable.Harness.open(wrapped, { models: sessionDeps.models, registry, settings: sessionDeps.settings }, sessionDeps.context);
 		sessions.set(storageId, storage);
-		return { harness, storage, fence: 1, close: () => harness.close(withoutAbortSignal(sessionDeps.context)) };
+		return { harness, storage, fence: 1, close: () => harness.close(contextHelpers.withoutAbortSignal(sessionDeps.context)) };
 	};
 	return { scope, bot, messaging, dependencies, turns: turnRecords, turnStore, turnEvents, queue, probes, mailbox, dynamoClient, sessions, sessionFactory, jobs };
 }
 
 async function main() {
+	const contextHelpers = await import("@earendil-works/chord/context");
+	const piAiModels = await import("@earendil-works/pi-ai/models");
+	const piAiEvents = await import("@earendil-works/pi-ai/utils/event-stream");
+	const piDurable = await import("@earendil-works/pi-durable");
 	const scope = derivePapyrusChatScope(siteProduct, accountId, editorId);
-	const core = makeRuntimeDependencies();
+	const core = makeRuntimeDependencies(contextHelpers, piDurable);
 	const fakeStore = core.messaging.store as any;
 	const privateDependencies = {
 		...core.dependencies,
@@ -385,8 +401,8 @@ async function main() {
 	);
 	assert.equal((await openAgain.json() as { channel_id: string }).channel_id, created.channel_id);
 
-	const scripted = deterministicModel(answer);
-	const models = createModels();
+	const scripted = deterministicModel(answer, { ...piAiModels, ...piAiEvents });
+	const models = piAiModels.createModels();
 	models.setProvider(scripted.provider as never);
 	const prices = new VendorPriceBook("local-integration-test");
 	prices.register("openai", scripted.modelId, { inputPerMillionUsd: Decimal.parse("1"), outputPerMillionUsd: Decimal.parse("2") });
@@ -465,7 +481,7 @@ async function main() {
 		options,
 	);
 	assert.equal(foreignRead.status, 403);
-	for (const storage of core.sessions.values()) await storage.close(BACKGROUND_CONTEXT);
+	for (const storage of core.sessions.values()) await storage.close(contextHelpers.BACKGROUND_CONTEXT);
 	console.log("PASS: Papyrus private channel, hosted send, shared worker reply, refresh/replay, and foreign-editor denial");
 }
 

@@ -129,7 +129,7 @@
     "test:video-loading": "tsx scripts/test-video-loading.ts",
     "test:videoml-bundle": "node scripts/test-videoml-bundle.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-reporter=spec --test-concurrency=4 \"scripts/test-*.ts\" \"scripts/test-*.cjs\" \"scripts/test-*.mjs\" \"amplify/functions/**/*.test.mjs\" \"publications/threat_intelligence/tests/test-blog-defense-graph.cjs\" \"publications/threat_intelligence/tests/test-pictograms.cjs\"",
+    "test": "node --import tsx --test --test-reporter=spec --test-concurrency=4 \"scripts/test-*.ts\" \"scripts/test-*.mts\" \"scripts/test-*.cjs\" \"scripts/test-*.mjs\" \"amplify/functions/**/*.test.mjs\" \"publications/threat_intelligence/tests/test-blog-defense-graph.cjs\" \"publications/threat_intelligence/tests/test-pictograms.cjs\"",
     "sandbox": "ampx sandbox",
     "seed:amplify": "ampx sandbox seed",
     "dispatch:chorus-code-review-research": "bash scripts/dispatch-chorus-code-review-research.sh",

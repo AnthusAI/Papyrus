@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { createEmbeddedChatApp, type EmbeddedChatAppDependencies } from "chatticus/chat-server";
-import { createSiteHostedChatDependencies, siteHostedChatClients, siteHostedChatResourcesFromEnvironment } from "chatticus/chat-runtime";
+import type { EmbeddedChatAppDependencies } from "chatticus/chat-server";
 import type { NextRequest } from "next/server";
 import {
   ProspectusAccountsError,
@@ -165,11 +164,15 @@ export async function handlePapyrusHostedChatRequest(
 
   let dependencies: EmbeddedChatAppDependencies | null;
   try {
-    const loadDependencies = options.resolvePrivateDependencies ?? (async () => createSiteHostedChatDependencies(
-      siteHostedChatResourcesFromEnvironment(environment),
-      siteHostedChatClients(),
-    ) as EmbeddedChatAppDependencies);
-    dependencies = await loadDependencies();
+    if (options.resolvePrivateDependencies) {
+      dependencies = await options.resolvePrivateDependencies();
+    } else {
+      const chatRuntime = await import("chatticus/chat-runtime");
+      dependencies = chatRuntime.createSiteHostedChatDependencies(
+        chatRuntime.siteHostedChatResourcesFromEnvironment(environment),
+        chatRuntime.siteHostedChatClients(),
+      ) as EmbeddedChatAppDependencies;
+    }
   } catch {
     dependencies = null;
   }
@@ -200,7 +203,13 @@ export async function handlePapyrusHostedChatRequest(
 
   const target = new URL(chatRequestPath(path) + new URL(request.url).search, request.url);
   const forwarded = new Request(target, { method: request.method, headers, ...(body === undefined ? {} : { body }) });
-  const app = createEmbeddedChatApp({
+  let chatServer: typeof import("chatticus/chat-server");
+  try {
+    chatServer = await import("chatticus/chat-server");
+  } catch {
+    return jsonFailure(503, "private_chat_storage_unavailable");
+  }
+  const app = chatServer.createEmbeddedChatApp({
     ...dependencies,
     resolvePrincipal: async () => authorization.principal,
   });

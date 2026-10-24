@@ -42,6 +42,7 @@
   },
   "include": [
     "**/*.ts",
+    "scripts/test-*.mts",
     "**/*.tsx",
     ".next/dev/types/**/*.ts",
     ".next/types/**/*.ts",
