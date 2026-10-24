@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createEmbeddedChatApp, type EmbeddedChatAppDependencies } from "chatticus/chat-server";
+import { createSiteHostedChatDependencies, siteHostedChatClients, siteHostedChatResourcesFromEnvironment } from "chatticus/chat-runtime";
 import type { NextRequest } from "next/server";
 import {
   ProspectusAccountsError,
@@ -26,6 +27,7 @@ export interface PapyrusChatScope {
 export interface PapyrusHostedChatOptions {
   resolveRuntime?: (siteOrigin: string) => Promise<ProspectusSignInRuntime | null>;
   resolvePrivateDependencies?: () => Promise<EmbeddedChatAppDependencies | null>;
+  privateChatEnabled?: boolean;
   siteProduct?: string | null;
   environment?: Record<string, string | undefined>;
   nowInSeconds?: () => number;
@@ -157,8 +159,20 @@ export async function handlePapyrusHostedChatRequest(
     if (request.headers.get("origin") !== origin) return jsonFailure(403, "same_origin_required");
   }
 
-  const loadDependencies = options.resolvePrivateDependencies ?? (async () => null);
-  const dependencies = await loadDependencies();
+  const environment = options.environment ?? process.env;
+  const privateChatEnabled = options.privateChatEnabled ?? environment.PAPYRUS_PRIVATE_CHAT_ENABLED === "true";
+  if (!privateChatEnabled) return jsonFailure(404, "private_chat_disabled");
+
+  let dependencies: EmbeddedChatAppDependencies | null;
+  try {
+    const loadDependencies = options.resolvePrivateDependencies ?? (async () => createSiteHostedChatDependencies(
+      siteHostedChatResourcesFromEnvironment(environment),
+      siteHostedChatClients(),
+    ) as EmbeddedChatAppDependencies);
+    dependencies = await loadDependencies();
+  } catch {
+    dependencies = null;
+  }
   if (!dependencies) return jsonFailure(503, "private_chat_storage_unavailable");
 
   const authorization = await principalForRequest(request, request.method === "POST" ? "console:write" : "console:read", options);

@@ -2,7 +2,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const template = JSON.parse(fs.readFileSync(path.join(__dirname, "PapyrusChatDataCandidate.template.json"), "utf8"));
+const templatePath = path.resolve(__dirname, process.argv[2] || "PapyrusChatDataCandidate.template.json");
+const template = JSON.parse(fs.readFileSync(templatePath, "utf8"));
 const resources = Object.values(template.Resources);
 const ofType = (type) => resources.filter((resource) => resource.Type === type);
 const eventMappings = ofType("AWS::Lambda::EventSourceMapping");
@@ -35,16 +36,45 @@ const policyForRole = (roleLogicalId) => {
 assert.equal(ofType("AWS::DynamoDB::Table").length, 2);
 assert.equal(ofType("AWS::S3::Bucket").length, 1);
 assert.equal(ofType("AWS::SQS::Queue").length, 4);
+assert.ok(policies.some((statement) => refersTo(statement.Resource, "PrivateMessagingAEAE53CD")));
+assert.ok(policies.some((statement) => refersTo(statement.Resource, "PrivateConversationIndex81B3261A")));
+assert.ok(policies.some((statement) => refersTo(statement.Resource, "PrivateSessionObjects8FA7D9DB")));
+assert.ok(policies.every((statement) => JSON.stringify(statement.Resource) !== '"*"'));
+
+if (path.basename(templatePath) === "PapyrusChatSyntheticAdapterTest.template.json") {
+  const templateText = JSON.stringify(template);
+  assert.equal(functions.length, 0, "synthetic mode must not deploy a production worker/gateway");
+  assert.equal(eventMappings.length, 0, "synthetic mode must have no queue consumer mappings");
+  assert.ok(!Object.hasOwn(template.Parameters, "GatewayRoleArn"), "synthetic mode must not accept an arbitrary caller role");
+  assert.ok(!Object.hasOwn(template.Parameters, "CmsComputeRoleArn"), "synthetic mode must not accept the production CMS role");
+  assert.ok(!templateText.includes("amplify/shared/papyrus/OPENAI_API_KEY"), "synthetic mode must not name or grant the model secret");
+  assert.equal(template.Outputs.SyntheticAdapterTestOnly.Value, "true");
+  assert.equal(template.Outputs.FeatureDefault.Value, "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review");
+  const role = Object.values(template.Resources).find((resource) => resource.Type === "AWS::IAM::Role" && resource.Properties.Description.startsWith("Synthetic adapter test only;"));
+  assert.ok(role, "synthetic mode must create a dedicated test role");
+  const gatewayPolicy = policyResources.find((policy) => (policy.Properties.Roles || []).some((entry) => refersTo(entry, Object.entries(template.Resources).find(([, resource]) => resource === role)[0])));
+  assert.ok(gatewayPolicy, "synthetic test role must receive its isolated adapter permissions");
+  assert.equal(ofType("AWS::IAM::Role").length, 1, "synthetic mode must contain only the dedicated test role");
+  assertExactActions(statementsFor(gatewayPolicy, "PrivateMessagingAEAE53CD"), [
+    "dynamodb:BatchGetItem", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:TransactWriteItems", "dynamodb:UpdateItem",
+  ], "synthetic gateway messaging table");
+  assertExactActions(statementsFor(gatewayPolicy, "PrivateConversationIndex81B3261A"), [
+    "dynamodb:BatchGetItem", "dynamodb:GetItem", "dynamodb:Query",
+  ], "synthetic gateway conversation index");
+  assertExactActions(statementsFor(gatewayPolicy, "PrivateSessionObjects8FA7D9DB"), ["s3:GetObject"], "synthetic transcript objects");
+  assertExactActions(statementsFor(gatewayPolicy, "TurnRuns2149914B"), ["sqs:SendMessage"], "synthetic run queue");
+  assertExactActions(statementsFor(gatewayPolicy, "TurnProbes3E4AFDA6"), ["sqs:SendMessage"], "synthetic probe queue");
+  assert.ok(role.Properties.AssumeRolePolicyDocument.Statement.every((statement) => statement.Principal.Service === "lambda.amazonaws.com"), "synthetic role must only trust Lambda test harnesses");
+  console.log("PASS: synthetic adapter template has only a dedicated test role, no production gateway/worker, no model secret, and disabled feature");
+  process.exit(0);
+}
+
 assert.equal(functions.length, 2);
 assert.equal(eventMappings.length, 2);
 assert.ok(eventMappings.every((mapping) => mapping.Properties.Enabled === false));
 assert.ok(functions.every((fn) => fn.Properties.Runtime === "nodejs22.x"));
 assert.ok(functions.some((fn) => fn.Properties.Handler === "run-worker.handler"));
 assert.ok(functions.some((fn) => fn.Properties.Handler === "probe-worker.handler"));
-assert.ok(policies.some((statement) => refersTo(statement.Resource, "PrivateMessagingAEAE53CD")));
-assert.ok(policies.some((statement) => refersTo(statement.Resource, "PrivateConversationIndex81B3261A")));
-assert.ok(policies.some((statement) => refersTo(statement.Resource, "PrivateSessionObjects8FA7D9DB")));
-assert.ok(policies.every((statement) => JSON.stringify(statement.Resource) !== '"*"'));
 
 const gateway = policyByName("PapyrusChatGatewayRole");
 assertExactActions(statementsFor(gateway, "PrivateMessagingAEAE53CD"), [

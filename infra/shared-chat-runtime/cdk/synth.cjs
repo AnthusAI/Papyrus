@@ -3,10 +3,11 @@ const { createRequire } = require("node:module");
 const path = require("node:path");
 const fs = require("node:fs");
 const papyrusRoot = path.resolve(__dirname, "../../..");
-const workspaceRoot = path.resolve(papyrusRoot, "..");
 const dependencyRoot = process.env.PAPYRUS_CHAT_CANDIDATE_DEPS || papyrusRoot;
 const requireDependencies = createRequire(path.resolve(dependencyRoot, "package.json"));
-const esbuild = requireDependencies("esbuild");
+const mode = process.env.PAPYRUS_CHAT_CANDIDATE_MODE || "runtime";
+if (!["runtime", "synthetic"].includes(mode)) throw new Error("PAPYRUS_CHAT_CANDIDATE_MODE must be runtime or synthetic");
+const esbuild = mode === "runtime" ? requireDependencies("esbuild") : null;
 const cdk = requireDependencies("aws-cdk-lib");
 const dynamodb = requireDependencies("aws-cdk-lib/aws-dynamodb");
 const iam = requireDependencies("aws-cdk-lib/aws-iam");
@@ -17,31 +18,39 @@ const s3 = requireDependencies("aws-cdk-lib/aws-s3");
 const sqs = requireDependencies("aws-cdk-lib/aws-sqs");
 
 const lambdaAssetDirectory = "/tmp/papyrus-chat-candidate-lambda";
-await esbuild.build({
-  absWorkingDir: workspaceRoot,
-  entryPoints: [
-    path.join(papyrusRoot, "infra/shared-chat-runtime/lambda/run-worker.ts"),
-    path.join(papyrusRoot, "infra/shared-chat-runtime/lambda/probe-worker.ts"),
-  ],
-  outdir: lambdaAssetDirectory,
-  bundle: true,
-  packages: "bundle",
-  platform: "node",
-  format: "cjs",
-  target: "node22",
-  alias: {
-    "chatticus/chat-runtime": path.join(workspaceRoot, "chatticus/chat/runtime-dist/chat-runtime.mjs"),
-  },
-});
+if (mode === "runtime") {
+  await esbuild.build({
+    absWorkingDir: papyrusRoot,
+    entryPoints: [
+      "infra/shared-chat-runtime/lambda/run-worker.ts",
+      "infra/shared-chat-runtime/lambda/probe-worker.ts",
+    ],
+    outdir: lambdaAssetDirectory,
+    bundle: true,
+    packages: "bundle",
+    platform: "node",
+    format: "cjs",
+    target: "node22",
+    alias: {
+      "chatticus/chat-runtime": requireDependencies.resolve("chatticus/chat-runtime"),
+    },
+  });
+}
 
 class PapyrusChatDataCandidate extends cdk.Stack {
   constructor(scope, id, props) {
-    super(scope, id, props);
-    const gatewayRoleArn = new cdk.CfnParameter(this, "GatewayRoleArn", {
-      type: "String",
-      description: "Gateway caller role ARN. For synthetic non-production adapter validation, use a dedicated disposable harness role, not the production CMS compute role.",
-      allowedPattern: "^arn:aws:iam::[0-9]{12}:role/.+$",
-    });
+    const { syntheticMode, ...stackProps } = props;
+    super(scope, id, stackProps);
+    let gatewayRoleArn;
+    let runWorkerFunction;
+    let probeWorkerFunction;
+    if (!syntheticMode) {
+      gatewayRoleArn = new cdk.CfnParameter(this, "GatewayRoleArn", {
+        type: "String",
+        description: "Production candidate gateway role ARN. Do not use for synthetic adapter validation; synthetic mode creates its own isolated test role.",
+        allowedPattern: "^arn:aws:iam::[0-9]{12}:role/.+$",
+      });
+    }
     const privateBotId = new cdk.CfnParameter(this, "PrivateAssistantBotId", {
       type: "String",
       description: "Stable Papyrus-owned assistant ID; stored per derived account tenant on first private-channel open.",
@@ -113,7 +122,12 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       deadLetterQueue: { queue: probeDlq, maxReceiveCount: 5 },
     });
 
-    const gateway = iam.Role.fromRoleArn(this, "PapyrusChatGatewayRole", gatewayRoleArn.valueAsString, { mutable: true });
+    const gateway = syntheticMode
+      ? new iam.Role(this, "SyntheticAdapterGatewayRole", {
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        description: "Synthetic adapter test only; not trusted by Papyrus CMS and has no model-secret access.",
+      })
+      : iam.Role.fromRoleArn(this, "PapyrusChatGatewayRole", gatewayRoleArn.valueAsString, { mutable: true });
     gateway.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Query", "dynamodb:BatchGetItem"],
       resources: [messaging.tableArn],
@@ -128,6 +142,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     }));
     gateway.addToPolicy(new iam.PolicyStatement({ actions: ["sqs:SendMessage"], resources: [runs.queueArn, probes.queueArn] }));
 
+    if (!syntheticMode) {
     const hostedEnvironment = {
       PAPYRUS_CHAT_MESSAGING_TABLE: messaging.tableName,
       PAPYRUS_CHAT_CONVERSATIONS_TABLE: conversations.tableName,
@@ -198,7 +213,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       resources: [`${probeLogGroup.logGroupArn}:*`],
     }));
 
-    const runWorkerFunction = new lambda.Function(this, "RunWorker", {
+    runWorkerFunction = new lambda.Function(this, "RunWorker", {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "run-worker.handler",
       code: lambda.Code.fromAsset(lambdaAssetDirectory),
@@ -212,7 +227,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       },
       description: "Runs Papyrus private chat turns with the computerless Chatticus execution profile.",
     });
-    const probeWorkerFunction = new lambda.Function(this, "ProbeWorker", {
+    probeWorkerFunction = new lambda.Function(this, "ProbeWorker", {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "probe-worker.handler",
       code: lambda.Code.fromAsset(lambdaAssetDirectory),
@@ -225,6 +240,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     });
     runWorkerFunction.addEventSource(new eventSources.SqsEventSource(runs, { enabled: false, batchSize: 1 }));
     probeWorkerFunction.addEventSource(new eventSources.SqsEventSource(probes, { enabled: false, batchSize: 1 }));
+    }
 
     new cdk.CfnOutput(this, "MessagingTableName", { value: messaging.tableName });
     new cdk.CfnOutput(this, "ConversationIndexTableName", { value: conversations.tableName });
@@ -232,6 +248,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     new cdk.CfnOutput(this, "TurnRunsQueueUrl", { value: runs.queueUrl });
     new cdk.CfnOutput(this, "TurnProbesQueueUrl", { value: probes.queueUrl });
     new cdk.CfnOutput(this, "FeatureDefault", { value: "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review" });
+    new cdk.CfnOutput(this, "SyntheticAdapterTestOnly", { value: String(syntheticMode) });
     new cdk.CfnOutput(this, "GatewayMessagingTableEnvironmentName", { value: "PAPYRUS_CHAT_MESSAGING_TABLE" });
     new cdk.CfnOutput(this, "GatewayMessagingTableName", { value: messaging.tableName });
     new cdk.CfnOutput(this, "GatewayConversationTableEnvironmentName", { value: "PAPYRUS_CHAT_CONVERSATIONS_TABLE" });
@@ -244,15 +261,24 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     new cdk.CfnOutput(this, "PrivateAssistantBotIdValue", { value: privateBotId.valueAsString });
     new cdk.CfnOutput(this, "GatewayPrivateBotNameEnvironmentName", { value: "PAPYRUS_CHAT_PRIVATE_BOT_NAME" });
     new cdk.CfnOutput(this, "PrivateAssistantBotNameValue", { value: privateBotName.valueAsString });
-    new cdk.CfnOutput(this, "WorkerModelKeyParameterName", { value: "/amplify/shared/papyrus/OPENAI_API_KEY" });
-    new cdk.CfnOutput(this, "RunWorkerFunctionName", { value: runWorkerFunction.functionName });
-    new cdk.CfnOutput(this, "ProbeWorkerFunctionName", { value: probeWorkerFunction.functionName });
+    if (syntheticMode) {
+      new cdk.CfnOutput(this, "SyntheticAdapterRoleArn", { value: gateway.roleArn });
+    } else {
+      new cdk.CfnOutput(this, "WorkerModelKeyParameterName", { value: "/amplify/shared/papyrus/OPENAI_API_KEY" });
+      new cdk.CfnOutput(this, "RunWorkerFunctionName", { value: runWorkerFunction.functionName });
+      new cdk.CfnOutput(this, "ProbeWorkerFunctionName", { value: probeWorkerFunction.functionName });
+    }
   }
 }
 
 const app = new cdk.App();
-const stack = new PapyrusChatDataCandidate(app, "PapyrusChatDataCandidate", {
-  description: "Private Papyrus hosted chat data plane candidate; not production runtime composition.",
+const syntheticMode = mode === "synthetic";
+const stackId = syntheticMode ? "PapyrusChatSyntheticAdapterTest" : "PapyrusChatDataCandidate";
+const stack = new PapyrusChatDataCandidate(app, stackId, {
+  description: syntheticMode
+    ? "Synthetic-only Papyrus chat adapter test resources; no CMS role, worker, production gateway, or model secret access."
+    : "Private Papyrus hosted chat data plane candidate; not production runtime composition.",
+  syntheticMode,
 });
 const assembly = app.synth();
 const templateName = `${stack.stackName}.template.json`;

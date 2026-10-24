@@ -368,6 +368,7 @@ async function main() {
 		nowInSeconds: () => now,
 		resolveRuntime: async () => prospectusRuntime(),
 		resolvePrivateDependencies: async () => privateDependencies as never,
+		privateChatEnabled: true,
 	};
 	const createResponse = await handlePapyrusHostedChatRequest(
 		requestFor("POST", editorId, "private-channel", undefined, { origin: "https://papyrus.example" }),

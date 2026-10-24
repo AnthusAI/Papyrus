@@ -46,6 +46,10 @@ Feature: Shared newsroom chat presentation
     When the Papyrus hosted chat endpoint contract suite runs
     Then account and editor scope come from the sealed session and private channel access is enforced
 
+  Scenario: Keep the private chat route off until a site explicitly enables it
+    When the Papyrus hosted chat endpoint contract suite runs
+    Then the hosted chat route remains disabled until explicitly enabled
+
   Scenario: Open a private newsroom conversation and complete a shared worker turn
     When the Papyrus shared worker integration suite runs
     Then the sealed editor creates the private channel and sees one persisted reply after refresh and replay

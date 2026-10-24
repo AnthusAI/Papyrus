@@ -14,23 +14,27 @@ The worker reads the existing per-app Amplify secret through SSM parameter `/amp
 
 ## Candidate resources and permissions
 
-`infra/shared-chat-runtime/cdk/synth.cjs` defines the local CDK candidate and `infra/shared-chat-runtime/cdk/PapyrusChatDataCandidate.template.json` is its synthesized output. It contains:
+`infra/shared-chat-runtime/cdk/synth.cjs` defines two separately synthesized stacks. Default `PAPYRUS_CHAT_CANDIDATE_MODE=runtime` writes `PapyrusChatDataCandidate.template.json`; `PAPYRUS_CHAT_CANDIDATE_MODE=synthetic` writes `PapyrusChatSyntheticAdapterTest.template.json`.
+
+The runtime candidate contains:
 
 - Two on-demand DynamoDB tables: messaging/events with TTL only for expiring turn events, and the private `IndexedStorage` table with its required `l1`, `l2`, and `l3` LSIs.
 - One private, versioned S3 bucket with public access blocked, TLS enforced, and SSE-S3 encryption.
 - Run and probe standard SQS queues, each with a DLQ and SQS-managed encryption.
 - Separate Node 22 run and probe Lambda functions and roles. Both queue event source mappings are `Enabled: false`.
-- A `GatewayRoleArn` parameter and narrowly scoped gateway policy. This can target a dedicated disposable synthetic-test harness role instead of the production CMS role. The gateway policy does not grant model-secret access. Worker policies scope DynamoDB, S3 object-prefix, SQS, SSM, and log actions to candidate resources. The template validator checks exact gateway/probe conversation-index read actions, gateway transcript read, run-worker secret access, and disabled queue mappings.
+- A `GatewayRoleArn` parameter and narrowly scoped gateway policy for a later site integration. The gateway policy does not grant model-secret access. Worker policies scope DynamoDB, S3 object-prefix, SQS, SSM, and log actions to candidate resources. The template validator checks exact gateway/probe conversation-index read actions, gateway transcript read, run-worker secret access, and disabled queue mappings.
+
+Synthetic mode uses a distinct `PapyrusChatSyntheticAdapterTest` stack. It has no `GatewayRoleArn` or CMS-role reference, production gateway, worker Lambda, queue mapping, or SSM/model-secret reference. It creates one Lambda-trusted `SyntheticAdapterGatewayRole` with only the candidate adapter permissions and synthetic data resources. The role is not attached to the CMS and cannot read the model secret. The template does not include a harness Lambda; any test runner using this role must itself be separately reviewed and limited to synthetic records. No role is created or deployed by this task.
 
 Synthesized allow actions are scoped as follows:
 
 | Principal | Actions | Resource scope |
 | --- | --- | --- |
-| Gateway role supplied by `GatewayRoleArn` | DynamoDB `GetItem`, `PutItem`, `UpdateItem`, `TransactWriteItems`, `Query`, `BatchGetItem` on messaging; `GetItem`, `Query`, `BatchGetItem` on conversation index; S3 `GetObject`; SQS `SendMessage` | Candidate messaging table; conversation table and its indexes; candidate bucket `conversations/*`; run/probe queues |
+| Runtime gateway role supplied by `GatewayRoleArn`, or synthetic role in synthetic-only mode | DynamoDB `GetItem`, `PutItem`, `UpdateItem`, `TransactWriteItems`, `Query`, `BatchGetItem` on messaging; `GetItem`, `Query`, `BatchGetItem` on conversation index; S3 `GetObject`; SQS `SendMessage` | Candidate messaging table; conversation table and its indexes; candidate bucket `conversations/*`; run/probe queues |
 | Run worker role | DynamoDB `GetItem`, `PutItem`, `UpdateItem`, `DeleteItem`, `Query`, `BatchGetItem`, `TransactWriteItems`; S3 `GetObject`, `PutObject`, `DeleteObject`; SQS `ChangeMessageVisibility`, `SendMessage`, and event-source consume actions; SSM `GetParameter`; CloudWatch Logs `CreateLogStream`, `PutLogEvents` | Candidate tables/indexes, bucket `conversations/*`, run/probe queues, exact parameter `amplify/shared/papyrus/OPENAI_API_KEY`, run-worker log group |
 | Probe worker role | DynamoDB full listed actions on messaging and read-only `GetItem`, `Query`, `BatchGetItem` on conversation index; S3 `GetObject`; SQS `SendMessage` plus probe event-source consume actions; CloudWatch Logs `CreateLogStream`, `PutLogEvents` | Candidate tables/indexes, bucket `conversations/*`, run/probe queues, probe-worker log group |
 
-The SQS source mappings grant their respective worker only the source queue's consume actions (`ReceiveMessage`, `ChangeMessageVisibility`, `GetQueueUrl`, `DeleteMessage`, `GetQueueAttributes`). No worker policy grants access to either DLQ. The harness gateway role has no SSM permission; the model parameter permission exists only on the run worker.
+The runtime SQS source mappings grant their respective worker only the source queue's consume actions (`ReceiveMessage`, `ChangeMessageVisibility`, `GetQueueUrl`, `DeleteMessage`, `GetQueueAttributes`). No worker policy grants access to either DLQ. The synthetic role has no SSM permission; the model parameter permission exists only on the runtime run worker.
 
 The run worker has a 900 second timeout and a 1,800 second queue visibility timeout. The probe worker has a 60 second timeout and 120 second visibility timeout. Table deletion protection and PITR are enabled; durable resources use `RETAIN`. These are candidate safeguards and need to be weighed against the final retention/deletion policy before deployment.
 
@@ -39,7 +43,7 @@ Retention is **not configured for transcripts**: no S3 lifecycle expiration and 
 ## Review decisions before deployment
 
 1. Approve transcript retention and deletion behavior before enabling history writes. The candidate intentionally leaves transcript expiry unset.
-2. For initial cloud adapter validation, approve a disposable harness role passed through `GatewayRoleArn`, with no trust or permission relationship to the production CMS role and no model-secret access. This avoids attaching the gateway policy to the production CMS role.
+2. For initial cloud adapter validation, use the dedicated `SyntheticAdapterGatewayRole` in the synthetic template. It cannot be substituted with an arbitrary role ARN and is not attached to the CMS. Approve a separate test runner only if needed; it must use synthetic records and have no model-secret access.
 3. Review exact IAM actions and resource ARNs in the synthesized template. The worker secret reference is `/amplify/shared/papyrus/OPENAI_API_KEY`; its value was not read.
 4. Decide whether PITR, deletion protection, S3 versioning, and `RETAIN` fit the synthetic-data cleanup plan.
 5. Approve any separate non-production deployment and AWS acceptance run. This task made no AWS API calls, grants, or writes.
@@ -53,9 +57,9 @@ Local checks completed:
 - Papyrus `npm run typecheck` passed in a writable task-local dependency install using the compiled Chatticus package artifact.
 - Papyrus `npm run test:papyrus-hosted-chat` passed, including the default-off route and the real runtime adapter configuration assertions.
 - Papyrus `npm run test:papyrus-chat-worker` passed: private channel creation, hosted send, actual shared worker reply, refresh/replay, and foreign-editor denial.
-- CDK synthesis and `infra/shared-chat-runtime/cdk/validate-template.cjs` passed. The candidate uses Papyrus's declared CDK version. No AWS CLI/API calls, live model calls, deployments, merges, or PR operations were performed.
+- CDK synthesis and `infra/shared-chat-runtime/cdk/validate-template.cjs` passed for both runtime and synthetic modes. Synthetic assertions confirm a single dedicated role, no arbitrary role parameter, no CMS role or production worker, no model-secret path, no queue mapping, and a disabled feature output. The candidate uses Papyrus's declared CDK version. No AWS CLI/API calls, live model calls, deployments, merges, or PR operations were performed.
 
-The adapter tests check the actual production adapter configuration and generated IAM/resource references, but they do not contact DynamoDB, S3, SQS, SSM, or Lambda. A synthetic cloud test can use a dedicated harness role and synthetic records while leaving the gateway gate and queue mappings off; the test must not invoke the model worker. Retention does not block local or adapter-only synthetic tests, but deployment cleanup must be approved because tables/bucket are retained and the bucket is versioned. Real-cloud behavior, secret resolution, queue retry/DLQ configuration, and IAM sufficiency still require a separately approved non-production deployment and acceptance test. No claim is made that the candidate is production-ready before those checks and the retention decision.
+The adapter tests check the actual production adapter configuration and generated IAM/resource references, but they do not contact DynamoDB, S3, SQS, SSM, or Lambda. Synthetic cloud adapter validation can use the synthetic template's dedicated role and synthetic records while the production gateway and all queue consumers remain absent. The current template does not include a harness Lambda, so a test runner is a separate candidate change. Retention does not block local or adapter-only synthetic tests, but deployment cleanup must be approved because tables/bucket are retained and the bucket is versioned. Real-cloud behavior, secret resolution, queue retry/DLQ configuration, and IAM sufficiency still require a separately approved non-production deployment and acceptance test.
 
 ## Cost and rollback notes
 

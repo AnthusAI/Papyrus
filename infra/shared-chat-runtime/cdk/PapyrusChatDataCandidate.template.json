@@ -4,7 +4,7 @@
   "GatewayRoleArn": {
    "Type": "String",
    "AllowedPattern": "^arn:aws:iam::[0-9]{12}:role/.+$",
-   "Description": "Gateway caller role ARN. For synthetic non-production adapter validation, use a dedicated disposable harness role, not the production CMS compute role."
+   "Description": "Production candidate gateway role ARN. Do not use for synthetic adapter validation; synthetic mode creates its own isolated test role."
   },
   "PrivateAssistantBotId": {
    "Type": "String",
@@ -1064,6 +1064,9 @@
   },
   "FeatureDefault": {
    "Value": "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review"
+  },
+  "SyntheticAdapterTestOnly": {
+   "Value": "false"
   },
   "GatewayMessagingTableEnvironmentName": {
    "Value": "PAPYRUS_CHAT_MESSAGING_TABLE"

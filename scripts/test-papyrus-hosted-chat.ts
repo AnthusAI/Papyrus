@@ -154,9 +154,38 @@ function coreDependencies() {
 }
 
 async function main() {
+  const sharedRuntime = await import("chatticus/chat-runtime");
+  const runtimeEnvironment = {
+    PAPYRUS_CHAT_MESSAGING_TABLE: "PapyrusPrivateMessages",
+    PAPYRUS_CHAT_CONVERSATIONS_TABLE: "PapyrusPrivateIndex",
+    PAPYRUS_CHAT_SESSION_BUCKET: "papyrus-private-sessions",
+    PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/111111111111/private-runs",
+    PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/111111111111/private-probes",
+    PAPYRUS_CHAT_PRIVATE_BOT_ID: "papyrus-newsroom",
+    PAPYRUS_CHAT_PRIVATE_BOT_NAME: "Papyrus newsroom assistant",
+    OPENAI_API_KEY: "test-only-no-request",
+  };
+  let awsRequests = 0;
+  const clients = {
+    dynamo: { send: async () => { awsRequests += 1; return {}; } },
+    s3: { send: async () => { awsRequests += 1; return {}; } },
+    sqs: { send: async () => { awsRequests += 1; return {}; } },
+    parameters: { send: async () => { awsRequests += 1; return {}; } },
+  } as never;
+  const resources = sharedRuntime.siteHostedChatResourcesFromEnvironment(runtimeEnvironment);
+  const composed = sharedRuntime.createSiteHostedChatDependencies(resources, clients) as any;
+  assert.equal(composed.messages.store.constructor.name, "DynamoMessagingStore");
+  assert.equal(composed.messages.turns.constructor.name, "DynamoTurnAdmission");
+  assert.equal(composed.messages.turnRuns.constructor.name, "SqsTurnRunQueue");
+  assert.equal(composed.turns.store.constructor.name, "DynamoTurnControlStore");
+  await sharedRuntime.createSiteHostedRunHandler(runtimeEnvironment, clients)({ Records: [] }, { getRemainingTimeInMillis: () => 30_000 });
+  await sharedRuntime.createSiteHostedProbeHandler(runtimeEnvironment, clients)({ Records: [] });
+  assert.equal(awsRequests, 0, "adapter construction and empty Lambda batches make no AWS requests");
+
   const auth = prospectusRuntime();
   const core = coreDependencies();
   const options = {
+    privateChatEnabled: true,
     siteProduct,
     environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct },
     nowInSeconds: () => now,
@@ -199,10 +228,18 @@ async function main() {
   assert.equal(denied.status, 403);
   const noStore = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => null });
   assert.equal(noStore.status, 503, "the endpoint fails closed until a private durable store runtime is configured");
+  let disabledDependencyLoads = 0;
+  const disabled = await handlePapyrusHostedChatRequest(
+    requestFor("GET", "editor-a", `channels/${core.channelId}/messages`),
+    ["channels", core.channelId, "messages"],
+    { ...options, privateChatEnabled: false, resolvePrivateDependencies: async () => { disabledDependencyLoads += 1; return core.dependencies; } },
+  );
+  assert.equal(disabled.status, 404);
+  assert.equal(disabledDependencyLoads, 0);
   assert.ok(auth.authorizationCalls.some((call) => call.personId === "editor-a" && call.operation === "console:write"));
   assert.ok(auth.authorizationCalls.some((call) => call.personId === "editor-a" && call.operation === "console:read"));
   assert.ok(core.messages.length === 1);
-  console.log("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core");
+  console.log("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core; private route remains default-off");
 }
 
 main().catch((error) => {

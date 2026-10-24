@@ -52,6 +52,9 @@ When("the Papyrus hosted chat endpoint contract suite runs", { timeout: 120_000 
 Then("account and editor scope come from the sealed session and private channel access is enforced", function () {
   assert.ok(this.papyrusHostedChatResult.includes("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core"));
 });
+Then("the hosted chat route remains disabled until explicitly enabled", function () {
+  assert.ok(this.papyrusHostedChatResult.includes("private route remains default-off"));
+});
 When("the Papyrus shared worker integration suite runs", { timeout: 120_000 }, async function () {
   const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-chat-worker-integration-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
   this.papyrusWorkerIntegrationResult = result.stdout;
