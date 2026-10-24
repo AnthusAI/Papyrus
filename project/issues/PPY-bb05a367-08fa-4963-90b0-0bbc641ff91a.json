@@ -17,10 +17,17 @@
       "text": "Shipped in PR #670 (merge b66fcda0980dbf1ec2ee0b51e6404016840244c9) into develop; board PR #669 (merge b67f44c8e3851209e1c60a88c88417a81eb21d5b). CI green (python, ts, smoke). Not promoted to main. Sites need a backend deploy of the reader-actions function; operator IAM policy needs appsync:GraphQL on Mutation/fields/fileProposal and transitionProposal.",
       "created_at": "2026-10-24T16:57:11.531735Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e4825439-3b42-4434-9b03-ed41ead09360",
+      "author": "home",
+      "text": "Shipped in PR #670 (merge b66fcda0980dbf1ec2ee0b51e6404016840244c9) into develop; board PR #669 (merge b67f44c8e3851209e1c60a88c88417a81eb21d5b). CI green (python, ts, smoke). Not promoted to main. Sites need a backend deploy of the reader-actions function; operator IAM policy needs appsync:GraphQL on Mutation/fields/fileProposal and transitionProposal.",
+      "created_at": "2026-10-24T16:57:20.788295Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-24T16:36:08.817406Z",
-  "updated_at": "2026-10-24T16:57:11.565326Z",
+  "updated_at": "2026-10-24T16:57:20.788322Z",
   "closed_at": "2026-10-24T16:57:11.565292Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
