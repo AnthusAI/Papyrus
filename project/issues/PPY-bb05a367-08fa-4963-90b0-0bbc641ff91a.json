@@ -3,17 +3,32 @@
   "title": "Operator identity can file AI proposals (S)",
   "description": "An IAM operator role of the site's own account can file AI proposals (fileProposal) and move a draft to in_steering or declined (transitionProposal), recorded as operator:<ARN> in the history. IAM can never approve, review-decide or override; identity-pool users and other accounts are refused. CLI (papyrus proposals create|transition|publish with PAPYRUS_GRAPHQL_AUTH=iam) and the idea pipeline --store proposals use it. Unblocks PPY-8ffc18, scheduled automations and Shipped's first proposal. Docs: reader-steering.md Operator filing, idea-pipeline.md.",
   "type": "story",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "a719d341-8f72-4a8e-9693-97d8e7417e2b",
+      "author": "home",
+      "text": "Shipped in PR #670 (merge b66fcda0980dbf1ec2ee0b51e6404016840244c9) into develop; board PR #669 (merge b67f44c8e3851209e1c60a88c88417a81eb21d5b). CI green (python, ts, smoke). Not promoted to main. Sites need a backend deploy of the reader-actions function; operator IAM policy needs appsync:GraphQL on Mutation/fields/fileProposal and transitionProposal.",
+      "created_at": "2026-10-24T16:57:11.531735Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e4825439-3b42-4434-9b03-ed41ead09360",
+      "author": "home",
+      "text": "Shipped in PR #670 (merge b66fcda0980dbf1ec2ee0b51e6404016840244c9) into develop; board PR #669 (merge b67f44c8e3851209e1c60a88c88417a81eb21d5b). CI green (python, ts, smoke). Not promoted to main. Sites need a backend deploy of the reader-actions function; operator IAM policy needs appsync:GraphQL on Mutation/fields/fileProposal and transitionProposal.",
+      "created_at": "2026-10-24T16:57:20.788295Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-24T16:36:08.817406Z",
-  "updated_at": "2026-10-24T16:36:11.480264Z",
-  "closed_at": null,
+  "updated_at": "2026-10-24T16:57:20.788322Z",
+  "closed_at": "2026-10-24T16:57:11.565292Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
