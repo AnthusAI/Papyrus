@@ -1,27 +1,28 @@
-"""Bounded, offline extraction of reference candidates from untrusted MIME email.
+"""Bounded extraction of reference candidates from untrusted MIME email.
 
 This module supplies no authentication or authorization: From/To and all other
 message headers are untrusted provenance. The SES intake verifies trusted receipt
 verdicts, sender and envelope destinations before using this result. No URL is
-fetched, no HTML is rendered, and body text is never an agent instruction.
+fetched by default; the optional redirect helper requires an explicitly injected
+resolver and transport. No HTML is rendered, and body text is never an instruction.
 """
 from __future__ import annotations
 
 import ipaddress
 import re
+import time
 from email import policy
 from email.parser import BytesParser
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlsplit, urlunsplit
 
 MAX_MESSAGE_BYTES = 1_048_576
 MAX_MIME_PARTS = 64
 MAX_MIME_DEPTH = 12
-MAX_LINKS = 25
+LINK_BATCH_SIZE = 25  # work-unit size only; never an editorial/content ceiling
 MAX_URL_LENGTH = 2048
 MAX_TITLE_LENGTH = 256
-MAX_CANDIDATES = 1000
 _URL = re.compile(r"https?://[^\s<>\"']+", re.I)
 _CONTROL = re.compile(r"[\x00-\x20\x7f]")
 _ACTION = re.compile(
@@ -38,6 +39,11 @@ _SECRET_KEY = re.compile(
 _OPAQUE = re.compile(r"^[A-Za-z0-9_-]{32,}$")
 _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 _IGNORED_HTML = {"script", "style", "head", "template", "noscript"}
+MAX_REDIRECTS = 5
+REDIRECT_HOP_TIMEOUT_SECONDS = 2.0
+REDIRECT_TOTAL_TIMEOUT_SECONDS = 8.0
+MAX_REDIRECT_LOCATION_LENGTH = 2048
+_REDIRECT_STATUS = {301, 302, 303, 307, 308}
 
 
 class SubmissionRejected(ValueError):
@@ -90,6 +96,8 @@ def safe_editorial_url(raw: str) -> str | None:
                 or labels[-1] in {"local", "localhost", "internal", "test", "invalid", "onion"}
                 or any(label in {"click", "clicks", "track", "tracking", "pixel"} for label in labels[:-1])):
             return None
+        if host == "link.mail.beehiiv.com" and parts.path.startswith("/ss/c/"):
+            return None
         try:
             ipaddress.ip_address(host)
             return None
@@ -127,6 +135,135 @@ def safe_editorial_url(raw: str) -> str | None:
         return None
 
 
+class RedirectResolutionError(ValueError):
+    """A stable, URL-free failure code for the optional redirect resolver."""
+
+    def __init__(self, code: str):
+        self.code = code
+        super().__init__(code)
+
+
+def is_supported_beehiiv_tracking_url(raw: str) -> bool:
+    """Recognize only the known HTTPS Beehiiv click wrapper; do not fetch it."""
+    if not isinstance(raw, str) or len(raw) > MAX_URL_LENGTH or _CONTROL.search(raw) or "\\" in raw:
+        return False
+    try:
+        parts = urlsplit(unescape(raw.strip()))
+        host = (parts.hostname or "").rstrip(".").encode("idna").decode("ascii").lower()
+        if (parts.scheme.lower() != "https" or host != "link.mail.beehiiv.com"
+                or parts.username or parts.password or parts.port not in {None, 443}
+                or not parts.path.startswith("/ss/c/")):
+            return False
+        for key, value in parse_qsl(parts.query, keep_blank_values=True, max_num_fields=64):
+            action_key = unquote(key).lower()
+            action_value = unquote(value).lower()
+            if action_key in {"action", "command", "mode", "operation"} and _ACTION.search(action_value):
+                return False
+            if action_key in {"unsubscribe", "preferences", "login", "logout", "confirm", "activate"}:
+                return False
+        return True
+    except (ValueError, UnicodeError):
+        return False
+
+
+def _public_dns_addresses(host: str, resolve_host, timeout: float) -> tuple[str, ...]:
+    try:
+        values = resolve_host(host, timeout=timeout)
+    except Exception:
+        raise RedirectResolutionError("redirect_dns_failed") from None
+    if not isinstance(values, (list, tuple, set)) or not values or len(values) > 16:
+        raise RedirectResolutionError("redirect_dns_result_invalid")
+    addresses = set()
+    for value in values:
+        try:
+            address = ipaddress.ip_address(value)
+        except (ValueError, TypeError):
+            raise RedirectResolutionError("redirect_dns_result_invalid") from None
+        if not address.is_global:
+            raise RedirectResolutionError("redirect_address_not_public")
+        addresses.add(str(address))
+    if not addresses:
+        raise RedirectResolutionError("redirect_dns_result_invalid")
+    return tuple(sorted(addresses))
+
+
+def _response_header(headers, name: str):
+    if not hasattr(headers, "items"):
+        return None
+    return next((value for key, value in headers.items()
+                 if isinstance(key, str) and key.lower() == name.lower()), None)
+
+
+def resolve_beehiiv_tracking_url(raw: str, *, resolve_host, request, clock=None) -> str:
+    """Resolve one supported wrapper using an explicitly supplied, pinned transport.
+
+    This function has no default DNS resolver or HTTP client and is not used by the
+    production email intake. A caller must explicitly provide both. The request
+    DNS and request adapters must honor their supplied timeouts. The request
+    adapter must connect only to the supplied public IPs, preserve HTTPS hostname
+    verification/SNI, avoid ambient proxies/cookies, disable redirects, use HEAD,
+    and read no response body. Every hop is re-resolved and validated before use.
+    """
+    if not is_supported_beehiiv_tracking_url(raw):
+        raise RedirectResolutionError("redirect_source_not_supported")
+    clock = clock or time.monotonic
+    started = clock()
+    parts = urlsplit(unescape(raw.strip()))
+    current = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+    visited = set()
+    redirects = 0
+    while True:
+        if current in visited:
+            raise RedirectResolutionError("redirect_loop")
+        visited.add(current)
+        parts = urlsplit(current)
+        host = (parts.hostname or "").rstrip(".").encode("idna").decode("ascii").lower()
+        remaining = REDIRECT_TOTAL_TIMEOUT_SECONDS - (clock() - started)
+        if remaining <= 0:
+            raise RedirectResolutionError("redirect_timeout")
+        addresses = _public_dns_addresses(
+            host, resolve_host, min(REDIRECT_HOP_TIMEOUT_SECONDS, remaining))
+        remaining = REDIRECT_TOTAL_TIMEOUT_SECONDS - (clock() - started)
+        if remaining <= 0:
+            raise RedirectResolutionError("redirect_timeout")
+        try:
+            response = request(current, connect_addresses=addresses, method="HEAD", allow_redirects=False,
+                               read_body=False, trust_env=False,
+                               timeout=min(REDIRECT_HOP_TIMEOUT_SECONDS, remaining))
+        except Exception:
+            raise RedirectResolutionError("redirect_request_failed") from None
+        if clock() - started > REDIRECT_TOTAL_TIMEOUT_SECONDS:
+            raise RedirectResolutionError("redirect_timeout")
+        if isinstance(response, dict):
+            status, headers = response.get("status"), response.get("headers")
+        else:
+            status, headers = getattr(response, "status", None), getattr(response, "headers", None)
+        if status in _REDIRECT_STATUS:
+            if redirects >= MAX_REDIRECTS:
+                raise RedirectResolutionError("redirect_limit_exceeded")
+            location = _response_header(headers, "location")
+            if (not isinstance(location, str) or not location or len(location) > MAX_REDIRECT_LOCATION_LENGTH
+                    or _CONTROL.search(location) or "\\" in location):
+                raise RedirectResolutionError("redirect_location_invalid")
+            target = urljoin(current, location)
+            normalized = safe_editorial_url(target)
+            if normalized is None:
+                raise RedirectResolutionError("redirect_target_unsafe")
+            if urlsplit(normalized).scheme != "https":
+                raise RedirectResolutionError("redirect_scheme_downgrade")
+            current = normalized
+            redirects += 1
+            continue
+        if status not in {200, 204}:
+            raise RedirectResolutionError("redirect_response_unusable")
+        final_url = safe_editorial_url(current)
+        if final_url is None:
+            raise RedirectResolutionError("redirect_target_unsafe")
+        if redirects == 0:
+            raise RedirectResolutionError("redirect_destination_missing")
+        return final_url
+
+
 class _Links(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -160,8 +297,6 @@ class _Links(HTMLParser):
         if self.anchor is not None:
             self.links.append((self.anchor[0], _text("".join(self.anchor[1]), MAX_MESSAGE_BYTES)))
             self.anchor = None
-            if len(self.links) > MAX_CANDIDATES:
-                raise SubmissionRejected("too_many_candidates")
 
     def close(self):
         super().close()
@@ -192,14 +327,16 @@ def _addresses(message, name, *, single=False):
         raise SubmissionRejected("invalid_sender" if single else "invalid_recipients") from None
 
 
-def extract_submission(raw: bytes) -> dict:
-    """Extract at most 25 safe unique links and private, explicitly untrusted headers.
+def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
+    """Extract every safe unique link within the bounded MIME message.
 
     Ordinary attachments are ignored; bounded attached message/rfc822 bodies are
     inspected only for links and never used to authenticate the sender. Multi-part bodies
     contribute both HTML and plain text links. This first slice forwards no message
     prose or original unsafe URL into a classifier; retain the original privately
-    in the intake's restricted object storage for inspection.
+    in the intake's restricted object storage for inspection. Tracking wrappers
+    remain excluded unless a caller explicitly supplies an offline-tested resolver;
+    the production intake does not supply one.
     """
     if not isinstance(raw, bytes) or not raw:
         raise SubmissionRejected("invalid_message")
@@ -260,25 +397,36 @@ def extract_submission(raw: bytes) -> dict:
                         url = url[:-1]
                     label = "Account action" if _ACTION_LABEL.search(line) else ""
                     candidates.append((url, label))
-                    if len(candidates) > MAX_CANDIDATES:
-                        raise SubmissionRejected("too_many_candidates")
-        if len(candidates) > MAX_CANDIDATES:
-            raise SubmissionRejected("too_many_candidates")
     links, excluded = {}, set()
+    excluded_count = 0
     for raw_url, title in candidates:
-        url = safe_editorial_url(raw_url)
+        if title == "Account action" or _ACTION_LABEL.search(title):
+            action_url = safe_editorial_url(raw_url)
+            if action_url is not None:
+                excluded.add(action_url)
+            warnings.add("excluded_links")
+            excluded_count += 1
+            continue
+        if is_supported_beehiiv_tracking_url(raw_url):
+            if tracking_resolver is None:
+                url = None
+            else:
+                try:
+                    resolved = tracking_resolver(raw_url)
+                except Exception:
+                    warnings.add("tracking_resolution_failed")
+                    excluded_count += 1
+                    continue
+                url = safe_editorial_url(resolved)
+        else:
+            url = safe_editorial_url(raw_url)
         if url is None:
             warnings.add("excluded_links")
-            continue
-        if title == "Account action" or _ACTION_LABEL.search(title):
-            excluded.add(url)
-            warnings.add("excluded_links")
+            excluded_count += 1
             continue
         if url not in links or title:
             links[url] = {"url": url, "title": _link_title(title, url)}
     result_links = [item for url, item in links.items() if url not in excluded]
-    if len(result_links) > MAX_LINKS:
-        raise SubmissionRejected("too_many_links")
     return {"sender": sender, "recipients": recipients, "subject": _text(message.get("Subject")),
             "messageId": _text(message.get("Message-ID")), "date": _text(message.get("Date"), 128),
-            "links": result_links, "warnings": sorted(warnings)}
+            "links": result_links, "warnings": sorted(warnings), "excludedLinkCount": excluded_count}

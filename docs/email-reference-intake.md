@@ -47,11 +47,13 @@ DKIM. A failed or unavailable check is held
 out of reference intake; arbitrary mail forwarding that breaks authentication
 may therefore need to be resubmitted by an authorized sender.
 
-Parsing is bounded to 1 MiB, 64 MIME parts, nesting depth 12 and 25 distinct safe
-links. Plain text, HTML anchors, transfer encodings and multipart alternatives
+Parsing is bounded to 1 MiB, 64 MIME parts, nesting depth 12 and 2,048 characters
+per candidate URL. There is no editorial link-count ceiling: every unique eligible
+link in a message accepted under the MIME/byte bounds is retained. Plain text, HTML anchors, transfer encodings and multipart alternatives
 are supported. Attachments are not opened. Automated replies and delivery
 notifications are rejected; ordinary newsletters are allowed. HTML is parsed as
-text and never rendered or executed.
+text and never rendered or executed. A legacy `maxLinks` configuration field is
+ignored; it does not truncate or reject message content.
 
 Only public-looking HTTP/HTTPS URLs survive. Credentials, unusual ports, literal
 nonpublic IPs, local hosts, unsubscribe/preferences/login/confirmation actions,
@@ -60,6 +62,23 @@ and fragments are removed before deduplication. No URL is fetched, followed or
 resolved during intake, including to unwrap a tracker. This bounds intake
 network activity to the configured S3 and DynamoDB resources. It intentionally
 misses newsletters whose only article links are opaque tracking redirects.
+Known Beehiiv `link.mail.beehiiv.com/ss/c/` click wrappers are excluded without
+storing their recipient-specific URL; Papyrus does not resolve them or contact
+tracking hosts.
+
+An offline-tested resolver helper exists for a future explicitly approved
+integration. It accepts only that exact Beehiiv HTTPS wrapper, uses injected DNS
+and transport adapters, and requires DNS and transport to honor bounded timeouts
+and the transport to pin each connection to
+validated public addresses, preserve hostname verification, disable ambient
+proxy/cookie use and automatic redirects, send HEAD only, and read no response
+body. It bounds redirects, per-hop and total time, rejects private or mixed DNS
+answers, action links, unsafe targets and HTTPS downgrades, and returns only a
+normalized final article URL. Production intake does not inject or call this
+helper; tests use synthetic DNS and responses only. Resolving recipient-specific
+click links contacts a third party and may reveal recipient tracking identifiers,
+so that integration remains disabled pending explicit approval and a reviewed
+privacy policy.
 Later accession/enrichment remains a separate existing workflow and needs its
 own safe-fetch policy; this change does not authorize fetching private resources.
 
@@ -154,14 +173,23 @@ publication endpoint or shared binding makes old queued discoveries fail closed
 until an operator reconciles them.
 
 Within the partition, `EMAIL#<hash>` records `processing`, `queued`, `rejected` or
-`failed`, private sender/receipt/MIME provenance and a safe error code. `queued`
-means collected, not classified or delivered. `DISC#` and `ROUTE#` rows and
+`failed`, private sender/receipt/MIME provenance and a safe error code. A compact
+JSONL manifest of eligible normalized links is written beside the private MIME in
+the same 30-day S3 lifecycle prefix. The receipt records its digest, length, byte
+cursor, total link count and processed count. A private one-minute resume schedule
+reads pending receipts through the existing `routing` GSI and advances at most 25
+links per work batch, with a 60-second processing budget. A message can therefore
+span multiple invocations without losing content. Each batch checkpoints its byte
+cursor after conditional discovery writes; replay after a crash is idempotent and
+does not overwrite discoveries already routed onward. `queued` means every
+eligible unique discovery is durable, not classified or delivered. `DISC#` and `ROUTE#` rows and
 `ROUTERUN#` receipts show routing progress. The existing Monitoring console is
 currently tied to its original monitor; inspect these private records and the
 receiver's failure queue for this slice. A queued/rejected SES delivery is terminal
-and retries return the original outcome. Transient storage/service failures are
-raised for bounded Lambda retries and then the DLQ; partial link batches use
-conditional discovery writes. Rate limits count each SES delivery once per
+and retries return the original outcome. A failed manifest-backed receipt retains
+its cursor in the pending index so the resume schedule retries it; failures remain
+visible by safe error code. Initial transient failures also use bounded Lambda
+retries and then the DLQ. Rate limits count each SES delivery once per
 sender/hour. Raw MIME and intake receipts expire after 30 days; DLQ messages
 expire after 14 days.
 

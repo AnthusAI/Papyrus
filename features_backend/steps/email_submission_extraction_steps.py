@@ -26,9 +26,9 @@ def auto_newsletter(context):
     context.email_submission_raw = _message("https://example.org/article", "Auto-Submitted: auto-replied\n")
 
 
-@given("a submitted newsletter containing more than the permitted editorial links")
+@given("a submitted newsletter containing 41 unique editorial links")
 def excessive_newsletter(context):
-    context.email_submission_raw = _message("\n".join(f"https://example.org/article/{i}" for i in range(26)))
+    context.email_submission_raw = _message("\n".join(f"https://example.org/article/{i}" for i in range(41)))
 
 
 @when("Papyrus extracts the email submission")
@@ -69,3 +69,53 @@ def canonical_candidate(context):
 @then('the email submission is refused with code "{code}"')
 def submission_refused(context, code):
     assert context.email_submission_error == code
+
+
+@then("all 41 eligible links are retained for resumable intake")
+def all_candidates_retained(context):
+    assert context.email_submission_error is None
+    assert len(context.email_submission["links"]) == 41
+
+
+@given("a synthetic Beehiiv article link and an unsubscribe action link")
+def synthetic_tracker_newsletter(context):
+    context.email_submission_raw = _message(
+        '<a href="https://link.mail.beehiiv.com/ss/c/opaque?id=article">Read story</a>'
+        '<a href="https://link.mail.beehiiv.com/ss/c/opaque?id=unsubscribe">Unsubscribe</a>',
+        "Content-Type: text/html\n")
+
+
+@when("Papyrus extracts with an offline synthetic redirect adapter")
+def extract_with_synthetic_adapter(context):
+    from papyrus_content.email_submission import extract_submission, resolve_beehiiv_tracking_url
+
+    requests = []
+
+    def request(url, **options):
+        requests.append((url, options))
+        if len(requests) == 1:
+            return {"status": 302, "headers": {"Location": "https://news.example.org/story?utm_source=mail"}}
+        return {"status": 200, "headers": {}}
+
+    def resolver(url):
+        return resolve_beehiiv_tracking_url(
+            url, resolve_host=lambda *_args, **_kwargs: ["93.184.216.34"], request=request, clock=lambda: 0)
+
+    context.email_submission = extract_submission(context.email_submission_raw, tracking_resolver=resolver)
+    context.email_submission_requests = requests
+
+
+@then("only the normalized final article URL is retained")
+def only_normalized_article_retained(context):
+    assert context.email_submission["links"] == [
+        {"url": "https://news.example.org/story", "title": "Read story"}]
+    assert "link.mail.beehiiv.com" not in repr(context.email_submission)
+
+
+@then("the adapter pins public addresses without following redirects or reading bodies")
+def redirect_adapter_is_bounded(context):
+    requests = context.email_submission_requests
+    assert len(requests) == 2
+    assert all(options["connect_addresses"] == ("93.184.216.34",) for _, options in requests)
+    assert all(options["allow_redirects"] is False for _, options in requests)
+    assert all(options["method"] == "HEAD" and options["read_body"] is False for _, options in requests)
