@@ -1,0 +1,1155 @@
+{
+ "Description": "Private Papyrus hosted chat data plane candidate; not production runtime composition.",
+ "Parameters": {
+  "GatewayRoleArn": {
+   "Type": "String",
+   "AllowedPattern": "^arn:aws:iam::[0-9]{12}:role/.+$",
+   "Description": "Gateway caller role ARN. For synthetic non-production adapter validation, use a dedicated disposable harness role, not the production CMS compute role."
+  },
+  "PrivateAssistantBotId": {
+   "Type": "String",
+   "AllowedPattern": "^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$",
+   "Description": "Stable Papyrus-owned assistant ID; stored per derived account tenant on first private-channel open."
+  },
+  "PrivateAssistantBotName": {
+   "Type": "String",
+   "AllowedPattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]{1,63}$",
+   "Description": "Visible name for the private Papyrus assistant."
+  },
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Resources": {
+  "PrivateMessagingAEAE53CD": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "pk",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "sk",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "DeletionProtectionEnabled": true,
+    "KeySchema": [
+     {
+      "AttributeName": "pk",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "sk",
+      "KeyType": "RANGE"
+     }
+    ],
+    "PointInTimeRecoverySpecification": {
+     "PointInTimeRecoveryEnabled": true
+    },
+    "TimeToLiveSpecification": {
+     "AttributeName": "expires_at",
+     "Enabled": true
+    }
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain"
+  },
+  "PrivateConversationIndex81B3261A": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "pk",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "sk",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "l1",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "l2",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "l3",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "DeletionProtectionEnabled": true,
+    "KeySchema": [
+     {
+      "AttributeName": "pk",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "sk",
+      "KeyType": "RANGE"
+     }
+    ],
+    "LocalSecondaryIndexes": [
+     {
+      "IndexName": "l1-index",
+      "KeySchema": [
+       {
+        "AttributeName": "pk",
+        "KeyType": "HASH"
+       },
+       {
+        "AttributeName": "l1",
+        "KeyType": "RANGE"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     },
+     {
+      "IndexName": "l2-index",
+      "KeySchema": [
+       {
+        "AttributeName": "pk",
+        "KeyType": "HASH"
+       },
+       {
+        "AttributeName": "l2",
+        "KeyType": "RANGE"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     },
+     {
+      "IndexName": "l3-index",
+      "KeySchema": [
+       {
+        "AttributeName": "pk",
+        "KeyType": "HASH"
+       },
+       {
+        "AttributeName": "l3",
+        "KeyType": "RANGE"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     }
+    ],
+    "PointInTimeRecoverySpecification": {
+     "PointInTimeRecoveryEnabled": true
+    }
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain"
+  },
+  "PrivateSessionObjects8FA7D9DB": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "OwnershipControls": {
+     "Rules": [
+      {
+       "ObjectOwnership": "BucketOwnerEnforced"
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "VersioningConfiguration": {
+     "Status": "Enabled"
+    }
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain"
+  },
+  "PrivateSessionObjectsPolicy2E0718BF": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "PrivateSessionObjects8FA7D9DB"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "s3:*",
+       "Condition": {
+        "Bool": {
+         "aws:SecureTransport": "false"
+        }
+       },
+       "Effect": "Deny",
+       "Principal": {
+        "AWS": "*"
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "PrivateSessionObjects8FA7D9DB",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "PrivateSessionObjects8FA7D9DB",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   }
+  },
+  "TurnRunDlqF1A448CD": {
+   "Type": "AWS::SQS::Queue",
+   "Properties": {
+    "MessageRetentionPeriod": 1209600,
+    "SqsManagedSseEnabled": true
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete"
+  },
+  "TurnRunDlqPolicy8D655AF3": {
+   "Type": "AWS::SQS::QueuePolicy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sqs:*",
+       "Condition": {
+        "Bool": {
+         "aws:SecureTransport": "false"
+        }
+       },
+       "Effect": "Deny",
+       "Principal": {
+        "AWS": "*"
+       },
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnRunDlqF1A448CD",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Queues": [
+     {
+      "Ref": "TurnRunDlqF1A448CD"
+     }
+    ]
+   }
+  },
+  "TurnProbeDlq101D60BD": {
+   "Type": "AWS::SQS::Queue",
+   "Properties": {
+    "MessageRetentionPeriod": 1209600,
+    "SqsManagedSseEnabled": true
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete"
+  },
+  "TurnProbeDlqPolicy75E0FB65": {
+   "Type": "AWS::SQS::QueuePolicy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sqs:*",
+       "Condition": {
+        "Bool": {
+         "aws:SecureTransport": "false"
+        }
+       },
+       "Effect": "Deny",
+       "Principal": {
+        "AWS": "*"
+       },
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnProbeDlq101D60BD",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Queues": [
+     {
+      "Ref": "TurnProbeDlq101D60BD"
+     }
+    ]
+   }
+  },
+  "TurnRuns2149914B": {
+   "Type": "AWS::SQS::Queue",
+   "Properties": {
+    "MessageRetentionPeriod": 345600,
+    "RedrivePolicy": {
+     "deadLetterTargetArn": {
+      "Fn::GetAtt": [
+       "TurnRunDlqF1A448CD",
+       "Arn"
+      ]
+     },
+     "maxReceiveCount": 5
+    },
+    "SqsManagedSseEnabled": true,
+    "VisibilityTimeout": 1800
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete"
+  },
+  "TurnRunsPolicy5D8C9333": {
+   "Type": "AWS::SQS::QueuePolicy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sqs:*",
+       "Condition": {
+        "Bool": {
+         "aws:SecureTransport": "false"
+        }
+       },
+       "Effect": "Deny",
+       "Principal": {
+        "AWS": "*"
+       },
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnRuns2149914B",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Queues": [
+     {
+      "Ref": "TurnRuns2149914B"
+     }
+    ]
+   }
+  },
+  "TurnProbes3E4AFDA6": {
+   "Type": "AWS::SQS::Queue",
+   "Properties": {
+    "MessageRetentionPeriod": 345600,
+    "RedrivePolicy": {
+     "deadLetterTargetArn": {
+      "Fn::GetAtt": [
+       "TurnProbeDlq101D60BD",
+       "Arn"
+      ]
+     },
+     "maxReceiveCount": 5
+    },
+    "SqsManagedSseEnabled": true,
+    "VisibilityTimeout": 120
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete"
+  },
+  "TurnProbesPolicyBB00C83C": {
+   "Type": "AWS::SQS::QueuePolicy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sqs:*",
+       "Condition": {
+        "Bool": {
+         "aws:SecureTransport": "false"
+        }
+       },
+       "Effect": "Deny",
+       "Principal": {
+        "AWS": "*"
+       },
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnProbes3E4AFDA6",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Queues": [
+     {
+      "Ref": "TurnProbes3E4AFDA6"
+     }
+    ]
+   }
+  },
+  "PapyrusChatGatewayRolePolicyD9310960": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:Query",
+        "dynamodb:BatchGetItem"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "PrivateMessagingAEAE53CD",
+         "Arn"
+        ]
+       }
+      },
+      {
+       "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:BatchGetItem"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "PrivateConversationIndex81B3261A",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "PrivateConversationIndex81B3261A",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "s3:GetObject",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "PrivateSessionObjects8FA7D9DB",
+            "Arn"
+           ]
+          },
+          "/conversations/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": "sqs:SendMessage",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "TurnRuns2149914B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "TurnProbes3E4AFDA6",
+          "Arn"
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "PapyrusChatGatewayRolePolicyD9310960",
+    "Roles": [
+     {
+      "Fn::Select": [
+       1,
+       {
+        "Fn::Split": [
+         "/",
+         {
+          "Fn::Select": [
+           5,
+           {
+            "Fn::Split": [
+             ":",
+             {
+              "Ref": "GatewayRoleArn"
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "RunWorkerLogsD84788B6": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": "/aws/lambda/papyrus-private-chat-run-worker",
+    "RetentionInDays": 30
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain"
+  },
+  "ProbeWorkerLogs7F393F2F": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": "/aws/lambda/papyrus-private-chat-probe-worker",
+    "RetentionInDays": 30
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain"
+  },
+  "RunWorkerRole9CBD41EA": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Description": "Private Papyrus computerless chat run worker."
+   }
+  },
+  "RunWorkerRoleDefaultPolicy8EE24203": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:BatchGetItem",
+        "dynamodb:TransactWriteItems"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "PrivateMessagingAEAE53CD",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "PrivateConversationIndex81B3261A",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "PrivateConversationIndex81B3261A",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "ssm:GetParameter",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          "arn:",
+          {
+           "Ref": "AWS::Partition"
+          },
+          ":ssm:",
+          {
+           "Ref": "AWS::Region"
+          },
+          ":",
+          {
+           "Ref": "AWS::AccountId"
+          },
+          ":parameter/amplify/shared/papyrus/OPENAI_API_KEY"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "RunWorkerLogsD84788B6",
+            "Arn"
+           ]
+          },
+          ":*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "PrivateSessionObjects8FA7D9DB",
+            "Arn"
+           ]
+          },
+          "/conversations/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "sqs:ChangeMessageVisibility",
+        "sqs:SendMessage"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "TurnRuns2149914B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "TurnProbes3E4AFDA6",
+          "Arn"
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:ChangeMessageVisibility",
+        "sqs:GetQueueUrl",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnRuns2149914B",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "RunWorkerRoleDefaultPolicy8EE24203",
+    "Roles": [
+     {
+      "Ref": "RunWorkerRole9CBD41EA"
+     }
+    ]
+   }
+  },
+  "ProbeWorkerRole2EA7596F": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Description": "Private Papyrus chat deadline/recovery worker."
+   }
+  },
+  "ProbeWorkerRoleDefaultPolicy6AF6B8FC": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:TransactWriteItems",
+        "dynamodb:BatchGetItem"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "PrivateMessagingAEAE53CD",
+         "Arn"
+        ]
+       }
+      },
+      {
+       "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:BatchGetItem"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "PrivateConversationIndex81B3261A",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "PrivateConversationIndex81B3261A",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "s3:GetObject",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "PrivateSessionObjects8FA7D9DB",
+            "Arn"
+           ]
+          },
+          "/conversations/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": "sqs:SendMessage",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "TurnRuns2149914B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::GetAtt": [
+          "TurnProbes3E4AFDA6",
+          "Arn"
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "ProbeWorkerLogs7F393F2F",
+            "Arn"
+           ]
+          },
+          ":*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:ChangeMessageVisibility",
+        "sqs:GetQueueUrl",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "TurnProbes3E4AFDA6",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ProbeWorkerRoleDefaultPolicy6AF6B8FC",
+    "Roles": [
+     {
+      "Ref": "ProbeWorkerRole2EA7596F"
+     }
+    ]
+   }
+  },
+  "RunWorker2E932329": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "8530a01ebcd80abc28890efbc63040b439981b7a7fa34bbf3d48feb96f1317e3.zip"
+    },
+    "Description": "Runs Papyrus private chat turns with the computerless Chatticus execution profile.",
+    "Environment": {
+     "Variables": {
+      "PAPYRUS_CHAT_MESSAGING_TABLE": {
+       "Ref": "PrivateMessagingAEAE53CD"
+      },
+      "PAPYRUS_CHAT_CONVERSATIONS_TABLE": {
+       "Ref": "PrivateConversationIndex81B3261A"
+      },
+      "PAPYRUS_CHAT_SESSION_BUCKET": {
+       "Ref": "PrivateSessionObjects8FA7D9DB"
+      },
+      "PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL": {
+       "Ref": "TurnRuns2149914B"
+      },
+      "PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL": {
+       "Ref": "TurnProbes3E4AFDA6"
+      },
+      "PAPYRUS_CHAT_PRIVATE_BOT_ID": {
+       "Ref": "PrivateAssistantBotId"
+      },
+      "PAPYRUS_CHAT_PRIVATE_BOT_NAME": {
+       "Ref": "PrivateAssistantBotName"
+      },
+      "OPENAI_API_KEY_PARAMETER": "/amplify/shared/papyrus/OPENAI_API_KEY"
+     }
+    },
+    "Handler": "run-worker.handler",
+    "LoggingConfig": {
+     "LogGroup": {
+      "Ref": "RunWorkerLogsD84788B6"
+     }
+    },
+    "MemorySize": 1024,
+    "Role": {
+     "Fn::GetAtt": [
+      "RunWorkerRole9CBD41EA",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "RunWorkerRoleDefaultPolicy8EE24203",
+    "RunWorkerRole9CBD41EA"
+   ]
+  },
+  "RunWorkerSqsEventSourcePapyrusChatDataCandidateTurnRunsFE36460398E70670": {
+   "Type": "AWS::Lambda::EventSourceMapping",
+   "Properties": {
+    "BatchSize": 1,
+    "Enabled": false,
+    "EventSourceArn": {
+     "Fn::GetAtt": [
+      "TurnRuns2149914B",
+      "Arn"
+     ]
+    },
+    "FunctionName": {
+     "Ref": "RunWorker2E932329"
+    }
+   }
+  },
+  "ProbeWorkerCB5ABD30": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "8530a01ebcd80abc28890efbc63040b439981b7a7fa34bbf3d48feb96f1317e3.zip"
+    },
+    "Description": "Recovers and finalizes Papyrus private chat turns.",
+    "Environment": {
+     "Variables": {
+      "PAPYRUS_CHAT_MESSAGING_TABLE": {
+       "Ref": "PrivateMessagingAEAE53CD"
+      },
+      "PAPYRUS_CHAT_CONVERSATIONS_TABLE": {
+       "Ref": "PrivateConversationIndex81B3261A"
+      },
+      "PAPYRUS_CHAT_SESSION_BUCKET": {
+       "Ref": "PrivateSessionObjects8FA7D9DB"
+      },
+      "PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL": {
+       "Ref": "TurnRuns2149914B"
+      },
+      "PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL": {
+       "Ref": "TurnProbes3E4AFDA6"
+      },
+      "PAPYRUS_CHAT_PRIVATE_BOT_ID": {
+       "Ref": "PrivateAssistantBotId"
+      },
+      "PAPYRUS_CHAT_PRIVATE_BOT_NAME": {
+       "Ref": "PrivateAssistantBotName"
+      }
+     }
+    },
+    "Handler": "probe-worker.handler",
+    "LoggingConfig": {
+     "LogGroup": {
+      "Ref": "ProbeWorkerLogs7F393F2F"
+     }
+    },
+    "MemorySize": 512,
+    "Role": {
+     "Fn::GetAtt": [
+      "ProbeWorkerRole2EA7596F",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Timeout": 60
+   },
+   "DependsOn": [
+    "ProbeWorkerRoleDefaultPolicy6AF6B8FC",
+    "ProbeWorkerRole2EA7596F"
+   ]
+  },
+  "ProbeWorkerSqsEventSourcePapyrusChatDataCandidateTurnProbes315230CEFCD74B60": {
+   "Type": "AWS::Lambda::EventSourceMapping",
+   "Properties": {
+    "BatchSize": 1,
+    "Enabled": false,
+    "EventSourceArn": {
+     "Fn::GetAtt": [
+      "TurnProbes3E4AFDA6",
+      "Arn"
+     ]
+    },
+    "FunctionName": {
+     "Ref": "ProbeWorkerCB5ABD30"
+    }
+   }
+  }
+ },
+ "Outputs": {
+  "MessagingTableName": {
+   "Value": {
+    "Ref": "PrivateMessagingAEAE53CD"
+   }
+  },
+  "ConversationIndexTableName": {
+   "Value": {
+    "Ref": "PrivateConversationIndex81B3261A"
+   }
+  },
+  "SessionBucketName": {
+   "Value": {
+    "Ref": "PrivateSessionObjects8FA7D9DB"
+   }
+  },
+  "TurnRunsQueueUrl": {
+   "Value": {
+    "Ref": "TurnRuns2149914B"
+   }
+  },
+  "TurnProbesQueueUrl": {
+   "Value": {
+    "Ref": "TurnProbes3E4AFDA6"
+   }
+  },
+  "FeatureDefault": {
+   "Value": "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review"
+  },
+  "GatewayMessagingTableEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_MESSAGING_TABLE"
+  },
+  "GatewayMessagingTableName": {
+   "Value": {
+    "Ref": "PrivateMessagingAEAE53CD"
+   }
+  },
+  "GatewayConversationTableEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_CONVERSATIONS_TABLE"
+  },
+  "GatewayConversationTableName": {
+   "Value": {
+    "Ref": "PrivateConversationIndex81B3261A"
+   }
+  },
+  "GatewaySessionBucketEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_SESSION_BUCKET"
+  },
+  "GatewaySessionBucketName": {
+   "Value": {
+    "Ref": "PrivateSessionObjects8FA7D9DB"
+   }
+  },
+  "GatewayRunQueueEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL"
+  },
+  "GatewayProbeQueueEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL"
+  },
+  "GatewayPrivateBotIdEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_PRIVATE_BOT_ID"
+  },
+  "PrivateAssistantBotIdValue": {
+   "Value": {
+    "Ref": "PrivateAssistantBotId"
+   }
+  },
+  "GatewayPrivateBotNameEnvironmentName": {
+   "Value": "PAPYRUS_CHAT_PRIVATE_BOT_NAME"
+  },
+  "PrivateAssistantBotNameValue": {
+   "Value": {
+    "Ref": "PrivateAssistantBotName"
+   }
+  },
+  "WorkerModelKeyParameterName": {
+   "Value": "/amplify/shared/papyrus/OPENAI_API_KEY"
+  },
+  "RunWorkerFunctionName": {
+   "Value": {
+    "Ref": "RunWorker2E932329"
+   }
+  },
+  "ProbeWorkerFunctionName": {
+   "Value": {
+    "Ref": "ProbeWorkerCB5ABD30"
+   }
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}
