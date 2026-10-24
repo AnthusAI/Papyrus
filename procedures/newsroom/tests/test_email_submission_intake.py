@@ -330,6 +330,20 @@ def test_41_links_are_checkpointed_25_then_16_and_all_reach_existing_router():
     assert len(fixture.table.by_prefix("DISC#")) == 41
 
 
+def test_pending_manifest_fails_closed_if_destination_addresses_change():
+    fixture = email_fixture()
+    links = "\n".join(f"https://example.org/article/{i}" for i in range(41))
+    fixture.s3.raw = fixture.s3.raw.replace(b"https://example.org/alpha\r\nhttps://example.org/beta", links.encode())
+    assert collect_email(fixture)["status"] == "processing"
+    update_config(fixture, addresses=["new-submissions@publication.example"])
+    result = _resume_pending(EmailStore(fixture.table), "email-publication", "mail-fixture",
+                             fixture.s3, fixture.cognito, now=1001)
+    row = fixture.table.by_prefix("EMAIL#")[0]
+    assert result["receipts"][0]["reason"] == "email_retry_binding_changed"
+    assert row["status"] == "failed" and "gsi1pk" not in row
+    assert len(fixture.table.by_prefix("DISC#")) == 25
+
+
 def test_crashed_batch_resumes_without_overwriting_a_routed_discovery(monkeypatch):
     fixture = email_fixture()
     real_put, calls = fixture.table.put_item, 0

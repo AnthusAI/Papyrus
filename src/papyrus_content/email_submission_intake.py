@@ -111,12 +111,15 @@ def validate_email_config(raw, raw_router):
             raise ConfigurationError("email_shared_destination_requires_account_bound_cyclotron")
     else:
         raise ConfigurationError("email_destination_kind_invalid")
+    addresses = _addresses(raw.get("addresses"), 10)
+    destination_fingerprint = _digest([account, kind, sorted(addresses), sorted(publications)])
     return {"enabled": raw["enabled"], "accountId": account, "kind": kind,
-            "addresses": _addresses(raw.get("addresses"), 10),
+            "addresses": addresses,
             "publicationIds": publications,
             "maxMessageBytes": _limit(raw, "maxMessageBytes", MAX_MESSAGE_BYTES, MAX_MESSAGE_BYTES),
             "maxMessagesPerSenderHour": _limit(raw, "maxMessagesPerSenderHour", 10, 100),
-            "routingFingerprint": email_routing_fingerprint(router), "publications": router["publications"]}
+            "routingFingerprint": email_routing_fingerprint(router),
+            "destinationFingerprint": destination_fingerprint, "publications": router["publications"]}
 
 
 class EmailStore(DynamoStore):
@@ -334,11 +337,13 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
         row = store.get(monitor_id, receipt_key)
         if row and row.get("status") in {"queued", "rejected"}:
             return {"status": "duplicate", "previousStatus": row["status"], "receiptId": receipt_key}
-        if row and row.get("routingFingerprint") != config["routingFingerprint"]:
+        if row and (row.get("routingFingerprint") != config["routingFingerprint"]
+                    or row.get("manifestKey") and row.get("destinationFingerprint") != config["destinationFingerprint"]):
             raise ConfigurationError("email_retry_binding_changed")
         row = row or {"sk": receipt_key, "sesMessageId": message_id, "firstSeen": int(now),
                       "observedAt": _iso(now), "s3Bucket": bucket, "s3Key": key,
                       "accountId": config["accountId"], "routingFingerprint": config["routingFingerprint"],
+                      "destinationFingerprint": config["destinationFingerprint"],
                       "ttl": int(now + RECEIPT_SECONDS)}
         if row["s3Bucket"] != bucket or row["s3Key"] != key:
             raise ConfigurationError("email_retry_object_changed")
@@ -372,6 +377,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
             raise SubmissionRejected("no_editorial_links")
         row.update(mimeSha256=digest, subject=parsed["subject"], rfcMessageId=parsed["messageId"],
                    warnings=parsed["warnings"], linkCount=len(parsed["links"]),
+                   destinationFingerprint=config["destinationFingerprint"],
                    emailAuthorizedPublicationIds=authorized_publications,
                    excludedLinkCount=parsed.get("excludedLinkCount", 0))
         if not row.get("manifestKey"):
@@ -422,7 +428,9 @@ def _resume_pending(store, monitor_id, bucket, s3, cognito, *, now=None, limit=1
                                            store.get(monitor_id, "CONFIG#router"))
             if not config["enabled"]:
                 continue
-            if row.get("routingFingerprint") != config["routingFingerprint"]:
+            if (row.get("routingFingerprint") != config["routingFingerprint"]
+                    or row.get("destinationFingerprint") != config["destinationFingerprint"]
+                    or not set(row.get("recipients", [])) <= set(config["addresses"])):
                 row.update(status="failed", errorCode="email_retry_binding_changed", updatedAt=_iso(now))
                 row.pop("gsi1pk", None)
                 row.pop("gsi1sk", None)
@@ -441,6 +449,9 @@ def _resume_pending(store, monitor_id, bucket, s3, cognito, *, now=None, limit=1
                 results.append({"status": "rejected", "receiptId": receipt_key,
                                 "reason": "sender_not_active_editor"})
                 continue
+            if (row.get("s3Bucket") != bucket or row.get("manifestKey") != _manifest_key(receipt_key)
+                    or int(row.get("manifestBytes", 0)) <= 0):
+                raise RuntimeError("email_manifest_binding_invalid")
             row.update(status="processing", updatedAt=_iso(now))
             store.put(monitor_id, row)
             results.append(_drain_manifest(store, s3, monitor_id, config, row, receipt_key,
