@@ -24,10 +24,17 @@
       "text": "2026-10-23 follow-up: tightened membership to require active membership plus host-derived editorial-chat authorization (editor/admin mapping), and reran checks after the fix. Code head ebebefa976a511e19a15611748330c9e6b09eb88 is pushed on feature/PPY-0d18a6-chat-trust-contract. Typecheck, lint, admission script, both added Gherkin scenarios and diff check pass. Exact-head status and workflow lookups remain empty; the draft PR attempt remains denied (403 from GitHub integration).",
       "created_at": "2026-10-23T20:20:12.062064Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b154a262-b4ff-45f1-8432-3f2b88991cb9",
+      "author": "home",
+      "text": "2026-10-24 code-local consumer increment: Papyrus now pins exact Chatticus #637 head b332fb88e194f0fd100d449765e1e851d4c538f3 and adds an injectable admission sender. It requires Authorization headers from a fresh host provider; a retry reuses the immutable attempt and key while fetching headers again; no implicit retry/fallback; AppSync/UI send path stays untouched. Production token semantics, endpoint and author mapping are intentionally not guessed. Branch feature/PPY-0d18a6-chat-client-adapter, code commit a4eac1d9db3e8fedca0761a97a6639451e118d70. PASS: Papyrus typecheck/lint, admission contract tests, adapter transport test, new Gherkin scenarios, diff check. Full pre-existing browser Gherkin fixture previously hit sandbox EPERM on 127.0.0.1. Do not retry PR creation; prior GitHub integration returned 403. No PR/hosted CI/deploy/merge.",
+      "created_at": "2026-10-24T18:34:37.957110Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-23T20:20:12.062095Z",
+  "updated_at": "2026-10-24T18:34:37.957147Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
