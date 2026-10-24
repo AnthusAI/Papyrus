@@ -3,7 +3,7 @@
 The strict submission receiver (PPY-65026c) accepts newsletters and forwarded links
 as untrusted source data. It is separate from the older command-capable inbound
 console described in [inbound email submissions](inbound-email-submissions.md).
-Deploy and enable it only after reviewing its destination, sender allowlist,
+Deploy and enable it only after reviewing its destination, sender authorization,
 account grants, SES rules and DNS. This implementation does not activate email.
 
 ## Routing and classification
@@ -41,8 +41,9 @@ It sends no acknowledgement and does not execute console commands.
 
 The receiver trusts the SES invocation's envelope recipients and scan/authentication
 verdicts. To/Cc, From, Authentication-Results and other MIME headers cannot grant
-access. An exact sender allowlist is additionally required. DMARC, spam and virus
-checks must pass, alongside SPF or DKIM. A failed or unavailable check is held
+access. The outer sender must also match a current verified editor or admin in the
+destination publication. DMARC, spam and virus checks must pass, alongside SPF or
+DKIM. A failed or unavailable check is held
 out of reference intake; arbitrary mail forwarding that breaks authentication
 may therefore need to be resubmitted by an authorized sender.
 
@@ -127,6 +128,16 @@ The receiver and router Lambda roles need read-only `cognito-idp:ListUsers` and
 pool-scoped directory read access; it does not grant Cognito writes. Cognito user
 directory reads can be eventually consistent, so group revocation propagation is
 not a synchronous revocation guarantee.
+
+Papyrus maps Google's `email_verified` claim into Cognito's standard
+`email_verified` attribute for Google-federated accounts. Cognito treats mapped
+email addresses as unverified unless the provider's verification claim is also
+mapped. The mapping is part of the auth stack configuration, and Cognito refreshes
+mapped values on a subsequent Google sign-in; do not administratively mark a sender
+verified. After an auth deployment adds or repairs this mapping, the user must sign
+out and sign back in at the publication newsroom before email intake will recognize
+the updated verification state. Cognito's one-time verification-code flow does not
+verify an email address that came from a federated provider.
 
 Forwarded inline bodies and bounded attached `message/rfc822` parts contribute
 links only. Attached message headers never authorize the submission; SES verdicts
