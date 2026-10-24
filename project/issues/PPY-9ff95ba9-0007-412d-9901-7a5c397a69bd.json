@@ -38,10 +38,17 @@
       "text": "Throttle pause (2026-10-23, about 13:00 UTC). Papyrus 5.33.0 is released, but its backend fails to deploy: the Amplify data FunctionDirectiveStack reaches 505 resources, over the 500 limit (Shipped job 69 failed at CDK assembly; nothing was deployed). Fix: Papyrus #654 (stack goes 510 → 230 resources, plus a CI test), merging on green CI. NEXT ON RESUME: promote develop → main as a 5.33.1 patch, then tell Shipped to re-apply 5.33.x with proposals.publish true, and Distinctive to redo step 1 of its deploy plan (backend → runner image rebuild → Cyclotron router change set with Ryan's go → Distinctive verifies). Shipped is reverted to 5.31.0; Distinctive is reverted to 5.32.0; both live sites are fine.",
       "created_at": "2026-10-23T13:24:24.617488Z",
       "comment_type": "default"
+    },
+    {
+      "id": "19bd1a34-0fc9-40f1-bc6d-5cbb4c39cd38",
+      "author": "home",
+      "text": "2026-10-24 status:\n- Distinctive: on 5.33.1 (step 1 done).\n- Procedure runner: on v5.33.1, change set runner-5-33-1-1792859123, Code only (step 2 done).\n- Router: papyrus-monitoring updated from v5.35.0 (change set router-v5-35-0-20261024123241: +dynamodb:UpdateItem, +RouterAutomationReadPolicy; RouterEditorMembershipPolicy re-created with the same grant; nothing removed). The first post-deploy router run is being checked. Step 4 (Distinctive's dry run and one run-now) is next.\n- Shipped: on 5.33.1 with proposals.publish true and standard consent; #privacy is v8.\n- Ryan is admin in the Shipped CMS pool.\n- Operator IAM path for filing AI proposals: in progress, so the first proposal won't need a CLI login.\n- Waiting on Ryan: the reader sign-in retry, to capture the failure code (see the sign-in bug); the Cyclotron lab bootstrap of the criteria successor run, which also needs CDN forwarding of /publication-runs/*; the Data Parade articles consent choice (CookieYes vs the Papyrus banner); the auto-accept policy for Cyclotron-delivered pending references; and the dataparade-cli worktrees (archive vs delete).",
+      "created_at": "2026-10-24T17:04:53.694589Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T05:51:38.896492Z",
-  "updated_at": "2026-10-23T13:24:24.617526Z",
+  "updated_at": "2026-10-24T17:04:53.694623Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
