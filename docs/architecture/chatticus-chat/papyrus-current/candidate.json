@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Papyrus today: its own chat engine",
+    "output": "docs/architecture/chatticus-chat/papyrus-current/papyrus-current.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/AnthusAI/Papyrus.git",
+      "revision": "f427a8bd92ec651095bce8b84ba810220b04fb8a",
+      "link_mode": "web"
+    }
+  },
+  "components": [
+    {
+      "id": "pane",
+      "type": "frontend",
+      "label": "Console shell",
+      "sublabel": "UI + AppSync subscriptions",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "components/papyrus-console-shell.tsx",
+          "line": 679,
+          "end_line": 695
+        },
+        {
+          "path": "components/papyrus-console-shell.tsx",
+          "line": 788,
+          "end_line": 852
+        }
+      ]
+    },
+    {
+      "id": "messages",
+      "type": "database",
+      "label": "Message + MessageThread",
+      "sublabel": "GraphQL models; group access",
+      "pos": [
+        440,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "amplify/data/schema.ts",
+          "line": 1664,
+          "end_line": 1746
+        }
+      ]
+    },
+    {
+      "id": "responder",
+      "type": "backend",
+      "label": "Rust responder Lambda",
+      "sublabel": "Own model loop + streamed writes",
+      "pos": [
+        840,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "amplify/functions/console-chat-responder/resource.ts",
+          "line": 77,
+          "end_line": 93
+        },
+        {
+          "path": "amplify/functions/console-chat-responder/src/main.rs",
+          "line": 259,
+          "end_line": 350
+        }
+      ]
+    },
+    {
+      "id": "slack",
+      "type": "backend",
+      "label": "Slack events Lambda",
+      "sublabel": "Signature + event deduplication",
+      "pos": [
+        440,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "amplify/functions/slack-events/handler.ts",
+          "line": 18,
+          "end_line": 110
+        }
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "backend",
+      "label": "Tactus + Papyrus tools",
+      "sublabel": "Python bridge; Tactus 0.44.1",
+      "pos": [
+        840,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "amplify/functions/console-chat-responder/Dockerfile",
+          "line": 10,
+          "end_line": 17
+        },
+        {
+          "path": "amplify/functions/console-chat-responder/py/execute_tactus_runner.py",
+          "line": 66,
+          "end_line": 79
+        }
+      ]
+    },
+    {
+      "id": "delivery",
+      "type": "backend",
+      "label": "Slack delivery Lambda",
+      "sublabel": "Completed replies to Slack",
+      "pos": [
+        40,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "amplify/functions/slack-delivery/handler.py",
+          "line": 50,
+          "end_line": 108
+        }
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "pane-messages",
+      "from": "pane",
+      "to": "messages",
+      "label": "GraphQL"
+    },
+    {
+      "id": "messages-responder",
+      "from": "messages",
+      "to": "responder",
+      "label": "INSERT stream"
+    },
+    {
+      "id": "responder-tools",
+      "from": "responder",
+      "to": "tools",
+      "label": "execute_tactus"
+    },
+    {
+      "id": "slack-messages",
+      "from": "slack",
+      "to": "messages",
+      "label": "IAM enqueue"
+    },
+    {
+      "id": "messages-delivery",
+      "from": "messages",
+      "to": "delivery",
+      "label": "reply stream"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Verified limits",
+      "items": [
+        "No Chatticus dependency in this chat path.",
+        "Private search visibility is metadata; schema access is group based.",
+        "Responder writes progress back to Message; UI subscribes to changes."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+ID: PPY-839cf7
+Title: M6 Retire Papyrus's own chat engine
+Type: epic
+Status: open
+Priority: 2
+Assignee: -
+Parent: PPY-de11ec53-e594-4e18-a016-95c436aacfcb
+Labels: -
+Right now: (no right-now summary)
+Description:
+Move the console and Slack chat paths onto the shared Chatticus core, then remove console-chat-responder and other duplicated chat code from Papyrus, with a migration for existing transcripts.

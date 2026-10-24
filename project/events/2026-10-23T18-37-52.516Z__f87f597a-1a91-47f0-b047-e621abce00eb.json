@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "f87f597a-1a91-47f0-b047-e621abce00eb",
+  "issue_id": "PPY-a438d010-40d6-406e-9292-8c599c4b5954",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-23T18:37:52.516Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "f075ae31-9b1d-4ee6-a898-8c62aad7f554",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "Papyrus chat planning handoff",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}
