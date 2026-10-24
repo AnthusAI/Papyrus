@@ -112,8 +112,13 @@ reported `deferred` and starts when the triggers are delivered again.
 record's `maxHops`. At the limit nothing starts, the story stays where it is, and a **hard-gate** review request "bot hop limit
 reached" is raised once. Raise `maxHops` on the automation to let the bots continue.
 
-**Deployment needs** (not done by this change): the runner's role must read `listAutomations`, `getAutomation` and the Item
-fields, write Items and Messages and create review requests on the site API, and invoke `papyrus-procedure-runner` itself.
+**Deployment needs.** `infra/procedures/papyrus-procedure-runner.yaml` now grants the runner's role what story-state triggers use:
+`dynamodb:PutItem`, `GetItem` and `Query` on the monitoring table (leading keys `MONITOR#*`; the conditional put of the `STAGE#` claim,
+the `startFailed` rewrite, the router-config read and the `STAGE#` prefix query; `UpdateItem` on the run rows was already there), and
+`lambda:InvokeFunction` on `papyrus-procedure-runner` itself, to start the next stage. The existing `appsync:GraphQL` grant on every
+Query and Mutation field of the Distinctive API already covers `listAutomations`, `getAutomation`, the Item fields, Messages and
+review-request mutations; no other API is needed. What remains is the operator's: rebuild the image (`infra/procedures/build_image.sh`)
+and update the `papyrus-procedure-runner` stack with the new `ImageUri` (see docs/procedure-runner.md, "Deploying").
 
 **Not built yet:** the per-story budget cap from recorded cost (`botChain.costUsd` is reserved), a group lock, firing from the
 console board, and a sweeper that retries `deferred` starts without a new delivery.
