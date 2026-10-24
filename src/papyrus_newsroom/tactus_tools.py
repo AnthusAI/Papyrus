@@ -180,19 +180,27 @@ CHECK_WAIT_SECONDS = 10
 CHECK_POLL_SECONDS = 1
 
 
+def _finding(finding: dict[str, Any]) -> dict[str, Any]:
+    """One finding for a bot. A finding with no quote is about the whole document (a review rule such as
+    general-meaning-first), so it says `scope: "document"`; a paragraph is returned only when the stored finding names one."""
+    quote = finding.get("excerpt")
+    result = {
+        "id": finding.get("id"),
+        "rule": finding.get("policyId"),
+        "severity": finding.get("severity"),
+        "status": finding.get("status"),
+        "message": finding.get("message"),
+        "quote": quote,
+        "scope": "quote" if isinstance(quote, str) and quote.strip() else "document",
+        "probability": finding.get("probability"),
+    }
+    if finding.get("paragraph") not in (None, ""):
+        result["paragraph"] = finding["paragraph"]
+    return result
+
+
 def _check_result(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
-    findings = [
-        {
-            "id": finding.get("id"),
-            "rule": finding.get("policyId"),
-            "severity": finding.get("severity"),
-            "status": finding.get("status"),
-            "message": finding.get("message"),
-            "quote": finding.get("excerpt"),
-            "probability": finding.get("probability"),
-        }
-        for finding in run["findings"]
-    ]
+    findings = [_finding(finding) for finding in run["findings"]]
     violations, reviews = int(run.get("violations") or 0), int(run.get("reviews") or 0)
     return {
         "status": "checked",
@@ -217,7 +225,9 @@ def papyrus_check_story_version(story: str = "", version: str = "", version_numb
     The version is checked against its own section's policy pack and the result is stored with it.
     Returns status "checked", "skipped" (editorial checks are turned off) or "pending" (no stored result within
     wait_seconds); clean is true only when checked with no violations and nothing for review. Each finding has
-    id, rule (policy id), severity, status ("violation" or "review"), message, quote and probability."""
+    id, rule (policy id), severity, status ("violation" or "review"), message, quote, scope and probability.
+    scope is "quote" when the finding quotes the text, and "document" when quote is empty: the finding is about the whole
+    document, so judge it against the full text instead of searching for the quote."""
 
     from papyrus_content.editorial_commands import read_item_check_run, request_item_check
     from papyrus_content.graphql_authoring import create_authoring_client

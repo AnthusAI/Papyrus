@@ -49,6 +49,7 @@ Feature: Bots act as a story moves between stages
     And the procedure writes a new version and finishes
     Then the story is in the typesetting stage
     And the story's trail names automation:distinctive.copywriter as the actor of the move
+    And the story keeps a record that automation:distinctive.copywriter moved it to typesetting with a new version
     And the new version is labelled as a bot action of distinctive.copywriter
 
   Scenario: A bot that finds nothing to change returns the version it received and the story still advances
@@ -57,6 +58,7 @@ Feature: Bots act as a story moves between stages
     And the procedure returns the version it received with extra findings
     Then the story is in the typesetting stage
     And the story's trail says distinctive.copywriter made no changes
+    And the story keeps a record that automation:distinctive.copywriter moved it to typesetting with no changes
     And no version is labelled as a bot action
     And no review request is raised
 

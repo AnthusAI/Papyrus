@@ -42,7 +42,11 @@ no stored result appears within `wait_seconds`), `clean` (true only when
 checked with no violations and nothing for review), `versionId`, `lineageId`,
 `versionNumber`, `packVersion`, `contentHash`, `checkedAt`, `violations`,
 `reviews`, `lanes` and `findings`. Each finding has `id`, `rule` (the policy
-id), `severity`, `status`, `message`, `quote` and `probability`. The stored
+id), `severity`, `status`, `message`, `quote`, `scope` and `probability`. `scope` is `quote` when the
+finding quotes the text and `document` when `quote` is empty: that finding is about the
+whole document (review rules such as general-meaning-first), so a bot judges it against
+the full text instead of searching for a quote; a `paragraph` is returned only when the
+stored finding names one. The stored
 check does not keep character spans, the detecting lane per finding, or
 suggested fixes. The loop is: check, fix with `papyrus_save_story_version`,
 check the new version id, stop when `clean` is true. Specs:

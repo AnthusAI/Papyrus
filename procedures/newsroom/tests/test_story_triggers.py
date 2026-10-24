@@ -208,6 +208,26 @@ def test_a_successful_run_moves_the_story_to_next_stage_as_the_bot_and_labels_it
     assert world.invoked and len(world.invoked) == 1   # no bot at typesetting
 
 
+def test_the_move_is_recorded_on_the_story_with_who_and_why():
+    world = World(stage="copywriting")
+    world.deliver()
+    new = world.bot_writes_version(f"automation:{COPY_BOT}")
+    world.client.update_record("Item", {"id": new, "versionNumber": 2})
+    world.finish(world.invoked[0], output={"version": new})
+    moves = json.loads(latest_story_version(world.client, LINEAGE)["metadata"])["stageMoves"]
+    assert [(m["from"], m["to"], m["by"]) for m in moves] == [("copywriting", "typesetting", f"automation:{COPY_BOT}")]
+    assert moves[0]["reason"] == f"moved to typesetting by automation:{COPY_BOT} (new version v2)"
+
+
+def test_a_move_with_no_changes_says_so_in_the_story_record_and_the_trail():
+    world = World(stage="copywriting")
+    world.deliver()
+    world.finish(world.invoked[0], output={"version": LINEAGE})
+    moves = json.loads(latest_story_version(world.client, LINEAGE)["metadata"])["stageMoves"]
+    assert moves[0]["reason"] == f"moved to typesetting by automation:{COPY_BOT} (no changes)"
+    assert "(no changes)" in json.dumps(list(world.client.tables["Message"].values()))
+
+
 def test_returning_the_entering_version_means_no_changes_and_still_advances():
     world = World(stage="copywriting")
     world.deliver()

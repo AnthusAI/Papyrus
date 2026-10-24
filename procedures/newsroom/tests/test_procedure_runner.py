@@ -226,6 +226,19 @@ def test_the_usage_and_an_estimated_cost_are_stored_on_the_procedure_run(tmp_pat
     assert usage["models"] == {"gpt-6-luna": 2} and usage["perCall"] == CALLS
 
 
+def test_the_tools_used_are_stored_by_name_and_count_without_arguments(tmp_path):
+    tools = ["papyrus_story_version", {"name": "papyrus_fetch_pdf_text", "args": {"url": "https://x.test/secret"}}, "papyrus_story_version", {"x": 1}]
+    _, client, _ = run_with({}, {"success": True, "output": {}, "usage": CALLS, "toolsUsed": tools}, tmp_path=tmp_path)
+    usage = json.loads(client.updates[0]["usage"])
+    assert usage["toolsUsed"] == {"papyrus_story_version": 2, "papyrus_fetch_pdf_text": 1} and "secret" not in json.dumps(usage)
+
+
+def test_a_run_with_tools_but_no_model_call_stores_only_the_tools(tmp_path):
+    result, client, _ = run_with({}, {"success": True, "output": {}, "usage": [], "toolsUsed": ["papyrus_story_version"]}, tmp_path=tmp_path)
+    assert json.loads(client.updates[0]["usage"]) == {"toolsUsed": {"papyrus_story_version": 1}}
+    assert client.updates[0]["costUsd"] is None and result["costRecorded"] is False
+
+
 def test_a_failed_run_still_records_the_cost_of_the_calls_it_made(tmp_path):
     result, client, _ = run_with({}, {"success": False, "error": "boom", "usage": CALLS[:1]}, tmp_path=tmp_path)
     assert result["runStatus"] == "failed" and client.updates[0]["runStatus"] == "failed" and client.updates[0]["costUsd"] == pytest.approx(0.015)
@@ -239,7 +252,7 @@ def test_an_unpriced_model_is_recorded_as_usage_without_a_cost(tmp_path):
     assert result["costRecorded"] is True and result["costUsd"] is None
 
 
-def test_a_run_with_no_model_call_sends_no_usage_fields(tmp_path):
+def test_a_run_with_no_model_call_and_no_tool_sends_no_usage_fields(tmp_path):
     _, client, _ = run_with({}, {"success": True, "output": {}, "usage": []}, tmp_path=tmp_path)
     assert "usage" not in client.updates[0] and "costUsd" not in client.updates[0]
 

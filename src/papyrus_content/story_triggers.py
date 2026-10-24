@@ -256,7 +256,8 @@ def finish_stage_run(client, trigger: dict[str, Any], result: dict[str, Any], *,
         return {"status": "stayed", "version": version, **extra}
     if (current_story_version(client, story).get("stage") or "idea") != stage:
         return {"status": "stayed", "version": version, "reason": "the story was moved by someone else while the bot ran", **extra}
-    move_story_stage(client, story, target, actor=bot_label(automation_id), reason=f"{automation_id} finished" + (" (no changes)" if unchanged else ""), now=now)
+    outcome = "no changes" if unchanged else f"new version v{(version_row or {}).get('versionNumber') or '?'}"
+    move_story_stage(client, story, target, actor=bot_label(automation_id), reason=f"moved to {target} by {bot_label(automation_id)} ({outcome})", now=now)
     chained = deliver_stage_entered(client, story=story, reader=reader, writer=writer, invoke=invoke, now=now)
     return {"status": "moved", "version": version, "stage": target, "next": chained, **extra}
 
