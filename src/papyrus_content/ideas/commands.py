@@ -1,4 +1,4 @@
-"""``papyrus ideas digest|synthesize``: the first version of the idea pipeline (docs/idea-pipeline.md).
+"""``papyrus ideas digest|synthesize|trends``: the first version of the idea pipeline (docs/idea-pipeline.md).
 
 Both run on this machine against the site named by PAPYRUS_GRAPHQL_ENDPOINT, with the operator's IAM credentials
 (PAPYRUS_GRAPHQL_AUTH=iam) or a `papyrus login` session. ``synthesize --store proposals`` files draft Proposals either way: an
@@ -17,7 +17,7 @@ from ..graphql_authoring import create_authoring_client
 from ..options import normalize_string, parse_options
 from ..papyrus_config import resolve_openai_api_key
 from . import digest as digest_module
-from . import synthesis
+from . import synthesis, trends
 from .context import corpus_ids_for, hosted_corpora, load_context
 from .dedupe import DEFAULT_THRESHOLD
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, render_report, synthesize
@@ -31,6 +31,9 @@ USAGE = (
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
     "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
+    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--model gpt-6-luna]\n"
+    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
+    "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
 )
 
@@ -154,7 +157,73 @@ def synthesize_command(flags: list[str]) -> None:
         print(f"idea\t{idea['ideaId']}\t{idea['section']}\t{idea['title']}")
 
 
-COMMANDS = {"digest": digest_command, "synthesize": synthesize_command}
+def trends_command(flags: list[str]) -> None:
+    options = parse_options(flags)
+    site = normalize_string(options.get("site"))
+    source = normalize_string(options.get("snapshot"))
+    if not site or not source:
+        raise ValueError("ideas trends needs --site KEY and --snapshot PATH|URL.")
+    store_name = normalize_string(options.get("store")) or JSON
+    if store_name not in STORES:
+        raise ValueError(f"--store must be {' or '.join(STORES)}.")
+    dry_run = bool(options.get("dry-run"))
+    snapshot = trends.load_snapshot(source)
+    json_store = JsonStore(_root(options, site))
+    client, _ = create_authoring_client()
+    now = datetime.now(timezone.utc)
+    context = load_context(client, now=now, story_days=_integer(options, "story-days", 90))
+    api_key = resolve_openai_api_key()
+    if not api_key:
+        raise ValueError("Trend drafting needs OPENAI_API_KEY (or openai.apiKey in the Papyrus config).")
+    try:
+        run = trends.draft_trends(
+            snapshot=snapshot,
+            site=site,
+            context=context,
+            json_store=json_store,
+            transport=synthesis.openai_transport(api_key),
+            proposal_store=ProposalStore(client) if store_name == PROPOSALS else None,
+            review_client=client,
+            model=normalize_string(options.get("model")) or synthesis.DEFAULT_MODEL,
+            maximum=_integer(options, "max", trends.DEFAULT_MAXIMUM_DRAFTS),
+            threshold=_number(options, "dedupe-threshold", DEFAULT_THRESHOLD),
+            maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
+            dry_run=dry_run,
+            now=now,
+        )
+    except (RunRefused, synthesis.SynthesisError) as error:
+        raise ValueError(str(error)) from error
+    report = normalize_string(options.get("report"))
+    if report:
+        target = assert_private(Path(report))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(trends.render_report(run), encoding="utf-8")
+    if options.get("json"):
+        print(json.dumps({"ok": True, "command": "ideas trends", "run": run}, indent=2))
+        return
+    inputs, usage = run["inputs"], run.get("usage") or {}
+    print(f"ideas\ttrends\t{run['runId']}\t{run['store']}")
+    print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})")
+    print(f"drafts\tproposed {run['proposed']}\tfailed the citation check {len(run['invalid'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
+    print(f"llm\t{run['model']}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
+    if run.get("proposalDedupe"):
+        print(f"dedupe\tskipped against Proposals\t{run['proposalDedupe']}")
+    review = run["review"]
+    print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
+    for draft in run["drafts"]:
+        check = draft["citationCheck"]
+        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals)" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
+        if dry_run:
+            print(draft["body"].rstrip() + "\n")
+    for failed in run["invalid"]:
+        print(f"failed\t{failed['title'] or '(untitled)'}\t{failed['reason']}")
+        for problem in (failed.get("citationCheck") or {}).get("problems", []):
+            print(f"  problem\t{problem['where']}\t{problem['reason']}" + (f"\t{problem['text']}" if problem["text"] else ""))
+    for duplicate in run["duplicates"]:
+        print(f"duplicate\t{duplicate['title']}\t{duplicate['reason']}")
+
+
+COMMANDS = {"digest": digest_command, "synthesize": synthesize_command, "trends": trends_command}
 
 
 def ideas_command(command: str, flags: list[str]) -> None:
