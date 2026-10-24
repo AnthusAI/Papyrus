@@ -2,6 +2,7 @@ from copy import deepcopy
 
 from behave import given, then, when
 
+from papyrus_content.email_submission_intake import EmailStore, _resume_pending
 from procedures.newsroom.tests.email_submission_fixture import (
     collect_email,
     email_fixture,
@@ -12,6 +13,39 @@ from procedures.newsroom.tests.email_submission_fixture import (
 @given("an isolated publication email destination and an authenticated newsletter")
 def email_destination(context):
     context.email_fixture = email_fixture()
+
+
+@given("an isolated 41-link newsletter email destination")
+def email_destination_with_many_links(context):
+    context.email_fixture = email_fixture()
+    links = "\n".join(f"https://example.org/article/{i}" for i in range(41))
+    context.email_fixture.s3.raw = context.email_fixture.s3.raw.replace(
+        b"https://example.org/alpha\r\nhttps://example.org/beta", links.encode())
+
+
+@when("the email collector processes the first batch and resumes the receipt")
+def email_process_and_resume(context):
+    context.first_email_result = collect_email(context.email_fixture)
+    context.first_email_receipt = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    context.resume_email_result = _resume_pending(
+        EmailStore(context.email_fixture.table), "email-publication", "mail-fixture",
+        context.email_fixture.s3, context.email_fixture.cognito, now=1001)
+
+
+@then("the receipt remains processing after 25 links and finishes after 16 more")
+def email_progress_receipt(context):
+    assert context.first_email_result["status"] == "processing"
+    assert context.first_email_receipt["processedCount"] == 25
+    assert context.resume_email_result["receipts"][0]["status"] == "queued"
+    row = context.email_fixture.table.by_prefix("EMAIL#")[0]
+    assert row["processedCount"] == row["linkCount"] == 41
+
+
+@then("all 41 unique links have one durable discovery")
+def email_all_links_durable(context):
+    rows = context.email_fixture.table.by_prefix("DISC#")
+    assert len(rows) == 41
+    assert len({row["sourceId"] for row in rows}) == 41
 
 
 @given("the trusted SES receipt fails DMARC authentication")
@@ -47,7 +81,10 @@ def email_discoveries(context):
 
 @then("the email collector has not fetched sources or called an agent")
 def email_only_mime(context):
-    assert context.email_fixture.s3.calls == [("mail-fixture", "email-submissions/ses-delivery-1")]
+    calls = context.email_fixture.s3.calls
+    assert calls[0] == ("mail-fixture", "email-submissions/ses-delivery-1")
+    assert sum(key == "email-submissions/ses-delivery-1" for _, key in calls) == 1
+    assert all(key.startswith("email-submissions/") for _, key in calls)
 
 
 @then("the email is rejected before reading the MIME object")

@@ -77,6 +77,20 @@ def test_fallback_link_title_is_bounded():
     assert len(result["links"][0]["title"]) == 256
 
 
+def test_all_unique_links_inside_message_byte_bound_are_extracted_without_editorial_cap():
+    raw = message("\n".join(f"https://example.org/article/{i}" for i in range(1100)))
+    assert len(raw) < 1_048_576
+    assert len(extract_submission(raw)["links"]) == 1100
+
+
+def test_known_beehiiv_click_tracker_is_excluded_without_resolution():
+    tracker = "https://link.mail.beehiiv.com/ss/c/opaque-recipient-route"
+    result = extract_submission(message(tracker + "\nhttps://example.org/article"))
+    assert [link["url"] for link in result["links"]] == ["https://example.org/article"]
+    assert result["excludedLinkCount"] == 1
+    assert "excluded_links" in result["warnings"]
+
+
 def test_base64_and_quoted_printable_text_are_decoded():
     email = EmailMessage()
     email["From"] = "editor@example.org"
@@ -124,9 +138,9 @@ def test_malformed_or_oversize_message_is_rejected(raw, code):
     assert error.value.code == code
 
 
-def test_link_ceiling_refuses_without_partial_results():
-    with pytest.raises(SubmissionRejected, match="too_many_links"):
-        extract_submission(message("\n".join(f"https://example.org/article/{n}" for n in range(26))))
+def test_all_links_from_one_message_are_retained_for_internal_batching():
+    assert len(extract_submission(message("\n".join(
+        f"https://example.org/article/{n}" for n in range(41))))["links"]) == 41
 
 
 def test_mime_part_ceiling():

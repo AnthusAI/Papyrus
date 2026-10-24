@@ -139,10 +139,32 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "72c5cbc3-0ea1-4a8e-b74c-31c5e4e18b95",
+      "author": "home",
+      "text": "Implementation update: remove the editorial link-count cap rather than raising it. Keep technical message bounds (1 MiB MIME, 64 MIME parts, depth 12, 2,048 chars per candidate URL) and normalize/deduplicate every eligible URL inside those bounds. Persist a compact private JSONL sidecar in the existing 30-day raw bucket; receipt metadata records its digest/size, total eligible/excluded counts, byte cursor, processed count and pending status. Drain discoveries in time-budgeted batches with a stable cursor; conditional discovery puts make an interrupted batch safe to replay without overwriting a routed item. Reuse the existing Monitoring routing GSI with an exact monitor-scoped pending key and a small EventBridge resume schedule that invokes the same receiver; keep the existing router schedule/target and sender/MIME checks unchanged. Any additional S3 manifest-write, DynamoDB query and EventBridge invoke grants will be exact resource/prefix/leading-key/source-ARN scoped in the reviewable template, not live-applied here. Final receipt says queued only when every eligible unique link is durable; partial progress remains processing with a checkpoint, hard format/security violations reject visibly, no content is silently truncated. Remove known Beehiiv click-wrapper URLs from downstream discovery and count them as excluded; do not resolve/fetch them until explicit privacy permission. Cross-email canonical Reference reuse remains in existing ReferenceIntake; duplicate deliveries retain independent audit receipts but retries do not duplicate discoveries or recurate References.\n\nFocused tests: all 41 direct links survive in multiple internal batches; more than 1,000 links under the byte bound are not rejected; excluded action/unsubscribe/tracker links; same-email normalization/dedup; mid-batch failure/retry after router advancement; checkpoint resume across schedule invocations; progress and final receipt counts; expired/changed binding fails closed; router cross-email Reference dedup unchanged. No production message, live AWS, security policy, deployment, or tracking URL fetch is part of this change.",
+      "created_at": "2026-10-24T15:22:13.556353Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e72cd1fd-3421-405d-94b0-c2ea4067b418",
+      "author": "home",
+      "text": "Bounded newsletter intake correction implemented on isolated branch feature/PPY-65026c-bounded-email-intake (based on develop 3d4f95b2). Removed editorial candidate/link-count rejection; existing 1 MiB MIME, 64-part, depth-12 and per-URL bounds remain. Eligible normalized links are stored in private JSONL manifests under the existing 30-day email-submissions prefix. Receipt cursor/progress and an exact-monitor-scoped one-minute resume schedule drain at most 25 links or 60 seconds per invocation; conditional discovery puts make retries safe after partial writes/router progress. Added exact-prefix S3 manifest write, exact Monitor routing-GSI query, and exact EventBridge invoke permissions. Known Beehiiv click-wrapper URLs are excluded without persistence or fetch. Current local validation: 197 focused Python tests and 16 email extraction/intake Gherkin scenarios pass; no deployment, merge, live email, labels, publication, or tracking-URL request occurred. Full local checks and draft PR are still in progress; resend acceptance remains separate.",
+      "created_at": "2026-10-24T15:29:50.094662Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T08:13:58.520648Z",
+  "updated_at": "2026-10-24T15:29:50.094715Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

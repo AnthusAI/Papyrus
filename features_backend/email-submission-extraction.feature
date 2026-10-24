@@ -18,7 +18,7 @@ Feature: Extract untrusted email submissions as reference candidates
     When Papyrus extracts the email submission
     Then the email submission is refused with code "automated_message"
 
-  Scenario: A message cannot create an unbounded number of references
-    Given a submitted newsletter containing more than the permitted editorial links
+  Scenario: All eligible links survive more than one internal work batch
+    Given a submitted newsletter containing 41 unique editorial links
     When Papyrus extracts the email submission
-    Then the email submission is refused with code "too_many_links"
+    Then all 41 eligible links are retained for resumable intake

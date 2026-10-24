@@ -26,9 +26,9 @@ def auto_newsletter(context):
     context.email_submission_raw = _message("https://example.org/article", "Auto-Submitted: auto-replied\n")
 
 
-@given("a submitted newsletter containing more than the permitted editorial links")
+@given("a submitted newsletter containing 41 unique editorial links")
 def excessive_newsletter(context):
-    context.email_submission_raw = _message("\n".join(f"https://example.org/article/{i}" for i in range(26)))
+    context.email_submission_raw = _message("\n".join(f"https://example.org/article/{i}" for i in range(41)))
 
 
 @when("Papyrus extracts the email submission")
@@ -69,3 +69,9 @@ def canonical_candidate(context):
 @then('the email submission is refused with code "{code}"')
 def submission_refused(context, code):
     assert context.email_submission_error == code
+
+
+@then("all 41 eligible links are retained for resumable intake")
+def all_candidates_retained(context):
+    assert context.email_submission_error is None
+    assert len(context.email_submission["links"]) == 41

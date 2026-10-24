@@ -11,6 +11,7 @@ from papyrus_content.email_submission_intake import (
     ConfigurationError,
     EmailStore,
     IntakeBusy,
+    _resume_pending,
     validate_email_config,
 )
 from papyrus_content.monitoring_router import (
@@ -183,7 +184,7 @@ def test_parked_publication_backfill_rechecks_email_destination_scope():
 @pytest.mark.parametrize("mutation", [
     {"accountId": "other"}, {"publicationIds": ["other"]}, {"kind": "shared"},
     {"allowedSenders": ["*@example.org"]}, {"addresses": []},
-    {"maxLinks": 26}, {"maxMessageBytes": 1048577}, {"maxMessagesPerSenderHour": 0},
+    {"maxMessageBytes": 1048577}, {"maxMessagesPerSenderHour": 0},
     {"maxMessagesPerSenderHour": True}, {"enabled": "true"}, {"unexpected": True},
 ])
 def test_bad_or_mismatched_operator_config_fails_before_reading_mail(mutation):
@@ -291,15 +292,42 @@ def test_bounds_reject_before_queue_writes_and_rate_retries_do_not_consume_new_s
     assert collect_email(fixture)["status"] == "duplicate"
     next_delivery(fixture)
     assert collect_email(fixture)["reason"] == "sender_rate_limit"
-    assert len(fixture.s3.calls) == 1
+    assert sum(key.startswith("email-submissions/ses-delivery-") for _, key in fixture.s3.calls) == 1
     assert len(fixture.table.by_prefix("RATE#")[0]["messages"]) == 1
     fixture = email_fixture()
     update_config(fixture, maxMessageBytes=50)
     assert collect_email(fixture)["reason"] == "message_too_large"
     fixture = email_fixture()
-    update_config(fixture, maxLinks=1)
-    assert collect_email(fixture)["reason"] == "email_link_count_invalid"
-    assert fixture.table.by_prefix("DISC#") == []
+    update_config(fixture, maxLinks=1)  # old config key is accepted but no longer a content ceiling
+    assert collect_email(fixture)["linkCount"] == 2
+
+
+def test_41_links_are_checkpointed_25_then_16_and_all_reach_existing_router():
+    fixture = email_fixture()
+    links = "\n".join(f"https://example.org/article/{i}" for i in range(41))
+    fixture.s3.raw = fixture.s3.raw.replace(b"https://example.org/alpha\r\nhttps://example.org/beta", links.encode())
+    first = collect_email(fixture)
+    assert first["status"] == "processing" and first["linkCount"] == 41
+    receipt = fixture.table.by_prefix("EMAIL#")[0]
+    assert receipt["processedCount"] == 25 and 0 < receipt["cursorBytes"] < receipt["manifestBytes"]
+    first_delivered = []
+    while len(first_delivered) < 25:
+        _, delivered = route_email(fixture)
+        first_delivered.extend(delivered)
+    assert len(first_delivered) == 25
+
+    resumed = _resume_pending(EmailStore(fixture.table), "email-publication", "mail-fixture",
+                              fixture.s3, fixture.cognito, now=1001)
+    assert resumed["receipts"][0]["status"] == "queued"
+    final = fixture.table.by_prefix("EMAIL#")[0]
+    assert final["processedCount"] == final["linkCount"] == 41
+    assert "gsi1pk" not in final
+    second_delivered = []
+    while len(second_delivered) < 16:
+        _, delivered = route_email(fixture)
+        second_delivered.extend(delivered)
+    assert len(second_delivered) == 16
+    assert len(fixture.table.by_prefix("DISC#")) == 41
 
 
 def test_crashed_batch_resumes_without_overwriting_a_routed_discovery(monkeypatch):

@@ -18,10 +18,9 @@ from urllib.parse import parse_qsl, unquote, urlencode, urlsplit, urlunsplit
 MAX_MESSAGE_BYTES = 1_048_576
 MAX_MIME_PARTS = 64
 MAX_MIME_DEPTH = 12
-MAX_LINKS = 25
+LINK_BATCH_SIZE = 25  # work-unit size only; never an editorial/content ceiling
 MAX_URL_LENGTH = 2048
 MAX_TITLE_LENGTH = 256
-MAX_CANDIDATES = 1000
 _URL = re.compile(r"https?://[^\s<>\"']+", re.I)
 _CONTROL = re.compile(r"[\x00-\x20\x7f]")
 _ACTION = re.compile(
@@ -89,6 +88,8 @@ def safe_editorial_url(raw: str) -> str | None:
                 or not re.fullmatch(r"[a-z][a-z0-9-]*", labels[-1])
                 or labels[-1] in {"local", "localhost", "internal", "test", "invalid", "onion"}
                 or any(label in {"click", "clicks", "track", "tracking", "pixel"} for label in labels[:-1])):
+            return None
+        if host == "link.mail.beehiiv.com" and parts.path.startswith("/ss/c/"):
             return None
         try:
             ipaddress.ip_address(host)
@@ -160,8 +161,6 @@ class _Links(HTMLParser):
         if self.anchor is not None:
             self.links.append((self.anchor[0], _text("".join(self.anchor[1]), MAX_MESSAGE_BYTES)))
             self.anchor = None
-            if len(self.links) > MAX_CANDIDATES:
-                raise SubmissionRejected("too_many_candidates")
 
     def close(self):
         super().close()
@@ -193,7 +192,7 @@ def _addresses(message, name, *, single=False):
 
 
 def extract_submission(raw: bytes) -> dict:
-    """Extract at most 25 safe unique links and private, explicitly untrusted headers.
+    """Extract every safe unique link within the bounded MIME message.
 
     Ordinary attachments are ignored; bounded attached message/rfc822 bodies are
     inspected only for links and never used to authenticate the sender. Multi-part bodies
@@ -260,25 +259,22 @@ def extract_submission(raw: bytes) -> dict:
                         url = url[:-1]
                     label = "Account action" if _ACTION_LABEL.search(line) else ""
                     candidates.append((url, label))
-                    if len(candidates) > MAX_CANDIDATES:
-                        raise SubmissionRejected("too_many_candidates")
-        if len(candidates) > MAX_CANDIDATES:
-            raise SubmissionRejected("too_many_candidates")
     links, excluded = {}, set()
+    excluded_count = 0
     for raw_url, title in candidates:
         url = safe_editorial_url(raw_url)
         if url is None:
             warnings.add("excluded_links")
+            excluded_count += 1
             continue
         if title == "Account action" or _ACTION_LABEL.search(title):
             excluded.add(url)
             warnings.add("excluded_links")
+            excluded_count += 1
             continue
         if url not in links or title:
             links[url] = {"url": url, "title": _link_title(title, url)}
     result_links = [item for url, item in links.items() if url not in excluded]
-    if len(result_links) > MAX_LINKS:
-        raise SubmissionRejected("too_many_links")
     return {"sender": sender, "recipients": recipients, "subject": _text(message.get("Subject")),
             "messageId": _text(message.get("Message-ID")), "date": _text(message.get("Date"), 128),
-            "links": result_links, "warnings": sorted(warnings)}
+            "links": result_links, "warnings": sorted(warnings), "excludedLinkCount": excluded_count}

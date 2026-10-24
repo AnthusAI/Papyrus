@@ -11,6 +11,12 @@ Feature: Email submissions enter the existing reference discovery queue
     Then each newsletter source has one queued discovery with private email provenance
     And the email collector has not fetched sources or called an agent
 
+  Scenario: A newsletter larger than one work batch resumes without losing links
+    Given an isolated 41-link newsletter email destination
+    When the email collector processes the first batch and resumes the receipt
+    Then the receipt remains processing after 25 links and finishes after 16 more
+    And all 41 unique links have one durable discovery
+
   Scenario: Failed sender authentication cannot be rescued by MIME headers
     Given an isolated publication email destination and an authenticated newsletter
     And the trusted SES receipt fails DMARC authentication
