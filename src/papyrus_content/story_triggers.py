@@ -261,6 +261,25 @@ def finish_stage_run(client, trigger: dict[str, Any], result: dict[str, Any], *,
     return {"status": "moved", "version": version, "stage": target, "next": chained, **extra}
 
 
+def deliver_after_run(client, trigger: dict[str, Any] | None, result: dict[str, Any], *, reader, writer, invoke, now: str | None = None) -> list[dict[str, Any]]:
+    """After ANY completed procedure run: deliver the stage triggers of the story its output names (``{"story": <lineage id>}``).
+
+    A procedure can create or move a story through a tool, which fires nothing itself. Idempotent (the per-story, stage and version
+    claim), so a story the CLI or the engine already delivered starts nothing twice. A stage-entry run's own story is skipped, because
+    ``finish_stage_run`` advances and chains it. Never raises: the run's outcome is already recorded, so a failure is logged."""
+    output = result.get("output") if isinstance(result.get("output"), dict) else {}
+    story = output.get("story")
+    if result.get("runStatus") != "completed" or not isinstance(story, str) or not story:
+        return []
+    if isinstance(trigger, dict) and trigger.get("event") == STAGE_ENTERED and trigger.get("story") == story:
+        return []
+    try:
+        return deliver_stage_entered(client, story=story, reader=reader, writer=writer, invoke=invoke, now=now)
+    except Exception as error:
+        print(f"stage triggers for story {story} not delivered after the run: {type(error).__name__}: {error}")
+        return []
+
+
 def deliver_from_environment(client, story: str) -> list[dict[str, Any]]:
     """What the CLI calls after a person changes a story's stage: deliver, print one line per automation, never fail the change.
 
