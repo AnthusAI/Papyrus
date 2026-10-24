@@ -78,6 +78,7 @@
     "test:infra-cdk-environment": "node scripts/test-infra-cdk-environment.mjs",
     "test:infra-app-shell-account": "node scripts/test-infra-app-shell-account.mjs",
     "test:cognito-domain-prefix": "tsx scripts/test-cognito-domain-prefix.ts",
+    "test:google-email-verified-mapping": "tsx scripts/test-google-email-verified-mapping.ts",
     "test:root-route-redirect": "tsx scripts/test-root-route-redirect.ts",
     "test:renderer-config": "tsx scripts/test-renderer-config.ts",
     "test:reader-static-params": "tsx scripts/test-reader-static-params.ts",

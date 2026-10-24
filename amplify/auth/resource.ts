@@ -1,7 +1,7 @@
 import { defineAuth, secret } from "@aws-amplify/backend";
 import { manageUserRole } from "../functions/manage-user-role/resource";
 import { Stack } from "aws-cdk-lib";
-import { CfnUserPoolDomain } from "aws-cdk-lib/aws-cognito";
+import { CfnUserPoolDomain, CfnUserPoolIdentityProvider } from "aws-cdk-lib/aws-cognito";
 import type { PapyrusAuthConfig } from "../site-backend-config";
 import { expandNewsroomRedirectUrls } from "./redirect-urls";
 
@@ -39,6 +39,24 @@ export function authConfigFromEnv(): PapyrusAuthConfig {
 
 export function siteAuthRedirectUrls(config: PapyrusAuthConfig): string[] {
   return config.redirectUrls ?? DEFAULT_AUTH_REDIRECT_URLS;
+}
+
+/** Keep Cognito's federated email verification state in sync with Google's verified claim. */
+export function applyGoogleEmailVerifiedMapping(authStack: Stack): void {
+  const googleProviders = authStack.node
+    .findAll()
+    .filter((construct): construct is CfnUserPoolIdentityProvider =>
+      construct instanceof CfnUserPoolIdentityProvider && construct.providerName === "Google");
+  if (googleProviders.length !== 1) {
+    throw new Error(`Expected exactly one Google identity provider to map email_verified, found ${googleProviders.length}`);
+  }
+
+  const [provider] = googleProviders;
+  const mapping = provider.attributeMapping;
+  if (mapping !== undefined && (typeof mapping !== "object" || Array.isArray(mapping))) {
+    throw new Error("Expected Google identity provider attribute mappings to be a plain object");
+  }
+  provider.attributeMapping = { ...(mapping ?? {}), email_verified: "email_verified" };
 }
 
 export function defineSiteAuth(config: PapyrusAuthConfig) {
