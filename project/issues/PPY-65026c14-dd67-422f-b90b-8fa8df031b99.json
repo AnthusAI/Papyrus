@@ -161,10 +161,25 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "cf4f6bb7-d6ce-4437-b459-b35f0070a30d",
+      "author": "home",
+      "text": "Acceptance-test update, separate from this code change: the newly reported resend reached the production intake at 2026-10-24T15:31:08Z and was rejected at the trusted SES-authentication gate with reason sender_authentication_failed. Its exact receipt has no manifest, processed/link counts or pending cursor, confirming it was not MIME-parsed or queued for discovery. No Cyclotron/router/Reference handoff occurred; the earlier rejected delivery was not reprocessed. Header-only inspection of this exact message showed no SPF/DKIM/DMARC pass; no article or tracking URL was fetched. Keep this production result separate from PR 667; no live policy or deployment change was made.",
+      "created_at": "2026-10-24T15:34:29.298602Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T15:29:50.094715Z",
+  "updated_at": "2026-10-24T15:34:47.147674Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
