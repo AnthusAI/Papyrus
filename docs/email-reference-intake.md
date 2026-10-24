@@ -65,6 +65,20 @@ misses newsletters whose only article links are opaque tracking redirects.
 Known Beehiiv `link.mail.beehiiv.com/ss/c/` click wrappers are excluded without
 storing their recipient-specific URL; Papyrus does not resolve them or contact
 tracking hosts.
+
+An offline-tested resolver helper exists for a future explicitly approved
+integration. It accepts only that exact Beehiiv HTTPS wrapper, uses injected DNS
+and transport adapters, and requires DNS and transport to honor bounded timeouts
+and the transport to pin each connection to
+validated public addresses, preserve hostname verification, disable ambient
+proxy/cookie use and automatic redirects, send HEAD only, and read no response
+body. It bounds redirects, per-hop and total time, rejects private or mixed DNS
+answers, action links, unsafe targets and HTTPS downgrades, and returns only a
+normalized final article URL. Production intake does not inject or call this
+helper; tests use synthetic DNS and responses only. Resolving recipient-specific
+click links contacts a third party and may reveal recipient tracking identifiers,
+so that integration remains disabled pending explicit approval and a reviewed
+privacy policy.
 Later accession/enrichment remains a separate existing workflow and needs its
 own safe-fetch policy; this change does not authorize fetching private resources.
 
