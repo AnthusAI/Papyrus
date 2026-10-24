@@ -1,7 +1,7 @@
 {
   "id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
   "title": "Route authorized email submissions into existing Monitoring intake",
-  "description": "As an editor, I want publication and explicitly shared Cyclotron submission addresses to ingest safe newsletter links into pending Reference workflows. User authorized implementation on 2026-10-23; this scoped backend slice does not close the broader inbox-reader milestone. Feature: Authorized email reference intake\nScenario: Route a submitted newsletter\nGiven an explicitly configured publication or shared destination and authenticated allowed sender\nWhen a multipart newsletter with multiple editorial links is received\nThen safe links enter existing deduplicated Monitoring and Reference workflows with private provenance\nAnd publication selection precedes section classification\nAnd retries are idempotent and failures visible\nAnd instructions, action links, human labels and automatic publishing are never executed\nScenario: Cloud email without newsletters\nGiven a cloud-backed site without the newsletter plugin\nWhen its infrastructure is synthesized\nThen sender identity and configured email intake are supported independently\nAnd a static-only site requires no email resources\nScope: code, IaC, local fixtures, tests and draft PR only. No deployment, DNS/MX, policy changes, credentials, real email or merges.",
+  "description": "As an editor, I want newsletter email received at publication or explicitly shared Cyclotron destinations to enter existing pending-reference workflows as untrusted source material. SPF, DKIM, and DMARC verdicts are recorded as provenance signals, not sender authorization. Sender addresses and MIME headers never grant roles or choose destination; exact recipient configuration scopes routing. Passing SES spam and virus checks, bounded MIME parsing, safe link handling, idempotent retries, and visible failures remain. Editors can privately read an inert text rendering, verdicts, and every extracted candidate link. No instructions, action links, human labels, automated feedback, or publishing are executed.",
   "type": "story",
   "status": "in_progress",
   "priority": 1,
@@ -206,14 +206,33 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "995edf8f-3712-4332-973d-2ee1d78d1ac5",
+      "author": "home",
+      "text": "Implemented locally on `feature/PPY-65026c-bounded-email-intake` (PR #667 remains draft; no deployment). Failed or unavailable SPF/DKIM/DMARC now remain untrusted per-check signals and do not reject safe data-only intake. SES event source, exact envelope recipient scope, and passing spam/virus checks remain gates; envelope/MIME sender identity never grants editor authority or selects a publication. Old rejected auth-only deliveries can be replayed idempotently, while other terminal failures remain terminal. Accepted mail without extractable URLs is still available for private review.\n\nAdded safe HTML-to-text rendering, expiring private body/link chunks and a publication-scoped editor/admin Monitoring view with receipt verdicts and all candidate links. HTML, scripts and remote images are never activated, and body prose is not sent to the classifier. Existing MIME/byte/part/depth, URL-safety, recipient-scope, durable batch and retry controls remain. Real tracking wrappers are still excluded/unresolved; no subscriber URL is contacted.\n\nVerification: 144 focused parser/intake/router/Monitoring Python tests passed; the email-intake Gherkin feature passed (9 scenarios, 40 steps); Monitoring backend and rendered-page checks passed; TypeScript typecheck passed with a temporary local placeholder for generated `amplify_outputs.json`; ESLint passed. Ruff reports one existing unrelated F841 in `monitoring_router.py` at line 1216; the only additional warning found in this delta was removed. No production state or email was changed. Awaiting coordinated release timing with the Chatticus/site deployment owner.\n",
+      "created_at": "2026-10-24T23:08:43.915316Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T18:33:36.812628Z",
+  "updated_at": "2026-10-24T23:08:43.915360Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
-    "model": "gpt-6"
+    "model": "gpt-6-luna",
+    "name": "Codex",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
   },
   "right_now_summary": null,
   "right_now_updated_at": null,
