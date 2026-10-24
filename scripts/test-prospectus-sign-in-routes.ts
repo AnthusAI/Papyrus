@@ -65,8 +65,8 @@ function routeOptions(runtime: ProspectusSignInRuntime | null, extra: Partial<Pr
   return { resolveRuntime: async () => runtime, nowInSeconds: () => nowInSeconds, siteProduct: "papyrus-p-apyr-us", environment: { PAPYRUS_SITE_ORIGIN: siteOrigin }, ...extra };
 }
 
-function cognitoTokenEndpoint(tokenBody: Record<string, unknown>) {
-  return (async () => new Response(JSON.stringify(tokenBody), { status: 200 })) as unknown as typeof fetch;
+function cognitoTokenEndpoint(tokenBody: Record<string, unknown>, status = 200) {
+  return (async () => new Response(JSON.stringify(tokenBody), { status })) as unknown as typeof fetch;
 }
 
 function browserRequest(path: string, cookies: Record<string, string> = {}, method = "GET"): NextRequest {
@@ -588,6 +588,66 @@ async function loopbackDevelopmentFallbackTests() {
   assert.equal((await handleProspectusSignInStart(lookalike, { ...routeOptions(runtime), environment: {} })).status, 503, "a non-loopback host never falls back");
 }
 
+/** Every callback failure logs exactly one structured line with the code and branch, and nothing secret. */
+async function failureLoggingTests() {
+  const person = { id: "person-1", createdAt: "2026-10-17T00:00:00Z" };
+  const { runtime } = prospectusRuntime({
+    "POST /v1/identities/google/challenge": { challengeId: "challenge-1", nonce: "prospectus-nonce", expiresAt: 1_300 },
+    "POST /v1/identities/google/resolve": { person },
+  });
+  const start = await handleProspectusSignInStart(browserRequest("/api/auth/prospectus/sign-in"), routeOptions(runtime));
+  const pendingCookie = cookieValue(setCookie(start, PROSPECTUS_PENDING_SIGN_IN_COOKIE));
+  const state = new URL(start.headers.get("location")!).searchParams.get("state")!;
+  const pending = { [PROSPECTUS_PENDING_SIGN_IN_COOKIE]: pendingCookie };
+  const tokenBody = { access_token: "secret-access-jwt", id_token: "secret-id-jwt", expires_in: 3600 };
+  const verifyOk = async () => {};
+
+  async function logged(path: string, cookies: Record<string, string>, extra: Partial<ProspectusSignInRouteOptions>) {
+    const lines: string[] = [];
+    const response = await handleProspectusSignInCallback(
+      browserRequest(path, cookies),
+      routeOptions(runtime, { log: (line) => lines.push(line), ...extra }),
+    );
+    return { response, lines };
+  }
+  function entryOf(lines: string[]) {
+    assert.equal(lines.length, 1, "exactly one line per failure");
+    assert.ok(lines[0].startsWith("prospectus_sign_in_failed "), "a greppable event name");
+    return JSON.parse(lines[0].slice("prospectus_sign_in_failed ".length)) as Record<string, unknown>;
+  }
+
+  const noCookie = await logged(`/api/auth/prospectus/callback?code=secret-code&state=${state}`, {}, {});
+  assert.deepEqual(entryOf(noCookie.lines), { code: "sign_in_expired", branch: "pending_cookie" });
+  const declined = await logged(`/api/auth/prospectus/callback?error=access_denied&state=${state}`, pending, {});
+  assert.deepEqual(entryOf(declined.lines), { code: "sign_in_declined", branch: "provider_error" });
+  const incomplete = await logged(`/api/auth/prospectus/callback?state=${state}`, pending, {});
+  assert.deepEqual(entryOf(incomplete.lines), { code: "sign_in_incomplete", branch: "missing_parameters" });
+  const forged = await logged(`/api/auth/prospectus/callback?code=secret-code&state=forged`, pending, { completionOverrides: { fetcher: cognitoTokenEndpoint(tokenBody), verifyCognitoTokens: verifyOk } });
+  assert.deepEqual(entryOf(forged.lines), { code: "state_mismatch", branch: "completion", httpStatus: 401, prospectusError: "state_mismatch" });
+  const refused = await logged(`/api/auth/prospectus/callback?code=secret-code&state=${state}`, pending, {
+    completionOverrides: { fetcher: cognitoTokenEndpoint({ error: "invalid_grant" }, 400), verifyCognitoTokens: verifyOk },
+  });
+  assert.equal(entryOf(refused.lines).code, "code_exchange_failed");
+  const mismatch = await logged(`/api/auth/prospectus/callback?code=secret-code&state=${state}`, pending, {
+    completionOverrides: {
+      fetcher: cognitoTokenEndpoint(tokenBody),
+      verifyCognitoTokens: async () => { throw new ProspectusAccountsError(401, "nonce_mismatch", "Sign-in did not carry this site's Prospectus challenge."); },
+    },
+  });
+  assert.deepEqual(entryOf(mismatch.lines), { code: "nonce_mismatch", branch: "completion", httpStatus: 401, prospectusError: "nonce_mismatch" });
+  assertFailureRedirect(mismatch.response, "/", "nonce_mismatch");
+  const unexpected = await logged(`/api/auth/prospectus/callback?code=secret-code&state=${state}`, pending, {
+    completionOverrides: { fetcher: cognitoTokenEndpoint(tokenBody), verifyCognitoTokens: async () => { throw new TypeError("boom secret-id-jwt"); } },
+  });
+  assert.deepEqual(entryOf(unexpected.lines), { code: "sign_in_failed", branch: "unexpected", errorName: "TypeError" });
+
+  for (const { lines } of [noCookie, declined, incomplete, forged, refused, mismatch, unexpected]) {
+    for (const secret of ["secret-code", "secret-access-jwt", "secret-id-jwt", state, pendingCookie, "person-1", "prospectus-nonce"]) {
+      assert.equal(lines[0].includes(secret), false, "the log line never carries tokens, codes, state or subjects");
+    }
+  }
+}
+
 async function main() {
   sealedCookieTests();
   returnPathTests();
@@ -598,6 +658,7 @@ async function main() {
   await loopbackDevelopmentFallbackTests();
   publicationAccessTests();
   googleOnlyClientTests();
+  await failureLoggingTests();
   console.log("prospectus sign-in routes: ok");
 }
 

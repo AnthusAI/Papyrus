@@ -54,14 +54,18 @@
 
   /* A failed sign-in comes back to the page it started from with ?sign_in_error=<code> (never an /api page): say so once, then tidy the address. */
   var signInProblem = "";
+  var signInProblemCode = "";
   try {
     var problems = new URLSearchParams(location.search);
     if (problems.has("sign_in_error")) {
-      signInProblem = problems.get("sign_in_error") === "sign_in_declined" ? TEXT.signInDeclined : TEXT.signInFailed;
+      var signInCode = problems.get("sign_in_error");
+      signInProblem = signInCode === "sign_in_declined" ? TEXT.signInDeclined : TEXT.signInFailed;
+      /* The code is shown in small print so a reader can report it; only a plain lower-case code is ever shown. */
+      if (signInCode !== "sign_in_declined" && /^[a-z0-9_]{1,60}$/.test(signInCode)) signInProblemCode = signInCode;
       problems.delete("sign_in_error");
       history.replaceState(null, "", location.pathname + (problems.toString() ? "?" + problems.toString() : "") + location.hash);
     }
-  } catch (error) { signInProblem = ""; }
+  } catch (error) { signInProblem = ""; signInProblemCode = ""; }
 
   var DEFAULT_DISPLAY_MINIMUM = 5;
   var state = { identity: "loading", me: null, snapshot: null, parameters: null, adjustments: {}, handleMessage: "" };
@@ -722,7 +726,11 @@
         signInForm.appendChild(returnTo);
         signInForm.appendChild(signInButton);
         host.appendChild(signInForm);
-        if (signInProblem) host.appendChild(element("span", "papyrus-reader-status", signInProblem));
+        if (signInProblem) {
+          var problemLine = element("span", "papyrus-reader-status", signInProblem);
+          if (signInProblemCode) problemLine.appendChild(element("small", "papyrus-reader-status-code", " (code: " + signInProblemCode + ")"));
+          host.appendChild(problemLine);
+        }
       } else if (next === "handle") {
         handleForm(host);
       } else {

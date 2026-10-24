@@ -41,6 +41,8 @@ export interface ProspectusSignInRouteOptions {
   nowInSeconds?: () => number;
   /** Trusted configuration the public site origin is read from; defaults to process.env. */
   environment?: Record<string, string | undefined>;
+  /** Receives each sign-in failure line; defaults to console.error so it reaches the compute log. */
+  log?: (line: string) => void;
 }
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" };
@@ -91,6 +93,21 @@ function signInFailedResponse(status: number, code: string, message: string): Ne
  * A failed sign-in never leaves the browser on /api/auth/prospectus/callback: it answers 303 to the page the reader started from
  * (or the home page when that is not known) with `sign_in_error=<code>`, which the reader plugin turns into a short message.
  */
+/** Which callback step failed; with the code it tells an operator where a reader's sign-in stopped. */
+type SignInFailureBranch = "pending_cookie" | "provider_error" | "missing_parameters" | "completion" | "unexpected";
+
+/**
+ * One structured line per failed callback: `prospectus_sign_in_failed {"code":...,"branch":...}`. It carries only the
+ * code, the branch, and (for errors from completing the sign-in) the HTTP status, Prospectus error code and error name.
+ * Never tokens, authorization codes, state, emails or subjects.
+ */
+function logSignInFailure(
+  options: ProspectusSignInRouteOptions,
+  entry: { code: string; branch: SignInFailureBranch; httpStatus?: number; prospectusError?: string; errorName?: string },
+): void {
+  (options.log ?? console.error)(`prospectus_sign_in_failed ${JSON.stringify(entry)}`);
+}
+
 function signInFailedRedirect(request: NextRequest, options: ProspectusSignInRouteOptions, returnPath: string | null, code: string): NextResponse {
   const target = new URL(returnPath ?? "/", siteOriginFor(request, options));
   target.searchParams.set("sign_in_error", /^[a-z0-9_]{1,60}$/.test(code) ? code : "sign_in_failed");
@@ -169,13 +186,16 @@ async function completeCallback(
   options: ProspectusSignInRouteOptions,
   nowInSeconds: number,
 ): Promise<NextResponse> {
-  const failed = (code: string) => signInFailedRedirect(request, options, pendingSignIn?.returnPath ?? null, code);
-  if (!pendingSignIn) return failed("sign_in_expired");
+  const failed = (code: string, branch: SignInFailureBranch, detail: { httpStatus?: number; prospectusError?: string; errorName?: string } = {}) => {
+    logSignInFailure(options, { code, branch, ...detail });
+    return signInFailedRedirect(request, options, pendingSignIn?.returnPath ?? null, code);
+  };
+  if (!pendingSignIn) return failed("sign_in_expired", "pending_cookie");
   const searchParams = request.nextUrl.searchParams;
-  if (searchParams.get("error")) return failed("sign_in_declined");
+  if (searchParams.get("error")) return failed("sign_in_declined", "provider_error");
   const authorizationCode = searchParams.get("code");
   const returnedState = searchParams.get("state");
-  if (!authorizationCode || !returnedState) return failed("sign_in_incomplete");
+  if (!authorizationCode || !returnedState) return failed("sign_in_incomplete", "missing_parameters");
   try {
     const signedIn = await completeProspectusGoogleSignIn({
       accounts: runtime.accounts,
@@ -200,9 +220,8 @@ async function completeCallback(
     );
     return response;
   } catch (error) {
-    if (error instanceof ProspectusAccountsError) return failed(error.code);
-    console.error(`Prospectus sign-in failed (${error instanceof Error ? error.name : "error"}).`);
-    return failed("sign_in_failed");
+    if (error instanceof ProspectusAccountsError) return failed(error.code, "completion", { httpStatus: error.status, prospectusError: error.code });
+    return failed("sign_in_failed", "unexpected", { errorName: error instanceof Error ? error.name : "error" });
   }
 }
 
