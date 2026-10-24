@@ -107,6 +107,17 @@ def step_uncited(context):
     context.trend_drafts.append(draft)
 
 
+@when("the model drafts a trend story with two body sentences that cite one signal")
+def step_thin(context):
+    context.trend_drafts.append(trend_draft("Thin headline", cites=("S3", "S3"), body=[{"sentences": [sentence("The signal records 15 items.", "S3")]}, {"sentences": [sentence("The weekly count peaked at 7.", "S3")]}]))
+
+
+@then("the failed draft in the run record keeps its headline, dek, body and citations")
+def step_kept(context):
+    kept = context.trend_run["invalid"][0]["draft"]
+    assert kept["headline"]["text"] == "Thin headline" and kept["dek"]["cites"] and len(kept["paragraphs"]) == 2, kept
+
+
 @when("the model drafts a trend story with a body sentence citing a signal that does not exist")
 def step_unknown(context):
     draft = trend_draft()

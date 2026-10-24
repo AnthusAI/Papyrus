@@ -57,7 +57,8 @@ Rules:
 - Make no present-tense statement about the publisher's own production systems or results.
 - Choose the section from the allowed list, exactly as written.
 - figure_signals are one to three cited handles whose weekly counts make the chart; figure_title and figure_caption describe it using only those signals' numbers.
-- Skip a trend that recent or in-flight stories or earlier drafts already cover. Propose as many distinct stories as the signals support, up to maximum_drafts, each built from different signals; fewer is better than weak. Never use the word "desk".
+- Hard requirements, checked by code; a draft that misses any of them is discarded whole: (1) at least three body sentences in total, across the paragraphs, not counting the headline and dek; (2) at least two different signals cited across the draft, so every story compares or connects two or more signals (for example a cluster and an entity that moved together, or two entities); a story about one signal alone is not allowed; (3) every sentence has its own non-empty "cites"; (4) figure_signals are handles the draft cites.
+- Skip a trend that recent or in-flight stories or earlier drafts already cover, but only when the same signals are covered. Return maximum_drafts drafts whenever the signals allow it, each built from a different pairing or grouping of signals, and never fewer than one. Prefer a plain, well-grounded draft that meets the requirements over a clever one. Never use the word "desk".
 """
 
 _SENTENCE = {
@@ -425,7 +426,7 @@ def validate_drafts(raw: list[Any], handles: dict[str, str], signals: dict[str, 
         draft, record = check_draft(item, handles, signals, views, allowed_sections)
         if draft is None:
             title = str(((item.get("headline") or {}).get("text")) if isinstance(item, dict) and isinstance(item.get("headline"), dict) else "")[:200]
-            invalid.append({"title": title, "reason": "citation_check_failed", "citationCheck": record})
+            invalid.append({"title": title, "reason": "citation_check_failed", "citationCheck": record, "draft": item})
         else:
             draft["citationCheck"] = record
             valid.append(draft)
