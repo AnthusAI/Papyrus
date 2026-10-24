@@ -303,3 +303,20 @@ def second_look(context):
 @then("a run that failed fires no trigger")
 def failed_fires_nothing(context):
     assert after_run(context, {"runStatus": "failed", "output": None, "error": "x"}) == []
+
+
+def story_moves(context):
+    row = t.latest_story_version(context.world.client, t.LINEAGE)
+    return json.loads(row["metadata"]).get("stageMoves") or []
+
+
+@then("the story keeps a record that {actor} moved it to {stage} with a new version")
+def move_record_new(context, actor, stage):
+    move = story_moves(context)[-1]
+    assert (move["to"], move["by"]) == (stage, actor) and move["reason"].endswith("(new version v2)"), move
+
+
+@then("the story keeps a record that {actor} moved it to {stage} with no changes")
+def move_record_none(context, actor, stage):
+    move = story_moves(context)[-1]
+    assert (move["to"], move["by"]) == (stage, actor) and move["reason"].endswith("(no changes)"), move

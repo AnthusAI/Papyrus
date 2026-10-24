@@ -9,6 +9,7 @@ from pathlib import Path
 from .graphql_authoring import create_authoring_client
 from .options import normalize_string, parse_options, resolve_mutation_apply
 from .story_reporting import (
+    STAGE_MOVES_KEY,
     STORY_MESSAGE_KINDS,
     advance_stage,
     append_story_message,
@@ -145,6 +146,10 @@ def stories_show(flags: list[str]) -> None:
     versions = story_versions(client, lineage_id)
     latest = current_story_version(client, lineage_id) if versions else {}
     print(f"stories\tshow\t{lineage_id}\t{latest.get('headline') or latest.get('title')}\tstage {latest.get('stage')}\tcurrent version {latest.get('versionNumber')} of {len(versions)}")
+    metadata = latest.get("metadata")
+    metadata = json.loads(metadata) if isinstance(metadata, str) and metadata else (metadata or {})
+    for move in metadata.get(STAGE_MOVES_KEY) or []:
+        print("\t".join(["stories", "show", "moved", str(move.get("at") or ""), f"{move.get('from')} -> {move.get('to')}", str(move.get("by") or ""), str(move.get("reason") or "")]))
     for reference in story_references(client, lineage_id):
         print(f"stories\tshow\treference\t{reference['referenceLineageId']}\t{reference['role']}\t{reference.get('citationKey') or ''}")
 

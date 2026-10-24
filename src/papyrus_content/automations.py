@@ -28,7 +28,7 @@ from typing import Any
 
 from .automation_gate import (
     MANUAL_PREFIX, decide, limits_of, manual_prefix, query_prefix, trigger_prefix)
-from .story_triggers import MAX_HOPS, STAGE_ENTERED, is_stage_trigger
+from .story_triggers import MAX_HOPS, STAGE_ENTERED, STAGE_ROW_PREFIX, is_stage_trigger, stage_prefix
 from .monitoring_router import (
     PROCEDURE_INPUT_NAME,
     PROCEDURE_KEY,
@@ -408,7 +408,7 @@ def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
     cost = (run or {}).get("costUsd")
     cost = float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
     usage = _parse((run or {}).get("usage"), None)
-    usage = usage if isinstance(usage, dict) else None
+    usage = usage if isinstance(usage, dict) and "calls" in usage else None   # a run with tools but no model call has no usage
     if cost is None and usage is None:
         note = COST_NOTE if run else "no run record, so no cost"
     elif cost is None:
@@ -423,6 +423,15 @@ def cost_fields(run: dict | None, budget: Any = None) -> dict[str, Any]:
                                                  ("calls", "promptTokens", "completionTokens", "models", "complete", "unpricedModels")}}
 
 
+def tools_used_of(run: dict | None) -> dict[str, int] | None:
+    """Tool name -> calls, as the runner recorded it with the run's usage; None when the run recorded none."""
+    usage = _parse((run or {}).get("usage"), None)
+    tools = usage.get("toolsUsed") if isinstance(usage, dict) else None
+    if not isinstance(tools, dict) or not tools:
+        return None
+    return {str(name): int(count) for name, count in tools.items() if isinstance(count, (int, float)) and not isinstance(count, bool)}
+
+
 def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: Any = None) -> dict[str, Any]:
     """One trigger or Run now row joined with its ProcedureRun. The story is the procedure output's `story` (a lineage id)."""
     output = _parse((run or {}).get("output"), None)
@@ -431,8 +440,11 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
     finished = (run or {}).get("finishedAt") or row.get("finishedAt")
     story = output.get("story")
     manual = str(row.get("sk") or "").startswith(MANUAL_PREFIX)
+    stage = str(row.get("sk") or "").startswith(STAGE_ROW_PREFIX)
+    story = story if isinstance(story, str) and story else row.get("storyId")
     return {
-        "origin": "manual" if manual else "monitor",
+        "origin": "manual" if manual else ("stage" if stage else "monitor"),
+        "stage": row.get("stage") if stage else None,
         "requestedBy": row.get("requestedBy"),
         "sourceId": row.get("sourceId"), "referenceId": row.get("referenceId"),
         "triggerStatus": row.get("status"), "runId": row.get("runId"),
@@ -443,6 +455,8 @@ def run_entry(row: dict, run: dict | None, lookup_failed: bool = False, budget: 
         "error": _run_error(row, run),
         "runRecord": "found" if run else ("unavailable" if lookup_failed else ("missing" if row.get("runId") else "none")),
         "storyId": story if isinstance(story, str) and story else None,
+        "storyExists": None,   # filled in by the history, which can look the story up
+        "toolsUsed": tools_used_of(run),
         "storyVersionId": output.get("version_id") if isinstance(output.get("version_id"), str) else None,
         "storyTitle": output.get("title") if isinstance(output.get("title"), str) else None,
         **cost_fields(run, budget),
@@ -473,6 +487,23 @@ def outside_runs(automation: dict[str, Any], client, linked_ids: set[str], limit
     return {"runs": [outside_entry(run, budget) for run in rows if run.get("id") not in linked_ids][:limit], "notice": None}
 
 
+def mark_deleted_stories(client, runs: list[dict[str, Any]]) -> None:
+    """Sets `storyExists` on each run that names a story: False when no version of that lineage remains (the story was deleted),
+    None when the lookup failed or is not offered by the client."""
+    lookup = getattr(client, "list_by_index", None)
+    known: dict[str, bool | None] = {}
+    for run in runs:
+        story = run.get("storyId")
+        if not story or lookup is None:
+            continue
+        if story not in known:
+            try:
+                known[story] = bool(lookup("itemsByLineageAndVersion", story))
+            except Exception:   # a lookup failure never hides the run
+                known[story] = None
+        run["storyExists"] = known[story]
+
+
 def automation_history(automation: dict[str, Any], *, reader: MonitoringReader | None, client, limit: int = DEFAULT_RUN_LIMIT,
                        site_endpoint: str | None = None) -> dict[str, Any]:
     """Router link, recent runs (newest first), the last run and the procedure's other runs for one automation.
@@ -483,7 +514,8 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
     limit = max(1, min(int(limit), MAX_RUN_LIMIT))
     empty = {"link": None, "runs": [], "lastRun": None, "skippedAlreadyHadReference": 0, "notice": None,
              "outsideRuns": [], "outsideNotice": None}
-    if automation["trigger"]["kind"] != "monitor":
+    stage_trigger = is_stage_trigger(automation["trigger"])
+    if automation["trigger"]["kind"] != "monitor" and not stage_trigger:
         return {**empty, "link": router_link(automation, None), "notice": NOT_SUPPORTED}
     if reader is None:
         return {**empty, "notice": "monitoring_not_configured"}
@@ -497,8 +529,11 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
             return {**empty, "link": link, "notice": "publication_not_routed"}
         if publication.get("appsyncEndpoint") != site_endpoint:
             return {**empty, "notice": "other_publication"}
-    rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"])
-    rows += reader.manual_rows(config["monitorId"], automation["id"])
+    if stage_trigger:   # the runs a story entering the stage started: one claim row per story, stage and version
+        rows = reader.rows_with_prefix(config["monitorId"], stage_prefix(automation["id"]))
+    else:
+        rows = reader.trigger_rows(config["monitorId"], config["publicationId"], automation["procedureKey"])
+        rows += reader.manual_rows(config["monitorId"], automation["id"])
     budget = (automation.get("limits") or {}).get("budgetUsdPerRun")
     skipped = sum(1 for row in rows if row.get("status") == "notTriggered")
     started = sorted((row for row in rows if row.get("status") != "notTriggered"), key=_row_time, reverse=True)[:limit]
@@ -511,6 +546,7 @@ def automation_history(automation: dict[str, Any], *, reader: MonitoringReader |
             except Exception:   # a lookup failure is shown on the row; the rest of the history still reads
                 failed = True
         runs.append(run_entry(row, run, failed, budget))
+    mark_deleted_stories(client, runs)
     outside = outside_runs(automation, client, {row["runId"] for row in rows if row.get("runId")}, limit, budget)
     return {
         "link": link, "runs": runs, "lastRun": runs[0] if runs else None, "skippedAlreadyHadReference": skipped, "notice": None,
@@ -690,12 +726,25 @@ def cost_text(entry: dict[str, Any]) -> str:
     return f"${entry['costUsd']:.4f}" + (" OVER BUDGET" if entry.get("overBudget") else "")
 
 
+def tools_text(run: dict[str, Any]) -> str:
+    """`tools: name x2, other x1`, or `tools: none recorded` (the run recorded no tool calls, or predates the record)."""
+    tools = run.get("toolsUsed")
+    return "tools: " + (", ".join(f"{name} x{count}" for name, count in sorted(tools.items())) if tools else "none recorded")
+
+
+def cost_summary_text(runs: list[dict[str, Any]]) -> str:
+    known = [run["costUsd"] for run in runs if run["costUsd"] is not None]
+    return f"${sum(known):.4f} total across {len(known)} run{'' if len(known) == 1 else 's'} with a recorded cost ({len(known)} of {len(runs)} listed run{'' if len(runs) == 1 else 's'}; an estimate)"
+
+
 def _print_runs(runs: list[dict[str, Any]]) -> None:
     for run in runs:
-        who = f"run now by {run['requestedBy']}" if run.get("origin") == "manual" else (run["sourceId"] or "")
+        who = (f"run now by {run['requestedBy']}" if run.get("origin") == "manual"
+               else f"story entered {run.get('stage') or 'stage'}" if run.get("origin") == "stage" else (run["sourceId"] or ""))
+        story = "-" if not run["storyId"] else (f"{run['storyId']} (story deleted)" if run.get("storyExists") is False else run["storyId"])
         print("\t".join(str(part) for part in (
             "run", run["startedAt"] or "", run["status"] or "", f"{run['durationSeconds']} s" if run["durationSeconds"] is not None else "-",
-            who, run["runId"] or "-", run["storyId"] or "-", cost_text(run), run["reason"] or run["error"] or "")))
+            who, run["runId"] or "-", story, cost_text(run), tools_text(run), run["reason"] or run["error"] or "")))
 
 
 def _print_outside_runs(runs: list[dict[str, Any]]) -> None:
@@ -803,5 +852,4 @@ def run_command(command: str, flags: list[str]) -> None:
                 print(f"outside\tthe procedure's other runs could not be read ({automation['outsideNotice']})")
             if automation["skippedAlreadyHadReference"]:
                 print(f"skipped\t{automation['skippedAlreadyHadReference']} item(s) not started because the Reference already existed")
-            known = [run["costUsd"] for run in automation["runs"] if run["costUsd"] is not None]
-            print(f"cost\t${sum(known):.4f} over {len(known)} of {len(automation['runs'])} listed run(s) with a recorded cost (an estimate)")
+            print(f"cost\t{cost_summary_text(automation['runs'])}")
