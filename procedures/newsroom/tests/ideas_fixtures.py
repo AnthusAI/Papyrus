@@ -139,3 +139,80 @@ def idea(title: str, handles: list[str], *, section: str = "Analysis", angle: st
         "claims": [{"claim": f"The references both bear on {title.lower()}.", "references": handles}],
         "novelty_note": note,
     }
+
+
+# --- trend stories (docs/idea-pipeline.md#trend-stories) ---------------------------------------------------------------------
+
+AS_OF = "2026-10-19"
+
+
+def snapshot_files() -> dict[str, object]:
+    """A small weekly knowledge snapshot: two named clusters, three trending entities and one new entity, as the site publishes them."""
+
+    def entity(key, name, kind, series, last4, prior4, percent, new=False):
+        return {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "aliases": [], "change": {"last4": last4, "percent": percent, "prior4": prior4},
+                "href": f"/wiki/{key.replace('--', '-')}/", "isNew": new, "itemCount": sum(series), "key": key, "kind": kind, "name": name, "series8": series,
+                "weeksOfHistory": 3 if new else 52}
+
+    index = {
+        "asOf": AS_OF, "beats": [], "conceptOfTheWeek": None, "entityCount": 4, "kinds": [], "schemaVersion": 1, "topicCount": 2,
+        "trending": ["platform--hugging-face", "licence--apache-2-0", "task--routing"],
+        "entities": [
+            entity("platform--hugging-face", "Hugging Face", "platform", [1, 2, 3, 4, 7, 3, 3, 2], 15, 10, 50),
+            entity("licence--apache-2-0", "Apache-2.0", "licence", [1, 1, 3, 3, 5, 3, 2, 2], 12, 8, 50),
+            entity("task--routing", "routing", "task", [0, 1, 2, 2, 3, 3, 4, 4], 14, 5, None),
+            entity("task--typed-decisions", "typed decisions", "task", [0, 0, 0, 0, 1, 2, 3, 5], 11, 1, None, new=True),
+        ],
+    }
+    clusters = {
+        "asOf": AS_OF, "runId": "run-1", "schemaVersion": 1, "unacceptedClusters": 0,
+        "clusters": [
+            {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "beats": ["decision-models"], "href": None, "itemCount": 21, "name": "Decision models",
+             "series8": [0, 0, 3, 3, 4, 4, 2, 4], "state": "growing", "topTerms": ["decision", "public", "jev"], "uid": "cl-fb1252e1da52", "weeksOfData": 69},
+            {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "beats": [], "href": None, "itemCount": 22, "name": "Open-weights language models",
+             "series8": [1, 2, 1, 1, 2, 1, 1, 1], "state": None, "topTerms": ["licence", "apache"], "uid": "cl-aaaa00000001", "weeksOfData": 69},
+        ],
+    }
+    entities = {
+        "platform--hugging-face": {"key": "platform--hugging-face", "neighbours": [{"key": "licence--apache-2-0", "kind": "licence", "name": "Apache-2.0", "relation": "mentioned_with", "weight": 5}],
+                                   "relatedItems": [{"title": "A model card worth reading", "url": "/posts/a-model-card/", "publishedAt": "2026-10-14", "reason": "platform--hugging-face"}]},
+    }
+    return {"index": index, "clusters": clusters, "entities": entities}
+
+
+def history_entry() -> dict[str, object]:
+    files = snapshot_files()
+    return {"schemaVersion": 1, "asOf": AS_OF, "runId": "run-1", "runAsOf": "2026-10-22", "archivedAt": "2026-10-22T16:59:53Z", "counts": {"clusters": 2, "entities": 4, "topics": 2},
+            "clusters": [], "snapshot": files}
+
+
+def sentence(text: str, *cites: str) -> dict[str, object]:
+    return {"text": text, "cites": list(cites)}
+
+
+def trend_draft(headline: str = "Hugging Face and Apache-2.0 climb together", *, section: str = "Analysis", body=None, figure=("S3",), cites=("S3", "S4")) -> dict[str, object]:
+    """A draft that passes the citation check against ``snapshot_files``: S1 and S2 are the clusters, S3 to S5 the trending entities, S6 the new one."""
+    first, second = cites[0], cites[-1]
+    return {
+        "headline": sentence(headline, first, second),
+        "dek": sentence("Both rose in the four weeks to 2026-10-19.", first, second),
+        "section": section,
+        "paragraphs": body or [
+            {"sentences": [
+                sentence("Hugging Face appeared in 15 items over the last four weeks, against 10 in the four before.", "S3"),
+                sentence("Apache-2.0 appeared in 12 items over the last four weeks, against 8 before.", "S4"),
+            ]},
+            {"sentences": [sentence("The two are mentioned together in 5 items.", "S3", "S4")]},
+        ],
+        "figure_signals": list(figure),
+        "figure_title": "Items per week",
+        "figure_caption": "Hugging Face peaked at 7 items in one week.",
+    }
+
+
+class FakeTrendModel(FakeModel):
+    """Like ``FakeModel`` but answers in the trend drafts format."""
+
+    def __call__(self, url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+        self.requests.append(payload)
+        return {"status": "completed", "output_text": json.dumps({"drafts": self.ideas}), "usage": self.usage}

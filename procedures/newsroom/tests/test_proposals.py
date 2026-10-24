@@ -51,6 +51,32 @@ class FilingTests(unittest.TestCase):
             self.assertEqual([(entry["from"], entry["to"], entry["by"]) for entry in history], [(None, "draft", "ai")])
             self.assertEqual(history[0]["actor"], "staff-sub-1")
 
+    def test_a_figure_spec_rides_in_the_evidence_and_is_kept_whole(self) -> None:
+        figure = {"type": "line", "title": "Items per week", "caption": "Two series.", "unit": "items per week", "source": "knowledge snapshot 2026-10-19",
+                  "x": ["2026-10-12", "2026-10-19"], "series": [{"signal": "entity:a", "label": "A", "values": [1, 2]}, {"signal": "entity:b", "label": "B", "values": [3, 4.5]}]}
+        with ReaderBackend() as backend:
+            identifier = file_one(backend, evidence=json.dumps({"signals": 2, "source": "snapshot", "figure": {**figure, "stray": "dropped"}}))
+            self.assertEqual(json.loads(row_of(backend, identifier)["evidence"]), {"signals": 2, "source": "snapshot", "figure": figure})
+            plain = file_one(backend, evidence=json.dumps({"signals": 1, "source": "x"}))
+            self.assertEqual(json.loads(row_of(backend, plain)["evidence"]), {"signals": 1, "source": "x"})
+
+    def test_a_malformed_figure_is_refused(self) -> None:
+        good = {"type": "line", "title": "T", "caption": "C", "unit": "u", "source": "s", "x": ["a", "b"], "series": [{"signal": "s1", "label": "L", "values": [1, 2]}]}
+        broken = {
+            "unknown type": {**good, "type": "pie"},
+            "short series": {**good, "series": [{"signal": "s1", "label": "L", "values": [1]}]},
+            "text value": {**good, "series": [{"signal": "s1", "label": "L", "values": [1, "2"]}]},
+            "no caption": {key: value for key, value in good.items() if key != "caption"},
+            "too many series": {**good, "series": [{"signal": f"s{n}", "label": "L", "values": [1, 2]} for n in range(7)]},
+            "not an object": "chart",
+        }
+        with ReaderBackend() as backend:
+            for name, figure in broken.items():
+                with self.subTest(name):
+                    answer = backend.proposal_call("fileProposal", {"kind": "story_draft", "title": "T", "body": BODY, "evidence": json.dumps({"signals": 1, "source": "s", "figure": figure})})
+                    self.assertEqual((answer["status"], answer["error"]), ("refused", "invalid_evidence"))
+            self.assertEqual(backend.proposals(), [])
+
     def test_every_kind_is_accepted_with_the_targets_it_needs(self) -> None:
         targets = {
             "story_draft": [],
