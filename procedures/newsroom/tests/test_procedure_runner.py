@@ -421,8 +421,15 @@ def test_the_runner_never_retries_and_stops_inside_its_lambda_timeout():
     assert pr.SECONDS_KEPT_FOR_RECORDING < function["Timeout"]
     statements = resources["RunnerRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]
     assert {statement["Sid"] for statement in statements} == {
-        "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "PublicationNewsrooms"}
+        "Logs", "FailedInvocations", "PublicationOpenAiKeys", "TriggerOutcomes", "StageTriggerRows",
+        "StartNextStage", "PublicationNewsrooms"}
     assert all("*" != statement["Resource"] for statement in statements)
+    by_sid = {statement["Sid"]: statement for statement in statements}
+    rows = by_sid["StageTriggerRows"]
+    assert set(rows["Action"]) == {"dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"}
+    assert rows["Condition"]["ForAllValues:StringLike"]["dynamodb:LeadingKeys"] == ["MONITOR#*"]
+    invoke = by_sid["StartNextStage"]
+    assert invoke["Action"] == "lambda:InvokeFunction" and invoke["Resource"][1].endswith(":function:papyrus-procedure-runner")
 
 
 def test_the_router_may_start_only_the_named_runner():
@@ -431,3 +438,16 @@ def test_the_router_may_start_only_the_named_runner():
     assert policy["Condition"] == "HasProcedureRunner"
     statement = policy["Properties"]["PolicyDocument"]["Statement"][0]
     assert statement["Action"] == "lambda:InvokeFunction" and statement["Resource"][1].endswith(":function:${ProcedureRunnerFunctionName}")
+
+
+def test_the_runner_hook_never_raises_when_delivery_fails(monkeypatch, capsys):
+    from papyrus_content import graphql_authoring, procedure_runner, story_triggers
+
+    monkeypatch.setattr(graphql_authoring, "PapyrusGraphQLAuthoringClient", lambda: object())
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("no table")
+
+    monkeypatch.setattr(story_triggers, "deliver_after_run", boom)
+    procedure_runner.fire_story_triggers_after_run(object(), None, {"runStatus": "completed", "output": {"story": "s"}})
+    assert "could not be delivered" in capsys.readouterr().out

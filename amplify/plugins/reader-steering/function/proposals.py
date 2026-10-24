@@ -6,7 +6,7 @@ and steered by votes; an editor decides. Staff reach this through the ``fileProp
 mutations (editors and admins; the function checks the groups again). An operator's IAM role in the function's own account
 (an unattended automation or an agent without a browser sign-in) may also file an AI proposal and move it from draft to
 in_steering or declined, and nothing else: approving, deciding after review and overriding stay with editors and admins.
-Every state change is appended to the proposal's
+``editProposal`` is the editor tier (pin, hold, exclude and restore votes): editors and admins only, never an operator. Every state change is appended to the proposal's
 ``history`` in the same conditional write that changes the state, so the history and the state cannot disagree.
 
 Nothing here knows a person id. The proposer is ``"ai"`` or a reader's siteSubject, which is stored and never published; the
@@ -56,7 +56,19 @@ TARGET_COUNTS: dict[str, tuple[int, int]] = {
 }
 TARGET_TYPES = ("concept", "entity", "column", "story", "cluster")
 
-MUTATIONS = ("fileProposal", "transitionProposal")
+MUTATIONS = ("fileProposal", "transitionProposal", "editProposal")
+
+#: What ``editProposal`` does beyond moving the state. Editors and admins only: an operator is refused every one of them.
+PIN, UNPIN, HOLD, RELEASE, EXCLUDE_VOTES, UNDO_EXCLUSION = "pin", "unpin", "hold", "release", "exclude_votes", "undo_exclusion"
+EDIT_ACTIONS = (PIN, UNPIN, HOLD, RELEASE, EXCLUDE_VOTES, UNDO_EXCLUSION)
+FINAL_STATES = (APPROVED, DECLINED, OVERRIDDEN_BY_EDITOR)
+#: The batch rules for excluding votes. A rule excludes the votes on one proposal that were already cast, by accounts that were
+#: younger than ``hours`` when they voted; the snapshot applies it (votes are not counted here). ``label`` is the public wording.
+EXCLUSION_RULES: dict[str, dict[str, Any]] = {
+    "new-accounts-24h": {"hours": 24, "label": "accounts under 24 h"},
+}
+EXCLUSION_ID = re.compile(r"exc-[0-9a-f]{12}")
+MAXIMUM_EDITOR_LOG = 200
 
 
 def event_field_name(event: dict[str, Any]) -> str | None:
@@ -109,7 +121,7 @@ class ProposalStore(Protocol):
 
     def create_proposal(self, row: dict[str, Any]) -> bool: ...
 
-    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str) -> bool: ...
+    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool: ...
 
 
 def staff_subject(identity: dict[str, Any]) -> str | None:
@@ -238,6 +250,8 @@ def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_su
         return refused("invalid_state", f"state must be one of {', '.join(STATES)}.")
     if to_state not in TRANSITIONS.get(state, ()):
         return refused("transition_not_allowed", f"A proposal in {state} cannot move to {to_state}.")
+    if row.get("held"):
+        return refused("proposal_held", "That proposal is on hold. Release it before it moves.")
     text = None
     if reason is not None and str(reason).strip():
         text = clean_text(reason, MAXIMUM_REASON)
@@ -254,7 +268,11 @@ def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_su
     if result is not None:
         entry["result"] = result
     history = [*(parse_json(row.get("history")) or []), entry]
-    return {"state": to_state, "history": json.dumps(history)}
+    changes: dict[str, Any] = {"state": to_state, "history": json.dumps(history)}
+    if to_state == OVERRIDDEN_BY_EDITOR:
+        # Stored on the proposal beside the community result, which stays as it was: readers see both.
+        changes["override"] = json.dumps({"result": result, "reason": text, "at": now_iso})
+    return changes
 
 
 def apply_transition(
@@ -285,8 +303,77 @@ def apply_transition(
     return Outcome("ok", id=proposal_id)
 
 
+def log_entry(action: str, actor_sub: str, now_iso: str, detail: dict[str, Any] | None = None) -> dict[str, Any]:
+    entry: dict[str, Any] = {"action": action, "by": BY_STAFF, "actor": actor_sub, "at": now_iso}
+    if detail:
+        entry["detail"] = detail
+    return entry
+
+
+def edit_plan(row: dict[str, Any], action: Any, *, rule: Any = None, exclusion_id: Any = None, actor_sub: str, now_iso: str) -> dict[str, Any] | Outcome:
+    """The changes for a pin, hold or vote-exclusion action on ``row``, or why it may not be done.
+
+    Every action is appended to the private ``editorLog`` in the same write. Changing the exclusions clears the frozen
+    ``communityResult`` so the next snapshot fixes it again with the exclusions applied; the function never counts votes itself.
+    """
+    if action not in EDIT_ACTIONS:
+        return refused("invalid_action", f"action must be one of {', '.join(EDIT_ACTIONS)}.")
+    detail: dict[str, Any] | None = None
+    changes: dict[str, Any] = {}
+    if action in (PIN, UNPIN):
+        if bool(row.get("pinned")) == (action == PIN):
+            return refused("already_pinned" if action == PIN else "not_pinned", "That proposal is already pinned." if action == PIN else "That proposal is not pinned.")
+        changes["pinned"] = action == PIN
+    elif action in (HOLD, RELEASE):
+        if action == HOLD and row.get("state") in FINAL_STATES:
+            return refused("proposal_decided", "A decided proposal cannot be put on hold.")
+        if bool(row.get("held")) == (action == HOLD):
+            return refused("already_held" if action == HOLD else "not_held", "That proposal is already on hold." if action == HOLD else "That proposal is not on hold.")
+        changes["held"] = action == HOLD
+    else:
+        exclusions = parse_json(row.get("exclusions")) or []
+        if action == EXCLUDE_VOTES:
+            if rule not in EXCLUSION_RULES:
+                return refused("invalid_rule", f"rule must be one of {', '.join(EXCLUSION_RULES)}.")
+            identifier = "exc-" + uuid.uuid4().hex[:12]
+            exclusions = [*exclusions, {"id": identifier, "rule": rule, "at": now_iso, "actor": actor_sub}]
+            detail = {"exclusion": identifier, "rule": rule}
+        else:
+            if not isinstance(exclusion_id, str) or not EXCLUSION_ID.fullmatch(exclusion_id):
+                return refused("invalid_exclusion", "That is not an exclusion id.")
+            found = next((entry for entry in exclusions if entry.get("id") == exclusion_id), None)
+            if found is None:
+                return refused("unknown_exclusion", "That proposal has no such exclusion.")
+            if found.get("undoneAt"):
+                return refused("already_undone", "That exclusion was already undone.")
+            found["undoneAt"], found["undoneBy"] = now_iso, actor_sub
+            detail = {"exclusion": exclusion_id, "rule": found.get("rule")}
+        changes["exclusions"] = json.dumps(exclusions)
+        if row.get("communityResult"):
+            changes["communityResult"] = None  # removed: the next snapshot fixes it again without the excluded votes
+    log = [*(parse_json(row.get("editorLog")) or []), log_entry(action, actor_sub, now_iso, detail)][-MAXIMUM_EDITOR_LOG:]
+    changes["editorLog"] = json.dumps(log)
+    return changes
+
+
+def apply_edit(store: ProposalStore, *, proposal_id: Any, action: Any, rule: Any, exclusion_id: Any, actor_sub: str, now_iso: str) -> Outcome:
+    if not isinstance(proposal_id, str) or not PROPOSAL_ID.fullmatch(proposal_id):
+        return refused("invalid_proposal", "That is not a proposal id.")
+    row = store.get_proposal(proposal_id)
+    if row is None:
+        return refused("not_found", "There is no such proposal.")
+    plan = edit_plan(row, action, rule=rule, exclusion_id=exclusion_id, actor_sub=actor_sub, now_iso=now_iso)
+    if isinstance(plan, Outcome):
+        return plan
+    if not store.change_proposal(proposal_id, plan, row["state"], now_iso, expected_updated_at=row.get("updatedAt")):
+        return refused("target_changed", "Someone else changed that proposal first.")
+    # An exclusion's id is what undo_exclusion takes; the pin and hold receipts carry the proposal id.
+    created = json.loads(plan["exclusions"])[-1]["id"] if action == EXCLUDE_VOTES else proposal_id
+    return Outcome("ok", id=created)
+
+
 def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_iso: str, account_id: str | None = None) -> dict[str, Any]:
-    """``fileProposal`` or ``transitionProposal`` from AppSync. Answers a receipt, never an exception.
+    """``fileProposal``, ``transitionProposal`` or ``editProposal`` from AppSync. Answers a receipt, never an exception.
 
     Editors and admins act as themselves. An IAM principal of ``account_id`` (the function's own account) acts as an operator:
     it files AI proposals and moves draft to in_steering or declined, recorded as ``operator:<ARN>``. Anyone else is refused.
@@ -299,6 +386,18 @@ def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_is
         return refused("not_staff", "Only editors, admins and operators of this account can file proposals; only editors and admins decide them.").to_dict()
     arguments = event.get("arguments") or {}
     field = event_field_name(event)
+    if field == "editProposal":
+        if staff is None:
+            return refused("operator_not_allowed", "Pinning, holding and excluding votes are for editors and admins; an operator can only file proposals and move a draft to in_steering or declined.").to_dict()
+        return apply_edit(
+            store,
+            proposal_id=arguments.get("proposalId"),
+            action=arguments.get("action"),
+            rule=arguments.get("rule"),
+            exclusion_id=arguments.get("exclusionId"),
+            actor_sub=staff,
+            now_iso=now_iso,
+        ).to_dict()
     if field == "fileProposal":
         row, problem = file_proposal(arguments, actor_sub=actor, now_iso=now_iso)
         if problem is not None:

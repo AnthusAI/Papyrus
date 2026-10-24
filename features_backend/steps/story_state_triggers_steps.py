@@ -270,3 +270,36 @@ def no_label(context):
 @then("no review request is raised")
 def no_review(context):
     assert context.world.reviews() == []
+
+
+@given("a procedure run started by a monitor created that story through a tool, so nothing delivered its triggers")
+def tool_created(context):
+    context.run_trigger = {"event": "monitor.matched", "pk": "MONITOR#ttab", "sk": "RUN#1"}
+    assert context.world.invoked == []
+
+
+def after_run(context, result):
+    world = context.world
+    return st.deliver_after_run(world.client, context.run_trigger, result, reader=au.MonitoringReader(world.table),
+                                writer=au.MonitoringWriter(world.table), invoke=world.invoked.append, now=t.NOW)
+
+
+@when("the run completes and its output names the story")
+def run_completes(context):
+    context.outcomes = [after_run(context, {"runStatus": "completed", "output": {"story": t.LINEAGE, "version_id": t.LINEAGE}})]
+
+
+@then("the fact-check bot starts exactly once")
+def fact_check_once(context):
+    assert [r["input"]["automationId"] for r in context.world.invoked] == [FACT]
+
+
+@then("a second look at the same completed run starts nothing more")
+def second_look(context):
+    again = after_run(context, {"runStatus": "completed", "output": {"story": t.LINEAGE}})
+    assert [o["status"] for o in again] == ["duplicate"] and len(context.world.invoked) == 1
+
+
+@then("a run that failed fires no trigger")
+def failed_fires_nothing(context):
+    assert after_run(context, {"runStatus": "failed", "output": None, "error": "x"}) == []
