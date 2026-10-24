@@ -609,7 +609,7 @@ split, a new column or an element symbol. AI files it, readers steer it with vot
 | `kind` | `story_draft`, `new_concept`, `rename`, `merge`, `split`, `new_column`, `element_symbol` |
 | `title`, `summary`, `body` | Title (200 characters), an optional one-line summary (300) and the body as Markus, kept byte for byte (50,000) |
 | `targets` | JSON list of `{type, id}` with a type of `concept`, `entity`, `column`, `story` or `cluster`. A `rename`, `split` or `element_symbol` names exactly one, a `merge` two to ten, the rest none to ten |
-| `evidence` | Optional JSON `{signals, source}`: how many signals back the proposal and where they came from |
+| `evidence` | Optional JSON `{signals, source, figure?}`: how many signals back the proposal and where they came from, and optionally a `figure`: a small chart spec (`{type: line\|bar, title, caption, unit, source, x: [week labels], series: [{signal, label, values}]}`, one value per label, at most 8,000 bytes) that an editor approves with the copy. Malformed figures are refused with `invalid_evidence`; [trend stories](idea-pipeline.md#trend-stories) file them |
 | `proposer` | `ai`, or a reader's siteSubject. Stored, never published, and never a Person ID. `fileProposal` files AI proposals only; a reader route is not built |
 | `state` | `draft`, `in_steering`, `editor_review`, `approved`, `declined`, `overridden_by_editor` |
 | `history` | JSON list of `{from, to, by, actor, reason, at, result?}`, appended in the same conditional write as the state. `actor` is the staff member's Cognito subject, or `operator:<principal ARN>` for an IAM operator (`by` is `operator`), and is never published |
@@ -768,7 +768,7 @@ papyrus proposals transition prop-... --to in_steering
 papyrus proposals publish        # invokes the content-actions function with the operator's AWS credentials
 ```
 
-The idea pipeline files its drafts this way: [`papyrus ideas synthesize --store proposals`](idea-pipeline.md#storage-and-privacy).
+The idea pipeline files its drafts this way: [`papyrus ideas synthesize --store proposals`](idea-pipeline.md#storage-and-privacy) and [`papyrus ideas trends --store proposals`](idea-pipeline.md#trend-stories).
 
 ## The page components
 

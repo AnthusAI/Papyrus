@@ -76,7 +76,7 @@ export function NewsroomOpsOverview({
       data-newsroom-ops-home="true"
     >
       <div className="space-y-8" data-newsroom-overview-feeds>
-        <div aria-label="Notification Center feed" className="newsroom-overview-feed-frame overflow-y-auto rounded-xl border bg-card p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-newsroom-overview-notifications role="region" tabIndex={0}>
+        <div aria-label="Notification Center feed" className="newsroom-overview-feed-frame rounded-xl border bg-card p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-newsroom-overview-notifications role="region" tabIndex={0}>
           <NotificationCenter
             actorLabel={actorLabel}
             decisions={decisions}
@@ -145,9 +145,9 @@ export function NewsroomOpsOverview({
         </section>
 
         {desks.length ? (
-          <section aria-label="Desks" className="space-y-3" data-newsroom-ops-desks>
-            <h2 className="text-sm font-medium text-muted-foreground">Desks</h2>
-            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core desks</h3> : null}
+          <section aria-label="Sections" className="space-y-3" data-newsroom-ops-desks>
+            <h2 className="text-sm font-medium text-muted-foreground">Sections</h2>
+            {coreDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="core">Core sections</h3> : null}
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {coreDesks.map((section) => (
                 <Link
@@ -167,7 +167,7 @@ export function NewsroomOpsOverview({
                 </Link>
               ))}
             </div>
-            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating desks <small>appear for a while, then rotate out</small></h3> : null}
+            {rotatingDesks.length ? <h3 className="newsroom-desk-group-heading" data-newsroom-ops-desk-group="rotating">Rotating sections <small>appear for a while, then rotate out</small></h3> : null}
             {rotatingDesks.length ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {rotatingDesks.map((section) => (
                 <Link

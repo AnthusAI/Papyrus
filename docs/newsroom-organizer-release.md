@@ -18,7 +18,7 @@ search box; Topic proposals sit under Taxonomy.
 - Native CMS Articles, Assignments, References/curation, Messages (including notes),
   Taxonomy, Topic proposals, Concepts, Knowledge search, Policies, Sections,
   Procedures and Users/identity merging remain original components/commands.
-  Existing server permissions remain authoritative. Desks routing opens the
+  Existing server permissions remain authoritative. Sections routing opens the
   original taxonomy editor for every publication; the retired Users and Doctrine
   aliases redirect to Administration.
 - Board uses released @kanbus/ui 0.2.0 IssueCollection and IssueDetailPanel. It

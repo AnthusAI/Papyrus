@@ -229,6 +229,10 @@ def advance_stage(stage: str | None) -> str:
     return order[index + 1]
 
 
+STAGE_MOVES_KEY = "stageMoves"
+MAX_STAGE_MOVES = 20
+
+
 def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason: str | None = None, now: str | None = None) -> dict[str, Any]:
     """Moves a story to a board stage (the Item stage update a card move makes) and records it in the reporting trail."""
     require_content_item_stage(stage)
@@ -237,7 +241,12 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     if previous == stage:
         return {"changed": False, "stage": stage, "from": previous, "itemId": latest["id"]}
     now = now or utc_now_iso()
-    client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now})
+    # The stage changes in place on the version, so the version itself keeps who moved it, when and why (`stories show` lists them).
+    metadata = json.loads(latest.get("metadata") or "{}") if isinstance(latest.get("metadata"), str) else dict(latest.get("metadata") or {})
+    moves = [move for move in metadata.get(STAGE_MOVES_KEY) or [] if isinstance(move, dict)]
+    moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
+    metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
+    client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
     summary = f"Stage: {previous} -> {stage}" + (f" ({reason})" if reason else "")
     message = append_story_message(client, lineage_id, body=summary, summary=summary, author_label=actor, message_kind="note", now=now)
     return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"], "messageId": message["id"]}

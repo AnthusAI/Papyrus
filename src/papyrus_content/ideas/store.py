@@ -103,6 +103,18 @@ class ProposalStore:
         }
         return receipt(self.client.graphql(FILE_MUTATION, variables), "fileProposal")
 
+    def file_trend_draft(self, draft: dict[str, Any]) -> str:
+        """A trend story draft: the cited signals are the targets and ``evidence`` carries the figure spec for the editor to approve."""
+        variables = {
+            "kind": "story_draft",
+            "title": draft["title"][:200],
+            "summary": draft["angle"][:300],
+            "body": draft["body"],
+            "targets": json.dumps(draft["targets"]),
+            "evidence": json.dumps(draft["evidence"]),
+        }
+        return receipt(self.client.graphql(FILE_MUTATION, variables), "fileProposal")
+
     def story_drafts(self) -> list[dict[str, Any]]:
         try:
             rows = list_proposals(self.client)

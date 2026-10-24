@@ -23,7 +23,7 @@ An `Assignment` is a unit of research, reporting or copywriting work. Editors cr
 
 Drafts are checked against the publication's own editorial policies through [Humanus](https://github.com/AnthusAI/Humanus). Checks have been on by default since release 5.9.0.
 
-- Policies are data in the site's backend (`EditorialPolicy`), edited in Administration, Editorial checks. A policy can apply to the publication or to one desk.
+- Policies are data in the site's backend (`EditorialPolicy`), edited in Administration, Editorial checks. A policy can apply to the publication or to one section.
 - An admin turns checks off or changes how they run in `EditorialCheckSettings`.
 - Findings are underlined in the article editor. An editor can apply a fix, ask for rewrite options, or dismiss a finding with a reason. Publishing is never blocked by an open finding; it only produces a warning.
 - Those decisions are stored and can recalibrate the checks.

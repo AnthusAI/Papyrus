@@ -441,7 +441,7 @@ def test_runs_prints_the_history_the_cost_and_the_runs_started_outside(cli):
     assert "97752244-EXA_26" in out and "story-lineage-1" in out and "run-1" in out
     assert "2 item(s) not started because the Reference already existed" in out
     assert "$0.0123" in out and "cost unknown" in out
-    assert "cost\t$0.0123 over 1 of 5 listed run(s) with a recorded cost (an estimate)" in out
+    assert "cost\t$0.0123 total across 1 run with a recorded cost (1 of 5 listed runs; an estimate)" in out
     assert "Started outside this automation:" in out and "outside\t2026-10-22T10:00:00Z\tcompleted" in out and "papyrus-cli" in out
 
 
@@ -519,3 +519,69 @@ def test_the_command_is_registered_under_the_papyrus_cli():
     from papyrus_content import cli as content_cli
     for command in ("list", "show", "runs", "run", "create", "update"):
         assert content_cli.is_ported_command("automations", command)
+
+
+# --- stage-entry runs, tools used, deleted stories ---------------------------------------------------------
+
+STAGE_ID = "distinctive.ruling.fact-check"
+STAGE_TRIGGER = {"kind": "event", "config": {"event": "story.stage_entered", "onStage": "reporting", "nextStage": "copywriting",
+                                              "monitorId": "ttab", "publicationId": "distinctive"}}
+
+
+def stage_row(story, version, *, run_id=None, started="2026-10-24T09:00:00Z", status="completed"):
+    return {"pk": fx.PK, "sk": f"STAGE#{STAGE_ID}#{story}#reporting#{version}", "automationId": STAGE_ID, "storyId": story,
+            "stage": "reporting", "version": version, "requestedBy": f"automation:{STAGE_ID}", "createdAt": started,
+            "startedAt": started, "status": status, "runId": run_id}
+
+
+def stage_world(usage=None):
+    client = fx.site_client(fx.automation_row(id=STAGE_ID, trigger=json.dumps(STAGE_TRIGGER)))
+    client.tables["ProcedureRun"]["run-s"] = fx.procedure_run("run-s", "completed", started="2026-10-24T09:00:05Z", finished="2026-10-24T09:02:05Z",
+                                                              output={"version": "v-1"}, usage=usage, cost=0.01 if usage and "calls" in usage else None)
+    client.tables["Item"] = {"v-1": {"id": "v-1", "lineageId": "story-a", "versionNumber": 1}}
+    table = fx.FakeMonitoringTable([fx.router_config(), stage_row("story-a", "v-1", run_id="run-s"),
+                                    stage_row("story-gone", "v-9", started="2026-10-24T08:00:00Z")])
+    return client, reader(table)
+
+
+def stage_history(usage=None):
+    client, rdr = stage_world(usage)
+    row = au.read_record(client.tables["Automation"][STAGE_ID])
+    return au.automation_history(row, reader=rdr, client=client)
+
+
+def test_a_story_stage_automation_lists_the_runs_its_stage_entries_started():
+    result = stage_history()
+    assert result["notice"] is None and len(result["runs"]) == 2
+    first = result["runs"][0]
+    assert (first["origin"], first["stage"], first["runId"], first["storyId"], first["status"]) == ("stage", "reporting", "run-s", "story-a", "completed")
+    assert first["requestedBy"] == f"automation:{STAGE_ID}"
+    assert result["runs"][1]["runRecord"] == "none" and result["runs"][1]["storyId"] == "story-gone"
+
+
+def test_a_run_whose_story_no_longer_exists_says_so():
+    first, second = stage_history()["runs"]
+    assert first["storyExists"] is True and second["storyExists"] is False
+
+
+def test_the_tools_a_run_used_are_listed_by_name_and_count():
+    usage = fx.usage_summary(toolsUsed={"papyrus_story_version": 1, "papyrus_fetch_pdf_text": 2})
+    first = stage_history(usage)["runs"][0]
+    assert first["toolsUsed"] == {"papyrus_story_version": 1, "papyrus_fetch_pdf_text": 2}
+    assert first["costUsd"] == 0.01 and "toolsUsed" not in (first["usage"] or {})
+    assert stage_history()["runs"][0]["toolsUsed"] is None
+
+
+def test_a_run_with_tools_but_no_model_call_has_no_cost_and_still_lists_its_tools():
+    first = stage_history({"toolsUsed": {"papyrus_story_version": 1}})["runs"][0]
+    assert first["toolsUsed"] == {"papyrus_story_version": 1} and first["costUsd"] is None and first["usage"] is None
+
+
+def test_runs_prints_stage_runs_with_tools_and_marks_deleted_stories(cli):
+    client, rdr = stage_world(fx.usage_summary(toolsUsed={"papyrus_fetch_pdf_text": 2, "papyrus_story_version": 1}))
+    cli.state.update(client=client, reader=rdr)
+    out = cli("runs", "--id", STAGE_ID)
+    assert "story entered reporting" in out and "story-a\t" in out
+    assert "story-gone (story deleted)" in out and "story-a (story deleted)" not in out
+    assert "tools: papyrus_fetch_pdf_text x2, papyrus_story_version x1" in out and "tools: none recorded" in out
+    assert "cost\t$0.0100 total across 1 run with a recorded cost (1 of 2 listed runs; an estimate)" in out

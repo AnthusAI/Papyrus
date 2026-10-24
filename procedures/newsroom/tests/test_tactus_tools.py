@@ -158,9 +158,18 @@ class CheckStoryVersionTests(unittest.TestCase):
         self.assertEqual(result["status"], "checked")
         self.assertFalse(result["clean"])
         self.assertEqual((result["versionId"], result["versionNumber"], result["packVersion"], result["contentHash"]), (LINEAGE, 1, "pack-7", "abc"))
-        self.assertEqual(result["findings"], [{"id": "f-1", "rule": "no-hype", "severity": "warn", "status": "violation", "message": "Avoid game-changing.", "quote": "game-changing", "probability": 0.9}])
+        self.assertEqual(result["findings"], [{"id": "f-1", "rule": "no-hype", "severity": "warn", "status": "violation", "message": "Avoid game-changing.", "quote": "game-changing", "scope": "quote", "probability": 0.9}])
         self.assertEqual(result["lanes"]["rules"]["status"], "ran")
         self.assertEqual(client.graphql_calls[0], ("CheckItemVersion", {"itemId": LINEAGE}))
+
+    def test_a_finding_with_no_quote_is_scoped_to_the_whole_document(self):
+        whole = {"id": "f-2", "policyId": "general-meaning-first", "severity": "info", "status": "review", "message": "Lead with the meaning.", "excerpt": "", "probability": 0.5}
+        blank = {**whole, "id": "f-3", "excerpt": None}
+        located = {**whole, "id": "f-4", "paragraph": 2}
+        findings = self.check(checking_client(run=stored_run([whole, blank, located, *RUN_FINDINGS])), version=LINEAGE)["findings"]
+        self.assertEqual([f["scope"] for f in findings], ["document", "document", "document", "quote"])
+        self.assertNotIn("paragraph", findings[0])
+        self.assertEqual(findings[2]["paragraph"], 2)
 
     def test_a_check_with_no_findings_is_clean(self):
         result = self.check(checking_client(run=stored_run([])), version=LINEAGE)

@@ -61,6 +61,10 @@ def site_graphql(context):
         if "checkItemVersion" in query:
             services = editorial.Services(store=context.store, decision_model=None, generator=None)
             result = editorial.handle("checkItemVersion", variables, services)
+            for extra in getattr(context, "whole_document_findings", []):
+                run = context.store.check_runs[variables["itemId"]]
+                run["findings"].append(extra)
+                run["reviews"] = int(run.get("reviews") or 0) + 1
             return {"checkItemVersion": json.dumps(json.dumps(result))}
         run = context.store.check_runs.get(variables["id"])
         if run is None:
@@ -96,6 +100,12 @@ def step_policy(context, key, phrase):
     }
     record = editorial.record_from_policy(policy, scope="publication", source="test")
     context.store.policies[record["id"]] = json.loads(json.dumps(editorial.policy_input(record)))
+
+
+@given('the stored check also holds a review finding for rule "{rule}" that quotes nothing')
+def step_whole_document(context, rule):
+    context.whole_document_findings = [{"id": f"{rule}-1", "policyId": rule, "severity": "info", "status": "review",
+                                        "message": "The first paragraph should state the meaning.", "excerpt": "", "probability": 0.6}]
 
 
 @given("the publication turned editorial checks off")
@@ -136,6 +146,18 @@ def step_finding(context, rule, quote):
     findings = context.tool_result["findings"]
     assert [(f["rule"], f["quote"]) for f in findings] == [(rule, quote)], findings
     assert findings[0]["id"] and findings[0]["message"] and findings[0]["severity"], findings
+
+
+@then('the finding for rule "{rule}" is marked as about the whole document')
+def step_document_scope(context, rule):
+    found = {f["rule"]: f for f in context.tool_result["findings"]}
+    assert found[rule]["scope"] == "document" and not found[rule]["quote"], found[rule]
+
+
+@then('the finding for rule "{rule}" is marked as a quote finding')
+def step_quote_scope(context, rule):
+    found = {f["rule"]: f for f in context.tool_result["findings"]}
+    assert found[rule]["scope"] == "quote" and found[rule]["quote"], found[rule]
 
 
 @then("the result names version {number:d} and the policy pack version that was used")

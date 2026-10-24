@@ -23,6 +23,13 @@ Feature: A Tactus procedure checks a story version
     And the result names version 2 and there are no findings
     And the first version still has its stored findings
 
+  Scenario: A finding that quotes nothing is about the whole document
+    Given the stored check also holds a review finding for rule "general-meaning-first" that quotes nothing
+    When the procedure checks the story's first version
+    Then the check status is "checked" and the version is not clean
+    And the finding for rule "general-meaning-first" is marked as about the whole document
+    And the finding for rule "no-hype" is marked as a quote finding
+
   Scenario: Checking is skipped when the publication turned editorial checks off
     Given the publication turned editorial checks off
     When the procedure checks the story's first version

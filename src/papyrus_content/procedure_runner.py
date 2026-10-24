@@ -158,15 +158,27 @@ def child_timeout(request: dict, seconds_available: float) -> float:
     return min(room, request["timeoutSeconds"]) if request.get("timeoutSeconds") else room
 
 
+def tool_counts(tools_used: Any) -> dict[str, int]:
+    """Tool name -> number of calls, from the child's `toolsUsed`. Names and counts only: never arguments or results."""
+    counts: dict[str, int] = {}
+    for entry in tools_used if isinstance(tools_used, list) else []:
+        name = entry if isinstance(entry, str) else (entry.get("name") or entry.get("tool") or entry.get("tool_name")) if isinstance(entry, dict) else None
+        if isinstance(name, str) and name:
+            counts[name[:100]] = counts.get(name[:100], 0) + 1
+    return counts
+
+
 def usage_record(outcome: dict) -> tuple[dict | None, float | None]:
-    """The usage to store on the ProcedureRun (calls plus the estimate) and the estimated cost, or (None, None)
-    when the procedure made no model call."""
+    """The usage to store on the ProcedureRun (calls plus the estimate, and the tools used by name and count) and the
+    estimated cost, or (None, None) when the procedure made no model call and used no tool."""
     calls = [call for call in (outcome.get("usage") or []) if isinstance(call, dict)]
+    tools = tool_counts(outcome.get("toolsUsed"))
+    extra = {"toolsUsed": tools} if tools else {}
     if not calls:
-        return None, None
+        return (extra or None), None
     estimate = estimate_cost(calls)
     summary = {key: estimate[key] for key in ("complete", "unpricedModels", "calls", "promptTokens", "completionTokens", "models")}
-    return {**summary, "perCall": calls[:MAX_RECORDED_CALLS]}, estimate["costUsd"]
+    return {**summary, "perCall": calls[:MAX_RECORDED_CALLS], **extra}, estimate["costUsd"]
 
 
 def run_procedure_request(request: dict, *, client, execute: Callable[..., dict], seconds_available: float,
@@ -210,7 +222,7 @@ def run_procedure_request(request: dict, *, client, execute: Callable[..., dict]
         update_cloud_procedure_run_record(client, record)
     return {"runId": run_id, "procedureKey": request["procedureKey"], "versionId": procedure["version"]["id"],
             "runStatus": "completed" if succeeded else "failed", "seconds": outcome.get("seconds"),
-            "error": None if succeeded else outcome.get("error"), "costUsd": cost_usd, "costRecorded": cost_recorded,
+            "error": None if succeeded else outcome.get("error"), "costUsd": cost_usd, "costRecorded": cost_recorded and "calls" in (usage or {}),
             "output": outcome.get("output") if succeeded else None}
 
 

@@ -237,7 +237,7 @@ export function applyPilobolusDemoDashboardContent(
         ...record,
         title: "Pilobolus Editorial Policy",
         body: [
-          "Publication doctrine is the global inclusion standard for Pilobol.us; desk doctrine sets local intake priorities for field notes and source intake.",
+          "Publication doctrine is the global inclusion standard for Pilobol.us; section doctrine sets local intake priorities for field notes and source intake.",
           "Field-notes reporting should prioritize accepted Pilobolus references and annotated intake artifacts—not the Papyrus platform knowledge base.",
           "High-risk claims about host takeover or network control require explicit uncertainty handling and accepted source linkage.",
         ],

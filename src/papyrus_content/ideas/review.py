@@ -25,7 +25,7 @@ VERDICT_OF_DECISION = {"approve": "accept", "reject": "decline", "feedback": "re
 DEADLINE_DAYS = 7
 
 
-def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str, Any]]) -> dict[str, Any]:
+def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str, Any]], noun: str = "story idea") -> dict[str, Any]:
     """Raises one soft review for the run's ideas and records the outcome in ``run['review']``. Never raises."""
     if not ideas:
         review = {"status": "none", "requested": False, "ideas": 0, "note": "No ideas were created, so there is nothing to review."}
@@ -34,7 +34,7 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
     else:
         identifiers = [idea.get("proposalId") or idea["ideaId"] for idea in ideas]
         try:
-            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, deadline_days=DEADLINE_DAYS)
+            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun, deadline_days=DEADLINE_DAYS)
         except Exception as error:  # noqa: BLE001 - the ideas are stored; a site without review requests must not fail the run
             review = {"status": "not_raised", "requested": False, "ideas": len(ideas), "error": f"{type(error).__name__}: {error}"[:300]}
         else:

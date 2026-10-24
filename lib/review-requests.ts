@@ -145,6 +145,12 @@ export function steeringText(request: ReviewRequest): string | null {
   return `You steered ${said}. ${request.raisedBy} has not used it yet; it will on its next run.`;
 }
 
+/** What a request is about, in words: a story shows its title (the id when the title is not known), anything else its type and id. */
+export function subjectLabel(subject: { type: string; id: string }, titles: Readonly<Record<string, string>> = {}): string {
+  if (subject.type === "story") return titles[subject.id] ?? `story ${subject.id}`;
+  return `${subject.type.replace("_", " ")} ${subject.id}`;
+}
+
 export function subjectHref(subject: { type: string; id: string }, demo = false): string | null {
   const id = encodeURIComponent(subject.id);
   if (subject.type === "story") return getNewsroomNavHref(`/newsroom/articles/${id}`, demo);

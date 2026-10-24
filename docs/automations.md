@@ -92,6 +92,9 @@ monitor automation names). No schema change: the three fields are read back as `
   story to `nextStage` as `automation:<id>` (the trail note and the move), labels the new version `metadata.botAction`, and delivers
   the next stage's triggers, which is how the chain continues. With no `nextStage` the story stays. If the story was moved by
   someone else while the bot ran, it is not moved again.
+* The move is recorded twice. The trail gets a note (`Stage: a -> b (moved to b by automation:<id> (no changes))`, or
+  `(new version vN)`), and the version keeps `metadata.stageMoves` (time, from, to, by, reason; the last 20), because the
+  stage changes in place and would otherwise leave no actor or reason on the version. `papyrus stories show` lists them.
 * A bot that finds nothing to change returns the version it received (`{"version": <entering version>, "hold": false}`). That is
   success: the story advances, the trail says "no changes", no version is labelled. Extra output keys (corrections, unverifiable,
   remaining_findings) are not interpreted and are stored with the run record, which keeps the whole output.
@@ -150,7 +153,15 @@ A site backend that predates the two new fields refuses them. The runner then re
 (its outcome is never lost), and the history shows the cost as not recorded. Deploy the site backend before the
 runner image to get costs.
 
-`papyrus automations runs` prints each run's cost and flags `OVER BUDGET`; the console shows it beside each run.
+`papyrus automations runs` prints each run's cost and flags `OVER BUDGET`; the console shows it beside each run. The last line
+reads `$X total across N runs with a recorded cost (N of K listed runs; an estimate)`.
+
+### Tools used
+
+The runner also stores which tools the procedure called, by name and count (never arguments or results), as `usage.toolsUsed`
+on the run, so an editor can check that a fact-check really read the opinion (`papyrus_fetch_pdf_text x2`). A run with tools
+but no model call stores only `toolsUsed` (no cost). `automations runs` prints `tools: name xN, ...` or `tools: none recorded`
+(a run from before this was recorded, or one that called no tool); the console shows the same line.
 
 ## Run now
 
@@ -224,6 +235,11 @@ Details worth knowing:
   A run that has only just been started shows as "Started" with no run record yet.
 * Items that already had a Reference are never started (`notTriggered`). They are counted, not listed. A `skipped` or
   `deferred` start is listed, with its reason.
+* A story-stage automation lists the runs its stage entries started, from the `STAGE#<automationId>#...` claim rows (origin
+  `stage`, shown as "story entered <stage>"). The row names the story, so a run whose record has not been written yet still
+  shows its story.
+* A run whose story no longer exists (no version of its lineage remains) shows "(story deleted)" instead of a link
+  (`storyExists: false`).
 * A row whose run record cannot be found, or read, says so on that row; the rest of the history still reads.
 * A site's console reads only its own publication's rows: the router must list the automation's publication
   with this site's endpoint. The runner's stored request (endpoints, key parameter) is never returned.

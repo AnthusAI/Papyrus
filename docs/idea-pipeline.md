@@ -1,8 +1,9 @@
 # Idea pipeline (v0)
 
 `papyrus ideas digest` and `papyrus ideas synthesize` turn a site's recent references into private story ideas. This is the first
-version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud CMS. Scheduling, weekly trends and human review
-come later. Executable spec: `features_backend/idea-pipeline.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`.
+version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud CMS. `papyrus ideas trends` adds the trend-story path
+([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,
+`features_backend/idea-trend-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`.
 
 ## Running it
 
@@ -94,6 +95,78 @@ Review goes through review requests ([review-requests.md](review-requests.md)) a
   and wins for the same title.
 - **Sites without the review models.** A site that has not deployed review requests cannot take a request. The run keeps its ideas and
   records `review: {status: not_raised, error}` and `steering.error`; nothing fails.
+
+## Trend stories
+
+`papyrus ideas trends` turns the weekly knowledge snapshot ([knowledge-snapshot.md](knowledge-snapshot.md)) into story drafts. This is
+the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
+
+1. **Snapshot.** `--snapshot` is one of: a weekly archive entry (`.../_data/knowledge/history/2026-10-19.json`, self-contained), an
+   `index.json`, or the `_data/knowledge/` directory or address (it reads `index.json`, `clusters.json`, `entities/<key>.json` and, for the
+   cluster item counts of the last archived week before this one, `history/`). Paths and `http(s)` addresses both work.
+2. **Signals, no model.** Up to 6 named clusters (growing, new, cooling, then the rest) and up to 8 trending entities plus up to 3 new
+   entities with at least 3 items in four weeks. A signal carries what the snapshot holds: the weekly counts with their week dates, the
+   four-week change (`percent` is null on a small base and the model is told so), neighbours and related item titles of an entity, the
+   previous archived week's item count of a cluster. Signal ids are `cluster:<uid>` and `entity:<key>`; the model sees handles S1, S2, ....
+3. **Draft.** One call to GPT-6 Luna (same model, transport, prices and `--max-cost-usd` cap as `synthesize`). The headline, the dek and each
+   body sentence are separate entries, each with the handles it rests on. The model also names one to three cited signals to chart and
+   writes the chart title and caption; it never supplies chart data.
+4. **Citation check, deterministic.** A draft is kept only if every entry (headline and dek included):
+   - cites at least one handle and every handle is a signal in the snapshot (`no_citation`, `unknown_signal:S99`);
+   - is one sentence, writes no handle in its text, and has no banned word;
+   - holds only numbers and ISO dates that appear in the signals it cites. A date's month and day never ground a bare number, so "3" must be
+     a count the signal holds (`number_not_in_cited_signals:40`). The same rule applies to the figure title and caption;
+
+   and the draft as a whole cites 2 to 10 signals, has at least 3 body sentences, a section the site has, and 1 to 3 figure signals that it
+   cites. Number words ("four") are not checked; the prompt asks for digits. A failing draft is **not filed**. The run record
+   (`invalid[]`) has its headline and a `citationCheck` listing each problem with the sentence (`where`, `reason`, `text`). A passing draft
+   keeps its `citationCheck` (`status: passed`, sentences, signals cited) and every sentence with its signal ids (`sentences[]`).
+5. **Dedupe.** Near-duplicates of recent and in-flight stories, earlier drafts and earlier kept ones, as for `synthesize`. Then **same
+   targets**: a draft whose target set is identical to an earlier non-declined `story_draft` Proposal (readable as an editor) or to a
+   trend draft in the JSON store is dropped (`same_targets`). A declined one does not block. Under IAM the Proposals cannot be read, so that
+   comparison is skipped and the run records `proposalDedupe`, as above.
+6. **File.** A `story_draft` Proposal in state `draft`, proposer `ai` (shown as AI), with these fields:
+
+   | Field | Value |
+   | --- | --- |
+   | `title` | the headline (200 characters) |
+   | `summary` | the dek (300 characters) |
+   | `body` | the dek and paragraphs with `[n]` markers after each sentence, a `## Figure` section (title, caption, the series values), `## Signals cited` (number, readable fact, link, signal id) and the section |
+   | `targets` | one per cited signal: `{type: "cluster", id: <uid>}` or `{type: "entity", id: <entity key>}` (at most 10) |
+   | `evidence` | `{signals: <n cited>, source: "knowledge snapshot <asOf> (<site>), papyrus ideas trends", figure: {...}}` |
+
+   The figure spec is drawn by code from the cited signals' weekly counts, never from model output:
+
+   ```json
+   {"type": "line", "title": "Items per week", "caption": "Hugging Face peaked at 7 items in one week.", "unit": "items per week",
+    "source": "knowledge snapshot 2026-10-19", "x": ["2026-08-31", "...", "2026-10-19"],
+    "series": [{"signal": "entity:platform--hugging-face", "label": "Hugging Face", "values": [1, 2, 3, 4, 7, 3, 3, 2]}]}
+   ```
+
+   `x` is the Monday of each ISO week, oldest first, ending with the snapshot's week; every series has one value per `x`; one to three series.
+   The reader-actions function keeps `evidence.figure` only when it has this shape (type `line` or `bar`, title, caption, unit, source, 2 to 60
+   weeks, 1 to 6 series, numeric values, 8,000 bytes at most; otherwise `invalid_evidence`), and drops unknown keys. A site that has not deployed
+   a backend with this release drops the figure silently (the body still lists the series values), so deploy before the first real run.
+   The figure is published only if the site publishes proposals (`proposals.publish`), like the rest of the Proposal.
+7. **Review.** One soft review request per run through the same `request_human_review` ("N new trend story drafts to review", 7 days,
+   subject `{batch, <run id>}`, links the Proposals). Approving the Proposal (`papyrus proposals approve`, after an editor moves it through
+   steering and review) approves the copy and the figure together. The command never transitions, approves or publishes anything. The
+   trend drafts are also kept in the JSON store, so an editor's answer to the batch reaches the next `synthesize` run as feedback.
+
+```bash
+papyrus ideas trends --site <site> --snapshot https://<site host>/_data/knowledge/ --store proposals --dry-run
+papyrus ideas trends --site <site> --snapshot ./history/2026-10-19.json --store proposals --max 3 --report trends.md
+```
+
+`--site` is the key of the JSON store directory and the run record (use the same key as `--publication` so the stores are shared). The
+command reads the site's mission, policy, sections and stories through the CMS (a `papyrus login` session or `PAPYRUS_GRAPHQL_AUTH=iam`,
+as above) and needs `OPENAI_API_KEY`. **`--dry-run`** does everything but file: it calls the model, runs the citation check and prints each
+passing draft in full and each failing draft with its problems; it stores nothing, files nothing and requests no review. Other options:
+`--max N` (3), `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
+
+Limits: the check proves that every sentence points at the snapshot and that its digits come from the signals it cites; it does not prove
+that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items.
+Trend drafts are not scheduled yet (PPY-8ffc18).
 
 ## Friction for the run contract
 
