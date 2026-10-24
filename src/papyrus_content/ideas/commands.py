@@ -190,6 +190,7 @@ def trends_command(flags: list[str]) -> None:
             maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
             dry_run=dry_run,
             now=now,
+            fetch_text=trends.read_item_summary,
         )
     except (RunRefused, synthesis.SynthesisError) as error:
         raise ValueError(str(error)) from error
@@ -203,7 +204,7 @@ def trends_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\ttrends\t{run['runId']}\t{run['store']}")
-    print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})")
+    print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})\titems {inputs.get('items', 0)} ({inputs.get('itemsWithSummary', 0)} with a summary)")
     print(f"drafts\tproposed {run['proposed']}\tfailed the citation check {len(run['invalid'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
     print(f"llm\t{run['model']}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     if run.get("proposalDedupe"):
@@ -212,7 +213,7 @@ def trends_command(flags: list[str]) -> None:
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
     for draft in run["drafts"]:
         check = draft["citationCheck"]
-        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals)" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
+        print(f"draft\t{draft['ideaId']}\t{draft['section']}\t{draft['title']}\tcitation check {check['status']} ({check['sentences']} sentences, {len(draft['citedSignalIds'])} signals, {len(draft.get('citedItemIds', []))} sources)" + (f"\t{draft['proposalId']}" if draft.get("proposalId") else ""))
         if dry_run:
             print(draft["body"].rstrip() + "\n")
     for failed in run["invalid"]:

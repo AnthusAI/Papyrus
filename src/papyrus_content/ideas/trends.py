@@ -4,10 +4,13 @@ The flow is snapshot, signals, one model call, a deterministic citation check, t
 
 * A **signal** is one fact-bearing row of the snapshot: a rising (or cooling) cluster or entity, with its weekly counts. Signals
   are built without a model, so the same snapshot gives the same signals.
-* The model writes headline, dek and paragraphs as single sentences, each with the signal handles (S1, S2, ...) it rests on.
-* The **citation check** keeps a draft only when every sentence cites at least one signal that exists in the snapshot, every
-  number in a sentence appears in the signals that sentence cites, and the figure names signals the draft cites. A failing draft is
-  not filed; the run record says which sentence failed and why.
+* An **item** is a release or story behind an entity signal in the snapshot window (its title, one-line summary, date and site URL, at
+  most five most recent per signal). The model is shown them so the story is about what shipped, not only the counts.
+* The model writes headline, dek and paragraphs as single sentences, each with the signal handles (S1, S2, ...) and item handles
+  (I1, I2, ...) it rests on.
+* The **citation check** keeps a draft only when every sentence cites at least one signal or item that exists in the input, every
+  number and ISO date in a sentence appears in the signals and items that sentence cites, the draft cites at least two different
+  signals, and the figure names signals the draft cites. A failing draft is not filed; the run record says which sentence failed and why.
 * The **figure** is a small chart spec (``evidence.figure``) built by code from the cited signals' weekly counts. The model only
   picks which cited signals to chart and writes the title and caption; it never supplies a number.
 
@@ -41,24 +44,31 @@ MINIMUM_SENTENCES = 3
 MAXIMUM_PARAGRAPHS = 5
 MAXIMUM_SENTENCE = 400
 FETCH_LIMIT_BYTES = 8_000_000
+MAXIMUM_ITEMS_PER_SIGNAL = 5
+MAXIMUM_ITEMS = 40  # distinct items in one model input; each is a title, a summary and a date
+WINDOW_WEEKS = 4  # the "last four weeks" the entity change counts cover
+SUMMARY_LIMIT = 300
+ITEM_FETCH_LIMIT_BYTES = 200_000
+MAXIMUM_OUTPUT_TOKENS = 12_000  # reasoning plus up to three cited drafts; the shared 6,000 ran out when the model wrote three
 STATE_ORDER = {"growing": 0, "new": 1, "cooling": 2}
 Fetch = Callable[[str], Any]
+FetchText = Callable[[str], str]
 
-SYSTEM_PROMPT = """You draft short trend stories for a publication from its weekly knowledge snapshot. You are given the publication's mission and policy, its allowed sections, the week's signals (rising or cooling clusters and entities, each with weekly item counts), its recent and in-flight stories and earlier drafts.
+SYSTEM_PROMPT = """You draft short trend stories for a publication from its weekly knowledge snapshot. You are given the publication's mission and policy, its allowed sections, the week's signals (rising or cooling clusters and entities, each with weekly item counts), the items behind those signals (each a release or story with a title, a one-line summary, a publication date and a site URL), its recent and in-flight stories and earlier drafts.
 
-A trend story says what moved this week and what moved with it, using only the signals. Write two to four short paragraphs.
+Write a story an informed reader would find new, not a readout of counts. Say what shipped, who made it, what is different about it, and what the pattern across the releases suggests. Lead with the releases: name them, say what each one is from its title and summary, and bring in counts only as support for the pattern. Counts are support: cite a signal for a release by the signals in its "behind_signals" and use its four-week change or total, never a single week's count on its own, and leave the counts out of a sentence when they add nothing. Each item already has its own published page, so do not retell one release: the story is what two or more of the releases show together, with each named and cited. Plain, specific prose; no hype and no filler adjectives. Write two to four short paragraphs. The headline names the concrete thing (a release, a maker, a model, a licence) and not a count or the word "trend". The dek says what is new about it in one specific sentence; it does not restate the headline. The signals have no items of their own where "items" is missing; then say only what the counts show.
 
 Rules:
-- Every headline, dek and body sentence is its own entry with the handles (S1, S2, ...) of the signals it rests on, in "cites". A sentence with no handle, or a handle that is not a signal you were given, makes the whole draft unusable.
-- One sentence per entry. Do not put handles in the text; refer to a signal by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the signals.
-- Use only what the signal fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why something grew. Do not do arithmetic: write a number only if it appears in the fields of a signal that sentence cites (write digits, not number words). A sentence that mentions two signals cites both.
+- Every headline, dek and body sentence is its own entry with the handles it rests on, in "cites": signal handles (S1, S2, ...) and item handles (I1, I2, ...). A sentence about a release cites that release's item handle; a sentence that uses a signal's counts or state cites the signal handle too. A sentence with no handle, or a handle that is not one you were given, makes the whole draft unusable.
+- One sentence per entry. Do not put handles in the text; refer to a signal or an item by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the signals and items.
+- Use only what the signal and item fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why something grew or why a maker did something. A reading of the pattern is allowed only if it is framed with "suggests" (or "points to") and rests on the cited items. Do not do arithmetic: write a number only if it appears in the fields of a signal or item that sentence cites (write digits, not number words). A sentence that mentions two signals or items cites both.
 - Where "percent" is null the base is small or the history short: describe the counts, never a percentage. Where "is_new" is true, say the entity is new to the map.
 - Items are the publication's own published items; counts are items per week. The stories are proposals for an editor, not finished reporting.
 - Make no present-tense statement about the publisher's own production systems or results.
 - Choose the section from the allowed list, exactly as written.
-- figure_signals are one to three cited handles whose weekly counts make the chart; figure_title and figure_caption describe it using only those signals' numbers.
-- Hard requirements, checked by code; a draft that misses any of them is discarded whole: (1) at least three body sentences in total, across the paragraphs, not counting the headline and dek; (2) at least two different signals cited across the draft, so every story compares or connects two or more signals (for example a cluster and an entity that moved together, or two entities); a story about one signal alone is not allowed; (3) every sentence has its own non-empty "cites"; (4) figure_signals are handles the draft cites.
-- Skip a trend that recent or in-flight stories or earlier drafts already cover, but only when the same signals are covered. Return maximum_drafts drafts whenever the signals allow it, each built from a different pairing or grouping of signals, and never fewer than one. Prefer a plain, well-grounded draft that meets the requirements over a clever one. Never use the word "desk".
+- figure_signals are one to three cited signal handles (S) whose weekly counts make the chart; figure_title and figure_caption describe it using only those signals' numbers.
+- Hard requirements, checked by code; a draft that misses any of them is discarded whole: (1) at least three body sentences in total, across the paragraphs, not counting the headline and dek; (2) at least two different signals cited across the draft (citing items does not count), so every story compares or connects two or more signals (for example a cluster and an entity that moved together, or two entities); a story about one signal alone is not allowed; (3) every sentence has its own non-empty "cites"; (4) figure_signals are signal handles the draft cites.
+- Skip a trend that recent or in-flight stories or earlier drafts already cover, but only when the same signals are covered. Return maximum_drafts drafts whenever the signals and items allow it, each about a different group of two or more releases (give every draft a different lead set; three drafts are expected when there are twelve items) and built from a different pairing or grouping of signals (the same release is not the lead of two drafts), and never fewer than one. Prefer a plain, well-grounded draft that meets the requirements over a clever one. Never use the word "desk".
 """
 
 _SENTENCE = {
@@ -116,6 +126,22 @@ def read_location(location: str) -> Any:
     return json.loads(Path(location).expanduser().read_text(encoding="utf-8"))
 
 
+def read_item_summary(url: str) -> str:
+    """The Markdown of a published item (``<item url>.md``) as text; the caller keeps only its one-line summary."""
+    request = urllib.request.Request(url, headers={"Accept": "text/markdown", "User-Agent": "papyrus-ideas-trends"})
+    with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310 - http(s) only, built from the snapshot address
+        return response.read(ITEM_FETCH_LIMIT_BYTES).decode("utf-8", errors="replace")
+
+
+def summary_of(markdown: str) -> str | None:
+    """The one-line summary of an item: the first block quote line of its Markdown, trimmed."""
+    for line in markdown.splitlines():
+        if line.startswith(">"):
+            text = re.sub(r"\s+", " ", line.lstrip("> ").strip())
+            return text[:SUMMARY_LIMIT].rstrip() if text else None
+    return None
+
+
 def _join(base: str, relative: str) -> str:
     return base.rstrip("/") + "/" + relative if re.match(r"https?://", base) else str(Path(base).expanduser() / relative)
 
@@ -148,8 +174,9 @@ def load_snapshot(source: str, fetch: Fetch = read_location) -> dict[str, Any]:
         date.fromisoformat(index["asOf"])
     except ValueError as error:
         raise ValueError(f"The snapshot asOf {index['asOf']!r} is not a date.") from error
+    origin = re.match(r"https?://[^/]+", location)
     return {
-        "source": source, "asOf": index["asOf"], "index": index,
+        "source": source, "asOf": index["asOf"], "index": index, "siteBase": origin.group(0) if origin else None,
         "clusters": (clusters or {}).get("clusters", []) if isinstance(clusters, dict) else [],
         "entityFile": entity_file, "previous": previous,
     }
@@ -192,8 +219,58 @@ def _series(values: Any) -> list[int | float]:
     return [value for value in values or [] if isinstance(value, (int, float)) and not isinstance(value, bool)]
 
 
-def build_signals(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
-    """The week's signals, clusters first (growing, new, cooling, then the rest), then entities (trending order, then new ones)."""
+def window_items(related: Any, as_of: str, site_base: str | None) -> list[dict[str, Any]]:
+    """The most recent items of an entity file's ``relatedItems`` that fall in the snapshot window (the four weeks to the end of the
+    snapshot's week, plus anything published since), newest first, at most ``MAXIMUM_ITEMS_PER_SIGNAL``. Each is its title, date, path and site URL."""
+    end = date.fromisoformat(as_of)
+    start = (end - timedelta(days=end.weekday())) - timedelta(weeks=WINDOW_WEEKS - 1)
+    items: dict[str, dict[str, Any]] = {}
+    for row in related or []:
+        if not isinstance(row, dict) or not row.get("title") or not row.get("url") or not isinstance(row.get("publishedAt"), str):
+            continue
+        try:
+            published = date.fromisoformat(row["publishedAt"][:10])
+        except ValueError:
+            continue
+        if published < start:
+            continue
+        path = str(row["url"])
+        site_url = path if re.match(r"https?://", path) else (site_base + path if site_base and path.startswith("/") else None)
+        items.setdefault(f"item:{path}", {"id": f"item:{path}", "title": str(row["title"]).strip(), "date": published.isoformat(), "path": path, "url": site_url})
+    return sorted(items.values(), key=lambda item: (item["date"], item["id"]), reverse=True)[:MAXIMUM_ITEMS_PER_SIGNAL]
+
+
+def attach_summaries(signals: list[dict[str, Any]], fetch_text: FetchText | None) -> None:
+    """Adds ``summary`` (the one-line summary of the published item) to every distinct item, when the item has a site URL and the text can be
+    read. Items beyond ``MAXIMUM_ITEMS`` distinct ones are dropped, later signals first. A page that cannot be read is only a missing summary."""
+    known: dict[str, dict[str, Any]] = {}
+    for signal in signals:
+        kept = []
+        for item in signal.get("items", []):
+            if item["id"] in known:
+                kept.append(known[item["id"]])
+            elif len(known) < MAXIMUM_ITEMS:
+                known[item["id"]] = item
+                kept.append(item)
+        if kept:
+            signal["items"] = kept
+        else:
+            signal.pop("items", None)
+    for item in known.values():
+        if fetch_text is None or not item.get("url"):
+            continue
+        try:
+            summary = summary_of(fetch_text(item["url"].rstrip("/") + ".md"))
+        except Exception:  # noqa: BLE001 - the summary is colour for the model; its absence never stops a run
+            summary = None
+        if summary:
+            item["summary"] = summary
+
+
+def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None) -> list[dict[str, Any]]:
+    """The week's signals, clusters first (growing, new, cooling, then the rest), then entities (trending order, then new ones). Entity
+    signals carry ``items``: the releases behind them in the window, with a one-line summary where ``fetch_text`` can read the item page.
+    The snapshot publishes no member list for a cluster, so a cluster signal has no items."""
     as_of, signals = snapshot["asOf"], []
     previous = snapshot.get("previous") or {}
     clusters = [cluster for cluster in snapshot["clusters"] if cluster.get("name") and cluster.get("uid") and cluster.get("itemCount")]
@@ -225,18 +302,39 @@ def build_signals(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         detail = snapshot["entityFile"](key) or {}
         if detail.get("neighbours"):
             signal["neighbours"] = [{k: n.get(k) for k in ("name", "relation", "weight")} for n in detail["neighbours"][:3]]
-        if detail.get("relatedItems"):
-            signal["relatedItems"] = [{k: i.get(k) for k in ("title", "url", "publishedAt")} for i in detail["relatedItems"][:3]]
+        items = window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase"))
+        if items:
+            signal["items"] = items
         signals.append(signal)
+    attach_summaries(signals, fetch_text)
     return signals
 
 
+def collect_items(signals: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Distinct items of the signals by id, in order of first appearance."""
+    items: dict[str, dict[str, Any]] = {}
+    for signal in signals:
+        for item in signal.get("items", []):
+            items.setdefault(item["id"], item)
+    return items
+
+
 def handles_for(signals: list[dict[str, Any]]) -> dict[str, str]:
-    """Handle (S1, S2, ...) to signal id, in signal order."""
-    return {f"S{number}": signal["id"] for number, signal in enumerate(signals, start=1)}
+    """Handle to id: S1, S2, ... for the signals in signal order, then I1, I2, ... for their distinct items in order of first appearance."""
+    handles = {f"S{number}": signal["id"] for number, signal in enumerate(signals, start=1)}
+    handles.update({f"I{number}": identifier for number, identifier in enumerate(collect_items(signals), start=1)})
+    return handles
 
 
-def signal_view(handle: str, signal: dict[str, Any], as_of: str) -> dict[str, Any]:
+def item_view(handle: str, item: dict[str, Any], signal_handles: list[str] | None = None) -> dict[str, Any]:
+    """What the model sees of an item, and the only numbers and dates a sentence citing it may use (title, summary, date)."""
+    view = {"handle": handle, "title": item["title"], "summary": item.get("summary"), "published": item["date"]}
+    if signal_handles is not None:
+        view.update(url=item.get("url") or item["path"], behind_signals=signal_handles)
+    return {key: value for key, value in view.items() if value not in (None, [], "")}
+
+
+def signal_view(handle: str, signal: dict[str, Any], as_of: str, item_handles: dict[str, str] | None = None) -> dict[str, Any]:
     """What the model sees, and the only numbers a sentence citing it may use."""
     view: dict[str, Any] = {"handle": handle, "kind": signal["kind"], "name": signal["name"], "week_of": as_of}
     if signal["kind"] == "cluster":
@@ -247,8 +345,10 @@ def signal_view(handle: str, signal: dict[str, Any], as_of: str) -> dict[str, An
         view.update(
             entity_kind=signal.get("entityKind"), items_total=signal.get("itemCount"), weeks_of_history=signal.get("weeksOfHistory"), is_new=signal.get("isNew"),
             items_last_4_weeks=signal.get("last4"), items_prior_4_weeks=signal.get("prior4"), percent=signal.get("percent"),
-            neighbours=signal.get("neighbours"), related_items=signal.get("relatedItems"),
+            neighbours=signal.get("neighbours"),
         )
+    if item_handles:
+        view["items"] = [item_handles[item["id"]] for item in signal.get("items", []) if item["id"] in item_handles]
     view["items_per_week"] = dict(zip(signal["weeks"], signal["series"]))
     return {key: value for key, value in view.items() if key == "percent" or value not in (None, [], {})}  # a null percent is information
 
@@ -256,11 +356,16 @@ def signal_view(handle: str, signal: dict[str, Any], as_of: str) -> dict[str, An
 def build_input(snapshot: dict[str, Any], signals: list[dict[str, Any]], context: dict[str, Any], maximum: int) -> dict[str, Any]:
     handles = handles_for(signals)
     by_id = {signal["id"]: signal for signal in signals}
+    signal_handles = {identifier: handle for handle, identifier in handles.items() if handle.startswith("S")}
+    item_handles = {identifier: handle for handle, identifier in handles.items() if handle.startswith("I")}
+    items = collect_items(signals)
+    behind = {identifier: [signal_handles[signal["id"]] for signal in signals if any(i["id"] == identifier for i in signal.get("items", []))] for identifier in items}
     return {
         "mission": context.get("mission"), "policy": context.get("policy"),
         "allowed_sections": [section["title"] for section in context.get("sections", [])],
         "maximum_drafts": maximum, "snapshot_week_of": snapshot["asOf"],
-        "signals": [signal_view(handle, by_id[identifier], by_id[identifier]["asOf"]) for handle, identifier in handles.items()],
+        "signals": [signal_view(handle, by_id[identifier], by_id[identifier]["asOf"], item_handles) for handle, identifier in handles.items() if handle.startswith("S")],
+        "items": [item_view(item_handles[identifier], item, behind[identifier]) for identifier, item in items.items()],
         "recent_and_in_flight_stories": [{key: story.get(key) for key in ("title", "section", "state", "date", "summary") if story.get(key)} for story in context.get("stories", [])],
         "earlier_drafts": [{key: draft.get(key) for key in ("title", "state", "angle") if draft.get(key)} for draft in context.get("drafts", [])],
     }
@@ -270,7 +375,7 @@ def build_input(snapshot: dict[str, Any], signals: list[dict[str, Any]], context
 
 
 def call_model(transport: synthesis.Transport, model: str, model_input: dict[str, Any]) -> tuple[list[Any], synthesis.Usage]:
-    payload = synthesis.request_payload(model, model_input) | {"instructions": SYSTEM_PROMPT, "text": {"format": SCHEMA}}
+    payload = synthesis.request_payload(model, model_input) | {"instructions": SYSTEM_PROMPT, "text": {"format": SCHEMA}, "max_output_tokens": MAXIMUM_OUTPUT_TOKENS}
     body = transport(synthesis.RESPONSES_URL, {"Content-Type": "application/json"}, payload)
     text = synthesis.response_text(body)
     if body.get("status") == "incomplete" or text is None:
@@ -336,7 +441,7 @@ def check_sentence(where: str, entry: Any, handles: dict[str, str], views: dict[
         return None, [_problem(where, "", "missing_text")]
     text, cites = entry["text"].strip(), [str(handle).strip() for handle in entry.get("cites") or []]
     problems: list[dict[str, str]] = []
-    unknown = sorted({handle for handle in cites if handle not in handles})
+    unknown = sorted({handle for handle in cites if handle not in handles})  # a signal (S) or an item (I) handle from the input
     if not cites:
         problems.append(_problem(where, text, "no_citation"))
     if unknown:
@@ -353,7 +458,10 @@ def check_sentence(where: str, entry: Any, handles: dict[str, str], views: dict[
         loose = ungrounded(text, [views[handles[handle]] for handle in cites])
         if loose:
             problems.append(_problem(where, text, f"number_not_in_cited_signals:{','.join(loose)}"))
-    return ({"text": text, "signalIds": list(dict.fromkeys(handles[h] for h in cites if h in handles))} if not problems else None), problems
+    if problems:
+        return None, problems
+    cited = list(dict.fromkeys(handles[h] for h in cites if h in handles))
+    return {"text": text, "signalIds": [i for i in cited if not i.startswith("item:")], "itemIds": [i for i in cited if i.startswith("item:")]}, problems
 
 
 def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str, Any]], views: dict[str, tuple[set[str], set[str]]], allowed_sections: list[str]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
@@ -388,6 +496,7 @@ def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str,
     if attempted < MINIMUM_SENTENCES:
         problems.append(_problem("body", "", "fewer_than_three_body_sentences"))
     cited = list(dict.fromkeys(i for entry in [headline, dek, *sentences] if entry for i in entry["signalIds"]))
+    cited_items = list(dict.fromkeys(i for entry in [headline, dek, *sentences] if entry for i in entry["itemIds"]))
     if len(cited) < 2:
         problems.append(_problem("draft", "", "fewer_than_two_signals_cited"))
     if len(cited) > MAXIMUM_CITED_SIGNALS:
@@ -411,9 +520,9 @@ def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str,
             problems.append(_problem("figure", caption, f"number_not_in_cited_signals:{','.join(loose)}" if loose else "banned_word"))
     if problems or headline is None or dek is None:
         return None, record
-    record.update(status="passed", signalsCited=cited)
+    record.update(status="passed", signalsCited=cited, itemsCited=cited_items)
     return {
-        "headline": headline, "dek": dek, "section": sections.get(section.lower(), section), "paragraphs": paragraphs, "citedSignalIds": cited,
+        "headline": headline, "dek": dek, "section": sections.get(section.lower(), section), "paragraphs": paragraphs, "citedSignalIds": cited, "citedItemIds": cited_items,
         "figureSignalIds": figure_ids, "figureTitle": title, "figureCaption": caption,
     }, record
 
@@ -421,6 +530,7 @@ def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str,
 def validate_drafts(raw: list[Any], handles: dict[str, str], signals: dict[str, dict[str, Any]], allowed_sections: list[str], maximum: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """(passing drafts, failing drafts with the citation check that failed them). The first ``maximum`` passing drafts are kept."""
     views = {identifier: facts_in(_grounding(signals[identifier])) for identifier in signals}
+    views |= {identifier: facts_in({k: v for k, v in item_view("I0", item).items() if k != "handle"}) for identifier, item in collect_items(list(signals.values())).items()}
     valid, invalid = [], []
     for item in raw:
         draft, record = check_draft(item, handles, signals, views, allowed_sections)
@@ -463,10 +573,12 @@ def describe_signal(signal: dict[str, Any]) -> str:
 
 
 def draft_body(draft: dict[str, Any], signals: dict[str, dict[str, Any]], figure: dict[str, Any]) -> str:
-    numbers = {identifier: number for number, identifier in enumerate(draft["citedSignalIds"], start=1)}
+    """The marks number the cited signals first, then the cited items (the sources), so ``[3]`` may be a release."""
+    numbers = {identifier: number for number, identifier in enumerate([*draft["citedSignalIds"], *draft.get("citedItemIds", [])], start=1)}
+    items = collect_items(list(signals.values()))
 
     def marked(sentence: dict[str, Any]) -> str:
-        return sentence["text"] + " " + "".join(f"[{numbers[i]}]" for i in sentence["signalIds"])
+        return sentence["text"] + " " + "".join(f"[{numbers[i]}]" for i in [*sentence["signalIds"], *sentence.get("itemIds", [])])
 
     lines = [marked(draft["dek"]), ""]
     for paragraph in draft["paragraphs"]:
@@ -474,10 +586,15 @@ def draft_body(draft: dict[str, Any], signals: dict[str, dict[str, Any]], figure
     lines += [f"## Figure: {figure['title']}", "", f"{figure['caption']} Line chart, {figure['unit']}, weeks beginning {figure['x'][0]} to {figure['x'][-1]}. Source: {figure['source']}.", ""]
     lines += [f"- {entry['label']}: {', '.join(str(value) for value in entry['values'])}" for entry in figure["series"]]
     lines += ["", "## Signals cited", ""]
-    for identifier, number in numbers.items():
+    for identifier in draft["citedSignalIds"]:
         signal = signals[identifier]
         link = f" ({signal['href']})" if signal.get("href") else ""
-        lines.append(f"{number}. {describe_signal(signal)}{link} `{identifier}`")
+        lines.append(f"{numbers[identifier]}. {describe_signal(signal)}{link} `{identifier}`")
+    if draft.get("citedItemIds"):
+        lines += ["", "## Sources", ""]
+        for identifier in draft["citedItemIds"]:
+            item = items[identifier]
+            lines.append(f"{numbers[identifier]}. {item['title']} ({item['date']}) {item.get('url') or item['path']}")
     lines += ["", f"Section: {draft['section']}. Drafted by AI from the knowledge snapshot; an editor approves the copy and the figure before anything is published.", ""]
     return "\n".join(lines)
 
@@ -498,7 +615,9 @@ def draft_record(draft: dict[str, Any], *, run: dict[str, Any], signals: dict[st
         "body": draft_body(draft, signals, figure),
         "targets": [{"type": signal["targetType"], "id": signal["targetId"]} for signal in cited],
         "evidence": {"signals": len(cited), "source": f"knowledge snapshot {snapshot['asOf']} ({run['publication']}), papyrus ideas trends"[:200], "figure": figure},
-        "citedSignalIds": draft["citedSignalIds"], "citationCheck": draft["citationCheck"],
+        "citedSignalIds": draft["citedSignalIds"], "citedItemIds": draft.get("citedItemIds", []),
+        "citedItems": [{key: item.get(key) for key in ("id", "title", "date", "url")} for item in (collect_items(list(signals.values()))[i] for i in draft.get("citedItemIds", []))],
+        "citationCheck": draft["citationCheck"],
         "sentences": [{"role": role, **sentence} for role, sentence in [("headline", draft["headline"]), ("dek", draft["dek"])]]
         + [{"role": "body", **sentence} for paragraph in draft["paragraphs"] for sentence in paragraph],
     }
@@ -531,6 +650,7 @@ def estimate_inputs(snapshot: dict[str, Any], signals: list[dict[str, Any]], con
     return {
         "signals": len(signals), "clusterSignals": sum(s["kind"] == "cluster" for s in signals), "entitySignals": sum(s["kind"] == "entity" for s in signals),
         "snapshotAsOf": snapshot["asOf"], "archivePreviousWeek": (snapshot.get("previous") or {}).get("asOf"),
+        "items": len(collect_items(signals)), "itemsWithSummary": sum(1 for item in collect_items(signals).values() if item.get("summary")),
         "stories": len(context.get("stories", [])), "earlierDrafts": sum(1 for d in documents if d.kind in {"draft", "proposal"}),
         "sections": len(context.get("sections", [])), "mission": bool(context.get("mission")), "policy": bool(context.get("policy")),
     }
@@ -551,6 +671,7 @@ def draft_trends(
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
+    fetch_text: FetchText | None = None,
 ) -> dict[str, Any]:
     """Drafts trend stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -564,7 +685,7 @@ def draft_trends(
     if proposal_store is not None and proposal_store.dedupe_unavailable:
         run["proposalDedupe"] = proposal_store.dedupe_unavailable
     documents = comparison_documents(context, stored, proposals, [])
-    signals_list = build_signals(snapshot)
+    signals_list = build_signals(snapshot, fetch_text)
     signals = {signal["id"]: signal for signal in signals_list}
     handles = handles_for(signals_list)
     run["inputs"] = estimate_inputs(snapshot, signals_list, context, documents)
@@ -576,7 +697,7 @@ def draft_trends(
         size = len(SYSTEM_PROMPT) + len(str(model_input))
         if size > synthesis.MAXIMUM_INPUT_CHARACTERS:
             raise RunRefused(f"The input is {size} characters (limit {synthesis.MAXIMUM_INPUT_CHARACTERS}).")
-        estimate = synthesis.estimate_cost_usd(model, size)
+        estimate = synthesis.estimate_cost_usd(model, size, MAXIMUM_OUTPUT_TOKENS)
         run["estimatedCostUsd"] = estimate
         if estimate is not None and estimate > maximum_cost_usd:
             raise RunRefused(f"Estimated cost ${estimate:.4f} is over --max-cost-usd ${maximum_cost_usd:.2f}.")
@@ -616,13 +737,13 @@ def render_report(run: dict[str, Any]) -> str:
         "",
         f"Run `{run['runId']}` on the snapshot of {run['snapshot']['asOf']} ({run['snapshot']['source']}). Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
-        f"- Signals read: {run['inputs']['signals']}; drafts proposed: {run['proposed']}; passed the citation check and kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; duplicates dropped: {len(run['duplicates'])}",
+        f"- Signals read: {run['inputs']['signals']}; items behind them: {run['inputs'].get('items', 0)} ({run['inputs'].get('itemsWithSummary', 0)} with a summary); drafts proposed: {run['proposed']}; passed the citation check and kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens, cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",
     ]
     for number, draft in enumerate(run["drafts"], start=1):
         figure = draft["evidence"]["figure"]
-        lines += [f"## {number}. {draft['title']}", "", f"Citation check: passed ({draft['citationCheck']['sentences']} sentences, {len(draft['citedSignalIds'])} signals). Targets: " + ", ".join(f"{t['type']}:{t['id']}" for t in draft["targets"]) + f". Figure: {figure['type']}, {len(figure['series'])} series.", "", draft["body"].rstrip(), ""]
+        lines += [f"## {number}. {draft['title']}", "", f"Citation check: passed ({draft['citationCheck']['sentences']} sentences, {len(draft['citedSignalIds'])} signals, {len(draft.get('citedItemIds', []))} sources). Targets: " + ", ".join(f"{t['type']}:{t['id']}" for t in draft["targets"]) + f". Figure: {figure['type']}, {len(figure['series'])} series.", "", draft["body"].rstrip(), ""]
     for heading, rows, describe in (
         ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),
         ("Dropped as duplicates", run["duplicates"], lambda r: f"{r['title']}: {r['reason']}"),
