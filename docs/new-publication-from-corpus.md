@@ -31,7 +31,7 @@ Use these terms consistently:
   `curationStatus = "pending"`.
 - `accepted reference`: a current `Reference` with
   `curationStatus = "accepted"`, eligible for evidence, analysis, graph work,
-  desk memory, context packs, and publication planning.
+  section memory, context packs, and publication planning.
 - `rejected reference`: retained curation memory. Only `out_of_scope` and
   `policy_exclusion` rejections become negative scope-training examples.
 - `archived reference`: inactive retained record.
@@ -176,7 +176,7 @@ duplicate extracted text into a second canonical location.
 
 6. Curate the initial evidence set. Pending and rejected references remain
    visible for review and scope memory, but only current accepted references can
-   feed topic modeling, graph analysis, desk memory, context packs, assignment
+   feed topic modeling, graph analysis, section memory, context packs, assignment
    evidence, or edition planning.
 
 7. Ensure accepted references have source material and text artifacts. Use
@@ -234,7 +234,7 @@ duplicate extracted text into a second canonical location.
    through the category steering and projection commands.
 
 11. Repeat with adjusted analysis profiles until the top-level category set is
-   useful enough to operate as desks and to inform section planning.
+   useful enough to operate as sections and to inform section planning.
 
 ## Controlling Topic Granularity
 
@@ -367,7 +367,7 @@ pattern is to separate modes:
   accepted classifier/profile.
 - `classifier-retrain`: rebuild the semi-supervised classifier from accepted
   references and authoritative labels.
-- `scoped-topic-rebuild`: rediscover child topics under an accepted desk/focus
+- `scoped-topic-rebuild`: rediscover child topics under an accepted section/focus
   scope.
 - `entity-graph-rebuild`: rebuild generated entity graph signals.
 - `generated-analysis-rebuild`: clear targeted generated outputs for a
@@ -412,7 +412,7 @@ source materials plus config:
    topics, projection, and entity graph.
 7. Claim and execute one assignment at a time.
 8. Import generated outputs.
-9. Verify the Newsroom shows references, desks, topics, graph relations, and
+9. Verify the Newsroom shows references, sections, topics, graph relations, and
    assignment history.
 
 If the rehearsal deletes generated GraphQL analysis data, that is acceptable in

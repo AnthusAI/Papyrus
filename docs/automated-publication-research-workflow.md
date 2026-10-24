@@ -23,8 +23,8 @@ should work for another publication.
 
 Use these objects as distinct editorial concepts:
 
-- `NewsroomSection`: the operational desk lens. It supplies mission, policy,
-  assignment guidance, kill criteria, visual guidance, and recent desk memory.
+- `NewsroomSection`: the operational section lens. It supplies mission, policy,
+  assignment guidance, kill criteria, visual guidance, and recent section memory.
 - `Category`: the accepted taxonomy scope. It says what body of knowledge the
   work belongs to.
 - `SemanticNode`: the richer coverage concept, entity, or question. It lets
@@ -137,16 +137,16 @@ Coverage Theme planning posts **three sequential messages** on the canonical
 
 | Phase | Summary prefix | Content |
 | --- | --- | --- |
-| 1 | `Edition theme (phase 1):` | Proposed edition theme and coverage concept; pointers to phases 2–3. Floating/rotating desks are **not** the edition theme. |
-| 2 | `Optional desk (phase 2):` | One proposed optional desk after `rotating_section_selector.tac` (informed by the accepted theme). |
-| 3 | `Reporting dispatch (phase 3):` | Reporting assignment candidates per confirmed desk, with default `ceil(slots * 1.5)` overassignment. |
+| 1 | `Edition theme (phase 1):` | Proposed edition theme and coverage concept; pointers to phases 2–3. Floating/rotating sections are **not** the edition theme. |
+| 2 | `Optional desk (phase 2):` | One proposed optional section after `rotating_section_selector.tac` (informed by the accepted theme). |
+| 3 | `Reporting dispatch (phase 3):` | Reporting assignment candidates per confirmed section, with default `ceil(slots * 1.5)` overassignment. |
 
-Phase 3 is deferred until phase 2 completes when optional desks are still
-provisional (floating or rotating `NewsroomSection` desks). Recent optional-desk
+Phase 3 is deferred until phase 2 completes when optional sections are still
+provisional (floating or rotating sections). Recent optional-section
 history in phase 2 uses **confirmed** prior selections only (`selectedOptionalDeskKey`
 on past editions)—not provisional `sectionBudgets` rows.
 
-Planning no longer posts default `section_forum` kickoffs; desk-specific steering
+Planning no longer posts default `section_forum` kickoffs; section-specific steering
 for dispatch lives in message 3 and in assignment briefs. Legacy `section_forum`
 threads may still exist and remain readable in assignment context.
 
@@ -225,7 +225,7 @@ When a researcher or reporter finds a new web source, the packet should store it
 as `sourceSnapshots` and/or `proposedReferences` with an ingestion rationale.
 Reference intake then registers the prospect as pending. Curation later accepts
 or rejects it. Only accepted references can become `uses_evidence` links,
-knowledge-query evidence, desk memory, or copywriting support.
+knowledge-query evidence, section memory, or copywriting support.
 
 ## Story-Cycle Run
 

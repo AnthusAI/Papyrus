@@ -5,7 +5,7 @@ The `/newsroom` workspace, assignments, Coverage Themes, packets, steering and t
 ## Newsroom
 
 `/newsroom` is the Papyrus newsroom operations workspace. `Topics` is the
-taxonomy steering tab. `Sections` is the operational desk surface backed by
+taxonomy steering tab. `Sections` is the operational section surface backed by
 `NewsroomSection` doctrine and budgets. `Doctrine` is the publication-wide
 mission and policies surface. The page is driven by the configured corpora for
 the publication, not by hard-coded corpus names.
@@ -13,7 +13,7 @@ the publication, not by hard-coded corpus names.
 `/newsroom` chrome is an application shell (Shadcn tokens and sans fonts), not
 the Pretext newspaper masthead. Reader pages keep newsprint/Pretext. Before:
 ops sat inside `.paper-page` / `.masthead`. After: `[data-newsroom-chrome=app]`
-with a header and section nav. Inner desks (Topics, References, Assignments)
+with a header and section nav. Inner tabs (Topics, References, Assignments)
 are unchanged in this foundation slice.
 
 Tenant theme packs live on `SiteBrand` (`themePack`, moss/ochre/paper tokens,
@@ -65,7 +65,7 @@ The dated private `Edition` record is created or updated first; each assignment
 is then linked to that edition, its `NewsroomSection`, its accepted topic scope,
 its coverage concept, its publication lane, and accepted evidence with
 `SemanticRelation` rows. The default lanes are `reporting`, `analysis`, and
-`briefs`; `opinion` is opt-in through publication or desk policy. The default
+`briefs`; `opinion` is opt-in through publication or section policy. The default
 dispatch ratio is `3/2`: for each section/lane target, dispatch a small surplus
 of candidates so editors can select the strongest outputs without publishing
 every result.
@@ -98,7 +98,7 @@ When reporting runs multiple times for the same Assignment, each run writes a
 new immutable packet Message. The most recent successful
 `reporting_context_packet` is canonical for downstream copywriting intake by
 default.
-The editor-only `Assignments` desk tab at `/newsroom/assignments`, including the
+The editor-only `Assignments` tab at `/newsroom/assignments`, including the
 Story Budget view, is the review surface for these private queues.
 
 Assignment claiming is an execution lease, not universal identity ownership.
@@ -125,7 +125,7 @@ and import only stable steering outputs into Papyrus.
 Researcher behavior should follow
 [skills/researcher-doctrine/SKILL.md](../skills/researcher-doctrine/SKILL.md):
 publication doctrine is the global editorial constitution, section doctrine is
-the local desk standard, and the assignment brief is the immediate task.
+the local section standard, and the assignment brief is the immediate task.
 Doctrine stays private and editable in Papyrus data; the skill defines how
 agents apply it while gathering evidence and preparing research packets.
 Coding agents that need to run the same assignment workflow outside a Tactus
@@ -186,12 +186,12 @@ worker/admin S3 operation for now.
 `Reference.curationStatus` separates visibility from evidence eligibility:
 pending prospects and rejected scope memory stay visible for curation, comments,
 votes, and training exports, but only current accepted references may feed
-evidence sets, topic modeling, graph analysis, desk memory, context packs, or
+evidence sets, topic modeling, graph analysis, section memory, context packs, or
 edition planning.
 Research packets and assignment evidence should also follow
 [skills/researcher-doctrine/SKILL.md](../skills/researcher-doctrine/SKILL.md) so
 agents apply publication doctrine, section doctrine, assignment briefs, graph
-context, accepted evidence, and recent desk activity in the correct order.
+context, accepted evidence, and recent section activity in the correct order.
 
 Category proposal review writes an append-only `SteeringDecision` and creates
 new `Category` versions when accepted edits change category copy or tree state.

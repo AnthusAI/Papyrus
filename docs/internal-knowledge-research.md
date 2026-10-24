@@ -93,7 +93,7 @@ jq -r '.context.text // ""' .papyrus-runs/knowledge-query/result.json \
 
 ## Assignment-shaped internal research
 
-For live assignment work, combine desk context with knowledge search:
+For live assignment work, combine section context with knowledge search:
 
 ```bash
 npm run content -- assignments build-context --assignment <id> --context-profile researcher
