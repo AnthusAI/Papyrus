@@ -3,7 +3,10 @@
 A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge,
 a split, a new column or an element symbol. It is filed by AI (a reader proposer is part of the record but has no route yet)
 and steered by votes; an editor decides. Staff reach this through the ``fileProposal`` and ``transitionProposal``
-mutations (editors and admins only; the function checks the groups again). Every state change is appended to the proposal's
+mutations (editors and admins; the function checks the groups again). An operator's IAM role in the function's own account
+(an unattended automation or an agent without a browser sign-in) may also file an AI proposal and move it from draft to
+in_steering or declined, and nothing else: approving, deciding after review and overriding stay with editors and admins.
+Every state change is appended to the proposal's
 ``history`` in the same conditional write that changes the state, so the history and the state cannot disagree.
 
 Nothing here knows a person id. The proposer is ``"ai"`` or a reader's siteSubject, which is stored and never published; the
@@ -56,6 +59,10 @@ TARGET_TYPES = ("concept", "entity", "column", "story", "cluster")
 MUTATIONS = ("fileProposal", "transitionProposal")
 PROPOSER_AI = "ai"
 STAFF_GROUPS = frozenset({"editor", "admin"})
+#: The only moves an operator's IAM role may make, as (from, to). Everything after the draft is an editor's decision.
+OPERATOR_TRANSITIONS = frozenset({(DRAFT, IN_STEERING), (DRAFT, DECLINED)})
+BY_STAFF, BY_OPERATOR = "staff", "operator"
+MAXIMUM_OPERATOR_LABEL = 256
 PROPOSAL_ID = re.compile(r"prop-[0-9a-f]{32}")
 TARGET_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:\-]{0,127}")
 MAXIMUM_TITLE = 200
@@ -99,6 +106,24 @@ def staff_subject(identity: dict[str, Any]) -> str | None:
     if not isinstance(subject, str) or not subject or not STAFF_GROUPS.intersection(groups):
         return None
     return subject
+
+
+def operator_actor(identity: dict[str, Any], account_id: str | None) -> str | None:
+    """``operator:<principal ARN>`` for an IAM principal (a role or user) of the function's own account, or ``None``.
+
+    A Cognito identity-pool user is also an IAM principal of this account, but it carries a Cognito identity id (and a
+    user-pool caller carries a subject); neither is an operator. A principal of another account is refused, and so is a
+    caller whose ARN names another account than the one AppSync reports.
+    """
+    if not isinstance(identity, dict) or not account_id:
+        return None
+    arn = identity.get("userArn")
+    parts = arn.split(":") if isinstance(arn, str) else []
+    if len(parts) < 6 or parts[0] != "arn" or parts[4] != account_id or identity.get("accountId") != account_id:
+        return None
+    if any(identity.get(key) for key in ("cognitoIdentityId", "cognitoIdentityPoolId", "cognitoIdentityAuthType", "sub", "claims")):
+        return None
+    return f"operator:{arn}"[:MAXIMUM_OPERATOR_LABEL]
 
 
 def clean_text(value: Any, limit: int) -> str | None:
@@ -190,7 +215,7 @@ def file_proposal(arguments: dict[str, Any], *, actor_sub: str, now_iso: str, pr
     return row, None
 
 
-def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_sub: str, now_iso: str, result: Any = None) -> dict[str, Any] | Outcome:
+def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_sub: str, now_iso: str, result: Any = None, by: str = BY_STAFF) -> dict[str, Any] | Outcome:
     """The changes that move ``row`` to ``to_state``, or why it may not move."""
     state = row.get("state")
     if to_state not in STATES:
@@ -209,20 +234,34 @@ def transition_plan(row: dict[str, Any], to_state: Any, reason: Any, *, actor_su
             return refused("result_required", f"An override says what the editor decided: {' or '.join(OVERRIDE_RESULTS)}.")
     elif result is not None:
         return refused("result_not_allowed", "Only an override carries a result; approve and decline are their own.")
-    entry = {"from": state, "to": to_state, "by": "staff", "actor": actor_sub, "reason": text, "at": now_iso}
+    entry = {"from": state, "to": to_state, "by": by, "actor": actor_sub, "reason": text, "at": now_iso}
     if result is not None:
         entry["result"] = result
     history = [*(parse_json(row.get("history")) or []), entry]
     return {"state": to_state, "history": json.dumps(history)}
 
 
-def apply_transition(store: ProposalStore, *, proposal_id: Any, to_state: Any, reason: Any, actor_sub: str, now_iso: str, result: Any = None) -> Outcome:
+def apply_transition(
+    store: ProposalStore,
+    *,
+    proposal_id: Any,
+    to_state: Any,
+    reason: Any,
+    actor_sub: str,
+    now_iso: str,
+    result: Any = None,
+    by: str = BY_STAFF,
+    allowed: frozenset[tuple[str, str]] | None = None,
+) -> Outcome:
+    """Move a proposal. ``allowed`` (as (from, to) pairs) narrows the road for a caller who may not take all of it."""
     if not isinstance(proposal_id, str) or not PROPOSAL_ID.fullmatch(proposal_id):
         return refused("invalid_proposal", "That is not a proposal id.")
     row = store.get_proposal(proposal_id)
     if row is None:
         return refused("not_found", "There is no such proposal.")
-    plan = transition_plan(row, to_state, reason, actor_sub=actor_sub, now_iso=now_iso, result=result)
+    if allowed is not None and (row.get("state"), to_state) not in allowed:
+        return refused("operator_not_allowed", "An operator can only move a draft to in_steering or declined; the rest is for editors and admins.")
+    plan = transition_plan(row, to_state, reason, actor_sub=actor_sub, now_iso=now_iso, result=result, by=by)
     if isinstance(plan, Outcome):
         return plan
     if not store.change_proposal(proposal_id, plan, row["state"], now_iso):
@@ -230,11 +269,18 @@ def apply_transition(store: ProposalStore, *, proposal_id: Any, to_state: Any, r
     return Outcome("ok", id=proposal_id)
 
 
-def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_iso: str) -> dict[str, Any]:
-    """``fileProposal`` or ``transitionProposal`` from AppSync. Answers a receipt, never an exception."""
-    actor = staff_subject(event.get("identity") or {})
+def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_iso: str, account_id: str | None = None) -> dict[str, Any]:
+    """``fileProposal`` or ``transitionProposal`` from AppSync. Answers a receipt, never an exception.
+
+    Editors and admins act as themselves. An IAM principal of ``account_id`` (the function's own account) acts as an operator:
+    it files AI proposals and moves draft to in_steering or declined, recorded as ``operator:<ARN>``. Anyone else is refused.
+    """
+    identity = event.get("identity") or {}
+    staff = staff_subject(identity)
+    operator = None if staff is not None else operator_actor(identity, account_id)
+    actor = staff or operator
     if actor is None:
-        return refused("not_staff", "Only editors and admins can file or decide proposals.").to_dict()
+        return refused("not_staff", "Only editors, admins and operators of this account can file proposals; only editors and admins decide them.").to_dict()
     arguments = event.get("arguments") or {}
     field = (event.get("info") or {}).get("fieldName")
     if field == "fileProposal":
@@ -252,4 +298,6 @@ def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_is
         result=arguments.get("result"),
         actor_sub=actor,
         now_iso=now_iso,
+        by=BY_OPERATOR if operator else BY_STAFF,
+        allowed=OPERATOR_TRANSITIONS if operator else None,
     ).to_dict()

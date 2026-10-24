@@ -107,6 +107,37 @@ class ProposalsCliTests(unittest.TestCase):
         with mock.patch("papyrus_content.projection_trigger.trigger_projection", return_value={"ok": False, "error": "boom"}):
             fails(self, ["publish"], FakeClient(), "Could not start the snapshot: boom")
 
+    def test_the_operator_lane_files_and_moves_a_draft_with_the_same_mutations(self) -> None:
+        client = FakeClient({"fileProposal": {"status": "ok", "id": ROW["id"]}}, {"transitionProposal": {"status": "ok", "id": ROW["id"]}})
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
+            code, output = run(["create", "--kind", "story_draft", "--title", "T", "--body", "b"], client)
+            self.assertEqual((code, output.strip()), (0, f"proposals\tcreate\t{ROW['id']}\tdraft"))
+            code, output = run(["transition", ROW["id"], "--to", "in_steering"], client)
+            self.assertEqual((code, output.strip()), (0, f"proposals\ttransition\t{ROW['id']}\tin_steering"))
+        self.assertIn("fileProposal", client.calls[0][0])
+        self.assertIn("transitionProposal", client.calls[1][0])
+
+    def test_the_operator_lane_is_told_when_an_editor_decision_is_refused(self) -> None:
+        client = FakeClient({"transitionProposal": {"status": "refused", "error": "operator_not_allowed", "message": "An operator can only move a draft to in_steering or declined; the rest is for editors and admins."}})
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
+            fails(self, ["transition", ROW["id"], "--to", "approved"], client, "operator_not_allowed: An operator can only move a draft")
+
+    def test_the_authoring_client_is_built_for_iam_without_a_user_session(self) -> None:
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam", "PAPYRUS_GRAPHQL_ENDPOINT": "https://example.appsync-api.eu-west-1.amazonaws.com/graphql"}):
+            client, _ = proposals_commands.create_authoring_client()
+        self.assertEqual(type(client).__name__, "PapyrusGraphQLAuthoringClient")
+
+    def test_reading_under_iam_says_an_editor_session_is_needed(self) -> None:
+        class Denied(FakeClient):
+            def graphql(self, query: str, variables: dict | None = None) -> dict:
+                raise RuntimeError("Not Authorized to access listProposals on type Query")
+
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
+            fails(self, ["list"], Denied(), "needs an editor or admin session")
+            fails(self, ["show", ROW["id"]], Denied(), "needs an editor or admin session")
+        with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), mock.patch.object(proposals_commands, "create_authoring_client", return_value=(Denied(), {})), self.assertRaises(RuntimeError):
+            proposals_commands.list_command([])
+
     def test_an_unknown_command_is_an_error(self) -> None:
         with self.assertRaises(ValueError):
             proposals_commands.proposals_command("delete", [])
