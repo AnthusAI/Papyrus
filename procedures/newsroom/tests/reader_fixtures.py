@@ -207,25 +207,35 @@ class ReaderBackend:
     def items(self) -> list[dict]:
         return self.table("item").scan()["Items"]
 
-    def staff_call(self, action: str, target_type: str, target: str, *, reason: str | None = None, undo_of: str | None = None, groups=("editor",), sub: str = "staff-sub-1") -> dict:
-        """The moderateReader mutation as AppSync delivers it to the function."""
-        event = {
-            "arguments": {"action": action, "targetType": target_type, "target": target, **({"reason": reason} if reason is not None else {}), **({"undoOf": undo_of} if undo_of else {})},
-            "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}},
-            "info": {"fieldName": "moderateReader"},
-        }
-        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+    def appsync(self, field: str, arguments: dict, identity: dict, *, account_id: str | None = None, shape: str = "gen2") -> dict:
+        """Deliver a staff mutation through the real ``handler()``. ``gen2`` is the Amplify Gen 2 Lambda data source payload: top-level
+        ``typeName`` and ``fieldName`` and no ``info`` key. ``info`` is the direct-resolver shape that nests the field name."""
+        if shape == "gen2":
+            event = {"typeName": "Mutation", "fieldName": field, "arguments": arguments, "identity": identity, "source": None, "request": {"headers": {}}, "prev": None}
+        else:
+            event = {"arguments": arguments, "identity": identity, "info": {"fieldName": field}}
+        context = SimpleNamespace(invoked_function_arn=f"arn:aws:lambda:us-east-1:{account_id}:function:reader-steering") if account_id else None
+        saved = reader_handler.settings_from_environment, reader_handler.store_from_environment, reader_handler.time
+        reader_handler.settings_from_environment = lambda: self.settings
+        reader_handler.store_from_environment = lambda: self.store
+        reader_handler.time = SimpleNamespace(time=lambda: self.now)
+        try:
+            return reader_handler.handler(event, context)
+        finally:
+            reader_handler.settings_from_environment, reader_handler.store_from_environment, reader_handler.time = saved
 
+    def staff_call(self, action: str, target_type: str, target: str, *, reason: str | None = None, undo_of: str | None = None, groups=("editor",), sub: str = "staff-sub-1", shape: str = "gen2") -> dict:
+        """The moderateReader mutation as a deployed site delivers it to the function."""
+        arguments = {"action": action, "targetType": target_type, "target": target, **({"reason": reason} if reason is not None else {}), **({"undoOf": undo_of} if undo_of else {})}
+        return self.appsync("moderateReader", arguments, {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}}, shape=shape)
 
-    def proposal_call(self, field: str, arguments: dict, *, groups=("editor",), sub: str = "staff-sub-1") -> dict:
-        """``fileProposal`` or ``transitionProposal`` as AppSync delivers it to the function."""
-        event = {"arguments": arguments, "identity": {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}}, "info": {"fieldName": field}}
-        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now)
+    def proposal_call(self, field: str, arguments: dict, *, groups=("editor",), sub: str = "staff-sub-1", shape: str = "gen2") -> dict:
+        """``fileProposal`` or ``transitionProposal`` as a deployed site delivers it to the function."""
+        return self.appsync(field, arguments, {"sub": sub, "claims": {"cognito:groups": list(groups), "sub": sub}}, shape=shape)
 
-    def operator_proposal_call(self, field: str, arguments: dict, *, identity: dict | None = None, account_id: str | None = OPERATOR_ACCOUNT) -> dict:
+    def operator_proposal_call(self, field: str, arguments: dict, *, identity: dict | None = None, account_id: str | None = OPERATOR_ACCOUNT, shape: str = "gen2") -> dict:
         """``fileProposal`` or ``transitionProposal`` as AppSync delivers an IAM caller (by default an operator role of the function's own account)."""
-        event = {"arguments": arguments, "identity": operator_identity() if identity is None else identity, "info": {"fieldName": field}}
-        return reader_handler.handle_staff_event(event, store=self.store, settings=self.settings, now_seconds=self.now, account_id=account_id)
+        return self.appsync(field, arguments, operator_identity() if identity is None else identity, account_id=account_id, shape=shape)
 
     def proposals(self) -> list[dict]:
         return sorted(self.table("proposal").scan()["Items"], key=lambda row: row["createdAt"])

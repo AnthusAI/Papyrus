@@ -57,6 +57,22 @@ TARGET_COUNTS: dict[str, tuple[int, int]] = {
 TARGET_TYPES = ("concept", "entity", "column", "story", "cluster")
 
 MUTATIONS = ("fileProposal", "transitionProposal")
+
+
+def event_field_name(event: dict[str, Any]) -> str | None:
+    """The GraphQL field an AppSync invocation is for.
+
+    The Amplify Gen 2 Lambda data source sends ``fieldName`` at the top level with no ``info`` key; a direct resolver nests it
+    under ``info``. Accept both.
+    """
+    info = event.get("info")
+    name = (info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName")
+    return name if isinstance(name, str) and name else None
+
+
+def is_appsync_event(event: dict[str, Any]) -> bool:
+    """True for an AppSync invocation (arguments plus ``info`` or a top-level ``fieldName``); the public path sends siteSubject, action and payload."""
+    return "arguments" in event and ("info" in event or event_field_name(event) is not None)
 PROPOSER_AI = "ai"
 STAFF_GROUPS = frozenset({"editor", "admin"})
 #: The only moves an operator's IAM role may make, as (from, to). Everything after the draft is an editor's decision.
@@ -282,7 +298,7 @@ def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_is
     if actor is None:
         return refused("not_staff", "Only editors, admins and operators of this account can file proposals; only editors and admins decide them.").to_dict()
     arguments = event.get("arguments") or {}
-    field = (event.get("info") or {}).get("fieldName")
+    field = event_field_name(event)
     if field == "fileProposal":
         row, problem = file_proposal(arguments, actor_sub=actor, now_iso=now_iso)
         if problem is not None:

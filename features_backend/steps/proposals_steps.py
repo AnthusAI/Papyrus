@@ -242,6 +242,16 @@ def none_stored(context) -> None:
     assert backend_of(context).proposals() == []
 
 
+@then("the editor is told it is filed")
+def editor_told_filed(context) -> None:
+    assert context.proposal_answer["status"] == "ok", context.proposal_answer
+
+
+@then("{count:d} proposal is stored as a draft")
+def one_stored_as_draft(context, count: int) -> None:
+    stored_as_drafts(context, count)
+
+
 @then("{count:d} proposals are stored as drafts")
 def stored_as_drafts(context, count: int) -> None:
     rows = backend_of(context).proposals()

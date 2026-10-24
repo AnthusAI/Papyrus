@@ -105,3 +105,11 @@ Feature: Moderation of reader submissions and comments
     When a moderator shows again the last comment of "alice"
     And the AI moderator reviews the new content
     Then the AI moderator allowed 0 and hid 0
+
+  # Delivered the way a deployed site's data API sends it: field name at the top level of the event, no info key.
+  Scenario: An editor moderates a reader on a deployed site
+    When "alice" picks the handle "quiet-fox"
+    And "alice" submits the first link titled "A small tool"
+    And a moderator hides the first submission
+    Then the moderator is told it is done
+    And the first submission has state "hidden"

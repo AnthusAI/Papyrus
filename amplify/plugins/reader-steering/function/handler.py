@@ -1501,7 +1501,7 @@ def run_ai_worker(
 
 def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float, account_id: str | None = None) -> dict[str, Any]:
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
-    if (event.get("info") or {}).get("fieldName") in proposal_rules.MUTATIONS:
+    if proposal_rules.event_field_name(event) in proposal_rules.MUTATIONS:
         return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds), account_id=account_id)
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
@@ -1539,7 +1539,7 @@ def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     settings = settings_from_environment()
     store = store_from_environment()
     now_seconds = time.time()
-    if "arguments" in event and "info" in event:
+    if proposal_rules.is_appsync_event(event):
         return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds, account_id=function_account(_context))
     target = snapshot_target_from_environment()
     if settings.moderation_mode == "ai" and target is not None and _context is not None:
