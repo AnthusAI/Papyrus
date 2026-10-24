@@ -57,7 +57,7 @@ export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: 
 }
 
 function formatAccessTitle(state: NewsDeskShellState | null): string {
-  if (!state || state.phase === "checkingAccess") return "Checking Desk Credentials";
+  if (!state || state.phase === "checkingAccess") return "Checking Credentials";
   if (state.phase === "loadingDesk") return "Loading Newsroom Records";
   if (state.phase === "forbidden") return "Editor Role Required";
   if (state.phase === "error") return "Newsroom Unavailable";

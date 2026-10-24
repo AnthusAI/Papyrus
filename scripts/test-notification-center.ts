@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -7,7 +8,7 @@ import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import {
   answerUpdate, cyclotronAutoDecided, cyclotronHeldForReview, isDue, nextText, normalizeReviewRow, sectionReviews,
-  steeringText, subjectHref, summarize, summaryText, timeoutUpdate, type ReviewRequest,
+  steeringText, subjectHref, subjectLabel, summarize, summaryText, timeoutUpdate, type ReviewRequest,
 } from "../lib/review-requests";
 
 function text(html: string): string {
@@ -116,6 +117,23 @@ async function main() {
   assert.match(html, /href="\/newsroom\/topics\?proposal=proposal-1"/, "batch members link to their proposals");
   assert.match(html, /<details data-notification-section="auto-decided">/, "the stream is collapsible");
   assert.equal((html.match(/data-review-controls/g) ?? []).length, 4, "controls only on open requests");
+
+  // A story request shows the story's title, linked, with the id as the fallback.
+  const titled = text(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }));
+  assert.ok(titled.includes("About: Board refuses registration"), "a known story shows its title");
+  assert.ok(page.includes("About: story story-ruling-1"), "an unknown story shows its id");
+  assert.match(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }), /href="\/newsroom\/articles\/story-ruling-1"[^>]*>Board refuses registration</);
+  assert.equal(subjectLabel({ type: "story", id: "s1" }, { s1: "Title" }), "Title");
+  assert.equal(subjectLabel({ type: "proposal", id: "p1" }), "proposal p1");
+
+  // The console home: the Notification Center does not scroll inside the page on a phone, and the section headings avoid the avoided word.
+  const css = readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8");
+  const frame = css.split("\n").filter((line) => line.includes(".newsroom-overview-feed-frame"));
+  assert.ok(frame.length === 2 && !frame[0].includes("height:3") && !frame[0].includes("overflow"), "no fixed height or overflow below 640px");
+  assert.ok(frame[1].includes("@media(min-width:640px)"), "a fixed scrolling frame only from 640px");
+  const overview = readFileSync(new URL("../components/newsroom-ops-overview.tsx", import.meta.url), "utf8");
+  assert.ok(!/frame[^"]*overflow-y-auto/.test(overview.match(/className="newsroom-overview-feed-frame[^"]*"/)?.[0] ?? ""), "no inline scroll class on the feed");
+  assert.ok(!/\b(Core |Rotating )?Desks\b|\b(Core|Rotating) desks\b/.test(overview), "the home has no desk heading");
 
   // Words and marks, no colour encoding, and not the avoided word.
   assert.ok(!/ style=/.test(html), "no inline style");

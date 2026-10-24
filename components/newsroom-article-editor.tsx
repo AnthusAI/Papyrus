@@ -670,21 +670,21 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
                   </Select>
                 </label>
                 <label className="space-y-1 text-sm font-medium">
-                  <span>Desk</span>
+                  <span>Section</span>
                   <Select
                     onValueChange={(value) => {
                       if (typeof value === "string") patchEditor({ section: value === NO_DESK_VALUE ? "" : value });
                     }}
                     value={deskOptions.some(option => option.value === editor.section) ? editor.section : NO_DESK_VALUE}
                   >
-                    <SelectTrigger aria-label="Desk" className="w-full" data-newsroom-article-section>
-                      <SelectValue>{deskOptions.find(option => option.value === editor.section)?.label ?? "No desk"}</SelectValue>
+                    <SelectTrigger aria-label="Section" className="w-full" data-newsroom-article-section>
+                      <SelectValue>{deskOptions.find(option => option.value === editor.section)?.label ?? "No section"}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_DESK_VALUE}>No desk</SelectItem>
+                      <SelectItem value={NO_DESK_VALUE}>No section</SelectItem>
                       {(["core", "rotating"] as const).map((kind) => deskOptions.some(option => option.kind === kind) ? (
                         <SelectGroup key={kind}>
-                          <SelectLabel>{kind === "core" ? "Core desks" : "Rotating desks"}</SelectLabel>
+                          <SelectLabel>{kind === "core" ? "Core sections" : "Rotating sections"}</SelectLabel>
                           {deskOptions.filter(option => option.kind === kind).map((option) => (
                             <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                           ))}
