@@ -106,18 +106,30 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    cluster item counts of the last archived week before this one, `history/`). Paths and `http(s)` addresses both work.
 2. **Signals, no model.** Up to 6 named clusters (growing, new, cooling, then the rest) and up to 8 trending entities plus up to 3 new
    entities with at least 3 items in four weeks. A signal carries what the snapshot holds: the weekly counts with their week dates, the
-   four-week change (`percent` is null on a small base and the model is told so), neighbours and related item titles of an entity, the
-   previous archived week's item count of a cluster. Signal ids are `cluster:<uid>` and `entity:<key>`; the model sees handles S1, S2, ....
-3. **Draft.** One call to GPT-6 Luna (same model, transport, prices and `--max-cost-usd` cap as `synthesize`). The headline, the dek and each
-   body sentence are separate entries, each with the handles it rests on. The model also names one to three cited signals to chart and
+   four-week change (`percent` is null on a small base and the model is told so), neighbours of an entity, the previous archived week's
+   item count of a cluster. Signal ids are `cluster:<uid>` and `entity:<key>`; the model sees handles S1, S2, ....
+
+   **Items, the releases behind a signal.** An entity signal also carries up to 5 **items**: the entity file's `relatedItems` published in
+   the four weeks to the end of the snapshot's week (newest first). Each has its title, date, site path and, when the snapshot is read from
+   an `http(s)` address, its site URL and a one-line summary, which is the first block-quote line of the item's published Markdown
+   (`<item url>.md`; a page that cannot be read is only a missing summary). Item ids are `item:<path>`; the model sees handles I1, I2, ...
+   once per distinct item (at most 40 in total, so the input stays far under the 120,000-character limit) and the signals each item sits
+   behind. The snapshot publishes no member list for a cluster, so a cluster signal has no items. A snapshot read from a local file has no
+   site address, so its items carry titles and dates but no summaries or URLs.
+3. **Draft.** One call to GPT-6 Luna (same model, transport, prices and `--max-cost-usd` cap as `synthesize`; 12,000 output tokens, because
+   three cited drafts and the reasoning ran past the 6,000 of the other commands). The prompt asks for a story an informed reader would find
+   new: what shipped, who made it, what is different about it and what the pattern across the releases suggests, in plain specific prose that
+   leads with the releases and uses the counts as support, with any interpretation framed as "suggests" and tied to cited items. The
+   headline names the concrete thing. The headline, the dek and each body sentence are separate entries, each with the handles (S for a
+   signal, I for an item) it rests on. The model also names one to three cited signals to chart and
    writes the chart title and caption; it never supplies chart data.
 4. **Citation check, deterministic.** A draft is kept only if every entry (headline and dek included):
-   - cites at least one handle and every handle is a signal in the snapshot (`no_citation`, `unknown_signal:S99`);
+   - cites at least one handle and every handle is a signal or an item in the input (`no_citation`, `unknown_signal:S99`, `unknown_signal:I9`);
    - is one sentence, writes no handle in its text, and has no banned word;
-   - holds only numbers and ISO dates that appear in the signals it cites. A date's month and day never ground a bare number, so "3" must be
+   - holds only numbers and ISO dates that appear in the signals and items it cites (an item's title, summary and date count). A date's month and day never ground a bare number, so "3" must be
      a count the signal holds (`number_not_in_cited_signals:40`). The same rule applies to the figure title and caption;
 
-   and the draft as a whole cites 2 to 10 signals, has at least 3 body sentences, a section the site has, and 1 to 3 figure signals that it
+   and the draft as a whole cites 2 to 10 signals (items never count toward the two), has at least 3 body sentences, a section the site has, and 1 to 3 figure signals that it
    cites. Number words ("four") are not checked; the prompt asks for digits. A failing draft is **not filed**. The run record
    (`invalid[]`) has its headline and a `citationCheck` listing each problem with the sentence (`where`, `reason`, `text`). A passing draft
    keeps its `citationCheck` (`status: passed`, sentences, signals cited) and every sentence with its signal ids (`sentences[]`).
@@ -131,8 +143,8 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    | --- | --- |
    | `title` | the headline (200 characters) |
    | `summary` | the dek (300 characters) |
-   | `body` | the dek and paragraphs with `[n]` markers after each sentence, a `## Figure` section (title, caption, the series values), `## Signals cited` (number, readable fact, link, signal id) and the section |
-   | `targets` | one per cited signal: `{type: "cluster", id: <uid>}` or `{type: "entity", id: <entity key>}` (at most 10) |
+   | `body` | the dek and paragraphs with `[n]` markers after each sentence (signals are numbered first, then the cited items), a `## Figure` section (title, caption, the series values), `## Signals cited` (number, readable fact, link, signal id), `## Sources` (number, item title, date and URL; only when an item is cited) and the section |
+   | `targets` | one per cited signal (never an item): `{type: "cluster", id: <uid>}` or `{type: "entity", id: <entity key>}` (at most 10) |
    | `evidence` | `{signals: <n cited>, source: "knowledge snapshot <asOf> (<site>), papyrus ideas trends", figure: {...}}` |
 
    The figure spec is drawn by code from the cited signals' weekly counts, never from model output:

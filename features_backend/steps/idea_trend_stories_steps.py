@@ -15,7 +15,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from ideas_fixtures import AS_OF, NOW, FakeClient, FakeTrendModel, history_entry, sentence, snapshot_files, trend_draft  # noqa: E402
+from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import trends  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
@@ -76,6 +76,12 @@ def step_published_files(context, name, count):
     context.trend_snapshot = trends.load_snapshot(str(root))
 
 
+@given("the site publishes the pages of the releases behind its rising entities")
+def step_release_pages(context):
+    context.trend_snapshot = {**context.trend_snapshot, "siteBase": SITE_BASE}
+    context.trend_fetch_text = read_item_page
+
+
 @given("an editor can read an earlier story draft Proposal with the same targets")
 def step_earlier_proposal(context):
     targets = [{"type": "entity", "id": "platform--hugging-face"}, {"type": "entity", "id": "licence--apache-2-0"}]
@@ -92,7 +98,7 @@ def step_iam(context):
 
 @when("the operator reads the signals of the snapshot")
 def step_read_signals(context):
-    context.trend_signals = trends.build_signals(context.trend_snapshot)
+    context.trend_signals = trends.build_signals(context.trend_snapshot, getattr(context, "trend_fetch_text", None))
 
 
 @when("the model drafts a trend story citing Hugging Face and Apache-2.0")
@@ -132,13 +138,34 @@ def step_number(context):
     context.trend_drafts.append(draft)
 
 
+@when("the model drafts a trend story about the Zed-7B release that cites the release and the two entities")
+def step_release_draft(context):
+    context.trend_drafts.append(release_draft())
+
+
+@when("the model drafts a trend story that gives the Zed-7B release the date of another release")
+def step_release_wrong_date(context):
+    draft = release_draft()
+    draft["paragraphs"][0]["sentences"][0] = sentence("Zed released Zed-7B on 2026-10-14.", "I1")
+    context.trend_drafts.append(draft)
+
+
+@when("the model drafts a trend story that cites two releases but only one signal")
+def step_releases_one_signal(context):
+    draft = release_draft()
+    draft["dek"] = sentence("Zed's release on 2026-10-17 is the news.", "I1")
+    draft["paragraphs"] = [{"sentences": [sentence("Zed released Zed-7B under Apache-2.0.", "I1"), sentence("The card lists its evaluation limits.", "I2"), sentence("Hugging Face appeared in 15 items.", "S3")]}]
+    context.trend_drafts.append(draft)
+
+
 def run_trends(context, *, dry_run=False, reviews=False):
     client = context.trend_client
     context.trend_model = FakeTrendModel(context.trend_drafts)
     context.trend_root = directory_of(context) / "ideas"
     context.trend_run = trends.draft_trends(
         snapshot=context.trend_snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "Explain.", "policy": "Be careful."},
-        json_store=JsonStore(context.trend_root), transport=context.trend_model, proposal_store=ProposalStore(client), review_client=client if reviews else None, dry_run=dry_run, now=NOW)
+        json_store=JsonStore(context.trend_root), transport=context.trend_model, proposal_store=ProposalStore(client), review_client=client if reviews else None, dry_run=dry_run, now=NOW,
+        fetch_text=getattr(context, "trend_fetch_text", None))
 
 
 @when("the operator drafts trend stories and files them as Proposals")
@@ -281,3 +308,43 @@ def step_iam_note(context):
 def step_archive(context, name, count):
     cluster = next(s for s in context.trend_signals if s["name"] == name)
     assert (cluster["itemCountInPreviousArchive"], cluster["previousArchiveWeek"]) == (count, "2026-10-12")
+
+
+def entity_signal(context, name):
+    return next(s for s in context.trend_signals if s["name"] == name)
+
+
+@then("Hugging Face carries {count:d} releases from the last four weeks, newest first, each with a title, a summary, a date and a site address")
+def step_items(context, count):
+    items = entity_signal(context, "Hugging Face")["items"]
+    assert len(items) == count and [i["date"] for i in items] == sorted((i["date"] for i in items), reverse=True), items
+    assert all(i["title"] and i["summary"] and i["date"] and i["url"].startswith(SITE_BASE) for i in items), items
+
+
+@then("Apache-2.0 carries only the release inside the window and not the older one")
+def step_window(context):
+    assert [i["date"] for i in entity_signal(context, "Apache-2.0")["items"]] == ["2026-10-17"]
+
+
+@then("the clusters carry no releases because the snapshot lists no members for them")
+def step_cluster_items(context):
+    assert all("items" not in s for s in context.trend_signals if s["kind"] == "cluster")
+
+
+@then("the model was shown the releases with their summaries and dates")
+def step_shown(context):
+    sent = json.dumps(context.trend_model.requests[0])
+    assert "A 7B coding model with 32k context" in sent and "2026-10-17" in sent and "2026-10-14" in sent, sent
+
+
+@then("the body marks the cited signals first and then the cited releases")
+def step_marks(context):
+    body = filed(context)[0]["body"]
+    assert "under Apache-2.0. [3]" in body and "1. Hugging Face" in body and "2. Apache-2.0" in body, body
+
+
+@then('the body lists the cited releases under "Sources" with their titles, dates and addresses')
+def step_sources(context):
+    body = filed(context)[0]["body"]
+    assert "## Sources" in body
+    assert "3. Zed releases Zed-7B, a small coding model under Apache-2.0 (2026-10-17) https://site.example/posts/zed-7b/" in body, body

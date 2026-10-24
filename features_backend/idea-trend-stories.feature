@@ -8,6 +8,10 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
   Proposal in the draft state, proposed by AI, with the cited clusters and entities as its targets and a small chart spec of their
   weekly counts stored with it, so an editor approves the copy and the figure together. Nothing is approved, moved or published by the
   run. One soft review request covers the whole run. A dry run shows the drafts and the check without filing anything.
+  A rising entity is also given the releases behind it: the items it was mentioned in during the last four weeks (up to five, newest
+  first), each with its title, one-line summary, date and site address. A sentence may cite such an item as well as a signal, so a draft
+  can tell what shipped and not only how many items there were. Numbers and dates in a sentence must come from the signals and items
+  it cites, and the draft still needs two different signals.
 
   Background:
     Given a weekly knowledge snapshot for the week of "2026-10-19" with two named clusters and four entities
@@ -97,3 +101,31 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     Given the site publishes its snapshot as files with an archived earlier week in which "Decision models" held 17 items
     When the operator reads the signals of the snapshot
     Then the cluster "Decision models" carries the 17 items of the earlier archived week
+
+  Scenario: a trend draft cites the releases behind a rising signal
+    Given the site publishes the pages of the releases behind its rising entities
+    When the operator reads the signals of the snapshot
+    Then Hugging Face carries 2 releases from the last four weeks, newest first, each with a title, a summary, a date and a site address
+    And Apache-2.0 carries only the release inside the window and not the older one
+    And the clusters carry no releases because the snapshot lists no members for them
+    When the model drafts a trend story about the Zed-7B release that cites the release and the two entities
+    And the operator drafts trend stories and files them as Proposals
+    Then 1 trend draft is filed as a "story_draft" Proposal
+    And the model was shown the releases with their summaries and dates
+    And the body marks the cited signals first and then the cited releases
+    And the body lists the cited releases under "Sources" with their titles, dates and addresses
+    And the Proposal targets the entities "platform--hugging-face" and "licence--apache-2-0"
+
+  Scenario: A release date or number the cited release does not hold blocks the draft
+    Given the site publishes the pages of the releases behind its rising entities
+    When the model drafts a trend story that gives the Zed-7B release the date of another release
+    And the operator drafts trend stories and files them as Proposals
+    Then 0 trend drafts are filed
+    And the run record says that sentence failed with "number_not_in_cited_signals:2026-10-14"
+
+  Scenario: Citing releases alone does not make a story about two signals
+    Given the site publishes the pages of the releases behind its rising entities
+    When the model drafts a trend story that cites two releases but only one signal
+    And the operator drafts trend stories and files them as Proposals
+    Then 0 trend drafts are filed
+    And the run record says that sentence failed with "fewer_than_two_signals_cited"
