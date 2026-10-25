@@ -1,5 +1,7 @@
 # Automations
 
+> **Automations** are the records that start procedures. The story-stage kind is called **Stage Bots**: a bot acts when a story enters a stage, and the engine moves the story on. See [feature-names.md](feature-names.md#stage-bots). Distinctive Mark (<https://distinctive-mark.com>) runs the example chain.
+
 An automation is a named record in a site's own backend that says "when this happens, run that procedure with
 this input". It is the background-automation epic (PPY-9ff95b). The smallest useful version wraps what already
 runs: Distinctive Mark's TTAB monitor starts its ruling-analysis procedure for each new decision. The record

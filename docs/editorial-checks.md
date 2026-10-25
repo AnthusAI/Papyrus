@@ -1,5 +1,7 @@
 # Editorial checks
 
+> **Editorial Checks** apply a publication's own policies to a draft. Findings warn and never block publishing. A bot can run them with the `papyrus_check_story_version` tool, which is how a Stage Bot copy-edits. See [feature-names.md](feature-names.md#editorial-checks).
+
 Editorial checks are core Papyrus functionality, built into every site's backend and newsroom.
 The editorial context they apply (mission, policy, section guidance) is data in the site's cloud
 backend, edited in the newsroom; see `docs/editorial-context.md`.
