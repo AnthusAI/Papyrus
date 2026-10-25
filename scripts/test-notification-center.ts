@@ -126,6 +126,26 @@ async function main() {
   assert.equal(subjectLabel({ type: "story", id: "s1" }, { s1: "Title" }), "Title");
   assert.equal(subjectLabel({ type: "proposal", id: "p1" }), "proposal p1");
 
+  // A flag is acknowledged, not approved: new answers store "acknowledge"; an old stored "approve" on a flag still reads as Acknowledged.
+  const flag = FIXTURE_REVIEW_REQUESTS[3];
+  assert.equal(flag.mode, "flag");
+  const acknowledged = answerUpdate(flag, { decision: "acknowledge" }, "Ed Itor", NOW);
+  assert.equal(JSON.parse(String(acknowledged.answer)).decision, "acknowledge");
+  assert.throws(() => answerUpdate(FIXTURE_REVIEW_REQUESTS[0], { decision: "acknowledge" }, "x", NOW), /Only a flag is acknowledged/);
+  const answeredFlag = (decision: "acknowledge" | "approve") => ({ ...flag, state: "answered" as const, answer: { decision, feedback: null, steer: null, by: "Ed Itor", at: "2026-10-22T11:00:00Z" } });
+  assert.equal(nextText(answeredFlag("acknowledge")), "Acknowledged by Ed Itor on 2026-10-22 11:00 UTC.");
+  assert.equal(nextText(answeredFlag("approve")), "Acknowledged by Ed Itor on 2026-10-22 11:00 UTC.");
+  assert.equal(nextText({ ...answeredFlag("approve"), mode: "hard_gate" }), "Approved by Ed Itor on 2026-10-22 11:00 UTC.");
+  const flagPage = text(render({ requests: [answeredFlag("acknowledge")] }));
+  assert.ok(flagPage.includes("Acknowledged by Ed Itor") && !flagPage.includes("Approved by"), "an answered flag says Acknowledged");
+  assert.match(renderToStaticMarkup(createElement(NotificationCenterView, { loadState: "ready", requests: [flag], readIds: new Set<string>(), held: [], autoDecided: [] })), /Acknowledge<\/button>/);
+
+  // A card about a deleted story says so; a known story shows its title, an unknown one its id.
+  assert.equal(subjectLabel({ type: "story", id: "s1" }, { s1: "Title" }, new Set()), "Title");
+  assert.equal(subjectLabel({ type: "story", id: "gone" }, {}, new Set(["gone"])), "story gone (story deleted)");
+  assert.equal(subjectLabel({ type: "story", id: "x" }, {}, new Set(["gone"])), "story x");
+  assert.ok(text(render({ deletedStories: new Set(["story-ruling-1"]) })).includes("About: story story-ruling-1 (story deleted)"), "the card marks the deleted story");
+
   // The console home: the Notification Center does not scroll inside the page on a phone, and the section headings avoid the avoided word.
   const css = readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8");
   const frame = css.split("\n").filter((line) => line.includes(".newsroom-overview-feed-frame"));
