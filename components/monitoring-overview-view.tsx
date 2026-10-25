@@ -7,7 +7,6 @@ import {
   formatUtc,
   referenceHref,
   routingLabel,
-  usageText,
   type MonitoringItem,
   type MonitoringEmailDetails,
   type MonitoringEmailSummary,
@@ -129,7 +128,6 @@ function EmailSubmissions({ items, detail, onOpen }: {
 function Ready({ data, demo, emailDetail, onEmailOpen }: {
   data: MonitoringOverview; demo: boolean; emailDetail: MonitoringEmailDetails | null; onEmailOpen: (id: string) => void;
 }) {
-  const ceilings = data.usage?.ceilings ?? null;
   const router = data.router;
   return (
     <>
@@ -152,15 +150,14 @@ function Ready({ data, demo, emailDetail, onEmailOpen }: {
       </article>
 
       <article className="news-desk-doctrine-card" data-monitoring-section="usage">
-        <div className="news-desk-doctrine-card__header"><div><h3>Usage</h3><span>Decisions the router recorded, against the shared Cyclotron&apos;s ceilings (UTC days)</span></div></div>
+        <div className="news-desk-doctrine-card__header"><div><h3>Usage</h3><span>Observed router decisions, not a Cyclotron quota (UTC days)</span></div></div>
         {data.usage ? (
           <>
             <dl className="news-desk-monitoring__usage">
-              <div><dt>Decisions today ({data.usage.day})</dt><dd>{usageText(data.usage.decisionsToday, ceilings?.decisionsPerDay)}</dd></div>
-              <div><dt>Decisions in total</dt><dd>{usageText(data.usage.decisionsTotal, ceilings?.decisionsTotal)}</dd></div>
-              {ceilings?.items !== undefined ? <div><dt>Items judged (ceiling)</dt><dd>{usageText(data.usage.decisionsTotal, ceilings.items)}</dd></div> : null}
+              <div><dt>Decisions today ({data.usage.day})</dt><dd>{data.usage.historyComplete ? data.usage.decisionsToday : `At least ${data.usage.decisionsToday}`}</dd></div>
+              <div><dt>Decisions in inspected history</dt><dd>{data.usage.historyComplete ? data.usage.decisionsTotal : `At least ${data.usage.decisionsTotal}`}</dd></div>
             </dl>
-            {ceilings === null ? <p className="news-desk-delegation-note">No ceilings are configured here, so only usage is shown.</p> : null}
+            {!data.usage.historyComplete ? <p className="news-desk-delegation-note">Counts are lower bounds from a bounded history read.</p> : null}
           </>
         ) : <p>No usage recorded yet.</p>}
       </article>

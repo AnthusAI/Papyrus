@@ -21,7 +21,7 @@ def relevance(entry, publication):
     return next(r for r in entry["relevance"] if r["publicationId"] == publication)
 
 
-@given("a monitoring table with runs, routed items and a ceiling configuration")
+@given("a monitoring table with runs, routed items and a legacy quota configuration")
 def full_table(context):
     context.store = fx.FakeViewStore()
 
@@ -80,11 +80,11 @@ def router_state(context):
     assert router["mode"] == "live" and router["feedback"] is True and router["enabled"] is True
 
 
-@then("usage reads {today:d} of {per_day:d} decisions today and {total:d} of {limit:d} in total")
-def usage(context, today, per_day, total, limit):
+@then("usage reports {today:d} decisions today and {total:d} recorded decisions in inspected history without quotas")
+def usage(context, today, total):
     usage = context.overview["usage"]
-    assert (usage["decisionsToday"], usage["decisionsTotal"]) == (today, total)
-    assert usage["ceilings"]["decisionsPerDay"] == per_day and usage["ceilings"]["decisionsTotal"] == limit
+    assert (usage["decisionsToday"], usage["decisionsTotal"], usage["historyComplete"]) == (today, total, True)
+    assert "ceilings" not in usage
 
 
 @then('the queue shows only relevance for "{publication}"')
