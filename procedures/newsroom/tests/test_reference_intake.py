@@ -283,9 +283,12 @@ def test_simultaneous_first_intake_uses_conditional_create():
         data = payload()
         data["items"][0]["ingestion_rationale"] = f"Rationale from editor {index}"
         return intake_references(c, data, identity)
-    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            results = list(pool.map(request, range(4)))
+    with (
+        patch.dict("os.environ", ENV),
+        patch("papyrus_content.reference_intake.upload_attachment_body", c.upload),
+        ThreadPoolExecutor(max_workers=4) as pool,
+    ):
+        results = list(pool.map(request, range(4)))
     assert len(reference_conflicts) == 3
     assert all(r["references"] == results[0]["references"] for r in results)
     assert len(c.tables["Reference"]) == len(c.tables["KnowledgeImportRun"]) == len(c.uploads) == 1
