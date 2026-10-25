@@ -13,7 +13,10 @@ from procedures.newsroom.tests.email_submission_fixture import (
 
 @given("an email with failed authentication is available to an editor for private review")
 def email_pending_reference_fixture(context):
-    from procedures.newsroom.tests.test_reference_intake import IntakeClient
+    from procedures.newsroom.tests.test_reference_intake import (
+        EmailReceiptStore,
+        IntakeClient,
+    )
 
     context.email_reference_client = IntakeClient()
     context.email_reference_env = {
@@ -31,8 +34,13 @@ def email_pending_reference_fixture(context):
     }
     context.email_reference_payload = {
         "receiptId": "EMAIL#" + "c" * 64,
-        "items": [{"source_uri": "https://example.org/email-story", "title": "Email story"}],
+        "items": [{"candidateIndex": 0, "source_uri": "https://example.org/email-story"}],
     }
+    context.email_reference_store = EmailReceiptStore(
+        context.email_reference_payload["receiptId"],
+        [{"url": "https://example.org/email-story", "title": "Email story"}],
+        corpus_id="knowledge-corpus-email-publication",
+    )
 
 
 @when("the editor explicitly adds its selected article links to References")
@@ -46,11 +54,11 @@ def email_editor_imports_pending_references(context):
     ):
         context.email_reference_first = intake_email_submission_references(
             client, context.email_reference_payload, context.email_reference_identity,
-            env=context.email_reference_env,
+            env=context.email_reference_env, receipt_store=context.email_reference_store,
         )
         context.email_reference_retry = intake_email_submission_references(
             client, context.email_reference_payload, context.email_reference_identity,
-            env=context.email_reference_env,
+            env=context.email_reference_env, receipt_store=context.email_reference_store,
         )
 
 

@@ -1,12 +1,13 @@
-"""Read-only view of the monitoring pipeline for the newsroom's Monitoring page (PPY-31ba52).
+"""Publication-scoped Monitoring view and explicit email article-resolution action.
 
 The `papyrus-monitoring` stack keeps the collector's and router's state in one DynamoDB table
 (docs/monitoring-cloud.md). This module turns that table into the overview an editor reads:
 feeds watched, recent runs, the collected queue with routing state, per-publication relevance
 and delivery, and observed router decision counts.
 
-Access is least privilege on purpose. The Lambda that calls this holds `dynamodb:GetItem` and
-`dynamodb:Query` on that one table and nothing else. Nothing here can write. The response is
+Access is least privilege on purpose. The Lambda reads the monitoring table and can write only
+the editor-requested resolved destination for one email candidate in the `MONITOR#hn` partition.
+The response is
 projected field by field, so endpoints, role ARNs, account and run identifiers of the shared
 Cyclotron never leave the function. Editors get their own publication only; the whole shared
 pipeline is admin-only, and that is enforced here, not only in the browser.
@@ -56,7 +57,7 @@ def _clean(value):
 
 
 class TableViewStore:
-    """The only table access: `get_item` and `query`. It has no write method to call."""
+    """Scoped access to the one Monitoring partition used for email review."""
 
     def __init__(self, table, monitor_id: str = MONITOR_ID):
         self.table, self.pk = table, f"MONITOR#{monitor_id}"
@@ -102,6 +103,25 @@ class TableViewStore:
             start = result.get("LastEvaluatedKey")
             if not start:
                 return rows
+
+    def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None):
+        """Persist one editor-requested destination so later Reference intake can verify it."""
+        sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
+        item = {"pk": self.pk, "sk": sk, "receiptDigest": receipt_digest,
+                "candidateIndex": candidate_index, "sourceUri": url, "title": title,
+                "resolvedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+        if isinstance(ttl, int) and not isinstance(ttl, bool):
+            item["ttl"] = ttl
+        try:
+            self.table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+            return item
+        except Exception as error:
+            if "ConditionalCheckFailed" not in str(error):
+                raise
+        current = self.get(sk)
+        if not current or current.get("sourceUri") != url:
+            raise ValueError("email_candidate_resolution_conflict")
+        return current
 
 
 def _iso(epoch) -> str | None:
@@ -356,6 +376,14 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     link = detail["candidateLinks"][candidate_index]
     if link.get("resolutionStatus") != "unresolved" or not is_supported_beehiiv_tracking_url(link.get("url", "")):
         return {"error": "not_resolvable"}
+    digest = receipt_id.removeprefix("EMAIL#")
+    saved = store.get(f"EMAILRESOLVED#{digest}#{candidate_index:06d}")
+    if saved:
+        if (saved.get("receiptDigest") != digest or saved.get("candidateIndex") != candidate_index
+                or (isinstance(saved.get("ttl"), int) and saved["ttl"] <= int(datetime.now(timezone.utc).timestamp()))):
+            return {"error": "resolution_failed", "reason": "resolution_record_invalid"}
+        return {"url": saved.get("sourceUri"), "title": str(saved.get("title") or link.get("title") or "")[:1000],
+                "resolved": True}
     try:
         destination = (resolver or _resolve_beehiiv_article)(link["url"])
     except RedirectResolutionError as error:
@@ -363,6 +391,14 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     except Exception as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "redirect_request_failed"}
+    try:
+        store.record_email_resolution(
+            digest, candidate_index, url=destination,
+            title=str(link.get("title") or "")[:1000], ttl=store.get(receipt_id).get("ttl"),
+        )
+    except Exception as error:
+        LOG.error("email article resolution could not be recorded: %s", type(error).__name__)
+        return {"error": "resolution_failed", "reason": "resolution_not_recorded"}
     return {"url": destination, "title": str(link.get("title") or "")[:1000], "resolved": True}
 
 

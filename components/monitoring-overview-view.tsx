@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import {
@@ -9,6 +9,9 @@ import {
   formatUtc,
   referenceHref,
   routingLabel,
+  beginEmailSubmissionAction,
+  endEmailSubmissionAction,
+  isCurrentEmailSubmissionAction,
   type MonitoringItem,
   type MonitoringEmailDetails,
   type MonitoringEmailArticleResolution,
@@ -99,69 +102,94 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
-  const [selected, setSelected] = useState<Record<number, boolean>>({});
-  const [resolved, setResolved] = useState<Record<number, { url: string; title: string }>>({});
-  const [busyIndex, setBusyIndex] = useState<number | null>(null);
-  const [busyImport, setBusyImport] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [importedReferences, setImportedReferences] = useState<EmailReferenceImportOutcome["references"]>([]);
+  const [selectedByReceipt, setSelectedByReceipt] = useState<Record<string, Record<number, boolean>>>({});
+  const [resolvedByReceipt, setResolvedByReceipt] = useState<Record<string, Record<number, { url: string; title: string }>>>({});
+  const [busyIndexByReceipt, setBusyIndexByReceipt] = useState<Record<string, number | null>>({});
+  const [busyImportByReceipt, setBusyImportByReceipt] = useState<Record<string, boolean>>({});
+  const [noticeByReceipt, setNoticeByReceipt] = useState<Record<string, string>>({});
+  const [importedByReceipt, setImportedByReceipt] = useState<Record<string, EmailReferenceImportOutcome["references"]>>({});
   const receiptId = detail && "submission" in detail ? detail.submission.receiptId : null;
+  const receiptKey = receiptId ?? "";
+  const selected = selectedByReceipt[receiptKey] ?? {};
+  const resolved = resolvedByReceipt[receiptKey] ?? {};
+  const busyIndex = busyIndexByReceipt[receiptKey] ?? null;
+  const busyImport = busyImportByReceipt[receiptKey] ?? false;
+  const notice = noticeByReceipt[receiptKey] ?? "";
+  const importedReferences = importedByReceipt[receiptKey] ?? [];
+  const activeReceiptId = useRef<string | null>(receiptId);
+  activeReceiptId.current = receiptId;
+  const inFlightActions = useRef(new Set<string>());
   useEffect(() => {
     if (!detail || !("submission" in detail)) return;
-    setSelected(Object.fromEntries(detail.candidateLinks.map((link, index) => [index, link.resolutionStatus !== "unresolved"])));
-    setResolved({});
-    setNotice("");
-    setImportedReferences([]);
-  }, [receiptId, detail]);
+    setSelectedByReceipt((current) => current[receiptKey] ? current : {
+      ...current,
+      [receiptKey]: Object.fromEntries(detail.candidateLinks.map((link, index) => [index, link.resolutionStatus !== "unresolved"])),
+    });
+  }, [receiptKey, detail]);
 
   const resolveLink = async (index: number) => {
     if (!receiptId || !onResolveArticleLink) return;
-    setBusyIndex(index);
-    setNotice("");
+    const requestReceiptId = receiptId;
+    const actionKey = `resolve:${requestReceiptId}:${index}`;
+    if (!beginEmailSubmissionAction(inFlightActions.current, actionKey)) return;
+    setBusyIndexByReceipt((current) => ({ ...current, [requestReceiptId]: index }));
+    setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "" }));
     try {
-      const result = await onResolveArticleLink(receiptId, index);
+      const result = await onResolveArticleLink(requestReceiptId, index);
+      if (!isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) return;
       if (!("url" in result)) {
-        setNotice("The article destination could not be resolved safely. The original link remains private and unchanged.");
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The article destination could not be resolved safely. The original link remains private and unchanged." }));
         return;
       }
       const candidate = detail && "submission" in detail ? detail.candidateLinks[index] : null;
-      setResolved((current) => ({ ...current, [index]: { url: result.url, title: result.title || candidate?.title || "Article" } }));
-      setSelected((current) => ({ ...current, [index]: true }));
-      setNotice("Resolved. This request may be recorded as a click by the newsletter sender.");
+      setResolvedByReceipt((current) => ({ ...current, [requestReceiptId]: { ...current[requestReceiptId], [index]: { url: result.url, title: result.title || candidate?.title || "Article" } } }));
+      setSelectedByReceipt((current) => ({ ...current, [requestReceiptId]: { ...current[requestReceiptId], [index]: true } }));
+      setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "Resolved. This request may be recorded as a click by the newsletter sender." }));
     } catch {
-      setNotice("The article destination could not be resolved. Try again later.");
+      if (isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) {
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The article destination could not be resolved. Try again later." }));
+      }
     } finally {
-      setBusyIndex(null);
+      endEmailSubmissionAction(inFlightActions.current, actionKey);
+      setBusyIndexByReceipt((current) => ({ ...current, [requestReceiptId]: null }));
     }
   };
 
   const importSelected = async () => {
     if (!receiptId || !detail || !("submission" in detail) || !onImportCandidates) return;
+    const requestReceiptId = receiptId;
+    const actionKey = `import:${requestReceiptId}`;
+    if (inFlightActions.current.has(actionKey)) return;
     const candidates = detail.candidateLinks.flatMap((link, index) => {
       if (!selected[index]) return [];
       const resolvedLink = resolved[index];
       if (!resolvedLink && link.resolutionStatus === "unresolved") return [];
       const url = resolvedLink?.url ?? link.url;
-      return [{ source_uri: url, title: resolvedLink?.title || link.title || new URL(url).hostname }];
+      return [{ candidateIndex: index, source_uri: url }];
     });
     if (!candidates.length) {
-      setNotice("Select at least one available candidate link. Resolve tracking links before importing them.");
+      setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "Select at least one available candidate link. Resolve tracking links before importing them." }));
       return;
     }
-    setBusyImport(true);
-    setNotice("");
+    if (!beginEmailSubmissionAction(inFlightActions.current, actionKey)) return;
+    setBusyImportByReceipt((current) => ({ ...current, [requestReceiptId]: true }));
+    setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "" }));
     try {
-      const result = await onImportCandidates(receiptId, candidates);
-      setImportedReferences(result.references);
+      const result = await onImportCandidates(requestReceiptId, candidates);
+      if (!isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) return;
+      setImportedByReceipt((current) => ({ ...current, [requestReceiptId]: result.references }));
       if (result.error) {
-        setNotice(`${result.imported} of ${candidates.length} selected candidates were registered or matched. ${result.error}`);
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} of ${candidates.length} selected candidates were registered or matched. ${result.error}` }));
       } else {
-        setNotice(`${result.imported} selected candidates are available as References. Import does not approve or publish them.`);
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} selected candidates are available as References. Import does not approve or publish them.` }));
       }
     } catch {
-      setNotice("The import stopped. Any completed references are safe to retry; no review decision was made.");
+      if (isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) {
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The import stopped. Any completed references are safe to retry; no review decision was made." }));
+      }
     } finally {
-      setBusyImport(false);
+      endEmailSubmissionAction(inFlightActions.current, actionKey);
+      setBusyImportByReceipt((current) => ({ ...current, [requestReceiptId]: false }));
     }
   };
 
@@ -195,7 +223,7 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
             <label>
               <input type="checkbox" checked={selected[index] ?? false}
                 disabled={link.resolutionStatus === "unresolved" && !resolved[index]}
-                onChange={(event) => setSelected((current) => ({ ...current, [index]: event.target.checked }))} />
+                onChange={(event) => setSelectedByReceipt((current) => ({ ...current, [receiptKey]: { ...current[receiptKey], [index]: event.target.checked } }))} />
               Add as pending Reference
             </label>
             {link.resolutionStatus === "unresolved" && !resolved[index] ? (
