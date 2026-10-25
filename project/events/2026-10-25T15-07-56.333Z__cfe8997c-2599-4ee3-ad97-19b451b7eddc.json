@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "cfe8997c-2599-4ee3-ad97-19b451b7eddc",
+  "issue_id": "PPY-b231e413-03b7-4700-a79d-07a996f4fd01",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-25T15:07:56.333Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Hub monitor records feed the Knowledge Map as data",
+    "description": "As the editor of a site with a Hugging Face Hub monitor, I want the monitor's models to count in the weekly Knowledge Map (clusters, entities, weekly trends, built-on relations) without becoming site pages, so that Cited Trends can see what the Hub released and I can promote the notable ones to real items with approval. Opt-in site setting knowledgeRun.monitorSources: [huggingface]. Corpus-sync exports monitor-delivered References (any state except rejected) as monitor-record documents dated by createdAt; entities come deterministically from the Hub fields (maker, licence, task, model); base models import as built_on relations (subtype kept) with the Hub card as evidence and no AI review; ideas trends cites records; papyrus references promote creates a draft item; the weekly run report suggests top records in one soft review request. Out of scope: AI extraction for records, platform entity links, deploying anything.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+    "labels": []
+  }
+}
