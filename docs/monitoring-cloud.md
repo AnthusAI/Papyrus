@@ -130,9 +130,10 @@ Nothing here has been deployed. In account 712236451410 with `AWS_PROFILE=papyru
 1. Merge, then build and upload both zips (the collector zip gained `monitoring_huggingface.py`; the router imports it too):
    `python3 infra/monitoring/build.py --upload "$CODE_BUCKET"` and `python3 infra/monitoring/build.py --router --upload "$CODE_BUCKET"`
    (each prints its `CodeKey`; the bucket is the stack's `CodeBucket` parameter).
-2. Change set on `papyrus-monitoring` (reads first, then executes): the template adds `ShippedApiId`
-   (default `imnmexcbrzcddk2g4vl6hsn7ie`), the managed policy `RouterShippedIntakePolicy`, and the schedules
-   `papyrus-monitoring-huggingface-collect` and `-route`; the change set should show only those and the two function code updates.
+2. Change set on `papyrus-monitoring` (reads first, then executes). Against the deployed stack it should show the two function
+   code updates and the new schedules `papyrus-monitoring-huggingface-collect` and `-route` (plus the Shipped grants
+   `RouterShippedIntakePolicy` if they are not deployed yet). Every other parameter is `UsePreviousValue`, which keeps
+   `EditorUserPoolArns` (never omit it).
    ```sh
    aws cloudformation create-change-set --stack-name papyrus-monitoring --change-set-name huggingface-monitor \
      --template-body file://infra/monitoring/papyrus-monitoring.yaml --capabilities CAPABILITY_NAMED_IAM \
@@ -182,7 +183,7 @@ Recommended `shipped-huggingface-router.json` (a watchlist name that does not ex
                       "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
           "minLikes": 5, "minDownloads": 5000},
  "publications": [{"publicationId": "shipped", "site": "shipped.anth.us",
-                   "appsyncEndpoint": "https://imnmexcbrzcddk2g4vl6hsn7ie.appsync-api.us-east-1.amazonaws.com/graphql"}]}
+                   "appsyncEndpoint": "https://6sw6454pozbgvdgm233gqkxsxu.appsync-api.us-east-1.amazonaws.com/graphql"}]}
 ```
 
 Read the result with the `RUN#` receipt (`read.requests`, `read.stoppedBy`, `new`) as in "Reading it", using `MONITOR#huggingface`.
