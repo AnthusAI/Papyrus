@@ -3,7 +3,12 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../lib/monitoring-overview-fixture";
-import { emailReferenceBatches } from "../lib/monitoring-overview";
+import {
+  beginEmailSubmissionAction,
+  emailReferenceBatches,
+  endEmailSubmissionAction,
+  isCurrentEmailSubmissionAction,
+} from "../lib/monitoring-overview";
 import type { MonitoringResult } from "../lib/monitoring-overview";
 
 function text(html: string): string {
@@ -16,6 +21,39 @@ async function main() {
   assert.deepEqual(linkBatches.map((batch) => batch.length), [20, 20, 1],
     "API batches process every selected email link; 20 is not a total selection cap");
   assert.deepEqual(linkBatches.flat(), newsletterLinks);
+
+  // Duplicate actions for one receipt/candidate are suppressed while in flight;
+  // another receipt can proceed, and retry is permitted once the first settles.
+  const actionLocks = new Set<string>();
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:A:0"), true);
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:A:0"), false);
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:B:0"), true);
+  endEmailSubmissionAction(actionLocks, "resolve:A:0");
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:A:0"), true);
+  endEmailSubmissionAction(actionLocks, "resolve:A:0");
+
+  // Simulate both resolve and import responses arriving after the editor opens B.
+  for (const action of ["resolve", "import"]) {
+    let activeReceipt: string | null = "A";
+    const visibleResults: Record<string, string> = {};
+    let finishA!: (value: string) => void;
+    let finishB!: (value: string) => void;
+    const pendingA = new Promise<string>((resolve) => { finishA = resolve; });
+    const pendingB = new Promise<string>((resolve) => { finishB = resolve; });
+    const applyWhenCurrent = async (receipt: string, pending: Promise<string>) => {
+      const result = await pending;
+      if (isCurrentEmailSubmissionAction(activeReceipt, receipt)) visibleResults[receipt] = result;
+    };
+    const requestA = applyWhenCurrent("A", pendingA);
+    activeReceipt = "B";
+    const requestB = applyWhenCurrent("B", pendingB);
+    finishA(`${action}-A`);
+    await requestA;
+    assert.deepEqual(visibleResults, {}, `${action} response for a closed receipt is discarded`);
+    finishB(`${action}-B`);
+    await requestB;
+    assert.deepEqual(visibleResults, { B: `${action}-B` }, `${action} response updates only the open receipt`);
+  }
 
   (globalThis as { React?: typeof React }).React = React;
   const { MonitoringOverviewView } = await import("../components/monitoring-overview-view");

@@ -234,6 +234,12 @@ def test_email_article_redirect_resolution_is_an_explicit_scoped_editor_action()
     )
     assert result == {"url": "https://news.example.org/story", "title": "Story", "resolved": True}
     assert calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
+    assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000")["sourceUri"] == "https://news.example.org/story"
+    repeated = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append("duplicate:" + url) or "https://wrong.example/",
+    )
+    assert repeated == result and calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
 
 
 def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts():

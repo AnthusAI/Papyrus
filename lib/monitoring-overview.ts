@@ -48,7 +48,7 @@ export type MonitoringEmailArticleResolution = {
   url: string; title: string; resolved: true;
 } | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string } | { state: "unavailable" };
 
-export type EmailReferenceImportItem = { source_uri: string; title: string };
+export type EmailReferenceImportItem = { candidateIndex: number; source_uri: string };
 export type EmailReferenceImportOutcome = {
   imported: number; references: { id: string; lineageId: string; curationStatus: string }[]; error?: string;
 };
@@ -61,6 +61,21 @@ export function emailReferenceBatches<T>(items: T[], batchSize = 20): T[][] {
     batches.push(items.slice(offset, offset + batchSize));
   }
   return batches;
+}
+
+/** Async email actions may only update the receipt that is still open. */
+export function isCurrentEmailSubmissionAction(activeReceiptId: string | null, actionReceiptId: string): boolean {
+  return activeReceiptId === actionReceiptId;
+}
+
+export function beginEmailSubmissionAction(inFlight: Set<string>, actionKey: string): boolean {
+  if (inFlight.has(actionKey)) return false;
+  inFlight.add(actionKey);
+  return true;
+}
+
+export function endEmailSubmissionAction(inFlight: Set<string>, actionKey: string): void {
+  inFlight.delete(actionKey);
 }
 
 export type MonitoringRun = {

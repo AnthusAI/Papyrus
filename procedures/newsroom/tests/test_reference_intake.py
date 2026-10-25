@@ -57,12 +57,33 @@ def submit(client, data=None, identity=None):
 
 
 def submit_email(client, data=None, identity=None):
-    email_env = {**ENV, "PAPYRUS_PUBLICATION_CORPUS_KEY": "email-publication"}
+    email_env = dict(ENV)
     client.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {"id": "knowledge-corpus-email-publication"}
     request = data or {"receiptId": "EMAIL#" + "a" * 64,
-                       "items": [{"source_uri": "https://example.test/email-story", "title": "Email story"}]}
+                       "items": [{"candidateIndex": 0, "source_uri": "https://example.test/email-story"}]}
+    receipt_store = EmailReceiptStore(request["receiptId"], [{"url": "https://example.test/email-story", "title": "Email story"}])
     with patch.dict("os.environ", email_env), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
-        return intake_email_submission_references(client, request, IDENTITY if identity is None else identity, env=email_env)
+        return intake_email_submission_references(client, request, IDENTITY if identity is None else identity,
+                                                  env=email_env, receipt_store=receipt_store)
+
+
+class EmailReceiptStore:
+    def __init__(self, receipt_id, links, *, destinations=("p-apyr-us",), endpoint=ENDPOINT,
+                 status="pending_review", trust_mode="data-only", corpus_id="knowledge-corpus-email-publication"):
+        digest = receipt_id.removeprefix("EMAIL#")
+        self.rows = {
+            receipt_id: {"sk": receipt_id, "status": status, "emailTrustMode": trust_mode,
+                         "emailDestinationPublicationIds": list(destinations), "ttl": 4_000_000_000},
+            "CONFIG#router": {"publications": [{"publicationId": "p-apyr-us", "appsyncEndpoint": endpoint,
+                                                  "corpusId": corpus_id}]},
+            f"EMAILDETAIL#{digest}#LINKS#0000": {"sk": f"EMAILDETAIL#{digest}#LINKS#0000", "json": json.dumps(links)},
+        }
+
+    def get(self, sk):
+        return copy.deepcopy(self.rows.get(sk))
+
+    def email_details(self, digest):
+        return copy.deepcopy([row for sk, row in self.rows.items() if sk.startswith(f"EMAILDETAIL#{digest}#")])
 
 
 def test_editor_intake_and_link_preserve_story():
@@ -146,11 +167,27 @@ def test_email_candidate_import_creates_pending_reference_with_private_receipt_p
     assert len(c.tables["Reference"]) == 1
     reference = next(iter(c.tables["Reference"].values()))
     assert reference["curationStatus"] == "pending" and reference["curationStatusReason"].startswith(
-        "An editor selected this candidate from private email receipt EMAIL#"
+        "An editor selected candidate 0 from private email receipt EMAIL#"
     )
     assert "approval" in reference["curationStatusReason"] and reference["versionCreatedBy"] == "user:editor-sub"
     provenance = json.loads(next(iter(c.uploads.values())))
     assert provenance["initialStatus"] == "pending" and "EMAIL#" in provenance["rationale"]
+
+
+def test_email_import_uses_verified_router_corpus_not_the_stale_brand_key():
+    c = IntakeClient()
+    c.tables["KnowledgeCorpus"] = {"knowledge-corpus-ai-ml-research": {"id": "knowledge-corpus-ai-ml-research"}}
+    receipt_id = "EMAIL#" + "f" * 64
+    request = {"receiptId": receipt_id,
+               "items": [{"candidateIndex": 0, "source_uri": "https://example.test/email-story"}]}
+    store = EmailReceiptStore(receipt_id, [{"url": "https://example.test/email-story", "title": "Email story"}],
+                              corpus_id="knowledge-corpus-ai-ml-research")
+    # p.apyr.us currently has this older brand key; the authorized router binding is the actual canonical corpus.
+    stale_env = {**ENV, "PAPYRUS_PUBLICATION_CORPUS_KEY": "p-apyr-us"}
+    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_email_submission_references(c, request, IDENTITY, env=stale_env, receipt_store=store)
+    reference = c.tables["Reference"][result["references"][0]["id"]]
+    assert reference["corpusId"] == "knowledge-corpus-ai-ml-research"
 
 
 def test_email_candidate_import_rejects_client_supplied_status_actor_and_unbounded_batches():
@@ -163,8 +200,54 @@ def test_email_candidate_import_rejects_client_supplied_status_actor_and_unbound
                          "items": [{"source_uri": "https://example.test/x", "title": "X", "curation_status": "accepted"}]})
     with pytest.raises(IntakeError, match="between 1 and 20"):
         submit_email(c, {"receiptId": "EMAIL#" + "a" * 64,
-                         "items": [{"source_uri": f"https://example.test/{i}", "title": f"{i}"} for i in range(21)]})
+                         "items": [{"candidateIndex": i, "source_uri": f"https://example.test/{i}"} for i in range(21)]})
     assert not c.tables["Reference"]
+
+
+@pytest.mark.parametrize("change", ["foreign receipt", "foreign publication", "wrong candidate", "tampered URL", "bad state", "non-data-only", "expired receipt"])
+def test_email_candidate_import_verifies_receipt_scope_and_membership_before_writes(change):
+    c = IntakeClient()
+    receipt_id = "EMAIL#" + "c" * 64
+    store = EmailReceiptStore(receipt_id, [{"url": "https://example.test/allowed", "title": "Allowed"}])
+    request = {"receiptId": receipt_id,
+               "items": [{"candidateIndex": 0, "source_uri": "https://example.test/allowed"}]}
+    if change == "foreign receipt":
+        request["receiptId"] = "EMAIL#" + "d" * 64
+    elif change == "foreign publication":
+        store.rows["CONFIG#router"]["publications"][0]["appsyncEndpoint"] = "https://other.appsync-api.us-east-1.amazonaws.com/graphql"
+    elif change == "wrong candidate":
+        request["items"][0]["candidateIndex"] = 2
+    elif change == "tampered URL":
+        request["items"][0]["source_uri"] = "https://attacker.example/other"
+    elif change == "bad state":
+        store.rows[receipt_id]["status"] = "rejected"
+    elif change == "non-data-only":
+        store.rows[receipt_id]["emailTrustMode"] = "trusted"
+    elif change == "expired receipt":
+        store.rows[receipt_id]["ttl"] = 1
+    email_env = dict(ENV)
+    c.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {"id": "knowledge-corpus-email-publication"}
+    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        with pytest.raises(IntakeError):
+            intake_email_submission_references(c, request, IDENTITY, env=email_env, receipt_store=store)
+    assert not c.tables["Reference"] and not c.uploads
+
+
+def test_email_candidate_import_requires_recorded_resolution_for_unresolved_candidate():
+    c = IntakeClient()
+    receipt_id = "EMAIL#" + "e" * 64
+    links = [{"url": "https://link.mail.beehiiv.com/ss/c/article-token", "title": "Story", "resolutionStatus": "unresolved"}]
+    store = EmailReceiptStore(receipt_id, links)
+    request = {"receiptId": receipt_id, "items": [{"candidateIndex": 0, "source_uri": "https://news.example/story"}]}
+    email_env = dict(ENV)
+    c.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {"id": "knowledge-corpus-email-publication"}
+    with pytest.raises(IntakeError, match="not resolved"):
+        intake_email_submission_references(c, request, IDENTITY, env=email_env, receipt_store=store)
+    store.rows[f"EMAILRESOLVED#{'e' * 64}#000000"] = {"receiptDigest": "e" * 64, "candidateIndex": 0,
+                                                        "sourceUri": "https://news.example/story", "ttl": 4_000_000_000}
+    with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        result = intake_email_submission_references(c, request, IDENTITY, env=email_env, receipt_store=store)
+    assert result["ok"] and result["references"][0]["sourceUri"] == "https://news.example/story"
 
 
 def test_legacy_reference_deduplicated_without_recuration():
@@ -234,13 +317,16 @@ def test_email_import_action_uses_the_existing_editor_identity_boundary():
         "email_intake_actions", Path(__file__).resolve().parents[3] / "amplify/functions/content-actions/handler.py")
     handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
     c = IntakeClient()
-    email_env = {**ENV, "PAPYRUS_PUBLICATION_CORPUS_KEY": "email-publication"}
+    email_env = dict(ENV)
     c.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {"id": "knowledge-corpus-email-publication"}
     event = {"fieldName": "intakeEmailSubmissionReferences", "arguments": {"input": json.dumps({
         "receiptId": "EMAIL#" + "b" * 64,
-        "items": [{"source_uri": "https://example.test/newsletter", "title": "Newsletter story"}],
+        "items": [{"candidateIndex": 0, "source_uri": "https://example.test/newsletter"}],
     })}, "identity": IDENTITY}
+    receipt_store = EmailReceiptStore("EMAIL#" + "b" * 64,
+                                      [{"url": "https://example.test/newsletter", "title": "Newsletter story"}])
     with patch.dict("os.environ", email_env), patch.object(handler, "create_authoring_client", return_value=(c, {})), \
+            patch("papyrus_content.monitoring_view.default_store_factory", return_value=lambda: receipt_store), \
             patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
         response = handler.handler(event, None)
         assert response["ok"] and response["references"][0]["curationStatus"] == "pending"
