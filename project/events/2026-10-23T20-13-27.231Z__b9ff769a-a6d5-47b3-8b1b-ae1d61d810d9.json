@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "b9ff769a-a6d5-47b3-8b1b-ae1d61d810d9",
+  "issue_id": "PPY-0d18a6ba-c78d-4f96-8245-fa11de233b83",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-23T20:13:27.231Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Define Papyrus shared chat trust boundary contract",
+    "description": "Add a code-local reusable admission contract for site-hosted shared chat. Inject a verified Papyrus principal and membership resolver; derive Account/site/editor on the server; enforce private per-editor transcript ownership and operation-scoped idempotency with payload-reuse rejection. Cover rejection and replay behavior in tests and Gherkin. Document that JWT audience, client_id and token_use are distinct and that the production token type and verifier configuration must be verified before wiring. No exposed endpoint, live AppSync changes, live IAM/OIDC, or deployment.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-839cf737-d3e6-46de-bb24-911bde8d11d4",
+    "labels": []
+  }
+}

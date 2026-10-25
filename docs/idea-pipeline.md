@@ -178,7 +178,7 @@ passing draft in full and each failing draft with its problems; it stores nothin
 
 Limits: the check proves that every sentence points at the snapshot and that its digits come from the signals it cites; it does not prove
 that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items.
-Trend drafts are not scheduled yet (PPY-8ffc18).
+The weekly cloud knowledge run can run this command after it publishes the snapshot, off by default ([knowledge-cloud-run.md](knowledge-cloud-run.md#trend-drafts-optional-off-by-default)).
 
 ## Friction for the run contract
 

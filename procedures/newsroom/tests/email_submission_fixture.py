@@ -20,11 +20,32 @@ https://example.org/beta\r
 
 class S3:
     def __init__(self, raw=RAW):
-        self.raw, self.calls = raw, []
+        self.raw, self.calls, self.objects = raw, [], {}
 
-    def get_object(self, *, Bucket, Key):
+    def put_object(self, *, Bucket, Key, Body, Metadata=None, **_):
+        self.objects[Key] = (bytes(Body), Metadata or {})
+
+    def get_object(self, *, Bucket, Key, Range=None):
         self.calls.append((Bucket, Key))
-        return {"ContentLength": len(self.raw), "Body": BytesIO(self.raw)}
+        if Key not in self.objects:
+            return {"ContentLength": len(self.raw), "Body": BytesIO(self.raw)}
+        data, metadata = self.objects[Key]
+        if Range:
+            start, end = (int(part) for part in Range.removeprefix("bytes=").split("-"))
+            data = data[start:end + 1]
+        return {"ContentLength": len(data), "Metadata": metadata, "Body": BytesIO(data)}
+
+
+class EmailTable(FakeTable):
+    def query(self, KeyConditionExpression, ExpressionAttributeValues=None, IndexName=None,
+              ScanIndexForward=True, Limit=None, **kwargs):
+        if IndexName == "routing" and not isinstance(KeyConditionExpression, str):
+            partition = KeyConditionExpression.get_expression()["values"][1]
+            rows = sorted((row for row in self.items.values() if row.get("gsi1pk") == partition),
+                          key=lambda row: row["gsi1sk"], reverse=not ScanIndexForward)
+            return {"Items": [deepcopy(row) for row in rows[:Limit]]}
+        return super().query(KeyConditionExpression, ExpressionAttributeValues, IndexName,
+                             ScanIndexForward, Limit, **kwargs)
 
 
 class Cognito:
@@ -52,7 +73,7 @@ class Cognito:
 
 
 def email_fixture():
-    table = FakeTable()
+    table = EmailTable()
     config = {"pk": "MONITOR#email-publication", "sk": "CONFIG#email", "schemaVersion": 1,
               "enabled": True, "accountId": "account-fixture", "kind": "publication",
               "addresses": ["submissions@publication.example"],

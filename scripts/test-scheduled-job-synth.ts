@@ -70,7 +70,7 @@ const definition = definitionOf(template);
 assert.equal(definition.QueryLanguage, "JSONata");
 assert.equal(definition.StartAt, stages[0]);
 const taskStateNames = Object.keys(definition.States).filter((name) => definition.States[name].Type === "Task");
-assert.deepEqual(taskStateNames, stages, "task states exist in stage order");
+assert.deepEqual(taskStateNames, [...stages, "trend-drafts"], "task states exist in stage order, then the optional trend-drafts step");
 stages.forEach((name, index) => {
   const state = definition.States[name];
   assert.match(state.Resource, /:states:::ecs:runTask\.sync$/);
@@ -79,7 +79,7 @@ stages.forEach((name, index) => {
   assert.deepEqual(state.Arguments.Overrides.ContainerOverrides[0].Command, ["papyrus", "knowledge", "cloud-run", "--stage", name]);
   assert.equal(state.Arguments.Overrides.ContainerOverrides[0].Name, "job");
   assert.equal(state.TimeoutSeconds, 7200);
-  assert.equal(state.Next, index + 1 < stages.length ? stages[index + 1] : "Done");
+  assert.equal(state.Next, index + 1 < stages.length ? stages[index + 1] : "Run-trend-drafts");
   assert.equal(state.Retry.length, 1);
   assert.deepEqual(
     { ...state.Retry[0], ErrorEquals: undefined },
@@ -97,9 +97,34 @@ assert.equal(
   "only wiki-sync continues into projection",
 );
 assert.ok(
-  Object.entries<any>(definition.States).filter(([, state]) => state.Type === "Task").every(([, state]) => state.Catch[0].Next.startsWith("Failed-")),
+  stages.every((name) => definition.States[name].Catch[0].Next.startsWith("Failed-")),
   "a failed stage goes to a Fail state, never on to the next stage",
 );
+
+// The optional trend-drafts step: off by default, after projection, and a failure never fails the run.
+const trendParameters = template.toJSON().Parameters;
+assert.equal(trendParameters.TrendDraftsEnabled.Default, "false");
+assert.deepEqual(trendParameters.TrendDraftsEnabled.AllowedValues, ["true", "false"]);
+assert.equal(trendParameters.TrendDraftsEndpoint.Default, "");
+assert.equal(trendParameters.TrendDraftsSnapshotUrl.Default, "");
+const trendGate = definition.States["Run-trend-drafts"];
+assert.equal(trendGate.Type, "Choice");
+assert.equal(definition.States.projection.Next, "Run-trend-drafts", "the step runs only after projection has published the snapshot");
+assert.equal(trendGate.Choices.length, 1);
+assert.equal(trendGate.Choices[0].Next, "trend-drafts");
+assert.equal(trendGate.Default, "Done", "disabled: the run ends as before");
+assert.match(trendGate.Choices[0].Condition, /^\{% '.*' = 'true' %\}$/);
+const trendState = definition.States["trend-drafts"];
+assert.deepEqual(trendState.Arguments.Overrides.ContainerOverrides[0].Command, ["python", "/opt/papyrus-jobs/trend_drafts.py"]);
+assert.equal(trendState.Next, "Done");
+assert.deepEqual(trendState.Catch, [{ ErrorEquals: ["States.ALL"], Next: "Done" }], "a failure is swallowed, not a Fail state");
+assert.equal(trendState.Retry[0].MaxAttempts, 0);
+assert.equal(definition.States["Failed-trend-drafts"], undefined);
+assert.ok(
+  trendState.Arguments.Overrides.ContainerOverrides[0].Environment.some((entry: any) => entry.Name === "TREND_DRAFTS_ENDPOINT"),
+  "the endpoint reaches the step",
+);
+assert.ok(!everything.includes("sk-"), "no key anywhere in the template");
 
 // Execution input contract: JSONata expressions over the execution context, per stage.
 const environmentOverrides = Object.fromEntries(

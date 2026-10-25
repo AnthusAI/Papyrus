@@ -1,3 +1,4 @@
 *
 !infra/knowledge-run/constraints.txt
 !infra/knowledge-run/bake_models.py
+!infra/knowledge-run/trend_drafts.py

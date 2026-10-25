@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "3cfc8c00-5cbe-4bf9-a273-fa43eefc82bf",
+  "issue_id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-24T23:08:38.400Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "As an editor, I want publication and explicitly shared Cyclotron submission addresses to ingest safe newsletter links into pending Reference workflows. User authorized implementation on 2026-10-23; this scoped backend slice does not close the broader inbox-reader milestone. Feature: Authorized email reference intake\nScenario: Route a submitted newsletter\nGiven an explicitly configured publication or shared destination and authenticated allowed sender\nWhen a multipart newsletter with multiple editorial links is received\nThen safe links enter existing deduplicated Monitoring and Reference workflows with private provenance\nAnd publication selection precedes section classification\nAnd retries are idempotent and failures visible\nAnd instructions, action links, human labels and automatic publishing are never executed\nScenario: Cloud email without newsletters\nGiven a cloud-backed site without the newsletter plugin\nWhen its infrastructure is synthesized\nThen sender identity and configured email intake are supported independently\nAnd a static-only site requires no email resources\nScope: code, IaC, local fixtures, tests and draft PR only. No deployment, DNS/MX, policy changes, credentials, real email or merges.",
+        "to": "As an editor, I want newsletter email received at publication or explicitly shared Cyclotron destinations to enter existing pending-reference workflows as untrusted source material. SPF, DKIM, and DMARC verdicts are recorded as provenance signals, not sender authorization. Sender addresses and MIME headers never grant roles or choose destination; exact recipient configuration scopes routing. Passing SES spam and virus checks, bounded MIME parsing, safe link handling, idempotent retries, and visible failures remain. Editors can privately read an inert text rendering, verdicts, and every extracted candidate link. No instructions, action links, human labels, automated feedback, or publishing are executed."
+      }
+    }
+  }
+}
