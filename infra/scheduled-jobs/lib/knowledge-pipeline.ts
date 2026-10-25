@@ -1,4 +1,4 @@
-import { Stack, StackProps, Tags } from "aws-cdk-lib";
+import { CfnParameter, Stack, StackProps, Tags } from "aws-cdk-lib";
 import * as iam from "aws-cdk-lib/aws-iam";
 import { Construct } from "constructs";
 import { KNOWLEDGE_STAGE_NAMES, DEFAULT_STAGE_TIMEOUT_SECONDS, type KnowledgeRunConfig } from "./knowledge-run-config";
@@ -6,6 +6,13 @@ import { PROJECTION_LOCK_PARAMETER_NAME, PROJECTION_LOCK_TABLE_NAME } from "./pr
 import { ScheduledContainerJob, type PipelineDefinition } from "./scheduled-container-job";
 
 export const KNOWLEDGE_JOB_ID = "knowledge-run";
+
+export const TREND_DRAFTS_STAGE = "trend-drafts";
+/** The job script baked into the image (infra/knowledge-run/trend_drafts.py). It never exits non-zero. */
+export const TREND_DRAFTS_COMMAND = ["python", "/opt/papyrus-jobs/trend_drafts.py"];
+
+/** CloudFormation parameter values (tokens) that switch on and aim the optional trend-drafts step. */
+export type TrendDraftsOptions = { enabled: string; endpoint: string; snapshotUrl: string };
 
 export function knowledgeRunStackName(publication: string): string {
   return `papyrus-scheduled-job-${KNOWLEDGE_JOB_ID}-${publication}`;
@@ -16,14 +23,26 @@ export function knowledgeRunStackName(publication: string): string {
  * `papyrus knowledge cloud-run --stage <name>`, with the execution input read as
  * `{"publication": "<id>", "failStage": "<stage>"}` (both optional).
  */
-export function knowledgePipeline(config: KnowledgeRunConfig): PipelineDefinition {
+export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: TrendDraftsOptions): PipelineDefinition {
   const input = "$states.context.Execution.Input";
   return {
-    stages: KNOWLEDGE_STAGE_NAMES.map((name) => ({
-      name,
-      command: ["papyrus", "knowledge", "cloud-run", "--stage", name],
-      timeoutSeconds: config.stageTimeouts[name] ?? DEFAULT_STAGE_TIMEOUT_SECONDS,
-    })),
+    stages: [
+      ...KNOWLEDGE_STAGE_NAMES.map((name) => ({
+        name,
+        command: ["papyrus", "knowledge", "cloud-run", "--stage", name],
+        timeoutSeconds: config.stageTimeouts[name] ?? DEFAULT_STAGE_TIMEOUT_SECONDS,
+      })),
+      // Optional and last: after projection has published the snapshot. A failure here never fails the run.
+      ...(trendDrafts ? [{
+        name: TREND_DRAFTS_STAGE,
+        command: TREND_DRAFTS_COMMAND,
+        timeoutSeconds: 1800,
+        retry: { maxAttempts: 0 },
+        bestEffort: true,
+        runIf: `'${trendDrafts.enabled}' = 'true'`,
+        environment: { TREND_DRAFTS_ENDPOINT: trendDrafts.endpoint, TREND_DRAFTS_SNAPSHOT_URL: trendDrafts.snapshotUrl },
+      }] : []),
+    ],
     executionEnvironment: {
       KNOWLEDGE_PUBLICATION: `$exists(${input}.publication) ? ${input}.publication : '${config.publication}'`,
       KNOWLEDGE_EXECUTION_NAME: "$states.context.Execution.Name",
@@ -137,10 +156,25 @@ export class KnowledgeRunStack extends Stack {
     Tags.of(this).add("Project", "Papyrus");
     Tags.of(this).add("Publication", config.publication);
 
+    // Off by default. The three values are parameters so that enabling the step is a change set, not a code change.
+    const trendDrafts = {
+      enabled: new CfnParameter(this, "TrendDraftsEnabled", {
+        type: "String", default: "false", allowedValues: ["true", "false"],
+        description: "true: after a successful run, draft trend stories from the fresh snapshot (private Proposals, nothing published).",
+      }).valueAsString,
+      endpoint: new CfnParameter(this, "TrendDraftsEndpoint", {
+        type: "String", default: "", allowedPattern: "^(https://[a-z0-9]+\\.appsync-api\\.[a-z0-9-]+\\.amazonaws\\.com/graphql)?$",
+        description: "The publication's AppSync GraphQL endpoint (the step signs its requests with the task role).",
+      }).valueAsString,
+      snapshotUrl: new CfnParameter(this, "TrendDraftsSnapshotUrl", {
+        type: "String", default: "", allowedPattern: "^(https://[^ ]+/_data/knowledge/index\\.json)?$",
+        description: "The published snapshot index, such as https://shipped.anth.us/_data/knowledge/index.json.",
+      }).valueAsString,
+    };
     this.job = new ScheduledContainerJob(this, "Job", {
       jobId: KNOWLEDGE_JOB_ID,
       publication: config.publication,
-      pipeline: knowledgePipeline(config),
+      pipeline: knowledgePipeline(config, trendDrafts),
       imageTag,
       defaultSize: { vCpu: config.vCpu, memoryMiB: config.memoryMiB, ephemeralStorageGiB: config.ephemeralStorageGiB },
       defaultStageTimeoutSeconds: DEFAULT_STAGE_TIMEOUT_SECONDS,
