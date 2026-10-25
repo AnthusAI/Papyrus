@@ -152,6 +152,8 @@ Output is deterministic: keys sorted, no timestamps, `asOf` is the given date. A
 
 `entities/<key>.json`: `schemaVersion`, `key`, `kind`, `name`, `aliases`, `acceptedBy`, `description` (`state` `reviewed|ai_edited|draft|none`, `editedBy`), `href`, `itemCount`, `weeksOfHistory`, `series8`, `series26`, `change`, `neighbours` (`relation`, `key`, `name`, `kind`, `weight`), `relatedItems` (`title`, `url`, `publishedAt`, `reason`).
 
+A site that counts monitor records ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)) adds, only where a record counts: `recordCount` on an entity row and file and on a cluster row (records are part of `itemCount`, `series8` and `change`); `relatedRecords` on the entity file (`title` = model id, `url` = the source's own card, `publishedAt`, `summary`, `source`, `provenance`, `reason`), which keeps `relatedItems` to the site's own pages; and, on a `neighbours` row of a relation imported from a source fact (`built_on`), `subtype`, `evidence` and `provenance`. An entity that only records mention has `href: null`.
+
 `clusters.json`: `schemaVersion`, `asOf`, `runId`, `unacceptedClusters`, `clusters` (`uid`, `beats` (keys of the beats that share published member items with the cluster), `name`, `acceptedBy`, `state` `new|growing|cooling|null`, `itemCount`, `topTerms`, `series8`, `weeksOfData`, `href`).
 
 `change` is `{last4, prior4, percent}`. `acceptedBy` and `editedBy` are `{actor: "ai" | "human", name: string | null, on: "YYYY-MM-DD"}`, or `null` when nothing is recorded (an unnamed cluster never claims an acceptance).

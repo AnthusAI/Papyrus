@@ -109,6 +109,10 @@ until Cyclotron criteria exist; `cyclotron` routing also works, and sends `value
 machine API must accept that source). The delivered Reference's rationale line carries the pipeline tag, license, likes
 and base models, and the provenance Message body carries the whole `details` map.
 
+### Feeding the Knowledge Map
+
+Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in clusters, entities (the model, its maker, licence and task) and weekly trends, and imports `baseModels` as `built_on` relations with the Hub card as evidence. To make that possible without downloading each provenance Message, the router now also writes the model's structured `details` into the `metadata` of the `ingestion_rationale` relation that links the provenance Message to the Reference (a model delivered before this change is still counted, with its title, date and author only). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
+
 ### Backfill: loading history
 
 `papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z` loads the models created since then that

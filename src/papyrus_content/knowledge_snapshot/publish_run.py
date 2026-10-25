@@ -387,13 +387,21 @@ def plan_publish_run(
     include_front_matter: bool = True,
     confirm_resolved: bool = False,
     front_matter_actor_name: str | None = None,
+    records: list | None = None,
+    record_rows: list[dict] | None = None,
 ) -> PublishPlan:
+    """``records`` are monitor records (``monitor_records.py``) and ``record_rows`` the current relation rows that touch the
+    accepted entities: together they add the structured entities and relations of the records (``monitor_import.py``)."""
     plan = PublishPlan()
     index = NodeIndex(node_rows)
     confirmed: set[tuple[str, str]] = set()
     if include_front_matter:
         agent = Actor(actor=ACTOR_AI, name=front_matter_actor_name, on=now[:10])
         confirmed = plan_front_matter(items, index, mention_rows, plan, corpus_id=corpus_id, now=now, accepted_by=agent)
+    if records:
+        from .monitor_import import plan_monitor_records  # noqa: PLC0415 - monitor_import imports this module
+
+        plan_monitor_records(records, index, record_rows or [], plan, corpus_id=corpus_id, now=now)
     if run is not None:
         plan.warnings.extend(run.warnings)
         if run.entities:

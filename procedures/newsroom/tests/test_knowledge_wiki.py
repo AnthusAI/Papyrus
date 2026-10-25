@@ -605,3 +605,34 @@ def test_only_a_wiki_page_may_list_other_pages_from_inside_an_item(client, made_
     publish_item(client, sneaky.id, actor="t", now=NOW)
     with pytest.raises(ValueError, match="::include is not available here"):
         made_site().project()
+
+
+# ------------------------------------------------------------------ monitor records count as data and make no page
+
+def test_an_entity_only_monitor_records_mention_gets_no_wiki_page_and_is_no_page_neighbour():
+    from papyrus_content.knowledge_snapshot.model import EntityNode, ItemLink, KnowledgeData, NodeRelation, PublishedItem
+    from papyrus_content.knowledge_wiki.sync import data_only_lineages, entity_specs, related_keys
+
+    def node(kind, name):
+        key = f"{kind}--{name.lower().replace('/', '-')}"
+        return EntityNode(lineage_id=f"semantic-node-{key}", node_key=key, kind=kind, name=name, status="accepted")
+
+    story, hub = node("maker", "Acme"), node("maker", "Moonshot")
+    model, base = node("model", "moon/tuned"), node("model", "acme/base")
+    data = KnowledgeData(
+        items=(PublishedItem(key="lineage-story", item_id="item-story", title="Story", url="/posts/story/", published_at="2026-10-12T00:00:00Z"),),
+        nodes=(story, hub, model, base),
+        links=(
+            ItemLink("lineage-story", story.lineage_id, True),
+            ItemLink("lineage-story", base.lineage_id, True),  # a site item names the base model: it is a page
+            ItemLink("lineage-ref", hub.lineage_id, True, source="monitor"),
+            ItemLink("lineage-ref", model.lineage_id, True, source="monitor"),
+            ItemLink("lineage-ref", base.lineage_id, True, source="monitor"),
+        ),
+        relations=(NodeRelation(model.lineage_id, base.lineage_id, "built_on", True), NodeRelation(story.lineage_id, base.lineage_id, "made_by", True)),
+    )
+    assert data_only_lineages(data) == {hub.lineage_id, model.lineage_id}
+    specs = entity_specs(data, {})
+    assert sorted(spec.key for spec in specs) == ["maker--acme", "model--acme-base"]
+    related = related_keys(data)
+    assert all("moon" not in other for others in related.values() for other in others)  # no page links to a data-only entity

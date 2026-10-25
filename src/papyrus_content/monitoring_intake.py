@@ -133,7 +133,9 @@ class ReferenceIntake:
             "objectKind": "reference", "objectId": reference["id"],
             "objectLineageId": reference["lineageId"], "objectVersionNumber": reference.get("versionNumber") or 1,
             "importRunId": context["importRunId"], "importedAt": provenance["observedAt"],
-            "metadata": {"monitorId": self.monitor.id, "sourceId": item.source_id},
+            # A source with structured details (a Hub model) keeps them here, where the weekly knowledge run reads them with one
+            # indexed query (knowledge_snapshot/monitor_records.py); the Message body holds them too, in private storage.
+            "metadata": {"monitorId": self.monitor.id, "sourceId": item.source_id, **({"details": item.details} if item.details else {})},
         })
         run = {"modelName": "KnowledgeImportRun", "expected": {
             "id": context["importRunId"], "corpusId": self.monitor.corpus_id,

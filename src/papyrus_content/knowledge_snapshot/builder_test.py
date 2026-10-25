@@ -517,3 +517,95 @@ def test_a_member_of_relation_links_a_model_to_its_family_and_an_unrelated_model
     assert explicit("model--tern-3") == [("member_of", "model-family--tern")]
     assert explicit("model-family--tern") == [("member_of", "model--tern-3")]
     assert explicit("model--lone-1") == []
+
+
+# -- monitor records (the Hub): data that counts and has no page ---------------------------------------------------------
+def record(name: str, offset: int, **overrides) -> PublishedItem:
+    return PublishedItem(
+        key=f"lineage-ref-{name}",
+        item_id=f"reference-{name}",
+        title=overrides.pop("title", f"org/{name}"),
+        url=f"https://huggingface.co/org/{name}",
+        published_at=overrides.pop("published_at", published_in_week(offset, name)),
+        kind="monitor-record",
+        summary=f"org/{name} is a text-generation model by org, released 2026-10-12.",
+        source="huggingface",
+        **overrides,
+    )
+
+
+def record_link(name: str, target: EntityNode) -> ItemLink:
+    return ItemLink(item_key=f"lineage-ref-{name}", node_lineage_id=target.lineage_id, confirmed=True, source="monitor")
+
+
+def hub_data():
+    licence = node("licence", "Apache-2.0")
+    maker = node("maker", "Org")
+    lone = node("model", "org/lone")
+    base = node("model", "org/base")
+    tuned = node("model", "org/tuned")
+    items = [item("story", 0), record("a", 0), record("b", 1), record("lone", 1), record("base", 3), record("tuned", 0)]
+    links = [link("story", licence)]
+    links += [record_link(name, licence) for name in ("a", "b")] + [record_link(name, maker) for name in ("a", "b")]
+    links += [record_link("lone", lone), record_link("base", base), record_link("tuned", tuned)]
+    relation = NodeRelation(tuned.lineage_id, base.lineage_id, "built_on", True, subtype="finetune", evidence="https://huggingface.co/org/tuned", provenance="from the Hugging Face Hub")
+    return KnowledgeData(items=tuple(items), nodes=(licence, maker, lone, base, tuned), links=tuple(links), relations=(relation,)), licence, maker
+
+
+def test_records_count_in_an_entity_next_to_site_items_and_are_listed_apart():
+    data, licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF, entity_href_template="/wiki/{slug}/"))
+    entry = next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "licence--apache-2-0")
+    detail = files[entity_file("licence--apache-2-0")]
+    assert (entry["itemCount"], entry["recordCount"]) == (3, 2)
+    assert detail["recordCount"] == 2 and sum(detail["series8"]) == 3
+    assert [row["url"] for row in detail["relatedItems"]] == ["/items/story/"]  # a record is never listed as an item
+    assert [row["title"] for row in detail["relatedRecords"]] == ["org/a", "org/b"]
+    first = detail["relatedRecords"][0]
+    assert first["url"] == "https://huggingface.co/org/a" and first["provenance"] == "from the Hugging Face Hub" and first["summary"].startswith("org/a is a text-generation model")
+    assert entry["href"] == "/wiki/licence-apache-2-0/"  # a site item mentions it, so it has a page
+
+
+def test_an_entity_only_records_mention_has_no_page_link_and_needs_support_to_appear():
+    data, _licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF, entity_href_template="/wiki/{slug}/"))
+    by_key = {row["key"]: row for row in files[INDEX_FILE]["entities"]}
+    assert by_key["maker--org"]["href"] is None and by_key["maker--org"]["recordCount"] == 2
+    assert "model--org-lone" not in by_key  # one record and no relation: not worth an entity on the map
+    assert {"model--org-base", "model--org-tuned"} <= set(by_key)  # a built-on relation puts both ends on the map
+    assert by_key["model--org-tuned"]["href"] is None
+
+
+def test_a_built_on_relation_keeps_its_subtype_evidence_and_provenance():
+    data, _licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF))
+    tuned = files[entity_file("model--org-tuned")]
+    [neighbour] = [row for row in tuned["neighbours"] if row["relation"] == "built_on"]
+    assert neighbour["key"] == "model--org-base"
+    assert (neighbour["subtype"], neighbour["evidence"], neighbour["provenance"]) == ("finetune", "https://huggingface.co/org/tuned", "from the Hugging Face Hub")
+
+
+def test_records_have_weekly_history_from_their_source_date():
+    data, _licence, _maker = hub_data()
+    files = build_files(data, SnapshotOptions(as_of=AS_OF))
+    detail = files[entity_file("licence--apache-2-0")]
+    assert detail["series8"][-1] == 2 and detail["series8"][-2] == 1  # the story and record a in this week, record b in the week before
+
+
+def test_a_cluster_counts_its_records_and_says_how_many():
+    data, _licence, _maker = hub_data()
+    cluster = Cluster(
+        uid="cl-1", accepted=True, name="Open models", event="new", top_terms=("open",), weekly_series={week_label(MONDAY_WEEK): 3},
+        earliest_published_at=published_in_week(0, "a"), member_item_keys=("lineage-story", "lineage-ref-a", "lineage-ref-b"), member_count=3, run_id="r1",
+        accepted_by=AI,
+    )
+    files = build_files(dataclasses.replace(data, clusters=(cluster,)), SnapshotOptions(as_of=AS_OF))
+    [row] = files[CLUSTERS_FILE]["clusters"]
+    assert (row["itemCount"], row["recordCount"]) == (3, 2)
+
+
+def test_a_snapshot_without_records_has_none_of_the_record_fields():
+    data, _voice, _completion, _maker = two_tasks()
+    files = build_files(data, OPTIONS)
+    text = json.dumps(files)
+    assert "recordCount" not in text and "relatedRecords" not in text
