@@ -15,7 +15,8 @@ A monitor whose router config says `decisions: direct` makes no relevance call a
 collected item goes to every configured publication, recorded as the monitor's own rule.
 That suits sources a section covers exhaustively (every TTAB decision for a rulings tracker).
 A direct monitor may add a `rule` (the same shape as a Hugging Face monitor's acceptance rule: `pipelineTags`,
-`authors`, `minLikes`, `minDownloads`): an item that fails it is finished as `routed` with the reason and
+`authors`, `minLikes`, `minDownloads`, and the `excludeTags`, `excludeBaseRelations`, `excludeIdPatterns`
+exclusions): an item that fails it is finished as `routed` with the reason and
 delivered nowhere, so a deterministic rule can stand in until Cyclotron criteria exist.
 
 A publication may also list `procedureTriggers`: after the router creates a new Reference there, it starts

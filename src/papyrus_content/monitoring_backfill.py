@@ -201,7 +201,8 @@ def backfill_collection(store, monitor_id: str, since: datetime, *, until: datet
     fetch, run_id = fetch or fetch_hf_page, uuid.uuid4().hex
     queries = plan_queries(config, sorts=backfill_sorts(config))
     scope = _digest([since.isoformat(), [q["key"] for q in queries],
-                     {k: config.get(k) for k in ("pipelineTags", "authors", "search", "minLikes", "minDownloads", "pageSize")}])[:10]
+                     {k: config.get(k) for k in ("pipelineTags", "authors", "search", "minLikes", "minDownloads", "pageSize")},
+                     {k: config[k] for k in ("excludeTags", "excludeBaseRelations", "excludeIdPatterns") if config.get(k)}])[:10]
     checkpoint_sk = f"BACKFILL#{since.strftime('%Y%m%dT%H%M%SZ')}#{scope}"
     saved = store._get(monitor_id, checkpoint_sk) or {}
     state = {q["key"]: dict((saved.get("queries") or {}).get(q["key"]) or {"next": None, "done": False, "pages": 0, "accepted": 0})
@@ -247,9 +248,10 @@ def backfill_collection(store, monitor_id: str, since: datetime, *, until: datet
     emit(f"{'APPLIED' if apply else 'DRY RUN (no writes)'} monitor={monitor_id} since={_iso(since.timestamp())}: "
          f"{status}, {reading.requests} requests, " + (", ".join(f"{k}={v}" for k, v in sorted(totals.items())) or "no models")
          + (f", stopped by {reading.stopped_by}" if reading.stopped_by else "")
+         + (", skipped as repackaged: " + ", ".join(f"{k}={v}" for k, v in reading.skipped().items()) if reading.excluded else "")
          + ("" if finished else (" -- run the same command again to continue" if apply else " -- dry runs do not checkpoint; raise --max-pages/--max-requests to count more")))
     return {"applied": apply, "status": status, "requests": reading.requests, "stoppedBy": reading.stopped_by,
-            "counts": dict(totals), "errors": reading.errors, "queries": state, "checkpoint": checkpoint_sk}
+            "counts": dict(totals), "skipped": reading.skipped(), "errors": reading.errors, "queries": state, "checkpoint": checkpoint_sk}
 
 
 def collection_command(args) -> int:
