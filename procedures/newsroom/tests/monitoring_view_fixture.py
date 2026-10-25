@@ -96,3 +96,25 @@ class FakeViewStore:
     def decision_times(self):
         return ([r["decision"]["decidedAt"] for sk, r in sorted(self.table.items())
                  if sk.startswith("ROUTE#") and r.get("decision")], True)
+
+
+def only_hn(store):
+    """Store factory for the handler: the fixture is the hn monitor; other monitors have nothing."""
+    return lambda monitor_id="hn": store if monitor_id == "hn" else FakeViewStore([])
+
+
+def ttab_rows(endpoint, monitor="ttab"):
+    """A second monitor routed to a single publication (distinctive, or p.apyr.us for huggingface)."""
+    pk = f"MONITOR#{monitor}"
+    publication = ("distinctive", "distinctive") if endpoint not in (APP_PAPYRUS,) else ("p-apyr-us", "p.apyr.us")
+    title = "Decision on a mark" if monitor == "ttab" else "Model release"
+    return deepcopy([
+        {"pk": pk, "sk": "CONFIG", "sourceType": "x", "sourceUrl": f"https://{monitor}.example.org/feed", "intervalSeconds": 3600, "limit": 30, "enabled": True},
+        {"pk": pk, "sk": "CONFIG#router", "mode": "live", "feedback": False, "enabled": True,
+         "publications": [{"publicationId": publication[0], "site": publication[1], "appsyncEndpoint": endpoint}]},
+        {"pk": pk, "sk": "RUN#2026-10-21T02:20:00.000000Z#t1", "runId": "t1", "startedAt": "2026-10-21T02:20:00.000000Z",
+         "status": "complete", "new": 1, "revised": 0, "unchanged": 0, "itemCount": 1, "errorCount": 0, "errors": []},
+        {"pk": pk, "sk": f"DISC#{monitor}-1#000001", "sourceId": f"{monitor}-1", "revision": 1, "title": title,
+         "canonicalUrl": f"https://{monitor}.example.org/1", "sourceItemUrl": None, "observedAt": "2026-10-21T02:00:00.000000Z",
+         "sourcePublishedAt": "2026-10-21T02:00:00.000000Z", "routing": "collected", "fingerprint": f"fp-{monitor}"},
+    ])

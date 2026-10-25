@@ -24,6 +24,9 @@ import re
 
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
+# The table has no registry of monitors and the view may not Scan, so the monitors it can look at are
+# named here (override with PAPYRUS_MONITORING_MONITOR_IDS, comma separated). A new monitor is added here.
+MONITOR_IDS = ("hn", "ttab", "huggingface")
 EDITOR_GROUPS = frozenset({"editor", "admin"})
 SCOPES = ("publication", "all")
 TABLE_PARAMETER = "/papyrus/monitoring/table-name"
@@ -109,26 +112,26 @@ def _short(text) -> str | None:
     return str(text)[:MAX_ERROR_TEXT] if text else None
 
 
-def _feed(config: dict | None, state: dict | None) -> list[dict]:
+def _feed(config: dict | None, state: dict | None, monitor_id: str = MONITOR_ID) -> list[dict]:
     if not config:
         return []
     state = state or {}
-    return [{"id": MONITOR_ID, "sourceUrl": config.get("sourceUrl"), "intervalSeconds": config.get("intervalSeconds"),
+    return [{"id": monitor_id, "sourceUrl": config.get("sourceUrl"), "intervalSeconds": config.get("intervalSeconds"),
              "limit": config.get("limit"), "enabled": config.get("enabled", True) is not False,
              "lastStatus": state.get("lastStatus"), "lastFinishedAt": state.get("lastFinishedAt"),
              "nextDueAt": _iso(state.get("nextDueAt"))}]
 
 
-def _run(row: dict) -> dict:
-    return {"runId": row.get("runId"), "startedAt": row.get("startedAt"), "finishedAt": row.get("finishedAt"),
+def _run(row: dict, monitor_id: str = MONITOR_ID) -> dict:
+    return {"monitorId": monitor_id, "runId": row.get("runId"), "startedAt": row.get("startedAt"), "finishedAt": row.get("finishedAt"),
             "status": row.get("status"), "new": row.get("new", 0), "revised": row.get("revised", 0),
             "unchanged": row.get("unchanged", 0), "itemCount": row.get("itemCount"), "errorCount": row.get("errorCount", 0),
             "errors": [_short(e.get("message") if isinstance(e, dict) else e) for e in (row.get("errors") or [])[:3]]}
 
 
-def _router_run(row: dict) -> dict:
+def _router_run(row: dict, monitor_id: str = MONITOR_ID) -> dict:
     feedback = row.get("feedback") if isinstance(row.get("feedback"), dict) else {}
-    return {"runId": row.get("runId"), "startedAt": row.get("startedAt"), "mode": row.get("mode"), "status": row.get("status"),
+    return {"monitorId": monitor_id, "runId": row.get("runId"), "startedAt": row.get("startedAt"), "mode": row.get("mode"), "status": row.get("status"),
             "stoppedBy": row.get("stoppedBy"), "counts": row.get("counts") or {},
             "waitingForClassifier": [str(p) for p in (row.get("waitingForClassifier") or [])],
             "errorCount": len(row.get("errors") or []),
@@ -161,10 +164,10 @@ def _relevance(publication: dict, route: dict | None) -> dict:
     return row
 
 
-def _item(disc: dict, route: dict | None, publications: list[dict]) -> dict:
+def _item(disc: dict, route: dict | None, publications: list[dict], monitor_id: str = MONITOR_ID) -> dict:
     final = (route or {}).get("final") or {}
     decision = (route or {}).get("decision") or {}
-    return {"sourceId": disc.get("sourceId"), "revision": disc.get("revision"), "title": disc.get("title"),
+    return {"monitorId": monitor_id, "sourceId": disc.get("sourceId"), "revision": disc.get("revision"), "title": disc.get("title"),
             "url": disc.get("canonicalUrl"), "discussionUrl": disc.get("sourceItemUrl"), "observedAt": disc.get("observedAt"),
             "sourcePublishedAt": disc.get("sourcePublishedAt"), "routing": disc.get("routing"),
             "routingNote": _short(final.get("reason")), "decidedAt": decision.get("decidedAt"),
@@ -193,7 +196,8 @@ def _latest_revisions(rows: list[dict]) -> list[dict]:
     return sorted(latest.values(), key=lambda r: str(r.get("observedAt")), reverse=True)
 
 
-def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
+def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id: str = MONITOR_ID) -> dict:
+    """One monitor's overview. `monitoring_site_overview` combines the monitors routed to a site."""
     groups = set(groups or [])
     if not groups & EDITOR_GROUPS:
         raise Forbidden("monitoring is for editors and admins")
@@ -206,8 +210,8 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
     config, state = store.get("CONFIG"), store.get("STATE")
     router = store.get("CONFIG#router")
     discoveries = _latest_revisions(store.newest("DISC#", MAX_ITEMS))
-    runs = [_run(r) for r in store.newest("RUN#", MAX_RUNS)]
-    router_runs = [_router_run(r) for r in store.newest("ROUTERUN#", MAX_ROUTER_RUNS)]
+    runs = [_run(r, monitor_id) for r in store.newest("RUN#", MAX_RUNS)]
+    router_runs = [_router_run(r, monitor_id) for r in store.newest("ROUTERUN#", MAX_ROUTER_RUNS)]
     base = {"asOf": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     if not (config or router or discoveries or runs):
         return {**base, "state": "empty", "scope": {"mode": scope, "publicationId": None, "site": None, "canViewAll": is_admin},
@@ -232,7 +236,7 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
     routes = {(r.get("sourceId"), r.get("revision")): r for r in store.newest("ROUTE#", MAX_ITEMS * 2)}
     items, hidden = [], 0
     for disc in discoveries:
-        item = _item(disc, routes.get((disc.get("sourceId"), disc.get("revision"))), selected)
+        item = _item(disc, routes.get((disc.get("sourceId"), disc.get("revision"))), selected, monitor_id)
         if scope == "publication" and own and item["relevance"] and item["relevance"][0]["relevant"] is False:
             hidden += 1
             continue
@@ -242,13 +246,62 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
     today = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
     usage = {"day": today, "decisionsToday": sum(1 for t in times if str(t).startswith(today)),
              "decisionsTotal": len(times), "historyComplete": history_complete}
-    out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state), "runs": runs, "routerRuns": router_runs,
+    out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state, monitor_id), "runs": runs, "routerRuns": router_runs,
            "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False,
                        "maxItemsPerRun": router.get("maxItemsPerRun")} if router else None),
            "usage": usage, "items": items, "emailSubmissions": submissions, "hiddenNotRelevant": hidden}
     if scope == "publication" and not own:
         out["notice"] = "publication_not_routed"
     return out
+
+
+def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now) -> dict:
+    """The page: only the monitors whose router config lists this site's publication.
+
+    `stores` maps monitor id to its store. In publication scope a monitor that does not route to
+    this site contributes nothing but its id, listed under `otherMonitors` (no items, runs or
+    counts). An admin's whole-pipeline scope combines every monitor.
+    """
+    parts, others = [], []
+    for monitor_id, store in stores.items():
+        part = monitoring_overview(store, groups=groups, site_endpoint=site_endpoint, scope=scope, now=now, monitor_id=monitor_id)
+        if part["state"] == "empty":
+            continue
+        if scope == "publication" and part.get("notice") == "publication_not_routed":
+            others.append(monitor_id)
+            continue
+        parts.append(part)
+    base = {"asOf": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+    is_admin = "admin" in set(groups or [])
+    if not parts:
+        out = {**base, "state": "ready" if others else "empty",
+               "scope": {"mode": scope, "publicationId": None, "site": None, "canViewAll": is_admin},
+               "feeds": [], "runs": [], "routerRuns": [], "router": None, "usage": None, "items": [],
+               "emailSubmissions": [], "hiddenNotRelevant": 0, "otherMonitors": others}
+        if others:
+            out["notice"] = "publication_not_routed"
+        return out
+
+    def newest(rows, key):
+        return sorted(rows, key=lambda r: str(r.get(key)), reverse=True)
+
+    usage = None
+    for part in parts:
+        if part["usage"]:
+            usage = usage or {"day": part["usage"]["day"], "decisionsToday": 0, "decisionsTotal": 0, "historyComplete": True}
+            usage["decisionsToday"] += part["usage"]["decisionsToday"]
+            usage["decisionsTotal"] += part["usage"]["decisionsTotal"]
+            usage["historyComplete"] = usage["historyComplete"] and part["usage"]["historyComplete"]
+    return {**base, "state": "ready", "scope": parts[0]["scope"],
+            "feeds": [f for part in parts for f in part["feeds"]],
+            "runs": newest([r for part in parts for r in part["runs"]], "startedAt")[:MAX_RUNS],
+            "routerRuns": newest([r for part in parts for r in part["routerRuns"]], "startedAt")[:MAX_ROUTER_RUNS],
+            "router": next((part["router"] for part in parts if part["router"]), None),
+            "usage": usage,
+            "items": newest([i for part in parts for i in part["items"]], "observedAt")[:MAX_ITEMS],
+            "emailSubmissions": [e for part in parts for e in part["emailSubmissions"]][:MAX_EMAIL_SUBMISSIONS],
+            "hiddenNotRelevant": sum(part["hiddenNotRelevant"] for part in parts),
+            "otherMonitors": others}
 
 
 def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> dict:
@@ -285,7 +338,7 @@ _table_name_cache: dict[str, str] = {}
 
 def default_store_factory(env):
     """Finds the table through the SSM parameter the monitoring stack writes. None when it is absent."""
-    def factory():
+    def factory(monitor_id: str = MONITOR_ID):
         import boto3  # provided by the Lambda runtime
         parameter = env.get("PAPYRUS_MONITORING_TABLE_PARAMETER") or TABLE_PARAMETER
         region = env.get("PAPYRUS_MONITORING_REGION") or env.get("AWS_REGION") or "us-east-1"
@@ -295,8 +348,13 @@ def default_store_factory(env):
                 _table_name_cache[parameter] = ssm.get_parameter(Name=parameter)["Parameter"]["Value"]
             except ssm.exceptions.ParameterNotFound:
                 return None
-        return TableViewStore(boto3.resource("dynamodb", region_name=region).Table(_table_name_cache[parameter]))
+        return TableViewStore(boto3.resource("dynamodb", region_name=region).Table(_table_name_cache[parameter]), monitor_id)
     return factory
+
+
+def _monitor_ids(env) -> tuple[str, ...]:
+    configured = [m.strip() for m in (env.get("PAPYRUS_MONITORING_MONITOR_IDS") or "").split(",") if m.strip()]
+    return tuple(configured) or MONITOR_IDS
 
 
 def handle(event: dict, *, env=None, store_factory=None, now: float | None = None) -> dict:
@@ -314,17 +372,21 @@ def handle(event: dict, *, env=None, store_factory=None, now: float | None = Non
     if field_name == "monitoringOverview" and scope not in SCOPES:
         return {"error": "bad_request"}
     try:
-        store = (store_factory or default_store_factory(env))()
-        if store is None:
-            return {"state": "not_configured"}
+        make_store = store_factory or default_store_factory(env)
         if field_name == "monitoringEmailSubmission":
+            store = make_store(MONITOR_ID)
+            if store is None:
+                return {"state": "not_configured"}
             return monitoring_email_submission(store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
         if field_name != "monitoringOverview":
             return {"error": "bad_request"}
-        return monitoring_overview(store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope,
-                                   now=time.time() if now is None else now)
+        stores = {monitor_id: make_store(monitor_id) for monitor_id in _monitor_ids(env)}
+        if any(store is None for store in stores.values()):
+            return {"state": "not_configured"}
+        return monitoring_site_overview(stores, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope,
+                                        now=time.time() if now is None else now)
     except Forbidden:
         return {"error": "forbidden"}
     except Exception as error:   # the browser gets a state; the cause goes to the log by type only

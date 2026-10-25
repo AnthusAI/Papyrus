@@ -156,12 +156,12 @@ def event(groups, scope="publication", field="monitoringOverview", **arguments):
 
 def test_handler_refuses_non_editors_before_touching_the_table():
     opened = []
-    out = mv.handle(event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: opened.append(1))
+    out = mv.handle(event(["reader"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda *_: opened.append(1))
     assert out["error"] == "forbidden" and opened == []
 
 
 def test_handler_reports_not_configured_when_the_table_is_unknown():
-    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: None)
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda *_: None)
     assert out == {"state": "not_configured"}
 
 
@@ -169,17 +169,17 @@ def test_handler_returns_unavailable_when_the_read_fails():
     class Broken:
         def get(self, sk):
             raise RuntimeError("AccessDeniedException secret-table-detail")
-    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: Broken())
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda *_: Broken())
     assert out == {"state": "unavailable"}
 
 
 def test_handler_serves_an_editor_from_the_site_endpoint():
-    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: fx.FakeViewStore())
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(fx.FakeViewStore()))
     assert out["state"] == "ready" and out["scope"]["publicationId"] == "anth-us"
 
 
 def test_handler_accepts_cognito_group_claims_as_a_list_only():
-    out = mv.handle({**event(["editor"]), "identity": {"groups": None}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: fx.FakeViewStore())
+    out = mv.handle({**event(["editor"]), "identity": {"groups": None}}, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(fx.FakeViewStore()))
     assert out["error"] == "forbidden"
 
 
@@ -221,15 +221,81 @@ def test_email_submission_details_are_editor_only_and_publication_scoped():
     receipt_id = "EMAIL#" + "a" * 64
     event = {"info": {"fieldName": "monitoringEmailSubmission"}, "arguments": {"receiptId": receipt_id},
              "identity": {"groups": ["editor"]}}
-    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
     assert result["safeBodyText"] == "Read as plain text\n"
     assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
     assert result["sourceMaterialIsUntrusted"] is True
     store.table[receipt_id]["status"] = "pending_review"
-    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
     assert result["submission"]["status"] == "pending_review"
-    denied = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=lambda: store)
+    denied = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=fx.only_hn(store))
     assert denied == {"error": "forbidden"}
     refused = mv.handle({**event, "identity": {"groups": ["reader"]}},
-                        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+                        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(store))
     assert refused == {"error": "forbidden"}
+
+
+# --- the page shows only monitors routed to this site -----------------------------------------------
+
+APP_DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
+
+
+def stores():
+    return {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(APP_DISTINCTIVE)),
+            "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface"))}
+
+
+def site_overview(endpoint, groups=("editor",), scope="publication"):
+    return mv.monitoring_site_overview(stores(), groups=list(groups), site_endpoint=endpoint, scope=scope, now=fx.NOW)
+
+
+def test_a_site_sees_only_the_monitors_routed_to_it():
+    result = site_overview(APP_DISTINCTIVE)
+    assert {i["monitorId"] for i in result["items"]} == {"ttab"}
+    titles = [i["title"] for i in result["items"]]
+    assert titles == ["Decision on a mark"] and "Fresh Show HN" not in titles
+    assert [f["id"] for f in result["feeds"]] == ["ttab"]
+    assert all(r["monitorId"] == "ttab" for r in result["runs"])
+    assert result["scope"]["publicationId"] == "distinctive"
+    assert result["items"][0]["routing"] == "collected"
+
+
+def test_other_monitors_are_named_but_their_items_are_not_returned():
+    result = site_overview(APP_DISTINCTIVE)
+    assert sorted(result["otherMonitors"]) == ["hn", "huggingface"]
+    payload = json.dumps(result)
+    assert "Fresh Show HN" not in payload and "Quantum paper" not in payload and "Model release" not in payload
+
+
+def test_a_site_routed_by_two_monitors_sees_both():
+    result = site_overview(fx.APP_PAPYRUS)
+    assert {i["monitorId"] for i in result["items"]} == {"hn", "huggingface"}
+    assert result["otherMonitors"] == ["ttab"]
+    observed = [i["observedAt"] for i in result["items"]]
+    assert observed == sorted(observed, reverse=True)
+
+
+def test_a_site_no_monitor_routes_to_gets_the_notice_and_no_items():
+    result = site_overview("https://nobody.appsync-api.us-east-1.amazonaws.com/graphql")
+    assert result["items"] == [] and result["notice"] == "publication_not_routed"
+    assert sorted(result["otherMonitors"]) == ["hn", "huggingface", "ttab"]
+
+
+def test_an_admin_may_still_read_every_monitor():
+    result = site_overview(APP_DISTINCTIVE, groups=("admin",), scope="all")
+    assert {i["monitorId"] for i in result["items"]} == {"hn", "ttab", "huggingface"}
+    assert result["otherMonitors"] == []
+
+
+def test_handler_reads_each_listed_monitor_through_the_same_read_only_store():
+    asked = []
+
+    def factory(monitor_id="hn"):
+        asked.append(monitor_id)
+        return stores()[monitor_id]
+    out = mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE}, store_factory=factory)
+    assert asked == ["hn", "ttab", "huggingface"] and [i["monitorId"] for i in out["items"]] == ["ttab"]
+    asked.clear()
+    mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE, "PAPYRUS_MONITORING_MONITOR_IDS": "ttab, hn"},
+              store_factory=factory)
+    assert asked == ["ttab", "hn"]

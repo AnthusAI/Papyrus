@@ -94,6 +94,12 @@ async function main() {
   const unrouted = text(render({ ...FIXTURE_MONITORING_OVERVIEW, notice: "publication_not_routed", scope: { mode: "publication", publicationId: null, site: null, canViewAll: false }, items: FIXTURE_MONITORING_OVERVIEW.items.map((i) => ({ ...i, relevance: [] })) }));
   assert.ok(unrouted.includes("This publication is not one of the router's outputs"));
 
+  // Monitors not routed to this site are named in a collapsed note, never listed with items.
+  const othersHtml = render({ ...FIXTURE_MONITORING_OVERVIEW, otherMonitors: ["hn", "huggingface"] });
+  assert.ok(text(othersHtml).includes("Not routed to this site (2)"));
+  assert.ok(othersHtml.includes('data-monitoring-other-monitor="hn"') && othersHtml.includes("<details") && !othersHtml.includes("<details open"));
+  assert.ok(!text(render(FIXTURE_MONITORING_OVERVIEW)).includes("Not routed to this site"));
+
   console.log("monitoring page: ok");
 }
 

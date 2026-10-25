@@ -20,6 +20,7 @@ export type MonitoringRelevance = {
 };
 
 export type MonitoringItem = {
+  monitorId?: string;
   sourceId: string;
   revision: number;
   title: string;
@@ -94,6 +95,8 @@ export type MonitoringOverview = {
     historyComplete: boolean;
   } | null;
   items: MonitoringItem[];
+  /** Monitors that do not route to this site: named only, with no items. */
+  otherMonitors?: string[];
   emailSubmissions?: MonitoringEmailSummary[];
   hiddenNotRelevant: number;
 };
