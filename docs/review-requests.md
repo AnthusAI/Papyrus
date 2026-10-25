@@ -1,5 +1,7 @@
 # Review requests: flags, soft reviews and hard gates
 
+> **Review Requests** are how automation asks a person to look (a flag, a soft review with a timeout, or a hard gate) without making review a story state. They are listed in the Notification Center. See [feature-names.md](feature-names.md#review-requests-and-the-notification-center).
+
 A step in a site's automation (a procedure, an automation, an AI step) can ask a person to look at an item without making review a story
 state. This is PPY-ab6a50; the console page that lists the requests is the [Notification Center](notification-center.md).
 

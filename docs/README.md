@@ -4,6 +4,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 
 ## By task
 
+- **Feature names**: [feature-names.md](feature-names.md), the names we use for Cited Trends, the Knowledge Map, Stage Bots, Review Requests and the rest, with where each lives in code and which demonstration site shows it.
 - **Orient**: [../README.md](../README.md), [../AGENTS.md](../AGENTS.md), [code-map.md](code-map.md), [how-papyrus-works.md](how-papyrus-works.md).
 - **Ship a change**: [releasing.md](releasing.md), [site-hosting.md](site-hosting.md#deploy-on-merge-to-main), [verification.md](verification.md).
 - **Start a new site**: [../README.md#start-a-new-papyrus-site](../README.md#start-a-new-papyrus-site), [building-a-papyrus-static-site.md](building-a-papyrus-static-site.md), [../infra/amplify-app-shell/README.md](../infra/amplify-app-shell/README.md), [google-oauth-setup.md](google-oauth-setup.md).
@@ -30,6 +31,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [newsletter.md](newsletter.md): signup capture, the double opt-in `newsletter` plugin with clean `/newsletter/*` pages, branded email theme, roundups, alerts and SES sending (Live on Shipped).
 - [reader-steering.md](reader-steering.md): the `reader-steering` plugin: votes on any subject, ratings, flags, comments, submissions, moderation, snapshots and Proposals (built; reader writes closed in production until Prospectus returns a site subject).
 - [automations.md](automations.md): automation records binding a monitor to a procedure, with `enabled`, limits, cost, history and Run now (PPY-9ff95b slices 1 and 2).
+- [feature-names.md](feature-names.md): the recommended names for the showcase features, what each is and is not, where it lives, and the alternatives considered.
 - [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest` and `synthesize`, v0 (PPY-8ffc18; scheduling in progress).
 
 ## Start here

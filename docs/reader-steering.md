@@ -1,5 +1,7 @@
 # Reader steering
 
+> **Reader Steering** is the name for this plugin: votes, ratings, flags and comments from signed-in readers. **Proposals** are the queue where AI proposes, readers steer and editors decide, and **Editor Override** is the editor tier on them. See [feature-names.md](feature-names.md#reader-steering-proposals-and-editor-override). Shipped (<https://shipped.anth.us/proposals/>) shows them.
+
 Readers sign in, pick a handle, upvote, mark "I used it", rate the items of a publication and submit links. Editors and
 readers steer ranking together. The `reader-steering` plugin (initiative PPY-77bb3b) builds the reader identity, the reader
 API, votes and ratings, public link submissions (see [Submissions](#submissions)), comments as a steering signal (see [Comments](#comments)), moderation after the fact (see [Moderation](#moderation)), the snapshot that puts live numbers on
