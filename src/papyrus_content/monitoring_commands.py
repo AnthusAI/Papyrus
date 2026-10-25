@@ -88,7 +88,18 @@ def command(argv: list[str]) -> int:
     backfill.add_argument("--since", help="Only deliveries at or after this ISO timestamp (with timezone)")
     backfill.add_argument("--apply", action="store_true", help="Write the relations; without it nothing is written")
     backfill.add_argument("--dry-run", action="store_true", help="The default; accepted for clarity")
+    window = sub.add_parser("backfill",
+                            help="Load a Hugging Face monitor's history for its configured filters, bounded and resumable (dry-run unless --apply)")
+    window.add_argument("--monitor", required=True)
+    window.add_argument("--since", required=True, help="Models created at or after this ISO timestamp (with timezone)")
+    window.add_argument("--until", help="Only models created before this ISO timestamp (with timezone)")
+    window.add_argument("--max-pages", type=int, default=50, help="Pages per query before pausing (default 50)")
+    window.add_argument("--max-requests", type=int, default=300, help="Hub requests per run before pausing (default 300)")
+    window.add_argument("--apply", action="store_true", help="Write discoveries and the checkpoint; without it nothing is written")
     args = parser.parse_args(argv)
+    if args.command == "backfill":
+        from .monitoring_backfill import collection_command
+        return collection_command(args)
     if args.command == "backfill-decision-relations":
         if args.apply and args.dry_run:
             parser.error("--apply and --dry-run are mutually exclusive")

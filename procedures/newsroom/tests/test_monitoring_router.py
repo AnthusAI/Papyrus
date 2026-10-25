@@ -630,7 +630,7 @@ def test_collector_zip_is_independent_of_the_router():
         import build
     finally:
         sys.path.pop(0)
-    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py")
+    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py", "monitoring_huggingface.py")
     assert "web_structured_metadata" not in build.router_modules() and "monitoring_router" in build.router_modules()
 
 
@@ -675,7 +675,7 @@ def test_router_role_is_least_privilege():
     assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
     assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
         "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
-    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}"}
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}"}
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
@@ -720,6 +720,27 @@ def test_pilobolus_gets_exactly_the_cyclotron_decided_grants():
         anth_us = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${AnthUsApiId}/" in r}
         assert pilobolus and pilobolus == (anth_fields if statement is intake else anth_us)
     assert not any("PilobolusApiId" in r for r in anth_intake)
+
+
+def test_shipped_gets_exactly_the_cyclotron_decided_grants():
+    template = _template()
+    assert template["Parameters"]["ShippedApiId"]["Default"] == "6sw6454pozbgvdgm233gqkxsxu"
+    inline = {s["Sid"]: s for s in template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]}["PublicationReferenceIntake"]
+    # Intake lives in its own managed policy (the inline policy is near IAM's size limit), like Distinctive's.
+    policy = template["Resources"]["RouterShippedIntakePolicy"]["Properties"]
+    assert policy["Roles"] == [("Ref", "RouterRole")]
+    (intake,) = policy["PolicyDocument"]["Statement"]
+    relations = template["Resources"]["RouterDecisionRelationPolicy"]["Properties"]["PolicyDocument"]["Statement"][0]
+    anth_intake = [r[1] for r in inline["Resource"]]
+    anth_fields = {r.rsplit("/fields/", 1)[1] for r in anth_intake if "apis/${AnthUsApiId}/" in r}
+    for statement in (intake, relations):
+        assert statement["Action"] == "appsync:GraphQL"
+        resources = [r[1] for r in statement["Resource"]]
+        assert "*" not in "".join(resources) and all("/types/" in r and "/fields/" in r for r in resources)
+        shipped = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${ShippedApiId}/" in r}
+        anth_us = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${AnthUsApiId}/" in r}
+        assert shipped and shipped == (anth_fields if statement is intake else anth_us)
+    assert not any("ShippedApiId" in r for r in anth_intake)
 
 
 def test_router_function_schedule_and_collector_isolation():
