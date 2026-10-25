@@ -1,12 +1,19 @@
 "use client";
 
 import { generateClient } from "aws-amplify/data";
-import type { MonitoringEmailDetails, MonitoringResult } from "./monitoring-overview";
+import { emailReferenceBatches } from "./monitoring-overview";
+import type {
+  EmailReferenceImportItem,
+  EmailReferenceImportOutcome,
+  MonitoringEmailArticleResolution,
+  MonitoringEmailDetails,
+  MonitoringResult,
+} from "./monitoring-overview";
 
-type QueryField = "monitoringOverview" | "monitoringEmailSubmission";
+type QueryField = "monitoringOverview" | "monitoringEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences";
 type GraphQLResult = { data?: Partial<Record<QueryField, unknown>>; errors?: { message?: string; errorType?: string }[] };
 
-async function query<T>(field: QueryField, queryText: string, variables: Record<string, string>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
+async function query<T>(field: QueryField, queryText: string, variables: Record<string, string | number>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
   const client = generateClient({ authMode: "userPool" });
   let result: GraphQLResult;
   try {
@@ -31,4 +38,46 @@ export async function loadMonitoringOverview(scope: "publication" | "all"): Prom
 export async function loadMonitoringEmailSubmission(receiptId: string): Promise<MonitoringEmailDetails> {
   return query<MonitoringEmailDetails>("monitoringEmailSubmission",
     `query MonitoringEmailSubmission($receiptId: String!) { monitoringEmailSubmission(receiptId: $receiptId) }`, { receiptId });
+}
+
+/** Resolve one explicitly selected Beehiiv article redirect; this may register a click with the sender. */
+export async function resolveMonitoringEmailArticleLink(receiptId: string, candidateIndex: number): Promise<MonitoringEmailArticleResolution> {
+  return query<MonitoringEmailArticleResolution>("monitoringResolveEmailArticleLink",
+    `mutation MonitoringResolveEmailArticleLink($receiptId: String!, $candidateIndex: Int!) { monitoringResolveEmailArticleLink(receiptId: $receiptId, candidateIndex: $candidateIndex) }`,
+    { receiptId, candidateIndex });
+}
+
+/** Use the existing editor-authorized Reference intake; 20 is its request batch size, not a total limit. */
+export async function importMonitoringEmailCandidates(
+  receiptId: string,
+  items: EmailReferenceImportItem[],
+): Promise<EmailReferenceImportOutcome> {
+  const client = generateClient({ authMode: "userPool" });
+  const references: EmailReferenceImportOutcome["references"] = [];
+  for (const batch of emailReferenceBatches(items)) {
+    let result: GraphQLResult;
+    try {
+      result = (await client.graphql({
+        query: `mutation IntakeEmailSubmissionReferences($input: AWSJSON!) { intakeEmailSubmissionReferences(input: $input) }`,
+        variables: { input: JSON.stringify({ receiptId, items: batch }) },
+      })) as GraphQLResult;
+    } catch {
+      return { imported: references.length, references, error: "The import stopped. Completed links are safe to retry." };
+    }
+    if (result.errors?.length) {
+      return { imported: references.length, references, error: "The import stopped. Completed links are safe to retry." };
+    }
+    const raw = result.data?.intakeEmailSubmissionReferences;
+    let response: { ok?: boolean; references?: EmailReferenceImportOutcome["references"] } | null | undefined;
+    try {
+      response = (typeof raw === "string" ? JSON.parse(raw) : raw) as typeof response;
+    } catch {
+      return { imported: references.length, references, error: "The import response could not be read. Completed links are safe to retry." };
+    }
+    if (!response?.ok || !Array.isArray(response.references)) {
+      return { imported: references.length, references, error: "The import was not accepted. Check your editor access and retry." };
+    }
+    references.push(...response.references);
+  }
+  return { imported: references.length, references };
 }

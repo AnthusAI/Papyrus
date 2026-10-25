@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -147,6 +148,55 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
         for item in items
     ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
+
+
+def intake_email_submission_references(client, arguments: dict, identity: dict, *, env=None) -> dict:
+    """Register editor-selected email candidates as pending References, never as votes.
+
+    Email bodies, SES signals and sender claims are not accepted from the browser.
+    The receipt identifier is a private, non-reversible intake id and is recorded
+    in the ordinary intake rationale/provenance attachment.
+    """
+    import os
+
+    env = os.environ if env is None else env
+    if not isinstance(arguments, dict) or set(arguments) != {"receiptId", "items"}:
+        raise IntakeError("Email Reference intake accepts only a receipt id and selected candidate links.")
+    receipt_id = arguments.get("receiptId")
+    if not isinstance(receipt_id, str) or not re.fullmatch(r"EMAIL#[a-f0-9]{64}", receipt_id):
+        raise IntakeError("A valid private email receipt id is required.")
+    corpus_key = env.get("PAPYRUS_PUBLICATION_CORPUS_KEY", "").strip()
+    publication = env.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
+    if not corpus_key or not publication:
+        raise IntakeError("This publication has no configured Reference intake.")
+    from .ids import knowledge_corpus_id
+
+    corpus_id = knowledge_corpus_id({"key": corpus_key})
+    raw_items = arguments.get("items")
+    if not isinstance(raw_items, list) or not 1 <= len(raw_items) <= 20:
+        raise IntakeError("Select between 1 and 20 candidate links per request.")
+    items = []
+    for candidate in raw_items:
+        if not isinstance(candidate, dict) or set(candidate) - {"source_uri", "title"}:
+            raise IntakeError("Email intake accepts only the selected source URL and title.")
+        title = candidate.get("title")
+        if not isinstance(title, str) or not title.strip():
+            title = canonical_source_url(candidate.get("source_uri")).split("/", 3)[2]
+        items.append({
+            "source_uri": candidate.get("source_uri"),
+            "title": title,
+            "media_type": "text/html",
+            "ingestion_rationale": (
+                f"An editor selected this candidate from private email receipt {receipt_id}. "
+                "The submitted email and links are untrusted source material. This Reference is pending "
+                "editorial curation; import is not an approval, human label, or publication."
+            ),
+        })
+    return intake_references(client, {
+        "publicationEndpoint": publication,
+        "corpusId": corpus_id,
+        "items": items,
+    }, identity)
 
 
 def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str) -> dict:

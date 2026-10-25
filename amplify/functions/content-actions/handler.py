@@ -27,7 +27,7 @@ from papyrus_content.rebuild_trigger import (
 from papyrus_content.story_reporting import save_story_version
 from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
-from papyrus_content.reference_intake import IntakeError, intake_references
+from papyrus_content.reference_intake import IntakeError, intake_email_submission_references, intake_references
 from papyrus_content.publish_alerts import PUBLISHED_TASK_KEY, announce_published
 from papyrus_content.publishing import (
     ItemFields,
@@ -354,6 +354,12 @@ def handler(event, context):
             client, _claims = create_authoring_client()
             try:
                 return intake_references(client, arguments, event.get("identity") or {})
+            except IntakeError as error:
+                return {"ok": False, "errors": [{"code": "intake-rejected", "message": str(error)}]}
+        if field == "intakeEmailSubmissionReferences":
+            client, _claims = create_authoring_client()
+            try:
+                return intake_email_submission_references(client, arguments, event.get("identity") or {})
             except IntakeError as error:
                 return {"ok": False, "errors": [{"code": "intake-rejected", "message": str(error)}]}
         if field == "deriveMarkus":

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "a12eaaea-947a-4fa2-951a-990f967f9a77",
+  "issue_id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-25T13:13:38.215Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "51b54e45-45e4-4165-ac78-06a7f0a2b737",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-luna",
+      "name": "Codex",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}
