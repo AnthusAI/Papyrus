@@ -165,7 +165,11 @@ assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TA
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
 assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
-assert.ok(!("KNOWLEDGE_MONITOR_SOURCES" in staticEnvironment), "monitor records are opt-in: no source set, no variable");
+const withoutMonitors = knowledgeStack((site) => { delete site.knowledgeRun.monitorSources; delete site.knowledgeRun.monitorWeeks; delete site.knowledgeRun.monitorSuggestions; });
+const plainEnvironment = Object.fromEntries(
+  (Object.values(withoutMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.ok(!("KNOWLEDGE_MONITOR_SOURCES" in plainEnvironment), "monitor records are opt-in: no source set, no variable");
 const withMonitors = knowledgeStack((site) => { site.knowledgeRun.monitorSources = ["huggingface"]; site.knowledgeRun.monitorWeeks = 26; site.knowledgeRun.monitorSuggestions = 5; });
 const monitorEnvironment = Object.fromEntries(
   (Object.values(withMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
