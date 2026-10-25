@@ -13,9 +13,40 @@
     "cyclotron"
   ],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "70a66bab-c4a0-4a5f-9a86-49e656a5b1fa",
+      "author": "home",
+      "text": "Papyrus cap display/configuration work is in draft PR https://github.com/AnthusAI/Papyrus/pull/706 at 1f9f0fff0f422c970b83e75bf2f5bbe69c9c7ba7. It removes quota fractions, labels incomplete history as lower bounds, strips legacy ceilings, and preserves bounded maxItemsPerRun. Local checks pass: 94 Python tests, 6 BDD scenarios / 26 steps, UI test, ESLint, typecheck, diff check. No production changes or classification. Runtime enforcement is separately active in Cyclotron issue decision-flywheel-1318264f-6baf-4c9e-bd9d-e71c6d584a77 on feature/decision-flywheel-uncapped-standing-targets; coordinate that release. Existing Ruff F841 at monitoring_router.py:1184 is unchanged from the Papyrus base commit.,--agent-platform codex",
+      "created_at": "2026-10-25T14:12:21.565922Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "638f40ad-cbf2-4f73-8981-e258f146a237",
+      "author": "home",
+      "text": "Exact-head validation for [PR #706](https://github.com/AnthusAI/Papyrus/pull/706) is green at `1f9f0fff0f422c970b83e75bf2f5bbe69c9c7ba7`: Python/TypeScript run `40201071685` and package smoke `40201071692` passed. Local focused checks also pass (94 Python tests, 6 BDD scenarios / 26 steps, monitoring-page UI test, targeted ESLint, TypeScript typecheck, and diff check). No production change or classification was run.\n\nThis PR covers only Papyrus Monitoring/configuration. Runtime enforcement removal is separately active in Cyclotron issue `decision-flywheel-1318264f-6baf-4c9e-bd9d-e71c6d584a77` on `feature/decision-flywheel-uncapped-standing-targets`; coordinate that release. Existing Ruff F841 at `monitoring_router.py:1184` is unchanged from Papyrus base.\n",
+      "created_at": "2026-10-25T14:22:48.115687Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
   "created_at": "2026-10-25T12:43:09.385551Z",
-  "updated_at": "2026-10-25T12:43:09.886253Z",
+  "updated_at": "2026-10-25T14:22:48.115733Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
