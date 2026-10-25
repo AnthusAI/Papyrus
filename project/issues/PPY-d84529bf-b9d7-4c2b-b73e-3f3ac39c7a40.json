@@ -1,0 +1,28 @@
+{
+  "id": "PPY-d84529bf-b9d7-4c2b-b73e-3f3ac39c7a40",
+  "title": "Remove arbitrary standing Cyclotron request and item ceilings",
+  "description": "As an editor of a publication with a standing Monitor, I want the shared Cyclotron to process all eligible items without arbitrary lifetime, daily-request, or total-item ceilings, so that curation is not silently bounded by operator-set quotas. Preserve metered usage reporting and bounded resumable work batches; remove the misleading cap meter from Monitoring while continuing to show actual usage. This does not authorize changing billing, provider credentials, access grants, or triggering bulk classification.\n\nFeature: Standing Cyclotron processing has no arbitrary request or item quota\n  Scenario: A standing Monitor continues beyond prior configured ceilings\n    Given a configured standing publication target with no total request, per-day request, or total item cap\n    And requests and items are persisted with usage accounting and normal technical storage protections\n    When the run receives more decisions and unique items than the former configured ceilings\n    Then it accepts and processes them in bounded resumable batches without quota refusals\n    And the Monitoring page reports observed decisions without implying a ceiling\n  Scenario: Physical usage and safety controls remain effective\n    Given a standing run approaching a real configured storage or request-shape limit\n    When a request is processed\n    Then normal payload, concurrency, retry, backpressure, and storage protections still apply\n    And measured model and infrastructure usage remains available for future cost metering.\n\nDefinition of Done: remove only trusted standing-target lifetime/per-day request and total-item quota semantics and their production configuration; keep bounded per-run work batches, idempotency, provider retry/concurrency rules, payload validation and physical storage protection. Papyrus Monitoring displays actual counts, not quota fractions. Add focused Cyclotron unit/API tests and Papyrus Gherkin/UI tests. No live config changes or classification calls in this task. Coordinate the Cyclotron upstream change with its active repository owner; do not touch overlapping lab I9 budget/alarms work.",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3212f123-2cc6-4464-b3b6-1c32bfbdda25",
+  "labels": [
+    "monitoring",
+    "cyclotron"
+  ],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-25T12:43:09.385551Z",
+  "updated_at": "2026-10-25T12:43:09.886253Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "GPT-6 Luna",
+    "name": "email-intake"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
