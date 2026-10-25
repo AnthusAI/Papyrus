@@ -12,6 +12,10 @@ A model is kept when it falls inside the window (`createdAt`), matches `pipeline
 either from a watchlisted author or reaches `minLikes` / `minDownloads` (when neither is set, every match
 is kept). The same rule, as `hf_accepts`, can run again at routing time (docs/monitoring-cloud.md).
 
+The rule may also *exclude* repackaged copies of existing models (quantisations, uncensored variants, wrappers):
+`excludeTags`, `excludeBaseRelations` and `excludeIdPatterns` (empty by default). An excluded model is not
+collected; the run receipt counts them per reason in `read.skipped`.
+
 Each item carries the Hub's own fields as `details` (model id, author, createdAt, lastModified,
 pipeline tag, tags, license, library, likes, downloads, `sha`, and `baseModels`: the models it was built
 on, with the relation the Hub records). Only whitelisted fields are kept; model card text never is.
@@ -45,6 +49,9 @@ TAG = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 BASE_RELATIONS = ("finetune", "quantized", "adapter", "merge")
 MAX_TAGS, MAX_BASE_MODELS = 80, 10
+EXCLUDE_RELATIONS = BASE_RELATIONS + ("declared",)
+EXCLUDE_REASONS = ("tag", "baseRelation", "idPattern")
+MAX_ID_PATTERNS, MAX_PATTERN_LENGTH = 50, 100
 DEFAULT_TIME_BUDGET_SECONDS = 70.0   # the collector Lambda times out at 120 s
 
 
@@ -90,8 +97,22 @@ def validate_rule(raw: dict, *, name: str = "Config") -> dict:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} {key} must be a whole number of 0 or more")
             thresholds[key] = value
+    relations = _string_list(raw.get("excludeBaseRelations"), f"{name} excludeBaseRelations", TAG, len(EXCLUDE_RELATIONS))
+    for relation in relations:
+        if relation not in EXCLUDE_RELATIONS:
+            raise ValueError(f"{name} excludeBaseRelations entries must be among {', '.join(EXCLUDE_RELATIONS)}")
+    patterns = _string_list(raw.get("excludeIdPatterns"), f"{name} excludeIdPatterns",
+                            re.compile(r"^[^\x00-\x1f]{1,%d}$" % MAX_PATTERN_LENGTH), MAX_ID_PATTERNS)
+    for pattern in patterns:
+        try:
+            re.compile(pattern)
+        except re.error as error:
+            raise ValueError(f"{name} excludeIdPatterns has an invalid regular expression {pattern!r}: {error}") from error
+    exclusions = {"excludeTags": _string_list(raw.get("excludeTags"), f"{name} excludeTags", TAG, 50),
+                  "excludeBaseRelations": relations, "excludeIdPatterns": patterns}
     return {"pipelineTags": _string_list(raw.get("pipelineTags"), f"{name} pipelineTags", TAG, 20),
-            "authors": _string_list(raw.get("authors"), f"{name} authors", NAME, 200), **thresholds}
+            "authors": _string_list(raw.get("authors"), f"{name} authors", NAME, 200), **thresholds,
+            **{key: value for key, value in exclusions.items() if value}}   # absent when empty: rules keep their old shape
 
 
 def validate_hf_config(raw: dict) -> dict:
@@ -117,7 +138,26 @@ def validate_hf_config(raw: dict) -> dict:
     return {**rule, "search": search, "sort": sort, "lookbackDays": lookback, "pageSize": page_size, "pagesPerQuery": pages}
 
 
+def hf_exclusion(details: dict, rule: dict) -> str | None:
+    """Why the rule's exclusions drop this model (`tag`, `baseRelation` or `idPattern`), or None."""
+    excluded_tags = {t.lower() for t in rule.get("excludeTags") or []}
+    if excluded_tags and any(str(t).lower() in excluded_tags for t in details.get("tags") or []):
+        return "tag"
+    relations = set(rule.get("excludeBaseRelations") or [])
+    if relations and any(b.get("relation") in relations for b in details.get("baseModels") or []):
+        return "baseRelation"
+    model_id = str(details.get("modelId") or "")
+    if any(re.search(p, model_id, re.IGNORECASE) for p in rule.get("excludeIdPatterns") or []):
+        return "idPattern"
+    return None
+
+
 def hf_accepts(details: dict, rule: dict) -> bool:
+    """Not excluded, and passes the inclusion rule (`hf_includes`)."""
+    return hf_exclusion(details, rule) is None and hf_includes(details, rule)
+
+
+def hf_includes(details: dict, rule: dict) -> bool:
     """Tag filter first, then: a watchlisted author, or a threshold reached, or no thresholds at all."""
     tags = rule.get("pipelineTags") or []
     if tags and details.get("pipelineTag") not in tags:
@@ -169,7 +209,8 @@ def hf_details(row: dict) -> dict | None:
     created = _parse_time(row.get("createdAt"))
     if not isinstance(model_id, str) or not MODEL_ID.match(model_id) or created is None:
         return None
-    tags = [t for t in row.get("tags") or [] if isinstance(t, str) and 0 < len(t) <= 120][:MAX_TAGS]
+    all_tags = [t for t in row.get("tags") or [] if isinstance(t, str) and 0 < len(t) <= 120]
+    tags = all_tags[:MAX_TAGS]   # base_model relations are read from every tag: the typed one can sit past the 80th
     card = row.get("cardData") if isinstance(row.get("cardData"), dict) else {}
     license_id = next((t[len("license:"):] for t in tags if t.startswith("license:")), None)
     if license_id is None and isinstance(card.get("license"), str):
@@ -181,7 +222,7 @@ def hf_details(row: dict) -> dict | None:
                "libraryName": row.get("library_name") if isinstance(row.get("library_name"), str) else None,
                "likes": _count(row.get("likes")), "downloads": _count(row.get("downloads")),
                "sha": row.get("sha") if isinstance(row.get("sha"), str) else None,
-               "baseModels": base_models(tags, card.get("base_model"))}
+               "baseModels": base_models(all_tags, card.get("base_model"))}
     if row.get("trendingScore") is not None:
         details["trendingScore"] = _count(row["trendingScore"])
     if row.get("gated"):
@@ -259,6 +300,12 @@ class Reading:
     def __init__(self, budget_seconds: float | None, max_requests: int | None = None):
         self.deadline = time.monotonic() + budget_seconds if budget_seconds else None
         self.max_requests, self.requests, self.stopped_by, self.errors = max_requests, 0, None, []
+        self.excluded: dict[str, str] = {}   # model id -> reason; a model seen by several queries counts once
+
+    def skipped(self) -> dict[str, int]:
+        """Models that would have been collected but for an exclusion, per reason (zero reasons left out)."""
+        counts = {reason: sum(1 for r in self.excluded.values() if r == reason) for reason in EXCLUDE_REASONS}
+        return {reason: n for reason, n in counts.items() if n}
 
     def may_request(self) -> bool:
         if self.stopped_by:
@@ -288,7 +335,13 @@ def read_query(config: dict, query: dict, since: datetime, fetch: Callable, read
         reading.requests += 1
         pages += 1
         rows = parse_hf_models(body)
-        items += [d for d in rows if _parse_time(d["createdAt"]) >= since and hf_accepts(d, config)]
+        for d in rows:
+            if _parse_time(d["createdAt"]) >= since and hf_includes(d, config):
+                reason = hf_exclusion(d, config)
+                if reason:
+                    reading.excluded.setdefault(d["modelId"], reason)
+                else:
+                    items.append(d)
         url = next_url
         last = rows[-1] if rows else None
         floor = (stop_below or {}).get(query["sort"])
@@ -320,5 +373,7 @@ def read_hf_models(config: dict, now: float, fetch: Callable | None = None, meta
         reading.errors.append({"stage": "fetch", "message": f"stopped early: {reading.stopped_by}"})
     if meta is not None:
         meta.update(requests=reading.requests, stoppedBy=reading.stopped_by, errors=reading.errors, window=_iso(since.timestamp()))
+        if reading.excluded:
+            meta["skipped"] = reading.skipped()
     ordered = sorted(found.values(), key=lambda d: _parse_time(d["createdAt"]), reverse=True)
     return [hf_item(d) for d in ordered[:config["maxItems"]]]
