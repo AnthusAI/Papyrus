@@ -24,9 +24,12 @@ COPY infra/knowledge-run/bake_models.py /tmp/bake_models.py
 RUN python /tmp/bake_models.py && rm /tmp/bake_models.py
 
 # Papyrus is the release from PyPI (it carries the data files the run needs), not a source tree.
-ARG PAPYRUS_VERSION=5.32.0
+ARG PAPYRUS_VERSION=5.39.0
 ARG PAPYRUS_SPEC=
 RUN pip install -c /tmp/constraints.txt "${PAPYRUS_SPEC:-papyrus-newsroom[markus]==${PAPYRUS_VERSION}}" && rm -rf /root/.cache
+
+# The optional trend-drafts step that runs after the knowledge run (docs/knowledge-cloud-run.md).
+COPY infra/knowledge-run/trend_drafts.py /opt/papyrus-jobs/trend_drafts.py
 
 ENV PAPYRUS_ALLOW_CROSS_ROOT=1 PAPYRUS_GRAPHQL_AUTH=iam HOME=/tmp
 WORKDIR /work
