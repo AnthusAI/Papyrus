@@ -17,10 +17,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import http.client
 import json
 import logging
 import os
+import queue
 import re
+import socket
+import ssl
+import threading
+from urllib.parse import urlsplit, urlunsplit
 
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
@@ -274,8 +280,90 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
     for item in details:
         if "#LINKS#" in item.get("sk", ""):
             links.extend(json.loads(item.get("json", "[]")))
-    return {"submission": _email_summary(row), "safeBodyText": body,
+    return {"submission": {**_email_summary(row), "corpusId": publication.get("corpusId")}, "safeBodyText": body,
             "candidateLinks": links, "sourceMaterialIsUntrusted": True}
+
+
+def _resolve_beehiiv_article(url: str) -> str:
+    """Resolve only a selected Beehiiv article wrapper with bounded pinned-IP HEADs."""
+    from .email_submission import resolve_beehiiv_tracking_url
+
+    def resolve_host(host, *, timeout):
+        # getaddrinfo has no timeout parameter, so isolate it on a daemon thread
+        # and bound how long this editor request waits without mutating the
+        # process-wide socket defaults used by other Lambda invocations.
+        result = queue.Queue(maxsize=1)
+        def lookup():
+            try:
+                result.put((True, sorted({entry[4][0] for entry in socket.getaddrinfo(
+                    host, 443, type=socket.SOCK_STREAM
+                )})))
+            except Exception as error:
+                result.put((False, error))
+        worker = threading.Thread(target=lookup, daemon=True)
+        worker.start()
+        worker.join(timeout)
+        if worker.is_alive():
+            raise TimeoutError("DNS lookup timed out")
+        ok, value = result.get_nowait()
+        if not ok:
+            raise value
+        return value
+
+    def request(current, *, connect_addresses, method, allow_redirects, read_body, trust_env, timeout):
+        if method != "HEAD" or allow_redirects or read_body or trust_env or not connect_addresses:
+            raise ValueError("unsafe redirect transport options")
+        parts = urlsplit(current)
+        host = parts.hostname or ""
+        path = urlunsplit(("", "", parts.path or "/", parts.query, ""))
+        address = connect_addresses[0]
+
+        class PinnedHTTPSConnection(http.client.HTTPSConnection):
+            def connect(self):
+                raw = socket.create_connection((address, 443), timeout=self.timeout)
+                try:
+                    self.sock = self._context.wrap_socket(raw, server_hostname=host)
+                except Exception:
+                    raw.close()
+                    raise
+
+        connection = PinnedHTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
+        try:
+            connection.request("HEAD", path, headers={
+                "Host": host,
+                "User-Agent": "Papyrus email article-link review",
+                "Accept": "*/*",
+                "Connection": "close",
+            })
+            response = connection.getresponse()
+            # Do not read even a byte of the remote response body.
+            return {"status": response.status, "headers": {"Location": response.getheader("Location")}}
+        finally:
+            connection.close()
+
+    return resolve_beehiiv_tracking_url(url, resolve_host=resolve_host, request=request)
+
+
+def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
+    """Resolve exactly one selected, supported article wrapper from an authorized receipt."""
+    from .email_submission import RedirectResolutionError, is_supported_beehiiv_tracking_url
+
+    detail = monitoring_email_submission(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
+    if "submission" not in detail:
+        return detail
+    if type(candidate_index) is not int or not 0 <= candidate_index < len(detail["candidateLinks"]):
+        return {"error": "bad_request"}
+    link = detail["candidateLinks"][candidate_index]
+    if link.get("resolutionStatus") != "unresolved" or not is_supported_beehiiv_tracking_url(link.get("url", "")):
+        return {"error": "not_resolvable"}
+    try:
+        destination = (resolver or _resolve_beehiiv_article)(link["url"])
+    except RedirectResolutionError as error:
+        return {"error": "resolution_failed", "reason": error.code}
+    except Exception as error:
+        LOG.error("email article link resolution failed: %s", type(error).__name__)
+        return {"error": "resolution_failed", "reason": "redirect_request_failed"}
+    return {"url": destination, "title": str(link.get("title") or "")[:1000], "resolved": True}
 
 
 # --- the Lambda boundary --------------------------------------------------------------------------
@@ -321,6 +409,11 @@ def handle(event: dict, *, env=None, store_factory=None, now: float | None = Non
             return monitoring_email_submission(store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
+        if field_name == "monitoringResolveEmailArticleLink":
+            return monitoring_email_resolve_article_link(
+                store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
+                receipt_id=args.get("receiptId"), candidate_index=args.get("candidateIndex"),
+            )
         if field_name != "monitoringOverview":
             return {"error": "bad_request"}
         return monitoring_overview(store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope,

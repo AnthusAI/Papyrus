@@ -1,5 +1,7 @@
 """The Monitoring page's read path: scoping, permissions, usage, empty and error states, read-only access."""
 import json
+import io
+from unittest.mock import patch
 
 import pytest
 
@@ -225,11 +227,113 @@ def test_email_submission_details_are_editor_only_and_publication_scoped():
     assert result["safeBodyText"] == "Read as plain text\n"
     assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
     assert result["sourceMaterialIsUntrusted"] is True
+
+
+def test_email_article_redirect_resolution_is_an_explicit_scoped_editor_action():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    receipt = store.get(receipt_id)
+    receipt["status"] = "pending_review"
+    store.table[receipt_id] = receipt
+    details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
+    store.table[details_key]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
+        '"title":"Story","resolutionStatus":"unresolved"}]'
+    )
+    calls = []
+    event = {"info": {"fieldName": "monitoringResolveEmailArticleLink"},
+             "arguments": {"receiptId": receipt_id, "candidateIndex": 0},
+             "identity": {"groups": ["editor"]}}
+    with patch.object(mv, "monitoring_email_resolve_article_link", return_value={"resolved": True}) as dispatched:
+        result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    assert result == {"resolved": True} and dispatched.call_args.kwargs["candidate_index"] == 0
+
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/story",
+    )
+    assert result == {"url": "https://news.example.org/story", "title": "Story", "resolved": True}
+    assert calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
+
+
+def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
     store.table[receipt_id]["status"] = "pending_review"
-    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
-    assert result["submission"]["status"] == "pending_review"
-    denied = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=lambda: store)
-    assert denied == {"error": "forbidden"}
-    refused = mv.handle({**event, "identity": {"groups": ["reader"]}},
-                        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
-    assert refused == {"error": "forbidden"}
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/unsubscribe?unsubscribe=true",'
+        '"title":"Unsubscribe","resolutionStatus":"unresolved"}]'
+    )
+    calls = []
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/story",
+    )
+    assert result == {"error": "not_resolvable"} and calls == []
+    with pytest.raises(Forbidden):
+        mv.monitoring_email_resolve_article_link(
+            store, groups=["editor"], site_endpoint=fx.APP_PAPYRUS, receipt_id=receipt_id,
+            candidate_index=0, resolver=lambda url: calls.append(url),
+        )
+    assert calls == []
+
+
+def test_production_beehiiv_resolver_pins_public_addresses_and_sends_head_without_reading_body():
+    tracker = "https://link.mail.beehiiv.com/ss/c/article-token"
+    requests, destinations, files, hostnames = [], [], [], []
+    responses = [
+        (b"HTTP/1.1 302 Found\r\nLocation: https://news.example.org/story?utm_source=mail\r\n"
+         b"Content-Length: 4\r\n\r\nBODY"),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nBODY",
+    ]
+
+    class FakeSocket:
+        def __init__(self, response):
+            self.response = response
+
+        def sendall(self, data):
+            requests.append(data.decode("ascii"))
+
+        def makefile(self, *_args, **_kwargs):
+            class TrackingStream(io.BytesIO):
+                position_before_close = None
+                body_start = None
+
+                def close(self):
+                    self.position_before_close = self.tell()
+                    self.body_start = self.getvalue().index(b"BODY")
+                    super().close()
+
+            stream = TrackingStream(self.response)
+            files.append(stream)
+            return stream
+
+        def close(self):
+            return None
+
+        def shutdown(self, *_args):
+            return None
+
+    class FakeContext:
+        def wrap_socket(self, raw, *, server_hostname):
+            hostnames.append(server_hostname)
+            return raw
+
+    def getaddrinfo(host, *_args, **_kwargs):
+        return [(2, 1, 6, "", ("93.184.216.34", 443))]
+
+    def connect(address, *, timeout):
+        destinations.append((address, timeout))
+        return FakeSocket(responses.pop(0))
+
+    with patch.object(mv.socket, "getaddrinfo", side_effect=getaddrinfo), \
+            patch.object(mv.socket, "create_connection", side_effect=connect), \
+            patch.object(mv.ssl, "create_default_context", return_value=FakeContext()):
+        result = mv._resolve_beehiiv_article(tracker)
+
+    assert result == "https://news.example.org/story"
+    assert [destination[0] for destination in destinations] == [("93.184.216.34", 443)] * 2
+    assert hostnames == ["link.mail.beehiiv.com", "news.example.org"]
+    assert len(requests) == 2 and all(request.startswith("HEAD ") for request in requests)
+    assert all("Cookie:" not in request and "Authorization:" not in request for request in requests)
+    assert all(stream.position_before_close == stream.body_start for stream in files)

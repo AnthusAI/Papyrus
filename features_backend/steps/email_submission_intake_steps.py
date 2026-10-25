@@ -11,6 +11,72 @@ from procedures.newsroom.tests.email_submission_fixture import (
 )
 
 
+@given("an email with failed authentication is available to an editor for private review")
+def email_pending_reference_fixture(context):
+    from procedures.newsroom.tests.test_reference_intake import IntakeClient
+
+    context.email_reference_client = IntakeClient()
+    context.email_reference_env = {
+        "PAPYRUS_GRAPHQL_ENDPOINT": "https://publication.appsync-api.us-east-1.amazonaws.com/graphql",
+        "PAPYRUS_USER_POOL_ISSUER": "https://cognito-idp.us-east-1.amazonaws.com/publication-pool",
+        "PAPYRUS_TENANT_ID": "",
+        "PAPYRUS_PUBLICATION_CORPUS_KEY": "email-publication",
+    }
+    context.email_reference_client.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {
+        "id": "knowledge-corpus-email-publication"}
+    context.email_reference_identity = {
+        "sub": "editor-sub", "issuer": context.email_reference_env["PAPYRUS_USER_POOL_ISSUER"],
+        "claims": {"sub": "editor-sub", "iss": context.email_reference_env["PAPYRUS_USER_POOL_ISSUER"],
+                   "cognito:groups": ["editor"]},
+    }
+    context.email_reference_payload = {
+        "receiptId": "EMAIL#" + "c" * 64,
+        "items": [{"source_uri": "https://example.org/email-story", "title": "Email story"}],
+    }
+
+
+@when("the editor explicitly adds its selected article links to References")
+def email_editor_imports_pending_references(context):
+    from unittest.mock import patch
+    from papyrus_content.reference_intake import intake_email_submission_references
+
+    client = context.email_reference_client
+    with patch.dict("os.environ", context.email_reference_env), patch(
+        "papyrus_content.reference_intake.upload_attachment_body", client.upload
+    ):
+        context.email_reference_first = intake_email_submission_references(
+            client, context.email_reference_payload, context.email_reference_identity,
+            env=context.email_reference_env,
+        )
+        context.email_reference_retry = intake_email_submission_references(
+            client, context.email_reference_payload, context.email_reference_identity,
+            env=context.email_reference_env,
+        )
+
+
+@then("each selected URL is registered or matched as a pending Reference with editor provenance")
+def email_reference_is_pending(context):
+    client = context.email_reference_client
+    references = context.email_reference_first["references"]
+    assert len(references) == 1
+    stored = client.tables["Reference"][references[0]["id"]]
+    assert stored["sourceUri"] == "https://example.org/email-story"
+    assert stored["curationStatus"] == "pending"
+    assert stored["versionCreatedBy"] == "user:editor-sub"
+    assert "EMAIL#" in stored["curationStatusReason"]
+
+
+@then("repeating the import is idempotent and makes no vote, classifier request, or publication")
+def email_reference_import_is_inert(context):
+    client = context.email_reference_client
+    assert context.email_reference_retry["references"] == context.email_reference_first["references"]
+    assert len(client.tables["Reference"]) == 1
+    assert len(client.tables["KnowledgeImportRun"]) == 1
+    assert not client.tables.get("Message")
+    assert not client.tables.get("PublishedItem")
+    assert not client.tables.get("Decision")
+
+
 @given("an isolated publication email destination and a newsletter email")
 def email_destination(context):
     context.email_fixture = email_fixture()

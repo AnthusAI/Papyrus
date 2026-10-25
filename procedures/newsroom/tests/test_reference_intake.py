@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from papyrus_content.reference_intake import intake_references, IntakeError
+from papyrus_content.reference_intake import intake_references, intake_email_submission_references, IntakeError
 from procedures.newsroom.tests.test_story_reporting import client_with_one_story, LINEAGE
 from papyrus_content.story_reporting import link_reference_to_story, story_references
 
@@ -54,6 +54,15 @@ class IntakeClient:
 def submit(client, data=None, identity=None):
     with patch.dict("os.environ", ENV), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
         return intake_references(client, payload() if data is None else data, IDENTITY if identity is None else identity)
+
+
+def submit_email(client, data=None, identity=None):
+    email_env = {**ENV, "PAPYRUS_PUBLICATION_CORPUS_KEY": "email-publication"}
+    client.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {"id": "knowledge-corpus-email-publication"}
+    request = data or {"receiptId": "EMAIL#" + "a" * 64,
+                       "items": [{"source_uri": "https://example.test/email-story", "title": "Email story"}]}
+    with patch.dict("os.environ", email_env), patch("papyrus_content.reference_intake.upload_attachment_body", client.upload):
+        return intake_email_submission_references(client, request, IDENTITY if identity is None else identity, env=email_env)
 
 
 def test_editor_intake_and_link_preserve_story():
@@ -129,6 +138,35 @@ def test_batch_validation_is_complete_before_writes_and_no_status_or_actor_overr
         with pytest.raises(IntakeError): submit(c, payload(**{key: value}))
 
 
+def test_email_candidate_import_creates_pending_reference_with_private_receipt_provenance_and_deduplicates():
+    c = IntakeClient()
+    first = submit_email(c)
+    repeated = submit_email(c)
+    assert first["ok"] and repeated["references"] == first["references"]
+    assert len(c.tables["Reference"]) == 1
+    reference = next(iter(c.tables["Reference"].values()))
+    assert reference["curationStatus"] == "pending" and reference["curationStatusReason"].startswith(
+        "An editor selected this candidate from private email receipt EMAIL#"
+    )
+    assert "approval" in reference["curationStatusReason"] and reference["versionCreatedBy"] == "user:editor-sub"
+    provenance = json.loads(next(iter(c.uploads.values())))
+    assert provenance["initialStatus"] == "pending" and "EMAIL#" in provenance["rationale"]
+
+
+def test_email_candidate_import_rejects_client_supplied_status_actor_and_unbounded_batches():
+    c = IntakeClient()
+    invalid = {"receiptId": "EMAIL#" + "a" * 64, "items": [], "status": "accepted"}
+    with pytest.raises(IntakeError):
+        submit_email(c, invalid)
+    with pytest.raises(IntakeError):
+        submit_email(c, {"receiptId": "EMAIL#" + "a" * 64,
+                         "items": [{"source_uri": "https://example.test/x", "title": "X", "curation_status": "accepted"}]})
+    with pytest.raises(IntakeError, match="between 1 and 20"):
+        submit_email(c, {"receiptId": "EMAIL#" + "a" * 64,
+                         "items": [{"source_uri": f"https://example.test/{i}", "title": f"{i}"} for i in range(21)]})
+    assert not c.tables["Reference"]
+
+
 def test_legacy_reference_deduplicated_without_recuration():
     c = IntakeClient()
     legacy = {"id": "legacy-v3", "lineageId": "legacy", "versionNumber": 3, "versionState": "current", "sourceUri": "https://EXAMPLE.TEST:443/report#old", "corpusId": "corpus-one", "curationStatus": "accepted"}
@@ -187,6 +225,31 @@ def test_handler_uses_validated_identity_and_returns_denials():
         e["identity"] = {}
         assert handler.handler(e, None)["errors"][0]["code"] == "intake-rejected"
         assert c.tables == before
+
+
+def test_email_import_action_uses_the_existing_editor_identity_boundary():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location(
+        "email_intake_actions", Path(__file__).resolve().parents[3] / "amplify/functions/content-actions/handler.py")
+    handler = importlib.util.module_from_spec(spec); spec.loader.exec_module(handler)
+    c = IntakeClient()
+    email_env = {**ENV, "PAPYRUS_PUBLICATION_CORPUS_KEY": "email-publication"}
+    c.tables["KnowledgeCorpus"]["knowledge-corpus-email-publication"] = {"id": "knowledge-corpus-email-publication"}
+    event = {"fieldName": "intakeEmailSubmissionReferences", "arguments": {"input": json.dumps({
+        "receiptId": "EMAIL#" + "b" * 64,
+        "items": [{"source_uri": "https://example.test/newsletter", "title": "Newsletter story"}],
+    })}, "identity": IDENTITY}
+    with patch.dict("os.environ", email_env), patch.object(handler, "create_authoring_client", return_value=(c, {})), \
+            patch("papyrus_content.reference_intake.upload_attachment_body", c.upload):
+        response = handler.handler(event, None)
+        assert response["ok"] and response["references"][0]["curationStatus"] == "pending"
+        before = copy.deepcopy(c.tables)
+        event["identity"] = {"sub": "not-editor", "issuer": ISSUER,
+                             "claims": {"sub": "not-editor", "iss": ISSUER, "cognito:groups": ["reader"]}}
+        refused = handler.handler(event, None)
+    assert refused["errors"][0]["code"] == "intake-rejected"
+    assert c.tables == before
 
 
 def test_cli_routes_user_catalog_to_scoped_action_without_generic_writes(tmp_path):

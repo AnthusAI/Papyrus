@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import {
   confidenceText,
   describeDelivery,
@@ -9,6 +11,9 @@ import {
   routingLabel,
   type MonitoringItem,
   type MonitoringEmailDetails,
+  type MonitoringEmailArticleResolution,
+  type EmailReferenceImportItem,
+  type EmailReferenceImportOutcome,
   type MonitoringEmailSummary,
   type MonitoringOverview,
   type MonitoringRelevance,
@@ -89,16 +94,85 @@ function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string 
   );
 }
 
-function EmailSubmissions({ items, detail, onOpen }: {
+function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates }: {
   items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen: (receiptId: string) => void;
+  onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
+  onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
+  const [selected, setSelected] = useState<Record<number, boolean>>({});
+  const [resolved, setResolved] = useState<Record<number, { url: string; title: string }>>({});
+  const [busyIndex, setBusyIndex] = useState<number | null>(null);
+  const [busyImport, setBusyImport] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [importedReferences, setImportedReferences] = useState<EmailReferenceImportOutcome["references"]>([]);
+  const receiptId = detail && "submission" in detail ? detail.submission.receiptId : null;
+  useEffect(() => {
+    if (!detail || !("submission" in detail)) return;
+    setSelected(Object.fromEntries(detail.candidateLinks.map((link, index) => [index, link.resolutionStatus !== "unresolved"])));
+    setResolved({});
+    setNotice("");
+    setImportedReferences([]);
+  }, [receiptId, detail]);
+
+  const resolveLink = async (index: number) => {
+    if (!receiptId || !onResolveArticleLink) return;
+    setBusyIndex(index);
+    setNotice("");
+    try {
+      const result = await onResolveArticleLink(receiptId, index);
+      if (!("url" in result)) {
+        setNotice("The article destination could not be resolved safely. The original link remains private and unchanged.");
+        return;
+      }
+      const candidate = detail && "submission" in detail ? detail.candidateLinks[index] : null;
+      setResolved((current) => ({ ...current, [index]: { url: result.url, title: result.title || candidate?.title || "Article" } }));
+      setSelected((current) => ({ ...current, [index]: true }));
+      setNotice("Resolved. This request may be recorded as a click by the newsletter sender.");
+    } catch {
+      setNotice("The article destination could not be resolved. Try again later.");
+    } finally {
+      setBusyIndex(null);
+    }
+  };
+
+  const importSelected = async () => {
+    if (!receiptId || !detail || !("submission" in detail) || !onImportCandidates) return;
+    const candidates = detail.candidateLinks.flatMap((link, index) => {
+      if (!selected[index]) return [];
+      const resolvedLink = resolved[index];
+      if (!resolvedLink && link.resolutionStatus === "unresolved") return [];
+      const url = resolvedLink?.url ?? link.url;
+      return [{ source_uri: url, title: resolvedLink?.title || link.title || new URL(url).hostname }];
+    });
+    if (!candidates.length) {
+      setNotice("Select at least one available candidate link. Resolve tracking links before importing them.");
+      return;
+    }
+    setBusyImport(true);
+    setNotice("");
+    try {
+      const result = await onImportCandidates(receiptId, candidates);
+      setImportedReferences(result.references);
+      if (result.error) {
+        setNotice(`${result.imported} of ${candidates.length} selected candidates were registered or matched. ${result.error}`);
+      } else {
+        setNotice(`${result.imported} selected candidates are available as References. Import does not approve or publish them.`);
+      }
+    } catch {
+      setNotice("The import stopped. Any completed references are safe to retry; no review decision was made.");
+    } finally {
+      setBusyImport(false);
+    }
+  };
+
   return (
     <article className="news-desk-doctrine-card" data-monitoring-section="email-submissions">
       <div className="news-desk-doctrine-card__header"><div><h3>Email submissions</h3><span>Untrusted source material held privately for editor review</span></div></div>
       {items.length ? <ul className="news-desk-monitoring__list">
         {items.map((item) => <li key={item.receiptId} data-email-submission={item.receiptId}>
           <strong>{item.subject || "(no subject)"}</strong>
-          <span>{formatUtc(item.observedAt)} · {item.linkCount} candidate links · {item.processedCount} queued</span>
+          <span>{formatUtc(item.observedAt)} · {item.linkCount} candidate links · {item.reviewRequired
+            ? `${item.linkCount} await editor import` : `${item.processedCount} queued`}</span>
           {item.reviewRequired ? <span>Authentication warnings: private review required; nothing was routed automatically.</span> : null}
           {item.unresolvedLinkCount ? <span>{item.unresolvedLinkCount} tracking links remain unresolved and were not opened.</span> : null}
           <span>Envelope sender: {item.envelopeSender || "unknown"} · MIME From (unverified): {item.headerFrom || "unknown"}</span>
@@ -115,9 +189,28 @@ function EmailSubmissions({ items, detail, onOpen }: {
           <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{detail.safeBodyText}</pre>
           <h5>Candidate references ({detail.candidateLinks.length})</h5>
           <ul>{detail.candidateLinks.map((link, index) => <li key={`${link.url}-${index}`}>
-            {link.resolutionStatus === "unresolved" ? <span>{link.title || link.url} (unresolved; not opened)</span>
-              : <a href={link.url} target="_blank" rel="noreferrer noopener">{link.title || link.url}</a>}
+            {link.resolutionStatus === "unresolved" && !resolved[index]
+              ? <span>{link.title || "Newsletter article link"} (tracking redirect not opened)</span>
+              : <a href={(resolved[index]?.url ?? link.url)} target="_blank" rel="noreferrer noopener">{resolved[index]?.title ?? (link.title || "Source link")}</a>}
+            <label>
+              <input type="checkbox" checked={selected[index] ?? false}
+                disabled={link.resolutionStatus === "unresolved" && !resolved[index]}
+                onChange={(event) => setSelected((current) => ({ ...current, [index]: event.target.checked }))} />
+              Add as pending Reference
+            </label>
+            {link.resolutionStatus === "unresolved" && !resolved[index] ? (
+              <button type="button" disabled={busyIndex !== null || !onResolveArticleLink} onClick={() => void resolveLink(index)}>
+                {busyIndex === index ? "Resolving…" : "Resolve article redirect (may register a click)"}
+              </button>
+            ) : null}
           </li>)}</ul>
+          <p>Adding links creates or reuses pending References. It does not approve, label, classify, or publish them.</p>
+          <button type="button" disabled={busyImport || !onImportCandidates || !detail.submission.corpusId}
+            onClick={() => void importSelected()}>
+            {busyImport ? "Adding References…" : "Add selected links to References"}
+          </button>
+          {notice ? <p role="status" data-email-import-result>{notice}</p> : null}
+          {importedReferences.length ? <p><Link href={getNewsroomNavHref("/newsroom/references", false)}>Review these References</Link></p> : null}
         </section>
       ) : detail && "error" in detail ? <p role="alert">You cannot read this submission.</p>
         : detail && "state" in detail ? <p role="alert">Submission details are unavailable.</p> : null}
@@ -125,8 +218,10 @@ function EmailSubmissions({ items, detail, onOpen }: {
   );
 }
 
-function Ready({ data, demo, emailDetail, onEmailOpen }: {
+function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onImportCandidates }: {
   data: MonitoringOverview; demo: boolean; emailDetail: MonitoringEmailDetails | null; onEmailOpen: (id: string) => void;
+  onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
+  onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
   const router = data.router;
   return (
@@ -135,7 +230,9 @@ function Ready({ data, demo, emailDetail, onEmailOpen }: {
         <p className="news-desk-delegation-note" data-monitoring-notice>This publication is not one of the router&apos;s outputs, so no relevance is shown for it here.</p>
       ) : null}
 
-      <EmailSubmissions items={data.emailSubmissions ?? []} detail={emailDetail} onOpen={onEmailOpen} />
+      <EmailSubmissions items={data.emailSubmissions ?? []} detail={emailDetail} onOpen={onEmailOpen}
+        onResolveArticleLink={demo ? undefined : onResolveArticleLink}
+        onImportCandidates={demo ? undefined : onImportCandidates} />
 
       <article className="news-desk-doctrine-card" data-monitoring-section="router">
         <div className="news-desk-doctrine-card__header"><div><h3>Router</h3><span>Sends collected items to the shared Cyclotron and delivers relevant ones to References</span></div></div>
@@ -233,6 +330,8 @@ export function MonitoringOverviewView({
   demo = false,
   emailDetail = null,
   onEmailOpen = () => {},
+  onResolveArticleLink,
+  onImportCandidates,
 }: {
   result: MonitoringResult | null;
   canViewAll: boolean;
@@ -241,6 +340,8 @@ export function MonitoringOverviewView({
   demo?: boolean;
   emailDetail?: MonitoringEmailDetails | null;
   onEmailOpen?: (receiptId: string) => void;
+  onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
+  onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
   let body: React.ReactNode;
   if (result === null) {
@@ -256,7 +357,8 @@ export function MonitoringOverviewView({
   } else if (result.state === "empty") {
     body = <Message kind="empty" title="Nothing has been collected yet">No feed is configured and no run has been recorded. Items appear here after the collector&apos;s first run.</Message>;
   } else {
-    body = <Ready data={result} demo={demo} emailDetail={emailDetail} onEmailOpen={onEmailOpen} />;
+    body = <Ready data={result} demo={demo} emailDetail={emailDetail} onEmailOpen={onEmailOpen}
+      onResolveArticleLink={onResolveArticleLink} onImportCandidates={onImportCandidates} />;
   }
   const scopeLine = result && "scope" in result
     ? (result.scope.mode === "all" ? "Showing the whole shared pipeline, every publication." : `Showing what is relevant to ${result.scope.publicationId ?? "this publication"}.`)
