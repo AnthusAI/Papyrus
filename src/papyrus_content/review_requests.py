@@ -8,7 +8,7 @@ reference, an automation run, a Cyclotron decision, or a batch of those). Three 
                    "proceeded without review" (state ``timed_out``).
 * ``hard_gate``    the process never proceeds without an explicit answer. A hard gate has no deadline.
 
-An answer is ``approve``, ``reject`` or ``feedback``, with optional feedback text and an optional ``steer``
+An answer is ``approve``, ``acknowledge`` (the flag form of approve: nothing was approved, the editor saw it), ``reject`` or ``feedback``, with optional feedback text and an optional ``steer``
 (``adjust`` or ``not_this_kind``). Feedback and steering are stored on the request and handed to whatever raised
 it: that step reads them back with ``steering_for`` and records that it used them with ``mark_applied``
 ("You steered X, applied in run Y").
@@ -37,7 +37,7 @@ from typing import Any, Callable
 
 MODES = ("flag", "soft_review", "hard_gate")
 STATES = ("open", "answered", "timed_out", "withdrawn")
-DECISIONS = ("approve", "reject", "feedback")
+DECISIONS = ("approve", "acknowledge", "reject", "feedback")
 STEERS = ("adjust", "not_this_kind")
 ANSWERING_ROLES = frozenset({"editor", "admin"})
 RECIPIENT_SCOPES = ("default", "mode", "automation")
@@ -149,7 +149,7 @@ def read_review(row: dict[str, Any]) -> dict[str, Any]:
 def outcome_of(state: str | None, answer: dict[str, Any] | None) -> str:
     """What the raising process should do: a one-word answer to "may I continue, and with what"."""
     if state == "answered" and answer:
-        return {"approve": "approved", "reject": "rejected", "feedback": "feedback"}.get(answer.get("decision"), "answered")
+        return {"approve": "approved", "acknowledge": "approved", "reject": "rejected", "feedback": "feedback"}.get(answer.get("decision"), "answered")
     if state == "timed_out":
         return "proceeded_without_review"
     if state == "withdrawn":
@@ -274,6 +274,8 @@ def answer_review(client, request_id: str, *, decision: str, by: str, feedback: 
     if request["state"] != "open":
         suffix = f" ({PROCEEDED_WITHOUT_REVIEW})" if request["state"] == "timed_out" else ""
         raise ReviewError(f"review request {request_id} is {request['state'].replace('_', ' ')}{suffix}; it can no longer be answered.")
+    if decision == "acknowledge" and request["mode"] != "flag":
+        raise ReviewError("only a flag is acknowledged; a soft review or hard gate is approved or rejected.")
     at = now_iso(moment)
     answer = {"decision": decision, "feedback": note, "steer": steer, "by": _text(by, "by", required=True, limit=200), "at": at}
     client.update_record("ReviewRequest", {
