@@ -10,9 +10,17 @@
   "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "87620240-b1c8-4152-b52d-e9d4e2544233",
+      "author": "home",
+      "text": "2026-10-24: merged in #698 (off by default). Image 48cc1cc1f978 (Papyrus 5.39.0) pushed to ECR. The CDK template is synthesized (67 KB, so it needs --template-url via the CDK bootstrap bucket). Next: create change set enable-trend-drafts on papyrus-scheduled-job-knowledge-run-shipped with TrendDraftsEnabled=true, then Ryan's go to execute. Blocked on: AWS SSO re-login (aws sso login --profile papyrus-production).",
+      "created_at": "2026-10-25T02:06:07.392550Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-25T01:29:41.371486Z",
-  "updated_at": "2026-10-25T01:29:41.371559Z",
+  "updated_at": "2026-10-25T02:06:07.392581Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
