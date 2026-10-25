@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
 import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
+import type { NextRequest } from "next/server";
 import { readAmplifyOutputsFile } from "./amplify-outputs-path";
 import {
   ProspectusSiteAccounts,
@@ -40,6 +41,20 @@ export interface ProspectusSignedInSession {
   accessTokenExpiresAt: number;
   selectedAccountId?: string;
   siteSubject?: string;
+}
+
+/** Open the existing sealed Prospectus session cookie for one server request. */
+export function signedInProspectusSession(
+  request: Pick<NextRequest, "cookies">,
+  sealingSecret: string,
+  nowInSeconds?: number,
+): ProspectusSignedInSession | null {
+  return openProspectusCookie<ProspectusSignedInSession>(
+    sealingSecret,
+    PROSPECTUS_SESSION_COOKIE,
+    request.cookies.get(PROSPECTUS_SESSION_COOKIE)?.value,
+    nowInSeconds,
+  );
 }
 
 function sealingKeyForCookie(sealingSecret: string, cookieName: string): Buffer {

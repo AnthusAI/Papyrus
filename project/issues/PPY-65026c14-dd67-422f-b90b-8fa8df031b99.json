@@ -1,7 +1,7 @@
 {
   "id": "PPY-65026c14-dd67-422f-b90b-8fa8df031b99",
   "title": "Route authorized email submissions into existing Monitoring intake",
-  "description": "As an editor, I want publication and explicitly shared Cyclotron submission addresses to ingest safe newsletter links into pending Reference workflows. User authorized implementation on 2026-10-23; this scoped backend slice does not close the broader inbox-reader milestone. Feature: Authorized email reference intake\nScenario: Route a submitted newsletter\nGiven an explicitly configured publication or shared destination and authenticated allowed sender\nWhen a multipart newsletter with multiple editorial links is received\nThen safe links enter existing deduplicated Monitoring and Reference workflows with private provenance\nAnd publication selection precedes section classification\nAnd retries are idempotent and failures visible\nAnd instructions, action links, human labels and automatic publishing are never executed\nScenario: Cloud email without newsletters\nGiven a cloud-backed site without the newsletter plugin\nWhen its infrastructure is synthesized\nThen sender identity and configured email intake are supported independently\nAnd a static-only site requires no email resources\nScope: code, IaC, local fixtures, tests and draft PR only. No deployment, DNS/MX, policy changes, credentials, real email or merges.",
+  "description": "As an editor, I want newsletter email received at publication or explicitly shared Cyclotron destinations to enter existing pending-reference workflows as untrusted source material. SPF, DKIM, and DMARC verdicts are recorded as provenance signals, not sender authorization. Sender addresses and MIME headers never grant roles or choose destination; exact recipient configuration scopes routing. Passing SES spam and virus checks, bounded MIME parsing, safe link handling, idempotent retries, and visible failures remain. Editors can privately read an inert text rendering, verdicts, and every extracted candidate link. No instructions, action links, human labels, automated feedback, or publishing are executed.",
   "type": "story",
   "status": "in_progress",
   "priority": 1,
@@ -139,14 +139,115 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "72c5cbc3-0ea1-4a8e-b74c-31c5e4e18b95",
+      "author": "home",
+      "text": "Implementation update: remove the editorial link-count cap rather than raising it. Keep technical message bounds (1 MiB MIME, 64 MIME parts, depth 12, 2,048 chars per candidate URL) and normalize/deduplicate every eligible URL inside those bounds. Persist a compact private JSONL sidecar in the existing 30-day raw bucket; receipt metadata records its digest/size, total eligible/excluded counts, byte cursor, processed count and pending status. Drain discoveries in time-budgeted batches with a stable cursor; conditional discovery puts make an interrupted batch safe to replay without overwriting a routed item. Reuse the existing Monitoring routing GSI with an exact monitor-scoped pending key and a small EventBridge resume schedule that invokes the same receiver; keep the existing router schedule/target and sender/MIME checks unchanged. Any additional S3 manifest-write, DynamoDB query and EventBridge invoke grants will be exact resource/prefix/leading-key/source-ARN scoped in the reviewable template, not live-applied here. Final receipt says queued only when every eligible unique link is durable; partial progress remains processing with a checkpoint, hard format/security violations reject visibly, no content is silently truncated. Remove known Beehiiv click-wrapper URLs from downstream discovery and count them as excluded; do not resolve/fetch them until explicit privacy permission. Cross-email canonical Reference reuse remains in existing ReferenceIntake; duplicate deliveries retain independent audit receipts but retries do not duplicate discoveries or recurate References.\n\nFocused tests: all 41 direct links survive in multiple internal batches; more than 1,000 links under the byte bound are not rejected; excluded action/unsubscribe/tracker links; same-email normalization/dedup; mid-batch failure/retry after router advancement; checkpoint resume across schedule invocations; progress and final receipt counts; expired/changed binding fails closed; router cross-email Reference dedup unchanged. No production message, live AWS, security policy, deployment, or tracking URL fetch is part of this change.",
+      "created_at": "2026-10-24T15:22:13.556353Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e72cd1fd-3421-405d-94b0-c2ea4067b418",
+      "author": "home",
+      "text": "Bounded newsletter intake correction implemented on isolated branch feature/PPY-65026c-bounded-email-intake (based on develop 3d4f95b2). Removed editorial candidate/link-count rejection; existing 1 MiB MIME, 64-part, depth-12 and per-URL bounds remain. Eligible normalized links are stored in private JSONL manifests under the existing 30-day email-submissions prefix. Receipt cursor/progress and an exact-monitor-scoped one-minute resume schedule drain at most 25 links or 60 seconds per invocation; conditional discovery puts make retries safe after partial writes/router progress. Added exact-prefix S3 manifest write, exact Monitor routing-GSI query, and exact EventBridge invoke permissions. Known Beehiiv click-wrapper URLs are excluded without persistence or fetch. Current local validation: 197 focused Python tests and 16 email extraction/intake Gherkin scenarios pass; no deployment, merge, live email, labels, publication, or tracking-URL request occurred. Full local checks and draft PR are still in progress; resend acceptance remains separate.",
+      "created_at": "2026-10-24T15:29:50.094662Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "cf4f6bb7-d6ce-4437-b459-b35f0070a30d",
+      "author": "home",
+      "text": "Acceptance-test update, separate from this code change: the newly reported resend reached the production intake at 2026-10-24T15:31:08Z and was rejected at the trusted SES-authentication gate with reason sender_authentication_failed. Its exact receipt has no manifest, processed/link counts or pending cursor, confirming it was not MIME-parsed or queued for discovery. No Cyclotron/router/Reference handoff occurred; the earlier rejected delivery was not reprocessed. Header-only inspection of this exact message showed no SPF/DKIM/DMARC pass; no article or tracking URL was fetched. Keep this production result separate from PR 667; no live policy or deployment change was made.",
+      "created_at": "2026-10-24T15:34:29.298602Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "0ed5308b-0183-444e-b228-95562efbb8d7",
+      "author": "home",
+      "text": "Added and pushed a diagnostic-only extension on PR #667, commit cb497657833ad0275f6bdc0610a2f9328a947146. The existing private EMAIL receipt now stores a bounded SES invocation-verdict snapshot (five status enums), provenance, and derived failed-gate codes; it does not copy raw event fields, MIME headers, signatures, or reasons supplied outside the SES event. Receipts also record processingStage so SES auth, sender rate, current editor membership, MIME read/parse, manifest queue, and resumed work are distinguishable. The acceptance predicate, sender trust policy, IAM and live configuration are unchanged. Focused local checks: test_email_submission_intake.py 46 passed; email-submission-intake.feature 12 scenarios / 51 steps passed; Ruff passed; git diff --check passed. No deployment.",
+      "created_at": "2026-10-24T16:16:01.537617Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "email-bounded-intake",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "b78daed8-27b3-4ae2-8927-511f635333fc",
+      "author": "home",
+      "text": "Offline-only redirect hardening added to the existing email-intake branch: an explicit resolver seam recognizes only Beehiiv HTTPS click wrappers, rechecks every redirect host, rejects private/mixed DNS, unsafe actions, HTTPS downgrade and loops, and bounds redirect count, header size, per-hop/total time. Synthetic fixtures assert HEAD-only, no response body, no automatic redirects, pinned public IPs and bounded DNS. Production intake still does not inject the resolver, so no recipient-specific tracking URL is contacted or persisted. Verification: 118 focused Python tests passed; extraction/intake BDD 17 scenarios and 68 steps passed; Ruff and diff check passed. No deployment or live URL fetch.",
+      "created_at": "2026-10-24T18:33:26.350691Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "995edf8f-3712-4332-973d-2ee1d78d1ac5",
+      "author": "home",
+      "text": "Implemented locally on `feature/PPY-65026c-bounded-email-intake` (PR #667 remains draft; no deployment). Failed or unavailable SPF/DKIM/DMARC now remain untrusted per-check signals and do not reject safe data-only intake. SES event source, exact envelope recipient scope, and passing spam/virus checks remain gates; envelope/MIME sender identity never grants editor authority or selects a publication. Old rejected auth-only deliveries can be replayed idempotently, while other terminal failures remain terminal. Accepted mail without extractable URLs is still available for private review.\n\nAdded safe HTML-to-text rendering, expiring private body/link chunks and a publication-scoped editor/admin Monitoring view with receipt verdicts and all candidate links. HTML, scripts and remote images are never activated, and body prose is not sent to the classifier. Existing MIME/byte/part/depth, URL-safety, recipient-scope, durable batch and retry controls remain. Real tracking wrappers are still excluded/unresolved; no subscriber URL is contacted.\n\nVerification: 144 focused parser/intake/router/Monitoring Python tests passed; the email-intake Gherkin feature passed (9 scenarios, 40 steps); Monitoring backend and rendered-page checks passed; TypeScript typecheck passed with a temporary local placeholder for generated `amplify_outputs.json`; ESLint passed. Ruff reports one existing unrelated F841 in `monitoring_router.py` at line 1216; the only additional warning found in this delta was removed. No production state or email was changed. Awaiting coordinated release timing with the Chatticus/site deployment owner.\n",
+      "created_at": "2026-10-24T23:08:43.915316Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    },
+    {
+      "id": "e45dc13f-d7bc-4b9f-9ffb-7a28ec7d0cb5",
+      "author": "home",
+      "text": "Updated implementation is pushed to draft [PR #667](https://github.com/AnthusAI/Papyrus/pull/667), code commit `db78846475a89d393a69c62d1b60fb07366151fe` (the branch also contains the Kanbus state commit). The PR remains open/draft; this work has not been merged or deployed.\n\nCurrent semantics: SPF/DKIM/DMARC failures are visible SES signals, not rejection or sender identity. SES event source, exact recipient configuration, and passing spam/virus verdicts remain hard gates. Every accepted message is data-only; sender/MIME headers cannot gain authority or choose publications. Safe email body text and all extracted links are privately retained in expiring chunks and readable by the destination publication's authenticated editors/admins in Monitoring. No active HTML, remote images, automatic fetching, labels, feedback, procedures or publication. Emails with no eligible links remain readable. Legacy auth-only rejected receipts can be replayed idempotently; other terminal failures do not replay.\n\nVerification on BlackbookM1: 150 focused Python tests passed; 9 email-intake Gherkin scenarios / 40 steps passed; Monitoring API-schema and rendered-page tests passed; TypeScript typecheck and ESLint passed; `git diff --check` and targeted Ruff passed. The email receiver artifact built locally at SHA-256 `6003ccfe7f8f33987d19971d2482f987b58e4b6d46d47c0da6a5b3cd5a9ebfa6` (174,250 bytes), not uploaded. Full Ruff reports only the existing unrelated F841 at `monitoring_router.py:1216`. GitHub `python`, `ts`, and `smoke` checks are still queued. No live intake replay or production change.\n\nRelease coordination remains with the site/Chatticus owner: merge/publish the engine package, update/deploy the p.apyr.us site API pin, and deploy the receiver-specific artifact/stack through the approved pipeline in a coordinated sequence. Then replay the two eligible old rejected messages idempotently and verify Monitoring receipts, extracted links, router delivery and section-sweep predictions. Beehiiv subscriber-specific tracking links remain unresolved and unfetched pending the requested privacy approval.\n",
+      "created_at": "2026-10-24T23:13:50.731311Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T08:13:58.520648Z",
+  "updated_at": "2026-10-24T23:13:50.731404Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
-    "model": "gpt-6"
+    "model": "gpt-6-luna",
+    "name": "Codex",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
   },
   "right_now_summary": null,
   "right_now_updated_at": null,

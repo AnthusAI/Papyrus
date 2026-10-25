@@ -413,6 +413,10 @@ function parseCms(value: unknown): CmsConfig {
       fail(`cms.environment.${key}`, "is managed by the template: Google sign-in is always on, the Cognito domain comes from cms.cognitoDomainPrefix, the revalidation secret parameter is derived from siteId and the Prospectus endpoint comes from cms.prospectusAccountsApiStageArn and the public site origin comes from the site host");
     }
   }
+  const privateChatEnabled = cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED;
+  if (privateChatEnabled !== undefined && privateChatEnabled !== "true" && privateChatEnabled !== "false") {
+    fail("cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED", "must be the string \"true\" or \"false\"");
+  }
 
   if (cms.siteOrigin && cms.domainName) {
     fail("cms.siteOrigin", "is for sites whose host is served by their own edge; remove it when cms.domainName is set");

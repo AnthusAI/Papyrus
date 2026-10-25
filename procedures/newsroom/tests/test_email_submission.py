@@ -34,7 +34,7 @@ def test_multipart_editorial_links_only():
     assert result["sender"] == "editor@example.org"
     assert result["recipients"] == ["submissions@example.net"]
     assert result["links"][0]["title"] == "One"
-    assert "body" not in result
+    assert "safeBodyText" in result and "<html" not in result["safeBodyText"].lower()
     assert "authentication" not in result
 
 
@@ -77,6 +77,19 @@ def test_fallback_link_title_is_bounded():
     assert len(result["links"][0]["title"]) == 256
 
 
+def test_all_unique_links_inside_message_byte_bound_are_extracted_without_editorial_cap():
+    raw = message("\n".join(f"https://example.org/article/{i}" for i in range(1100)))
+    assert len(raw) < 1_048_576
+    assert len(extract_submission(raw)["links"]) == 1100
+
+
+def test_known_beehiiv_click_tracker_is_retained_unresolved_without_resolution():
+    tracker = "https://link.mail.beehiiv.com/ss/c/opaque-recipient-route"
+    result = extract_submission(message(tracker + "\nhttps://example.org/article"))
+    assert [link["url"] for link in result["links"]] == [tracker, "https://example.org/article"]
+    assert result["links"][0]["resolutionStatus"] == "unresolved"
+
+
 def test_base64_and_quoted_printable_text_are_decoded():
     email = EmailMessage()
     email["From"] = "editor@example.org"
@@ -109,10 +122,27 @@ def test_forwarded_message_attachment_contributes_links_without_authorizing_from
     assert urls(outer.as_bytes()) == ["https://example.org/one", "https://example.org/attached"]
 
 
+def test_safe_readable_body_strips_active_html_and_remote_images():
+    email = EmailMessage()
+    email["From"] = "editor@example.org"
+    email.set_content('<p>Newsletter text <a href="https://example.org/article">Article</a></p>'
+                      '<script>steal()</script><img src="https://tracker.example/pixel">', subtype="html")
+    result = extract_submission(email.as_bytes())
+    assert "Newsletter text Article" in result["safeBodyText"]
+    assert "steal" not in result["safeBodyText"]
+    assert "tracker.example" not in result["safeBodyText"]
+    assert "<a" not in result["safeBodyText"]
+
+
+def test_mime_headers_are_optional_untrusted_provenance():
+    result = extract_submission(b"Subject: Source\nContent-Type: text/plain; charset=utf-8\n\nhttps://example.org/article")
+    assert result["sender"] == "unknown" and result["recipients"] == []
+    assert "mime_from_unavailable" in result["warnings"]
+    assert result["links"] == [{"url": "https://example.org/article", "title": "https://example.org/article"}]
+
+
 @pytest.mark.parametrize("raw,code", [
     (b"x" * 1048577, "message_too_large"),
-    (b"From: a@example.org\nFrom: b@example.org\n\nhttps://example.org/x", "invalid_sender"),
-    (b"From: a@example.org, b@example.org\n\nhttps://example.org/x", "invalid_sender"),
     (b"From: a@example.org\nContent-Type: multipart/mixed; boundary=missing\n\nbody", "malformed_mime"),
     (b"From: a@example.org\nContent-Type: text/plain; charset=utf-8\n\n\xff", "invalid_encoding"),
     (b"From: a@example.org\nContent-Type: text/plain; charset=unrecognized\n\ntext", "invalid_encoding"),
@@ -124,9 +154,9 @@ def test_malformed_or_oversize_message_is_rejected(raw, code):
     assert error.value.code == code
 
 
-def test_link_ceiling_refuses_without_partial_results():
-    with pytest.raises(SubmissionRejected, match="too_many_links"):
-        extract_submission(message("\n".join(f"https://example.org/article/{n}" for n in range(26))))
+def test_all_links_from_one_message_are_retained_for_internal_batching():
+    assert len(extract_submission(message("\n".join(
+        f"https://example.org/article/{n}" for n in range(41))))["links"]) == 41
 
 
 def test_mime_part_ceiling():

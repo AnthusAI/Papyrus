@@ -221,6 +221,7 @@ export class AmplifyAppShellStack extends Stack {
       environmentVariables: environmentVariables({
         ...config.cms.environment,
         ...emailEnvironment,
+        PAPYRUS_PRIVATE_CHAT_ENABLED: config.cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED ?? "false",
         PAPYRUS_COGNITO_DOMAIN_PREFIX: config.cms.cognitoDomainPrefix,
         ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,
@@ -244,6 +245,7 @@ export class AmplifyAppShellStack extends Stack {
         buildSpec: cmsStagingBuildSpec(config),
         environmentVariables: environmentVariables({
           ...config.cms.environment,
+          PAPYRUS_PRIVATE_CHAT_ENABLED: "false",
           PAPYRUS_COGNITO_DOMAIN_PREFIX: config.cms.cognitoDomainPrefix,
           ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
           PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,

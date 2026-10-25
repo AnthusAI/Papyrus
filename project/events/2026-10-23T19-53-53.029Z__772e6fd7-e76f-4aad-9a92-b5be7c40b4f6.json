@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "772e6fd7-e76f-4aad-9a92-b5be7c40b4f6",
+  "issue_id": "PPY-cb77fa57-c800-4742-8a6a-e5b5b5a4ea18",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-23T19:53:53.029Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "b9c1a7fe-4236-446c-9de7-128924668273",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-luna",
+      "name": "BlackbookM1 Luna medium integration worker",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}

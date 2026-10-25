@@ -16,4 +16,10 @@ export const monitoringViewSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("monitoringView", monitoringView)),
+  monitoringEmailSubmission: a
+    .query()
+    .arguments({ receiptId: a.string().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("monitoringView", monitoringView)),
 };

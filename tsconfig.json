@@ -1,12 +1,13 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+    "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "ignoreDeprecations": "6.0",
     "lib": [
       "dom",
       "dom.iterable",
-      "es2022"
+      "es2023"
     ],
     "allowJs": false,
     "skipLibCheck": true,
@@ -41,6 +42,7 @@
   },
   "include": [
     "**/*.ts",
+    "scripts/test-*.mts",
     "**/*.tsx",
     ".next/dev/types/**/*.ts",
     ".next/types/**/*.ts",

@@ -48,6 +48,28 @@ async function main() {
   }
   assert.ok(!all.includes("references/lin-2"), "a reference in another publication's queue is not linked from this site");
 
+  const withEmail = {
+    ...FIXTURE_MONITORING_OVERVIEW,
+    emailSubmissions: [{ receiptId: `EMAIL#${"a".repeat(64)}`, observedAt: "2026-10-21T02:30:00Z", status: "pending_review",
+      subject: "Newsletter", envelopeSender: "sender@example.net", headerFrom: "forged@example.net",
+      warnings: ["ses_authentication_unverified"], verdicts: { spf: "FAIL", dkim: "PASS", dmarc: "FAIL", spam: "PASS", virus: "PASS" },
+      linkCount: 2, processedCount: 0, unresolvedLinkCount: 1, reviewRequired: true, errorCode: null }],
+  };
+  const emailDetail = { submission: withEmail.emailSubmissions[0],
+    safeBodyText: "Hello <script>never execute</script>\nhttps://example.org/story",
+    candidateLinks: [{ url: "https://link.mail.beehiiv.com/ss/c/opaque", title: "Tracked story",
+      resolutionStatus: "unresolved" as const }], sourceMaterialIsUntrusted: true as const };
+  const emailHtml = render(withEmail, { emailDetail });
+  const emailText = text(emailHtml);
+  for (const expected of ["Email submissions", "Newsletter", "MIME From (unverified)", "SPF FAIL", "Tracked story", "private review required", "Sender and message content are untrusted"]) {
+    assert.ok(emailText.includes(expected), `email view shows: ${expected}`);
+  }
+  assert.ok(emailHtml.includes("&lt;script&gt;never execute"), "original HTML is escaped as inert text");
+  assert.ok(!emailHtml.includes("<script>") && !emailHtml.includes("tracker.example"),
+    "rendering never activates markup or remote images");
+  assert.ok(emailText.includes("unresolved; not opened") && !emailHtml.includes('href="https://link.mail.beehiiv.com/'),
+    "recipient tracking URLs remain visible as non-clickable text");
+
   // Only admins are offered the whole-pipeline switch.
   assert.ok(text(render(FIXTURE_MONITORING_OVERVIEW)).includes("Whole shared pipeline"));
   assert.ok(!text(render(FIXTURE_MONITORING_OVERVIEW, { canViewAll: false })).includes("Whole shared pipeline"));

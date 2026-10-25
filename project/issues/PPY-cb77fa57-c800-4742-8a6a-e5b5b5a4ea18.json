@@ -1,0 +1,44 @@
+{
+  "id": "PPY-cb77fa57-c800-4742-8a6a-e5b5b5a4ea18",
+  "title": "Verify shared composer pending and disabled sends",
+  "description": "Add Papyrus browser/Gherkin coverage for the Chatticus-backed newsroom composer. Preserve Papyrus behavior that permits another message after the current send has completed even when its assistant reply is still running. Verify disabled sends do not call Papyrus and keyboard submission invokes the callback once. Do not change the shared dependency or Papyrus production behavior unless a scoped regression is reproduced. Acceptance: new behavior scenarios pass alongside existing shared-chat scenarios; local typecheck and lint pass.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-7962e353-86cb-4f89-abb7-48e39ed22a1c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "b9c1a7fe-4236-446c-9de7-128924668273",
+      "author": "home",
+      "text": "Added browser/Gherkin scenarios for sending while a reply is running, keyboard send-once, and disabled keyboard sends. The Papyrus shared-chat feature passes (5 scenarios, 18 steps); lint passes; typecheck passes with the local amplify_outputs.json copied into the isolated checkout. Chatticus Actions run 40011807632 was confirmed still in progress via its public run page, so I did not rerun Chatticus CI. No Papyrus production regression was demonstrated and no production code changed. Push/draft PR and exact-head CI remain pending because terminal GitHub API access is unavailable in this environment.",
+      "created_at": "2026-10-23T19:53:53.028958Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "BlackbookM1 Luna medium integration worker",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
+    }
+  ],
+  "created_at": "2026-10-23T19:49:51.691943Z",
+  "updated_at": "2026-10-23T19:53:53.029039Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "codex",
+    "model": "gpt-6-luna",
+    "name": "BlackbookM1 Luna medium integration worker",
+    "settings": {
+      "reasoning_effort": "medium"
+    }
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

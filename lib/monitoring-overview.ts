@@ -32,6 +32,18 @@ export type MonitoringItem = {
   relevance: MonitoringRelevance[];
 };
 
+export type MonitoringEmailSummary = {
+  receiptId: string; observedAt: string | null; status: string; subject: string | null;
+  envelopeSender: string | null; headerFrom: string | null; warnings: string[];
+  verdicts: Record<string, string>; linkCount: number; processedCount: number; unresolvedLinkCount: number;
+  reviewRequired: boolean; errorCode: string | null;
+};
+
+export type MonitoringEmailDetails = {
+  submission: MonitoringEmailSummary; safeBodyText: string;
+  candidateLinks: { url: string; title: string; resolutionStatus?: "unresolved" }[]; sourceMaterialIsUntrusted: true;
+} | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
+
 export type MonitoringRun = {
   runId: string;
   startedAt: string;
@@ -82,6 +94,7 @@ export type MonitoringOverview = {
     ceilings: { decisionsTotal?: number; decisionsPerDay?: number; items?: number } | null;
   } | null;
   items: MonitoringItem[];
+  emailSubmissions?: MonitoringEmailSummary[];
   hiddenNotRelevant: number;
 };
 
