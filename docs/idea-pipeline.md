@@ -1,5 +1,7 @@
 # Idea pipeline (v0)
 
+> **Cited Trends** is the name for the trend-story path below: story drafts about what is rising or cooling in the weekly Knowledge Map, with every sentence cited and checked by code, filed as AI Proposals for people to steer. See [feature-names.md](feature-names.md#cited-trends). Shipped files them as example drafts at <https://shipped.anth.us/proposals/>. Approving a draft does not yet create a story.
+
 `papyrus ideas digest` and `papyrus ideas synthesize` turn a site's recent references into private story ideas. This is the first
 version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud CMS. `papyrus ideas trends` adds the trend-story path
 ([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,

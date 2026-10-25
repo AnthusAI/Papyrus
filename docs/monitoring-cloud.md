@@ -33,6 +33,10 @@ A publication the router delivers to needs its AppSync grants in the router role
 three sites; Distinctive Mark's are in the managed policy `RouterDistinctiveIntakePolicy`, and further
 sites should follow that pattern (a role's inline policies are limited to 10,240 characters).
 
+Shipped (`ShippedApiId`, default `6sw6454pozbgvdgm233gqkxsxu`) has its grants in place (`RouterShippedIntakePolicy`, and
+its `relevance_decision_is` fields in `RouterDecisionRelationPolicy`), but no router config yet. The `hn` router config
+adds a `shipped` publication only once Cyclotron r3 adds the publication `shipped` with output `shipped-relevance`.
+
 **Lab decisions in the References tab.** When the router delivers a Cyclotron lab decision it also writes a
 `relevance_decision_is` relation for the Reference, in the same persist batch as the Reference and its provenance
 Message, so the Suggestion row, Agree/Overrule and status read it like a sweep decision. `metadata.cyclotronId` and
@@ -253,6 +257,9 @@ Table, function and schedule names are the stack outputs.
 - Roll back code: build an earlier commit, upload, and update the stack with that `CodeKey`.
 - Remove: delete the stack. The table is retained with its data; delete it separately.
 - Deploy with a change set and read it first (`create-change-set`, `describe-change-set`, then execute).
+- **Always pass `EditorUserPoolArns` explicitly.** Its template default is empty, so a deploy that omits it (or does
+  not use `UsePreviousValue`) drops the email-sender membership recheck grant. The value for production is
+  `arn:aws:cognito-idp:us-east-1:712236451410:userpool/us-east-1_1sQaEOwsH`.
 
 ## Concurrency note
 
@@ -413,7 +420,7 @@ idempotent; the item revision and output come from the stored decision receipt.
 | Logs `CreateLogStream`, `PutLogEvents` on its own group | Logging |
 | `sqs:SendMessage` on its dead-letter queue | Failed invocations and failed schedule deliveries |
 | `sts:AssumeRole` on exactly `CyclotronInvokerRoleArn` | The only way to reach the Cyclotron machine API (the invoker role trusts this role's exact ARN) |
-| `appsync:GraphQL` per API per field, three APIs (parameters `AnthUsApiId`, `PapyrusApiId`, `ThreatIntelApiId`); the same fields on Data Parade (`DataParadeApiId`) sit in `RouterDataParadeIntakePolicy`, and its `relevance_decision_is` grants in `RouterDecisionRelationPolicy`; likewise Pilobolus (`PilobolusApiId`, `RouterPilobolusIntakePolicy`) | Query: `getKnowledgeImportRun`, `getMessage`, `getModelAttachment`, `getReference`, `getReferenceAttachment`, `getSemanticRelation`, `itemBySlug`, `listKnowledgeCorpuses`, `listKnowledgeCorporaByRoleAndName`, `listReferences`. Mutation: `completeModelAttachmentUpload`, `createKnowledgeImportRun`, `createMessage`, `createModelAttachmentUpload`, `createReference`, `createReferenceAttachment`, `createSemanticRelation`, `updateReferenceAttachment` |
+| `appsync:GraphQL` per API per field, three APIs (parameters `AnthUsApiId`, `PapyrusApiId`, `ThreatIntelApiId`); the same fields on Data Parade (`DataParadeApiId`) sit in `RouterDataParadeIntakePolicy`, and its `relevance_decision_is` grants in `RouterDecisionRelationPolicy`; likewise Pilobolus (`PilobolusApiId`, `RouterPilobolusIntakePolicy`) and Shipped (`ShippedApiId`, `RouterShippedIntakePolicy`) | Query: `getKnowledgeImportRun`, `getMessage`, `getModelAttachment`, `getReference`, `getReferenceAttachment`, `getSemanticRelation`, `itemBySlug`, `listKnowledgeCorpuses`, `listKnowledgeCorporaByRoleAndName`, `listReferences`. Mutation: `completeModelAttachmentUpload`, `createKnowledgeImportRun`, `createMessage`, `createModelAttachmentUpload`, `createReference`, `createReferenceAttachment`, `createSemanticRelation`, `updateReferenceAttachment` |
 
 The field list was captured by running the real intake and editorial-context code against a
 recording client. `updateReferenceAttachment` is there because a second HN item for an

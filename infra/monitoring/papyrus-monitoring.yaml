@@ -53,6 +53,10 @@ Parameters:
     Type: String
     Default: 2tvll2u5ejafbmawb3v2sdonvi
     Description: AppSync API id of the Pilobolus backend (a Cyclotron-decided publication, like Anth.us, Papyrus and Threat Intelligence).
+  ShippedApiId:
+    Type: String
+    Default: 6sw6454pozbgvdgm233gqkxsxu
+    Description: AppSync API id of the Shipped backend (a Cyclotron-decided publication, like Anth.us, Papyrus and Threat Intelligence).
   DistinctiveApiId:
     Type: String
     Default: xcobakwl4jagvhdq54qc55flii
@@ -543,6 +547,37 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createSemanticRelation"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/updateReferenceAttachment"
 
+  RouterShippedIntakePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: The router's Reference intake grants for Shipped (a Cyclotron-decided publication), outside the role's inline policy size limit. Same field list as PublicationReferenceIntake.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ShippedReferenceIntake
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getModelAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listKnowledgeCorpuses"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listReferences"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateReferenceAttachment"
+
   RouterDistinctiveIntakePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -654,6 +689,10 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createSemanticNode"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/updateSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createSemanticNode"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateSemanticRelation"
 
   TtabRouteSchedule:
     Type: AWS::Scheduler::Schedule
