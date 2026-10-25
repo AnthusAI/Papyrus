@@ -260,3 +260,126 @@ def step_release(context, key, model, day):
 def step_release_summary(context):
     assert "released 2026-10-14" in context.release["summary"]
     assert not [url for url in context.fetched if "huggingface.co" in url]
+
+
+# -- promotion and the weekly suggestion --------------------------------------------------------------------------------
+import datetime as dt  # noqa: E402
+
+from papyrus_content import references_commands  # noqa: E402
+from papyrus_content.knowledge_cloud.fakes import make_run  # noqa: E402
+from papyrus_content.knowledge_cloud.stages import suggest_promotions  # noqa: E402
+from papyrus_content.knowledge_snapshot.monitor_records import read_records  # noqa: E402
+
+
+def promote(context, model, section):
+    reference = f"reference-{model.replace('/', '--')}"
+    with mock.patch.object(references_commands, "create_authoring_client", lambda *args, **kwargs: (context.client, {})):
+        references_commands.references_promote([reference, "--section", section])
+
+
+@when('a person promotes "{model}" to the section "{section}"')
+@given('a person promoted "{model}" to the section "{section}"')
+def step_promote(context, model, section):
+    promote(context, model, section)
+    context.item_id = f"item-{section}-{model.replace('/', '-')}"
+
+
+@then('a draft item "{item_id}" exists in the section "{section}"')
+def step_draft(context, item_id, section):
+    item = context.client.rows["Item"][item_id]
+    assert (item["status"], item["section"], item["type"]) == ("draft", section, "article")
+
+
+@then('the draft carries the source link "{url}", the structured facts and the entities of the record')
+def step_draft_fields(context, url, ):
+    import yaml
+
+    item = context.client.rows["Item"][context.item_id]
+    metadata = item["metadata"] if isinstance(item["metadata"], dict) else json.loads(item["metadata"])
+    front = yaml.safe_load(metadata["frontMatterYaml"])
+    assert front["sources"][0]["url"] == url and front["monitorRecord"]["license"] == "apache-2.0"
+    assert {"kind": "maker", "name": "org"} in front["entities"] and url in item["bodyMarkus"]
+
+
+@then("nothing is published and the Reference is still pending")
+def step_unpublished(context):
+    assert not [row for row in context.client.rows.get("PublishedItem", {}).values() if row.get("sourceItemId") == context.item_id]
+    assert context.client.rows["Reference"]["reference-org--tuned"]["curationStatus"] == "pending"
+
+
+@given("the editor rewrote the draft")
+def step_rewrite(context):
+    context.client.rows["Item"][context.item_id]["bodyMarkus"] = "The editor wrote this.\n"
+
+
+@then("the draft still holds the editor's text")
+def step_kept(context):
+    assert context.client.rows["Item"][context.item_id]["bodyMarkus"] == "The editor wrote this.\n"
+
+
+class ReviewSite:
+    def __init__(self, fail=False):
+        self.fail, self.created = fail, {}
+
+    def list_records(self, model):
+        return []
+
+    def get_record(self, model, record_id):
+        return self.created.get(record_id)
+
+    def create_record(self, model, row):
+        if self.fail:
+            raise RuntimeError("ReviewRequest is not in this schema")
+        self.created[row["id"]] = row
+
+
+def suggestion_context(context, count):
+    import boto3  # noqa: F401
+    from moto import mock_aws
+
+    context.mock = mock_aws()
+    context.mock.start()
+    context.add_cleanup(context.mock.stop)
+    import os
+
+    for name, value in {"AWS_ACCESS_KEY_ID": "t", "AWS_SECRET_ACCESS_KEY": "t", "AWS_DEFAULT_REGION": "us-east-1"}.items():
+        os.environ.setdefault(name, value)
+    run, _ = make_run(context.work / "cloud", {"KNOWLEDGE_MONITOR_SOURCES": "huggingface", "KNOWLEDGE_MONITOR_SUGGESTIONS": str(count)})
+    records = read_records(context.records_file)
+    from papyrus_content.knowledge_snapshot.monitor_records import write_records
+
+    write_records(run.monitor_records, records, as_of=dt.date(2026, 10, 26), sources=("huggingface",))
+    return run
+
+
+@when("the weekly suggestion runs for the {count:d} records the Hub shows the most interest in")
+def step_suggest(context, count):
+    context.run_ = suggestion_context(context, count)
+    context.site = ReviewSite()
+    context.suggestion = suggest_promotions(context.run_, context.site)
+
+
+@then('one soft review request lists "{first}" and "{second}" with their reference ids, the model id deciding between records that tie')
+def step_request(context, first, second):
+    [request] = context.site.created.values()
+    links = json.loads(request["links"]) if isinstance(request["links"], str) else request["links"]
+    labels = [link["label"] for link in links]
+    assert request["mode"] == "soft_review" and len(labels) == 2, request
+    assert all(f"({'reference-' + model.replace('/', '--')})" in " ".join(labels) for model in (first, second)), labels
+
+
+@then("running the suggestion again raises no second request")
+def step_idempotent(context):
+    suggest_promotions(context.run_, context.site)
+    assert len(context.site.created) == 1
+
+
+@when("the weekly suggestion runs on a site without review requests")
+def step_suggest_failing(context):
+    context.run_ = suggestion_context(context, 2)
+    context.suggestion = suggest_promotions(context.run_, ReviewSite(fail=True))
+
+
+@then("the suggestion says it was not raised and the run goes on")
+def step_not_raised(context):
+    assert context.suggestion["status"] == "not_raised"

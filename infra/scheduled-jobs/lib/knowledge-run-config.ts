@@ -52,6 +52,8 @@ export type KnowledgeRunSettings = {
   monitorSources?: string[];
   /** How many weeks back a monitor record counts (its source date decides); default 52. */
   monitorWeeks?: number;
+  /** How many monitor records the AI review stage suggests promoting in one soft review request each week; default 0 (none). */
+  monitorSuggestions?: number;
   openAiKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
@@ -83,6 +85,7 @@ export type KnowledgeRunConfig = {
   conceptKinds?: string[];
   monitorSources?: string[];
   monitorWeeks: number;
+  monitorSuggestions: number;
   openAiKeyParameter: string;
   alarmEmailParameter: string;
   lockWaitSeconds: number;
@@ -147,7 +150,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -217,6 +220,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     conceptKinds,
     monitorSources,
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
+    monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     lockWaitSeconds: optionalInteger(record.lockWaitSeconds, "lockWaitSeconds", 0, 86400),
@@ -259,6 +263,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     conceptKinds: settings.conceptKinds,
     monitorSources: settings.monitorSources,
     monitorWeeks: settings.monitorWeeks ?? DEFAULT_MONITOR_WEEKS,
+    monitorSuggestions: settings.monitorSuggestions ?? 0,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,
     lockWaitSeconds: settings.lockWaitSeconds ?? DEFAULT_LOCK_WAIT_SECONDS,

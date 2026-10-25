@@ -78,6 +78,7 @@ class CloudRunConfig:
     concept_kinds: str | None
     monitor_sources: tuple[str, ...]
     monitor_weeks: int
+    monitor_suggestions: int
     openai_parameter: str
     work_dir: Path
     region: str
@@ -125,6 +126,7 @@ class CloudRunConfig:
             concept_kinds=(environment.get("KNOWLEDGE_CONCEPT_KINDS") or "").strip() or None,
             monitor_sources=_monitor_sources(environment.get("KNOWLEDGE_MONITOR_SOURCES")),
             monitor_weeks=int((environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip() or DEFAULT_MONITOR_WEEKS),
+            monitor_suggestions=int((environment.get("KNOWLEDGE_MONITOR_SUGGESTIONS") or "").strip() or 0),
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),
             work_dir=Path((environment.get("KNOWLEDGE_WORK_DIR") or "/work").strip()),
             region=(environment.get("AWS_REGION") or "us-east-1").strip(),
