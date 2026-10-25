@@ -517,11 +517,15 @@ add a new monitor there. Reading them needs no new IAM: the same `GetItem` and `
 (`amplify/functions/monitoring-view/`, logic in `src/papyrus_content/monitoring_view.py`).
 
 - The function's role holds `dynamodb:GetItem` and `dynamodb:Query` on tables named
-  `papyrus-monitoring-MonitoringTable-*` and their `routing` index (no Scan, no write, no other table),
+  `papyrus-monitoring-MonitoringTable-*` and their `routing` index (no Scan or other table). Its only
+  table write is a `PutItem` for an explicitly resolved Beehiiv article destination, limited by
+  `dynamodb:LeadingKeys` to `MONITOR#hn`; the handler verifies the editor, routed publication,
+  receipt and candidate before storing the destination with the receipt's expiry.
   and `ssm:GetParameter` on `/papyrus/monitoring/table-name`.
 - That parameter is written by the monitoring stack (`TableNameParameter`), so a site backend needs no
   deploy-time link to this stack. A site in an account without the parameter shows "not set up".
-- The browser sends a query over the signed-in session. It never sees a table name, key or secret.
+- The browser uses the signed-in editor session. It never sees a table name or role ARN; article
+  resolution results are retained privately so Reference intake can verify the exact receipt candidate.
 - The function checks the caller's groups again. The default scope is the viewing publication, found by
   matching the site's AppSync endpoint to the router config; items judged not relevant to it are counted,
   not listed. `scope: all` (every publication's judgements) is admin-only and enforced in the function.

@@ -93,6 +93,18 @@ class FakeViewStore:
         found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"])
         return deepcopy(found)
 
+    def record_email_resolution(self, receipt_digest, candidate_index, *, url, title, ttl=None):
+        sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
+        item = {"pk": PK, "sk": sk, "receiptDigest": receipt_digest,
+                "candidateIndex": candidate_index, "sourceUri": url, "title": title}
+        if ttl is not None:
+            item["ttl"] = ttl
+        prior = self.table.get(sk)
+        if prior and prior.get("sourceUri") != url:
+            raise ValueError("email_candidate_resolution_conflict")
+        self.table[sk] = deepcopy(prior or item)
+        return deepcopy(self.table[sk])
+
     def decision_times(self):
         return ([r["decision"]["decidedAt"] for sk, r in sorted(self.table.items())
                  if sk.startswith("ROUTE#") and r.get("decision")], True)

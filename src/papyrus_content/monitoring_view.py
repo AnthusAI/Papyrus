@@ -1,12 +1,13 @@
-"""Read-only view of the monitoring pipeline for the newsroom's Monitoring page (PPY-31ba52).
+"""Publication-scoped Monitoring view and explicit email article-resolution action.
 
 The `papyrus-monitoring` stack keeps the collector's and router's state in one DynamoDB table
 (docs/monitoring-cloud.md). This module turns that table into the overview an editor reads:
 feeds watched, recent runs, the collected queue with routing state, per-publication relevance
 and delivery, and observed router decision counts.
 
-Access is least privilege on purpose. The Lambda that calls this holds `dynamodb:GetItem` and
-`dynamodb:Query` on that one table and nothing else. Nothing here can write. The response is
+Access is least privilege on purpose. The Lambda reads the monitoring table and can write only
+the editor-requested resolved destination for one email candidate in the `MONITOR#hn` partition.
+The response is
 projected field by field, so endpoints, role ARNs, account and run identifiers of the shared
 Cyclotron never leave the function. Editors get their own publication only; the whole shared
 pipeline is admin-only, and that is enforced here, not only in the browser.
@@ -15,12 +16,18 @@ Imports stay light: stdlib, with boto3 (provided by the Lambda runtime) only ins
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
+import http.client
 import json
 import logging
 import os
+import queue
 import re
+import socket
+import ssl
+import threading
+from urllib.parse import urlsplit, urlunsplit
 
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
@@ -53,7 +60,7 @@ def _clean(value):
 
 
 class TableViewStore:
-    """The only table access: `get_item` and `query`. It has no write method to call."""
+    """Scoped access to the one Monitoring partition used for email review."""
 
     def __init__(self, table, monitor_id: str = MONITOR_ID):
         self.table, self.pk = table, f"MONITOR#{monitor_id}"
@@ -99,6 +106,25 @@ class TableViewStore:
             start = result.get("LastEvaluatedKey")
             if not start:
                 return rows
+
+    def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None):
+        """Persist one editor-requested destination so later Reference intake can verify it."""
+        sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
+        item = {"pk": self.pk, "sk": sk, "receiptDigest": receipt_digest,
+                "candidateIndex": candidate_index, "sourceUri": url, "title": title,
+                "resolvedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z")}
+        if isinstance(ttl, int) and not isinstance(ttl, bool):
+            item["ttl"] = ttl
+        try:
+            self.table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+            return item
+        except Exception as error:
+            if "ConditionalCheckFailed" not in str(error):
+                raise
+        current = self.get(sk)
+        if not current or current.get("sourceUri") != url:
+            raise ValueError("email_candidate_resolution_conflict")
+        return current
 
 
 def _iso(epoch) -> str | None:
@@ -327,8 +353,112 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
     for item in details:
         if "#LINKS#" in item.get("sk", ""):
             links.extend(json.loads(item.get("json", "[]")))
-    return {"submission": _email_summary(row), "safeBodyText": body,
+    return {"submission": {**_email_summary(row), "corpusId": publication.get("corpusId")}, "safeBodyText": body,
             "candidateLinks": links, "sourceMaterialIsUntrusted": True}
+
+
+def _resolve_beehiiv_article(url: str) -> str:
+    """Resolve only a selected Beehiiv article wrapper with bounded pinned-IP HEADs."""
+    from .email_submission import resolve_beehiiv_tracking_url
+
+    def resolve_host(host, *, timeout):
+        # getaddrinfo has no timeout parameter, so isolate it on a daemon thread
+        # and bound how long this editor request waits without mutating the
+        # process-wide socket defaults used by other Lambda invocations.
+        result = queue.Queue(maxsize=1)
+        def lookup():
+            try:
+                result.put((True, sorted({entry[4][0] for entry in socket.getaddrinfo(
+                    host, 443, type=socket.SOCK_STREAM
+                )})))
+            except (OSError, ValueError) as error:
+                result.put((False, error))
+        worker = threading.Thread(target=lookup, daemon=True)
+        worker.start()
+        worker.join(timeout)
+        if worker.is_alive():
+            raise TimeoutError("DNS lookup timed out")
+        ok, value = result.get_nowait()
+        if not ok:
+            raise value
+        return value
+
+    def request(current, *, connect_addresses, method, allow_redirects, read_body, trust_env, timeout):
+        if method != "HEAD" or allow_redirects or read_body or trust_env or not connect_addresses:
+            raise ValueError("unsafe redirect transport options")
+        parts = urlsplit(current)
+        host = parts.hostname or ""
+        path = urlunsplit(("", "", parts.path or "/", parts.query, ""))
+        address = connect_addresses[0]
+
+        class PinnedHTTPSConnection(http.client.HTTPSConnection):
+            def connect(self):
+                raw = socket.create_connection((address, 443), timeout=self.timeout)
+                try:
+                    self.sock = self._context.wrap_socket(raw, server_hostname=host)
+                except Exception:
+                    raw.close()
+                    raise
+
+        connection = PinnedHTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
+        try:
+            connection.request("HEAD", path, headers={
+                "Host": host,
+                "User-Agent": "Papyrus email article-link review",
+                "Accept": "*/*",
+                "Connection": "close",
+            })
+            response = connection.getresponse()
+            # Do not read even a byte of the remote response body.
+            return {"status": response.status, "headers": {"Location": response.getheader("Location")}}
+        finally:
+            connection.close()
+
+    return resolve_beehiiv_tracking_url(url, resolve_host=resolve_host, request=request)
+
+
+def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
+    """Resolve exactly one selected, supported article wrapper from an authorized receipt."""
+    from .email_submission import (
+        RedirectResolutionError,
+        is_supported_beehiiv_tracking_url,
+    )
+
+    detail = monitoring_email_submission(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
+    if "submission" not in detail:
+        return detail
+    if type(candidate_index) is not int or not 0 <= candidate_index < len(detail["candidateLinks"]):
+        return {"error": "bad_request"}
+    link = detail["candidateLinks"][candidate_index]
+    if link.get("resolutionStatus") != "unresolved" or not is_supported_beehiiv_tracking_url(link.get("url", "")):
+        return {"error": "not_resolvable"}
+    digest = receipt_id.removeprefix("EMAIL#")
+    saved = store.get(f"EMAILRESOLVED#{digest}#{candidate_index:06d}")
+    if saved:
+        if (saved.get("receiptDigest") != digest or saved.get("candidateIndex") != candidate_index
+                or (isinstance(saved.get("ttl"), int) and saved["ttl"] <= int(datetime.now(UTC).timestamp()))):
+            return {"error": "resolution_failed", "reason": "resolution_record_invalid"}
+        return {"url": saved.get("sourceUri"), "title": str(saved.get("title") or link.get("title") or "")[:1000],
+                "resolved": True}
+    try:
+        destination = (resolver or _resolve_beehiiv_article)(link["url"])
+    except RedirectResolutionError as error:
+        return {"error": "resolution_failed", "reason": error.code}
+    except (OSError, TimeoutError, http.client.HTTPException) as error:
+        LOG.error("email article link resolution failed: %s", type(error).__name__)
+        return {"error": "resolution_failed", "reason": "redirect_request_failed"}
+    try:
+        # Keep the AWS SDK imports local so importing this Lambda module remains lightweight.
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        store.record_email_resolution(
+            digest, candidate_index, url=destination,
+            title=str(link.get("title") or "")[:1000], ttl=store.get(receipt_id).get("ttl"),
+        )
+    except (BotoCoreError, ClientError, ValueError) as error:
+        LOG.error("email article resolution could not be recorded: %s", type(error).__name__)
+        return {"error": "resolution_failed", "reason": "resolution_not_recorded"}
+    return {"url": destination, "title": str(link.get("title") or "")[:1000], "resolved": True}
 
 
 # --- the Lambda boundary --------------------------------------------------------------------------
@@ -373,13 +503,19 @@ def handle(event: dict, *, env=None, store_factory=None, now: float | None = Non
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
-        if field_name == "monitoringEmailSubmission":
+        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink"):
             store = make_store(MONITOR_ID)
             if store is None:
                 return {"state": "not_configured"}
+        if field_name == "monitoringEmailSubmission":
             return monitoring_email_submission(store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
+        if field_name == "monitoringResolveEmailArticleLink":
+            return monitoring_email_resolve_article_link(
+                store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
+                receipt_id=args.get("receiptId"), candidate_index=args.get("candidateIndex"),
+            )
         if field_name != "monitoringOverview":
             return {"error": "bad_request"}
         stores = {monitor_id: make_store(monitor_id) for monitor_id in _monitor_ids(env)}
