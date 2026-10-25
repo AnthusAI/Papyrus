@@ -97,7 +97,7 @@ dropped anyway is not counted), the first matching reason wins (`tag`, then `bas
 receipt records `read.skipped`, for example `{"tag": 61, "idPattern": 20, "baseRelation": 8}`, with each model counted once
 however many queries returned it. `excludeTags` sees a model's first 80 tags; relations are read from all of them. Backfill uses
 the same filter (a changed filter starts a new backfill checkpoint) and prints and returns the skip counts. All three default
-to empty: with none set nothing changes. A runaway pattern cannot hurt: model ids are at most 193 characters.
+to empty: with none set nothing changes.
 
 At least one of `pipelineTags`, `authors`, `search` is required. Each kept model is a discovery with `sourceType`,
 `routing: collected` and a structured `details` map: `modelId`, `author`, `createdAt` (the release date, also
