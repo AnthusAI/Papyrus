@@ -284,6 +284,33 @@ def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts(
     assert calls == []
 
 
+def test_email_redirect_and_persistence_failures_remain_fail_closed():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "pending_review"
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
+        '"title":"Story","resolutionStatus":"unresolved"}]'
+    )
+
+    def failed_request(_url):
+        raise OSError("network unavailable")
+
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=failed_request,
+    )
+    assert result == {"error": "resolution_failed", "reason": "redirect_request_failed"}
+
+    with patch.object(store, "record_email_resolution", side_effect=ValueError("write conflict")):
+        result = mv.monitoring_email_resolve_article_link(
+            store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+            candidate_index=0, resolver=lambda _url: "https://news.example.org/story",
+        )
+    assert result == {"error": "resolution_failed", "reason": "resolution_not_recorded"}
+    assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000") is None
+
+
 def test_production_beehiiv_resolver_pins_public_addresses_and_sends_head_without_reading_body():
     tracker = "https://link.mail.beehiiv.com/ss/c/article-token"
     requests, destinations, files, hostnames = [], [], [], []

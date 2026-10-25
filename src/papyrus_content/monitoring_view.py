@@ -16,7 +16,7 @@ Imports stay light: stdlib, with boto3 (provided by the Lambda runtime) only ins
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from decimal import Decimal
 import http.client
 import json
@@ -109,7 +109,7 @@ class TableViewStore:
         sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
         item = {"pk": self.pk, "sk": sk, "receiptDigest": receipt_digest,
                 "candidateIndex": candidate_index, "sourceUri": url, "title": title,
-                "resolvedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}
+                "resolvedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z")}
         if isinstance(ttl, int) and not isinstance(ttl, bool):
             item["ttl"] = ttl
         try:
@@ -318,7 +318,7 @@ def _resolve_beehiiv_article(url: str) -> str:
                 result.put((True, sorted({entry[4][0] for entry in socket.getaddrinfo(
                     host, 443, type=socket.SOCK_STREAM
                 )})))
-            except Exception as error:
+            except (OSError, ValueError) as error:
                 result.put((False, error))
         worker = threading.Thread(target=lookup, daemon=True)
         worker.start()
@@ -366,7 +366,10 @@ def _resolve_beehiiv_article(url: str) -> str:
 
 def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
     """Resolve exactly one selected, supported article wrapper from an authorized receipt."""
-    from .email_submission import RedirectResolutionError, is_supported_beehiiv_tracking_url
+    from .email_submission import (
+        RedirectResolutionError,
+        is_supported_beehiiv_tracking_url,
+    )
 
     detail = monitoring_email_submission(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
     if "submission" not in detail:
@@ -380,7 +383,7 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     saved = store.get(f"EMAILRESOLVED#{digest}#{candidate_index:06d}")
     if saved:
         if (saved.get("receiptDigest") != digest or saved.get("candidateIndex") != candidate_index
-                or (isinstance(saved.get("ttl"), int) and saved["ttl"] <= int(datetime.now(timezone.utc).timestamp()))):
+                or (isinstance(saved.get("ttl"), int) and saved["ttl"] <= int(datetime.now(UTC).timestamp()))):
             return {"error": "resolution_failed", "reason": "resolution_record_invalid"}
         return {"url": saved.get("sourceUri"), "title": str(saved.get("title") or link.get("title") or "")[:1000],
                 "resolved": True}
@@ -388,15 +391,18 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
         destination = (resolver or _resolve_beehiiv_article)(link["url"])
     except RedirectResolutionError as error:
         return {"error": "resolution_failed", "reason": error.code}
-    except Exception as error:
+    except (OSError, TimeoutError, http.client.HTTPException) as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "redirect_request_failed"}
     try:
+        # Keep the AWS SDK imports local so importing this Lambda module remains lightweight.
+        from botocore.exceptions import BotoCoreError, ClientError
+
         store.record_email_resolution(
             digest, candidate_index, url=destination,
             title=str(link.get("title") or "")[:1000], ttl=store.get(receipt_id).get("ttl"),
         )
-    except Exception as error:
+    except (BotoCoreError, ClientError, ValueError) as error:
         LOG.error("email article resolution could not be recorded: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "resolution_not_recorded"}
     return {"url": destination, "title": str(link.get("title") or "")[:1000], "resolved": True}

@@ -46,6 +46,7 @@ def email_pending_reference_fixture(context):
 @when("the editor explicitly adds its selected article links to References")
 def email_editor_imports_pending_references(context):
     from unittest.mock import patch
+
     from papyrus_content.reference_intake import intake_email_submission_references
 
     client = context.email_reference_client

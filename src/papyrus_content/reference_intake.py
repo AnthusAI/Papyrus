@@ -10,7 +10,7 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -161,7 +161,7 @@ def _email_receipt_candidates(receipt_store, receipt_id: str, publication: str) 
         raise IntakeError("The email receipt is unavailable for Reference intake.")
     receipt_ttl = receipt.get("ttl")
     if (not isinstance(receipt_ttl, int) or isinstance(receipt_ttl, bool)
-            or receipt_ttl <= int(datetime.now(timezone.utc).timestamp())):
+            or receipt_ttl <= int(datetime.now(UTC).timestamp())):
         raise IntakeError("The email receipt is unavailable for Reference intake.")
     router = receipt_store.get("CONFIG#router") or {}
     target = next((row for row in router.get("publications", [])
@@ -231,7 +231,7 @@ def intake_email_submission_references(client, arguments: dict, identity: dict, 
             if (not resolution or resolution.get("receiptDigest") != receipt_id.removeprefix("EMAIL#")
                     or resolution.get("candidateIndex") != index
                     or not isinstance(resolution.get("ttl"), int) or isinstance(resolution.get("ttl"), bool)
-                    or resolution["ttl"] <= int(datetime.now(timezone.utc).timestamp())
+                    or resolution["ttl"] <= int(datetime.now(UTC).timestamp())
                     or canonical_source_url(resolution.get("sourceUri")) != source_url):
                 raise IntakeError("The selected article destination was not resolved for this receipt.")
         elif original_url != source_url:
