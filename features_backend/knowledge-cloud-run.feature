@@ -187,3 +187,21 @@ Feature: The scheduled cloud knowledge run
     And no command was given "--allow-deletions"
     And no command was given "--replace"
     And the project command passes the plugins "newsletter,reader-steering"
+
+  Scenario: A site that sets no monitor source exports and counts its own items only
+    When the stages "corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot" run
+    Then no command was given "--monitor"
+
+  Scenario: A site that sets monitorSources exports the monitor records as data, dated for the week
+    Given the site sets the monitor sources "huggingface" for 26 weeks
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources huggingface --monitor-weeks 26"
+    And the commands include "--as-of 2026-10-26"
+    And the state in S3 holds "runs/2026-W44/monitor-records.json"
+
+  Scenario: The import, the snapshot, the archive and the wiki read the same records file
+    Given the site sets the monitor sources "huggingface" for 26 weeks
+    And the stages "corpus-sync", "topic-model", "typed-extraction" have run
+    When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
+    Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--monitor-records" with the week's records file

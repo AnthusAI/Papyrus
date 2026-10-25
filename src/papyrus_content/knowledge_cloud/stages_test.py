@@ -350,3 +350,49 @@ def test_the_projection_stage_logs_its_report_and_records_the_counts(tmp_path, c
     assert 'projection report: {"written": 3, "deleted": 0}' in capsys.readouterr().out
     details = run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#projection"})["Item"]["details"]
     assert details["written"] == 3 and details["deleted"] == 0
+
+
+# -- monitor records: opt-in, exported as data in corpus-sync, read from the run's file by every later stage -----------------
+MONITORED = {"KNOWLEDGE_MONITOR_SOURCES": "huggingface", "KNOWLEDGE_MONITOR_WEEKS": "26"}
+
+
+def test_a_site_without_monitor_sources_runs_exactly_as_before(tmp_path):
+    run, shell = make_run(tmp_path)
+    for stage in ("corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot", "archive", "wiki-sync"):
+        assert run_stage(stage, run) == 0
+    assert not [call for call in shell.calls if any(argument.startswith("--monitor") for argument in call)]
+    assert run.config.monitor_sources == ()
+
+
+def test_corpus_sync_exports_the_monitor_records_dated_for_the_week_and_keeps_the_file_in_the_run_state(tmp_path):
+    run, shell = make_run(tmp_path, MONITORED)
+    assert run_stage("corpus-sync", run) == 0
+    [export] = commands(shell, ["papyrus", "knowledge", "corpus", "export"])
+    assert export[export.index("--monitor-sources") + 1] == "huggingface"
+    assert export[export.index("--monitor-weeks") + 1] == "26"
+    assert export[export.index("--corpus-key") + 1] == "shipped"
+    assert export[export.index("--as-of") + 1] == "2026-10-26"
+    assert json.loads(run.state.read_text("runs/2026-W44/monitor-records.json"))["sources"] == ["huggingface"]
+
+
+def test_every_later_stage_counts_the_records_from_the_runs_file_even_in_a_fresh_container(tmp_path):
+    first, _ = make_run(tmp_path / "first", MONITORED)
+    assert run_stage("corpus-sync", first) == 0
+    fresh, shell = make_run(tmp_path / "fresh", MONITORED)
+    for stage in ("topic-model", "typed-extraction", "publish-run", "snapshot", "archive", "wiki-sync"):
+        assert run_stage(stage, fresh) == 0
+    expected = str(tmp_path / "fresh" / "runs" / "2026-W44" / "monitor-records.json")
+    for prefix in (
+        ["papyrus", "knowledge", "publish-run"], ["papyrus", "knowledge", "snapshot"], ["papyrus", "knowledge", "archive"], ["papyrus", "knowledge", "wiki", "sync"],
+    ):
+        found = commands(shell, prefix)
+        assert found, prefix
+        assert all(call[call.index("--monitor-records") + 1] == expected for call in found), prefix
+    assert Path(expected).exists()
+
+
+def test_a_monitor_source_the_run_does_not_know_is_refused_before_anything_runs(tmp_path):
+    from .config import ConfigError
+
+    with pytest.raises(ConfigError, match="KNOWLEDGE_MONITOR_SOURCES: Unsupported monitor source 'rss'"):
+        make_run(tmp_path, {"KNOWLEDGE_MONITOR_SOURCES": "rss"})

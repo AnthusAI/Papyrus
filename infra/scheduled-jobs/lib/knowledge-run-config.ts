@@ -20,6 +20,9 @@ export const DEFAULT_MEMORY_MIB = 16384;
 export const DEFAULT_EPHEMERAL_STORAGE_GIB = 40;
 export const DEFAULT_STAGE_TIMEOUT_SECONDS = 7200;
 export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
+export const DEFAULT_MONITOR_WEEKS = 52;
+/** The sources `papyrus knowledge corpus export --monitor-sources` understands. */
+export const MONITOR_SOURCES = ["huggingface"] as const;
 
 const VALID_VCPU = [1, 2, 4, 8, 16];
 
@@ -45,6 +48,10 @@ export type KnowledgeRunSettings = {
   staticSubdir?: string;
   beatsConfig?: string;
   conceptKinds?: string[];
+  /** Monitor sources whose delivered References count in the Knowledge Map as data, never as pages (docs/knowledge-cloud-run.md). */
+  monitorSources?: string[];
+  /** How many weeks back a monitor record counts (its source date decides); default 52. */
+  monitorWeeks?: number;
   openAiKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
@@ -74,6 +81,8 @@ export type KnowledgeRunConfig = {
   staticSubdir: string;
   beatsConfig?: string;
   conceptKinds?: string[];
+  monitorSources?: string[];
+  monitorWeeks: number;
   openAiKeyParameter: string;
   alarmEmailParameter: string;
   lockWaitSeconds: number;
@@ -138,7 +147,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -152,6 +161,15 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   if (record.conceptKinds !== undefined) {
     if (!Array.isArray(record.conceptKinds) || record.conceptKinds.length === 0) fail("conceptKinds", "must be a non-empty array of strings");
     conceptKinds = (record.conceptKinds as unknown[]).map((kind, index) => requireString(kind, `conceptKinds[${index}]`, KIND_PATTERN, "lowercase snake_case"));
+  }
+
+  let monitorSources: string[] | undefined;
+  if (record.monitorSources !== undefined) {
+    if (!Array.isArray(record.monitorSources) || record.monitorSources.length === 0) fail("monitorSources", "must be a non-empty array of strings");
+    monitorSources = [...new Set((record.monitorSources as unknown[]).map((source, index) => requireString(source, `monitorSources[${index}]`)))];
+    for (const source of monitorSources) {
+      if (!(MONITOR_SOURCES as readonly string[]).includes(source)) fail("monitorSources", `names an unsupported source ${JSON.stringify(source)} (supported: ${MONITOR_SOURCES.join(", ")})`);
+    }
   }
 
   let stageTimeouts: Record<string, number> | undefined;
@@ -197,6 +215,8 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     staticSubdir: optionalString(record.staticSubdir, "staticSubdir", REPO_PATH_PATTERN, "relative path inside the site repository"),
     beatsConfig: optionalString(record.beatsConfig, "beatsConfig", REPO_PATH_PATTERN, "relative path inside the site repository"),
     conceptKinds,
+    monitorSources,
+    monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     lockWaitSeconds: optionalInteger(record.lockWaitSeconds, "lockWaitSeconds", 0, 86400),
@@ -237,6 +257,8 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     staticSubdir: settings.staticSubdir ?? "web",
     beatsConfig: settings.beatsConfig,
     conceptKinds: settings.conceptKinds,
+    monitorSources: settings.monitorSources,
+    monitorWeeks: settings.monitorWeeks ?? DEFAULT_MONITOR_WEEKS,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,
     lockWaitSeconds: settings.lockWaitSeconds ?? DEFAULT_LOCK_WAIT_SECONDS,

@@ -522,3 +522,54 @@ class CommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MonitorRecordTests(unittest.TestCase):
+    """Cited Trends can cite monitor records (Hub models) as releases, next to the site's own items."""
+
+    SUMMARY = "org/tuned is a text-to-speech model by org, released 2026-10-14. License apache-2.0. 40 likes, 1200 downloads. Built on org/base (finetune)."
+
+    def snapshot(self, related_records, related_items=()):
+        entity = {"key": "maker--org", "name": "Org", "kind": "maker", "itemCount": 9, "weeksOfHistory": 20, "isNew": False, "change": {"last4": 8, "prior4": 4, "percent": None}, "series8": [0, 0, 1, 1, 2, 2, 1, 2], "href": None}
+        files = {"maker--org": {"relatedItems": list(related_items), "relatedRecords": list(related_records)}}
+        return {"asOf": AS_OF, "siteBase": SITE_BASE, "clusters": [], "previous": None, "entityFile": lambda key: files.get(key), "index": {"entities": [entity], "trending": ["maker--org"]}}
+
+    def record(self, name, day, **overrides):
+        return {"title": f"org/{name}", "url": f"https://huggingface.co/org/{name}", "publishedAt": f"2026-10-{day}T08:00:00Z", "summary": self.SUMMARY, "source": "huggingface", "provenance": "from the Hugging Face Hub", **overrides}
+
+    def test_records_in_the_window_become_items_with_their_own_summary_and_say_where_they_are_from(self) -> None:
+        fetched = []
+        signals = trends.build_signals(self.snapshot([self.record("tuned", 14), self.record("old", 14, publishedAt="2026-08-01T00:00:00Z")]), lambda url: fetched.append(url) or "# x\n\nA page summary.\n")
+        [signal] = signals
+        [item] = signal["items"]
+        self.assertEqual((item["title"], item["date"], item["url"], item["summary"], item["from"]), ("org/tuned", "2026-10-14", "https://huggingface.co/org/tuned", self.SUMMARY, "from the Hugging Face Hub"))
+        self.assertEqual(fetched, [])  # a record states its facts itself; no page is fetched for it
+        view = trends.item_view("I1", item, ["S1"])
+        self.assertEqual((view["from"], view["summary"], view["published"]), ("from the Hugging Face Hub", self.SUMMARY, "2026-10-14"))
+
+    def test_records_are_capped_apart_from_the_sites_own_items_which_still_get_their_page_summary(self) -> None:
+        records = [self.record(f"m{number}", 10 + number) for number in range(6)]
+        items = [{"title": "A story", "url": "/posts/a-story/", "publishedAt": "2026-10-13T00:00:00Z"}]
+        fetched = []
+        [signal] = trends.build_signals(self.snapshot(records, items), lambda url: fetched.append(url) or "# A story\n\nIt shipped.\n")
+        self.assertEqual([item.get("from") for item in signal["items"]], [None, "from the Hugging Face Hub", "from the Hugging Face Hub", "from the Hugging Face Hub"])
+        self.assertEqual([item["title"] for item in signal["items"][1:]], ["org/m5", "org/m4", "org/m3"])
+        self.assertEqual(len(fetched), 1)  # only the site's own item has a page to read
+        self.assertTrue(fetched[0].startswith(SITE_BASE))
+
+    def test_a_record_row_without_a_summary_or_an_http_address_is_ignored(self) -> None:
+        rows = [self.record("nosummary", 14, summary=None), self.record("local", 14, url="/hub/local"), self.record("fine", 14)]
+        [signal] = trends.build_signals(self.snapshot(rows), None)
+        self.assertEqual([item["title"] for item in signal["items"]], ["org/fine"])
+
+    def test_a_citation_of_a_records_facts_is_checked_against_its_summary(self) -> None:
+        [signal] = trends.build_signals(self.snapshot([self.record("tuned", 14)]), None)
+        view = trends.item_view("I1", signal["items"][0], ["S1"])
+        numbers, dates = trends.facts_in(view)
+        self.assertIn("1200", numbers)
+        self.assertIn("2026-10-14", dates)
+        self.assertEqual(trends.ungrounded("It has 1200 downloads and 40 likes.", [(numbers, dates)]), [])
+        self.assertEqual(trends.ungrounded("It has 9000 downloads.", [(numbers, dates)]), ["9000"])
+
+    def test_the_prompt_tells_the_model_not_to_call_a_recorded_release_published(self) -> None:
+        self.assertIn('an item with a "from" field', trends.SYSTEM_PROMPT)

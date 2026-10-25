@@ -118,6 +118,8 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    once per distinct item (at most 40 in total, so the input stays far under the 120,000-character limit) and the signals each item sits
    behind. The snapshot publishes no member list for a cluster, so a cluster signal has no items. A snapshot read from a local file has no
    site address, so its items carry titles and dates but no summaries or URLs.
+
+   **Monitor records as items.** When the site counts monitor records ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)), the entity file also has `relatedRecords`, and an entity signal's items include up to 3 of them in the same four weeks, after the site's own items. A record is a release recorded from a monitored source, not a story: its item has the model id as title, the release date, the source's own card as its address (never fetched), a one-line `summary` built from the structured fields (task, maker, licence, likes, downloads, base models), and `from` (`from the Hugging Face Hub`). The model sees `from` and is told to call it a release or a model and never something the publication published; the citation check treats its title, summary and date like any item's, so a number in a sentence citing it must be in that summary.
 3. **Draft.** One call to GPT-6 Luna (same model, transport, prices and `--max-cost-usd` cap as `synthesize`; 12,000 output tokens, because
    three cited drafts and the reasoning ran past the 6,000 of the other commands). The prompt asks for a story an informed reader would find
    new: what shipped, who made it, what is different about it and what the pattern across the releases suggests, in plain specific prose that

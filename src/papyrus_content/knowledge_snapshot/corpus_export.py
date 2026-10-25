@@ -16,6 +16,11 @@ front matter is what Biblicus reads from a Markdown file:
 The rest (``papyrus_item_id``, ``slug``, ``url``, ``title``, ``section``, ``entities``) is ordinary metadata that
 Biblicus carries with the item. The body is the title, the deck and the Markus source, so the topic model and the
 entity extractor read the words a reader reads.
+
+A site that opts in (``--monitor-sources``) also gets one ``record-<reference id>.md`` per monitor record
+(``monitor_records.py``): ``kind: monitor-record``, ``papyrus_record_id``, the Hub card as ``url`` and the record's source
+date as ``dates.published_at``. Its body is the record's structured line, never model card text, so the topic model counts
+the record in its clusters and weekly series. The wiki and the projection never read these files.
 """
 
 from __future__ import annotations
@@ -30,6 +35,9 @@ import yaml
 from ..ids import deterministic_uuid
 from ..projection.source import is_projectable, summary_from_row
 from .loaders import UrlResolver, front_matter_entities, front_matter_tags
+from .model import KIND_MONITOR_RECORD
+from .monitor_records import MARKER as RECORD_MARKER
+from .monitor_records import MonitorRecord, biblicus_record_id, record_summary
 
 ITEM_MARKER = "papyrus_item_id:"
 DEFAULT_TYPES = ("article", "page")
@@ -104,14 +112,42 @@ def export_items(rows: Iterable[Mapping[str, Any]], url_for: UrlResolver, types:
     return sorted((render_item(row, url_for) for row in selected), key=lambda item: item.item_id)
 
 
+def render_record(record: MonitorRecord) -> ExportedItem:
+    """A monitor record as a corpus document: its structured fields only, dated by the source's own date."""
+    meta: dict[str, Any] = {
+        "title": record.title,
+        "biblicus": {"id": biblicus_record_id(record.reference_id)},
+        "papyrus_record_id": record.reference_id,
+        "kind": KIND_MONITOR_RECORD,
+        "source": record.source,
+        "url": record.url,
+        "dates": {"published_at": record.created_at},
+        "date_provenance": {"published_at": f"{record.source}-created-at"},
+    }
+    front = yaml.safe_dump(meta, sort_keys=False, allow_unicode=True, default_flow_style=False, width=1000).strip()
+    return ExportedItem(
+        item_id=record.reference_id,
+        biblicus_id=meta["biblicus"]["id"],
+        file=f"record-{record.reference_id}.md",
+        slug="",
+        url=record.url,
+        title=record.title,
+        published_at=record.created_at,
+        text=f"---\n{front}\n---\n{_body(record.title, record_summary(record), '')}",
+    )
+
+
 def _is_exported_file(path: Path) -> bool:
     with path.open(encoding="utf-8") as handle:
-        return any(line.startswith(ITEM_MARKER) for _, line in zip(range(20), handle))
+        return any(line.startswith((ITEM_MARKER, RECORD_MARKER)) for _, line in zip(range(20), handle))
 
 
-def write_export(items: list[ExportedItem], out: Path) -> dict[str, int]:
-    """Write the files; remove files of an earlier export (they carry ``papyrus_item_id``) that are no longer published."""
+def write_export(items: list[ExportedItem], out: Path, records: list[ExportedItem] | None = None) -> dict[str, int]:
+    """Write the files; remove files of an earlier export (they carry ``papyrus_item_id`` or ``papyrus_record_id``) that are
+    no longer published or delivered."""
     out.mkdir(parents=True, exist_ok=True)
+    records = records or []
+    items = [*items, *records]
     wanted = {item.file for item in items}
     removed = 0
     for stale in sorted(out.glob("*.md")):
@@ -120,4 +156,7 @@ def write_export(items: list[ExportedItem], out: Path) -> dict[str, int]:
             removed += 1
     for item in items:
         (out / item.file).write_text(item.text, encoding="utf-8")
-    return {"items": len(items), "removed": removed, "undated": sum(1 for item in items if not item.published_at)}
+    counts = {"items": len(items) - len(records), "removed": removed, "undated": sum(1 for item in items if not item.published_at)}
+    if records:
+        counts["records"] = len(records)
+    return counts
