@@ -630,7 +630,7 @@ def test_collector_zip_is_independent_of_the_router():
         import build
     finally:
         sys.path.pop(0)
-    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py")
+    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py", "monitoring_huggingface.py")
     assert "web_structured_metadata" not in build.router_modules() and "monitoring_router" in build.router_modules()
 
 
