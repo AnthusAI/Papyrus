@@ -3,7 +3,7 @@
 The `papyrus-monitoring` stack keeps the collector's and router's state in one DynamoDB table
 (docs/monitoring-cloud.md). This module turns that table into the overview an editor reads:
 feeds watched, recent runs, the collected queue with routing state, per-publication relevance
-and delivery, and usage against the Cyclotron ceilings.
+and delivery, and observed router decision counts.
 
 Access is least privilege on purpose. The Lambda that calls this holds `dynamodb:GetItem` and
 `dynamodb:Query` on that one table and nothing else. Nothing here can write. The response is
@@ -68,20 +68,21 @@ class TableViewStore:
         result = self._query(prefix, ScanIndexForward=False, Limit=limit)
         return [_clean(item) for item in result.get("Items", [])]
 
-    def decision_times(self) -> list[str]:
-        """`decidedAt` of every routed item (the router's ceilings are small, so this stays small)."""
+    def decision_times(self) -> tuple[list[str], bool]:
+        """Inspected decision timestamps and whether the bounded history query was exhaustive."""
         times, start = [], None
         for _ in range(MAX_DECISION_PAGES):
             extra = {"ProjectionExpression": "sk, #d.decidedAt", "ExpressionAttributeNames": {"#d": "decision"}}
             if start:
                 extra["ExclusiveStartKey"] = start
+            extra["ScanIndexForward"] = False
             result = self._query("ROUTE#", **extra)
             times += [row["decision"]["decidedAt"] for row in map(_clean, result.get("Items", []))
                       if isinstance(row.get("decision"), dict) and row["decision"].get("decidedAt")]
             start = result.get("LastEvaluatedKey")
             if not start:
                 break
-        return times
+        return times, start is None
 
     def email_details(self, receipt_digest: str) -> list[dict]:
         """Read private, inert rendering chunks for one bounded email receipt."""
@@ -106,14 +107,6 @@ def _iso(epoch) -> str | None:
 
 def _short(text) -> str | None:
     return str(text)[:MAX_ERROR_TEXT] if text else None
-
-
-def _ceilings(raw) -> dict | None:
-    if not isinstance(raw, dict):
-        return None
-    out = {key: int(raw[key]) for key in ("decisionsTotal", "decisionsPerDay", "items")
-           if isinstance(raw.get(key), (int, float)) and not isinstance(raw.get(key), bool) and raw[key] > 0}
-    return out or None
 
 
 def _feed(config: dict | None, state: dict | None) -> list[dict]:
@@ -245,10 +238,10 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
             continue
         items.append(item)
 
-    times = store.decision_times()
+    times, history_complete = store.decision_times()
     today = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
-    usage = {"day": today, "decisionsToday": sum(1 for t in times if str(t).startswith(today)), "decisionsTotal": len(times),
-             "ceilings": _ceilings((router or {}).get("ceilings"))}
+    usage = {"day": today, "decisionsToday": sum(1 for t in times if str(t).startswith(today)),
+             "decisionsTotal": len(times), "historyComplete": history_complete}
     out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state), "runs": runs, "routerRuns": router_runs,
            "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False,
                        "maxItemsPerRun": router.get("maxItemsPerRun")} if router else None),

@@ -121,27 +121,6 @@ class ItemInvalid(Exception):
 
 # --- config ---------------------------------------------------------------------------------------
 
-CEILING_KEYS = ("decisionsTotal", "decisionsPerDay", "items")
-
-
-def validate_ceilings(raw) -> dict | None:
-    """The shared Cyclotron's decision ceilings, mirrored as display data for the Monitoring page.
-
-    The router never reads them to decide anything: Cyclotron enforces its own ceilings and the router
-    stops when it says so. They exist only so the page can show usage against them.
-    """
-    if raw is None:
-        return None
-    if not isinstance(raw, dict) or not raw or set(raw) - set(CEILING_KEYS):
-        raise ValueError(f"router ceilings must be an object with only {', '.join(CEILING_KEYS)}")
-    out = {}
-    for key, value in raw.items():
-        if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)) or value <= 0 or value != int(value):
-            raise ValueError(f"router ceilings.{key} must be a positive whole number")
-        out[key] = int(value)
-    return out
-
-
 def feedback_partition(monitor_id: str) -> str:
     return f"FEEDBACK#{monitor_id}#pending"
 
@@ -165,7 +144,7 @@ def validate_router_config(raw: dict) -> dict:
         if raw.get("feedback") is True:
             raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
         return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-                "decisions": decisions, "feedback": False, "ceilings": None, "publications": publications,
+                "decisions": decisions, "feedback": False, "publications": publications,
                 "cyclotron": None, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
     endpoint = urlsplit(str(cyclotron.get("endpoint") or ""))
@@ -184,9 +163,8 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
-    ceilings = validate_ceilings(raw.get("ceilings"))
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-            "decisions": decisions, "feedback": raw.get("feedback") is True, "ceilings": ceilings,
+            "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
                           "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}, **account_scope}

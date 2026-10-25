@@ -331,12 +331,14 @@ def test_decision_receipt_keeps_a_valid_confidence_for_the_monitoring_page(table
     assert "confidence" not in publications["p-apyr-us"] and "confidence" not in publications["threat-intelligence"]
 
 
-def test_ceilings_are_display_data_validated_and_ignored_by_routing():
+def test_retired_ceilings_are_ignored_and_never_become_router_state():
     base = router_config()
-    assert validate_router_config({**base, "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}})["mode"] == "live"
-    for bad in ({"decisionsTotal": 0}, {"decisionsPerDay": "many"}, {"items": -1}, {"surprise": 1}, "300"):
-        with pytest.raises(ValueError):
-            validate_router_config({**base, "ceilings": bad})
+    configured = validate_router_config({**base, "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}})
+    assert configured["mode"] == "live" and "ceilings" not in configured
+    # Old stored quota payloads have no authority and may be malformed without
+    # blocking routing or being reflected as active configuration.
+    for retired in ({"decisionsTotal": 0}, {"decisionsPerDay": "many"}, {"items": -1}, {"surprise": 1}, "300"):
+        assert "ceilings" not in validate_router_config({**base, "ceilings": retired})
 
 
 def test_all_exclude_routes_without_delivery(table):
@@ -743,16 +745,14 @@ def test_table_name_is_published_for_the_read_only_monitoring_page():
     assert parameter["Properties"]["Value"] == ("Ref", "MonitoringTable")
 
 
-def test_seed_script_sets_and_clears_ceilings():
+def test_seed_cli_no_longer_accepts_ceiling_updates():
     import importlib.util
     spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra" / "monitoring" / "seed_router_config.py")
     seed = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(seed)
-    assert seed.coerce("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300") == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
-    assert seed.coerce("ceilings", "none") is None
-    for bad in ("300", "decisionsTotal=many", "=5"):
-        with pytest.raises(ValueError):
-            seed.coerce("ceilings", bad)
+    for key, value in (("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300"), ("ceilings", "none")):
+        with pytest.raises(ValueError, match="not ceilings"):
+            seed.coerce(key, value)
 
 
 # --- not-ready outputs (criteria_pending) --------------------------------------------------------------

@@ -322,7 +322,7 @@ Editors and admins read this pipeline in the newsroom at **Administration, Monit
 collector and router runs, the collected queue with each item's routing state, what the shared
 Cyclotron judged relevant to the viewing publication (with confidence, where the Cyclotron reports
 one) and whether it reached that publication's References queue (with a link), the router mode
-(live or dry run, feedback on or off) and usage against the ceilings.
+(live or dry run, feedback on or off) and observed decision counts.
 
 ## Access design
 
@@ -350,7 +350,5 @@ authorization point and one least-privilege grant.
 
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
-- `ceilings` (`decisionsTotal`, `decisionsPerDay`, `items`) in `CONFIG#router` is display data mirroring the
-  shared Cyclotron's ceilings; the router never reads it to decide. Set it with
-  `seed_router_config.py --table TABLE --set ceilings=decisionsTotal=300,decisionsPerDay=100,items=300`.
-- Usage counts the decisions this router recorded (UTC days). It is the router's view, not the Cyclotron's meter.
+- Old `ceilings` fields in `CONFIG#router` are ignored and are not returned to Monitoring.
+- Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.

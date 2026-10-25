@@ -15,18 +15,19 @@ async function main() {
   const render = (result: MonitoringResult | null, props: Record<string, unknown> = {}) =>
     renderToStaticMarkup(createElement(MonitoringOverviewView, { result, canViewAll: true, mode: "publication", onModeChange: () => {}, ...props }));
 
-  // A ready overview shows feeds, runs, the queue, relevance with confidence and delivery, and usage against ceilings.
+  // A ready overview shows feeds, runs, the queue, relevance with confidence and delivery, and uncapped usage.
   const ready = text(render(FIXTURE_MONITORING_OVERVIEW));
   for (const expected of [
     "Feeds watched", "hn", "news.ycombinator.com", "every 15 min", "Enabled",
     "Recent runs", "2026-10-21 02:33 UTC", "Complete", "Partial", "27 unchanged",
     "Router", "Live", "Feedback on",
-    "Usage", "2 of 100", "3 of 300",
+    "Usage", "Observed router decisions", "Decisions today (2026-10-21)", "2", "Decisions in inspected history", "3",
     "Collected queue", "Fresh Show HN", "Collected, waiting for the router", "Routed", "Error", "invalid request: bad title",
     "Quantum paper on arXiv", "Relevant", "91% confidence", "In the References queue",
     "Phishing kit leaks", "Not in the References queue: delivery failed",
     "1 item judged not relevant to this publication is not listed",
   ]) assert.ok(ready.includes(expected), `ready view shows: ${expected}`);
+  assert.ok(!ready.includes(" of 100") && !ready.includes(" of 300"), "usage is not presented against an arbitrary ceiling");
 
   // The delivered item links to its References entry on the viewing publication; the failed one does not.
   const html = render(FIXTURE_MONITORING_OVERVIEW);
@@ -84,8 +85,10 @@ async function main() {
   assert.ok(text(render(null)).includes("Loading monitoring"));
 
   // Ready, but nothing queued or run yet.
-  const quiet = text(render({ ...FIXTURE_MONITORING_OVERVIEW, runs: [], routerRuns: [], items: [], hiddenNotRelevant: 0, usage: { day: "2026-10-21", decisionsToday: 0, decisionsTotal: 0, ceilings: null } }));
-  assert.ok(quiet.includes("No collector runs recorded yet") && quiet.includes("No items in the queue") && quiet.includes("No ceilings are configured"));
+  const quiet = text(render({ ...FIXTURE_MONITORING_OVERVIEW, runs: [], routerRuns: [], items: [], hiddenNotRelevant: 0, usage: { day: "2026-10-21", decisionsToday: 0, decisionsTotal: 0, historyComplete: true } }));
+  assert.ok(quiet.includes("No collector runs recorded yet") && quiet.includes("No items in the queue"));
+  const partialUsage = text(render({ ...FIXTURE_MONITORING_OVERVIEW, usage: { ...FIXTURE_MONITORING_OVERVIEW.usage!, historyComplete: false } }));
+  assert.ok(partialUsage.includes("At least 2") && partialUsage.includes("At least 3") && partialUsage.includes("bounded history read"));
 
   // A publication outside the router says so instead of showing others' decisions.
   const unrouted = text(render({ ...FIXTURE_MONITORING_OVERVIEW, notice: "publication_not_routed", scope: { mode: "publication", publicationId: null, site: null, canViewAll: false }, items: FIXTURE_MONITORING_OVERVIEW.items.map((i) => ({ ...i, relevance: [] })) }));
