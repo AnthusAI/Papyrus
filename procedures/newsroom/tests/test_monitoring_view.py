@@ -64,18 +64,18 @@ def test_unknown_scope_is_refused_as_bad_request():
         overview(scope="everything")
 
 
-def test_usage_counts_decisions_by_utc_day_against_configured_ceilings():
+def test_usage_counts_decisions_by_utc_day_without_showing_retired_ceilings():
     usage = overview()["usage"]
     assert (usage["decisionsToday"], usage["decisionsTotal"], usage["day"]) == (2, 3, "2026-10-21")
-    assert usage["ceilings"] == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
+    assert "ceilings" not in usage
 
 
-def test_no_ceilings_configured_still_reports_usage():
+def test_legacy_ceilings_are_ignored_and_usage_is_still_reported():
     table = [r for r in fx.rows() if r["sk"] != "CONFIG#router"]
     router = next(r for r in fx.rows() if r["sk"] == "CONFIG#router")
-    router.pop("ceilings")
+    router["ceilings"] = {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
     result = overview(store=fx.FakeViewStore(table + [router]))
-    assert result["usage"]["ceilings"] is None and result["usage"]["decisionsTotal"] == 3
+    assert "ceilings" not in result["usage"] and result["usage"]["decisionsTotal"] == 3
 
 
 def test_publication_outside_the_router_gets_a_notice_not_data_about_others():
@@ -129,6 +129,26 @@ def test_table_store_uses_only_get_item_and_query():
     table = ReadOnlyTable(fx.rows())
     result = monitoring_overview(mv.TableViewStore(table), groups=["admin"], site_endpoint=fx.APP_ANTH, scope="all", now=fx.NOW)
     assert len(result["items"]) == 5 and set(table.calls) == {"get_item", "query"}
+
+
+def test_bounded_decision_history_marks_truncated_counts_as_lower_bounds():
+    class PagedTable:
+        def __init__(self, pages):
+            self.pages, self.calls = pages, 0
+
+        def query(self, **_kwargs):
+            index = self.calls
+            self.calls += 1
+            response = {"Items": [{"decision": {"decidedAt": "2026-10-21T12:00:00Z"}}]}
+            if index < self.pages - 1:
+                response["LastEvaluatedKey"] = {"pk": "MONITOR#hn", "sk": f"ROUTE#{index:06d}"}
+            return response
+
+    times, complete = mv.TableViewStore(PagedTable(mv.MAX_DECISION_PAGES + 1)).decision_times()
+    assert len(times) == mv.MAX_DECISION_PAGES and not complete
+
+    times, complete = mv.TableViewStore(PagedTable(3)).decision_times()
+    assert len(times) == 3 and complete
 
 
 def event(groups, scope="publication", field="monitoringOverview", **arguments):

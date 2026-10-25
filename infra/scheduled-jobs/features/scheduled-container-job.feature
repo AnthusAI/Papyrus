@@ -107,6 +107,11 @@ Feature: Scheduled container jobs
     Then the container environment carries PAPYRUS_PLUGINS from the site config
     And the task role may read the configuration of the site's content-actions Lambda and nothing else of Lambda
 
+  Scenario: monitor records are opt-in and reach the container only when the site names a source
+    Then the container has no KNOWLEDGE_MONITOR_SOURCES for the example config
+    And a knowledgeRun block with monitorSources "huggingface" and monitorWeeks 26 sets KNOWLEDGE_MONITOR_SOURCES and KNOWLEDGE_MONITOR_WEEKS
+    And an empty, unknown or non-whole-week monitor setting is rejected naming "knowledgeRun.monitorSources" or "knowledgeRun.monitorWeeks"
+
   Scenario: the stages check out the commit the site runs
     Then the container environment names the CMS Amplify app
     And the task role may list the jobs of that app's branch and nothing else of Amplify

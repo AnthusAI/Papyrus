@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
+from .monitor_records import PROVENANCE
 from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
 from .model import (
     DESCRIPTION_AI_EDITED,
@@ -20,6 +21,7 @@ from .model import (
     Cluster,
     EntityNode,
     KnowledgeData,
+    NodeRelation,
     PublishedItem,
     SnapshotOptions,
 )
@@ -48,6 +50,7 @@ CLUSTER_STATE_PERCENT = 20
 CLUSTER_MINIMUM_WEEKS = 4
 ACCEPTED = "accepted"
 BEAT_ENTITY_LIMIT = 12
+DATA_ONLY_MINIMUM = 2  # an entity that only monitor records mention needs this many of them, or a confirmed relation
 
 
 def entity_file(key: str) -> str:
@@ -62,6 +65,7 @@ class _Entity:
     name: str
     aliases: tuple[str, ...]
     item_keys: frozenset[str]
+    record_keys: frozenset[str]
     history: int
     values8: list[int]
     values26: list[int]
@@ -121,11 +125,16 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
     for link in data.links:
         if link.confirmed and link.item_key in dated:
             items_by_node[link.node_lineage_id].add(link.item_key)
+    related = {lineage for relation in data.relations if relation.confirmed for lineage in (relation.subject_lineage_id, relation.object_lineage_id)}
     entities: list[_Entity] = []
     for node in eligible:
         key = keys.get(node.lineage_id)
         item_keys = items_by_node.get(node.lineage_id)
         if not key or not item_keys:
+            continue
+        record_keys = frozenset(item for item in item_keys if dated[item][1].is_record)
+        has_page = len(record_keys) < len(item_keys)  # a site item mentions it; an entity only records mention is data, with no page
+        if not has_page and len(item_keys) < DATA_ONLY_MINIMUM and node.lineage_id not in related:
             continue
         counts = weekly_counts(dated[item][0] for item in item_keys)
         values8, values26 = series(counts, as_of_week, SERIES_SHORT), series(counts, as_of_week, SERIES_LONG)
@@ -138,12 +147,13 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 name=" ".join(node.name.split()),
                 aliases=_aliases(node),
                 item_keys=frozenset(item_keys),
+                record_keys=record_keys,
                 history=history,
                 values8=values8,
                 values26=values26,
                 change=change_of(values8, history),
                 new=is_new(history),
-                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template else None,
+                href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page else None,
             )
         )
     return sorted(entities, key=lambda entity: (-len(entity.item_keys), entity.key))
@@ -181,7 +191,7 @@ def _neighbours(entities: list[_Entity], data: KnowledgeData, options: SnapshotO
             continue
         for owner, other in ((subject, target), (target, subject)):
             explicit[owner.key][(relation.predicate, other.key)] = _neighbour(
-                relation.predicate, other, shared[owner.key].get(other.key, 0)
+                relation.predicate, other, shared[owner.key].get(other.key, 0), relation
             )
 
     by_key = {entity.key: entity for entity in entities}
@@ -195,13 +205,16 @@ def _neighbours(entities: list[_Entity], data: KnowledgeData, options: SnapshotO
     return result
 
 
-def _neighbour(relation: str, other: _Entity, weight: int) -> dict:
-    return {"relation": relation, "key": other.key, "name": other.name, "kind": other.kind, "weight": weight}
+def _neighbour(relation: str, other: _Entity, weight: int, source: NodeRelation | None = None) -> dict:
+    row = {"relation": relation, "key": other.key, "name": other.name, "kind": other.kind, "weight": weight}
+    if source is not None:  # what a relation imported from a source fact says of itself
+        row.update({name: value for name, value in (("subtype", source.subtype), ("evidence", source.evidence), ("provenance", source.provenance)) if value})
+    return row
 
 
 def _related_items(entity: _Entity, dated: dict[str, tuple[int, PublishedItem]], limit: int) -> list[dict]:
     rows = []
-    for item_key in entity.item_keys:
+    for item_key in entity.item_keys - entity.record_keys:
         _week, item = dated[item_key]
         if not item.url or not item.title or contains_email(item.title):
             continue
@@ -217,6 +230,28 @@ def _related_items(entity: _Entity, dated: dict[str, tuple[int, PublishedItem]],
     return rows[:limit]
 
 
+def _related_records(entity: _Entity, dated: dict[str, tuple[int, PublishedItem]], limit: int) -> list[dict]:
+    """The newest monitor records behind an entity: data with a source address, not pages of the site."""
+    rows = []
+    for item_key in entity.record_keys:
+        _week, record = dated[item_key]
+        if not record.url or not record.title or contains_email(record.title):
+            continue
+        rows.append(
+            {
+                "title": " ".join(record.title.split()),
+                "url": record.url,
+                "publishedAt": iso_timestamp(record.published_at),
+                "summary": record.summary,
+                "source": record.source,
+                "provenance": PROVENANCE.get(record.source or ""),
+                "reason": entity.key,
+            }
+        )
+    rows.sort(key=lambda row: (row["publishedAt"], row["url"]), reverse=True)
+    return [{name: value for name, value in row.items() if value} for row in rows[:limit]]
+
+
 EDITED_STATES = (DESCRIPTION_REVIEWED, DESCRIPTION_AI_EDITED)
 
 
@@ -230,7 +265,7 @@ def _description(node: EntityNode) -> dict:
 
 
 def _index_entity(entity: _Entity) -> dict:
-    return {
+    row = {
         "key": entity.key,
         "kind": entity.kind,
         "name": entity.name,
@@ -243,10 +278,13 @@ def _index_entity(entity: _Entity) -> dict:
         "change": entity.change.to_dict(),
         "isNew": entity.new,
     }
+    if entity.record_keys:
+        row["recordCount"] = len(entity.record_keys)
+    return row
 
 
-def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict]) -> dict:
-    return {
+def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict], records: list[dict]) -> dict:
+    file = {
         "schemaVersion": SCHEMA_VERSION,
         "key": entity.key,
         "kind": entity.kind,
@@ -263,6 +301,10 @@ def _entity_file(entity: _Entity, neighbours: list[dict], related: list[dict]) -
         "neighbours": neighbours,
         "relatedItems": related,
     }
+    if entity.record_keys:  # present only for an entity monitor records count in
+        file["recordCount"] = len(entity.record_keys)
+        file["relatedRecords"] = records
+    return file
 
 
 def _concept_of_the_week(entities: list[_Entity], data: KnowledgeData, options: SnapshotOptions) -> dict | None:
@@ -311,7 +353,7 @@ def _beat_row(beat: Beat, dated: dict[str, tuple[int, PublishedItem]], as_of_wee
 
 
 def _cluster_row(
-    cluster: Cluster, published: set[str], options: SnapshotOptions, as_of_week: int, named: bool, beat_members: dict[str, set[str]]
+    cluster: Cluster, published: set[str], options: SnapshotOptions, as_of_week: int, named: bool, beat_members: dict[str, set[str]], record_keys: set[str]
 ) -> dict | None:
     members = [key for key in cluster.member_item_keys if key in published]
     count = len(members) if cluster.member_item_keys else cluster.member_count
@@ -325,7 +367,7 @@ def _cluster_row(
     first_week = _first_week(cluster, as_of_week)
     weeks_of_data = weeks_of_history(first_week, as_of_week) if first_week is not None else 0
     change = change_of(values)
-    return {
+    row = {
         "uid": cluster.uid,
         "beats": sorted(key for key, beat_items in beat_members.items() if beat_items.intersection(members)),
         "name": cluster.name if named else None,
@@ -339,6 +381,10 @@ def _cluster_row(
         if options.cluster_href_template and named
         else None,
     }
+    records = sum(1 for key in members if key in record_keys)
+    if records:
+        row["recordCount"] = records
+    return row
 
 
 def _first_week(cluster: Cluster, as_of_week: int) -> int | None:
@@ -363,7 +409,7 @@ def _cluster_state(cluster: Cluster, change: Change, weeks_of_data: int, first_w
 
 
 def _clusters_file(
-    data: KnowledgeData, options: SnapshotOptions, published: set[str], as_of_week: int, beat_members: dict[str, set[str]]
+    data: KnowledgeData, options: SnapshotOptions, published: set[str], as_of_week: int, beat_members: dict[str, set[str]], record_keys: set[str]
 ) -> dict:
     rows: list[tuple[int, dict]] = []
     runs = sorted((cluster.run_as_of or "", cluster.run_id) for cluster in data.clusters if cluster.run_id)
@@ -374,7 +420,7 @@ def _clusters_file(
         named = cluster.accepted and bool(cluster.name)
         if not named and options.unaccepted_clusters != UNACCEPTED_UNNAMED:
             continue
-        row = _cluster_row(cluster, published, options, as_of_week, named, beat_members)
+        row = _cluster_row(cluster, published, options, as_of_week, named, beat_members, record_keys)
         if row is None:
             continue
         rows.append((sum(row["series8"][-4:]), row))
@@ -413,10 +459,10 @@ def build_files(data: KnowledgeData, options: SnapshotOptions) -> dict[str, dict
             "trending": _trending_order(entities),
             "conceptOfTheWeek": _concept_of_the_week(entities, data, options),
         },
-        CLUSTERS_FILE: _clusters_file(data, options, set(dated), as_of_week, beat_members),
+        CLUSTERS_FILE: _clusters_file(data, options, set(dated), as_of_week, beat_members, {key for key, (_week, item) in dated.items() if item.is_record}),
     }
     for entity in entities:
         files[entity_file(entity.key)] = _entity_file(
-            entity, neighbours[entity.key], _related_items(entity, dated, options.related_limit)
+            entity, neighbours[entity.key], _related_items(entity, dated, options.related_limit), _related_records(entity, dated, options.related_limit)
         )
     return files

@@ -109,6 +109,10 @@ until Cyclotron criteria exist; `cyclotron` routing also works, and sends `value
 machine API must accept that source). The delivered Reference's rationale line carries the pipeline tag, license, likes
 and base models, and the provenance Message body carries the whole `details` map.
 
+### Feeding the Knowledge Map
+
+Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in clusters, entities (the model, its maker, licence and task) and weekly trends, and imports `baseModels` as `built_on` relations with the Hub card as evidence. To make that possible without downloading each provenance Message, the router now also writes the model's structured `details` into the `metadata` of the `ingestion_rationale` relation that links the provenance Message to the Reference (a model delivered before this change is still counted, with its title, date and author only). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
+
 ### Backfill: loading history
 
 `papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z` loads the models created since then that
@@ -465,7 +469,7 @@ Editors and admins read this pipeline in the newsroom at **Administration, Monit
 collector and router runs, the collected queue with each item's routing state, what the shared
 Cyclotron judged relevant to the viewing publication (with confidence, where the Cyclotron reports
 one) and whether it reached that publication's References queue (with a link), the router mode
-(live or dry run, feedback on or off) and usage against the ceilings.
+(live or dry run, feedback on or off) and observed decision counts.
 
 ## Access design
 
@@ -497,7 +501,5 @@ authorization point and one least-privilege grant.
 
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
-- `ceilings` (`decisionsTotal`, `decisionsPerDay`, `items`) in `CONFIG#router` is display data mirroring the
-  shared Cyclotron's ceilings; the router never reads it to decide. Set it with
-  `seed_router_config.py --table TABLE --set ceilings=decisionsTotal=300,decisionsPerDay=100,items=300`.
-- Usage counts the decisions this router recorded (UTC days). It is the router's view, not the Cyclotron's meter.
+- Old `ceilings` fields in `CONFIG#router` are ignored and are not returned to Monitoring.
+- Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.

@@ -164,6 +164,13 @@ assert.deepEqual(Object.keys(staticEnvironment).sort(), [
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
+assert.ok(!("KNOWLEDGE_MONITOR_SOURCES" in staticEnvironment), "monitor records are opt-in: no source set, no variable");
+const withMonitors = knowledgeStack((site) => { site.knowledgeRun.monitorSources = ["huggingface"]; site.knowledgeRun.monitorWeeks = 26; });
+const monitorEnvironment = Object.fromEntries(
+  (Object.values(withMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
+assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_WEEKS, "26");
 assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
 assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
@@ -429,6 +436,9 @@ rejects((block) => { block.schedule = "every monday"; }, /knowledgeRun\.schedule
 rejects((block) => { block.stageTimeouts = { bogus: 60 }; }, /knowledgeRun\.stageTimeouts\.bogus is not a stage/);
 rejects((block) => { block.stageTimeouts = { snapshot: 5 }; }, /knowledgeRun\.stageTimeouts\.snapshot must be an integer/);
 rejects((block) => { block.conceptKinds = []; }, /knowledgeRun\.conceptKinds must be a non-empty array/);
+rejects((block) => { block.monitorSources = []; }, /knowledgeRun\.monitorSources must be a non-empty array/);
+rejects((block) => { block.monitorSources = ["rss"]; }, /knowledgeRun\.monitorSources names an unsupported source "rss"/);
+rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
 rejects((block) => { block.environment = { "1BAD": "x" }; }, /knowledgeRun\.environment\.1BAD is not a valid environment variable name/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.knowledgeRun; return raw; })())), /has no knowledgeRun block/);

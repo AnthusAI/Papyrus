@@ -4,11 +4,6 @@
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --file router.json [--replace]
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set mode=live
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set feedback=true
-  AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set ceilings=decisionsTotal=300,decisionsPerDay=100,items=300
-
-`--set ceilings=...` records the shared Cyclotron's decision ceilings as display data for the newsroom's
-Monitoring page (the router never uses them to decide anything); `ceilings=none` clears them.
-
 `--file` is a JSON document of the shape in docs/monitoring-cloud.md (example:
 docs/monitoring-router-config.example.json). `--set` changes one top-level field of the stored
 item (mode, feedback, maxItemsPerRun, enabled). Every write is validated with the Lambda's own
@@ -36,14 +31,7 @@ def coerce(key: str, value: str):
         return int(value)
     if key == "mode":
         return value
-    if key == "ceilings":
-        if value == "none":
-            return None
-        pairs = [part.partition("=") for part in value.split(",")]
-        if not all(name and sep and number.isdigit() for name, sep, number in pairs):
-            raise ValueError("ceilings must look like decisionsTotal=300,decisionsPerDay=100,items=300 (or none)")
-        return {name: int(number) for name, _, number in pairs}
-    raise ValueError(f"--set supports mode, feedback, maxItemsPerRun, enabled and ceilings, not {key}")
+    raise ValueError(f"--set supports mode, feedback, maxItemsPerRun and enabled, not {key}")
 
 
 def main() -> int:
@@ -63,6 +51,7 @@ def main() -> int:
     key = {"pk": f"MONITOR#{args.monitor_id}", "sk": ROUTER_CONFIG_SK}
     if args.file:
         item = {**json.loads(Path(args.file).read_text()), **key}
+        item.pop("ceilings", None)
         validate_router_config(item)
         kwargs = {} if args.replace else {"ConditionExpression": "attribute_not_exists(pk)"}
         try:
@@ -83,6 +72,7 @@ def main() -> int:
             stored.pop(name, None)
         else:
             stored[name] = coerced
+    stored.pop("ceilings", None)
     validate_router_config(json.loads(json.dumps(stored, default=int)))
     table.put_item(Item=stored)
     print(f"Updated {key['pk']} {key['sk']}: " + ", ".join(args.set))

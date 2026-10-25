@@ -38,7 +38,6 @@ def route(source_id, decided_at=None, publications=None, delivered=None, **extra
 
 def rows():
     router = {"pk": PK, "sk": "CONFIG#router", "mode": "live", "maxItemsPerRun": 5, "feedback": True, "enabled": True,
-              "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300},
               "publications": [
                   {"publicationId": "anth-us", "site": "anth.us", "appsyncEndpoint": APP_ANTH},
                   {"publicationId": "p-apyr-us", "site": "p.apyr.us", "appsyncEndpoint": APP_PAPYRUS, "corpusId": "knowledge-corpus-ai-ml-research"},
@@ -107,4 +106,5 @@ class FakeViewStore:
         return deepcopy(self.table[sk])
 
     def decision_times(self):
-        return [r["decision"]["decidedAt"] for sk, r in sorted(self.table.items()) if sk.startswith("ROUTE#") and r.get("decision")]
+        return ([r["decision"]["decidedAt"] for sk, r in sorted(self.table.items())
+                 if sk.startswith("ROUTE#") and r.get("decision")], True)

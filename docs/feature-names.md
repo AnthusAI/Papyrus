@@ -45,7 +45,7 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 **Definition.** The weekly analysis of a publication's items: Biblicus topic-model clusters marked New, Growing or Cooling, typed entities (makers, models, licences) and typed relations between them such as "built on", an AI review whose every acceptance quotes the text, a weekly snapshot with a history archive, and projection to map pages, a wiki and trend figures.
 
-**Not.** It is not generated when a reader loads a page, and nothing is fetched in the browser. It is not a general knowledge graph of the world: it holds what the publication's own items say.
+**Not.** It is not generated when a reader loads a page, and nothing is fetched in the browser. It is not a general knowledge graph of the world: it holds what the publication's own items say. A site can opt in to counting what its monitors deliver (for example Hugging Face Hub models) as **data**: they count in clusters, entities and weekly trends and carry "built on" relations from the model card, but they never become pages, and a person promotes a notable one to a normal item draft ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)).
 
 **Where.** `papyrus knowledge ...` (`src/papyrus_content/knowledge_snapshot/`, `knowledge_cloud/`, `knowledge_wiki/`); [knowledge-snapshot.md](knowledge-snapshot.md), [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md), [public-wiki.md](public-wiki.md).
 

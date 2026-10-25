@@ -125,7 +125,7 @@ export type MonitoringOverview = {
     day: string;
     decisionsToday: number;
     decisionsTotal: number;
-    ceilings: { decisionsTotal?: number; decisionsPerDay?: number; items?: number } | null;
+    historyComplete: boolean;
   } | null;
   items: MonitoringItem[];
   emailSubmissions?: MonitoringEmailSummary[];
@@ -161,10 +161,6 @@ export function formatUtc(iso: string | null | undefined): string {
 
 export function confidenceText(confidence: number | null): string {
   return confidence === null ? "confidence not reported" : `${Math.round(confidence * 100)}% confidence`;
-}
-
-export function usageText(used: number, ceiling: number | undefined): string {
-  return ceiling === undefined ? `${used} used, no ceiling set` : `${used} of ${ceiling}`;
 }
 
 export function everyText(seconds: number | null): string {
