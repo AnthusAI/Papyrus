@@ -10,7 +10,8 @@ CloudFormation stack in account 712236451410, us-east-1, applied with a change s
 ## Monitors and source types
 
 Each monitor is its own `MONITOR#<id>` partition with its own schedules. `CONFIG.sourceType` names what
-it reads: `hn-rss` (the default, the Hacker News feed) or `ttab-decisions` (the USPTO TTAB Reading Room
+it reads: `hn-rss` (the default, the Hacker News feed), `huggingface-models` (the Hugging Face Hub model list,
+[below](#hugging-face-hub-monitor-huggingface-models)) or `ttab-decisions` (the USPTO TTAB Reading Room
 decision search, `lookbackDays` 1 to 180, `finalDecisionsOnly` true by default, and `precedentialLookbackDays`:
 when set, a second search over that longer window asks only for precedential decisions of any type, because the
 Board can designate a decision precedential months after it issues). A TTAB item also lists the decision's other
@@ -26,6 +27,7 @@ recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTA
 | --- | --- | --- | --- | --- | --- |
 | `hn` | `hn-rss` | `papyrus-monitoring-hn-collect`, every 15 min | `papyrus-monitoring-hn-route`, :07/:22/:37/:52 | cyclotron | anth-us, p-apyr-us, threat-intelligence |
 | `ttab` | `ttab-decisions` | `papyrus-monitoring-ttab-collect`, every 6 h (collects daily) | `papyrus-monitoring-ttab-route`, hourly at :41 | direct | distinctive |
+| `huggingface` | `huggingface-models` | `papyrus-monitoring-huggingface-collect`, every 6 h (collects daily) | `papyrus-monitoring-huggingface-route`, hourly at :17 | direct, with a `rule` | shipped |
 
 A publication the router delivers to needs its AppSync grants in the router role. The inline policy holds
 three sites; Distinctive Mark's are in the managed policy `RouterDistinctiveIntakePolicy`, and further
@@ -51,6 +53,135 @@ prints the planned writes (reference id, label, confidence) and the skip counts 
 has any current decision relation is skipped, a decision already recorded (even if superseded since) is not
 recreated, and nothing is ever superseded, so a re-run writes nothing. Options: `--publication <id>` (repeatable),
 `--since <iso>` (delivery time, needs a timezone), `--monitor <id>` (default `hn`).
+
+## Hugging Face Hub monitor (`huggingface-models`)
+
+Feeds Shipped's knowledge map. It reads the public model list (`https://huggingface.co/api/models`, no key). The
+Hub cannot filter by date or by likes, so the monitor's `CONFIG` describes a few **queries** and the reader pages each
+one (cursor from the `Link` header; `pageSize` rows a page, at most `pagesPerQuery` pages) until it passes the window:
+
+- one query per `authors` entry (a watchlist of organisations), newest first;
+- one per `search` term, newest first;
+- one per `pipelineTags` entry, in the configured `sort` (`createdAt` newest first, `trendingScore`, `likes` or `downloads`).
+
+A model is **kept** when it was created inside the window (`lookbackDays`), matches `pipelineTags` (when given), and is
+either from a watchlisted author, or has at least `minLikes` likes, or at least `minDownloads` downloads (30-day count).
+With neither threshold set, every match is kept. Each day's run re-reads the whole window, so a model that reaches a
+threshold within `lookbackDays` of its release is picked up then; one that gets there later is not. Only
+`https://huggingface.co/api/models` is ever requested (the source URL, and every cursor, are checked), with a
+descriptive `User-Agent` and a pause between requests. A 429 ends the read and the receipt says `stoppedBy:
+rate_limited`; a query that fails does not stop the others; reads stop after 70 s (`stoppedBy: time_budget`).
+
+| `CONFIG` field | Meaning |
+| --- | --- |
+| `sourceUrl` | exactly `https://huggingface.co/api/models` |
+| `pipelineTags` | Hub pipeline tags to keep and to query, for example `text-generation`, `text-to-speech`, `text-classification` |
+| `authors` | watchlist of organisations or users: always kept (subject to `pipelineTags`) |
+| `search` | up to 10 search terms, each its own newest-first query (thresholds apply) |
+| `sort` | for the `pipelineTags` queries: `createdAt` (default), `trendingScore`, `likes`, `downloads` |
+| `minLikes`, `minDownloads` | thresholds; a model passes with either |
+| `lookbackDays` (7), `pageSize` (200, up to 1000), `pagesPerQuery` (10) | window and bounds per query |
+| `intervalSeconds`, `limit` | as for every monitor; `limit` is the most models stored per run, up to 1000 here (100 elsewhere) |
+
+At least one of `pipelineTags`, `authors`, `search` is required. Each kept model is a discovery with `sourceType`,
+`routing: collected` and a structured `details` map: `modelId`, `author`, `createdAt` (the release date, also
+`sourcePublishedAt`), `lastModified`, `pipelineTag`, `tags`, `license`, `libraryName`, `likes`, `downloads`, `sha`, and
+`baseModels`: `[{"modelId": "org/base", "relation": "finetune"|"quantized"|"adapter"|"merge"|"declared"}]`, read from the Hub's
+`base_model:<relation>:<id>` tags and from `cardData.base_model` (relation `declared` when the tags do not already name
+it). Only these fields are kept; model card text never is. `baseModels` is the "built on" relation, ready for typed
+extraction. The source id is `org--name` (hashed when a character or the length does not fit a table key); the item is the
+model page; the title is `org/name: <pipeline tag> model`.
+
+**Dedupe is on the model's revision.** The fingerprint includes the Hub's `sha` (its latest commit): the same `sha` is
+`unchanged` however its likes and downloads moved, and a new commit is the next revision of the same item. Likes and
+downloads in `details` are as of the revision's collection.
+
+**Routing.** Router config `decisions: "direct"` delivers every collected model to every configured publication, as
+for TTAB. Add a **`rule`** to deliver only some: `{"pipelineTags": [...], "authors": [...], "minLikes": N, "minDownloads": N}`
+(same meaning as above: the filters, then watchlist or a threshold). A model that fails it is finished as `routed`
+with `reason: "excluded by the monitor's rule"` and delivered nowhere; in a dry run the receipt says `wouldDeliver: false`.
+The rule is evaluated once, on the first collected revision. It is allowed only with `direct`, so it can stand in
+until Cyclotron criteria exist; `cyclotron` routing also works, and sends `values.source: "huggingface"` (the Cyclotron
+machine API must accept that source). The delivered Reference's rationale line carries the pipeline tag, license, likes
+and base models, and the provenance Message body carries the whole `details` map.
+
+### Backfill: loading history
+
+`papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z` loads the models created since then that
+the monitor's `CONFIG` would accept, through the same `ITEM#` dedupe as the live collector (so it is idempotent and can
+run beside the schedule). It is a **dry run** (reads the Hub, counts what it would add, writes nothing) unless `--apply`.
+Because the Hub cannot filter by date, it pages each author and search query newest first until `--since`, and each
+`pipelineTags` query in `likes` order (and again in `downloads` order when `minDownloads` is set) until the metric falls
+under the threshold, keeping only models created inside the window. Options: `--until`, `--max-pages` per query
+(default 50), `--max-requests` per run (default 300; the Hub allows 500 requests per 5 minutes). It **pauses** on either
+bound or on a 429 and keeps a `BACKFILL#<since>#<scope>` checkpoint (each query's cursor); running the same command again
+resumes there, and a finished backfill reads nothing. Backfilled discoveries are `collected` like any other, so the router
+delivers them at `maxItemsPerRun` (at most 25) per hourly run, oldest collection first.
+
+### Starting Shipped
+
+Nothing here has been deployed. In account 712236451410 with `AWS_PROFILE=papyrus-production`
+(`aws sts get-caller-identity --query Account --output text` must print `712236451410`):
+
+1. Merge, then build and upload both zips (the collector zip gained `monitoring_huggingface.py`; the router imports it too):
+   `python3 infra/monitoring/build.py --upload "$CODE_BUCKET"` and `python3 infra/monitoring/build.py --router --upload "$CODE_BUCKET"`
+   (each prints its `CodeKey`; the bucket is the stack's `CodeBucket` parameter).
+2. Change set on `papyrus-monitoring` (reads first, then executes): the template adds `ShippedApiId`
+   (default `imnmexcbrzcddk2g4vl6hsn7ie`), the managed policy `RouterShippedIntakePolicy`, and the schedules
+   `papyrus-monitoring-huggingface-collect` and `-route`; the change set should show only those and the two function code updates.
+   ```sh
+   aws cloudformation create-change-set --stack-name papyrus-monitoring --change-set-name huggingface-monitor \
+     --template-body file://infra/monitoring/papyrus-monitoring.yaml --capabilities CAPABILITY_NAMED_IAM \
+     --parameters ParameterKey=CodeKey,ParameterValue=<collector CodeKey> ParameterKey=RouterCodeKey,ParameterValue=<router CodeKey> \
+       $(for p in $(aws cloudformation describe-stacks --stack-name papyrus-monitoring --query 'Stacks[0].Parameters[].ParameterKey' --output text); \
+         do case $p in CodeKey|RouterCodeKey) ;; *) printf 'ParameterKey=%s,UsePreviousValue=true ' $p;; esac; done)
+   aws cloudformation describe-change-set --stack-name papyrus-monitoring --change-set-name huggingface-monitor
+   aws cloudformation execute-change-set --stack-name papyrus-monitoring --change-set-name huggingface-monitor   # after a human has read it
+   ```
+3. Seed the collector config (validated with the Lambda's own validator before it is written) and the router config.
+   `TABLE` is in SSM `/papyrus/monitoring/table-name`.
+   ```sh
+   TABLE=$(aws ssm get-parameter --name /papyrus/monitoring/table-name --query Parameter.Value --output text)
+   python3 infra/monitoring/seed_config.py --table "$TABLE" --monitor-id huggingface --source-type huggingface-models --file shipped-huggingface-config.json
+   python3 infra/monitoring/seed_router_config.py --table "$TABLE" --monitor-id huggingface --file shipped-huggingface-router.json   # starts in dry-run
+   ```
+4. Check a dry run, then flip: `aws lambda invoke --function-name papyrus-monitoring-collector --cli-binary-format raw-in-base64-out --payload '{"monitorId":"huggingface","force":true}' /dev/stdout`, read the `RUN#` receipt and the router's dry-run receipts
+   (`wouldDeliver`), then `seed_router_config.py --table "$TABLE" --monitor-id huggingface --set mode=live`.
+5. Load history, dry run first, then apply (repeat the apply until it reports `complete`):
+   ```sh
+   papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z
+   papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z --apply
+   ```
+
+Recommended `shipped-huggingface-config.json` (the pipeline tags are Shipped's three seeds; add `image-text-to-text` for multimodal
+open weights). Sampled from the live Hub on 2026-10-25: it receives about 3,600 text-generation, 700 text-classification and
+250 text-to-speech models a week, and of those a week or two old about 100, 24 and 17 a week have at least 5 likes or
+5,000 downloads. Expect **about 145 a week from the thresholds, plus a few from the watchlist (150 to 170 in all)**, around
+8,000 a year. `minLikes` 10 and `minDownloads` 10000 would give about 70 a week; 3 and 2000 about 250.
+
+```json
+{"sourceType": "huggingface-models", "sourceUrl": "https://huggingface.co/api/models",
+ "pipelineTags": ["text-generation", "text-to-speech", "text-classification"],
+ "authors": ["Qwen", "meta-llama", "google", "microsoft", "mistralai", "deepseek-ai", "nvidia", "openai", "allenai",
+             "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
+             "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
+ "search": ["decision"], "sort": "createdAt", "minLikes": 5, "minDownloads": 5000,
+ "lookbackDays": 7, "pageSize": 500, "pagesPerQuery": 10, "intervalSeconds": 86400, "limit": 500}
+```
+
+Recommended `shipped-huggingface-router.json` (a watchlist name that does not exist on the Hub just returns nothing):
+
+```json
+{"mode": "dry-run", "decisions": "direct", "maxItemsPerRun": 25, "feedback": false,
+ "rule": {"authors": ["Qwen", "meta-llama", "google", "microsoft", "mistralai", "deepseek-ai", "nvidia", "openai", "allenai",
+                      "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
+                      "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
+          "minLikes": 5, "minDownloads": 5000},
+ "publications": [{"publicationId": "shipped", "site": "shipped.anth.us",
+                   "appsyncEndpoint": "https://imnmexcbrzcddk2g4vl6hsn7ie.appsync-api.us-east-1.amazonaws.com/graphql"}]}
+```
+
+Read the result with the `RUN#` receipt (`read.requests`, `read.stoppedBy`, `new`) as in "Reading it", using `MONITOR#huggingface`.
 
 ## What it does, and does not do
 
@@ -231,6 +362,10 @@ aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk"
  "cyclotron": {"endpoint": "https://<id>.execute-api.<region>.amazonaws.com", "accountId": "...", "runId": "...",
                "bindingRevision": "1", "roleArn": "arn:aws:iam::<account>:role/<machine invoker>", "pollSeconds": 45}}
 ```
+
+`decisions` is `cyclotron` (the default) or `direct`; a `direct` config takes no `cyclotron` block and may carry a
+`rule` (`pipelineTags`, `authors`, `minLikes`, `minDownloads`) that limits what is delivered
+([Hugging Face Hub monitor](#hugging-face-hub-monitor-huggingface-models)).
 
 The output is `<publicationId>-relevance` with labels `include` and `exclude` (override per
 publication with `output`, `positiveLabel`, `negativeLabel`). The validator refuses non-`execute-api`

@@ -20,7 +20,7 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULES = ("__init__.py", "monitoring.py", "monitoring_cloud.py")
+MODULES = ("__init__.py", "monitoring.py", "monitoring_cloud.py", "monitoring_huggingface.py")
 ACCOUNT = "712236451410"
 OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring.zip"
 ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-router.zip"

@@ -57,6 +57,10 @@ Parameters:
     Type: String
     Default: xcobakwl4jagvhdq54qc55flii
     Description: AppSync API id of the Distinctive Mark backend (the TTAB decisions monitor delivers there).
+  ShippedApiId:
+    Type: String
+    Default: imnmexcbrzcddk2g4vl6hsn7ie
+    Description: AppSync API id of the Shipped backend (the Hugging Face monitor delivers there by its own rule, no Cyclotron).
   ScheduleState:
     Type: String
     Default: ENABLED
@@ -225,6 +229,24 @@ Resources:
         Arn: !GetAtt CollectorFunction.Arn
         RoleArn: !GetAtt ScheduleRole.Arn
         Input: '{"monitorId":"ttab"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
+  HuggingFaceCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-huggingface-collect
+      Description: Run the Hugging Face Hub models collector; it skips itself until its stored next-due time.
+      ScheduleExpression: rate(6 hours)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"monitorId":"huggingface"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 3
@@ -552,6 +574,37 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createSemanticRelation"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateReferenceAttachment"
 
+  RouterShippedIntakePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: The router's Reference intake grants for Shipped (a monitor-rule publication), outside the role's inline policy size limit.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ShippedReferenceIntake
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getModelAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listKnowledgeCorpuses"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listKnowledgeCorporaByRoleAndName"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listReferences"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/completeModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createKnowledgeImportRun"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createMessage"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createModelAttachmentUpload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReference"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReferenceAttachment"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createSemanticRelation"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/updateReferenceAttachment"
+
   RouterAutomationReadPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -614,6 +667,24 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"monitorId":"ttab"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  HuggingFaceRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-huggingface-route
+      Description: Run the Hugging Face Hub models router hourly at minute 17; it routes in the mode stored in the table.
+      ScheduleExpression: cron(17 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"huggingface"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1
