@@ -229,6 +229,41 @@ def step_excluded(context):
     assert len(finals) == 11 and {f["reason"] for f in finals} == {"excluded by the monitor's rule"}
 
 
+@given("the monitor excludes the tags gguf and mlx and the id pattern omnivoice")
+def step_exclusions(context):
+    config = context.table_.get_item(Key={"pk": "MONITOR#huggingface", "sk": "CONFIG"})["Item"]
+    context.table_.put_item({**config, "excludeTags": ["gguf", "mlx"], "excludeIdPatterns": ["omnivoice"]})
+
+
+@then("the five repackaged and two renamed copies are not stored as discoveries")
+def step_not_stored(context):
+    stored = [row["details"]["modelId"] for row in context.table_.by_prefix("DISC#")]
+    assert not any("GGUF" in m or "MLX" in m.upper() or "omnivoice" in m for m in stored)
+
+
+@then("the run receipt counts five skipped by tag and two by id pattern")
+def step_skip_counts(context):
+    assert context.result["read"]["skipped"] == {"tag": 5, "idPattern": 2}
+
+
+@then("the five other models are collected")
+def step_five(context):
+    assert context.result["new"] == 5 and len(context.table_.by_prefix("DISC#")) == 5
+
+
+@given("the router for Shipped excludes the tags gguf and mlx")
+def step_router_excludes(context):
+    context.table_.put_item(th.router_config(rule={"excludeTags": ["gguf", "mlx"]}))
+    context.delivery = th.Delivery()
+
+
+@then("the seven other models are delivered and the five repackaged ones are finished without delivery")
+def step_seven(context):
+    assert context.router_result["counts"]["delivered"] == 7
+    finals = [row["final"] for row in context.table_.by_prefix("ROUTE#") if row.get("final")]
+    assert len(finals) == 5 and {f["reason"] for f in finals} == {"excluded by the monitor's rule"}
+
+
 @then("a second router run finds nothing waiting")
 def step_nothing(context):
     assert th.route(context.table_, context.delivery, now=th.NOW + 7200)["counts"]["examined"] == 0

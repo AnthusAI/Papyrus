@@ -84,8 +84,20 @@ rate_limited`; a query that fails does not stop the others; reads stop after 70 
 | `search` | up to 10 search terms, each its own newest-first query (thresholds apply) |
 | `sort` | for the `pipelineTags` queries: `createdAt` (default), `trendingScore`, `likes`, `downloads` |
 | `minLikes`, `minDownloads` | thresholds; a model passes with either |
+| `excludeTags` | Hub tags that mark a repackaged copy (`gguf`, `mlx`, `exl2`, `awq`, `4-bit`, ...); a model carrying any is not collected. Case-insensitive; default none |
+| `excludeBaseRelations` | skip a model whose `baseModels` has one of these relations (`finetune`, `quantized`, `adapter`, `merge`, `declared`). Default none; `finetune` and `adapter` are real work, so list only `quantized` and `merge` unless you want them gone too |
+| `excludeIdPatterns` | up to 50 case-insensitive regular expressions searched in the model id (`org/name`), for repackagers that do not tag (`-(q|iq)[0-9]`, `abliterat`, `bpw`) |
 | `lookbackDays` (7), `pageSize` (200, up to 1000), `pagesPerQuery` (10) | window and bounds per query |
 | `intervalSeconds`, `limit` | as for every monitor; `limit` is the most models stored per run, up to 1000 here (100 elsewhere) |
+
+**Repackaged models.** A week of Shipped's models was mostly copies of existing ones (89 of 127): quantisations, "abliterated" or
+uncensored variants, wrappers. The three `exclude*` fields drop them at collection, so they are never stored as
+discoveries and never reach the Knowledge Map counts. They apply after the inclusion rule (a model that would have been
+dropped anyway is not counted), the first matching reason wins (`tag`, then `baseRelation`, then `idPattern`), and the `RUN#`
+receipt records `read.skipped`, for example `{"tag": 61, "idPattern": 20, "baseRelation": 8}`, with each model counted once
+however many queries returned it. `excludeTags` sees a model's first 80 tags; relations are read from all of them. Backfill uses
+the same filter (a changed filter starts a new backfill checkpoint) and prints and returns the skip counts. All three default
+to empty: with none set nothing changes.
 
 At least one of `pipelineTags`, `authors`, `search` is required. Each kept model is a discovery with `sourceType`,
 `routing: collected` and a structured `details` map: `modelId`, `author`, `createdAt` (the release date, also
@@ -102,7 +114,9 @@ downloads in `details` are as of the revision's collection.
 
 **Routing.** Router config `decisions: "direct"` delivers every collected model to every configured publication, as
 for TTAB. Add a **`rule`** to deliver only some: `{"pipelineTags": [...], "authors": [...], "minLikes": N, "minDownloads": N}`
-(same meaning as above: the filters, then watchlist or a threshold). A model that fails it is finished as `routed`
+(same meaning as above: the filters, then watchlist or a threshold) plus the same `excludeTags`, `excludeBaseRelations` and
+`excludeIdPatterns`, which are checked first and apply even to a watchlisted author (defence in depth: a collector with the
+exclusions already stored nothing to exclude, but older discoveries or a differently configured collector are still filtered). A model that fails it is finished as `routed`
 with `reason: "excluded by the monitor's rule"` and delivered nowhere; in a dry run the receipt says `wouldDeliver: false`.
 The rule is evaluated once, on the first collected revision. It is allowed only with `direct`, so it can stand in
 until Cyclotron criteria exist; `cyclotron` routing also works, and sends `values.source: "huggingface"` (the Cyclotron
@@ -112,6 +126,16 @@ and base models, and the provenance Message body carries the whole `details` map
 ### Feeding the Knowledge Map
 
 Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in clusters, entities (the model, its maker, licence and task) and weekly trends, and imports `baseModels` as `built_on` relations with the Hub card as evidence. To make that possible without downloading each provenance Message, the router now also writes the model's structured `details` into the `metadata` of the `ingestion_rationale` relation that links the provenance Message to the Reference (a model delivered before this change is still counted, with its title, date and author only). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
+
+### Promoting a record to an item
+
+A delivered model counts in the Knowledge Map as data and is never a page. To write about one, a person promotes it:
+
+```bash
+papyrus references promote <reference-id> --section <section>        # --dry-run shows what it would save
+```
+
+It saves a **draft** article `item-<section>-<org>-<name>` (type `article`, status draft) whose front matter has the title (the model id), the deck (the record's structured line), `entities` (the model, maker, licence and task), `sources` (the Hub card and "from the Hugging Face Hub") and `monitorRecord` (reference id, release date, licence, pipeline tag, likes, downloads, base models). There is no `date`: publishing stamps it. The body is a stub with the card link and a note that an editor writes the story. Nothing is published, the Reference's curation state is not changed, and promoting twice leaves the draft, and whatever the editor wrote in it, alone. The reference may be given by id, lineage id or external item id (as the first argument or `--reference`); `--actor-label` names who promoted it (default `papyrus-cli`). Only Hub models can be promoted.
 
 ### Backfill: loading history
 
@@ -175,6 +199,9 @@ open weights). Sampled from the live Hub on 2026-10-25: it receives about 3,600 
              "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
              "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
  "search": ["decision"], "sort": "createdAt", "minLikes": 5, "minDownloads": 5000,
+ "excludeTags": ["gguf", "mlx", "exl2", "exl3", "awq", "gptq", "bitsandbytes", "4-bit", "8-bit"],
+ "excludeBaseRelations": ["quantized", "merge"],
+ "excludeIdPatterns": ["gguf", "-(q|iq)[0-9]", "exl[23]", "mlx", "awq", "gptq", "abliterat", "uncensored", "bpw", "dflash", "comfyui"],
  "lookbackDays": 7, "pageSize": 500, "pagesPerQuery": 10, "intervalSeconds": 86400, "limit": 500}
 ```
 
@@ -185,12 +212,17 @@ Recommended `shipped-huggingface-router.json` (a watchlist name that does not ex
  "rule": {"authors": ["Qwen", "meta-llama", "google", "microsoft", "mistralai", "deepseek-ai", "nvidia", "openai", "allenai",
                       "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
                       "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
-          "minLikes": 5, "minDownloads": 5000},
+          "minLikes": 5, "minDownloads": 5000,
+          "excludeTags": ["gguf", "mlx", "exl2", "exl3", "awq", "gptq", "bitsandbytes", "4-bit", "8-bit"],
+          "excludeBaseRelations": ["quantized", "merge"],
+          "excludeIdPatterns": ["gguf", "-(q|iq)[0-9]", "exl[23]", "mlx", "awq", "gptq", "abliterat", "uncensored", "bpw", "dflash", "comfyui"]},
  "publications": [{"publicationId": "shipped", "site": "shipped.anth.us",
                    "appsyncEndpoint": "https://6sw6454pozbgvdgm233gqkxsxu.appsync-api.us-east-1.amazonaws.com/graphql"}]}
 ```
 
-Read the result with the `RUN#` receipt (`read.requests`, `read.stoppedBy`, `new`) as in "Reading it", using `MONITOR#huggingface`.
+The exclusions are the recommended block for Shipped: they remove quantisations, merges and wrappers but keep fine-tunes and adapters.
+Check `read.skipped` on the first run; if a legitimate release is being dropped, narrow the pattern that matched it.
+Read the result with the `RUN#` receipt (`read.requests`, `read.stoppedBy`, `read.skipped`, `new`) as in "Reading it", using `MONITOR#huggingface`.
 
 ## What it does, and does not do
 

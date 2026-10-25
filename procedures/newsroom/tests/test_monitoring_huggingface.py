@@ -143,6 +143,88 @@ def test_the_rule_is_filters_then_watchlist_or_thresholds():
     assert hf.hf_accepts(quiet, {"pipelineTags": ["text-generation"]})        # no thresholds: every match
 
 
+# --- repackaged models are excluded ------------------------------------------------------------------
+
+REPACK_RULE = {"excludeTags": ["gguf", "mlx"], "excludeBaseRelations": ["quantized", "merge"],
+               "excludeIdPatterns": ["-(q|iq)[0-9]", "abliterat"]}
+
+
+def test_exclusions_name_the_first_reason_and_default_to_nothing():
+    quant = {"modelId": "x/Model-GGUF", "tags": ["GGUF"], "baseModels": [{"modelId": "a/b", "relation": "quantized"}]}
+    assert hf.hf_exclusion(quant, REPACK_RULE) == "tag"                                    # tags are case-insensitive
+    assert hf.hf_exclusion({**quant, "tags": []}, REPACK_RULE) == "baseRelation"
+    assert hf.hf_exclusion({"modelId": "x/Llama-Q4_K", "tags": []}, {"excludeIdPatterns": ["-(q|iq)[0-9]"]}) == "idPattern"
+    assert hf.hf_exclusion({"modelId": "x/Llama-ABLITERATED"}, REPACK_RULE) == "idPattern"   # patterns are case-insensitive
+    finetune = {"modelId": "x/Model", "tags": ["text-generation"], "baseModels": [{"modelId": "a/b", "relation": "finetune"}]}
+    assert hf.hf_exclusion(finetune, REPACK_RULE) is None                                  # finetunes are kept unless listed
+    assert hf.hf_exclusion(quant, {}) is None and hf.hf_accepts(quant, {})                 # no config, no change
+    assert not hf.hf_accepts(quant, REPACK_RULE) and hf.hf_accepts(finetune, REPACK_RULE)
+
+
+@pytest.mark.parametrize("change, message", [
+    ({"excludeTags": "gguf"}, "excludeTags"),
+    ({"excludeTags": ["GGUF Q4"]}, "excludeTags"),
+    ({"excludeBaseRelations": ["copy"]}, "excludeBaseRelations"),
+    ({"excludeIdPatterns": ["(unclosed"]}, "regular expression"),
+    ({"excludeIdPatterns": [""]}, "excludeIdPatterns"),
+    ({"excludeIdPatterns": ["x"] * 2 + [str(n) for n in range(60)]}, "at most")])
+def test_exclusion_config_is_validated(change, message):
+    with pytest.raises(ValueError, match=message):
+        hf.validate_rule(change)
+
+
+def test_collection_skips_repackaged_models_and_counts_them_per_reason():
+    table = FakeTable()
+    table.put_item({**CONFIG, "minLikes": 0, "authors": [], "excludeTags": ["gguf", "mlx"],
+                    "excludeIdPatterns": ["OMNIVOICE"]})
+
+    result = run(table, tts_hub())
+
+    kept = sorted(d["details"]["modelId"] for d in table.by_prefix("DISC#"))
+    assert result["new"] == 5 and len(kept) == 5 and not any("GGUF" in m or "MLX" in m.upper() for m in kept)
+    assert result["read"]["skipped"] == {"tag": 5, "idPattern": 2}                          # in the RUN# receipt
+    assert not any("omnivoice" in m for m in kept)
+
+
+def test_skipped_models_are_counted_once_and_by_base_relation():
+    table = FakeTable()
+    table.put_item({**CONFIG, "minLikes": 0, "authors": [], "excludeBaseRelations": ["quantized"]})
+
+    result = run(table, tts_hub())
+
+    assert result["new"] == 9 and result["read"]["skipped"] == {"baseRelation": 3}
+
+
+def test_an_unconfigured_monitor_has_no_skip_counts():
+    table = FakeTable()
+    table.put_item({**CONFIG, "minLikes": 0, "authors": []})
+
+    result = run(table, tts_hub())
+
+    assert result["new"] == 12 and "skipped" not in result["read"]
+
+
+def test_backfill_applies_the_same_exclusions():
+    table = backfill_config(excludeIdPatterns=["deepseek"])
+
+    result, lines = backfill(table, liked_hub(), apply=True)
+
+    assert result["counts"] == {"new": 1} and result["skipped"] == {"idPattern": 1}
+    assert [r["details"]["modelId"] for r in table.by_prefix("DISC#")] == ["meta-llama/Llama-3.1-8B-Instruct"]
+    assert "skipped as repackaged: idPattern=1" in lines[-1]
+
+
+def test_the_router_rule_excludes_repackaged_models_too():
+    table, delivery = collected(), Delivery()
+    table.put_item(router_config(rule={"excludeTags": ["gguf", "mlx"]}))
+
+    result = route(table, delivery)
+
+    assert result["counts"]["delivered"] == 7 and result["counts"]["routed"] == 12
+    finals = [row["final"]["reason"] for row in table.by_prefix("ROUTE#") if row.get("final")]
+    assert finals == ["excluded by the monitor's rule"] * 5
+
+
 @pytest.mark.parametrize("change, message", [
     ({"sourceUrl": "https://news.ycombinator.com/rss"}, "huggingface.co"),
     ({"sourceUrl": "https://huggingface.co/api/datasets"}, "api/models"),
@@ -536,6 +618,8 @@ def route(table, delivery, now=NOW + 3600):
 def test_the_router_accepts_a_rule_only_with_direct_decisions():
     config = validate_router_config(router_config(rule={"minLikes": 1, "authors": ["hexgrad"]}))
     assert config["rule"] == {"pipelineTags": [], "authors": ["hexgrad"], "minLikes": 1}
+    kept = validate_router_config(router_config(rule={"excludeTags": ["gguf"], "excludeIdPatterns": ["exl[23]"]}))["rule"]
+    assert kept["excludeTags"] == ["gguf"] and kept["excludeIdPatterns"] == ["exl[23]"] and "excludeBaseRelations" not in kept
     assert validate_router_config(router_config())["rule"] is None
     with pytest.raises(ValueError, match="minLikes"):
         validate_router_config(router_config(rule={"minLikes": "many"}))

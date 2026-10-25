@@ -13,7 +13,7 @@ state. This is PPY-ab6a50; the console page that lists the requests is the [Noti
 | `soft_review` | The process waits until the deadline (default 7 days). | If nobody answered, the request becomes `timed_out` and records "proceeded without review"; the process continues. |
 | `hard_gate` | Never proceeds without an explicit answer. No deadline. | Never. |
 
-An answer is `approve`, `reject` or `feedback`, with optional feedback text and an optional steer (`adjust` or `not_this_kind`).
+An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the editor saw it; it counts like the old flag `approve` everywhere downstream, including the `approved` outcome), `reject` or `feedback`, with optional feedback text and an optional steer (`adjust` or `not_this_kind`).
 
 ## The model (`ReviewRequest`, in every site's data API)
 
@@ -95,7 +95,7 @@ papyrus reviews list [--state open] [--mode hard_gate] [--raised-by NAME] [--jso
 papyrus reviews show --id ID
 papyrus reviews raise --subject-type T --subject-id ID --mode flag|soft_review|hard_gate --reason TEXT [--ask TEXT]
                       [--raised-by NAME] [--deadline ISO | --deadline-days N] [--links JSON] [--id ID] [--wait [--max-wait-seconds N]]
-papyrus reviews answer --id ID --decision approve|reject|feedback [--feedback TEXT] [--steer adjust|not_this_kind]
+papyrus reviews answer --id ID --decision approve|acknowledge|reject|feedback [--feedback TEXT] [--steer adjust|not_this_kind]
 papyrus reviews withdraw --id ID [--note TEXT]
 papyrus reviews wait --id ID [--poll-seconds N] [--max-wait-seconds N]
 papyrus reviews steering [--raised-by NAME] [--all]        # unapplied steering, for a step to read

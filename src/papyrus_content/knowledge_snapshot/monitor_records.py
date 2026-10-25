@@ -146,21 +146,33 @@ def load_monitor_records(
         warnings.append(f"{len(chosen)} monitor records fall in the window; only the newest {limit} are used")
         chosen = chosen[:limit]
     records = []
-    for created, row, source in chosen:
-        lineage = str(row.get("lineageId") or row["id"])
-        details = _details_from_relations(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
-        url = str(row["sourceUri"])
-        if not details:
-            details = _fallback_details(row, url)
+    for _created, row, source in chosen:
+        record, missing = record_of(client, row, source)
+        if missing:
             warnings.append(f"{row['id']}: no Hub details on its provenance relation; only its title, date and author are used")
-        records.append(
-            MonitorRecord(
-                reference_id=str(row["id"]), lineage_id=lineage, source=source, url=url,
-                title=str(details.get("modelId") or row.get("title") or url), created_at=iso_timestamp(str(row["sourcePublishedAt"])),
-                details=details, state=normalize_policy_token(row.get("curationStatus")) or "pending",
-            )
-        )
+        records.append(record)
     return records, warnings
+
+
+def record_of(client: Any, row: Mapping[str, Any], source: str | None = None) -> tuple[MonitorRecord, bool]:
+    """The record a delivered Reference is, and whether its provenance relation lacked the Hub details."""
+    source = source or _source_of(row)
+    if source is None:
+        raise ValueError(f"Reference {row.get('id')} is not a monitor record: its address is not on a supported source.")
+    lineage = str(row.get("lineageId") or row["id"])
+    url = str(row["sourceUri"])
+    details = _details_from_relations(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
+    missing = not details
+    if missing:
+        details = _fallback_details(row, url)
+    return (
+        MonitorRecord(
+            reference_id=str(row["id"]), lineage_id=lineage, source=source, url=url,
+            title=str(details.get("modelId") or row.get("title") or url), created_at=iso_timestamp(str(row["sourcePublishedAt"])),
+            details=details, state=normalize_policy_token(row.get("curationStatus")) or "pending",
+        ),
+        missing,
+    )
 
 
 def write_records(path: Path, records: list[MonitorRecord], *, as_of: date, sources: tuple[str, ...]) -> None:

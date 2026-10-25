@@ -62,6 +62,23 @@ Feature: A Hugging Face Hub Monitor collects new machine-learning models with th
     And the other eleven models are finished without delivery and say that the rule excluded them
     And a second router run finds nothing waiting
 
+  Scenario: Repackaged quantisations are not collected
+    Given a Hugging Face monitor for text-to-speech models that need no minimum
+    And the monitor excludes the tags gguf and mlx and the id pattern omnivoice
+    And the Hub lists twelve new text-to-speech models and one of them has a like
+    When the Hugging Face monitor collects
+    Then the five repackaged and two renamed copies are not stored as discoveries
+    And the run receipt counts five skipped by tag and two by id pattern
+    And the five other models are collected
+
+  Scenario: The router rule leaves repackaged models undelivered as well
+    Given a Hugging Face monitor for text-to-speech models that need no minimum
+    And the Hub lists twelve new text-to-speech models and one of them has a like
+    And the Hugging Face monitor has collected
+    And the router for Shipped excludes the tags gguf and mlx
+    When the router runs
+    Then the seven other models are delivered and the five repackaged ones are finished without delivery
+
   Scenario: Only addresses on huggingface.co are accepted
     Then a monitor source address on another host is refused
     And a next-page cursor that leaves huggingface.co is refused
