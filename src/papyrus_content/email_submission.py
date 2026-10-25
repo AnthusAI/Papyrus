@@ -157,6 +157,8 @@ def is_supported_beehiiv_tracking_url(raw: str) -> bool:
                 or parts.username or parts.password or parts.port not in {None, 443}
                 or not parts.path.startswith("/ss/c/")):
             return False
+        if _ACTION.search(unquote(parts.path)) or _ACTION_LABEL.search(unquote(parts.path)):
+            return False
         for key, value in parse_qsl(parts.query, keep_blank_values=True, max_num_fields=64):
             action_key = unquote(key).lower()
             action_value = unquote(value).lower()
