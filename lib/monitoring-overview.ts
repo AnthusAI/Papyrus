@@ -40,9 +40,43 @@ export type MonitoringEmailSummary = {
 };
 
 export type MonitoringEmailDetails = {
-  submission: MonitoringEmailSummary; safeBodyText: string;
+  submission: MonitoringEmailSummary & { corpusId: string | null }; safeBodyText: string;
   candidateLinks: { url: string; title: string; resolutionStatus?: "unresolved" }[]; sourceMaterialIsUntrusted: true;
 } | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
+
+export type MonitoringEmailArticleResolution = {
+  url: string; title: string; resolved: true;
+} | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string } | { state: "unavailable" };
+
+export type EmailReferenceImportItem = { candidateIndex: number; source_uri: string };
+export type EmailReferenceImportOutcome = {
+  imported: number; references: { id: string; lineageId: string; curationStatus: string }[]; error?: string;
+};
+
+/** Split a complete editor selection into API work batches; the batch size is not a total link limit. */
+export function emailReferenceBatches<T>(items: T[], batchSize = 20): T[][] {
+  if (!Number.isSafeInteger(batchSize) || batchSize < 1) throw new Error("batchSize must be a positive integer");
+  const batches: T[][] = [];
+  for (let offset = 0; offset < items.length; offset += batchSize) {
+    batches.push(items.slice(offset, offset + batchSize));
+  }
+  return batches;
+}
+
+/** Async email actions may only update the receipt that is still open. */
+export function isCurrentEmailSubmissionAction(activeReceiptId: string | null, actionReceiptId: string): boolean {
+  return activeReceiptId === actionReceiptId;
+}
+
+export function beginEmailSubmissionAction(inFlight: Set<string>, actionKey: string): boolean {
+  if (inFlight.has(actionKey)) return false;
+  inFlight.add(actionKey);
+  return true;
+}
+
+export function endEmailSubmissionAction(inFlight: Set<string>, actionKey: string): void {
+  inFlight.delete(actionKey);
+}
 
 export type MonitoringRun = {
   runId: string;
@@ -91,7 +125,7 @@ export type MonitoringOverview = {
     day: string;
     decisionsToday: number;
     decisionsTotal: number;
-    ceilings: { decisionsTotal?: number; decisionsPerDay?: number; items?: number } | null;
+    historyComplete: boolean;
   } | null;
   items: MonitoringItem[];
   emailSubmissions?: MonitoringEmailSummary[];
@@ -127,10 +161,6 @@ export function formatUtc(iso: string | null | undefined): string {
 
 export function confidenceText(confidence: number | null): string {
   return confidence === null ? "confidence not reported" : `${Math.round(confidence * 100)}% confidence`;
-}
-
-export function usageText(used: number, ceiling: number | undefined): string {
-  return ceiling === undefined ? `${used} used, no ceiling set` : `${used} of ${ceiling}`;
 }
 
 export function everyText(seconds: number | null): string {

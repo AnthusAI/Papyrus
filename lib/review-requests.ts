@@ -13,7 +13,7 @@ import type { RelevanceDecisionView } from "./relevance-decisions";
 
 export type ReviewMode = "flag" | "soft_review" | "hard_gate";
 export type ReviewState = "open" | "answered" | "timed_out" | "withdrawn";
-export type ReviewDecision = "approve" | "reject" | "feedback";
+export type ReviewDecision = "approve" | "acknowledge" | "reject" | "feedback";
 export type ReviewSteer = "adjust" | "not_this_kind";
 
 export type ReviewAnswer = { decision: ReviewDecision; feedback: string | null; steer: ReviewSteer | null; by: string; at: string };
@@ -89,6 +89,7 @@ export type AnswerInput = { decision: ReviewDecision; feedback?: string | null; 
 /** The update for an answer, or an Error saying why it is refused. Applied with the condition state = open. */
 export function answerUpdate(request: ReviewRequest, input: AnswerInput, by: string, now: Date): Record<string, unknown> {
   if (request.state !== "open") throw new Error(`This request is ${request.state.replace("_", " ")}${request.state === "timed_out" ? ` (${PROCEEDED_WITHOUT_REVIEW})` : ""} and can no longer be answered.`);
+  if (input.decision === "acknowledge" && request.mode !== "flag") throw new Error("Only a flag is acknowledged; approve or reject this one.");
   const feedback = input.feedback?.trim() || null;
   const steer = input.steer ?? null;
   if (input.decision === "feedback" && !feedback && !steer) throw new Error("Write a note, or choose \"Not this kind of thing\".");
@@ -126,12 +127,13 @@ export function nextText(request: ReviewRequest): string {
   if (request.state === "timed_out") return `Proceeded without review on ${formatWhen(request.updatedAt)}.`;
   if (request.state === "withdrawn") return "Withdrawn by the step that raised it.";
   const answer = request.answer;
-  return answer ? `${answerWords(answer)} by ${answer.by} on ${formatWhen(answer.at)}.` : "Answered.";
+  return answer ? `${answerWords(answer, request)} by ${answer.by} on ${formatWhen(answer.at)}.` : "Answered.";
 }
 
-export function answerWords(answer: ReviewAnswer): string {
+export function answerWords(answer: ReviewAnswer, request?: Pick<ReviewRequest, "mode">): string {
   if (answer.steer === "not_this_kind") return "Steered: not this kind of thing";
-  if (answer.decision === "approve") return "Approved";
+  if (answer.decision === "acknowledge") return "Acknowledged";
+  if (answer.decision === "approve") return request?.mode === "flag" ? "Acknowledged" : "Approved";
   if (answer.decision === "reject") return "Rejected";
   return "Steered with a note";
 }
@@ -146,8 +148,8 @@ export function steeringText(request: ReviewRequest): string | null {
 }
 
 /** What a request is about, in words: a story shows its title (the id when the title is not known), anything else its type and id. */
-export function subjectLabel(subject: { type: string; id: string }, titles: Readonly<Record<string, string>> = {}): string {
-  if (subject.type === "story") return titles[subject.id] ?? `story ${subject.id}`;
+export function subjectLabel(subject: { type: string; id: string }, titles: Readonly<Record<string, string>> = {}, deleted: ReadonlySet<string> = new Set()): string {
+  if (subject.type === "story") return deleted.has(subject.id) ? `story ${subject.id} (story deleted)` : titles[subject.id] ?? `story ${subject.id}`;
   return `${subject.type.replace("_", " ")} ${subject.id}`;
 }
 

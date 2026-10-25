@@ -5,15 +5,21 @@ which Reference it delivered. For every delivered receipt this writes the relati
 built by the router's own `lab_decision_records`. It never supersedes anything: a Reference that already has any
 decision relation is left alone, and a decision that was already recorded (even if since superseded) is not
 recreated. Dry-run is the default; `apply=True` is the only path that writes.
+
+`backfill_collection` is the other kind of backfill: it loads a Hugging Face monitor's history (see below).
 """
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+import time
 from typing import Any, Callable
+import uuid
 
-from .monitoring_cloud import DynamoStore, pk
+from .monitoring import _digest, _iso
+from .monitoring_cloud import DynamoStore, _validate_config, commit_item, pk
+from .monitoring_huggingface import Reading, fetch_hf_page, hf_item, plan_queries, read_query, _parse_time
 from .monitoring_router import ROUTER_CONFIG_SK, lab_decision_records, validate_router_config
 from .relevance_decisions import RELEVANCE_RELATION
 
@@ -157,3 +163,100 @@ def command(args) -> int:
     result = backfill(table, args.monitor, appsync=make_appsync_client, apply=args.apply,
                       publication_ids=args.publication, since=parse_since(args.since) if args.since else None)
     return 0 if result["counts"] is not None else 1
+
+
+# --- collection backfill: a Hugging Face monitor's history -----------------------------------------------
+
+BACKFILL_LEASE_SECONDS = 1800
+CHUNK_PAGES = 5            # pages read, committed and checkpointed together
+
+
+def backfill_sorts(config: dict) -> tuple[str, ...]:
+    """The Hub cannot filter by date or likes, so a threshold is applied by paging the list sorted by that
+    metric until it falls under the minimum. With no thresholds, newest first until the window starts."""
+    sorts = tuple(sort for key, sort in (("minLikes", "likes"), ("minDownloads", "downloads")) if config.get(key) is not None)
+    return sorts or ("createdAt",)
+
+
+def backfill_collection(store, monitor_id: str, since: datetime, *, until: datetime | None = None,
+                        fetch: Callable | None = None, now: float | None = None, max_pages: int = 50,
+                        max_requests: int = 300, apply: bool = False, emit: Callable[[str], None] = print,
+                        owner: str | None = None) -> dict:
+    """Load the models created in [since, until) that the monitor's CONFIG would accept, through the collector's
+    own dedupe (`ITEM#`), so it is idempotent and safe next to the live schedule.
+
+    Bounded by `max_pages` per query and `max_requests` overall; it stops cleanly (`paused`) on either, or on a
+    Hub 429. A checkpoint item `BACKFILL#...` keeps each query's cursor, so running the same command again
+    continues where it stopped. Dry-run (the default) reads the Hub and counts, and writes nothing.
+    """
+    raw = store.get_config(monitor_id)
+    if raw is None:
+        raise ValueError(f"no config for monitor {monitor_id}")
+    config = _validate_config(raw)
+    if config["sourceType"] != "huggingface-models":
+        raise ValueError(f"monitor {monitor_id} reads {config['sourceType']}; backfill-by-window is for huggingface-models")
+    if since.tzinfo is None or (until is not None and until.tzinfo is None):
+        raise ValueError("--since and --until need a timezone, e.g. 2025-10-25T00:00:00Z")
+    now = time.time() if now is None else now
+    fetch, run_id = fetch or fetch_hf_page, uuid.uuid4().hex
+    queries = plan_queries(config, sorts=backfill_sorts(config))
+    scope = _digest([since.isoformat(), [q["key"] for q in queries],
+                     {k: config.get(k) for k in ("pipelineTags", "authors", "search", "minLikes", "minDownloads", "pageSize")},
+                     {k: config[k] for k in ("excludeTags", "excludeBaseRelations", "excludeIdPatterns") if config.get(k)}])[:10]
+    checkpoint_sk = f"BACKFILL#{since.strftime('%Y%m%dT%H%M%SZ')}#{scope}"
+    saved = store._get(monitor_id, checkpoint_sk) or {}
+    state = {q["key"]: dict((saved.get("queries") or {}).get(q["key"]) or {"next": None, "done": False, "pages": 0, "accepted": 0})
+             for q in queries}
+    owner = owner or uuid.uuid4().hex
+    if apply and not store.acquire_lock(monitor_id, owner, now, BACKFILL_LEASE_SECONDS):
+        raise ValueError("the collector (or another backfill) holds this monitor's lock; try again shortly")
+    reading, totals = Reading(None, max_requests), Counter()
+    try:
+        for query in queries:
+            entry = state[query["key"]]
+            while not entry["done"] and entry["pages"] < max_pages and reading.may_request():
+                try:
+                    result = read_query(config, query, since, fetch, reading, start_url=entry["next"],
+                                        max_pages=min(CHUNK_PAGES, max_pages - entry["pages"]),
+                                        stop_below={"likes": config.get("minLikes"), "downloads": config.get("minDownloads")})
+                except Exception as error:
+                    reading.errors.append({"query": query["key"], "message": str(error)[:300]})
+                    emit(f"  ! {query['key']}: {error}")
+                    break
+                for details in result["items"]:
+                    if until is not None and _parse_time(details["createdAt"]) >= until:
+                        continue
+                    item = hf_item(details)
+                    if apply:
+                        totals[commit_item(store, monitor_id, config, item, now=now, run_id=run_id)] += 1
+                    else:
+                        old = store.get_item(monitor_id, item.source_id)
+                        totals["unchanged" if old and old["fingerprint"] == item.fingerprint else "would add"] += 1
+                    entry["accepted"] += 1
+                entry.update(next=result["next"], done=result["done"], pages=entry["pages"] + result["pages"])
+                if apply:
+                    store.put_item(monitor_id, {"pk": pk(monitor_id), "sk": checkpoint_sk, "since": _iso(since.timestamp()),
+                                                "queries": state, "updatedAt": _iso(now), "runId": run_id})
+                if result["pages"] == 0:
+                    break
+            emit(f"  {query['key']}: {'done' if entry['done'] else 'more to read'}, {entry['pages']} pages, {entry['accepted']} accepted")
+    finally:
+        if apply:
+            store.release_lock(monitor_id, owner)
+    finished = all(entry["done"] for entry in state.values())
+    status = "complete" if finished else "paused"
+    emit(f"{'APPLIED' if apply else 'DRY RUN (no writes)'} monitor={monitor_id} since={_iso(since.timestamp())}: "
+         f"{status}, {reading.requests} requests, " + (", ".join(f"{k}={v}" for k, v in sorted(totals.items())) or "no models")
+         + (f", stopped by {reading.stopped_by}" if reading.stopped_by else "")
+         + (", skipped as repackaged: " + ", ".join(f"{k}={v}" for k, v in reading.skipped().items()) if reading.excluded else "")
+         + ("" if finished else (" -- run the same command again to continue" if apply else " -- dry runs do not checkpoint; raise --max-pages/--max-requests to count more")))
+    return {"applied": apply, "status": status, "requests": reading.requests, "stoppedBy": reading.stopped_by,
+            "counts": dict(totals), "skipped": reading.skipped(), "errors": reading.errors, "queries": state, "checkpoint": checkpoint_sk}
+
+
+def collection_command(args) -> int:
+    table = open_table()
+    result = backfill_collection(DynamoStore(table), args.monitor, parse_since(args.since),
+                                 until=parse_since(args.until) if args.until else None,
+                                 max_pages=args.max_pages, max_requests=args.max_requests, apply=args.apply)
+    return 1 if result["errors"] else 0

@@ -1,5 +1,7 @@
 # Steering and relevance
 
+> The shared relevance Cyclotron that decides which sites want each collected item is called **Relevance Routing** (see [feature-names.md](feature-names.md#relevance-routing)). Its code is in [monitoring-cloud.md](monitoring-cloud.md).
+
 Steering is how an editor tells a publication what it is about and what it should and should not cover. Papyrus keeps that guidance as data in the site's own backend, and the agents and checks read it. Editors decide. Nothing on this page changes what is published without an editor.
 
 Status words used here: Live, Beta, Not built yet.

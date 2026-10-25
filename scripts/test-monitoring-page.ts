@@ -3,6 +3,12 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../lib/monitoring-overview-fixture";
+import {
+  beginEmailSubmissionAction,
+  emailReferenceBatches,
+  endEmailSubmissionAction,
+  isCurrentEmailSubmissionAction,
+} from "../lib/monitoring-overview";
 import type { MonitoringResult } from "../lib/monitoring-overview";
 
 function text(html: string): string {
@@ -10,23 +16,63 @@ function text(html: string): string {
 }
 
 async function main() {
+  const newsletterLinks = Array.from({ length: 41 }, (_, index) => `https://example.org/${index}`);
+  const linkBatches = emailReferenceBatches(newsletterLinks);
+  assert.deepEqual(linkBatches.map((batch) => batch.length), [20, 20, 1],
+    "API batches process every selected email link; 20 is not a total selection cap");
+  assert.deepEqual(linkBatches.flat(), newsletterLinks);
+
+  // Duplicate actions for one receipt/candidate are suppressed while in flight;
+  // another receipt can proceed, and retry is permitted once the first settles.
+  const actionLocks = new Set<string>();
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:A:0"), true);
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:A:0"), false);
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:B:0"), true);
+  endEmailSubmissionAction(actionLocks, "resolve:A:0");
+  assert.equal(beginEmailSubmissionAction(actionLocks, "resolve:A:0"), true);
+  endEmailSubmissionAction(actionLocks, "resolve:A:0");
+
+  // Simulate both resolve and import responses arriving after the editor opens B.
+  for (const action of ["resolve", "import"]) {
+    let activeReceipt: string | null = "A";
+    const visibleResults: Record<string, string> = {};
+    let finishA!: (value: string) => void;
+    let finishB!: (value: string) => void;
+    const pendingA = new Promise<string>((resolve) => { finishA = resolve; });
+    const pendingB = new Promise<string>((resolve) => { finishB = resolve; });
+    const applyWhenCurrent = async (receipt: string, pending: Promise<string>) => {
+      const result = await pending;
+      if (isCurrentEmailSubmissionAction(activeReceipt, receipt)) visibleResults[receipt] = result;
+    };
+    const requestA = applyWhenCurrent("A", pendingA);
+    activeReceipt = "B";
+    const requestB = applyWhenCurrent("B", pendingB);
+    finishA(`${action}-A`);
+    await requestA;
+    assert.deepEqual(visibleResults, {}, `${action} response for a closed receipt is discarded`);
+    finishB(`${action}-B`);
+    await requestB;
+    assert.deepEqual(visibleResults, { B: `${action}-B` }, `${action} response updates only the open receipt`);
+  }
+
   (globalThis as { React?: typeof React }).React = React;
   const { MonitoringOverviewView } = await import("../components/monitoring-overview-view");
   const render = (result: MonitoringResult | null, props: Record<string, unknown> = {}) =>
     renderToStaticMarkup(createElement(MonitoringOverviewView, { result, canViewAll: true, mode: "publication", onModeChange: () => {}, ...props }));
 
-  // A ready overview shows feeds, runs, the queue, relevance with confidence and delivery, and usage against ceilings.
+  // A ready overview shows feeds, runs, the queue, relevance with confidence and delivery, and uncapped usage.
   const ready = text(render(FIXTURE_MONITORING_OVERVIEW));
   for (const expected of [
     "Feeds watched", "hn", "news.ycombinator.com", "every 15 min", "Enabled",
     "Recent runs", "2026-10-21 02:33 UTC", "Complete", "Partial", "27 unchanged",
     "Router", "Live", "Feedback on",
-    "Usage", "2 of 100", "3 of 300",
+    "Usage", "Observed router decisions", "Decisions today (2026-10-21)", "2", "Decisions in inspected history", "3",
     "Collected queue", "Fresh Show HN", "Collected, waiting for the router", "Routed", "Error", "invalid request: bad title",
     "Quantum paper on arXiv", "Relevant", "91% confidence", "In the References queue",
     "Phishing kit leaks", "Not in the References queue: delivery failed",
     "1 item judged not relevant to this publication is not listed",
   ]) assert.ok(ready.includes(expected), `ready view shows: ${expected}`);
+  assert.ok(!ready.includes(" of 100") && !ready.includes(" of 300"), "usage is not presented against an arbitrary ceiling");
 
   // The delivered item links to its References entry on the viewing publication; the failed one does not.
   const html = render(FIXTURE_MONITORING_OVERVIEW);
@@ -55,7 +101,7 @@ async function main() {
       warnings: ["ses_authentication_unverified"], verdicts: { spf: "FAIL", dkim: "PASS", dmarc: "FAIL", spam: "PASS", virus: "PASS" },
       linkCount: 2, processedCount: 0, unresolvedLinkCount: 1, reviewRequired: true, errorCode: null }],
   };
-  const emailDetail = { submission: withEmail.emailSubmissions[0],
+  const emailDetail = { submission: { ...withEmail.emailSubmissions[0], corpusId: "corpus-1" },
     safeBodyText: "Hello <script>never execute</script>\nhttps://example.org/story",
     candidateLinks: [{ url: "https://link.mail.beehiiv.com/ss/c/opaque", title: "Tracked story",
       resolutionStatus: "unresolved" as const }], sourceMaterialIsUntrusted: true as const };
@@ -67,8 +113,22 @@ async function main() {
   assert.ok(emailHtml.includes("&lt;script&gt;never execute"), "original HTML is escaped as inert text");
   assert.ok(!emailHtml.includes("<script>") && !emailHtml.includes("tracker.example"),
     "rendering never activates markup or remote images");
-  assert.ok(emailText.includes("unresolved; not opened") && !emailHtml.includes('href="https://link.mail.beehiiv.com/'),
+  assert.ok(emailText.includes("tracking redirect not opened") && !emailHtml.includes('href="https://link.mail.beehiiv.com/'),
     "recipient tracking URLs remain visible as non-clickable text");
+  assert.ok(emailText.includes("Add selected links to References") && emailText.includes("Add as pending Reference"),
+    "email candidates have an explicit path into the existing pending Reference queue");
+  assert.ok(emailText.includes("does not approve, label, classify, or publish"),
+    "email import is separate from editorial decisions and publication");
+  assert.match(emailHtml, /Add selected links to References[^<]*<\/button>/);
+  assert.match(emailHtml, /disabled=""[^>]*>Add selected links to References/,
+    "preview/demo rendering cannot invoke live intake without editor actions");
+
+  const importReadyDetail = { ...emailDetail,
+    candidateLinks: [{ url: "https://example.org/story", title: "Story" }] };
+  const importReadyHtml = render(withEmail, { emailDetail: importReadyDetail,
+    onImportCandidates: async () => ({ imported: 1, references: [{ id: "ref-1", sourceUri: "https://example.org/story", title: "Story", curationStatus: "pending" }] }),
+  });
+  assert.match(importReadyHtml, /Add selected links to References/);
 
   // Only admins are offered the whole-pipeline switch.
   assert.ok(text(render(FIXTURE_MONITORING_OVERVIEW)).includes("Whole shared pipeline"));
@@ -84,8 +144,10 @@ async function main() {
   assert.ok(text(render(null)).includes("Loading monitoring"));
 
   // Ready, but nothing queued or run yet.
-  const quiet = text(render({ ...FIXTURE_MONITORING_OVERVIEW, runs: [], routerRuns: [], items: [], hiddenNotRelevant: 0, usage: { day: "2026-10-21", decisionsToday: 0, decisionsTotal: 0, ceilings: null } }));
-  assert.ok(quiet.includes("No collector runs recorded yet") && quiet.includes("No items in the queue") && quiet.includes("No ceilings are configured"));
+  const quiet = text(render({ ...FIXTURE_MONITORING_OVERVIEW, runs: [], routerRuns: [], items: [], hiddenNotRelevant: 0, usage: { day: "2026-10-21", decisionsToday: 0, decisionsTotal: 0, historyComplete: true } }));
+  assert.ok(quiet.includes("No collector runs recorded yet") && quiet.includes("No items in the queue"));
+  const partialUsage = text(render({ ...FIXTURE_MONITORING_OVERVIEW, usage: { ...FIXTURE_MONITORING_OVERVIEW.usage!, historyComplete: false } }));
+  assert.ok(partialUsage.includes("At least 2") && partialUsage.includes("At least 3") && partialUsage.includes("bounded history read"));
 
   // A publication outside the router says so instead of showing others' decisions.
   const unrouted = text(render({ ...FIXTURE_MONITORING_OVERVIEW, notice: "publication_not_routed", scope: { mode: "publication", publicationId: null, site: null, canViewAll: false }, items: FIXTURE_MONITORING_OVERVIEW.items.map((i) => ({ ...i, relevance: [] })) }));

@@ -1,5 +1,7 @@
 # Notification Center
 
+> The **Notification Center** is the console home page for [Review Requests](review-requests.md) and steering opportunities, and it is safe to ignore. See [feature-names.md](feature-names.md#review-requests-and-the-notification-center).
+
 The Notification Center is the CMS console home: the first page an editor sees after signing in (`/newsroom`, the Overview tab, titled
 "Notification Center"). Stories PPY-1cd261 (this page) and PPY-ab6a50 (the review requests it lists, see
 [review-requests.md](review-requests.md)), under the background-automation epic PPY-9ff95b.
@@ -15,14 +17,15 @@ What that means for every entry:
 1. **Ignore-safe by default.** Everything except a hard gate proceeds if nobody acts. A soft review proceeds at its deadline; a flag never
    waits. Each entry says so in words: "Proceeds automatically on 2026-10-30 07:00 UTC unless you steer it." Only a hard gate says
    "Waiting for you."
-2. **Steering, not just approve or reject.** Each open entry offers approve and reject (a flag offers acknowledge), a short note ("Steer with
+2. **Steering, not just approve or reject.** Each open entry offers approve and reject (a flag offers acknowledge, stored as the decision `acknowledge` and shown as "Acknowledged by ..."; nothing is approved. Answers stored earlier as `approve` on a flag still read as Acknowledged), a short note ("Steer with
    this note"), and "Not this kind of thing". The steering is stored on the request and the step that raised it reads it back
    (`steering_for`, see the hook below).
 3. **Glanceable.** A summary line leads the page: "N waiting for you · N proceeding soon · N recently decided by the system". Waiting
    counts hard gates plus Cyclotron items held for review (both stay put until a person acts); proceeding soon counts open soft reviews.
-4. **Steering is visible afterwards.** "You steered 'Fewer listicles'. Applied in run run-w43 on 2026-10-20 07:00 UTC." or, before the next
+4. **Deleted stories are marked.** A card whose "About: story ..." points at a story that no longer exists (no version of its lineage remains) shows the id with "(story deleted)", the same wording as the automations run list.
+5. **Steering is visible afterwards.** "You steered 'Fewer listicles'. Applied in run run-w43 on 2026-10-20 07:00 UTC." or, before the next
    run, "...idea-pipeline has not used it yet; it will on its next run."
-5. **Words and marks, never colour alone** (Ryan is colourblind): "■ Hard gate", "◐ Soft review", "⚑ Flag", "● New", "Held for review".
+6. **Words and marks, never colour alone** (Ryan is colourblind): "■ Hard gate", "◐ Soft review", "⚑ Flag", "● New", "Held for review".
 
 ## What the page shows in v0, in order
 

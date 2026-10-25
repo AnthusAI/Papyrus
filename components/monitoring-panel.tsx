@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadMonitoringEmailSubmission, loadMonitoringOverview } from "../lib/monitoring-client";
+import {
+  importMonitoringEmailCandidates,
+  loadMonitoringEmailSubmission,
+  loadMonitoringOverview,
+  resolveMonitoringEmailArticleLink,
+} from "../lib/monitoring-client";
 import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../lib/monitoring-overview-fixture";
-import type { MonitoringEmailDetails, MonitoringResult } from "../lib/monitoring-overview";
+import type { EmailReferenceImportItem, MonitoringEmailDetails, MonitoringResult } from "../lib/monitoring-overview";
 import { MonitoringOverviewView, type MonitoringMode } from "./monitoring-overview-view";
 
 const REFRESH_MILLISECONDS = 60_000;
@@ -43,6 +48,13 @@ export function MonitoringPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo:
     setEmailDetail(next);
   };
 
+  const resolveEmailArticleLink = (receiptId: string, candidateIndex: number) =>
+    resolveMonitoringEmailArticleLink(receiptId, candidateIndex);
+
+  const importEmailCandidates = (receiptId: string, candidates: EmailReferenceImportItem[]) =>
+    importMonitoringEmailCandidates(receiptId, candidates);
+
   return <MonitoringOverviewView result={result} canViewAll={isAdmin} mode={mode} onModeChange={setMode} demo={isDemo}
-    emailDetail={emailDetail} onEmailOpen={openEmail} />;
+    emailDetail={emailDetail} onEmailOpen={isDemo ? () => {} : openEmail} onResolveArticleLink={isDemo ? undefined : resolveEmailArticleLink}
+    onImportCandidates={importEmailCandidates} />;
 }

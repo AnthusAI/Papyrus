@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 
 from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, merge_source_items,
                          parse_hn_feed, parse_ttab_decisions, ttab_search_body)
+from .monitoring_huggingface import read_hf_models, validate_hf_config
 
 LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout; a crashed run's lease expires
 DUE_SLACK_SECONDS = 60       # scheduler jitter must not skip a whole interval
@@ -134,10 +135,11 @@ def _validate_config(raw: dict) -> dict:
             or source.password or source.query or source.fragment):
         raise ValueError(f"Config sourceUrl must be an https://{host} URL for a {source_type} monitor")
     interval, limit = int(interval), int(limit)
+    maximum = 1000 if source_type == "huggingface-models" else 100
     if interval < 60:
         raise ValueError("Config intervalSeconds must be at least 60")
-    if not 1 <= limit <= 100:
-        raise ValueError("Config limit must be between 1 and 100")
+    if not 1 <= limit <= maximum:
+        raise ValueError(f"Config limit must be between 1 and {maximum}")
     config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval, "limit": limit,
               "enabled": raw.get("enabled", True) is not False}
     if source_type == "ttab-decisions":
@@ -149,12 +151,17 @@ def _validate_config(raw: dict) -> dict:
             raise ValueError("Config precedentialLookbackDays must be 0 (off) or longer than lookbackDays, up to 365")
         config.update(lookbackDays=lookback, finalDecisionsOnly=raw.get("finalDecisionsOnly", True) is not False,
                       precedentialLookbackDays=recheck)
+    if source_type == "huggingface-models":
+        config.update(validate_hf_config(raw))
     config["maxItems"] = limit * (2 if config.get("precedentialLookbackDays") else 1)
     return config
 
 
-def read_source(config: dict, now: float, fetch: Callable[..., bytes] | None = None) -> list:
-    """Fetch and parse one source. `fetch` replaces the network call in tests."""
+def read_source(config: dict, now: float, fetch: Callable[..., bytes] | None = None, meta: dict | None = None) -> list:
+    """Fetch and parse one source. `fetch` replaces the network call in tests. `meta`, when given, receives
+    what a source reports about its read (a Hugging Face read: requests made, why it stopped early, failed queries)."""
+    if config["sourceType"] == "huggingface-models":
+        return read_hf_models(config, now, fetch, meta)
     if config["sourceType"] == "ttab-decisions":
         fetch = fetch or fetch_ttab_decisions
         recent = parse_ttab_decisions(fetch(config["sourceUrl"], ttab_search_body(now, config["lookbackDays"], config["limit"])),
@@ -166,6 +173,38 @@ def read_source(config: dict, now: float, fetch: Callable[..., bytes] | None = N
         body = ttab_search_body(now, config["precedentialLookbackDays"], config["limit"], precedential_only=True)
         return merge_source_items(recent, parse_ttab_decisions(fetch(config["sourceUrl"], body), final_decisions_only=False))
     return parse_hn_feed((fetch or fetch_hn_feed)(config["sourceUrl"]))
+
+
+def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_id: str) -> str:
+    """Dedupe one source item against its current record and, when new or changed, write its discovery and
+    current-item record (in that order, so a crash between them is repaired by the next run).
+    Returns `new`, `revised` or `unchanged`. Shared by the collector and the Hugging Face backfill."""
+    old = store.get_item(monitor_id, item.source_id)
+    if old and old["fingerprint"] == item.fingerprint:
+        return "unchanged"
+    revision = old["revision"] + 1 if old else 1
+    observed = _iso(now)
+    binding = {"monitorId": monitor_id, "sourceUrl": config["sourceUrl"]}
+    event_id = _digest([binding, item.source_id, item.fingerprint])
+    fields = {"sourceId": item.source_id, "title": item.title, "canonicalUrl": item.canonical_url,
+              "sourceItemUrl": item.source_item_url, "sourcePublishedAt": item.published_at,
+              "fingerprint": item.fingerprint, "revision": revision, "eventId": event_id,
+              "observedAt": observed, "monitorId": monitor_id, "sourceUrl": config["sourceUrl"],
+              "mediaType": item.media_type if item.media_type != "text/html" else None,
+              "aliases": list(item.aliases) or None, "details": item.details or None,
+              "sourceType": config["sourceType"] if item.details else None}
+    discovery = {k: v for k, v in fields.items() if v is not None}
+    discovery.update(pk=pk(monitor_id), sk=f"DISC#{item.source_id}#{revision:06d}",
+                     routing=ROUTING_COLLECTED, runId=run_id,
+                     gsi1pk=f"ROUTING#{monitor_id}#{ROUTING_COLLECTED}",
+                     gsi1sk=f"{observed}#{item.source_id}#{revision:06d}")
+    store.put_discovery(monitor_id, discovery)  # already present after a crash: fine
+    store.put_item(monitor_id, {"pk": pk(monitor_id), "sk": f"ITEM#{item.source_id}",
+                                "sourceId": item.source_id, "fingerprint": item.fingerprint,
+                                "revision": revision, "eventId": event_id,
+                                "firstObservedAt": old.get("firstObservedAt", observed) if old else observed,
+                                "lastChangedAt": observed})
+    return "revised" if old else "new"
 
 
 def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes] | None = None,
@@ -190,43 +229,23 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
         if state and state["nextDueAt"] - DUE_SLACK_SECONDS > now and not force:
             return {"monitorId": monitor_id, "runId": run_id, "status": "not_due",
                     "nextDueAt": _iso(state["nextDueAt"])}
-        binding = {"monitorId": monitor_id, "sourceUrl": config["sourceUrl"]}
         result = {"monitorId": monitor_id, "runId": run_id, "startedAt": _iso(now), "status": "complete",
                   "new": 0, "revised": 0, "unchanged": 0, "errors": []}
+        meta: dict = {}
         try:
-            items = read_source(config, now, fetch)
+            items = read_source(config, now, fetch, meta)
         except Exception as error:
             result["status"] = "failed"
             result["errors"].append({"stage": "fetch", "message": str(error)[:300]})
             items = []
         result["itemCount"] = len(items)
+        for error in meta.get("errors", []):   # a source query that failed while others succeeded
+            result["errors"].append(error)
+        if meta:
+            result["read"] = {k: v for k, v in meta.items() if k != "errors"}
         for item in items[:config["maxItems"]]:
             try:
-                old = store.get_item(monitor_id, item.source_id)
-                if old and old["fingerprint"] == item.fingerprint:
-                    result["unchanged"] += 1
-                    continue
-                revision = old["revision"] + 1 if old else 1
-                observed = _iso(now)
-                event_id = _digest([binding, item.source_id, item.fingerprint])
-                fields = {"sourceId": item.source_id, "title": item.title, "canonicalUrl": item.canonical_url,
-                          "sourceItemUrl": item.source_item_url, "sourcePublishedAt": item.published_at,
-                          "fingerprint": item.fingerprint, "revision": revision, "eventId": event_id,
-                          "observedAt": observed, "monitorId": monitor_id, "sourceUrl": config["sourceUrl"],
-                          "mediaType": item.media_type if item.media_type != "text/html" else None,
-                          "aliases": list(item.aliases) or None}
-                discovery = {k: v for k, v in fields.items() if v is not None}
-                discovery.update(pk=pk(monitor_id), sk=f"DISC#{item.source_id}#{revision:06d}",
-                                 routing=ROUTING_COLLECTED, runId=run_id,
-                                 gsi1pk=f"ROUTING#{monitor_id}#{ROUTING_COLLECTED}",
-                                 gsi1sk=f"{observed}#{item.source_id}#{revision:06d}")
-                store.put_discovery(monitor_id, discovery)  # already present after a crash: fine
-                store.put_item(monitor_id, {"pk": pk(monitor_id), "sk": f"ITEM#{item.source_id}",
-                                            "sourceId": item.source_id, "fingerprint": item.fingerprint,
-                                            "revision": revision, "eventId": event_id,
-                                            "firstObservedAt": old.get("firstObservedAt", observed) if old else observed,
-                                            "lastChangedAt": observed})
-                result["revised" if old else "new"] += 1
+                result[commit_item(store, monitor_id, config, item, now=now, run_id=run_id)] += 1
             except Exception as error:
                 result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
         if result["errors"] and result["status"] != "failed":
@@ -240,7 +259,7 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             "new": result["new"], "revised": result["revised"], "unchanged": result["unchanged"],
             "itemCount": result["itemCount"], "errorCount": result["errorCount"],
             "errors": result["errors"][:MAX_ERRORS_RECORDED], "nextDueAt": result["nextDueAt"],
-            "ttl": int(now + RECEIPT_TTL_SECONDS)})
+            "ttl": int(now + RECEIPT_TTL_SECONDS), **({"read": result["read"]} if "read" in result else {})})
         store.put_state(monitor_id, {"pk": pk(monitor_id), "sk": "STATE", "nextDueAt": int(next_due),
                                      "lastRunId": run_id, "lastStatus": result["status"],
                                      "lastFinishedAt": result["finishedAt"]})

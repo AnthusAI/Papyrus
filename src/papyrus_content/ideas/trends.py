@@ -45,6 +45,7 @@ MAXIMUM_PARAGRAPHS = 5
 MAXIMUM_SENTENCE = 400
 FETCH_LIMIT_BYTES = 8_000_000
 MAXIMUM_ITEMS_PER_SIGNAL = 5
+MAXIMUM_RECORDS_PER_SIGNAL = 3  # monitor records (a Hub model) beside the site's own items; they are cited as releases, not as stories
 MAXIMUM_ITEMS = 40  # distinct items in one model input; each is a title, a summary and a date
 WINDOW_WEEKS = 4  # the "last four weeks" the entity change counts cover
 SUMMARY_LIMIT = 300
@@ -63,7 +64,7 @@ Rules:
 - One sentence per entry. Do not put handles in the text; refer to a signal or an item by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the signals and items.
 - Use only what the signal and item fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why something grew or why a maker did something. A reading of the pattern is allowed only if it is framed with "suggests" (or "points to") and rests on the cited items. Do not do arithmetic: write a number only if it appears in the fields of a signal or item that sentence cites (write digits, not number words). A sentence that mentions two signals or items cites both.
 - Where "percent" is null the base is small or the history short: describe the counts, never a percentage. Where "is_new" is true, say the entity is new to the map.
-- Items are the publication's own published items; counts are items per week. The stories are proposals for an editor, not finished reporting.
+- Items are the publication's own published items, except an item with a "from" field: that is a release recorded from a monitored source (for example a model on the Hugging Face Hub). It has no page on the site, so call it a release or a model, say where it is from, never that the publication published or reported it, and use only the facts in its title and summary. Counts are items and recorded releases per week. The stories are proposals for an editor, not finished reporting.
 - Make no present-tense statement about the publisher's own production systems or results.
 - Choose the section from the allowed list, exactly as written.
 - figure_signals are one to three cited signal handles (S) whose weekly counts make the chart; figure_title and figure_caption describe it using only those signals' numbers.
@@ -219,6 +220,35 @@ def _series(values: Any) -> list[int | float]:
     return [value for value in values or [] if isinstance(value, (int, float)) and not isinstance(value, bool)]
 
 
+def window_records(related: Any, as_of: str) -> list[dict[str, Any]]:
+    """The newest ``relatedRecords`` of an entity file in the snapshot window: releases recorded from a monitored source, each with its
+    title, date, address (the source's own card), the one-line summary of its structured facts and where it is from. At most
+    ``MAXIMUM_RECORDS_PER_SIGNAL``, newest first. They carry their summary, so no page is fetched for them."""
+    end = date.fromisoformat(as_of)
+    start = (end - timedelta(days=end.weekday())) - timedelta(weeks=WINDOW_WEEKS - 1)
+    records: dict[str, dict[str, Any]] = {}
+    for row in related or []:
+        if not isinstance(row, dict) or not row.get("title") or not row.get("url") or not isinstance(row.get("publishedAt"), str) or not row.get("summary"):
+            continue
+        if not re.match(r"https?://", str(row["url"])):
+            continue
+        try:
+            published = date.fromisoformat(row["publishedAt"][:10])
+        except ValueError:
+            continue
+        if published < start:
+            continue
+        url = str(row["url"])
+        records.setdefault(
+            f"item:{url}",
+            {
+                "id": f"item:{url}", "title": str(row["title"]).strip(), "date": published.isoformat(), "path": url, "url": url,
+                "summary": str(row["summary"]).strip(), "from": str(row.get("provenance") or "from a monitored source"),
+            },
+        )
+    return sorted(records.values(), key=lambda item: (item["date"], item["id"]), reverse=True)[:MAXIMUM_RECORDS_PER_SIGNAL]
+
+
 def window_items(related: Any, as_of: str, site_base: str | None) -> list[dict[str, Any]]:
     """The most recent items of an entity file's ``relatedItems`` that fall in the snapshot window (the four weeks to the end of the
     snapshot's week, plus anything published since), newest first, at most ``MAXIMUM_ITEMS_PER_SIGNAL``. Each is its title, date, path and site URL."""
@@ -257,7 +287,7 @@ def attach_summaries(signals: list[dict[str, Any]], fetch_text: FetchText | None
         else:
             signal.pop("items", None)
     for item in known.values():
-        if fetch_text is None or not item.get("url"):
+        if fetch_text is None or not item.get("url") or item.get("from"):  # a recorded release states its facts itself
             continue
         try:
             summary = summary_of(fetch_text(item["url"].rstrip("/") + ".md"))
@@ -302,7 +332,7 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None)
         detail = snapshot["entityFile"](key) or {}
         if detail.get("neighbours"):
             signal["neighbours"] = [{k: n.get(k) for k in ("name", "relation", "weight")} for n in detail["neighbours"][:3]]
-        items = window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase"))
+        items = [*window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase")), *window_records(detail.get("relatedRecords"), as_of)]
         if items:
             signal["items"] = items
         signals.append(signal)
@@ -328,7 +358,7 @@ def handles_for(signals: list[dict[str, Any]]) -> dict[str, str]:
 
 def item_view(handle: str, item: dict[str, Any], signal_handles: list[str] | None = None) -> dict[str, Any]:
     """What the model sees of an item, and the only numbers and dates a sentence citing it may use (title, summary, date)."""
-    view = {"handle": handle, "title": item["title"], "summary": item.get("summary"), "published": item["date"]}
+    view = {"handle": handle, "title": item["title"], "summary": item.get("summary"), "published": item["date"], "from": item.get("from")}
     if signal_handles is not None:
         view.update(url=item.get("url") or item["path"], behind_signals=signal_handles)
     return {key: value for key, value in view.items() if value not in (None, [], "")}

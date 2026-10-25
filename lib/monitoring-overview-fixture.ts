@@ -15,7 +15,7 @@ export const FIXTURE_MONITORING_OVERVIEW: MonitoringOverview = {
   routerRuns: [{ runId: "q2", startedAt: "2026-10-21T02:37:00.000000Z", mode: "live", status: "stopped", stoppedBy: "request_ceiling_reached",
     counts: { examined: 3, decided: 1, delivered: 1, deliveryFailed: 1, routed: 1 }, errorCount: 0 }],
   router: { mode: "live", feedback: true, enabled: true, maxItemsPerRun: 5 },
-  usage: { day: "2026-10-21", decisionsToday: 2, decisionsTotal: 3, ceilings: { decisionsTotal: 300, decisionsPerDay: 100, items: 300 } },
+  usage: { day: "2026-10-21", decisionsToday: 2, decisionsTotal: 3, historyComplete: true },
   hiddenNotRelevant: 1,
   items: [
     { sourceId: "104", revision: 1, title: "Fresh Show HN", url: "https://example.org/104", discussionUrl: "https://news.ycombinator.com/item?id=104",

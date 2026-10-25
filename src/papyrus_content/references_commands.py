@@ -521,6 +521,31 @@ def references_label(flags: list[str]) -> None:
     print(f"references\tlabel\t{reference['id']}\t{category.get('categoryKey')}\t{authoritative['id']}")
 
 
+def references_promote(flags: list[str]) -> None:
+    """papyrus references promote <reference> --section <section> [--actor-label <name>] [--dry-run]
+
+    Saves a draft article for a monitor record (a delivered Hub model). Nothing is published; promoting twice changes nothing."""
+    from .knowledge_snapshot.monitor_records import record_of
+    from .monitor_promotion import promotion_item_id, promote_record, validate_section
+
+    token, rest = (flags[0], flags[1:]) if flags and not flags[0].startswith("--") else (None, flags)
+    options = parse_options(rest)
+    token = token or normalize_string(options.get("reference"))
+    if not token:
+        raise ValueError("references promote requires a reference id: papyrus references promote <reference-id> --section <section>.")
+    section = validate_section(options.get("section"))
+    apply = resolve_mutation_apply(options, "references promote")
+    client, _ = create_authoring_client()
+    row = client.get_record("Reference", token) or resolve_reference_any(client.list_records("Reference"), token)
+    record, _missing = record_of(client, row)
+    item_id = promotion_item_id(record, section)
+    print(f"references\tpromote\t{record.reference_id}\t{record.model_id}\t{section}\t{item_id}\t{'write' if apply else 'dry run'}")
+    if not apply:
+        return
+    outcome = promote_record(client, record, section=section, actor=normalize_string(options.get("actor-label")) or "papyrus-cli")
+    print(f"references\tpromote\t{record.reference_id}\t{outcome['itemId']}\t{'draft' if outcome['created'] else 'unchanged: already promoted'}\t{outcome['section']}/{outcome['slug']}")
+
+
 def references_unlabel(flags: list[str]) -> None:
     options = parse_options(flags)
     relation_id = options.get("relation") or options.get("relation-id")

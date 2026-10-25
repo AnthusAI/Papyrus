@@ -236,10 +236,25 @@
           "reasoning_effort": "medium"
         }
       }
+    },
+    {
+      "id": "51b54e45-45e4-4165-ac78-06a7f0a2b737",
+      "author": "home",
+      "text": "Editor-to-Reference follow-up is ready locally on feature/PPY-65026c-email-reference-import, based on current develop b45beb17. Monitoring now offers editor-selected import through the existing editor/admin Reference intake. Selected direct links and explicitly resolved Beehiiv article links become pending References with signed-in editor and receipt rationale; repeated import is canonical-URL idempotent and makes no vote, label, classifier request, or publication. The Beehiiv resolver remains explicit, limited to article wrappers, pinned to validated public DNS, HTTPS HEAD-only, bounded, and excludes action links. The UI batches at 20 requests but processes the full selection (tested with 41 links); this is not a total limit. Verification on BlackbookM1: 171 focused Python tests passed; email intake Gherkin 11 scenarios / 50 steps passed; Monitoring UI rendering and 41-link batching test passed; TypeScript noEmit passed using a temporary ignored amplify_outputs.json placeholder; targeted ESLint passed; schema parity passed; git diff --check passed. Ruff passed with pre-existing E701/E702 formatting disabled for the legacy test file. No live AWS, email replay, deployment, classification, or publication changes. Editor review UI coordination remains a release prerequisite for end-to-end voting.",
+      "created_at": "2026-10-25T13:13:38.215630Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6-luna",
+        "name": "Codex",
+        "settings": {
+          "reasoning_effort": "medium"
+        }
+      }
     }
   ],
   "created_at": "2026-10-23T13:42:33.927657Z",
-  "updated_at": "2026-10-24T23:13:50.731404Z",
+  "updated_at": "2026-10-25T13:13:38.215683Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

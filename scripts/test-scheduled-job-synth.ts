@@ -157,13 +157,26 @@ const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefin
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
   "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
-  "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
+  "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_MONITOR_WEEKS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET",
 ].sort());
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
+assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
+const withoutMonitors = knowledgeStack((site) => { delete site.knowledgeRun.monitorSources; delete site.knowledgeRun.monitorWeeks; delete site.knowledgeRun.monitorSuggestions; });
+const plainEnvironment = Object.fromEntries(
+  (Object.values(withoutMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.ok(!("KNOWLEDGE_MONITOR_SOURCES" in plainEnvironment), "monitor records are opt-in: no source set, no variable");
+const withMonitors = knowledgeStack((site) => { site.knowledgeRun.monitorSources = ["huggingface"]; site.knowledgeRun.monitorWeeks = 26; site.knowledgeRun.monitorSuggestions = 5; });
+const monitorEnvironment = Object.fromEntries(
+  (Object.values(withMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
+assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_WEEKS, "26");
+assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SUGGESTIONS, "5");
 assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
 assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
@@ -429,6 +442,10 @@ rejects((block) => { block.schedule = "every monday"; }, /knowledgeRun\.schedule
 rejects((block) => { block.stageTimeouts = { bogus: 60 }; }, /knowledgeRun\.stageTimeouts\.bogus is not a stage/);
 rejects((block) => { block.stageTimeouts = { snapshot: 5 }; }, /knowledgeRun\.stageTimeouts\.snapshot must be an integer/);
 rejects((block) => { block.conceptKinds = []; }, /knowledgeRun\.conceptKinds must be a non-empty array/);
+rejects((block) => { block.monitorSources = []; }, /knowledgeRun\.monitorSources must be a non-empty array/);
+rejects((block) => { block.monitorSources = ["rss"]; }, /knowledgeRun\.monitorSources names an unsupported source "rss"/);
+rejects((block) => { block.monitorSuggestions = 21; }, /knowledgeRun\.monitorSuggestions must be an integer from 0 to 20/);
+rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
 rejects((block) => { block.environment = { "1BAD": "x" }; }, /knowledgeRun\.environment\.1BAD is not a valid environment variable name/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.knowledgeRun; return raw; })())), /has no knowledgeRun block/);

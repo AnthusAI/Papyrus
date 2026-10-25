@@ -154,6 +154,7 @@ from .references_commands import (
     references_identifier_backfill_now,
     references_label,
     references_labels,
+    references_promote,
     references_list_predictions,
     references_review_classification,
     references_review_curation,
@@ -271,6 +272,7 @@ PORTED_COMMANDS = frozenset(
         "references:label",
         "references:unlabel",
         "references:labels",
+        "references:promote",
         "references:find-fetch-url-text",
         "references:find-fetch-pdf-queue",
         "references:find-discover-citation-led",
@@ -571,6 +573,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_unlabel(flags)
     elif route == "references:labels":
         references_labels(flags)
+    elif route == "references:promote":
+        references_promote(flags)
     elif route == "references:find-fetch-url-text":
         require_reference_process_runtime("references find-fetch-url-text")
         references_find_url_text(flags)
@@ -1686,7 +1690,7 @@ def print_usage() -> None:
     print("  assignments list, analysis profiles/validate-profiles/reindex-plan/preview-reindex/")
     print("  create-reindex-assignment/run-now/execute-assignment (auto sync-from-cloud when local catalog is stale;")
     print("  --skip-sync-from-cloud/--sync-from-cloud)/entity-graph-preflight/graph-artifacts/publish-graph-snapshot/import-graph-artifact/doctor-entity-graph,")
-    print("  reviews list|show|raise|answer|withdraw|wait|steering|applied|recipients [--id ID] [--mode flag|soft_review|hard_gate] [--decision approve|reject|feedback] [--feedback T] [--steer adjust|not_this_kind] [--json],")
+    print("  reviews list|show|raise|answer|withdraw|wait|steering|applied|recipients [--id ID] [--mode flag|soft_review|hard_gate] [--decision approve|acknowledge|reject|feedback] [--feedback T] [--steer adjust|not_this_kind] [--json],")
     print("  automations list|show|runs [--id ID] [--limit N] [--json] / run --id ID [--input JSON] [--dry-run] / create|update --id ID [--title T] [--kind monitor --monitor M --publication P | --on-stage S [--next-stage T] --monitor M --publication P [--max-hops N]] [--procedure KEY] [--input JSON] [--enabled true|false] [--dry-run],")
     print("  newsroom recount-summary/repair-message-status/prune-attachments/backfill-feed-fields/")
     print("  backfill-operational-indexes/import-sections,")

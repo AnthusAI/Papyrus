@@ -13,6 +13,9 @@ DESCRIPTION_DRAFT = "draft"
 DESCRIPTION_NONE = "none"
 LINK_FRONT_MATTER = "front_matter"
 LINK_EXTRACTOR = "extractor"
+LINK_MONITOR = "monitor"
+KIND_ITEM = "item"
+KIND_MONITOR_RECORD = "monitor-record"
 UNACCEPTED_HIDE = "hide"
 UNACCEPTED_UNNAMED = "unnamed"
 
@@ -34,6 +37,13 @@ class PublishedItem:
     published_at: str | None
     tags: tuple[str, ...] = ()
     entities: tuple[FrontMatterEntity, ...] = ()
+    kind: str = KIND_ITEM
+    summary: str | None = None  # a monitor record's line of structured facts; a published item has its page instead
+    source: str | None = None  # where a monitor record came from, for example ``huggingface``
+
+    @property
+    def is_record(self) -> bool:
+        return self.kind == KIND_MONITOR_RECORD
 
 
 @dataclass(frozen=True)
@@ -66,6 +76,9 @@ class NodeRelation:
     object_lineage_id: str
     predicate: str
     confirmed: bool
+    subtype: str | None = None  # for ``built_on``: finetune, quantized, adapter, merge or declared
+    evidence: str | None = None  # the address that states it (a Hub model card)
+    provenance: str | None = None
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,42 @@
+{
+  "id": "PPY-b231e413-03b7-4700-a79d-07a996f4fd01",
+  "title": "Hub monitor records feed the Knowledge Map as data",
+  "description": "As the editor of a site with a Hugging Face Hub monitor, I want the monitor's models to count in the weekly Knowledge Map (clusters, entities, weekly trends, built-on relations) without becoming site pages, so that Cited Trends can see what the Hub released and I can promote the notable ones to real items with approval. Opt-in site setting knowledgeRun.monitorSources: [huggingface]. Corpus-sync exports monitor-delivered References (any state except rejected) as monitor-record documents dated by createdAt; entities come deterministically from the Hub fields (maker, licence, task, model); base models import as built_on relations (subtype kept) with the Hub card as evidence and no AI review; ideas trends cites records; papyrus references promote creates a draft item; the weekly run report suggests top records in one soft review request. Out of scope: AI extraction for records, platform entity links, deploying anything.",
+  "type": "story",
+  "status": "closed",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2d77c845-5fa6-4c94-924b-cf38ae41485c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "88bf391f-892a-4c01-bcd0-c9dfacfc7efa",
+      "author": "home",
+      "text": "Feature: Monitor records count in the Knowledge Map as data\n  Scenario: A site that did not opt in exports its items only\n    Given a site with published items and a Hugging Face monitor that delivered models\n    When the corpus is exported without monitor sources\n    Then the corpus holds the item documents and no record document\n  Scenario: The corpus gets a document per delivered model, dated by its release, except the rejected one\n    When the corpus is exported with the monitor source \"huggingface\"\n    Then there is a record document per non-rejected model, dated by its createdAt and marked kind monitor-record\n  Scenario: Entities come from the Hub's structured fields, without the extractor\n    When the run is imported with the monitor records\n    Then the model, its maker, licence and task are accepted entities, reusing the site's existing keys\n  Scenario: A base model becomes a built-on relation\n    Then it is confirmed, keeps its subtype, has the Hub card as evidence and \"from the Hugging Face Hub\" as provenance, and only exists when both ends are on the map\n  Scenario: Records count in the weekly snapshot by release week and have no page\n    Then entities and clusters count them, list them apart as relatedRecords, and an entity only records mention has no page link and no wiki page\n  Scenario: Cited Trends can cite a record as a release from the Hub\n  Scenario: A person promotes a record to a draft item (second PR)\nFull scenarios: features_backend/knowledge-monitor-records.feature and the new scenarios of knowledge-cloud-run.feature.",
+      "created_at": "2026-10-25T15:23:14.175874Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8c903e89-cfb3-44bd-aee9-1471ea919bce",
+      "author": "home",
+      "text": "PR 707 (merged to develop): monitorSources setting, corpus export of records, deterministic entities and built_on relations, snapshot counts and relatedRecords, no wiki page for record-only entities, ideas trends cites records. PR 708: papyrus references promote and the optional weekly suggestion (monitorSuggestions). Verification: pytest and behave in CI, scripts/test-scheduled-job-synth.ts; no network, LLM or AWS. Not released, not deployed.",
+      "created_at": "2026-10-25T15:54:45.514466Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "ec5a25dd-f21f-42b6-8800-7480963ca977",
+      "author": "home",
+      "text": "Landed in develop: PR 707 (monitor records as data) and PR 708 (promote and suggestions). CI green (python, ts, smoke). Not released, not deployed; Shipped needs the knowledgeRun settings, a Papyrus release in the knowledge-run image and the monitor deploy.",
+      "created_at": "2026-10-25T16:08:57.778421Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-25T15:07:56.333689Z",
+  "updated_at": "2026-10-25T16:08:57.811675Z",
+  "closed_at": "2026-10-25T16:08:57.811641Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

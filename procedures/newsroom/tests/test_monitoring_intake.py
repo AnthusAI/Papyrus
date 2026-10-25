@@ -101,3 +101,21 @@ def test_a_reference_stored_under_another_address_of_the_same_document_is_reused
                               "fingerprint": decision.fingerprint})
     assert receipt["referenceId"] == "reference-earlier-v1"
     assert client.writes == []
+
+
+def test_a_sources_structured_details_ride_on_the_provenance_relation_where_the_knowledge_run_reads_them(tmp_path):
+    import json
+
+    client, saved, sink, item, p = setup(tmp_path)
+    plain = sink(item, p)
+    [relation] = [r["expected"] for r in saved if r["modelName"] == "SemanticRelation"]
+    assert "details" not in json.loads(relation["metadata"])  # a source without details writes what it always wrote
+
+    details = {"modelId": "org/tuned", "author": "org", "createdAt": "2026-10-14T08:00:00Z", "license": "apache-2.0", "likes": 3, "downloads": 10, "baseModels": [{"modelId": "org/base", "relation": "finetune"}]}
+    model = SourceItem("org--tuned", "org/tuned: text-to-speech model", "https://huggingface.co/org/tuned", "https://huggingface.co/org/tuned", "2026-10-14T08:00:00Z", details=details)
+    saved.clear()
+    sink(model, {**p, "sourceId": model.source_id, "sourceItemUrl": model.source_item_url, "fingerprint": model.fingerprint})
+    [relation] = [r["expected"] for r in saved if r["modelName"] == "SemanticRelation"]
+    metadata = json.loads(relation["metadata"])
+    assert relation["predicate"] == "ingestion_rationale" and metadata["details"] == details and metadata["sourceId"] == "org--tuned"
+    assert plain["referenceId"] != ""

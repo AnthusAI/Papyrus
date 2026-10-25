@@ -78,6 +78,13 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     KNOWLEDGE_ALLOW_TEST_FAILURE: "true",
     ...(config.beatsConfig ? { KNOWLEDGE_BEATS_CONFIG: config.beatsConfig } : {}),
     ...(config.conceptKinds ? { KNOWLEDGE_CONCEPT_KINDS: config.conceptKinds.join(",") } : {}),
+    ...(config.monitorSources
+      ? {
+          KNOWLEDGE_MONITOR_SOURCES: config.monitorSources.join(","),
+          KNOWLEDGE_MONITOR_WEEKS: String(config.monitorWeeks),
+          ...(config.monitorSuggestions ? { KNOWLEDGE_MONITOR_SUGGESTIONS: String(config.monitorSuggestions) } : {}),
+        }
+      : {}),
   };
 }
 

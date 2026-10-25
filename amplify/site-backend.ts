@@ -32,7 +32,7 @@ import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
 import { wireAutomationView } from "./functions/automation-view/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
-import { wireMonitoringView } from "./functions/monitoring-view/wire";
+import { wireEmailReferenceIntake, wireMonitoringView } from "./functions/monitoring-view/wire";
 import { wireEditorialChecks } from "./functions/editorial-checks/wire";
 import { resolvePlugins } from "./plugins/registry";
 import { wirePlugins } from "./plugins/wire";
@@ -429,6 +429,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     "PAPYRUS_GRAPHQL_ENDPOINT",
     backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
   );
+  wireEmailReferenceIntake(contentActionsLambda);
   contentActionsLambda.addToRolePolicy(
     new PolicyStatement({
       actions: ["appsync:GraphQL"],

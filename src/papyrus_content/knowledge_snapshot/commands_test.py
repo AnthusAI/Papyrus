@@ -1152,3 +1152,124 @@ def test_the_cli_help_lists_the_archive_command():
     from papyrus.operator import help_text
 
     assert "archive" in help_text.build_knowledge_parser().format_help()
+
+
+# -- monitor records (docs/knowledge-cloud-run.md, "Monitor records"): the Hub counts in the map and makes no page ----------
+HUB = "https://huggingface.co"
+HUB_CORPUS = "knowledge-corpus-shipped"
+
+
+def hub_model(client, model_id: str, created: str, *, bases=(), status: str = "pending", **overrides) -> None:
+    """A delivered Hub model: its Reference and the relation that carries its provenance details."""
+    from papyrus_content.categories_steering import semantic_relation_record
+
+    slug = model_id.replace("/", "--")
+    reference = {
+        "id": f"reference-{slug}", "lineageId": f"lineage-{slug}", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": status,
+        "sourceUri": f"{HUB}/{model_id}", "title": f"{model_id}: text-to-speech model", "sourcePublishedAt": created,
+    }
+    details = {
+        "modelId": model_id, "author": model_id.split("/")[0], "createdAt": created, "pipelineTag": "text-to-speech", "license": "apache-2.0",
+        "likes": 30, "downloads": 900, "baseModels": [{"modelId": base, "relation": relation} for base, relation in bases], **overrides,
+    }
+    relation = semantic_relation_record(
+        {
+            "predicate": "ingestion_rationale", "subjectKind": "message", "subjectId": f"message-{slug}", "subjectLineageId": f"message-{slug}",
+            "subjectVersionNumber": 1, "objectKind": "reference", "objectId": reference["id"], "objectLineageId": reference["lineageId"],
+            "objectVersionNumber": 1, "importedAt": created, "metadata": {"monitorId": "huggingface", "sourceId": slug, "details": details},
+        }
+    )["expected"]
+    client.rows.setdefault("Reference", {})[reference["id"]] = reference
+    client.rows.setdefault("SemanticRelation", {})[relation["id"]] = relation
+
+
+def with_published_rows(client) -> None:
+    from .corpus_export_test import row
+
+    client.rows["PublishedItem"] = {entry["id"]: entry for entry in (row("alpha"), row("beta"))}
+
+
+@pytest.fixture
+def hub(client, tmp_path):
+    with_published_rows(client)
+    hub_model(client, "org/base", "2026-10-06T08:00:00Z")
+    hub_model(client, "org/tuned", "2026-10-14T08:00:00Z", bases=[("org/base", "finetune"), ("elsewhere/gone", "adapter")])
+    hub_model(client, "org/lone", "2026-10-15T08:00:00Z", license="mit", pipelineTag="image-classification")
+    hub_model(client, "org/refused", "2026-10-15T08:00:00Z", status="rejected")
+    records = tmp_path / "run" / "monitor-records.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    return records
+
+
+def test_the_corpus_export_adds_a_document_per_record_and_writes_the_records_file(hub, tmp_path, capsys):
+    names = sorted(path.name for path in (tmp_path / "raw").iterdir())
+    assert [name for name in names if name.startswith("item-")] == ["item-alpha.md", "item-beta.md"]
+    assert [name for name in names if name.startswith("record-")] == ["record-reference-org--base.md", "record-reference-org--lone.md", "record-reference-org--tuned.md"]
+    document = (tmp_path / "raw" / "record-reference-org--tuned.md").read_text(encoding="utf-8")
+    assert "kind: monitor-record" in document and "Built on org/base (finetune), elsewhere/gone (adapter)." in document
+    assert [entry["referenceId"] for entry in json.loads(hub.read_text())["records"]] == ["reference-org--lone", "reference-org--tuned", "reference-org--base"]
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert "3 monitor records" in capsys.readouterr().out
+
+
+def test_without_monitor_sources_the_export_has_no_records(client, tmp_path):
+    with_published_rows(client)
+    hub_model(client, "org/base", "2026-10-06T08:00:00Z")
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"))
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]
+
+
+def test_monitor_sources_need_the_corpus_key_and_a_supported_source(client, tmp_path):
+    with pytest.raises(ValueError, match="--corpus-key"):
+        run(commands.knowledge_corpus_export, "--out", str(tmp_path), "--monitor-sources", "huggingface")
+    with pytest.raises(ValueError, match="Unsupported monitor source"):
+        run(commands.knowledge_corpus_export, "--out", str(tmp_path), "--monitor-sources", "rss", "--corpus-key", "shipped")
+
+
+def test_publish_run_imports_the_records_structured_entities_and_built_on_relations_and_is_idempotent(client, hub, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub))
+    dry = capsys.readouterr().out
+    assert "recordNodesCreated" in dry and "recordRelations\t1" in dry and "recordBaseModelsOffMap\t1" in dry
+    assert not [write for write in client.writes if write[1] == "SemanticNode" and "org" in write[2]]
+
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    capsys.readouterr()
+    nodes = {row["nodeKey"]: row for row in client.rows["SemanticNode"].values()}
+    assert {"model--org-tuned", "model--org-base", "model--org-lone", "maker--org", "licence--apache-2-0", "licence--mit", "task--text-to-speech", "task--image-classification"} <= set(nodes)
+    assert "model--org-refused" not in nodes
+    built_on = [row for row in client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"]
+    assert len(built_on) == 1 and json.loads(built_on[0]["metadata"])["subtype"] == "finetune"
+
+    before = len(client.writes)
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    assert len(client.writes) == before
+
+
+def test_the_snapshot_counts_records_by_release_week_with_no_page_and_cites_them_apart_from_items(client, hub, tmp_path, capsys):
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    out = tmp_path / "site"
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--monitor-records", str(hub))
+    index = json.loads((out / INDEX_FILE).read_text())
+    by_key = {row["key"]: row for row in index["entities"]}
+    maker = by_key["maker--org"]  # three records, no site item: counted, no page
+    assert (maker["itemCount"], maker["recordCount"], maker["href"]) == (3, 3, None)
+    assert maker["series8"][-2:] == [2, 0] and maker["series8"][-3] == 1  # released in the weeks of 10-12 (2) and 10-05 (1)
+    licence = by_key["licence--apache-2-0"]
+    assert licence["recordCount"] == 2 and licence["href"] is None
+    assert "model--org-lone" not in by_key and {"model--org-tuned", "model--org-base"} <= set(by_key)
+    detail = json.loads((out / "_data" / "knowledge" / "entities" / "maker--org.json").read_text())
+    assert detail["relatedItems"] == [] and [row["title"] for row in detail["relatedRecords"]] == ["org/lone", "org/tuned", "org/base"]
+    assert detail["relatedRecords"][1]["url"] == f"{HUB}/org/tuned" and detail["relatedRecords"][1]["provenance"] == "from the Hugging Face Hub"
+    tuned = json.loads((out / "_data" / "knowledge" / "entities" / "model--org-tuned.json").read_text())
+    [neighbour] = [row for row in tuned["neighbours"] if row["relation"] == "built_on"]
+    assert (neighbour["key"], neighbour["subtype"], neighbour["evidence"]) == ("model--org-base", "finetune", f"{HUB}/org/tuned")
+
+
+def test_a_snapshot_without_the_records_option_is_what_it_was(client, hub, tmp_path):
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+    out = tmp_path / "site"
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19")
+    index = json.loads((out / INDEX_FILE).read_text())
+    assert all("recordCount" not in row for row in index["entities"])

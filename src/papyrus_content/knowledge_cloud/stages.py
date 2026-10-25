@@ -126,9 +126,18 @@ class Run:
         if run:
             self.state.upload(f"runs/{self.config.week}/", self.run_dir, prune=True)
 
+    @property
+    def monitor_records(self) -> Path:
+        """The monitor records ``corpus-sync`` wrote for this week (a site that sets ``monitorSources``)."""
+        return self.run_dir / "monitor-records.json"
+
+    def monitor_options(self) -> list[str]:
+        """``--monitor-records FILE`` for a command that counts the records, or nothing when the site has no monitor source."""
+        return ["--monitor-records", str(self.monitor_records)] if self.config.monitor_sources else []
+
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
-        self.pull(site=True)
+        self.pull(site=True, run=bool(self.config.monitor_sources))
         self.verify_plugins()
 
     def verify_plugins(self) -> None:
@@ -221,7 +230,7 @@ def knowledge_options(run: Run) -> list[str]:
         options += ["--beats-config", str(run.site / run.config.beats_config)]
     if run.config.concept_kinds:
         options += ["--concept-kinds", run.config.concept_kinds]
-    return options
+    return options + run.monitor_options()
 
 
 def backend_options(run: Run) -> list[str]:
@@ -230,7 +239,13 @@ def backend_options(run: Run) -> list[str]:
 
 def corpus_sync(run: Run) -> dict:
     run.pull(corpus=True, run=True, site=True)
-    run.sh("papyrus", "knowledge", "corpus", "export", "--out", str(run.corpus / "raw" / "papyrus"), *backend_options(run), "--static-dir", str(run.static_dir))
+    export = ["papyrus", "knowledge", "corpus", "export", "--out", str(run.corpus / "raw" / "papyrus"), *backend_options(run), "--static-dir", str(run.static_dir)]
+    if run.config.monitor_sources:  # monitor-delivered References join the corpus as data documents, dated by their source date
+        export += [
+            "--monitor-sources", ",".join(run.config.monitor_sources), "--monitor-weeks", str(run.config.monitor_weeks),
+            "--corpus-key", run.config.publication, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
+        ]
+    run.sh(*export)
     if not (run.corpus / "metadata").is_dir():
         run.sh("biblicus", "init", str(run.corpus))
     run.sh("biblicus", "reindex", "--corpus", str(run.corpus))
@@ -280,7 +295,7 @@ def typed_extraction(run: Run) -> dict:
     run.pull(corpus=True, run=True)
     state = run.read_state()
     run_dir = run.run_dir
-    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name]
+    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.monitor_options()]
     run.sh(*publish)  # the dry run: its plan is in the task log
     run.sh(*publish, "--apply")  # front-matter entities first, so the extractor resolves to accepted entities
     run.sh(
@@ -300,7 +315,7 @@ def import_arguments(run: Run) -> list[str]:
     state = run.read_state()
     return [
         "papyrus", "knowledge", "publish-run", *backend_options(run),
-        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name,
+        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.monitor_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
         "--entities", str(run.run_dir / "typed" / "output.json"),
@@ -330,6 +345,7 @@ def ai_review(run: Run) -> dict:
     """AI review (GPT-6 Luna) of the entities, clusters and relations the import left unreviewed; evidence or no change."""
     from ..knowledge_snapshot import commands as c  # noqa: PLC0415
     from ..knowledge_snapshot.actors import make_actor  # noqa: PLC0415
+    from ..knowledge_snapshot.monitor_records import read_records  # noqa: PLC0415
     from ..records import apply_record_changes  # noqa: PLC0415
     from . import ai_review as review  # noqa: PLC0415
 
@@ -362,6 +378,9 @@ def ai_review(run: Run) -> dict:
     titles = {}
     for item in c.published_items(client.list_published_item_summaries(), c._no_url):
         titles[item.key] = titles[item.item_id] = item.title or ""
+    if run.config.monitor_sources:  # a cluster of Hub models can be named from their ids
+        for record in read_records(run.monitor_records):
+            titles[record.lineage_id] = titles[record.reference_id] = record.title
     found, made = review.review_clusters(
         client.list_records("SteeringProposal"), lambda ids: [titles[i] for i in ids if titles.get(i)], model, actor, now=now
     )
@@ -384,10 +403,43 @@ def ai_review(run: Run) -> dict:
         apply_record_changes(client, review.record_changes(patches))
 
     log = {"week": run.config.week, "model": model.model, "calls": model.calls, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
+    if run.config.monitor_sources and run.config.monitor_suggestions:
+        log["monitorSuggestions"] = suggest_promotions(run, client)
     run.run_dir.mkdir(parents=True, exist_ok=True)
     (run.run_dir / "ai-review.json").write_text(json.dumps(log, indent=2, sort_keys=True))
     run.push(run=True)
     return {"calls": model.calls, "summary": log["summary"]}
+
+
+def suggest_promotions(run: Run, client: Any) -> dict:
+    """The week's monitor records most worth a look, as ONE soft review request (idempotent per week). Never fails the run.
+
+    The first pass is the Hub's own interest (likes, then downloads) among the records of the last four weeks that no item carries
+    yet; nobody is asked to publish anything, only to promote the ones worth a story (``papyrus references promote``)."""
+    from .. import review_requests  # noqa: PLC0415
+    from ..knowledge_snapshot.monitor_records import read_records  # noqa: PLC0415
+    from ..monitor_promotion import promoted_reference_ids, suggest  # noqa: PLC0415
+
+    try:
+        records = read_records(run.monitor_records)
+        picks = suggest(records, limit=run.config.monitor_suggestions, as_of=run.config.monday, promoted=promoted_reference_ids(client, records))
+        if not picks:
+            return {"status": "none", "records": len(records), "suggested": []}
+        suggested = [{"referenceId": record.reference_id, "model": record.model_id, "url": record.url, "likes": record.details.get("likes"), "downloads": record.details.get("downloads")} for record in picks]
+        request = review_requests.raise_review(
+            client,
+            subject={"type": "batch", "id": f"monitor-records-{run.config.publication}-{run.config.week}"},
+            mode="soft_review",
+            raised_by="knowledge-run",
+            reason=f"{len(picks)} monitor record{'s' if len(picks) != 1 else ''} worth a look this week",
+            ask="Promote the ones worth a story with `papyrus references promote <reference id> --section <section>` (it saves a draft; nothing is published). Approve when you have looked, or steer with a note.",
+            deadline_days=7,
+            links=[{"label": f"{record.model_id} ({record.reference_id})", "url": record.url} for record in picks],
+            request_id=f"rr-monitor-records-{run.config.publication}-{run.config.week}".lower(),
+        )
+        return {"status": "requested", "requestId": request["id"], "records": len(records), "suggested": suggested}
+    except Exception as error:  # noqa: BLE001 - a site without review requests, or a missing file, must not fail the run
+        return {"status": "not_raised", "error": f"{type(error).__name__}: {error}"[:300]}
 
 
 def snapshot(run: Run) -> dict:
@@ -416,8 +468,8 @@ def archive(run: Run) -> dict:
 
 
 def wiki_sync(run: Run) -> dict:
-    run.pull(site=True)
-    sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run)]
+    run.pull(site=True, run=bool(run.config.monitor_sources))
+    sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options()]
     if run.config.beats_config:
         sync += ["--beats-config", str(run.site / run.config.beats_config)]
     run.sh(*sync)

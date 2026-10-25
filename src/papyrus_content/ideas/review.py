@@ -21,7 +21,7 @@ from .. import review_requests
 log = logging.getLogger("papyrus.ideas")
 RAISED_BY = "idea-pipeline"
 VERDICTS = ("accept", "decline", "revise")
-VERDICT_OF_DECISION = {"approve": "accept", "reject": "decline", "feedback": "revise"}
+VERDICT_OF_DECISION = {"approve": "accept", "acknowledge": "accept", "reject": "decline", "feedback": "revise"}
 DEADLINE_DAYS = 7
 
 

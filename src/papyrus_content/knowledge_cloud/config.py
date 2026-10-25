@@ -21,6 +21,7 @@ STAGES = (
 )
 PROJECTION_STAGE = STAGES[-1]
 TEST_EXECUTION_PREFIX = "test-"
+DEFAULT_MONITOR_WEEKS = 52
 
 
 class ConfigError(ValueError):
@@ -42,6 +43,15 @@ def parse_start(value: str | None, *, now: dt.datetime | None = None) -> dt.date
         return now or dt.datetime.now(dt.timezone.utc)
     parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+
+
+def _monitor_sources(value: str | None) -> tuple[str, ...]:
+    from ..knowledge_snapshot.monitor_records import parse_sources  # noqa: PLC0415
+
+    try:
+        return parse_sources(value)
+    except ValueError as error:
+        raise ConfigError(f"KNOWLEDGE_MONITOR_SOURCES: {error}") from error
 
 
 def _required(environment: Mapping[str, str], name: str) -> str:
@@ -66,6 +76,9 @@ class CloudRunConfig:
     site_bucket: str
     beats_config: str | None
     concept_kinds: str | None
+    monitor_sources: tuple[str, ...]
+    monitor_weeks: int
+    monitor_suggestions: int
     openai_parameter: str
     work_dir: Path
     region: str
@@ -111,6 +124,9 @@ class CloudRunConfig:
             site_bucket=_required(environment, "PAPYRUS_SITE_BUCKET"),
             beats_config=(environment.get("KNOWLEDGE_BEATS_CONFIG") or "").strip() or None,
             concept_kinds=(environment.get("KNOWLEDGE_CONCEPT_KINDS") or "").strip() or None,
+            monitor_sources=_monitor_sources(environment.get("KNOWLEDGE_MONITOR_SOURCES")),
+            monitor_weeks=int((environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip() or DEFAULT_MONITOR_WEEKS),
+            monitor_suggestions=int((environment.get("KNOWLEDGE_MONITOR_SUGGESTIONS") or "").strip() or 0),
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),
             work_dir=Path((environment.get("KNOWLEDGE_WORK_DIR") or "/work").strip()),
             region=(environment.get("AWS_REGION") or "us-east-1").strip(),

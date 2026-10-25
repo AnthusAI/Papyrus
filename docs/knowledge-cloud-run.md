@@ -41,6 +41,39 @@ After `projection` the state machine can run one more task, `trend-drafts`: `pap
 - **Key and permissions.** The OpenAI key comes from the SSM SecureString named by `openAiKeyParameter` (`/papyrus/shipped/openai-api-key`), read by the task role at run time and given only to the command's environment. The task role needs nothing new: `ssm:GetParameter` on that parameter (the AI review reads it too) and `appsync:GraphQL` on the publication's API (`SignAppSyncRequests`) already cover what the command uses under IAM (listing stories, sections and review requests, `fileProposal`, and the review-request mutation).
 - **Repeat runs.** Under IAM the command cannot read earlier Proposals, so it cannot dedupe against them; a second execution in the same week files the drafts again. Decline the extras in the console.
 
+### Monitor records (optional, off by default)
+
+A monitor ([monitoring-cloud.md](monitoring-cloud.md)) can deliver models, say from the Hugging Face Hub, as pending References for a person to judge. They are signal before anyone has judged them, so a site can have the run **count them as data**: in clusters, in entities and in the weekly trends, and never as pages. The setting lives in the site's `knowledgeRun` block of `infra/site.json`, like `conceptKinds`:
+
+```json
+"knowledgeRun": {
+  "monitorSources": ["huggingface"],
+  "monitorWeeks": 52
+}
+```
+
+`monitorSources` (the only supported source is `huggingface`) turns it on; `monitorWeeks` (1 to 260, default 52) is how far back a record counts. Without `monitorSources` nothing below happens and the snapshot is byte for byte what it was. The stack sets `KNOWLEDGE_MONITOR_SOURCES` and `KNOWLEDGE_MONITOR_WEEKS` on the task; `cdk deploy` the stack after changing them.
+
+| Stage | What changes |
+| --- | --- |
+| `corpus-sync` | `corpus export --monitor-sources huggingface --monitor-weeks N --corpus-key <publication> --as-of <Monday> --monitor-records-out <run>/monitor-records.json`. Every current Reference of the publication's corpus whose address is the Hub and whose curation state is not `rejected` (`pending` and `accepted` both count) and whose **source date** (the model's `createdAt`) is inside the window becomes a corpus document `record-<reference id>.md` (`kind: monitor-record`, `dates.published_at` = the release date, the structured line as its text, never model card text) and a row of `monitor-records.json`, kept with the week's run state in S3. The record's Hub fields come from the `details` on its provenance relation (one indexed query per record). At most 5,000 records, newest first; a warning says when more fall in the window. A 12-month backfill therefore produces real weekly history. |
+| `topic-model` | The records are documents like any other: clusters and their weekly series count them. |
+| `typed-extraction` | GLiNER2 reads the record documents too, but its answers for them are dropped by the import (they are not published items); entities of records are never AI-extracted. |
+| `publish-run`, `publish-relations` | `--monitor-records <file>` adds the **structured entities and relations**, deterministically, with no AI review (below). |
+| `ai-review` | Record titles (model ids) count as member titles, so a cluster of Hub models can be named. Source facts are `confirmed` already, so no entity or relation of a record is reviewed. |
+| `snapshot`, `archive` | `--monitor-records <file>`: records count in clusters, entities and weekly series (below). |
+| `wiki-sync` | `--monitor-records <file>`: an entity that only records mention gets **no wiki page**, and no page lists it as related. |
+
+**Structured entities.** Each record links (`mentions` from the Reference, marked `knowledge.record_mention`, always confirmed) to an entity per Hub field: the model (`model--org-name`, named by the model id), its maker (the Hub author, `maker--org`), its licence (`licence--apache-2-0`; the Hub's `other` and `unknown` are not licences) and its task (the pipeline tag, `task--text-to-speech`). An existing entity of the site is matched first by key, so the entities of the site's own items are reused; a new one is accepted by `ai` under the name `Hugging Face Hub import`. A rejected entity is never linked. The Hub's platform (`platform--hugging-face`) is deliberately not linked: it would swamp the platform's own weekly counts.
+
+**Structured relations.** A base model the Hub names becomes a `built_on` relation from the model to its base, confirmed, with `subtype` (`finetune`, `quantized`, `adapter`, `merge` or `declared`), `evidence` (the Hub card) and `provenance` (`from the Hugging Face Hub`) in its metadata, shown on the entity file's neighbour row. Both ends must already be entities: a model with a record in the window, or an accepted entity named by that id. A base model that is neither stays in the record. Nothing is superseded or deleted on the way, except that a record whose Hub fields changed supersedes the links it no longer has.
+
+**In the snapshot.** Records are dated items for the counts, so `itemCount`, `series8` and the four-week change of an entity or cluster include them, and a 52-week window gives a year of history. Beside that: an entity or cluster row has `recordCount` (how many of its items are records), the entity file lists the newest records apart from the site's items in `relatedRecords` (`title` = model id, `url` = the Hub card, `publishedAt`, `summary` from the structured fields, `source`, `provenance`), and `relatedItems` stays the site's own pages. An entity only records mention has `href: null`, and appears at all only when at least two records link it or it takes part in a confirmed relation, so a lone model does not clutter the map. Without records none of these fields exist.
+
+**Verify on the next run.** In the `corpus-sync` task log: `knowledge corpus-export ... N monitor records`. In S3: `runs/<week>/monitor-records.json`. In the `publish-run` log: `recordNodesCreated`, `recordLinks`, `recordRelations`, `recordBaseModelsOffMap`. On the site: `_data/knowledge/index.json` entities with `recordCount`, `entities/<key>.json` with `relatedRecords` and `built_on` neighbours with `subtype`, and no new `/wiki/` page for a Hub-only entity. The first run after turning it on pays for reading every record's provenance once (two requests per record).
+
+**Promotion.** A person turns a record into a normal item with `papyrus references promote <reference id> --section <section>` ([monitoring-cloud.md](monitoring-cloud.md#promoting-a-record-to-an-item)): a **draft** article carrying the source link and the record's facts, for an editor to write and publish. The weekly run can also ask for a first look: set `monitorSuggestions` (0 to 20, default 0 = off) in `knowledgeRun` (it sets `KNOWLEDGE_MONITOR_SUGGESTIONS`) and the `ai-review` stage raises **one soft review request** per week (`rr-monitor-records-<publication>-<week>`, seven days, idempotent) that lists that many records. The first pass has no model: among the records of the last four weeks that no item carries yet, the Hub's own interest decides (likes, then downloads, then the model id). The request asks nobody to publish anything; the stage log `ai-review.json` has the same list under `monitorSuggestions` (`status` `requested`, `none` or `not_raised` with the error). A site that cannot take review requests, or a missing records file, never fails the run.
+
 ### The AI review
 
 For each unreviewed entity (`generated`), each new cluster and each proposed relation between accepted entities, the stage gives GPT-6 Luna (the Responses API, a structured answer, `store: false`) short snippets of the site's own text and asks for `accept`, `reject` or `unsure`. The model never decides alone:
