@@ -8,7 +8,7 @@ try {
   const outputFile = join(temporaryDirectory, "test.mjs");
   await build({
     absWorkingDir: process.cwd(),
-    entryPoints: ["scripts/test-papyrus-chat-worker-integration.ts"],
+    entryPoints: ["scripts/test-papyrus-chat-worker-integration.mts"],
     outfile: outputFile,
     bundle: true,
     packages: "external",
