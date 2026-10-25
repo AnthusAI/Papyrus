@@ -31,10 +31,17 @@
       "text": "2026-10-24 code-local consumer increment: Papyrus now pins exact Chatticus #637 head b332fb88e194f0fd100d449765e1e851d4c538f3 and adds an injectable admission sender. It requires Authorization headers from a fresh host provider; a retry reuses the immutable attempt and key while fetching headers again; no implicit retry/fallback; AppSync/UI send path stays untouched. Production token semantics, endpoint and author mapping are intentionally not guessed. Branch feature/PPY-0d18a6-chat-client-adapter, code commit a4eac1d9db3e8fedca0761a97a6639451e118d70. PASS: Papyrus typecheck/lint, admission contract tests, adapter transport test, new Gherkin scenarios, diff check. Full pre-existing browser Gherkin fixture previously hit sandbox EPERM on 127.0.0.1. Do not retry PR creation; prior GitHub integration returned 403. No PR/hosted CI/deploy/merge.",
       "created_at": "2026-10-24T18:34:37.957110Z",
       "comment_type": "default"
+    },
+    {
+      "id": "412d761d-8c23-4693-8f78-bd89cf5e9992",
+      "author": "home",
+      "text": "2026-10-25: Combined Papyrus release candidate is in draft PR https://github.com/AnthusAI/Papyrus/pull/697 at exact head fdc118698b63fe33c883e339d72a090fd2870390. It includes the tested private-chat client/runtime integration, PR662 shared UI commit, and PR667 final email-auth head 303169f3f30704dfa698ccaf7951283561fc04f9. Exact-head smoke, TypeScript (including shared-chat browser acceptance and full npm test), and Python CI all pass (runs 40145034476 / 40145034464). Fixed the TSX CJS/ESM test boundary by running the worker integration test as .mts and updated its Gherkin wrapper; targeted worker/hosted tests, typecheck, lint pass. The Papyrus private-chat feature remains default-off and AppSync is unchanged. No IAM, deployment, merge or publish has been applied. Read-only production account check confirmed CDKToolkit asset bucket cdk-hnb659fds-assets-712236451410-us-east-1; existing CDK execution role is account-wide (CloudFormation Resource * and AdministratorAccess), while p-apyr-us-github-deploy remains Amplify-only. PR697 is clean against current develop but remains a draft because automatic review rejected marking it ready; release merge is blocked pending that review/authorization. Local full suite/build hit sandbox EPERM/DNS limitations; hosted exact-head CI passed.",
+      "created_at": "2026-10-25T00:13:50.708946Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-24T18:34:37.957147Z",
+  "updated_at": "2026-10-25T00:13:50.708977Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
