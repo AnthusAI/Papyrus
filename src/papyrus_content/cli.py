@@ -154,6 +154,7 @@ from .references_commands import (
     references_identifier_backfill_now,
     references_label,
     references_labels,
+    references_promote,
     references_list_predictions,
     references_review_classification,
     references_review_curation,
@@ -271,6 +272,7 @@ PORTED_COMMANDS = frozenset(
         "references:label",
         "references:unlabel",
         "references:labels",
+        "references:promote",
         "references:find-fetch-url-text",
         "references:find-fetch-pdf-queue",
         "references:find-discover-citation-led",
@@ -571,6 +573,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_unlabel(flags)
     elif route == "references:labels":
         references_labels(flags)
+    elif route == "references:promote":
+        references_promote(flags)
     elif route == "references:find-fetch-url-text":
         require_reference_process_runtime("references find-fetch-url-text")
         references_find_url_text(flags)

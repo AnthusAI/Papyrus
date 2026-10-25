@@ -76,3 +76,26 @@ Feature: Monitor records count in the Knowledge Map as data
     When the trend signals are built from the published snapshot
     Then the signal for "maker--org" has the release "org/tuned" from the Hugging Face Hub dated 2026-10-14
     And that release carries its own summary and no page of it is fetched
+
+  Scenario: A person promotes a record to a draft item
+    When a person promotes "org/tuned" to the section "models"
+    Then a draft item "item-models-org-tuned" exists in the section "models"
+    And the draft carries the source link "https://huggingface.co/org/tuned", the structured facts and the entities of the record
+    And nothing is published and the Reference is still pending
+
+  Scenario: Promoting twice never overwrites the editor's text
+    Given a person promoted "org/tuned" to the section "models"
+    And the editor rewrote the draft
+    When a person promotes "org/tuned" to the section "models"
+    Then the draft still holds the editor's text
+
+  Scenario: The week's run asks for ONE soft review of the records most worth a look
+    Given the corpus was exported with the monitor records
+    When the weekly suggestion runs for the 2 records the Hub shows the most interest in
+    Then one soft review request lists "org/base" and "org/lone" with their reference ids, the model id deciding between records that tie
+    And running the suggestion again raises no second request
+
+  Scenario: A site that cannot take review requests is not failed by the suggestion
+    Given the corpus was exported with the monitor records
+    When the weekly suggestion runs on a site without review requests
+    Then the suggestion says it was not raised and the run goes on

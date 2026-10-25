@@ -403,10 +403,43 @@ def ai_review(run: Run) -> dict:
         apply_record_changes(client, review.record_changes(patches))
 
     log = {"week": run.config.week, "model": model.model, "calls": model.calls, "summary": review.summary_of(decisions), "decisions": [d.to_dict() for d in decisions], "acceptedNow": len(accepted_now)}
+    if run.config.monitor_sources and run.config.monitor_suggestions:
+        log["monitorSuggestions"] = suggest_promotions(run, client)
     run.run_dir.mkdir(parents=True, exist_ok=True)
     (run.run_dir / "ai-review.json").write_text(json.dumps(log, indent=2, sort_keys=True))
     run.push(run=True)
     return {"calls": model.calls, "summary": log["summary"]}
+
+
+def suggest_promotions(run: Run, client: Any) -> dict:
+    """The week's monitor records most worth a look, as ONE soft review request (idempotent per week). Never fails the run.
+
+    The first pass is the Hub's own interest (likes, then downloads) among the records of the last four weeks that no item carries
+    yet; nobody is asked to publish anything, only to promote the ones worth a story (``papyrus references promote``)."""
+    from .. import review_requests  # noqa: PLC0415
+    from ..knowledge_snapshot.monitor_records import read_records  # noqa: PLC0415
+    from ..monitor_promotion import promoted_reference_ids, suggest  # noqa: PLC0415
+
+    try:
+        records = read_records(run.monitor_records)
+        picks = suggest(records, limit=run.config.monitor_suggestions, as_of=run.config.monday, promoted=promoted_reference_ids(client, records))
+        if not picks:
+            return {"status": "none", "records": len(records), "suggested": []}
+        suggested = [{"referenceId": record.reference_id, "model": record.model_id, "url": record.url, "likes": record.details.get("likes"), "downloads": record.details.get("downloads")} for record in picks]
+        request = review_requests.raise_review(
+            client,
+            subject={"type": "batch", "id": f"monitor-records-{run.config.publication}-{run.config.week}"},
+            mode="soft_review",
+            raised_by="knowledge-run",
+            reason=f"{len(picks)} monitor record{'s' if len(picks) != 1 else ''} worth a look this week",
+            ask="Promote the ones worth a story with `papyrus references promote <reference id> --section <section>` (it saves a draft; nothing is published). Approve when you have looked, or steer with a note.",
+            deadline_days=7,
+            links=[{"label": f"{record.model_id} ({record.reference_id})", "url": record.url} for record in picks],
+            request_id=f"rr-monitor-records-{run.config.publication}-{run.config.week}".lower(),
+        )
+        return {"status": "requested", "requestId": request["id"], "records": len(records), "suggested": suggested}
+    except Exception as error:  # noqa: BLE001 - a site without review requests, or a missing file, must not fail the run
+        return {"status": "not_raised", "error": f"{type(error).__name__}: {error}"[:300]}
 
 
 def snapshot(run: Run) -> dict:

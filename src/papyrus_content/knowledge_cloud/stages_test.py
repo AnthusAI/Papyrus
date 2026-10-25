@@ -396,3 +396,64 @@ def test_a_monitor_source_the_run_does_not_know_is_refused_before_anything_runs(
 
     with pytest.raises(ConfigError, match="KNOWLEDGE_MONITOR_SOURCES: Unsupported monitor source 'rss'"):
         make_run(tmp_path, {"KNOWLEDGE_MONITOR_SOURCES": "rss"})
+
+
+# -- the weekly suggestion of monitor records worth promoting: ONE soft review request, never a failure ----------------------
+class ReviewBackend:
+    def __init__(self, items=(), fail=False):
+        self.items, self.fail, self.created = list(items), fail, {}
+
+    def list_records(self, model):
+        return self.items if model == "Item" else []
+
+    def get_record(self, model, record_id):
+        return self.created.get(record_id)
+
+    def create_record(self, model, row):
+        if self.fail:
+            raise RuntimeError("ReviewRequest is not in this schema")
+        self.created[row["id"]] = row
+
+
+def suggestion_run(tmp_path, suggestions=2):
+    from ..knowledge_snapshot.monitor_records import MonitorRecord, write_records
+
+    run, _ = make_run(tmp_path, {**MONITORED, "KNOWLEDGE_MONITOR_SUGGESTIONS": str(suggestions)})
+    records = [
+        MonitorRecord(f"reference-{name}", f"lineage-{name}", "huggingface", f"https://huggingface.co/org/{name}", f"org/{name}", "2026-10-22T08:00:00Z", {"modelId": f"org/{name}", "likes": likes, "downloads": 5})
+        for name, likes in (("small", 3), ("big", 300), ("medium", 40))
+    ]
+    write_records(run.monitor_records, records, as_of=dt.date(2026, 10, 26), sources=("huggingface",))
+    return run
+
+
+def test_the_week_gets_one_soft_review_request_listing_the_records_most_worth_a_look(tmp_path):
+    from .stages import suggest_promotions
+
+    run, backend = suggestion_run(tmp_path), ReviewBackend()
+    result = suggest_promotions(run, backend)
+    assert result["status"] == "requested" and [pick["model"] for pick in result["suggested"]] == ["org/big", "org/medium"]
+    [request] = backend.created.values()
+    assert request["id"] == "rr-monitor-records-shipped-2026-w44" and request["mode"] == "soft_review"
+    assert "2 monitor records worth a look this week" in request["reason"] and "papyrus references promote" in request["ask"]
+    assert "org/big (reference-big)" in json.dumps(request["links"])
+    assert suggest_promotions(run, backend)["status"] == "requested" and len(backend.created) == 1  # a second run in the week raises no second request
+
+
+def test_a_record_an_item_carries_is_not_suggested_again_and_nothing_to_suggest_raises_nothing(tmp_path):
+    from .stages import suggest_promotions
+
+    run = suggestion_run(tmp_path, suggestions=3)
+    carried = {"metadata": json.dumps({"frontMatterYaml": "monitorRecord:\n  referenceId: reference-big\n"})}
+    backend = ReviewBackend(items=[carried])
+    assert [pick["model"] for pick in suggest_promotions(run, backend)["suggested"]] == ["org/medium", "org/small"]
+    empty = ReviewBackend()
+    run.monitor_records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": []}))
+    assert suggest_promotions(run, empty)["status"] == "none" and empty.created == {}
+
+
+def test_a_site_that_cannot_take_review_requests_never_fails_the_run(tmp_path):
+    from .stages import suggest_promotions
+
+    result = suggest_promotions(suggestion_run(tmp_path), ReviewBackend(fail=True))
+    assert result["status"] == "not_raised" and "ReviewRequest" in result["error"]
