@@ -57,10 +57,17 @@
       "text": "2026-10-26 chat setup receipt: deployed PapyrusChatDataCandidate in 712236451410/us-east-1; stack arn:aws:cloudformation:us-east-1:712236451410:stack/PapyrusChatDataCandidate/26f60110-d0f4-11f1-a5d2-0affe23ffc23 reached CREATE_COMPLETE at 04:19 UTC from reviewed change set arn:aws:cloudformation:us-east-1:712236451410:changeSet/papyrus-chat-20261026/7c4f75c7-84ef-4c7c-ab7c-3ae620c9fc3d. Exact change set: 24 adds, no modifies/removes/replacements. It created two DynamoDB tables, private versioned S3, four queues, two Node22 workers, scoped gateway policy on the existing CMS role. Both mappings are false in the deployed template; run mapping readback was Disabled. User-approved no-expiry retention remains. Dedicated key path is /papyrus/p-apyr-us/openai-api-key; it is absent, value not read/created. Site flag absent and AppSync remains live. No model invocation. Exact-lockfile CDK synthesis and both template validators pass. AWS SSO session expired during probe mapping postcheck; no reauth attempt. Full hosted UI/model reply/editor-isolation acceptance remains pending code release and secure key configuration.",
       "created_at": "2026-10-26T04:21:40.701037Z",
       "comment_type": "default"
+    },
+    {
+      "id": "6d789e74-774c-4d63-89b5-d528cb0da80a",
+      "author": "home",
+      "text": "2026-10-26: commit f2dba39ce87170a226ee793bf798ec206be5e097 separates runtime and synthetic Lambda build directories, enforces exact bundle contents, and pins the run-worker SSM read to /papyrus/p-apyr-us/openai-api-key. Runtime and synthetic template validators plus git diff --check pass. The deployed stack is unchanged by this code-only commit; the refreshed runtime Lambda update still needs an authenticated AWS SSO session. No mappings or site flag enabled.",
+      "created_at": "2026-10-26T04:24:37.728294Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-26T04:21:40.701084Z",
+  "updated_at": "2026-10-26T04:24:37.728327Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
