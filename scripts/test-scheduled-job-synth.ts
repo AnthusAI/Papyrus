@@ -276,7 +276,7 @@ assert.deepEqual(watchdogStatements.map((statement: any) => statement.Action).so
 
 // Schedule and its role.
 template.hasResourceProperties("AWS::Scheduler::Schedule", {
-  ScheduleExpression: "cron(0 5 ? * MON *)",
+  ScheduleExpression: "cron(0 5 * * ? *)",
   ScheduleExpressionTimezone: "UTC",
   State: "ENABLED",
   FlexibleTimeWindow: { Mode: "OFF" },
