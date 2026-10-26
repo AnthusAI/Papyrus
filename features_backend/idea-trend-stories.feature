@@ -87,17 +87,26 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
 
   Scenario: A story draft Proposal with the same targets is not filed again
     Given an editor can read an earlier story draft Proposal with the same targets
+    And the anchor cooldown is off
     When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then 0 trend drafts are filed
     And the run record says the draft has the same targets as the earlier Proposal
 
-  Scenario: An operator role files drafts under IAM and the run says dedupe against Proposals was skipped
+  Scenario: An operator role files drafts under IAM
     Given the operator signs in with IAM and cannot read Proposals
     When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then 1 trend draft is filed as a "story_draft" Proposal
-    And the run record says earlier Proposals could not be read with IAM
+
+  Scenario: An operator role dedupes against earlier story drafts through the operator read
+    Given the operator signs in with IAM and cannot read Proposals
+    And an earlier story draft Proposal with the same targets exists
+    And the anchor cooldown is off
+    When the model drafts a trend story citing Hugging Face and Zed
+    And the operator drafts trend stories and files them as Proposals
+    Then 0 trend drafts are filed
+    And the run record says the draft has the same targets as the earlier Proposal
 
   Scenario: The archive of the previous week adds a signal fact for each cluster
     Given the site publishes its snapshot as files with an archived earlier week in which "Decision models" held 17 items

@@ -758,10 +758,18 @@ and send a draft on its way. The rule is deliberately narrow.
 * **What an operator can never do.** Approve, decline after review, override the community, or send a proposal to `editor_review`:
   those answer `operator_not_allowed` and write nothing. `moderateReader` stays editors and admins only. Specs:
   `features_backend/proposals_operator.feature`; tests: `procedures/newsroom/tests/test_proposals.py` (`OperatorTests`).
-* **What a site must deploy.** The schema does not change: the logic is in the `reader-actions` function, so a site gets the
-  operator path when it deploys a backend that includes this release. The operator's IAM policy must allow
-  `appsync:GraphQL` on `Mutation/fields/fileProposal` and `Mutation/fields/transitionProposal` of the site's API. Reading proposals
-  (`papyrus proposals list|show`, `listProposals`) is still editors and admins only.
+* **What an operator may read.** One query, `listStoryDrafts`, read only, with the same caller check as `fileProposal` (an editor or
+  admin, or an IAM principal of the function's own account; an identity-pool user and any other account get `not_staff` and an empty
+  list). It answers the `story_draft` Proposals, newest first (at most 500), and **only** `id`, `title`, `summary`, `targets`, `state` and
+  `createdAt` of each: never the body, evidence, history (which names the operator), proposer, votes, exclusions or editor log. It is what
+  lets an unattended run dedupe against earlier drafts and cool down an entity that already anchored one
+  ([idea pipeline](idea-pipeline.md#trend-stories)). Specs: `features_backend/proposals_operator.feature`; tests:
+  `procedures/newsroom/tests/test_proposals.py` (`OperatorStoryDraftReadTests`).
+* **What a site must deploy.** The `reader-actions` function and one custom query (`listStoryDrafts`, a function resolver open to the `editor`
+  and `admin` groups like the mutations) come with a backend that includes this release; deploy it before the image that uses it. The
+  operator's IAM policy must allow `appsync:GraphQL` on `Mutation/fields/fileProposal` and `Mutation/fields/transitionProposal`, and on
+  `Query/fields/listStoryDrafts` to dedupe, of the site's API. Reading proposals in full (`papyrus proposals list|show`, `listProposals`) is
+  still editors and admins only.
 
 ```bash
 export PAPYRUS_GRAPHQL_AUTH=iam PAPYRUS_GRAPHQL_ENDPOINT=https://....appsync-api.eu-west-1.amazonaws.com/graphql

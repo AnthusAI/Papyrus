@@ -54,6 +54,11 @@ mutation TransitionProposal($proposalId: String!, $state: String!, $reason: Stri
   transitionProposal(proposalId: $proposalId, state: $state, reason: $reason, result: $result) { status id error message }
 }
 """
+LIST_STORY_DRAFTS_QUERY = """
+query ListStoryDrafts {
+  listStoryDrafts { status error message drafts { id title summary targets state createdAt } }
+}
+"""
 EDIT_MUTATION = """
 mutation EditProposal($proposalId: String!, $action: String!, $rule: String, $exclusionId: String) {
   editProposal(proposalId: $proposalId, action: $action, rule: $rule, exclusionId: $exclusionId) { status id error message }
@@ -90,6 +95,15 @@ def using_iam() -> bool:
 def reading_needs_an_editor(error: Exception) -> ValueError:
     """Reading proposals is for editors and admins; under IAM say so instead of surfacing a bare authorization error."""
     return ValueError(f"Could not read proposals ({error}). Reading them needs an editor or admin session (papyrus login); with PAPYRUS_GRAPHQL_AUTH=iam an operator can only create proposals and move a draft to in_steering or declined.")
+
+
+def operator_story_drafts(client: Any) -> list[dict[str, Any]]:
+    """The story drafts an operator may read (``listStoryDrafts``): id, title, summary, targets, state and createdAt of each, newest first.
+    Editors and operators of the site's own account may call it; it is how an IAM run dedupes against earlier drafts."""
+    answer = client.graphql(LIST_STORY_DRAFTS_QUERY, {}).get("listStoryDrafts") or {}
+    if answer.get("status") != "ok":
+        raise ProposalRefused(f"{answer.get('error') or 'refused'}: {answer.get('message') or 'The newsroom refused that.'}")
+    return [row for row in answer.get("drafts") or [] if row]
 
 
 def parse_targets(values: list[str]) -> list[dict[str, str]]:

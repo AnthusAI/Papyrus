@@ -346,13 +346,38 @@ def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_o
     return False, summary
 
 
-def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None) -> dict[str, Any]:
+def cooldown_anchors(rows: list[dict[str, Any]], now: datetime, config: TrendConfig) -> dict[str, str]:
+    """Entity key to the date of the newest story draft in the last ``config.cooldown_days`` days that rests on it, for the drafts that were not
+    declined (``rows``: Proposals or stored trend drafts, each with ``createdAt``, ``state`` and ``targets``). A draft also cites broad-kind
+    entities as context; those never anchor, so they never cool down."""
+    if config.cooldown_days <= 0:
+        return {}
+    since = now - timedelta(days=config.cooldown_days)
+    cooling: dict[str, str] = {}
+    for row in rows:
+        if row.get("state") == "declined":
+            continue
+        try:
+            filed = datetime.fromisoformat(str(row.get("createdAt")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        filed = filed if filed.tzinfo else filed.replace(tzinfo=timezone.utc)
+        if filed < since:
+            continue
+        for kind, key in target_key(row.get("targets")):
+            if kind == "entity" and key.split("--", 1)[0] not in config.broad_kinds:
+                cooling[key] = max(cooling.get(key, ""), filed.date().isoformat())
+    return cooling
+
+
+def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None, cooldown: dict[str, str] | None = None) -> dict[str, Any]:
     """Which entities become signals, deterministically, from the index's eight-week series (the published ``trending`` order is not used).
 
     * **Ranked**: every entity with at least ``minimum_recent`` mentions in the last four weeks, scored by Poisson surprise over its own prior four
       weeks scaled by the corpus's growth, times a weight by kind (broad kinds are demoted).
     * **Anchors**: the best ``MAXIMUM_ENTITY_SIGNALS`` of the ranked entities whose kind may anchor a draft (``anchor_kinds``) and whose score reaches
       ``minimum_score``; a maker must also be notable. Entities passed over are listed with the reason.
+    * **Cooldown**: an entity in ``cooldown`` (see ``cooldown_anchors``) is passed over with the date of the draft it anchored.
     * **Context**: up to ``MAXIMUM_CONTEXT_SIGNALS`` broad-kind entities that sit beside the anchors (their neighbours), most connected first. They
       carry ``role: "context"``; the prompt forbids a story about them.
     """
@@ -380,6 +405,9 @@ def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None)
         if row["kind"] not in config.anchor_kinds:
             excluded.append({"key": row["key"], "reason": f"{row['kind']} cannot anchor a draft", "score": row["score"]})
             continue
+        if row["key"] in (cooldown or {}):
+            excluded.append({"key": row["key"], "reason": f"cooldown: anchored a story draft filed {cooldown[row['key']]}", "score": row["score"]})
+            continue
         if len(anchors) >= MAXIMUM_ENTITY_SIGNALS:
             continue
         if row["kind"] == "maker":
@@ -402,7 +430,7 @@ def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None)
         "candidatesRanked": len(scored), "thresholds": {
             "minimumRecent": config.minimum_recent, "minimumScore": config.minimum_score, "minimumModels": config.minimum_models,
             "minimumLikes": config.minimum_likes, "minimumDownloads": config.minimum_downloads, "watchlist": sorted(config.watchlist),
-            "windowDays": config.window_days,
+            "windowDays": config.window_days, "cooldownDays": config.cooldown_days,
         },
     }
 
@@ -832,11 +860,13 @@ def draft_trends(
     }
     stored = json_store.ideas() if json_store else []
     proposals = proposal_store.story_drafts() if proposal_store else []
-    if proposal_store is not None and proposal_store.dedupe_unavailable:
-        run["proposalDedupe"] = proposal_store.dedupe_unavailable
     documents = comparison_documents(context, stored, proposals, [])
-    selection = select_entities(snapshot, config)
+    config = config or TrendConfig()
+    earlier = [*proposals, *(idea for idea in stored if idea.get("origin") == "trend")]
+    cooldown = cooldown_anchors(earlier, moment, config)
+    selection = select_entities(snapshot, config, cooldown)
     run["selection"] = selection
+    run["cooldown"] = {"days": config.cooldown_days, "entities": cooldown}
     signals_list = build_signals(snapshot, fetch_text, config, selection)
     signals = {signal["id"]: signal for signal in signals_list}
     handles = handles_for(signals_list)

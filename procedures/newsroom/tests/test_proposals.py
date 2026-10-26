@@ -504,3 +504,75 @@ class ParityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OperatorStoryDraftReadTests(unittest.TestCase):
+    """``listStoryDrafts``: the one read an IAM operator has. Six fields of each story draft, for the same callers as ``fileProposal``."""
+
+    FIELDS = {"id", "title", "summary", "targets", "state", "createdAt"}
+
+    def read(self, backend: ReaderBackend, **call) -> dict:
+        return backend.operator_proposal_call("listStoryDrafts", {}, **call)
+
+    def test_an_operator_reads_story_drafts_newest_first_with_six_fields_and_no_reader_data(self) -> None:
+        with ReaderBackend() as backend:
+            first = operator_file(backend, title="First draft", summary="One line.", targets=json.dumps([{"type": "entity", "id": "maker--zed"}]), evidence=json.dumps({"signals": 2, "source": "s"}))
+            backend.now += 3600
+            second = operator_file(backend, title="Second draft")
+            backend.now += 3600
+            concept = backend.operator_proposal_call("fileProposal", {"kind": "new_concept", "title": "Not a story", "body": BODY})["id"]
+            self.assertEqual(operator_move(backend, first, "in_steering")["status"], "ok")
+            answer = self.read(backend)
+        self.assertEqual((answer["status"], answer["error"]), ("ok", None))
+        self.assertEqual([draft["id"] for draft in answer["drafts"]], [second, first])  # newest first; the new_concept is not a story draft
+        self.assertNotIn(concept, [draft["id"] for draft in answer["drafts"]])
+        for draft in answer["drafts"]:
+            self.assertEqual(set(draft), self.FIELDS)
+        by_id = {draft["id"]: draft for draft in answer["drafts"]}
+        self.assertEqual((by_id[first]["title"], by_id[first]["summary"], by_id[first]["state"]), ("First draft", "One line.", "in_steering"))
+        self.assertEqual(json.loads(by_id[first]["targets"]), [{"type": "entity", "id": "maker--zed"}])
+        self.assertNotIn("proposer", json.dumps(answer))
+        self.assertNotIn(BODY.strip(), json.dumps(answer))
+        self.assertNotIn(OPERATOR_ARN, json.dumps(answer))  # the history, which names the operator, is not part of the answer
+
+    def test_declined_drafts_are_listed_with_their_state_so_the_caller_can_ignore_them(self) -> None:
+        with ReaderBackend() as backend:
+            draft = operator_file(backend)
+            operator_move(backend, draft, "declined", reason="Duplicate.")
+            answer = self.read(backend)
+        self.assertEqual([(row["id"], row["state"]) for row in answer["drafts"]], [(draft, "declined")])
+
+    def test_an_editor_may_read_them_too(self) -> None:
+        with ReaderBackend() as backend:
+            file_one(backend, title="By an editor")
+            answer = backend.proposal_call("listStoryDrafts", {})
+        self.assertEqual([row["title"] for row in answer["drafts"]], ["By an editor"])
+
+    def test_an_identity_pool_user_and_a_principal_of_another_account_cannot_read(self) -> None:
+        with ReaderBackend() as backend:
+            operator_file(backend)
+            for identity in (
+                operator_identity(cognitoIdentityId="eu-west-1:1111", cognitoIdentityPoolId="eu-west-1_pool", cognitoIdentityAuthType="authenticated"),
+                operator_identity(sub="a-user", claims={"sub": "a-user"}),
+                operator_identity(accountId="999999999999", userArn="arn:aws:sts::999999999999:assumed-role/ideas-pipeline/run-1"),
+                {},
+            ):
+                with self.subTest(identity=identity):
+                    answer = self.read(backend, identity=identity)
+                    self.assertEqual((answer["status"], answer["error"], answer["drafts"]), ("refused", "not_staff", []))
+            self.assertEqual(self.read(backend, account_id=None)["error"], "not_staff")  # no account known: nobody is an operator
+
+    def test_a_reader_group_member_is_not_staff(self) -> None:
+        with ReaderBackend() as backend:
+            file_one(backend)
+            answer = backend.proposal_call("listStoryDrafts", {}, groups=("reader",))
+        self.assertEqual((answer["error"], answer["drafts"]), ("not_staff", []))
+
+    def test_the_answer_is_capped_at_the_newest_five_hundred(self) -> None:
+        with ReaderBackend() as backend:
+            for number in range(rules.MAXIMUM_STORY_DRAFTS + 3):
+                backend.now += 1
+                operator_file(backend, title=f"Draft {number:04d}")
+            drafts = self.read(backend)["drafts"]
+        self.assertEqual(len(drafts), rules.MAXIMUM_STORY_DRAFTS)
+        self.assertEqual(drafts[0]["title"], f"Draft {rules.MAXIMUM_STORY_DRAFTS + 2:04d}")
