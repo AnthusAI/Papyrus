@@ -25,11 +25,12 @@ export function monitoringViewParameterArn(region: string, account: string): str
  * Environment and least-privilege IAM for the monitoring-view function. A site outside the monitoring
  * account simply finds no parameter and the page says monitoring is not configured.
  */
-export function wireMonitoringView(backend: any): void {
+export function wireMonitoringView(backend: any, emailMonitorId = "hn"): void {
   const lambda = backend.monitoringView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
   lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
+  lambda.addEnvironment("PAPYRUS_EMAIL_MONITOR_ID", emailMonitorId);
   lambda.addToRolePolicy(
     new PolicyStatement({
       effect: Effect.ALLOW,
@@ -42,6 +43,39 @@ export function wireMonitoringView(backend: any): void {
       effect: Effect.ALLOW,
       actions: MONITORING_VIEW_TABLE_ACTIONS,
       resources: monitoringViewTableArns(stack.region, stack.account),
+    }),
+  );
+  // Resolving a selected newsletter article records its destination in the
+  // same receipt partition. The editor-facing resolver validates the receipt
+  // and candidate before this single-key write.
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["dynamodb:PutItem"],
+      resources: monitoringViewTableArns(stack.region, stack.account).slice(0, 1),
+      conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": [`MONITOR#${emailMonitorId}`] } },
+    }),
+  );
+}
+
+/** Lets the authenticated Reference-intake action verify a selected email receipt. */
+export function wireEmailReferenceIntake(lambda: LambdaFunction, emailMonitorId = "hn"): void {
+  const stack = Stack.of(lambda);
+  lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
+  lambda.addEnvironment("PAPYRUS_EMAIL_MONITOR_ID", emailMonitorId);
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["ssm:GetParameter"],
+      resources: [monitoringViewParameterArn(stack.region, stack.account)],
+    }),
+  );
+  lambda.addToRolePolicy(
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: MONITORING_VIEW_TABLE_ACTIONS,
+      resources: monitoringViewTableArns(stack.region, stack.account).slice(0, 1),
+      conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": [`MONITOR#${emailMonitorId}`] } },
     }),
   );
 }

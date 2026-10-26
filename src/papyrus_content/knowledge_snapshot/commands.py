@@ -65,6 +65,16 @@ from .loaders import (
     relations_of_nodes,
 )
 from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotOptions
+from .monitor_import import is_record_mention, is_record_relation
+from .monitor_records import (
+    DEFAULT_WEEKS,
+    biblicus_record_id,
+    load_monitor_records,
+    parse_sources,
+    read_records,
+    record_as_item,
+    write_records,
+)
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
 from .registry import build_registry, read_vocabulary_kinds
 from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
@@ -77,7 +87,7 @@ from .relation_review import (
     reject_relation_patches,
     review_state,
 )
-from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, write_export
+from .corpus_export import DEFAULT_TYPES, biblicus_item_id, export_items, render_record, write_export
 from .run_input import load_run, translate_item_ids
 from .weeks import current_monday, parse_day
 
@@ -210,11 +220,16 @@ def knowledge_publish_run(flags: list[str]) -> None:
     agent_name = clean_name(options.get("actor-name"))
     client = authoring_client(options)
     items = published_items(client.list_published_item_summaries(), _no_url)
+    records = read_records(options["monitor-records"]) if normalize_string(options.get("monitor-records")) else []
     if run is not None:
-        run = translate_item_ids(run, {biblicus_item_id(item.item_id): item.item_id for item in items})
+        known = {biblicus_item_id(item.item_id): item.item_id for item in items}
+        known.update({biblicus_record_id(record.reference_id): record.reference_id for record in records})
+        run = translate_item_ids(run, known)
     node_rows = current_nodes(client.list_records("SemanticNode"))
     accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
-    mention_rows = [row for row in relations_of_nodes(client, accepted) if is_item_mention(row)]
+    relation_rows = relations_of_nodes(client, accepted)
+    mention_rows = [row for row in relation_rows if is_item_mention(row)]
+    record_rows = [row for row in relation_rows if is_record_mention(row) or is_record_relation(row)]
     proposal_rows = client.list_records("SteeringProposal") if run is not None and run.clusters else []
     plan = plan_publish_run(
         items=items,
@@ -228,6 +243,8 @@ def knowledge_publish_run(flags: list[str]) -> None:
         include_front_matter=not options.get("skip-front-matter"),
         confirm_resolved=bool(options.get("confirm-resolved")),
         front_matter_actor_name=agent_name,
+        records=records,
+        record_rows=record_rows,
     )
     changes = plan_changes(client, plan)
     _print_plan("publish-run", plan, changes, apply, bool(options.get("json")))
@@ -243,14 +260,37 @@ def knowledge_corpus_export(flags: list[str]) -> None:
     if out is None:
         raise ValueError("Pass --out DIR: the folder that receives <item id>.md, normally <corpus>/raw/papyrus.")
     types = tuple(part.strip() for part in (normalize_string(options.get("types")) or ",".join(DEFAULT_TYPES)).split(",") if part.strip())
+    sources = parse_sources(options.get("monitor-sources"))
     client = authoring_client(options)
     projector = load_projector(_projection_environment(options))
     items = export_items(client.list_records("PublishedItem"), url_resolver(projector), types)
-    counts = write_export(items, out)
+    records, warnings = [], []
+    if sources:
+        corpus_key = normalize_string(options.get("corpus-key"))
+        if not corpus_key:
+            raise ValueError("--monitor-sources needs --corpus-key (the publication's knowledge corpus key).")
+        as_of = parse_day(options["as-of"]) if normalize_string(options.get("as-of")) else current_monday(datetime.now(timezone.utc).date())
+        weeks = _whole(options.get("monitor-weeks"), "--monitor-weeks", DEFAULT_WEEKS)
+        records, warnings = load_monitor_records(client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks)
+        if normalize_string(options.get("monitor-records-out")):
+            write_records(Path(options["monitor-records-out"]), records, as_of=as_of, sources=sources)
+    counts = write_export(items, out, [render_record(record) for record in records])
+    for warning in warnings[:20]:
+        print(f"knowledge\tcorpus-export\twarning\t{warning}", file=sys.stderr)
     if options.get("json"):
         print(json.dumps({"out": str(out), "types": list(types), **counts}, indent=2, sort_keys=True))
         return
-    print(f"knowledge\tcorpus-export\t{counts['items']} items\t{counts['undated']} undated\t{counts['removed']} removed\t{out}")
+    monitor = f"{counts['records']} monitor records\t" if "records" in counts else ""
+    print(f"knowledge\tcorpus-export\t{counts['items']} items\t{monitor}{counts['undated']} undated\t{counts['removed']} removed\t{out}")
+
+
+def _whole(value: Any, flag: str, default: int) -> int:
+    text = normalize_string(value)
+    if text is None:
+        return default
+    if not text.isdigit() or int(text) < 1:
+        raise ValueError(f"{flag} must be a whole number of at least 1.")
+    return int(text)
 
 
 def _concept_kinds(value: Any) -> tuple[str, ...] | None:
@@ -289,6 +329,8 @@ def based_template(projector: Any, template: str | None) -> str | None:
 
 def load_knowledge_data(client: Any, projector: Any, options: dict[str, Any]) -> KnowledgeData:
     items = published_items(client.list_published_item_summaries(), url_resolver(projector))
+    if normalize_string(options.get("monitor-records")):  # monitor records count in the data; they are never pages
+        items = [*items, *(record_as_item(record) for record in read_records(options["monitor-records"]))]
     node_rows = current_nodes(client.list_records("SemanticNode"))
     accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
     links, relations = links_and_relations(relations_of_nodes(client, accepted))

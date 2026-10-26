@@ -56,7 +56,10 @@
       "concept",
       "model_family"
     ],
-    "lockWaitSeconds": 1800
+    "lockWaitSeconds": 1800,
+    "monitorSources": ["huggingface"],
+    "monitorWeeks": 52,
+    "monitorSuggestions": 5
   },
   "email": {
     "mode": "existing",

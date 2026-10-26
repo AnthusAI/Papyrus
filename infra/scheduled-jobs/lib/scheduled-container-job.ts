@@ -32,6 +32,16 @@ export type StageDefinition = {
   retry?: Partial<StageRetry>;
   /** Extra container environment for this stage only. */
   environment?: Record<string, string>;
+  /**
+   * A JSONata expression (no `{% %}` wrapper). When set, the stage runs only if it is true; otherwise the execution
+   * skips it. A CloudFormation parameter reference may be used inside the expression.
+   */
+  runIf?: string;
+  /**
+   * A failure after the retries is logged and swallowed: the execution continues (to the next stage, or to success)
+   * instead of ending in a Fail state. Use it only for an optional step after the work that matters.
+   */
+  bestEffort?: boolean;
 };
 
 export type PipelineDefinition = {
@@ -231,7 +241,7 @@ export class ScheduledContainerJob extends Construct {
       name,
       value: `{% ${expression} %}`,
     }));
-    const failStates: sfn.Fail[] = [];
+    const done = sfn.Succeed.jsonata(this, "Done", { stateName: "Done" });
     const taskStates = props.pipeline.stages.map((stage) => {
       const retry = { ...retryDefaults, ...stage.retry };
       const state = tasks.EcsRunTask.jsonata(this, stage.name, {
@@ -260,17 +270,25 @@ export class ScheduledContainerJob extends Construct {
         backoffRate: retry.backoffRate,
         jitterStrategy: sfn.JitterType.FULL,
       });
-      const failed = sfn.Fail.jsonata(this, `Failed-${stage.name}`, {
-        stateName: `Failed-${stage.name}`,
-        error: "StageFailed",
-        cause: `Stage ${stage.name} failed after its retries; later stages did not run.`,
-      });
-      failStates.push(failed);
-      state.addCatch(failed, { errors: [sfn.Errors.ALL] });
-      return state;
+      if (!stage.bestEffort) {
+        const failed = sfn.Fail.jsonata(this, `Failed-${stage.name}`, {
+          stateName: `Failed-${stage.name}`,
+          error: "StageFailed",
+          cause: `Stage ${stage.name} failed after its retries; later stages did not run.`,
+        });
+        state.addCatch(failed, { errors: [sfn.Errors.ALL] });
+      }
+      // A stage with `runIf` is entered through a Choice that skips it when the expression is false.
+      const choice = stage.runIf === undefined ? undefined : sfn.Choice.jsonata(this, `Run-${stage.name}`, { stateName: `Run-${stage.name}` });
+      choice?.when(sfn.Condition.jsonata(`{% ${stage.runIf} %}`), state);
+      return { stage, state, choice, entry: (choice ?? state) as sfn.IChainable };
     });
-    const done = sfn.Succeed.jsonata(this, "Done", { stateName: "Done" });
-    taskStates.forEach((state, index) => state.next(index + 1 < taskStates.length ? taskStates[index + 1] : done));
+    taskStates.forEach(({ stage, state, choice }, index) => {
+      const following = index + 1 < taskStates.length ? taskStates[index + 1].entry : done;
+      state.next(following);
+      choice?.otherwise(following);
+      if (stage.bestEffort) state.addCatch(following, { errors: [sfn.Errors.ALL] });
+    });
 
     const stateMachineLogs = new logs.LogGroup(this, "StateMachineLogGroup", {
       retention: logs.RetentionDays.ONE_MONTH,
@@ -279,7 +297,7 @@ export class ScheduledContainerJob extends Construct {
     this.stateMachine = new sfn.StateMachine(this, "StateMachine", {
       stateMachineType: sfn.StateMachineType.STANDARD,
       queryLanguage: sfn.QueryLanguage.JSONATA,
-      definitionBody: sfn.DefinitionBody.fromChainable(sfn.Chain.start(taskStates[0])),
+      definitionBody: sfn.DefinitionBody.fromChainable(sfn.Chain.start(taskStates[0].entry)),
       logs: { destination: stateMachineLogs, level: sfn.LogLevel.ERROR },
       tracingEnabled: false,
     });

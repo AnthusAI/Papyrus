@@ -24,7 +24,7 @@ Feature: Scheduled container jobs
     And it has no ingress rules and there are no separate ingress resources
 
   Scenario: every stage is a Fargate task with retries, backoff and a timeout
-    Then each of the ten stages is an "ecs:runTask.sync" task on Fargate
+    Then each of the ten knowledge stages is an "ecs:runTask.sync" task on Fargate
     And each runs "papyrus knowledge cloud-run --stage <name>" in the container "job"
     And each retries task failures and ECS service errors twice, 60 seconds apart, doubling, with full jitter
     And each has a TimeoutSeconds of 7200 unless the config overrides that stage
@@ -32,7 +32,23 @@ Feature: Scheduled container jobs
   Scenario: stages run strictly in order and projection is last
     Then the stages are corpus-sync, topic-model, typed-extraction, publish-run, ai-review, publish-relations, snapshot, archive, wiki-sync, projection
     And each stage continues only into the next one, and only wiki-sync continues into projection
-    And after projection the execution succeeds
+    And after projection the execution succeeds, or runs the optional trend-drafts step first
+
+  Scenario: the weekly knowledge run drafts trend stories once the snapshot is fresh
+    Given the stack parameter TrendDraftsEnabled is "true" with the publication's GraphQL endpoint and snapshot address
+    When the ten knowledge stages have succeeded and projection has published the snapshot
+    Then one more task, trend-drafts, runs after projection and runs the job script baked into the image
+    And the script waits briefly for the published index.json to show the run week's Monday as its asOf
+    And a snapshot that is still stale after those attempts is skipped with the reason in the log, and nothing is drafted
+    And a fresh snapshot is read once by "papyrus ideas trends --store proposals --max 2" with IAM authentication against the endpoint
+    And the OpenAI key is read from the SSM SecureString by the task role at run time and is only in the environment of that command
+    And the run files private story_draft Proposals, raises one soft review request and publishes nothing
+
+  Scenario: trend drafts are off by default and never fail the run
+    Given the stack parameter TrendDraftsEnabled is "false", its default
+    Then the execution goes from projection straight to Done and no trend-drafts task starts
+    And when it is enabled and the step fails or times out, the execution still ends in Done
+    And the failure is in the task log and no Fail state, alarm or rollback follows from it
 
   Scenario: a failing stage ends the execution in a Fail state
     Then each stage catches every error into its own Fail state
@@ -90,6 +106,11 @@ Feature: Scheduled container jobs
   Scenario: the projection stages know the site's plugins
     Then the container environment carries PAPYRUS_PLUGINS from the site config
     And the task role may read the configuration of the site's content-actions Lambda and nothing else of Lambda
+
+  Scenario: monitor records are opt-in and reach the container only when the site names a source
+    Then the container has no KNOWLEDGE_MONITOR_SOURCES for the example config
+    And a knowledgeRun block with monitorSources "huggingface" and monitorWeeks 26 sets KNOWLEDGE_MONITOR_SOURCES and KNOWLEDGE_MONITOR_WEEKS
+    And an empty, unknown or non-whole-week monitor setting is rejected naming "knowledgeRun.monitorSources" or "knowledgeRun.monitorWeeks"
 
   Scenario: the stages check out the commit the site runs
     Then the container environment names the CMS Amplify app

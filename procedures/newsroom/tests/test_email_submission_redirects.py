@@ -31,6 +31,8 @@ def test_only_exact_https_beehiiv_click_wrappers_are_resolvable():
         "https://user@link.mail.beehiiv.com/ss/c/route?id=opaque",
         "https://link.mail.beehiiv.com:8443/ss/c/route?id=opaque",
         "https://link.mail.beehiiv.com/unsubscribe?id=opaque",
+        "https://link.mail.beehiiv.com/ss/c/unsubscribe?id=opaque",
+        "https://link.mail.beehiiv.com/ss/c/manage-preferences?id=opaque",
         "https://other.example/ss/c/route?id=opaque",
         "https://link.mail.beehiiv.com/ss/c/route?action=unsubscribe",
     ):

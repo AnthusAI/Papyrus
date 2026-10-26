@@ -1,5 +1,9 @@
 """The Monitoring page's read path: scoping, permissions, usage, empty and error states, read-only access."""
 import json
+import io
+import sys
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -8,8 +12,9 @@ from papyrus_content import monitoring_view as mv
 from papyrus_content.monitoring_view import Forbidden, monitoring_overview
 
 
-def overview(groups=("editor",), endpoint=fx.APP_ANTH, scope="publication", store=None):
-    return monitoring_overview(store or fx.FakeViewStore(), groups=list(groups), site_endpoint=endpoint, scope=scope, now=fx.NOW)
+def overview(groups=("editor",), endpoint=fx.APP_ANTH, scope="publication", store=None, email_store=None):
+    return monitoring_overview(store or fx.FakeViewStore(), groups=list(groups), site_endpoint=endpoint,
+                               scope=scope, now=fx.NOW, email_store=email_store)
 
 
 def test_editor_overview_is_scoped_to_the_viewing_publication():
@@ -62,18 +67,18 @@ def test_unknown_scope_is_refused_as_bad_request():
         overview(scope="everything")
 
 
-def test_usage_counts_decisions_by_utc_day_against_configured_ceilings():
+def test_usage_counts_decisions_by_utc_day_without_showing_retired_ceilings():
     usage = overview()["usage"]
     assert (usage["decisionsToday"], usage["decisionsTotal"], usage["day"]) == (2, 3, "2026-10-21")
-    assert usage["ceilings"] == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
+    assert "ceilings" not in usage
 
 
-def test_no_ceilings_configured_still_reports_usage():
+def test_legacy_ceilings_are_ignored_and_usage_is_still_reported():
     table = [r for r in fx.rows() if r["sk"] != "CONFIG#router"]
     router = next(r for r in fx.rows() if r["sk"] == "CONFIG#router")
-    router.pop("ceilings")
+    router["ceilings"] = {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
     result = overview(store=fx.FakeViewStore(table + [router]))
-    assert result["usage"]["ceilings"] is None and result["usage"]["decisionsTotal"] == 3
+    assert "ceilings" not in result["usage"] and result["usage"]["decisionsTotal"] == 3
 
 
 def test_publication_outside_the_router_gets_a_notice_not_data_about_others():
@@ -127,6 +132,26 @@ def test_table_store_uses_only_get_item_and_query():
     table = ReadOnlyTable(fx.rows())
     result = monitoring_overview(mv.TableViewStore(table), groups=["admin"], site_endpoint=fx.APP_ANTH, scope="all", now=fx.NOW)
     assert len(result["items"]) == 5 and set(table.calls) == {"get_item", "query"}
+
+
+def test_bounded_decision_history_marks_truncated_counts_as_lower_bounds():
+    class PagedTable:
+        def __init__(self, pages):
+            self.pages, self.calls = pages, 0
+
+        def query(self, **_kwargs):
+            index = self.calls
+            self.calls += 1
+            response = {"Items": [{"decision": {"decidedAt": "2026-10-21T12:00:00Z"}}]}
+            if index < self.pages - 1:
+                response["LastEvaluatedKey"] = {"pk": "MONITOR#hn", "sk": f"ROUTE#{index:06d}"}
+            return response
+
+    times, complete = mv.TableViewStore(PagedTable(mv.MAX_DECISION_PAGES + 1)).decision_times()
+    assert len(times) == mv.MAX_DECISION_PAGES and not complete
+
+    times, complete = mv.TableViewStore(PagedTable(3)).decision_times()
+    assert len(times) == 3 and complete
 
 
 def event(groups, scope="publication", field="monitoringOverview", **arguments):
@@ -196,6 +221,72 @@ def test_email_submission_list_is_scoped_to_this_publication_and_contains_signal
     assert "https://example.org/article" not in json.dumps(result)
 
 
+def test_email_submissions_can_use_the_receiver_partition_without_switching_the_main_monitor():
+    email_pk = "MONITOR#p-apyr-us-email"
+    main_store = fx.FakeViewStore(fx.rows())
+    email_router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    email_router["pk"] = email_pk
+    email_table = [email_router, *email_rows(("p-apyr-us",))]
+    for row in email_table:
+        row["pk"] = email_pk
+    email_store = fx.FakeViewStore(email_table)
+
+    result = overview(endpoint=fx.APP_PAPYRUS, store=main_store, email_store=email_store)
+
+    assert [item["subject"] for item in result["emailSubmissions"]] == ["Newsletter"]
+    assert result["router"]["mode"] == "live"
+    assert main_store.newest("EMAILINDEX#", 10) == []
+
+
+def test_email_detail_uses_configured_receiver_partition_and_keeps_auth_checks():
+    email_pk = "MONITOR#p-apyr-us-email"
+    main_store = fx.FakeViewStore(fx.rows())
+    email_router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    email_router["pk"] = email_pk
+    email_table = [email_router, *email_rows(("p-apyr-us",))]
+    for row in email_table:
+        row["pk"] = email_pk
+    email_store = fx.FakeViewStore(email_table)
+    receipt_id = "EMAIL#" + "a" * 64
+    detail_event = event(["editor"], field="monitoringEmailSubmission", receiptId=receipt_id)
+    env = {"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS, "PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email"}
+
+    result = mv.handle(detail_event, env=env, store_factory=lambda: main_store,
+                       email_store_factory=lambda: email_store)
+
+    assert result["safeBodyText"] == "Read as plain text\n"
+    assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
+    assert mv.configured_email_monitor_id(env) == "p-apyr-us-email"
+    with pytest.raises(ValueError, match="invalid configured email monitor id"):
+        mv.configured_email_monitor_id({"PAPYRUS_EMAIL_MONITOR_ID": "MONITOR#hn"})
+
+
+def test_default_email_store_factory_uses_the_server_configured_partition(monkeypatch):
+    class FakeSSM:
+        class exceptions:
+            class ParameterNotFound(Exception):
+                pass
+
+        def get_parameter(self, *, Name):
+            assert Name == mv.TABLE_PARAMETER
+            return {"Parameter": {"Value": "monitoring-table"}}
+
+    table = object()
+    fake_boto3 = SimpleNamespace(
+        client=lambda service, **_kwargs: FakeSSM() if service == "ssm" else None,
+        resource=lambda service, **_kwargs: SimpleNamespace(Table=lambda name: table if name == "monitoring-table" else None)
+        if service == "dynamodb" else None,
+    )
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    mv._table_name_cache.clear()
+    try:
+        store = mv.default_email_store_factory({"PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email"})()
+    finally:
+        mv._table_name_cache.clear()
+    assert isinstance(store, mv.TableViewStore)
+    assert store.pk == "MONITOR#p-apyr-us-email"
+
+
 def test_email_submission_details_are_editor_only_and_publication_scoped():
     store = fx.FakeViewStore(fx.rows() + email_rows())
     receipt_id = "EMAIL#" + "a" * 64
@@ -205,11 +296,146 @@ def test_email_submission_details_are_editor_only_and_publication_scoped():
     assert result["safeBodyText"] == "Read as plain text\n"
     assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
     assert result["sourceMaterialIsUntrusted"] is True
+
+
+def test_email_article_redirect_resolution_is_an_explicit_scoped_editor_action():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    receipt = store.get(receipt_id)
+    receipt["status"] = "pending_review"
+    store.table[receipt_id] = receipt
+    details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
+    store.table[details_key]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
+        '"title":"Story","resolutionStatus":"unresolved"}]'
+    )
+    calls = []
+    event = {"info": {"fieldName": "monitoringResolveEmailArticleLink"},
+             "arguments": {"receiptId": receipt_id, "candidateIndex": 0},
+             "identity": {"groups": ["editor"]}}
+    with patch.object(mv, "monitoring_email_resolve_article_link", return_value={"resolved": True}) as dispatched:
+        result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
+    assert result == {"resolved": True} and dispatched.call_args.kwargs["candidate_index"] == 0
+
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/story",
+    )
+    assert result == {"url": "https://news.example.org/story", "title": "Story", "resolved": True}
+    assert calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
+    assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000")["sourceUri"] == "https://news.example.org/story"
+    repeated = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append("duplicate:" + url) or "https://wrong.example/",
+    )
+    assert repeated == result and calls == ["https://link.mail.beehiiv.com/ss/c/article-token"]
+
+
+def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
     store.table[receipt_id]["status"] = "pending_review"
-    result = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
-    assert result["submission"]["status"] == "pending_review"
-    denied = mv.handle(event, env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}, store_factory=lambda: store)
-    assert denied == {"error": "forbidden"}
-    refused = mv.handle({**event, "identity": {"groups": ["reader"]}},
-                        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=lambda: store)
-    assert refused == {"error": "forbidden"}
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/unsubscribe?unsubscribe=true",'
+        '"title":"Unsubscribe","resolutionStatus":"unresolved"}]'
+    )
+    calls = []
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/story",
+    )
+    assert result == {"error": "not_resolvable"} and calls == []
+    with pytest.raises(Forbidden):
+        mv.monitoring_email_resolve_article_link(
+            store, groups=["editor"], site_endpoint=fx.APP_PAPYRUS, receipt_id=receipt_id,
+            candidate_index=0, resolver=lambda url: calls.append(url),
+        )
+    assert calls == []
+
+
+def test_email_redirect_and_persistence_failures_remain_fail_closed():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "pending_review"
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
+        '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
+        '"title":"Story","resolutionStatus":"unresolved"}]'
+    )
+
+    def failed_request(_url):
+        raise OSError("network unavailable")
+
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=failed_request,
+    )
+    assert result == {"error": "resolution_failed", "reason": "redirect_request_failed"}
+
+    with patch.object(store, "record_email_resolution", side_effect=ValueError("write conflict")):
+        result = mv.monitoring_email_resolve_article_link(
+            store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+            candidate_index=0, resolver=lambda _url: "https://news.example.org/story",
+        )
+    assert result == {"error": "resolution_failed", "reason": "resolution_not_recorded"}
+    assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000") is None
+
+
+def test_production_beehiiv_resolver_pins_public_addresses_and_sends_head_without_reading_body():
+    tracker = "https://link.mail.beehiiv.com/ss/c/article-token"
+    requests, destinations, files, hostnames = [], [], [], []
+    responses = [
+        (b"HTTP/1.1 302 Found\r\nLocation: https://news.example.org/story?utm_source=mail\r\n"
+         b"Content-Length: 4\r\n\r\nBODY"),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nBODY",
+    ]
+
+    class FakeSocket:
+        def __init__(self, response):
+            self.response = response
+
+        def sendall(self, data):
+            requests.append(data.decode("ascii"))
+
+        def makefile(self, *_args, **_kwargs):
+            class TrackingStream(io.BytesIO):
+                position_before_close = None
+                body_start = None
+
+                def close(self):
+                    self.position_before_close = self.tell()
+                    self.body_start = self.getvalue().index(b"BODY")
+                    super().close()
+
+            stream = TrackingStream(self.response)
+            files.append(stream)
+            return stream
+
+        def close(self):
+            return None
+
+        def shutdown(self, *_args):
+            return None
+
+    class FakeContext:
+        def wrap_socket(self, raw, *, server_hostname):
+            hostnames.append(server_hostname)
+            return raw
+
+    def getaddrinfo(host, *_args, **_kwargs):
+        return [(2, 1, 6, "", ("93.184.216.34", 443))]
+
+    def connect(address, *, timeout):
+        destinations.append((address, timeout))
+        return FakeSocket(responses.pop(0))
+
+    with patch.object(mv.socket, "getaddrinfo", side_effect=getaddrinfo), \
+            patch.object(mv.socket, "create_connection", side_effect=connect), \
+            patch.object(mv.ssl, "create_default_context", return_value=FakeContext()):
+        result = mv._resolve_beehiiv_article(tracker)
+
+    assert result == "https://news.example.org/story"
+    assert [destination[0] for destination in destinations] == [("93.184.216.34", 443)] * 2
+    assert hostnames == ["link.mail.beehiiv.com", "news.example.org"]
+    assert len(requests) == 2 and all(request.startswith("HEAD ") for request in requests)
+    assert all("Cookie:" not in request and "Authorization:" not in request for request in requests)
+    assert all(stream.position_before_close == stream.body_start for stream in files)

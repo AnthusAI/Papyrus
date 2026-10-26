@@ -14,6 +14,15 @@ from .monitoring import Monitor, SourceItem, canonical_url
 from .records import apply_record_changes, build_record_changes
 
 
+def _rule_text(rule) -> str:
+    """The direct-routing rule in words for the editor's rationale line."""
+    if not isinstance(rule, dict):
+        return "every collected item"
+    reasons = (["a watchlisted author"] if rule.get("authors") else []) \
+        + [f"at least {rule[key]} {name}" for key, name in (("minLikes", "likes"), ("minDownloads", "downloads")) if rule.get(key) is not None]
+    return " or ".join(reasons) if reasons else "matching the monitor's filters"
+
+
 class ReferenceIntake:
     def __init__(self, client, monitor: Monitor, *, auth_mode: str, persist=None):
         if auth_mode != "iam":
@@ -34,9 +43,20 @@ class ReferenceIntake:
         if not isinstance(decision, dict):
             return ""
         if decision.get("system") == "direct":
-            return " Delivered by the monitor's rule for this source (every collected item); no machine relevance decision."
+            return f" Delivered by the monitor's rule for this source ({_rule_text(decision.get('rule'))}); no machine relevance decision."
         return (f" Machine decision: {decision.get('system')} labelled {decision.get('output')} "
                 f"{decision.get('label')} (decision {decision.get('decisionId')}, version {decision.get('version')}).")
+
+    @staticmethod
+    def _details_note(item: SourceItem) -> str:
+        """For a source with structured details (a Hugging Face model), a short line an editor can scan."""
+        d = item.details
+        if not d:
+            return ""
+        parts = [d.get("pipelineTag"), f"license {d['license']}" if d.get("license") else None,
+                 f"{d['likes']} likes", "built on " + ", ".join(b["modelId"] for b in d["baseModels"][:3]) if d.get("baseModels") else None]
+        text = "; ".join(p for p in parts if p)
+        return f" {text[:1].upper()}{text[1:]}." if text else ""
 
     def __call__(self, item: SourceItem, provenance: dict, extra_records=None) -> dict:
         """`extra_records(reference)` may return more records for the same persist batch (the router's lab
@@ -70,7 +90,7 @@ class ReferenceIntake:
             "published_at": item.published_at, "retrieved_at": provenance["observedAt"],
             "curation_status": "pending", "ingestion_rationale":
                 f"Discovered through {self.monitor.source_name} Monitor {self.monitor.id} for {self.monitor.publication}; pending human review. {item.source_item_url}"
-                + self._machine_decision_note(provenance),
+                + self._details_note(item) + self._machine_decision_note(provenance),
         })
         context = {"corpusId": self.monitor.corpus_id,
                    "importRunId": "monitor-" + hash_short([self.monitor.binding, item.source_id, item.fingerprint]),
@@ -113,7 +133,9 @@ class ReferenceIntake:
             "objectKind": "reference", "objectId": reference["id"],
             "objectLineageId": reference["lineageId"], "objectVersionNumber": reference.get("versionNumber") or 1,
             "importRunId": context["importRunId"], "importedAt": provenance["observedAt"],
-            "metadata": {"monitorId": self.monitor.id, "sourceId": item.source_id},
+            # A source with structured details (a Hub model) keeps them here, where the weekly knowledge run reads them with one
+            # indexed query (knowledge_snapshot/monitor_records.py); the Message body holds them too, in private storage.
+            "metadata": {"monitorId": self.monitor.id, "sourceId": item.source_id, **({"details": item.details} if item.details else {})},
         })
         run = {"modelName": "KnowledgeImportRun", "expected": {
             "id": context["importRunId"], "corpusId": self.monitor.corpus_id,

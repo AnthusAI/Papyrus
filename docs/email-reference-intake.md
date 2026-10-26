@@ -17,25 +17,31 @@ introduced. Multiple publications continue to have their own AppSync endpoints
 and verified canonical corpora; this adapter does not open cross-tenant Knowledge
 model access.
 
-The sequence is SES receipt, private MIME storage, deterministic link extraction,
-durable Monitoring discoveries, publication routing, and existing pending
-Reference intake. Canonical URL matches reuse the existing Reference without
-resetting its human curation. Private provenance records identify the email and
-destination; machine decisions remain machine decisions.
+The automatic sequence is SES receipt, private MIME storage, deterministic link
+extraction, and durable Monitoring records. Authentication-warning messages do
+not create discoveries or enter publication routing. An editor can read the
+inert message, select candidate article links, and explicitly add them to the
+publication's existing pending `Reference` queue. The editor-session action
+reuses canonical URL identities without resetting existing curation and records
+the editor and email-receipt provenance. Import is not a vote, human label,
+classification request, or publication. Editors curate the References through
+the existing References workflow. A later authorized section sweep can process
+pending references; the email receiver does not start that sweep or create a
+scheduler. Its preview is:
 
-Pending references join the publication's existing `decide-site-sections` sweep.
-The shared classifier selects publications; each publication's internal
-classifier suggests sections. The receiver does not start a section sweep or
-create a new scheduler. Activation must verify that the site's existing sweep is
-configured and running. Its preview is:
+The Monitoring action sends a maximum of 20 selected links per API request and
+continues through the full selection. This is a work-batch size, not a total
+link limit. If a request fails partway through, the editor can retry: canonical
+URL intake reuses completed References and preserves existing curation.
 
 ```bash
 papyrus references decide-site-sections --config <site-steering.yml> --json
 ```
 
 Applying a sweep requires the site's authorized runtime and explicit doctrine.
-Email ingestion creates no human labels, accepted references, or published items.
-It sends no acknowledgement and does not execute console commands.
+Email ingestion and editor import create no human labels, accepted references,
+or published items. The receiver sends no acknowledgement and does not execute
+console commands.
 
 ## Untrusted content and limits
 
@@ -64,22 +70,15 @@ confirmation actions and secret-bearing links are excluded. Tracking parameters
 and fragments are removed from ordinary article URLs before deduplication. Known
 Beehiiv `link.mail.beehiiv.com/ss/c/` wrappers are retained as private unresolved
 candidates for editor review, but are not emitted as discoveries or made clickable.
-No URL is fetched, followed or resolved during intake, including to unwrap a
-tracker. This bounds intake network activity to configured S3 and DynamoDB resources.
-
-An offline-tested resolver helper exists for a future explicitly approved
-integration. It accepts only that exact Beehiiv HTTPS wrapper, uses injected DNS
-and transport adapters, and requires DNS and transport to honor bounded timeouts
-and the transport to pin each connection to
-validated public addresses, preserve hostname verification, disable ambient
-proxy/cookie use and automatic redirects, send HEAD only, and read no response
-body. It bounds redirects, per-hop and total time, rejects private or mixed DNS
-answers, action links, unsafe targets and HTTPS downgrades, and returns only a
-normalized final article URL. Production intake does not inject or call this
-helper; tests use synthetic DNS and responses only. Resolving recipient-specific
-click links contacts a third party and may reveal recipient tracking identifiers,
-so that integration remains disabled pending explicit approval and a reviewed
-privacy policy.
+An editor can explicitly resolve a selected article wrapper. The action pins each
+connection to validated public DNS answers, preserves hostname verification,
+disables ambient proxy/cookie use and automatic redirects, sends HEAD only, and
+reads no response body. It bounds redirects and time, rejects private or mixed
+DNS answers, action links, unsafe targets and HTTPS downgrades, and returns only a
+normalized final article URL. It does not run during intake. Resolving a
+recipient-specific article click may reveal a tracking identifier to the sender;
+unsubscribe, preference, login, and account-action links are never resolved.
+Tests use synthetic DNS and responses only.
 Later accession/enrichment remains a separate existing workflow and needs its
 own safe-fetch policy; this change does not authorize fetching private resources.
 
@@ -87,7 +86,8 @@ The raw MIME is retained in the private 30-day S3 prefix. Editors can read a saf
 text rendering, bounded SES verdicts and every extracted candidate link through the
 existing authenticated Monitoring page, scoped to their configured publication.
 Authentication-warning submissions show as `pending_review` and do not create
-router discoveries; the editor UI renders unresolved tracking URLs as non-clickable text.
+router discoveries. The editor UI renders unresolved tracking URLs as non-clickable
+text and can explicitly register selected direct/resolved URLs as pending References.
 HTML is converted to inert text: scripts, styles, remote images, markup and active
 content are never rendered. Email body text is not sent to the classifier; only
 normalized candidate URLs and bounded link titles enter discovery. These private

@@ -411,3 +411,18 @@ def step_other_week_entry(context, day):
 def step_ledger_details(context, stage, text):
     item = context.run_.ledger.table.get_item(Key={"publication": "shipped", "runKey": f"2026-W44#{context.run_.config.execution_name}#{stage}"})["Item"]
     assert item["details"]["archive"] == text, item
+
+
+@given('the site sets the monitor sources "{sources}" for {weeks:d} weeks')
+def step_monitor_sources(context, sources, weeks):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources, "KNOWLEDGE_MONITOR_WEEKS": str(weeks)}
+    start(context, context.execution, context.extra)
+
+
+@then('each of the commands {commands} was given "--monitor-records" with the week\'s records file')
+def step_monitor_records_file(context, commands):
+    expected = str(context.run_.work / "runs" / "2026-W44" / "monitor-records.json")
+    for text in names(commands):
+        found = [call for call in context.shell.calls if text in " ".join(call)]
+        assert found, text
+        assert all(call[call.index("--monitor-records") + 1] == expected for call in found), (text, found)

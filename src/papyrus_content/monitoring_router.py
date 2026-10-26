@@ -14,6 +14,10 @@ Everything (mode, endpoints, publications, account, run, binding revision) is da
 A monitor whose router config says `decisions: direct` makes no relevance call at all: every
 collected item goes to every configured publication, recorded as the monitor's own rule.
 That suits sources a section covers exhaustively (every TTAB decision for a rulings tracker).
+A direct monitor may add a `rule` (the same shape as a Hugging Face monitor's acceptance rule: `pipelineTags`,
+`authors`, `minLikes`, `minDownloads`, and the `excludeTags`, `excludeBaseRelations`, `excludeIdPatterns`
+exclusions): an item that fails it is finished as `routed` with the reason and
+delivered nowhere, so a deterministic rule can stand in until Cyclotron criteria exist.
 
 A publication may also list `procedureTriggers`: after the router creates a new Reference there, it starts
 each named Tactus procedure once per source item by invoking the procedure runner asynchronously
@@ -55,6 +59,7 @@ from .email_submission_authorization import (
 )
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
+from .monitoring_huggingface import hf_accepts, validate_rule
 
 CONTRACT_VERSION = "cyclotron-publication/v1"
 ROUTER_CONFIG_SK = "CONFIG#router"
@@ -80,6 +85,9 @@ PARK_PREFIX = "PARK#"
 PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX, PARK_KEEP_ITEMS = 1800, 6 * 3600, 25
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
+#: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
+ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface"}
+ITEM_SOURCE_NAMES = frozenset({"hacker-news", *ITEM_SOURCES.values()})
 PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 APPSYNC_HOST = re.compile(r"^[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com$")
 EXECUTE_API_HOST = re.compile(r"^[a-z0-9]+\.execute-api\.([a-z0-9-]+)\.amazonaws\.com$")
@@ -119,28 +127,11 @@ class ItemInvalid(Exception):
     pass
 
 
+class ItemExcluded(Exception):
+    """The monitor's own rule (router `rule`, direct decisions) leaves this item out of every publication."""
+
+
 # --- config ---------------------------------------------------------------------------------------
-
-CEILING_KEYS = ("decisionsTotal", "decisionsPerDay", "items")
-
-
-def validate_ceilings(raw) -> dict | None:
-    """The shared Cyclotron's decision ceilings, mirrored as display data for the Monitoring page.
-
-    The router never reads them to decide anything: Cyclotron enforces its own ceilings and the router
-    stops when it says so. They exist only so the page can show usage against them.
-    """
-    if raw is None:
-        return None
-    if not isinstance(raw, dict) or not raw or set(raw) - set(CEILING_KEYS):
-        raise ValueError(f"router ceilings must be an object with only {', '.join(CEILING_KEYS)}")
-    out = {}
-    for key, value in raw.items():
-        if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)) or value <= 0 or value != int(value):
-            raise ValueError(f"router ceilings.{key} must be a positive whole number")
-        out[key] = int(value)
-    return out
-
 
 def feedback_partition(monitor_id: str) -> str:
     return f"FEEDBACK#{monitor_id}#pending"
@@ -161,12 +152,15 @@ def validate_router_config(raw: dict) -> dict:
     if decisions not in DECISIONS:
         raise ValueError("router decisions must be cyclotron or direct")
     publications = validate_router_publications(raw)
+    if decisions != "direct" and raw.get("rule") is not None:
+        raise ValueError("router rule applies only to decisions: direct")
     if decisions == "direct":
         if raw.get("feedback") is True:
             raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
+        rule = validate_rule(raw["rule"], name="router rule") if raw.get("rule") is not None else None
         return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-                "decisions": decisions, "feedback": False, "ceilings": None, "publications": publications,
-                "cyclotron": None, **account_scope}
+                "decisions": decisions, "feedback": False, "publications": publications,
+                "cyclotron": None, "rule": rule, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
     endpoint = urlsplit(str(cyclotron.get("endpoint") or ""))
     match = EXECUTE_API_HOST.match(endpoint.netloc)
@@ -184,9 +178,8 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
-    ceilings = validate_ceilings(raw.get("ceilings"))
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
-            "decisions": decisions, "feedback": raw.get("feedback") is True, "ceilings": ceilings,
+            "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
                           "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}, **account_scope}
@@ -318,7 +311,7 @@ def build_item(discovery: dict) -> dict:
     title, url = str(discovery.get("title") or ""), str(discovery.get("canonicalUrl") or "")
     if not SOURCE_ID.match(source_id) or not title.strip() or len(title) > 1000 or not url or len(url) > 2048:
         raise ItemInvalid("discovery is not a valid Cyclotron item")
-    source = "email" if discovery.get("sourceType") == "email" else "hacker-news"
+    source = ITEM_SOURCES.get(discovery.get("sourceType"), "hacker-news")
     return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": {
         "title": title, "url": url, "source": source,
         "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""), "text": f"{title}\n{url}"}}
@@ -352,11 +345,11 @@ def validate_request(body: dict) -> None:
         values = item.get("values") or {}
         if set(payload) != {"bindingRevision", "item"} or not payload["bindingRevision"]:
             raise ValueError("decide payload shape")
-        email_item = values.get("source") == "email"
-        valid_id = bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}-[A-Za-z0-9_-]{1,64}", str(item.get("id", "")))) if email_item else str(item.get("id", "")).startswith("hn-")
+        valid_id = (str(item.get("id", "")).startswith("hn-") if values.get("source") == "hacker-news" else
+                    bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}-[A-Za-z0-9_-]{1,64}", str(item.get("id", "")))))
         if set(item) != {"id", "values"} or not valid_id:
             raise ValueError("decide item shape")
-        if set(values) != {"title", "url", "source", "sourceItemUrl", "text"} or values["source"] not in {"hacker-news", "email"}:
+        if set(values) != {"title", "url", "source", "sourceItemUrl", "text"} or values["source"] not in ITEM_SOURCE_NAMES:
             raise ValueError("decide item values shape")
         if any(not isinstance(v, str) or not v for v in values.values()) or values["text"] != f"{values['title']}\n{values['url']}":
             raise ValueError("decide item values content")
@@ -723,13 +716,14 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
                       publication["appsyncEndpoint"], Path("/nonexistent"), source_url=source_url,
                       source_name="Email submission" if disc.get("sourceType") == "email" else source_name_for(source_url))
     item = SourceItem(str(disc["sourceId"]), disc["title"], disc["canonicalUrl"], disc["sourceItemUrl"],
-                      disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html", tuple(disc.get("aliases") or ()))
+                      disc.get("sourcePublishedAt"), disc.get("mediaType") or "text/html", tuple(disc.get("aliases") or ()),
+                      disc.get("details") or None)
     if item.fingerprint != disc["fingerprint"]:
         raise ItemInvalid("stored fingerprint does not match the discovery")
     if config.get("decisions") == "direct":
         chosen = {"kind": "monitor rule", "system": "direct", "decisionId": decision["decisionId"],
                   "output": decision["output"], "label": decision["label"],
-                  "rule": "every collected item goes to every configured publication"}
+                  "rule": config.get("rule") or "every collected item goes to every configured publication"}
     else:
         chosen = {"kind": "machine decision", "system": "cyclotron", "decisionId": decision["decisionId"],
                   "output": decision["output"], "label": decision["label"],
@@ -738,7 +732,7 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
                   "bindingRevision": config["cyclotron"]["bindingRevision"]}
     provenance = {**monitor.binding, "sourceId": item.source_id, "sourceItemUrl": item.source_item_url,
                   "fingerprint": item.fingerprint, "observedAt": disc["observedAt"], "revision": int(disc["revision"]),
-                  "machineDecision": chosen}
+                  "machineDecision": chosen, **({"details": disc["details"]} if disc.get("details") else {})}
     if disc.get("sourceType") == "email":
         provenance["emailSubmission"] = disc["emailProvenance"]
         provenance["sectionHandoff"] = "pending-reference-site-sweep"
@@ -829,7 +823,11 @@ class Router:
         requests = {}
         for publication in (self.active_publications or self.config["publications"]):
             if self.config["decisions"] == "direct":
-                requests[publication["publicationId"]] = {"direct": True, "wouldDeliver": True}
+                try:
+                    self.check_rule(disc)
+                    requests[publication["publicationId"]] = {"direct": True, "wouldDeliver": True}
+                except ItemExcluded as excluded:
+                    requests[publication["publicationId"]] = {"direct": True, "wouldDeliver": False, "reason": str(excluded)}
                 continue
             try:
                 built = build_decide_request(self.config, publication, disc)
@@ -1073,8 +1071,15 @@ class Router:
         jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
         self.save(route)
 
+    def check_rule(self, disc: dict) -> None:
+        """A direct monitor's optional `rule`, run on the structured fields the collector stored."""
+        rule = self.config.get("rule")
+        if rule and not hf_accepts(disc.get("details") or {}, rule):
+            raise ItemExcluded("excluded by the monitor's rule")
+
     def decide_direct(self, disc: dict, route: dict) -> None:
         """The monitor's own rule: deliver to every configured publication, no relevance call."""
+        self.check_rule(disc)
         decision_id = f"direct-{self.monitor_id}-{disc['sourceId']}-{int(disc['revision']):06d}"
         route["decision"] = {
             "decisionId": decision_id, "source": {"revision": int(disc["revision"])}, "decidedAt": _iso(self.now),
@@ -1271,6 +1276,8 @@ class Router:
             self.counts["routed"] += 1
         except AllBindingsNotReady:
             self.finish(disc, route, "parked", "every binding is waiting for a classifier")
+        except ItemExcluded as error:
+            self.finish(disc, route, "routed", str(error))
         except ItemRefused as error:
             self.finish(disc, route, "refused", str(error))
         except ItemUncertain as error:

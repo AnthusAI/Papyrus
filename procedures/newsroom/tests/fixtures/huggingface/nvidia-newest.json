@@ -1,0 +1,148 @@
+[
+ {
+  "_id": "6ada54bd6c00c01702235f13",
+  "id": "nvidia/InternVideo2-CLIP-anomaly-detection",
+  "author": "nvidia",
+  "cardData": {
+   "license": "other",
+   "license_name": "nvidia-internal-scientific-research-and-development-model-license",
+   "license_link": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-internal-scientific-research-and-development-model-license/",
+   "tags": [
+    "nvidia",
+    "tao",
+    "video-text-retrieval",
+    "video-embeddings",
+    "physical-ai",
+    "anomaly-detection",
+    "lora",
+    "fine-tuned",
+    "pytorch",
+    "onnx",
+    "tensorrt"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-23T17:38:28.000Z",
+  "likes": 6,
+  "trendingScore": 6,
+  "sha": "3fcf5b2fbc8607a038660c367fb763b11f8ba2d4",
+  "downloads": 74,
+  "tags": [
+   "tensorrt",
+   "onnx",
+   "safetensors",
+   "nvidia",
+   "tao",
+   "video-text-retrieval",
+   "video-embeddings",
+   "physical-ai",
+   "anomaly-detection",
+   "lora",
+   "fine-tuned",
+   "pytorch",
+   "license:other",
+   "region:us"
+  ],
+  "library_name": "tensorrt",
+  "createdAt": "2026-10-22T18:23:57.000Z"
+ },
+ {
+  "_id": "6ad6897211ffd4dabaa2bdd7",
+  "id": "nvidia/cosmos3-nano-libero10-sdg-export-S5_2_s43",
+  "author": "nvidia",
+  "cardData": {
+   "license": "other",
+   "license_name": "nvidia-open-model-license",
+   "license_link": "https://huggingface.co/nvidia/Cosmos3-Nano",
+   "base_model": "nvidia/Cosmos3-Nano",
+   "tags": [
+    "cosmos",
+    "robotics",
+    "libero",
+    "vla"
+   ]
+  },
+  "gated": false,
+  "lastModified": "2026-10-20T16:53:27.000Z",
+  "likes": 0,
+  "trendingScore": 0,
+  "sha": "9893f529d973fc0bdb769581ec82e9cd3e12167d",
+  "downloads": 188,
+  "tags": [
+   "cosmos",
+   "safetensors",
+   "cosmos3_omni",
+   "robotics",
+   "libero",
+   "vla",
+   "custom_code",
+   "base_model:nvidia/Cosmos3-Nano",
+   "base_model:finetune:nvidia/Cosmos3-Nano",
+   "license:other",
+   "region:us"
+  ],
+  "pipeline_tag": "robotics",
+  "library_name": "cosmos",
+  "createdAt": "2026-10-19T21:19:46.000Z"
+ },
+ {
+  "_id": "6ad610eec3bdb6762dcee3df",
+  "id": "nvidia/Cosmos3-H-Embodied-Nano",
+  "author": "nvidia",
+  "cardData": {
+   "license": "other",
+   "license_name": "nvidia-open-model-license",
+   "license_link": "https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
+   "pipeline_tag": "robotics",
+   "tags": [
+    "simulation",
+    "surgical-robotics",
+    "video-generation",
+    "world-model",
+    "forward-dynamics",
+    "inverse-dynamics",
+    "policy",
+    "policy-evaluation",
+    "imitation-learning",
+    "healthcare-robotics"
+   ],
+   "base_model": [
+    "nvidia/Cosmos3-Nano"
+   ],
+   "datasets": [
+    "nvidia/PhysicalAI-Robotics-Open-H-Embodiment"
+   ],
+   "library_name": "nv-medtech"
+  },
+  "gated": false,
+  "lastModified": "2026-10-20T17:26:44.000Z",
+  "likes": 2,
+  "trendingScore": 2,
+  "sha": "710459f061e0ddc0f4cbd8a581e686efb013839b",
+  "downloads": 108,
+  "tags": [
+   "nv-medtech",
+   "custom",
+   "simulation",
+   "surgical-robotics",
+   "video-generation",
+   "world-model",
+   "forward-dynamics",
+   "inverse-dynamics",
+   "policy",
+   "policy-evaluation",
+   "imitation-learning",
+   "healthcare-robotics",
+   "robotics",
+   "dataset:nvidia/PhysicalAI-Robotics-Open-H-Embodiment",
+   "arxiv:2511.00062",
+   "base_model:nvidia/Cosmos3-Nano",
+   "base_model:finetune:nvidia/Cosmos3-Nano",
+   "license:other",
+   "region:us"
+  ],
+  "pipeline_tag": "robotics",
+  "library_name": "nv-medtech",
+  "createdAt": "2026-10-19T12:45:34.000Z"
+ }
+]

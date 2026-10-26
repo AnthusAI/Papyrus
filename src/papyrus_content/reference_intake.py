@@ -7,8 +7,10 @@ closed rather than treating a caller's tenant/corpus claim as authorization.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
-from datetime import datetime, timezone
+import re
+from datetime import UTC, datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -147,6 +149,111 @@ def intake_references(client, arguments: dict, identity: dict) -> dict:
         for item in items
     ]
     return {"ok": True, "publicationEndpoint": publication, "references": results}
+
+
+def _email_receipt_candidates(receipt_store, receipt_id: str, publication: str) -> tuple[dict, list[dict], dict]:
+    """Load and scope one private receipt and its canonical candidate sequence."""
+    if receipt_store is None:
+        raise IntakeError("Email receipt verification is not configured.")
+    receipt = receipt_store.get(receipt_id)
+    if (not receipt or receipt.get("status") not in {"pending_review", "queued"}
+            or receipt.get("emailTrustMode") != "data-only"):
+        raise IntakeError("The email receipt is unavailable for Reference intake.")
+    receipt_ttl = receipt.get("ttl")
+    if (not isinstance(receipt_ttl, int) or isinstance(receipt_ttl, bool)
+            or receipt_ttl <= int(datetime.now(UTC).timestamp())):
+        raise IntakeError("The email receipt is unavailable for Reference intake.")
+    router = receipt_store.get("CONFIG#router") or {}
+    target = next((row for row in router.get("publications", [])
+                   if isinstance(row, dict) and str(row.get("appsyncEndpoint", "")).rstrip("/") == publication), None)
+    if not target:
+        raise IntakeError("The email receipt is not routed to this publication.")
+    publication_id = target.get("publicationId")
+    if not isinstance(publication_id, str) or publication_id not in (receipt.get("emailDestinationPublicationIds") or []):
+        raise IntakeError("The email receipt is not routed to this publication.")
+    digest = receipt_id.removeprefix("EMAIL#")
+    links = []
+    for row in receipt_store.email_details(digest):
+        if "#LINKS#" not in str(row.get("sk", "")):
+            continue
+        try:
+            chunk = json.loads(row.get("json", "[]"))
+        except (TypeError, json.JSONDecodeError):
+            raise IntakeError("The email receipt candidate list is unavailable.") from None
+        if not isinstance(chunk, list) or any(not isinstance(link, dict) for link in chunk):
+            raise IntakeError("The email receipt candidate list is unavailable.")
+        links.extend(chunk)
+    return receipt, links, target
+
+
+def intake_email_submission_references(client, arguments: dict, identity: dict, *, env=None, receipt_store=None) -> dict:
+    """Register editor-selected email candidates as pending References, never as votes.
+
+    Email bodies, SES signals and sender claims are not accepted from the browser.
+    The receipt identifier is a private, non-reversible intake id and is recorded
+    in the ordinary intake rationale/provenance attachment.
+    """
+    import os
+
+    env = os.environ if env is None else env
+    if not isinstance(arguments, dict) or set(arguments) != {"receiptId", "items"}:
+        raise IntakeError("Email Reference intake accepts only a receipt id and selected candidate links.")
+    receipt_id = arguments.get("receiptId")
+    if not isinstance(receipt_id, str) or not re.fullmatch(r"EMAIL#[a-f0-9]{64}", receipt_id):
+        raise IntakeError("A valid private email receipt id is required.")
+    publication = env.get("PAPYRUS_GRAPHQL_ENDPOINT", "").rstrip("/")
+    if not publication:
+        raise IntakeError("This publication has no configured Reference intake.")
+    raw_items = arguments.get("items")
+    if not isinstance(raw_items, list) or not 1 <= len(raw_items) <= 20:
+        raise IntakeError("Select between 1 and 20 candidate links per request.")
+    _receipt, receipt_candidates, target = _email_receipt_candidates(receipt_store, receipt_id, publication)
+    corpus_id = target.get("corpusId")
+    if not isinstance(corpus_id, str) or not corpus_id.strip():
+        raise IntakeError("The routed publication has no verified Reference corpus binding.")
+    items = []
+    seen_candidates = set()
+    for candidate in raw_items:
+        if not isinstance(candidate, dict) or set(candidate) != {"candidateIndex", "source_uri"}:
+            raise IntakeError("Email intake accepts only a receipt candidate index and its source URL.")
+        index = candidate.get("candidateIndex")
+        if type(index) is not int or not 0 <= index < len(receipt_candidates) or index in seen_candidates:
+            raise IntakeError("An email candidate does not belong to this receipt.")
+        seen_candidates.add(index)
+        source_url = canonical_source_url(candidate.get("source_uri"))
+        recorded = receipt_candidates[index]
+        try:
+            original_url = canonical_source_url(recorded.get("url"))
+        except IntakeError:
+            raise IntakeError("The email receipt candidate list is unavailable.") from None
+        if recorded.get("resolutionStatus") == "unresolved":
+            resolution = receipt_store.get(f"EMAILRESOLVED#{receipt_id.removeprefix('EMAIL#')}#{index:06d}")
+            if (not resolution or resolution.get("receiptDigest") != receipt_id.removeprefix("EMAIL#")
+                    or resolution.get("candidateIndex") != index
+                    or not isinstance(resolution.get("ttl"), int) or isinstance(resolution.get("ttl"), bool)
+                    or resolution["ttl"] <= int(datetime.now(UTC).timestamp())
+                    or canonical_source_url(resolution.get("sourceUri")) != source_url):
+                raise IntakeError("The selected article destination was not resolved for this receipt.")
+        elif original_url != source_url:
+            raise IntakeError("The selected URL does not match this receipt candidate.")
+        title = recorded.get("title")
+        if not isinstance(title, str) or not title.strip():
+            title = source_url.split("/", 3)[2]
+        items.append({
+            "source_uri": source_url,
+            "title": title,
+            "media_type": "text/html",
+            "ingestion_rationale": (
+                f"An editor selected candidate {index} from private email receipt {receipt_id}. "
+                "The submitted email and links are untrusted source material. This Reference is pending "
+                "editorial curation; import is not an approval, human label, or publication."
+            ),
+        })
+    return intake_references(client, {
+        "publicationEndpoint": publication,
+        "corpusId": corpus_id,
+        "items": items,
+    }, identity)
 
 
 def find_or_create_source_reference(client, existing: list[dict], *, publication: str, corpus_id: str, item: dict, actor: str) -> dict:

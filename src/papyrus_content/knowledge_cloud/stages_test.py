@@ -350,3 +350,110 @@ def test_the_projection_stage_logs_its_report_and_records_the_counts(tmp_path, c
     assert 'projection report: {"written": 3, "deleted": 0}' in capsys.readouterr().out
     details = run.ledger.table.get_item(Key={"publication": "shipped", "runKey": "2026-W44#manual-1#projection"})["Item"]["details"]
     assert details["written"] == 3 and details["deleted"] == 0
+
+
+# -- monitor records: opt-in, exported as data in corpus-sync, read from the run's file by every later stage -----------------
+MONITORED = {"KNOWLEDGE_MONITOR_SOURCES": "huggingface", "KNOWLEDGE_MONITOR_WEEKS": "26"}
+
+
+def test_a_site_without_monitor_sources_runs_exactly_as_before(tmp_path):
+    run, shell = make_run(tmp_path)
+    for stage in ("corpus-sync", "topic-model", "typed-extraction", "publish-run", "snapshot", "archive", "wiki-sync"):
+        assert run_stage(stage, run) == 0
+    assert not [call for call in shell.calls if any(argument.startswith("--monitor") for argument in call)]
+    assert run.config.monitor_sources == ()
+
+
+def test_corpus_sync_exports_the_monitor_records_dated_for_the_week_and_keeps_the_file_in_the_run_state(tmp_path):
+    run, shell = make_run(tmp_path, MONITORED)
+    assert run_stage("corpus-sync", run) == 0
+    [export] = commands(shell, ["papyrus", "knowledge", "corpus", "export"])
+    assert export[export.index("--monitor-sources") + 1] == "huggingface"
+    assert export[export.index("--monitor-weeks") + 1] == "26"
+    assert export[export.index("--corpus-key") + 1] == "shipped"
+    assert export[export.index("--as-of") + 1] == "2026-10-26"
+    assert json.loads(run.state.read_text("runs/2026-W44/monitor-records.json"))["sources"] == ["huggingface"]
+
+
+def test_every_later_stage_counts_the_records_from_the_runs_file_even_in_a_fresh_container(tmp_path):
+    first, _ = make_run(tmp_path / "first", MONITORED)
+    assert run_stage("corpus-sync", first) == 0
+    fresh, shell = make_run(tmp_path / "fresh", MONITORED)
+    for stage in ("topic-model", "typed-extraction", "publish-run", "snapshot", "archive", "wiki-sync"):
+        assert run_stage(stage, fresh) == 0
+    expected = str(tmp_path / "fresh" / "runs" / "2026-W44" / "monitor-records.json")
+    for prefix in (
+        ["papyrus", "knowledge", "publish-run"], ["papyrus", "knowledge", "snapshot"], ["papyrus", "knowledge", "archive"], ["papyrus", "knowledge", "wiki", "sync"],
+    ):
+        found = commands(shell, prefix)
+        assert found, prefix
+        assert all(call[call.index("--monitor-records") + 1] == expected for call in found), prefix
+    assert Path(expected).exists()
+
+
+def test_a_monitor_source_the_run_does_not_know_is_refused_before_anything_runs(tmp_path):
+    from .config import ConfigError
+
+    with pytest.raises(ConfigError, match="KNOWLEDGE_MONITOR_SOURCES: Unsupported monitor source 'rss'"):
+        make_run(tmp_path, {"KNOWLEDGE_MONITOR_SOURCES": "rss"})
+
+
+# -- the weekly suggestion of monitor records worth promoting: ONE soft review request, never a failure ----------------------
+class ReviewBackend:
+    def __init__(self, items=(), fail=False):
+        self.items, self.fail, self.created = list(items), fail, {}
+
+    def list_records(self, model):
+        return self.items if model == "Item" else []
+
+    def get_record(self, model, record_id):
+        return self.created.get(record_id)
+
+    def create_record(self, model, row):
+        if self.fail:
+            raise RuntimeError("ReviewRequest is not in this schema")
+        self.created[row["id"]] = row
+
+
+def suggestion_run(tmp_path, suggestions=2):
+    from ..knowledge_snapshot.monitor_records import MonitorRecord, write_records
+
+    run, _ = make_run(tmp_path, {**MONITORED, "KNOWLEDGE_MONITOR_SUGGESTIONS": str(suggestions)})
+    records = [
+        MonitorRecord(f"reference-{name}", f"lineage-{name}", "huggingface", f"https://huggingface.co/org/{name}", f"org/{name}", "2026-10-22T08:00:00Z", {"modelId": f"org/{name}", "likes": likes, "downloads": 5})
+        for name, likes in (("small", 3), ("big", 300), ("medium", 40))
+    ]
+    write_records(run.monitor_records, records, as_of=dt.date(2026, 10, 26), sources=("huggingface",))
+    return run
+
+
+def test_the_week_gets_one_soft_review_request_listing_the_records_most_worth_a_look(tmp_path):
+    from .stages import suggest_promotions
+
+    run, backend = suggestion_run(tmp_path), ReviewBackend()
+    result = suggest_promotions(run, backend)
+    assert result["status"] == "requested" and [pick["model"] for pick in result["suggested"]] == ["org/big", "org/medium"]
+    [request] = backend.created.values()
+    assert request["id"] == "rr-monitor-records-shipped-2026-w44" and request["mode"] == "soft_review"
+    assert "2 monitor records worth a look this week" in request["reason"] and "papyrus references promote" in request["ask"]
+    assert "org/big (reference-big)" in json.dumps(request["links"])
+    assert suggest_promotions(run, backend)["status"] == "requested" and len(backend.created) == 1  # a second run in the week raises no second request
+
+
+def test_a_record_an_item_carries_is_not_suggested_again_and_nothing_to_suggest_raises_nothing(tmp_path):
+    from .stages import suggest_promotions
+
+    run = suggestion_run(tmp_path, suggestions=3)
+    carried = {"metadata": json.dumps({"frontMatterYaml": "monitorRecord:\n  referenceId: reference-big\n"})}
+    backend = ReviewBackend(items=[carried])
+    assert [pick["model"] for pick in suggest_promotions(run, backend)["suggested"]] == ["org/medium", "org/small"]
+    empty = ReviewBackend()
+    run.monitor_records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": []}))
+    assert suggest_promotions(run, empty)["status"] == "none" and empty.created == {}
+
+
+def test_a_site_that_cannot_take_review_requests_never_fails_the_run(tmp_path):
+    from .stages import suggest_promotions
+
+    result = suggest_promotions(suggestion_run(tmp_path), ReviewBackend(fail=True))
+    assert result["status"] == "not_raised" and "ReviewRequest" in result["error"]

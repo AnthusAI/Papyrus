@@ -18,6 +18,7 @@ from .model import (
     DESCRIPTION_NONE,
     DESCRIPTION_REVIEWED,
     LINK_EXTRACTOR,
+    LINK_MONITOR,
     Beat,
     Cluster,
     EntityNode,
@@ -27,6 +28,7 @@ from .model import (
     NodeRelation,
     PublishedItem,
 )
+from .monitor_import import is_record_mention
 from .publish_run import NODE_KIND, is_item_mention, json_object
 
 CURRENT = "current"
@@ -135,6 +137,8 @@ def links_and_relations(relation_rows: Iterable[Mapping[str, Any]]) -> tuple[lis
                     source=str(metadata.get("linkSource") or LINK_EXTRACTOR),
                 )
             )
+        elif is_record_mention(row):
+            links.append(ItemLink(item_key=str(row["subjectLineageId"]), node_lineage_id=str(row["objectLineageId"]), confirmed=confirmed, source=LINK_MONITOR))
         elif row.get("subjectKind") == NODE_KIND and row.get("objectKind") == NODE_KIND:
             relations.append(
                 NodeRelation(
@@ -142,9 +146,16 @@ def links_and_relations(relation_rows: Iterable[Mapping[str, Any]]) -> tuple[lis
                     object_lineage_id=str(row["objectLineageId"]),
                     predicate=str(row.get("predicate") or ""),
                     confirmed=confirmed,
+                    subtype=_text(metadata.get("subtype")),
+                    evidence=_text(metadata.get("evidence")),
+                    provenance=_text(metadata.get("provenance")),
                 )
             )
     return links, relations
+
+
+def _text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def category_names(category_rows: Iterable[Mapping[str, Any]]) -> dict[tuple[str, str], str]:

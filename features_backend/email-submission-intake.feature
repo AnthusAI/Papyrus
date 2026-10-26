@@ -26,6 +26,12 @@ Feature: Email submissions enter the existing reference discovery queue
     And the private receipt records untrusted authentication signals as warnings
     And the original body is available only as inert text to that publication's editors
 
+  Scenario: An editor adds selected email links to the pending References queue
+    Given an email with failed authentication is available to an editor for private review
+    When the editor explicitly adds its selected article links to References
+    Then each selected URL is registered or matched as a pending Reference with editor provenance
+    And repeating the import is idempotent and makes no vote, classifier request, or publication
+
   Scenario: Authentication-warning mail cannot reach the classifier or reference router
     Given an isolated shared email destination and a newsletter email
     And the SES receipt reports failed SPF, DKIM and DMARC checks

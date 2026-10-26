@@ -94,6 +94,10 @@ class FakeShell:
             raw = Path(args[args.index("--out") + 1])
             raw.mkdir(parents=True, exist_ok=True)
             (raw / "item-1.md").write_text("# one")
+            if "--monitor-records-out" in args:  # the export also writes the monitor records of a site that sets monitorSources
+                records = Path(args[args.index("--monitor-records-out") + 1])
+                records.parent.mkdir(parents=True, exist_ok=True)
+                records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": []}))
         elif args[:2] == ["biblicus", "init"]:
             (Path(args[2]) / "metadata").mkdir(parents=True, exist_ok=True)
         elif args[:3] == ["biblicus", "extract", "build"]:

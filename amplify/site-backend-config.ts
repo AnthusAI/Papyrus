@@ -40,6 +40,31 @@ export type PapyrusPublicationCacheConfig = {
 
 export const MAXIMUM_HTML_S_MAXAGE_SECONDS = 86400;
 
+export type PapyrusMonitoringConfig = {
+  /** Existing shared Monitoring partition that stores this site's private email receipts. */
+  emailMonitorId?: string;
+};
+
+const MONITOR_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+export function validateMonitoringConfig(monitoring: unknown): string[] {
+  if (monitoring === undefined) return [];
+  if (typeof monitoring !== "object" || monitoring === null || Array.isArray(monitoring)) {
+    return ["monitoring must be an object"];
+  }
+  const config = monitoring as { emailMonitorId?: unknown };
+  if (config.emailMonitorId !== undefined
+    && (typeof config.emailMonitorId !== "string" || !MONITOR_ID_PATTERN.test(config.emailMonitorId))) {
+    return ["monitoring.emailMonitorId must be a lowercase monitor id (1-63 letters, digits, or hyphens)"];
+  }
+  return [];
+}
+
+export function assertValidMonitoringConfig(monitoring: unknown): void {
+  const problems = validateMonitoringConfig(monitoring);
+  if (problems.length > 0) throw new Error(`Invalid backend.monitoring: ${problems.join("; ")}`);
+}
+
 export type PapyrusPublicationConfig = {
   kind: "s3-projection";
   /** Site repo path (relative, `.py`) of the SiteProjector bundled into content-actions as `site_projector`. */
@@ -138,6 +163,8 @@ export type PapyrusSiteBackendConfig = {
    */
   productionAppId?: string;
   auth?: PapyrusAuthConfig;
+  /** Shared Monitoring partition used by private email intake for this publication. */
+  monitoring?: PapyrusMonitoringConfig;
   /**
    * Maximum number of data model nested stacks CloudFormation creates at once.
    * Stacks are chained in waves of this size so a new AWS account is not hit

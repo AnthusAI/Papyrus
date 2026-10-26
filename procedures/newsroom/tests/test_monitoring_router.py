@@ -331,12 +331,14 @@ def test_decision_receipt_keeps_a_valid_confidence_for_the_monitoring_page(table
     assert "confidence" not in publications["p-apyr-us"] and "confidence" not in publications["threat-intelligence"]
 
 
-def test_ceilings_are_display_data_validated_and_ignored_by_routing():
+def test_retired_ceilings_are_ignored_and_never_become_router_state():
     base = router_config()
-    assert validate_router_config({**base, "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}})["mode"] == "live"
-    for bad in ({"decisionsTotal": 0}, {"decisionsPerDay": "many"}, {"items": -1}, {"surprise": 1}, "300"):
-        with pytest.raises(ValueError):
-            validate_router_config({**base, "ceilings": bad})
+    configured = validate_router_config({**base, "ceilings": {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}})
+    assert configured["mode"] == "live" and "ceilings" not in configured
+    # Old stored quota payloads have no authority and may be malformed without
+    # blocking routing or being reflected as active configuration.
+    for retired in ({"decisionsTotal": 0}, {"decisionsPerDay": "many"}, {"items": -1}, {"surprise": 1}, "300"):
+        assert "ceilings" not in validate_router_config({**base, "ceilings": retired})
 
 
 def test_all_exclude_routes_without_delivery(table):
@@ -630,7 +632,7 @@ def test_collector_zip_is_independent_of_the_router():
         import build
     finally:
         sys.path.pop(0)
-    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py")
+    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py", "monitoring_huggingface.py")
     assert "web_structured_metadata" not in build.router_modules() and "monitoring_router" in build.router_modules()
 
 
@@ -675,7 +677,7 @@ def test_router_role_is_least_privilege():
     assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
     assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
         "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
-    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}"}
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}"}
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
@@ -722,6 +724,27 @@ def test_pilobolus_gets_exactly_the_cyclotron_decided_grants():
     assert not any("PilobolusApiId" in r for r in anth_intake)
 
 
+def test_shipped_gets_exactly_the_cyclotron_decided_grants():
+    template = _template()
+    assert template["Parameters"]["ShippedApiId"]["Default"] == "6sw6454pozbgvdgm233gqkxsxu"
+    inline = {s["Sid"]: s for s in template["Resources"]["RouterRole"]["Properties"]["Policies"][0]["PolicyDocument"]["Statement"]}["PublicationReferenceIntake"]
+    # Intake lives in its own managed policy (the inline policy is near IAM's size limit), like Distinctive's.
+    policy = template["Resources"]["RouterShippedIntakePolicy"]["Properties"]
+    assert policy["Roles"] == [("Ref", "RouterRole")]
+    (intake,) = policy["PolicyDocument"]["Statement"]
+    relations = template["Resources"]["RouterDecisionRelationPolicy"]["Properties"]["PolicyDocument"]["Statement"][0]
+    anth_intake = [r[1] for r in inline["Resource"]]
+    anth_fields = {r.rsplit("/fields/", 1)[1] for r in anth_intake if "apis/${AnthUsApiId}/" in r}
+    for statement in (intake, relations):
+        assert statement["Action"] == "appsync:GraphQL"
+        resources = [r[1] for r in statement["Resource"]]
+        assert "*" not in "".join(resources) and all("/types/" in r and "/fields/" in r for r in resources)
+        shipped = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${ShippedApiId}/" in r}
+        anth_us = {r.rsplit("/fields/", 1)[1] for r in resources if "apis/${AnthUsApiId}/" in r}
+        assert shipped and shipped == (anth_fields if statement is intake else anth_us)
+    assert not any("ShippedApiId" in r for r in anth_intake)
+
+
 def test_router_function_schedule_and_collector_isolation():
     template = _template()["Resources"]
     function = template["RouterFunction"]["Properties"]
@@ -743,16 +766,14 @@ def test_table_name_is_published_for_the_read_only_monitoring_page():
     assert parameter["Properties"]["Value"] == ("Ref", "MonitoringTable")
 
 
-def test_seed_script_sets_and_clears_ceilings():
+def test_seed_cli_no_longer_accepts_ceiling_updates():
     import importlib.util
     spec = importlib.util.spec_from_file_location("seed_router_config", ROOT / "infra" / "monitoring" / "seed_router_config.py")
     seed = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(seed)
-    assert seed.coerce("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300") == {"decisionsTotal": 300, "decisionsPerDay": 100, "items": 300}
-    assert seed.coerce("ceilings", "none") is None
-    for bad in ("300", "decisionsTotal=many", "=5"):
-        with pytest.raises(ValueError):
-            seed.coerce("ceilings", bad)
+    for key, value in (("ceilings", "decisionsTotal=300,decisionsPerDay=100,items=300"), ("ceilings", "none")):
+        with pytest.raises(ValueError, match="not ceilings"):
+            seed.coerce(key, value)
 
 
 # --- not-ready outputs (criteria_pending) --------------------------------------------------------------

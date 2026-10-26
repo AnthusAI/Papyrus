@@ -18,7 +18,7 @@ import yaml
 
 from ..knowledge_snapshot.builder import _aliases, _public_keys
 from ..knowledge_snapshot.keys import contains_email, slug
-from ..knowledge_snapshot.model import Beat, KnowledgeData
+from ..knowledge_snapshot.model import LINK_MONITOR, Beat, KnowledgeData
 from ..knowledge_snapshot.publish_run import json_object
 from ..publishing import ItemFields, item_id_for, published_item_id_for, save_item
 from ..story_reporting import save_story_version
@@ -126,6 +126,12 @@ def _carry(lineage_for_key: Mapping[str, str], lineages: Mapping[str, list[dict[
     return front_matter_of(working_version(rows)) if rows else None
 
 
+def data_only_lineages(data: KnowledgeData) -> set[str]:
+    """Entities only monitor records mention. They count in the Knowledge Map as data and have no wiki page."""
+    site = {link.node_lineage_id for link in data.links if link.confirmed and link.source != LINK_MONITOR}
+    return {link.node_lineage_id for link in data.links if link.confirmed and link.source == LINK_MONITOR} - site
+
+
 def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]]]) -> list[PageSpec]:
     """A page per accepted entity that has a public name."""
     neighbours = related_keys(data)
@@ -135,11 +141,14 @@ def entity_specs(data: KnowledgeData, lineages: Mapping[str, list[dict[str, Any]
     for link in data.links:
         if link.confirmed:
             items_by_node[link.node_lineage_id].add(link.item_key)
+    data_only = data_only_lineages(data)
     lineage_for_key = _lineage_by_key(lineages, KIND_ENTITY)
     specs = []
     for node in sorted(eligible, key=lambda candidate: keys.get(candidate.lineage_id, "")):
         key = keys.get(node.lineage_id)
         if not key:
+            continue
+        if node.lineage_id in data_only:
             continue
         usable = node.description_state in PUBLISHABLE_DESCRIPTIONS and not contains_email(node.description)
         draft = node.description_state == "draft" and bool((node.description or "").strip())
@@ -176,8 +185,11 @@ def related_keys(data: KnowledgeData) -> dict[str, list[str]]:
     eligible = [node for node in data.nodes if node.status == ACCEPTED and node.name.strip() and not contains_email(node.name)]
     keys = _public_keys(eligible)
     related: dict[str, set[str]] = defaultdict(set)
+    data_only = data_only_lineages(data)
     for relation in data.relations:
         first, second = keys.get(relation.subject_lineage_id), keys.get(relation.object_lineage_id)
+        if relation.subject_lineage_id in data_only or relation.object_lineage_id in data_only:
+            continue
         if relation.confirmed and first and second and first != second:
             related[first].add(second)
             related[second].add(first)

@@ -1,12 +1,12 @@
 """Bounded monitor collection through existing intake; never curates or trains.
 
-A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, or the USPTO TTAB
-Reading Room's decision search. Each type turns its source into `SourceItem`s; everything after
+A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, the USPTO TTAB
+Reading Room's decision search, or the Hugging Face Hub model list (`monitoring_huggingface.py`). Each type turns its source into `SourceItem`s; everything after
 that (fingerprints, revisions, routing, intake) is shared.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 import fcntl
@@ -54,10 +54,14 @@ class SourceItem:
     published_at: str | None
     media_type: str = "text/html"
     aliases: tuple[str, ...] = ()       # other URLs of the same source document; intake treats them as one
+    #: Structured fields of the source record (a Hugging Face model's license, tags, base models, ...),
+    #: carried into the discovery. A `sha` here is the source's own revision: a new one is a new fingerprint.
+    details: dict | None = field(default=None, compare=False, hash=False)
 
     @property
     def fingerprint(self) -> str:
-        return _digest([self.title, self.canonical_url, self.published_at])
+        revision = (self.details or {}).get("sha")
+        return _digest([self.title, self.canonical_url, self.published_at] + ([revision] if revision else []))
 
 
 @dataclass(frozen=True)
@@ -215,6 +219,7 @@ def merge_source_items(*groups: list[SourceItem]) -> list[SourceItem]:
 SOURCE_TYPES = {
     "hn-rss": {"host": "news.ycombinator.com", "name": "Hacker News", "media": "rss"},
     "ttab-decisions": {"host": "ttab-reading-room.uspto.gov", "name": "TTAB Reading Room", "media": "json-search"},
+    "huggingface-models": {"host": "huggingface.co", "name": "Hugging Face Hub", "media": "json-list"},
 }
 
 
