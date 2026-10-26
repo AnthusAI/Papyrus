@@ -14,6 +14,9 @@ on:
       - "pyproject.toml"
       - "package.json"
       - "release.config.cjs"
+      - "scripts/check-consumer-site-typecheck.mjs"
+      - "scripts/check-github-tarball-pins.mjs"
+      - ".github/workflows/package-smoke.yml"
 
 permissions:
   contents: read

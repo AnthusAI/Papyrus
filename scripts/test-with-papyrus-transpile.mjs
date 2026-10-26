@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { withPapyrus, DEFAULT_TRANSPILE_PACKAGES, READER_EXPIRE_TIME_SECONDS } from "../packages/papyrus/src/with-papyrus.mjs";
+import { withPapyrus, redirectChatticusZod, DEFAULT_TRANSPILE_PACKAGES, READER_EXPIRE_TIME_SECONDS } from "../packages/papyrus/src/with-papyrus.mjs";
 import { packageShipsTypeScriptSourceEntries } from "../packages/typescript-source-entries.mjs";
 
 const defaults = withPapyrus({}).transpilePackages;
@@ -21,5 +21,15 @@ assert.equal(packageShipsTypeScriptSourceEntries({ main: "index.css", types: "in
 
 assert.equal(withPapyrus({}).expireTime, READER_EXPIRE_TIME_SECONDS, "shared caches may serve a page stale for 60 s, not a year");
 assert.equal(withPapyrus({ expireTime: 300 }).expireTime, 300, "a publication's own expireTime wins");
+
+const chatticusZod = { request: "zod", context: "/site/node_modules/chatticus/chat/runtime-dist" };
+redirectChatticusZod(chatticusZod);
+assert.equal(chatticusZod.request, "zod/v4", "chatticus's zod 4 imports resolve to zod/v4 when sites pin zod 3.25");
+const siteZod = { request: "zod", context: "/site/node_modules/@anthusai/papyrus/lib" };
+redirectChatticusZod(siteZod);
+assert.equal(siteZod.request, "zod", "other zod imports are untouched");
+const chatticusOther = { request: "zod/v4", context: "/site/node_modules/chatticus/chat" };
+redirectChatticusZod(chatticusOther);
+assert.equal(chatticusOther.request, "zod/v4");
 
 console.log("with-papyrus transpile tests passed");
