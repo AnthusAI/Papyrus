@@ -64,10 +64,17 @@
       "text": "2026-10-26: commit f2dba39ce87170a226ee793bf798ec206be5e097 separates runtime and synthetic Lambda build directories, enforces exact bundle contents, and pins the run-worker SSM read to /papyrus/p-apyr-us/openai-api-key. Runtime and synthetic template validators plus git diff --check pass. The deployed stack is unchanged by this code-only commit; the refreshed runtime Lambda update still needs an authenticated AWS SSO session. No mappings or site flag enabled.",
       "created_at": "2026-10-26T04:24:37.728294Z",
       "comment_type": "default"
+    },
+    {
+      "id": "f0ea95f6-e712-412a-80c1-ab0e71776618",
+      "author": "home",
+      "text": "2026-10-26 PR #720 CI found the pilot-identifier guard flagging the site-specific model-key path in CDK source/generated templates. Moved the path into config/papyrus-chat-candidate.json, kept the template validator tied to that config, generalized the stack description, and documented generated chat templates as deployment configuration in the guard. Local identifier guard, both template validators, fresh runtime/synthetic synths, and diff checks now pass. PR CI rerun will validate the exact updated head.",
+      "created_at": "2026-10-26T04:36:45.028522Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-26T04:24:37.728327Z",
+  "updated_at": "2026-10-26T04:36:45.028561Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

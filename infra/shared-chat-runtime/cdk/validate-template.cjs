@@ -3,6 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const templatePath = path.resolve(__dirname, process.argv[2] || "PapyrusChatDataCandidate.template.json");
+const candidateConfiguration = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../config/papyrus-chat-candidate.json"), "utf8"));
+const modelKeyParameter = candidateConfiguration.modelKeyParameter;
 const template = JSON.parse(fs.readFileSync(templatePath, "utf8"));
 const resources = Object.values(template.Resources);
 const ofType = (type) => resources.filter((resource) => resource.Type === type);
@@ -51,6 +53,7 @@ if (path.basename(templatePath) === "PapyrusChatSyntheticAdapterTest.template.js
   assert.ok(!Object.hasOwn(template.Parameters, "GatewayRoleArn"), "synthetic mode must not accept an arbitrary caller role");
   assert.ok(!Object.hasOwn(template.Parameters, "CmsComputeRoleArn"), "synthetic mode must not accept the production CMS role");
   assert.ok(!templateText.includes("amplify/shared/papyrus/OPENAI_API_KEY"), "synthetic mode must not name or grant the model secret");
+  assert.ok(!templateText.includes(modelKeyParameter), "synthetic mode must not name or grant the site model secret");
   assert.equal(template.Outputs.SyntheticAdapterTestOnly.Value, "true");
   assert.equal(template.Outputs.SyntheticAdapterInvocation.Value, "Explicit Lambda Invoke only; no event source or schedule");
   assert.equal(template.Outputs.FeatureDefault.Value, "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review");
@@ -109,11 +112,11 @@ assertExactActions(statementsFor(probe, "PrivateConversationIndex81B3261A"), [
 
 const runRoleId = roleIdByDescription("Private Papyrus computerless chat run worker.");
 const run = policyForRole(runRoleId);
-assertExactActions(statementsFor(run, "papyrus/p-apyr-us/openai-api-key"), ["ssm:GetParameter"], "p.apyr.us run-worker model key");
+assertExactActions(statementsFor(run, modelKeyParameter.slice(1)), ["ssm:GetParameter"], "site-scoped run-worker model key");
 const modelKeyReaders = policies.filter((statement) => actionList(statement).includes("ssm:GetParameter"));
 assert.equal(modelKeyReaders.length, 1, "only one policy statement may read any model-key parameter");
-assert.ok(JSON.stringify(modelKeyReaders[0].Resource).includes("papyrus/p-apyr-us/openai-api-key"), "the model-key read must target only the p.apyr.us parameter");
+assert.ok(JSON.stringify(modelKeyReaders[0].Resource).includes(modelKeyParameter.slice(1)), "the model-key read must target only the configured site parameter");
 const runFunction = functions.find((fn) => fn.Properties.Handler === "run-worker.handler");
-assert.equal(runFunction.Properties.Environment.Variables.OPENAI_API_KEY_PARAMETER, "/papyrus/p-apyr-us/openai-api-key");
+assert.equal(runFunction.Properties.Environment.Variables.OPENAI_API_KEY_PARAMETER, modelKeyParameter);
 assert.equal(template.Outputs.FeatureDefault.Value, "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review");
 console.log("PASS: Papyrus chat candidate resources, exact gateway/probe IAM scopes, model-secret isolation and disabled mappings");

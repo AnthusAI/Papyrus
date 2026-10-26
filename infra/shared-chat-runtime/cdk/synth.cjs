@@ -6,7 +6,11 @@ const papyrusRoot = path.resolve(__dirname, "../../..");
 const dependencyRoot = process.env.PAPYRUS_CHAT_CANDIDATE_DEPS || papyrusRoot;
 const requireDependencies = createRequire(path.resolve(dependencyRoot, "package.json"));
 const mode = process.env.PAPYRUS_CHAT_CANDIDATE_MODE || "runtime";
-const modelKeyParameter = "/papyrus/p-apyr-us/openai-api-key";
+const candidateConfiguration = JSON.parse(fs.readFileSync(path.join(papyrusRoot, "config/papyrus-chat-candidate.json"), "utf8"));
+const modelKeyParameter = candidateConfiguration.modelKeyParameter;
+if (!/^\/papyrus\/[a-z0-9-]+\/openai-api-key$/.test(modelKeyParameter)) {
+  throw new Error("The private chat model key must use the site-scoped /papyrus/<site>/openai-api-key parameter path");
+}
 if (!["runtime", "synthetic"].includes(mode)) throw new Error("PAPYRUS_CHAT_CANDIDATE_MODE must be runtime or synthetic");
 const esbuild = requireDependencies("esbuild");
 const cdk = requireDependencies("aws-cdk-lib");
@@ -312,7 +316,7 @@ const stackId = syntheticMode ? "PapyrusChatSyntheticAdapterTest" : "PapyrusChat
 const stack = new PapyrusChatDataCandidate(app, stackId, {
   description: syntheticMode
     ? "Synthetic-only Papyrus chat adapter test resources; no CMS role, worker, production gateway, or model secret access."
-    : "p.apyr.us private chat data plane; site entry and queue workers remain disabled until configured.",
+    : "Private Papyrus chat data plane; site entry and queue workers remain disabled until configured.",
   syntheticMode,
 });
 const assembly = app.synth();
