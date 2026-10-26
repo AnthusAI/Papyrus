@@ -32,7 +32,7 @@ USAGE = (
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
     "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
-    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
+    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--window-days 28] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
@@ -159,11 +159,13 @@ def synthesize_command(flags: list[str]) -> None:
 
 
 def _trend_config(options: dict[str, Any]) -> TrendConfig:
-    """``--trend-config FILE``: a JSON object of the ``TrendConfig`` settings to override (watchlist, thresholds); none means the defaults."""
+    """``--trend-config FILE``: a JSON object of the ``TrendConfig`` settings to override (watchlist, thresholds); none means the defaults.
+    ``--window-days N`` (7, 14, 21 or 28; default 28) sets the trend window and wins over the file."""
     path = normalize_string(options.get("trend-config"))
-    if not path:
-        return TrendConfig()
-    return TrendConfig.from_mapping(json.loads(Path(path).expanduser().read_text(encoding="utf-8")))
+    values = json.loads(Path(path).expanduser().read_text(encoding="utf-8")) if path else {}
+    if normalize_string(options.get("window-days")):
+        values = {**values, "window_days": _integer(options, "window-days", 28)}
+    return TrendConfig.from_mapping(values)
 
 
 def trends_command(flags: list[str]) -> None:

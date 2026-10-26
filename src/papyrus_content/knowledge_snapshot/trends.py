@@ -12,6 +12,8 @@ MINIMUM_HISTORY_FOR_PERCENT = 8
 NEW_BELOW_WEEKS = 4
 SERIES_SHORT = 8
 SERIES_LONG = 26
+DAYS_PER_WEEK = 7
+DEFAULT_WINDOW_DAYS = WINDOW_WEEKS * DAYS_PER_WEEK  # 28: the current window against the 28 days before it
 
 
 @dataclass(frozen=True)
@@ -96,6 +98,19 @@ class TrendConfig:
     minimum_downloads: int = 10_000
     likes_floor: int = 10  # whatever its downloads, a maker needs this many likes (a build pipeline or a bot inflates downloads, nobody likes it)
     anchor_kinds: frozenset[str] = field(default=PREFERRED_KINDS)
+    # The window the score compares (the last N days against the N before), in days. The snapshot counts weekly and keeps eight weeks, so the
+    # window is whole weeks from one to four: 7, 14, 21 or 28 (the default, the figures the snapshot publishes as ``last4`` and ``prior4``).
+    window_days: int = DEFAULT_WINDOW_DAYS
+
+    def __post_init__(self) -> None:
+        if self.window_days % DAYS_PER_WEEK or not DAYS_PER_WEEK <= self.window_days <= WINDOW_WEEKS * DAYS_PER_WEEK:
+            raise ValueError(
+                f"The trend window must be 7, 14, 21 or 28 days (the snapshot counts whole weeks and keeps eight), not {self.window_days}."
+            )
+
+    @property
+    def window_weeks(self) -> int:
+        return self.window_days // DAYS_PER_WEEK
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object] | None) -> "TrendConfig":
@@ -111,7 +126,7 @@ class TrendConfig:
                 values[name] = frozenset(str(item) for item in value)  # type: ignore[union-attr]
             elif name == "watchlist":
                 values[name] = frozenset(str(item).strip().lower() for item in value)  # type: ignore[union-attr]
-            elif name in {"minimum_recent", "minimum_models", "minimum_likes", "minimum_downloads", "likes_floor"}:
+            elif name in {"minimum_recent", "minimum_models", "minimum_likes", "minimum_downloads", "likes_floor", "window_days"}:
                 values[name] = int(value)  # type: ignore[arg-type]
             else:
                 values[name] = float(value)  # type: ignore[arg-type]
@@ -143,9 +158,11 @@ def surprise(last4: float, prior4: float, volume_last4: float, volume_prior4: fl
 
 def trend_score(kind: str | None, values: Sequence[int | float], volume: Sequence[float], config: TrendConfig) -> dict[str, float]:
     """``{"surprise", "score", "last4", "prior4"}`` of one entity's eight-week series against the corpus ``volume``; the score is the
-    surprise times the weight of the entity's kind (broad kinds are demoted)."""
-    last4, prior4 = float(sum(values[-WINDOW_WEEKS:])), float(sum(values[-2 * WINDOW_WEEKS : -WINDOW_WEEKS]))
-    z = surprise(last4, prior4, sum(volume[-WINDOW_WEEKS:]), sum(volume[-2 * WINDOW_WEEKS : -WINDOW_WEEKS]), config.baseline_smoothing)
+    surprise times the weight of the entity's kind (broad kinds are demoted). ``last4`` and ``prior4`` are the counts of the configured
+    window (four weeks by default) and of the window before it."""
+    weeks = config.window_weeks
+    last4, prior4 = float(sum(values[-weeks:])), float(sum(values[-2 * weeks : -weeks]))
+    z = surprise(last4, prior4, sum(volume[-weeks:]), sum(volume[-2 * weeks : -weeks]), config.baseline_smoothing)
     return {"surprise": round(z, 3), "score": round(z * config.kind_weight(kind), 3), "last4": last4, "prior4": prior4}
 
 

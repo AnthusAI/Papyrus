@@ -29,6 +29,56 @@ def test_run_week_is_the_monday_on_or_before_the_start():
     assert trend_drafts.monday_of_start("2026-10-26T05:00:00+00:00") == dt.date(2026, 10, 26)
 
 
+def test_the_start_date_is_the_utc_date_of_the_execution():
+    assert trend_drafts.start_date("2026-10-28T10:00:00Z") == dt.date(2026, 10, 28)
+    assert trend_drafts.start_date("2026-10-28T23:30:00-05:00") == dt.date(2026, 10, 29)
+
+
+def test_fresh_dates_are_the_start_date_its_max_age_and_the_monday_the_snapshot_stage_writes():
+    assert trend_drafts.fresh_dates("2026-10-28T10:00:00Z", 1) == [dt.date(2026, 10, 28), dt.date(2026, 10, 27), dt.date(2026, 10, 26)]
+    assert trend_drafts.fresh_dates("2026-10-26T05:00:00Z", 1) == [dt.date(2026, 10, 26), dt.date(2026, 10, 25)]
+    assert trend_drafts.fresh_dates("2026-10-30T10:00:00Z", 0) == [dt.date(2026, 10, 30), dt.date(2026, 10, 26)]
+
+
+@pytest.mark.parametrize("started, as_of", [
+    ("2026-10-26T05:00:12Z", "2026-10-26"),  # the scheduled Monday run
+    ("2026-10-28T10:00:00Z", "2026-10-28"),  # a snapshot dated the start day
+    ("2026-10-28T10:00:00Z", "2026-10-27"),  # one day old: within the default max age
+    ("2026-10-29T10:00:00Z", "2026-10-26"),  # a daily or manual run midweek: the snapshot stage stamps the Monday
+    ("2026-11-01T22:00:00Z", "2026-10-26"),  # Sunday
+])
+def test_daily_and_manual_runs_draft_from_their_own_snapshot(started, as_of):
+    calls = []
+    trend_drafts.run({**BASE, "KNOWLEDGE_EXECUTION_START": started}, fetch=lambda url: as_of, read_key=lambda n: "k", execute=lambda a, e: calls.append(a) or 0)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("started, as_of", [
+    ("2026-10-28T10:00:00Z", "2026-10-19"),  # last week's snapshot
+    ("2026-10-28T10:00:00Z", "2026-10-29"),  # from the future
+    ("2026-10-26T05:00:00Z", "2026-10-24"),  # two days before: older than the max age, and not this week's Monday
+])
+def test_a_snapshot_of_another_day_or_week_is_skipped(started, as_of):
+    with pytest.raises(trend_drafts.Skip, match="stale"):
+        trend_drafts.run({**BASE, "KNOWLEDGE_EXECUTION_START": started}, fetch=lambda url: as_of, sleep=lambda s: None, read_key=lambda n: "k", execute=lambda a, e: 0)
+
+
+def test_the_max_age_is_configurable():
+    environment = {**BASE, "KNOWLEDGE_EXECUTION_START": "2026-10-26T05:00:00Z", "TREND_DRAFTS_MAX_AGE_DAYS": "2"}
+    calls = []
+    trend_drafts.run(environment, fetch=lambda url: "2026-10-24", read_key=lambda n: "k", execute=lambda a, e: calls.append(a) or 0)
+    assert len(calls) == 1
+
+
+def test_the_trend_window_in_days_is_passed_to_the_command_only_when_set():
+    calls = []
+    run = lambda environment: trend_drafts.run(environment, fetch=lambda url: "2026-10-26", read_key=lambda n: "k", execute=lambda a, e: calls.append(a) or 0)
+    run(BASE)
+    run({**BASE, "TREND_DRAFTS_WINDOW_DAYS": "14"})
+    assert "--window-days" not in calls[0]
+    assert calls[1][-2:] == ["--window-days", "14"]
+
+
 def test_a_fresh_snapshot_runs_the_command_once_with_iam_and_the_key_only_in_the_child_environment():
     calls = []
     outcome = trend_drafts.run(BASE, fetch=lambda url: "2026-10-26", read_key=lambda name: "sk-test", execute=lambda args, env: calls.append((args, env)) or 0)
@@ -41,7 +91,7 @@ def test_a_fresh_snapshot_runs_the_command_once_with_iam_and_the_key_only_in_the
 
 def test_a_stale_snapshot_is_skipped_after_waiting_and_never_calls_the_model_or_ssm():
     sleeps, keys = [], []
-    with pytest.raises(trend_drafts.Skip, match="stale: asOf 2026-10-19, the run week is 2026-10-26"):
+    with pytest.raises(trend_drafts.Skip, match="stale: asOf 2026-10-19, wanted 2026-10-26"):
         trend_drafts.run(BASE, fetch=lambda url: "2026-10-19", sleep=sleeps.append, read_key=lambda name: keys.append(name) or "k", execute=lambda a, e: 0)
     assert len(sleeps) == 2 and keys == []
 
