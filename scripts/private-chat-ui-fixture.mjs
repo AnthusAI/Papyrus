@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 
 const bundle = await build({
   entryPoints: [fileURLToPath(new URL("./fixtures/private-chat-panel.tsx", import.meta.url))],
+  plugins: [{ name: "synthetic-newsroom-session", setup(builder) {
+    builder.onResolve({ filter: /^aws-amplify\/auth$/ }, () => ({ path: "auth", namespace: "synthetic" }));
+    builder.onLoad({ filter: /.*/, namespace: "synthetic" }, () => ({ contents: `export async function fetchAuthSession() { return { tokens: { accessToken: { toString: () => "synthetic-newsroom-token" } } }; }`, loader: "js" }));
+  } }],
   bundle: true,
   write: false,
   outfile: "app.js",
@@ -13,6 +17,8 @@ const bundle = await build({
   jsx: "automatic",
   define: { "process.env.NODE_ENV": '"development"' },
 });
+const mode = process.argv[2] ?? "conversation";
+let selected = false;
 const requests = [];
 const messages = [];
 let sendCount = 0;
@@ -32,6 +38,28 @@ const server = createServer(async (request, response) => {
     response.end('<!doctype html><html><head><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
     return;
   }
+  if (request.url === "/api/auth/prospectus/session") {
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ signedIn: true, publishingAccounts: [{ accountId: "account-1", name: "Test publication", role: "editor" }], selectedAccountId: null }));
+    return;
+  }
+  if (request.url === "/api/auth/prospectus/selection" && request.method === "POST") {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    assert.deepEqual(JSON.parse(body), { accountId: "account-1" });
+    selected = true;
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ selectedAccountId: "account-1", role: "editor" }));
+    return;
+  }
+  if (request.url?.startsWith("/api/auth/prospectus/sign-in?")) {
+    assert.equal(request.method, "POST");
+    assert.equal(request.headers.authorization, "Bearer synthetic-newsroom-token");
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ authorizationUrl: "/connected" }));
+    return;
+  }
+  if (request.url === "/connected") { response.end("Identity connection started"); return; }
   if (!request.url?.startsWith("/api/newsroom/chat/")) {
     response.writeHead(404).end();
     return;
@@ -45,6 +73,11 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify(payload));
   };
   if (request.url === "/api/newsroom/chat/private-channel" && request.method === "POST") {
+    if (mode === "connection" || (mode === "selection" && !selected)) {
+      response.writeHead(409, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: mode === "connection" ? "chat_identity_connection_required" : "publishing_account_required" }));
+      return;
+    }
     respond({ channel_id: "private-channel", participants: [{ kind: "human", actor_id: "server-editor" }, { kind: "bot", actor_id: "papyrus-assistant" }] });
     return;
   }
@@ -88,6 +121,14 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  if (mode === "connection") {
+    await page.getByRole("button", { name: "Connect publishing account" }).click();
+    await page.getByText("Identity connection started").waitFor();
+    assert.equal(sendCount, 0);
+    assert.deepEqual(errors, []);
+    console.log("PASS: newsroom identity connection is actionable without creating a message");
+  } else {
+  if (mode === "selection") await page.getByRole("button", { name: "Test publication" }).click();
   await page.getByText("Private conversation for your selected Account.").waitFor();
   const input = page.getByRole("textbox", { name: "Message input" });
   await input.fill("First private message");
@@ -106,11 +147,11 @@ try {
   assert.equal(sendCount, 2, "each deliberate send reaches the private adapter exactly once");
   const channelRequests = requests.filter((request) => request.url.endsWith("/private-channel"));
   const sendRequests = requests.filter((request) => request.method === "POST" && request.url.endsWith("/messages"));
-  assert.equal(channelRequests.length, 1);
+  assert.equal(channelRequests.length, mode === "selection" ? 2 : 1);
   assert.equal(sendRequests.length, 2);
   for (const request of [...channelRequests, ...sendRequests]) {
     assert.equal(request.headers.cookie, "papyrus-session=synthetic-session", "the same-origin session cookie reaches the host route");
-    assert.equal(request.headers.authorization, undefined, "the client does not forward a bearer token");
+    assert.equal(request.headers.authorization, "Bearer synthetic-newsroom-token", "the client sends its existing newsroom identity for server verification");
     assert.equal(request.headers.origin, `http://127.0.0.1:${server.address().port}`);
   }
   for (const request of sendRequests) {
@@ -120,6 +161,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log("PASS: shared UI sends through the private host route once, preserves pending-reply sends, and renders the reply");
+  }
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));

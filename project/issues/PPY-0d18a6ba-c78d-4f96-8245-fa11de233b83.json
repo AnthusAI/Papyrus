@@ -71,10 +71,29 @@
       "text": "2026-10-26 PR #720 CI found the pilot-identifier guard flagging the site-specific model-key path in CDK source/generated templates. Moved the path into config/papyrus-chat-candidate.json, kept the template validator tied to that config, generalized the stack description, and documented generated chat templates as deployment configuration in the guard. Local identifier guard, both template validators, fresh runtime/synthetic synths, and diff checks now pass. PR CI rerun will validate the exact updated head.",
       "created_at": "2026-10-26T04:36:45.028522Z",
       "comment_type": "default"
+    },
+    {
+      "id": "dd659bc4-c4a1-44aa-be58-65aadc11f68c",
+      "author": "home",
+      "text": "2026-10-26: Live iPad evidence shows an authenticated newsroom editor receiving sign_in_required from activated private chat. Reproduced code-path mismatch: newsroom uses Amplify Cognito session/groups, chat client sends only cookies, gateway requires separate selected-account Prospectus cookie. Investigating narrow identity integration fix; no auth weakening or role grants. Screenshot retained locally with Library identity. Branch fix/PPY-0d18a6-newsroom-chat-auth.",
+      "created_at": "2026-10-26T12:54:20.626573Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f58cdcf7-e7bc-4fa4-b58e-03a0f24ddf64",
+      "author": "home",
+      "text": "Authentication regression: confirmed published Papyrus 5.41.1 newsroom uses Cognito tokens while hosted chat requires an unconnected sealed Prospectus session. Fix verifies newsroom JWT issuer/client/token use/expiry/editor role, binds the Google-only challenge to the same verified subject, and requires validated publishing Account selection. No Account or role creation. Added executable Gherkin, cryptographic wrong-subject rejection, browser connection/selection, and cross-editor transcript/turn-stream tests. Release is constrained: current develop contains unrelated features; do not promote PR #722 for this fix.",
+      "created_at": "2026-10-26T13:13:23.993512Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "chat-runtime-continuation"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-26T04:36:45.028561Z",
+  "updated_at": "2026-10-26T13:13:23.993819Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

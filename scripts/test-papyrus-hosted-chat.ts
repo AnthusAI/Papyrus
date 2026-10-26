@@ -11,18 +11,21 @@ const accountId = "publishing-account-1";
 const now = 1_798_000_000;
 const environment = { PAPYRUS_SITE_ORIGIN: "https://papyrus.example", NODE_ENV: "test" };
 
-function requestFor(method: string, personId: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+function requestFor(method: string, personId: string, path: string, body?: unknown, headers: Record<string, string> = {}, sessionOverrides: Record<string, unknown> = {}) {
   const expiresAt = now + 600;
   const session = sealProspectusCookie(secret, PROSPECTUS_SESSION_COOKIE, {
     personId,
+    newsroomSubject: personId,
     accessToken: `access-${personId}`,
     accessTokenExpiresAt: expiresAt,
     selectedAccountId: accountId,
+    ...sessionOverrides,
   }, expiresAt);
   return withNextRequestShape(new Request(`https://papyrus.example/api/newsroom/chat/${path}`, {
     method,
     headers: {
       cookie: `${PROSPECTUS_SESSION_COOKIE}=${session}`,
+      authorization: `Bearer ${personId}`,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       ...headers,
     },
@@ -206,6 +209,7 @@ async function main() {
     environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: "editorial-assistant" },
     nowInSeconds: () => now,
     resolveRuntime: async () => auth.runtime,
+    resolveNewsroomIdentity: async (request: NextRequest) => { const subject = request.headers.get("authorization")?.replace("Bearer ", ""); return subject ? { subject } : null; },
     resolvePrivateDependencies: async () => core.dependencies,
   };
   const send = await handlePapyrusHostedChatRequest(
@@ -240,6 +244,21 @@ async function main() {
   const nonparticipantStream = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-b", "turns/private-turn-a/stream"), ["turns", "private-turn-a", "stream"], options);
   assert.equal(nonparticipantStream.status, 403);
 
+  for (const [overrides, expected] of [
+    [{ selectedAccountId: undefined }, "publishing_account_required"],
+    [{ newsroomSubject: "different-editor" }, "chat_identity_connection_required"],
+    [{ newsroomSubject: undefined }, "chat_identity_connection_required"],
+    [{ accessTokenExpiresAt: now - 1 }, "chat_identity_connection_required"],
+  ] as const) {
+    let storageLoads = 0;
+    const response = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`, undefined, {}, overrides), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => { storageLoads += 1; return core.dependencies; } });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, expected);
+    assert.equal(storageLoads, 0, "incomplete or mismatched identity never accesses chat storage");
+  }
+  const newsroomOnly = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`, undefined, { cookie: "" }), ["channels", core.channelId, "messages"], options);
+  assert.equal(newsroomOnly.status, 409);
+  assert.equal((await newsroomOnly.json()).error, "chat_identity_connection_required");
   const noSession = await handlePapyrusHostedChatRequest(withNextRequestShape(new Request("https://papyrus.example/api/newsroom/chat/channels/private-channel-a/messages")), ["channels", core.channelId, "messages"], options);
   assert.equal(noSession.status, 401);
   const denied = await handlePapyrusHostedChatRequest(requestFor("GET", "denied-editor", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);

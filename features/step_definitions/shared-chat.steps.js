@@ -69,3 +69,23 @@ Then("same-origin sends retain editor session scope, allow a pending-reply send 
 Then("the sealed editor creates the private channel and sees one persisted reply after refresh and replay", function () {
   assert.ok(this.papyrusWorkerIntegrationResult.includes("PASS: Papyrus private channel, hosted send, shared worker reply, refresh/replay, and foreign-editor denial"));
 });
+
+Given("an editor has a valid signed newsroom access token but no Prospectus session", function () {});
+Given("the connected editor has not selected a publishing Account", function () {});
+Given("an editor has matching newsroom and Prospectus identities and a selected Account", function () {});
+When("the editor connects private chat", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-newsroom-chat-identity.ts"], { maxBuffer: 4 * 1024 * 1024 });
+  this.newsroomIdentityResult = result.stdout;
+  await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "connection"], { maxBuffer: 4 * 1024 * 1024 });
+});
+for (const step of ["the server verifies the configured issuer, client, token use, expiry and editor role", "the Google sign-in challenge is bound to that editor's verified subject", "a callback for another subject is rejected before resolving a person"]) {
+  Then(step, function () { assert.match(this.newsroomIdentityResult, /PASS: verified newsroom JWT/); });
+}
+When("the editor opens private chat", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-hosted-chat-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
+  this.connectedChatResult = result.stdout;
+  await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "selection"], { maxBuffer: 4 * 1024 * 1024 });
+});
+for (const step of ["the response requests validated publishing Account selection instead of another sign-in", "no channel, message or model run is created", "fresh Account membership and console permission are required", "another editor cannot read the channel or its turn stream"]) {
+  Then(step, function () { assert.match(this.connectedChatResult, /PASS: Papyrus gateway/); });
+}
