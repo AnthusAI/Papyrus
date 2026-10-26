@@ -1201,16 +1201,28 @@ def hub(client, tmp_path):
     return records
 
 
-def test_the_corpus_export_adds_a_document_per_record_and_writes_the_records_file(hub, tmp_path, capsys):
+def test_the_corpus_export_keeps_records_out_of_the_corpus_and_writes_the_records_file(hub, tmp_path):
     names = sorted(path.name for path in (tmp_path / "raw").iterdir())
-    assert [name for name in names if name.startswith("item-")] == ["item-alpha.md", "item-beta.md"]
+    assert names == ["item-alpha.md", "item-beta.md"]  # records are data: the topic model reads only the site's own items
+    assert [entry["referenceId"] for entry in json.loads(hub.read_text())["records"]] == ["reference-org--lone", "reference-org--tuned", "reference-org--base"]
+
+
+def test_the_corpus_export_says_records_are_data_only(hub, tmp_path, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert "3 monitor records (data only, not in the corpus)" in capsys.readouterr().out
+
+
+def test_the_corpus_export_adds_a_document_per_record_only_when_asked(hub, tmp_path, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--records-in-topic-model")
+    names = sorted(path.name for path in (tmp_path / "raw").iterdir())
     assert [name for name in names if name.startswith("record-")] == ["record-reference-org--base.md", "record-reference-org--lone.md", "record-reference-org--tuned.md"]
     document = (tmp_path / "raw" / "record-reference-org--tuned.md").read_text(encoding="utf-8")
     assert "kind: monitor-record" in document and "Built on org/base (finetune), elsewhere/gone (adapter)." in document
-    assert [entry["referenceId"] for entry in json.loads(hub.read_text())["records"]] == ["reference-org--lone", "reference-org--tuned", "reference-org--base"]
-    capsys.readouterr()
-    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
     assert "3 monitor records" in capsys.readouterr().out
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]  # an earlier export's record documents are removed
 
 
 def test_without_monitor_sources_the_export_has_no_records(client, tmp_path):

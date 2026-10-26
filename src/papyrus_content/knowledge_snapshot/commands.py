@@ -274,13 +274,16 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         records, warnings = load_monitor_records(client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks)
         if normalize_string(options.get("monitor-records-out")):
             write_records(Path(options["monitor-records-out"]), records, as_of=as_of, sources=sources)
-    counts = write_export(items, out, [render_record(record) for record in records])
+    in_topic_model = bool(options.get("records-in-topic-model"))
+    counts = write_export(items, out, [render_record(record) for record in records] if in_topic_model else [])
+    if records and not in_topic_model:  # data for counts and relations only: the topic model reads the site's own items
+        counts["recordsAsData"] = len(records)
     for warning in warnings[:20]:
         print(f"knowledge\tcorpus-export\twarning\t{warning}", file=sys.stderr)
     if options.get("json"):
         print(json.dumps({"out": str(out), "types": list(types), **counts}, indent=2, sort_keys=True))
         return
-    monitor = f"{counts['records']} monitor records\t" if "records" in counts else ""
+    monitor = f"{counts['records']} monitor records\t" if "records" in counts else (f"{counts['recordsAsData']} monitor records (data only, not in the corpus)\t" if "recordsAsData" in counts else "")
     print(f"knowledge\tcorpus-export\t{counts['items']} items\t{monitor}{counts['undated']} undated\t{counts['removed']} removed\t{out}")
 
 

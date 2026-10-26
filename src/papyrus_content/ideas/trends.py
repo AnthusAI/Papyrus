@@ -4,6 +4,9 @@ The flow is snapshot, signals, one model call, a deterministic citation check, t
 
 * A **signal** is one fact-bearing row of the snapshot: a rising (or cooling) cluster or entity, with its weekly counts. Signals
   are built without a model, so the same snapshot gives the same signals.
+* **Which entities are signals** is a deterministic ranking (``select_entities``): surprise over the entity's own prior four weeks and the whole
+  corpus's growth, not raw counts; broad kinds (licence, task, platform) never anchor a draft and are only offered as context; a maker anchors
+  a draft only when it is notable (watchlisted, or several models with real likes or downloads). Thresholds are ``TrendConfig``.
 * An **item** is a release or story behind an entity signal in the snapshot window (its title, one-line summary, date and site URL, at
   most five most recent per signal). The model is shown them so the story is about what shipped, not only the counts.
 * The model writes headline, dek and paragraphs as single sentences, each with the signal handles (S1, S2, ...) and item handles
@@ -28,6 +31,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
+from ..knowledge_snapshot.trends import TrendConfig, corpus_volume, trend_score
 from . import dedupe, synthesis
 from .digest import iso
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
@@ -36,7 +40,7 @@ from .store import JsonStore, ProposalStore
 
 DEFAULT_MAXIMUM_DRAFTS = 3
 MAXIMUM_ENTITY_SIGNALS = 8
-MAXIMUM_NEW_ENTITY_SIGNALS = 3
+MAXIMUM_CONTEXT_SIGNALS = 2  # broad-kind entities (licence, task, platform) offered beside the anchors; they may be cited, never lead a story
 MAXIMUM_CLUSTER_SIGNALS = 6
 MAXIMUM_CITED_SIGNALS = 10  # a story_draft Proposal names at most ten targets
 MAXIMUM_FIGURE_SIGNALS = 3
@@ -51,6 +55,8 @@ WINDOW_WEEKS = 4  # the "last four weeks" the entity change counts cover
 SUMMARY_LIMIT = 300
 ITEM_FETCH_LIMIT_BYTES = 200_000
 MAXIMUM_OUTPUT_TOKENS = 12_000  # reasoning plus up to three cited drafts; the shared 6,000 ran out when the model wrote three
+EXCLUDED_REPORT_LIMIT = 25
+ENGAGEMENT = re.compile(r"(\d[\d,]*)\s+likes?,\s*(\d[\d,]*)\s+downloads?")
 STATE_ORDER = {"growing": 0, "new": 1, "cooling": 2}
 Fetch = Callable[[str], Any]
 FetchText = Callable[[str], str]
@@ -63,6 +69,7 @@ Rules:
 - Every headline, dek and body sentence is its own entry with the handles it rests on, in "cites": signal handles (S1, S2, ...) and item handles (I1, I2, ...). A sentence about a release cites that release's item handle; a sentence that uses a signal's counts or state cites the signal handle too. A sentence with no handle, or a handle that is not one you were given, makes the whole draft unusable.
 - One sentence per entry. Do not put handles in the text; refer to a signal or an item by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the signals and items.
 - Use only what the signal and item fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why something grew or why a maker did something. A reading of the pattern is allowed only if it is framed with "suggests" (or "points to") and rests on the cited items. Do not do arithmetic: write a number only if it appears in the fields of a signal or item that sentence cites (write digits, not number words). A sentence that mentions two signals or items cites both.
+- A signal with "role": "context" is a broad category (a licence, a task or a platform) offered only so a sentence can say where the releases sit. Cite it for context, but never make it the subject of the headline or the dek, and never build a story around it. The anchors are the signals without that role.
 - Where "percent" is null the base is small or the history short: describe the counts, never a percentage. Where "is_new" is true, say the entity is new to the map.
 - Items are the publication's own published items, except an item with a "from" field: that is a release recorded from a monitored source (for example a model on the Hugging Face Hub). It has no page on the site, so call it a release or a model, say where it is from, never that the publication published or reported it, and use only the facts in its title and summary. Counts are items and recorded releases per week. The stories are proposals for an editor, not finished reporting.
 - Make no present-tense statement about the publisher's own production systems or results.
@@ -297,9 +304,112 @@ def attach_summaries(signals: list[dict[str, Any]], fetch_text: FetchText | None
             item["summary"] = summary
 
 
-def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None) -> list[dict[str, Any]]:
-    """The week's signals, clusters first (growing, new, cooling, then the rest), then entities (trending order, then new ones). Entity
-    signals carry ``items``: the releases behind them in the window, with a one-line summary where ``fetch_text`` can read the item page.
+def _window_start(as_of: str) -> date:
+    end = date.fromisoformat(as_of)
+    return (end - timedelta(days=end.weekday())) - timedelta(weeks=WINDOW_WEEKS - 1)
+
+
+def window_engagement(related: Any, as_of: str) -> dict[str, int]:
+    """How much the Hub's own numbers say about the releases in the window: distinct models and the likes and downloads their summaries state.
+    It reads every record the entity file lists (the newest ``related_limit`` of them), not only the few the model is shown."""
+    start = _window_start(as_of)
+    models: dict[str, tuple[int, int]] = {}
+    for row in related or []:
+        if not isinstance(row, dict) or not row.get("title") or not isinstance(row.get("publishedAt"), str):
+            continue
+        try:
+            if date.fromisoformat(row["publishedAt"][:10]) < start:
+                continue
+        except ValueError:
+            continue
+        found = ENGAGEMENT.search(str(row.get("summary") or ""))
+        likes, downloads = (int(found.group(1).replace(",", "")), int(found.group(2).replace(",", ""))) if found else (0, 0)
+        models.setdefault(str(row["title"]).strip(), (likes, downloads))
+    return {"models": len(models), "likes": sum(m[0] for m in models.values()), "downloads": sum(m[1] for m in models.values())}
+
+
+def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_of: str, config: TrendConfig) -> tuple[bool, str]:
+    """(notable, why). A maker is notable when it is on the watchlist, when the site has its own item about it in the window, or when at least
+    ``minimum_models`` of its models were recorded in the window with likes adding up to ``minimum_likes`` or downloads to ``minimum_downloads`` (and in
+    either case at least ``likes_floor`` likes: downloads alone are not notability).
+    A single account with a handful of likes is below the bar and cannot anchor a draft."""
+    names = {str(entity.get("key") or "").lower(), str(entity.get("name") or "").lower()}
+    if names & config.watchlist:
+        return True, "watchlisted"
+    detail = detail or {}
+    if window_items(detail.get("relatedItems"), as_of, None):
+        return True, "the site has its own item about it in the window"
+    engagement = window_engagement(detail.get("relatedRecords"), as_of)
+    summary = f"{engagement['models']} model(s), {engagement['likes']} likes, {engagement['downloads']} downloads in the window"
+    reached = engagement["likes"] >= config.minimum_likes or engagement["downloads"] >= config.minimum_downloads
+    if engagement["models"] >= config.minimum_models and engagement["likes"] >= config.likes_floor and reached:
+        return True, summary
+    return False, summary
+
+
+def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None) -> dict[str, Any]:
+    """Which entities become signals, deterministically, from the index's eight-week series (the published ``trending`` order is not used).
+
+    * **Ranked**: every entity with at least ``minimum_recent`` mentions in the last four weeks, scored by Poisson surprise over its own prior four
+      weeks scaled by the corpus's growth, times a weight by kind (broad kinds are demoted).
+    * **Anchors**: the best ``MAXIMUM_ENTITY_SIGNALS`` of the ranked entities whose kind may anchor a draft (``anchor_kinds``) and whose score reaches
+      ``minimum_score``; a maker must also be notable. Entities passed over are listed with the reason.
+    * **Context**: up to ``MAXIMUM_CONTEXT_SIGNALS`` broad-kind entities that sit beside the anchors (their neighbours), most connected first. They
+      carry ``role: "context"``; the prompt forbids a story about them.
+    """
+    config = config or TrendConfig()
+    as_of = snapshot["asOf"]
+    entities = [entity for entity in snapshot["index"]["entities"] if entity.get("key")]
+    volume = corpus_volume(_series(entity.get("series8")) for entity in entities)
+    scored = []
+    for entity in entities:
+        result = trend_score(entity.get("kind"), _series(entity.get("series8")), volume, config)
+        if result["last4"] >= config.minimum_recent:
+            scored.append({"key": entity["key"], "name": entity.get("name"), "kind": entity.get("kind"), "isNew": bool(entity.get("isNew")), **result})
+    scored.sort(key=lambda row: (-row["score"], -row["last4"], row["key"]))
+    by_key = {entity["key"]: entity for entity in entities}
+    anchors, excluded, details = [], [], {}
+
+    def detail_of(key: str) -> dict[str, Any]:
+        if key not in details:
+            details[key] = snapshot["entityFile"](key) or {}
+        return details[key]
+
+    for row in scored:
+        if row["score"] < config.minimum_score:
+            continue
+        if row["kind"] not in config.anchor_kinds:
+            excluded.append({"key": row["key"], "reason": f"{row['kind']} cannot anchor a draft", "score": row["score"]})
+            continue
+        if len(anchors) >= MAXIMUM_ENTITY_SIGNALS:
+            continue
+        if row["kind"] == "maker":
+            notable, why = maker_notability(by_key[row["key"]], detail_of(row["key"]), as_of, config)
+            if not notable:
+                excluded.append({"key": row["key"], "reason": f"maker below the notability bar: {why}", "score": row["score"]})
+                continue
+            row = {**row, "notability": why}
+        anchors.append(row)
+    anchor_keys = {row["key"] for row in anchors}
+    broad = {row["key"]: row for row in scored if row["kind"] in config.broad_kinds and row["key"] not in anchor_keys}
+    connection: dict[str, int] = {}
+    for row in anchors:
+        for neighbour in detail_of(row["key"]).get("neighbours") or []:
+            if neighbour.get("key") in broad:
+                connection[neighbour["key"]] = connection.get(neighbour["key"], 0) + int(neighbour.get("weight") or 0)
+    context = sorted(connection, key=lambda key: (-connection[key], -broad[key]["surprise"], key))[:MAXIMUM_CONTEXT_SIGNALS]
+    return {
+        "anchors": anchors, "context": [broad[key] for key in context], "excluded": excluded[:EXCLUDED_REPORT_LIMIT],
+        "candidatesRanked": len(scored), "thresholds": {
+            "minimumRecent": config.minimum_recent, "minimumScore": config.minimum_score, "minimumModels": config.minimum_models,
+            "minimumLikes": config.minimum_likes, "minimumDownloads": config.minimum_downloads, "watchlist": sorted(config.watchlist),
+        },
+    }
+
+
+def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None, config: TrendConfig | None = None, selection: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """The week's signals, clusters first (growing, new, cooling, then the rest), then the anchor entities by score, then context entities.
+    Entity signals carry ``items``: the releases behind them in the window, with a one-line summary where ``fetch_text`` can read the item page.
     The snapshot publishes no member list for a cluster, so a cluster signal has no items."""
     as_of, signals = snapshot["asOf"], []
     previous = snapshot.get("previous") or {}
@@ -317,17 +427,16 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None)
             signal["previousArchiveWeek"] = previous["asOf"]
         signals.append(signal)
     by_key = {entity["key"]: entity for entity in snapshot["index"]["entities"] if entity.get("key")}
-    keys = [key for key in snapshot["index"].get("trending") or [] if key in by_key][:MAXIMUM_ENTITY_SIGNALS]
-    new = sorted((e for e in by_key.values() if e.get("isNew") and (e.get("change") or {}).get("last4", 0) >= 3 and e["key"] not in keys), key=lambda e: (-e["change"]["last4"], e["key"]))
-    keys += [entity["key"] for entity in new[:MAXIMUM_NEW_ENTITY_SIGNALS]]
-    for key in keys:
+    selection = selection or select_entities(snapshot, config)
+    chosen = [(row["key"], "anchor") for row in selection["anchors"]] + [(row["key"], "context") for row in selection["context"]]
+    for key, role in chosen:
         entity, change = by_key[key], by_key[key].get("change") or {}
         series = _series(entity.get("series8"))
         signal = {
             "id": f"entity:{key}", "asOf": as_of, "kind": "entity", "name": entity["name"], "entityKind": entity.get("kind"), "targetType": "entity", "targetId": key,
             "itemCount": entity.get("itemCount"), "weeksOfHistory": entity.get("weeksOfHistory"), "isNew": bool(entity.get("isNew")),
             "last4": change.get("last4"), "prior4": change.get("prior4"), "percent": change.get("percent"),
-            "series": series, "weeks": week_labels(as_of, len(series)), "href": entity.get("href"),
+            "series": series, "weeks": week_labels(as_of, len(series)), "href": entity.get("href"), "role": role,
         }
         detail = snapshot["entityFile"](key) or {}
         if detail.get("neighbours"):
@@ -375,7 +484,7 @@ def signal_view(handle: str, signal: dict[str, Any], as_of: str, item_handles: d
         view.update(
             entity_kind=signal.get("entityKind"), items_total=signal.get("itemCount"), weeks_of_history=signal.get("weeksOfHistory"), is_new=signal.get("isNew"),
             items_last_4_weeks=signal.get("last4"), items_prior_4_weeks=signal.get("prior4"), percent=signal.get("percent"),
-            neighbours=signal.get("neighbours"),
+            neighbours=signal.get("neighbours"), role="context" if signal.get("role") == "context" else None,
         )
     if item_handles:
         view["items"] = [item_handles[item["id"]] for item in signal.get("items", []) if item["id"] in item_handles]
@@ -702,6 +811,7 @@ def draft_trends(
     dry_run: bool = False,
     now: datetime | None = None,
     fetch_text: FetchText | None = None,
+    config: TrendConfig | None = None,
 ) -> dict[str, Any]:
     """Drafts trend stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -715,7 +825,9 @@ def draft_trends(
     if proposal_store is not None and proposal_store.dedupe_unavailable:
         run["proposalDedupe"] = proposal_store.dedupe_unavailable
     documents = comparison_documents(context, stored, proposals, [])
-    signals_list = build_signals(snapshot, fetch_text)
+    selection = select_entities(snapshot, config)
+    run["selection"] = selection
+    signals_list = build_signals(snapshot, fetch_text, config, selection)
     signals = {signal["id"]: signal for signal in signals_list}
     handles = handles_for(signals_list)
     run["inputs"] = estimate_inputs(snapshot, signals_list, context, documents)
