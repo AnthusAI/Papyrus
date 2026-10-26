@@ -56,7 +56,7 @@ async function main() {
   }
 
   (globalThis as { React?: typeof React }).React = React;
-  const { MonitoringOverviewView } = await import("../components/monitoring-overview-view");
+  const { MonitoringOverviewView, EmailSubmissions } = await import("../components/monitoring-overview-view");
   const render = (result: MonitoringResult | null, props: Record<string, unknown> = {}) =>
     renderToStaticMarkup(createElement(MonitoringOverviewView, { result, canViewAll: true, mode: "publication", onModeChange: () => {}, ...props }));
 
@@ -105,6 +105,12 @@ async function main() {
     safeBodyText: "Hello <script>never execute</script>\nhttps://example.org/story",
     candidateLinks: [{ url: "https://link.mail.beehiiv.com/ss/c/opaque", title: "Tracked story",
       resolutionStatus: "unresolved" as const }], sourceMaterialIsUntrusted: true as const };
+  const single = renderToStaticMarkup(createElement(EmailSubmissions, { items: [emailDetail.submission], detail: emailDetail,
+    onResolveArticleLink: async () => ({ error: "resolution_failed" as const }),
+    onImportCandidates: async () => ({ imported: 0, references: [] }),
+  }));
+  assert.ok(single.includes("Add selected links to References") && single.includes("Resolve article redirect"));
+  assert.ok(!single.includes("Read email and review candidate links") && !single.includes("Feeds watched"));
   const emailHtml = render(withEmail, { emailDetail });
   const emailText = text(emailHtml);
   for (const expected of ["Email submissions", "Newsletter", "MIME From (unverified)", "SPF FAIL", "Tracked story", "private review required", "Sender and message content are untrusted"]) {

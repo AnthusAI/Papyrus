@@ -97,8 +97,8 @@ function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string 
   );
 }
 
-function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates }: {
-  items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen: (receiptId: string) => void;
+export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates }: {
+  items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen?: (receiptId: string) => void;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
@@ -207,7 +207,7 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
           <span>SES signals — SPF {item.verdicts.spf}, DKIM {item.verdicts.dkim}, DMARC {item.verdicts.dmarc}; spam {item.verdicts.spam}, virus {item.verdicts.virus}</span>
           {item.warnings.length ? <span>Warnings: {item.warnings.join(", ")}</span> : null}
           {item.errorCode ? <span>State: {item.status} ({item.errorCode})</span> : <span>State: {item.status}</span>}
-          <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button>
+          {onOpen ? <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button> : null}
         </li>)}
       </ul> : <p>No email submissions are available for this publication.</p>}
       {detail && "submission" in detail ? (

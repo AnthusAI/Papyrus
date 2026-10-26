@@ -535,3 +535,16 @@ authorization point and one least-privilege grant.
   when the Cyclotron reports it between 0 and 1.
 - Old `ceilings` fields in `CONFIG#router` are ignored and are not returned to Monitoring.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
+
+### Open one email receipt
+
+Editors can open `/newsroom/administration/monitoring?receipt=EMAIL%23<receipt-hash>`
+to inspect one known email. Encode the receipt with `encodeURIComponent` when
+constructing the link: an unescaped `#` becomes a URL fragment. This mode calls
+only the authenticated single-receipt query and never mounts or refreshes the
+monitoring overview. Empty, unavailable, and refused receipts do not fall back
+to listing submissions. Existing editor/admin authorization, redirect consent,
+and pending Reference intake apply unchanged.
+
+This UI change requires an engine release and a site pin update before the link
+is supported on a deployed site. It does not establish live email acceptance.

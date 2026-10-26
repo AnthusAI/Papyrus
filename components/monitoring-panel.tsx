@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   importMonitoringEmailCandidates,
   loadMonitoringEmailSubmission,
@@ -9,12 +10,41 @@ import {
 } from "../lib/monitoring-client";
 import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../lib/monitoring-overview-fixture";
 import type { EmailReferenceImportItem, MonitoringEmailDetails, MonitoringResult } from "../lib/monitoring-overview";
-import { MonitoringOverviewView, type MonitoringMode } from "./monitoring-overview-view";
+import { EmailSubmissions, MonitoringOverviewView, type MonitoringMode } from "./monitoring-overview-view";
 
 const REFRESH_MILLISECONDS = 60_000;
 
-/** Administration, Monitoring: loads the overview, refreshes it each minute, and lets an admin widen it to the whole pipeline. */
-export function MonitoringPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo: boolean }) {
+/** A receipt URL mounts only the single-submission reader, never the overview. */
+export function MonitoringPanel(props: { isAdmin: boolean; isDemo: boolean }) {
+  const searchParams = useSearchParams();
+  if (searchParams.has("receipt")) {
+    return <MonitoringEmailReceipt key={searchParams.get("receipt")} receiptId={searchParams.get("receipt") ?? ""} isDemo={props.isDemo} />;
+  }
+  return <MonitoringOverviewPanel {...props} />;
+}
+
+function MonitoringEmailReceipt({ receiptId, isDemo }: { receiptId: string; isDemo: boolean }) {
+  const [detail, setDetail] = useState<MonitoringEmailDetails | null>(null);
+  useEffect(() => {
+    if (!receiptId || isDemo) return;
+    let live = true;
+    void loadMonitoringEmailSubmission(receiptId).then(
+      (next) => { if (live) setDetail(next); },
+      () => { if (live) setDetail({ state: "unavailable" }); },
+    );
+    return () => { live = false; };
+  }, [receiptId, isDemo]);
+  if (!receiptId) return <p role="alert">A receipt is required to open a submission.</p>;
+  if (isDemo) return <p role="status">Single email submissions require an editor session.</p>;
+  return <div data-news-desk-admin-panel="monitoring">
+    {detail === null ? <p role="status">Loading email submission…</p> :
+      <EmailSubmissions items={"submission" in detail ? [detail.submission] : []} detail={detail}
+        onResolveArticleLink={resolveMonitoringEmailArticleLink} onImportCandidates={importMonitoringEmailCandidates} />}
+  </div>;
+}
+
+/** Overview refreshes apply only when no receipt was requested. */
+function MonitoringOverviewPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo: boolean }) {
   const [mode, setMode] = useState<MonitoringMode>("publication");
   const [result, setResult] = useState<MonitoringResult | null>(null);
   const [emailDetail, setEmailDetail] = useState<MonitoringEmailDetails | null>(null);
