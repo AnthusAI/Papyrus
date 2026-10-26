@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sync, readReaderBasePath } from "../packages/papyrus/src/sync.mjs";
+import { sync, readReaderBasePath, gitignoreEntry } from "../packages/papyrus/src/sync.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const quiet = () => {};
@@ -100,6 +100,26 @@ try {
   assert.ok(fs.readFileSync(path.join(mountedRoot, "app/page.tsx"), "utf8").includes("Marketing"), "the site-owned root page survives the toggle");
 } finally {
   fs.rmSync(mountedRoot, { recursive: true, force: true });
+}
+
+const gitRoot = tempSite("export default {};\n");
+try {
+  execFileSync("git", ["init", "-q"], { cwd: gitRoot });
+  const dynamicManifest = {
+    ...manifest,
+    routes: [...manifest.routes, { file: "app/api/newsroom/chat/[...path]/route.ts", hasDefault: false, exports: ["POST"], config: {} }],
+  };
+  sync({ root: gitRoot, log: quiet, manifest: dynamicManifest });
+  const gi = fs.readFileSync(path.join(gitRoot, ".gitignore"), "utf8");
+  assert.ok(gi.includes("/app/\\[year\\]/\\[month\\]/\\[day\\]/page.tsx"), "brackets are escaped in .gitignore");
+  assert.ok(gi.includes("/app/%5F_preview/\\[\\[...path\\]\\]/route.ts"), "double brackets are escaped, %5F_ kept");
+  const untracked = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: gitRoot, encoding: "utf8" })
+    .split("\n")
+    .filter((l) => l.includes("app/"));
+  assert.deepEqual(untracked, [], "no shim under app/ shows up in git status");
+  assert.equal(gitignoreEntry("a b*?#.ts "), "/a b\\*\\?#.ts\\ ", "other metacharacters are escaped");
+} finally {
+  fs.rmSync(gitRoot, { recursive: true, force: true });
 }
 
 assert.throws(() => sync({ root: tempSite(), log: quiet, manifest, readerBasePath: "/newsroom" }), /collides/, "newsroom base path is rejected");
