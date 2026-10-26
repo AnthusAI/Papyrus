@@ -6,7 +6,8 @@ Feature: Monitor records count in the Knowledge Map as data
   the weekly knowledge run counts them as data and never turns them into pages.
 
   A site opts in with the knowledge run setting monitorSources. A delivered model then
-  becomes a monitor record: a corpus document dated by the model's own release date,
+  becomes a monitor record: a row of the run's monitor records file dated by the model's own
+  release date (data only: it is not a corpus document, so the topic model never clusters it),
   the structured entities its Hub fields name, and a "built on" relation to its base
   model when both are on the map. A rejected model is left out. The weekly snapshot
   counts the records next to the site's own items, lists them apart from the items,
@@ -24,8 +25,13 @@ Feature: Monitor records count in the Knowledge Map as data
     When the corpus is exported without monitor sources
     Then the corpus holds the item documents "alpha" and "beta" and no record document
 
-  Scenario: The corpus gets a document per delivered model, dated by its release, except the rejected one
+  Scenario: Records are data only and stay out of the topic model
     When the corpus is exported for "shipped" with the monitor source "huggingface" as of 2026-10-19
+    Then the corpus holds the item documents "alpha" and "beta" and no record document
+    And the monitor records file holds 3 records
+
+  Scenario: A site can still ask for a document per delivered model in the topic model
+    When the corpus is exported with the records in the topic model for "shipped" from the monitor source "huggingface" as of 2026-10-19
     Then the corpus holds the record documents "org/base", "org/lone" and "org/tuned"
     And the record document "org/tuned" is dated 2026-10-14T08:00:00Z and marked kind monitor-record
     And the record document "org/tuned" says it is built on "org/base" and holds no model card text

@@ -50,7 +50,7 @@ def filed(context) -> list[dict]:
     return [row for row in context.trend_client.proposals if "kind" in row]
 
 
-@given('a weekly knowledge snapshot for the week of "{week}" with two named clusters and four entities')
+@given('a weekly knowledge snapshot for the week of "{week}" with two named clusters and five entities')
 def step_snapshot(context, week):
     assert week == AS_OF
     context.trend_client = ListingClient(sections=("Analysis", "News"))
@@ -84,7 +84,7 @@ def step_release_pages(context):
 
 @given("an editor can read an earlier story draft Proposal with the same targets")
 def step_earlier_proposal(context):
-    targets = [{"type": "entity", "id": "platform--hugging-face"}, {"type": "entity", "id": "licence--apache-2-0"}]
+    targets = [{"type": "entity", "id": "maker--hugging-face"}, {"type": "entity", "id": "maker--zed"}]
     context.trend_client.listed = [{"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Another angle", "summary": "x", "state": "draft", "targets": json.dumps(targets), "createdAt": "2026-10-20T00:00:00Z"}]
 
 
@@ -98,10 +98,10 @@ def step_iam(context):
 
 @when("the operator reads the signals of the snapshot")
 def step_read_signals(context):
-    context.trend_signals = trends.build_signals(context.trend_snapshot, getattr(context, "trend_fetch_text", None))
+    context.trend_signals = trends.build_signals(context.trend_snapshot, getattr(context, "trend_fetch_text", None), getattr(context, "trend_config", None))
 
 
-@when("the model drafts a trend story citing Hugging Face and Apache-2.0")
+@when("the model drafts a trend story citing Hugging Face and Zed")
 def step_good_draft(context):
     context.trend_drafts.append(trend_draft())
 
@@ -183,10 +183,10 @@ def step_dry_run(context):
     run_trends(context, dry_run=True, reviews=True)
 
 
-@then("the signals are the two clusters, then the three trending entities, then the one new entity")
+@then("the signals are the two clusters, then the two makers and the concept that gained share, then the one new concept")
 def step_signal_order(context):
     assert [s["id"] for s in context.trend_signals] == [
-        "cluster:cl-fb1252e1da52", "cluster:cl-aaaa00000001", "entity:platform--hugging-face", "entity:licence--apache-2-0", "entity:task--routing", "entity:task--typed-decisions"]
+        "cluster:cl-fb1252e1da52", "cluster:cl-aaaa00000001", "entity:maker--hugging-face", "entity:maker--zed", "entity:concept--routing", "entity:concept--typed-decisions"]
 
 
 @then("each signal names its weekly counts for the {weeks:d} weeks ending {end}")
@@ -247,7 +247,7 @@ def step_figure_weeks(context, first, last):
 @then("the body lists the signals cited under the sentences that cite them")
 def step_body(context):
     body = filed(context)[0]["body"]
-    assert "[1]" in body and "## Signals cited" in body and "`entity:platform--hugging-face`" in body
+    assert "[1]" in body and "## Signals cited" in body and "`entity:maker--hugging-face`" in body
 
 
 @then('the run record says that sentence failed with "{reason}"')
@@ -321,9 +321,9 @@ def step_items(context, count):
     assert all(i["title"] and i["summary"] and i["date"] and i["url"].startswith(SITE_BASE) for i in items), items
 
 
-@then("Apache-2.0 carries only the release inside the window and not the older one")
+@then("Zed carries only the release inside the window and not the older one")
 def step_window(context):
-    assert [i["date"] for i in entity_signal(context, "Apache-2.0")["items"]] == ["2026-10-17"]
+    assert [i["date"] for i in entity_signal(context, "Zed")["items"]] == ["2026-10-17"]
 
 
 @then("the clusters carry no releases because the snapshot lists no members for them")
@@ -340,7 +340,7 @@ def step_shown(context):
 @then("the body marks the cited signals first and then the cited releases")
 def step_marks(context):
     body = filed(context)[0]["body"]
-    assert "under Apache-2.0. [3]" in body and "1. Hugging Face" in body and "2. Apache-2.0" in body, body
+    assert "under Apache-2.0. [3]" in body and "1. Hugging Face" in body and "2. Zed" in body, body
 
 
 @then('the body lists the cited releases under "Sources" with their titles, dates and addresses')

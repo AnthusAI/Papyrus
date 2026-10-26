@@ -17,10 +17,11 @@ The rest (``papyrus_item_id``, ``slug``, ``url``, ``title``, ``section``, ``enti
 Biblicus carries with the item. The body is the title, the deck and the Markus source, so the topic model and the
 entity extractor read the words a reader reads.
 
-A site that opts in (``--monitor-sources``) also gets one ``record-<reference id>.md`` per monitor record
-(``monitor_records.py``): ``kind: monitor-record``, ``papyrus_record_id``, the Hub card as ``url`` and the record's source
-date as ``dates.published_at``. Its body is the record's structured line, never model card text, so the topic model counts
-the record in its clusters and weekly series. The wiki and the projection never read these files.
+A site that opts in (``--monitor-sources``) also gets its monitor records (``monitor_records.py``) written to ``--monitor-records-out``.
+They are data for counts and relations and are **not** corpus documents, so the topic model reads only the site's own items. With
+``--records-in-topic-model`` (an experiment; the cloud run never passes it) each record is also one ``record-<reference id>.md``:
+``kind: monitor-record``, ``papyrus_record_id``, the Hub card as ``url`` and the record's source date as ``dates.published_at``, its body
+the record's structured line, never model card text. The wiki and the projection never read these files.
 """
 
 from __future__ import annotations

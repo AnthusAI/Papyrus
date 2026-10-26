@@ -99,6 +99,14 @@ def step_export(context, key, source, day):
     )
 
 
+@when('the corpus is exported with the records in the topic model for "{key}" from the monitor source "{source}" as of {day}')
+def step_export_with_documents(context, key, source, day):
+    command(
+        context, commands.knowledge_corpus_export, "--out", str(context.out), "--monitor-sources", source, "--corpus-key", key, "--as-of", day,
+        "--monitor-records-out", str(context.records_file), "--records-in-topic-model",
+    )
+
+
 @given("the corpus was exported with the monitor records")
 def step_export_given(context):
     step_export(context, context.key, "huggingface", "2026-10-19")
@@ -247,7 +255,8 @@ def step_signals(context):
     fetched = []
     context.fetched = fetched
     snapshot = trends.load_snapshot(str(context.site / "_data" / "knowledge"))
-    context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: fetched.append(url) or "# Page\n\nSummary.\n")}
+    chosen = {"anchors": [{"key": "maker--org"}], "context": []}  # whether the maker is notable enough to anchor a draft is idea-trend-quality.feature's business
+    context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: fetched.append(url) or "# Page\n\nSummary.\n", selection=chosen)}
 
 
 @then('the signal for "{key}" has the release "{model}" from the Hugging Face Hub dated {day}')

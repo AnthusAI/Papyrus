@@ -31,6 +31,7 @@ from .trends import (
     Change,
     change_of,
     is_new,
+    rank_trending,
     series,
     weekly_counts,
     weeks_of_history,
@@ -160,15 +161,10 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
 
 
 def _trending_order(entities: list[_Entity]) -> list[str]:
-    candidates = [entity for entity in entities if not entity.new and entity.change.last4 > 0]
-
-    def order(entity: _Entity):
-        change = entity.change
-        if change.percent is not None:
-            return (0, -change.percent, entity.key)
-        return (1, -(change.last4 - change.prior4), entity.key)
-
-    return [entity.key for entity in sorted(candidates, key=order)]
+    """Entities that gained mentions beyond what the corpus's own growth explains, most surprising first; broad kinds (licence, task,
+    platform) are demoted by weight, so what everything mentions does not lead. New entities are listed through ``isNew``, not here."""
+    ranked = rank_trending((entity.key, entity.kind, entity.values8) for entity in entities if not entity.new)
+    return [str(row["key"]) for row in ranked]
 
 
 def _neighbours(entities: list[_Entity], data: KnowledgeData, options: SnapshotOptions) -> dict[str, list[dict]]:
