@@ -35,6 +35,12 @@ Feature: The Monitoring page shows the automated research pipeline to editors
     When an editor of "anth-us" opens the monitoring overview
     Then the overview says nothing is configured or collected yet
 
+  Scenario: Email receipts use the publication's configured receiver partition
+    Given a separate private email receiver partition for "p-apyr-us"
+    When an editor of "p-apyr-us" opens the monitoring overview with that partition
+    Then the shared feed still comes from the "hn" partition
+    And the email receipt appears from the "p-apyr-us-email" partition
+
   Scenario: The overview never exposes endpoints, roles or accounts
     Given a monitoring table with runs, routed items and a legacy quota configuration
     When an admin opens the monitoring overview for the whole pipeline

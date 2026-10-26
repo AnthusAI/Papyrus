@@ -111,7 +111,6 @@ def test_an_entity_first_linked_two_weeks_ago_is_new_and_not_trending():
     row = next(row for row in files[INDEX_FILE]["entities"] if row["key"] == "task--code-completion")
     assert row["isNew"] is True and row["weeksOfHistory"] == 3
     assert "task--code-completion" not in files[INDEX_FILE]["trending"]
-    assert "task--voice-cloning" in files[INDEX_FILE]["trending"]
 
 
 def test_only_confirmed_links_to_published_dated_items_count():
@@ -149,13 +148,11 @@ def test_unaccepted_entities_and_entities_without_links_are_left_out():
     assert [key for key in files if key.startswith("_data/knowledge/entities/")] == []
 
 
-def test_trending_order_percent_then_null_percent_by_growth_then_key():
-    entities = []
-    links = []
-    items = []
-
-    def add(name: str, last: int, prior: int):
-        target = node("task", name)
+def _corpus(shapes: dict[str, tuple[str, int, int]]):
+    """Entities by name: ``name -> (kind, mentions in the last four weeks, mentions in the four weeks before)``."""
+    entities, links, items = [], [], []
+    for name, (kind, last, prior) in shapes.items():
+        target = node(kind, name)
         entities.append(target)
         for index in range(last):
             items.append(item(f"{name}-l{index}", offset=index % 4))
@@ -163,41 +160,41 @@ def test_trending_order_percent_then_null_percent_by_growth_then_key():
         for index in range(prior):
             items.append(item(f"{name}-p{index}", offset=4 + index % 4))
             links.append(link(f"{name}-p{index}", target))
-
-    add("alpha", 12, 6)
-    add("bravo", 7, 5)
-    add("charlie", 9, 3)
-    add("delta", 5, 1)
-    add("echo", 8, 6)
-    data = KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
-    files = build_files(data, OPTIONS)
-    order = files[INDEX_FILE]["trending"]
-    percents = {row["key"]: row["change"]["percent"] for row in files[INDEX_FILE]["entities"]}
-    assert percents == {"task--alpha": 100, "task--bravo": 40, "task--charlie": None, "task--delta": None, "task--echo": 33}
-    assert order == ["task--alpha", "task--bravo", "task--echo", "task--charlie", "task--delta"]
+    return KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
 
 
-def test_percent_is_null_under_eight_weeks_of_history_and_trending_follows_it():
-    entities, links, items = [], [], []
+def test_trending_is_surprise_over_the_entitys_own_baseline_and_the_corpus_growth_not_a_raw_count():
+    # The shape of 2026-10-26: a licence and a task carry the biggest counts and rise with the whole corpus; makers with few mentions are the news.
+    data = _corpus(
+        {
+            "mit": ("licence", 60, 40),
+            "text generation": ("task", 80, 55),
+            "nvidia": ("maker", 6, 1),
+            "olmo": ("model_family", 5, 2),
+            "steady": ("maker", 9, 8),
+            "quiet": ("maker", 1, 0),
+        }
+    )
+    # nvidia gained share; olmo (+3 on a small base) is not far enough above its baseline; the licence and the task rose with the corpus.
+    assert build_files(data, OPTIONS)[INDEX_FILE]["trending"] == ["maker--nvidia"]
 
-    def add(name: str, counts: dict[int, int]):
-        target = node("task", name)
-        entities.append(target)
-        for offset, amount in counts.items():
-            for index in range(amount):
-                items.append(item(f"{name}-{offset}-{index}", offset=offset))
-                links.append(link(f"{name}-{offset}-{index}", target))
 
-    add("young", {0: 3, 1: 3, 2: 3, 3: 3, 4: 1, 5: 1})
-    add("mature", {0: 2, 1: 2, 2: 2, 3: 2, 4: 2, 5: 2, 6: 2, 7: 2})
-    add("zshort", {0: 4, 1: 4, 2: 1, 3: 1, 4: 1, 5: 1})
-    data = KnowledgeData(items=tuple(items), nodes=tuple(entities), links=tuple(links))
-    index = build_files(data, OPTIONS)[INDEX_FILE]
-    rows = {row["key"]: row for row in index["entities"]}
-    assert rows["task--young"]["weeksOfHistory"] == 6
-    assert rows["task--young"]["change"] == {"last4": 12, "prior4": 2, "percent": None}
-    assert rows["task--mature"]["change"]["percent"] == 0
-    assert index["trending"] == ["task--mature", "task--young", "task--zshort"]
+def test_a_broad_kind_needs_a_far_larger_surprise_than_a_maker_to_trend():
+    shapes = {"anchor": ("maker", 4, 1), "same shape": ("task", 4, 1), "filler": ("maker", 30, 30)}
+    order = build_files(_corpus(shapes), OPTIONS)[INDEX_FILE]["trending"]
+    assert order == ["maker--anchor"]  # the same counts as a task: the task is demoted below the threshold, the maker is not
+
+
+def test_entities_that_only_grew_with_the_corpus_do_not_trend():
+    # Everything doubles: no entity gained share, so nobody is news.
+    data = _corpus({"a": ("maker", 20, 10), "b": ("maker", 20, 10), "c": ("model", 20, 10)})
+    assert build_files(data, OPTIONS)[INDEX_FILE]["trending"] == []
+
+
+def test_trending_ties_break_by_recent_mentions_then_key():
+    data = _corpus({"zeta": ("maker", 4, 0), "alpha": ("maker", 4, 0), "big": ("maker", 6, 1), "filler": ("model", 40, 40)})
+    order = build_files(data, OPTIONS)[INDEX_FILE]["trending"]
+    assert order.index("maker--alpha") < order.index("maker--zeta")
 
 
 def test_concept_of_the_week_is_the_reviewed_entity_with_the_most_recent_items():

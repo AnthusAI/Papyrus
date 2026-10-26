@@ -1,5 +1,5 @@
 {
- "Description": "Private Papyrus hosted chat data plane candidate; not production runtime composition.",
+ "Description": "Private Papyrus chat data plane; site entry and queue workers remain disabled until configured.",
  "Parameters": {
   "GatewayRoleArn": {
    "Type": "String",
@@ -639,7 +639,7 @@
           {
            "Ref": "AWS::AccountId"
           },
-          ":parameter/amplify/shared/papyrus/OPENAI_API_KEY"
+          ":parameter/papyrus/p-apyr-us/openai-api-key"
          ]
         ]
        }
@@ -897,7 +897,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "d9b5b2d12b923acb8fbb1082f627403a69e2ab3061b55c567731b21fec0adf8b.zip"
+     "S3Key": "00f9c8bffaac1e4710b7a78f1afa4455e2fd3a0900d04aab68a5e69d2d32f9eb.zip"
     },
     "Description": "Runs Papyrus private chat turns with the computerless Chatticus execution profile.",
     "Environment": {
@@ -923,7 +923,7 @@
       "PAPYRUS_CHAT_PRIVATE_BOT_NAME": {
        "Ref": "PrivateAssistantBotName"
       },
-      "OPENAI_API_KEY_PARAMETER": "/amplify/shared/papyrus/OPENAI_API_KEY"
+      "OPENAI_API_KEY_PARAMETER": "/papyrus/p-apyr-us/openai-api-key"
      }
     },
     "Handler": "run-worker.handler",
@@ -970,7 +970,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "d9b5b2d12b923acb8fbb1082f627403a69e2ab3061b55c567731b21fec0adf8b.zip"
+     "S3Key": "00f9c8bffaac1e4710b7a78f1afa4455e2fd3a0900d04aab68a5e69d2d32f9eb.zip"
     },
     "Description": "Recovers and finalizes Papyrus private chat turns.",
     "Environment": {
@@ -1115,7 +1115,7 @@
    }
   },
   "WorkerModelKeyParameterName": {
-   "Value": "/amplify/shared/papyrus/OPENAI_API_KEY"
+   "Value": "/papyrus/p-apyr-us/openai-api-key"
   },
   "RunWorkerFunctionName": {
    "Value": {

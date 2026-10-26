@@ -38,10 +38,43 @@
       "text": "2026-10-25: Combined Papyrus release candidate is in draft PR https://github.com/AnthusAI/Papyrus/pull/697 at exact head fdc118698b63fe33c883e339d72a090fd2870390. It includes the tested private-chat client/runtime integration, PR662 shared UI commit, and PR667 final email-auth head 303169f3f30704dfa698ccaf7951283561fc04f9. Exact-head smoke, TypeScript (including shared-chat browser acceptance and full npm test), and Python CI all pass (runs 40145034476 / 40145034464). Fixed the TSX CJS/ESM test boundary by running the worker integration test as .mts and updated its Gherkin wrapper; targeted worker/hosted tests, typecheck, lint pass. The Papyrus private-chat feature remains default-off and AppSync is unchanged. No IAM, deployment, merge or publish has been applied. Read-only production account check confirmed CDKToolkit asset bucket cdk-hnb659fds-assets-712236451410-us-east-1; existing CDK execution role is account-wide (CloudFormation Resource * and AdministratorAccess), while p-apyr-us-github-deploy remains Amplify-only. PR697 is clean against current develop but remains a draft because automatic review rejected marking it ready; release merge is blocked pending that review/authorization. Local full suite/build hit sandbox EPERM/DNS limitations; hosted exact-head CI passed.",
       "created_at": "2026-10-25T00:13:50.708946Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b46c824c-00b4-4f89-8ed2-07650dc5248a",
+      "author": "home",
+      "text": "2026-10-26 chat setup: read-only AWS checks confirmed account 712236451410/us-east-1, the existing p-apyr CMS compute role, no PapyrusChatDataCandidate stack, no private-chat flag on main, and no dedicated model key. User approved indefinite private-history retention and the exact chat resources/access. Existing CDK execution uses an AdministratorAccess role; the p-apyr GitHub role is Amplify-only. Follow-up is preparing the approved resource change set through the existing SSO operator session, keeping chat/model execution off; the worker key path is being corrected to /papyrus/p-apyr-us/openai-api-key.",
+      "created_at": "2026-10-26T04:13:18.902250Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Codex"
+      }
+    },
+    {
+      "id": "a8c12c16-044d-43e1-8483-09a8bbddba1e",
+      "author": "home",
+      "text": "2026-10-26 chat setup receipt: deployed PapyrusChatDataCandidate in 712236451410/us-east-1; stack arn:aws:cloudformation:us-east-1:712236451410:stack/PapyrusChatDataCandidate/26f60110-d0f4-11f1-a5d2-0affe23ffc23 reached CREATE_COMPLETE at 04:19 UTC from reviewed change set arn:aws:cloudformation:us-east-1:712236451410:changeSet/papyrus-chat-20261026/7c4f75c7-84ef-4c7c-ab7c-3ae620c9fc3d. Exact change set: 24 adds, no modifies/removes/replacements. It created two DynamoDB tables, private versioned S3, four queues, two Node22 workers, scoped gateway policy on the existing CMS role. Both mappings are false in the deployed template; run mapping readback was Disabled. User-approved no-expiry retention remains. Dedicated key path is /papyrus/p-apyr-us/openai-api-key; it is absent, value not read/created. Site flag absent and AppSync remains live. No model invocation. Exact-lockfile CDK synthesis and both template validators pass. AWS SSO session expired during probe mapping postcheck; no reauth attempt. Full hosted UI/model reply/editor-isolation acceptance remains pending code release and secure key configuration.",
+      "created_at": "2026-10-26T04:21:40.701037Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "6d789e74-774c-4d63-89b5-d528cb0da80a",
+      "author": "home",
+      "text": "2026-10-26: commit f2dba39ce87170a226ee793bf798ec206be5e097 separates runtime and synthetic Lambda build directories, enforces exact bundle contents, and pins the run-worker SSM read to /papyrus/p-apyr-us/openai-api-key. Runtime and synthetic template validators plus git diff --check pass. The deployed stack is unchanged by this code-only commit; the refreshed runtime Lambda update still needs an authenticated AWS SSO session. No mappings or site flag enabled.",
+      "created_at": "2026-10-26T04:24:37.728294Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "f0ea95f6-e712-412a-80c1-ab0e71776618",
+      "author": "home",
+      "text": "2026-10-26 PR #720 CI found the pilot-identifier guard flagging the site-specific model-key path in CDK source/generated templates. Moved the path into config/papyrus-chat-candidate.json, kept the template validator tied to that config, generalized the stack description, and documented generated chat templates as deployment configuration in the guard. Local identifier guard, both template validators, fresh runtime/synthetic synths, and diff checks now pass. PR CI rerun will validate the exact updated head.",
+      "created_at": "2026-10-26T04:36:45.028522Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-25T00:13:50.708977Z",
+  "updated_at": "2026-10-26T04:36:45.028561Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

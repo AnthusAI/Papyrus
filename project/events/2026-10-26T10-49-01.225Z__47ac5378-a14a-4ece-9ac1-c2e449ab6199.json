@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "47ac5378-a14a-4ece-9ac1-c2e449ab6199",
+  "issue_id": "PPY-a1f65680-46c8-4555-895f-1cfd121cde6c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-26T10:49:01.225Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Cited Trends quality: surprise-ranked signals, notable makers, records out of the topic model",
+    "description": "Shipped has real volume (1,338 entities, ~2,600 Hub monitor records on 2026-10-26) and the trend signals are dominated by generic entities. Rank entity signals by Poisson surprise over the entity's own prior four weeks and the corpus growth, demote licence/task/platform (context only, never anchors), require makers to be notable (watchlist, own item, or >=2 models with likes/downloads above a threshold), apply the same score to the snapshot's trending list, and keep monitor records out of topic-model clusters (they split 5,000 Hub lines into 27 maker clusters). topicCount counts beats, not clusters. Follow-up to PPY-fb4dfa.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+    "labels": []
+  }
+}

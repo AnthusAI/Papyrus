@@ -147,7 +147,7 @@ AS_OF = "2026-10-19"
 
 
 def snapshot_files() -> dict[str, object]:
-    """A small weekly knowledge snapshot: two named clusters, three trending entities and one new entity, as the site publishes them."""
+    """A small weekly knowledge snapshot: two named clusters, two makers and a concept that gained share, one new concept and a broad task that only fell, as the site publishes them."""
 
     def entity(key, name, kind, series, last4, prior4, percent, new=False):
         return {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "aliases": [], "change": {"last4": last4, "percent": percent, "prior4": prior4},
@@ -155,13 +155,15 @@ def snapshot_files() -> dict[str, object]:
                 "weeksOfHistory": 3 if new else 52}
 
     index = {
-        "asOf": AS_OF, "beats": [], "conceptOfTheWeek": None, "entityCount": 4, "kinds": [], "schemaVersion": 1, "topicCount": 2,
-        "trending": ["platform--hugging-face", "licence--apache-2-0", "task--routing"],
+        "asOf": AS_OF, "beats": [], "conceptOfTheWeek": None, "entityCount": 5, "kinds": [], "schemaVersion": 1, "topicCount": 2,
+        "trending": ["maker--hugging-face", "maker--zed", "concept--routing"],
         "entities": [
-            entity("platform--hugging-face", "Hugging Face", "platform", [1, 2, 3, 4, 7, 3, 3, 2], 15, 10, 50),
-            entity("licence--apache-2-0", "Apache-2.0", "licence", [1, 1, 3, 3, 5, 3, 2, 2], 12, 8, 50),
-            entity("task--routing", "routing", "task", [0, 1, 2, 2, 3, 3, 4, 4], 14, 5, None),
-            entity("task--typed-decisions", "typed decisions", "task", [0, 0, 0, 0, 1, 2, 3, 5], 11, 1, None, new=True),
+            entity("maker--hugging-face", "Hugging Face", "maker", [1, 2, 3, 4, 7, 3, 3, 2], 15, 10, 50),
+            entity("maker--zed", "Zed", "maker", [1, 1, 3, 3, 5, 3, 2, 2], 12, 8, 50),
+            entity("concept--routing", "routing", "concept", [1, 1, 1, 1, 1, 2, 2, 2], 7, 4, None),
+            entity("concept--typed-decisions", "typed decisions", "concept", [0, 0, 1, 1, 1, 1, 1, 1], 4, 2, None, new=True),
+            # The biggest count in the corpus and falling: a task everything mentions is not news, whatever its count.
+            entity("task--text-generation", "text-generation", "task", [30, 30, 30, 30, 10, 10, 10, 10], 40, 120, -67),
         ],
     }
     clusters = {
@@ -174,19 +176,59 @@ def snapshot_files() -> dict[str, object]:
         ],
     }
     entities = {
-        "platform--hugging-face": {"key": "platform--hugging-face", "neighbours": [{"key": "licence--apache-2-0", "kind": "licence", "name": "Apache-2.0", "relation": "mentioned_with", "weight": 5}],
-                                   "relatedItems": [{"title": "A model card worth reading", "url": "/posts/a-model-card/", "publishedAt": "2026-10-14", "reason": "platform--hugging-face"},
-                                                    {"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "platform--hugging-face"}]},
-        "licence--apache-2-0": {"key": "licence--apache-2-0",
-                                "relatedItems": [{"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "licence--apache-2-0"},
-                                                 {"title": "An older release outside the window", "url": "/posts/older/", "publishedAt": "2026-08-01T00:00:00Z", "reason": "licence--apache-2-0"}]},
+        "maker--hugging-face": {"key": "maker--hugging-face", "neighbours": [{"key": "maker--zed", "kind": "maker", "name": "Zed", "relation": "mentioned_with", "weight": 5}],
+                                   "relatedItems": [{"title": "A model card worth reading", "url": "/posts/a-model-card/", "publishedAt": "2026-10-14", "reason": "maker--hugging-face"},
+                                                    {"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "maker--hugging-face"}]},
+        "maker--zed": {"key": "maker--zed",
+                                "relatedItems": [{"title": "Zed releases Zed-7B, a small coding model under Apache-2.0", "url": "/posts/zed-7b/", "publishedAt": "2026-10-17T00:00:00Z", "reason": "maker--zed"},
+                                                 {"title": "An older release outside the window", "url": "/posts/older/", "publishedAt": "2026-08-01T00:00:00Z", "reason": "maker--zed"}]},
     }
     return {"index": index, "clusters": clusters, "entities": entities}
 
 
+def _summary(name, likes, downloads, day=14):
+    return f"{name} is a text-generation model by org, released 2026-10-{day}. License mit. {likes} likes, {downloads} downloads."
+
+def _record(name, likes, downloads, day=14):
+    return {"title": name, "url": f"https://huggingface.co/{name}", "publishedAt": f"2026-10-{day}T08:00:00Z", "summary": _summary(name, likes, downloads, day), "source": "huggingface", "provenance": "from the Hugging Face Hub"}
+
+
+def selection_snapshot(extra=None):
+    """The shape of the Shipped snapshot of 2026-10-26: broad kinds carry the biggest counts, one individual filed five small fine-tunes, and a few
+    organisations released real models. ``extra`` replaces or adds entity files."""
+    def entity(key, kind, name, series):
+        return {"key": key, "kind": kind, "name": name, "series8": series, "itemCount": sum(series), "weeksOfHistory": 40, "isNew": False,
+                "change": {"last4": sum(series[-4:]), "prior4": sum(series[-8:-4]), "percent": None}, "href": None}
+
+    entities = [
+        # the broad kinds rise with the corpus: the biggest counts, and no news
+        entity("licence--mit", "licence", "MIT", [10, 12, 20, 22, 30, 32, 34, 36]),
+        entity("task--text-generation", "task", "text-generation", [40, 44, 60, 66, 90, 96, 100, 110]),
+        entity("platform--hugging-face", "platform", "Hugging Face", [4, 5, 7, 8, 9, 10, 12, 12]),
+        # a notable organisation: four models, 640 likes
+        entity("maker--nvidia", "maker", "NVIDIA", [0, 0, 1, 0, 0, 1, 1, 4]),
+        # one individual, five small fine-tunes, 30 likes: the largest surprise of the week and still not an anchor
+        entity("maker--emonhasan01", "maker", "emonHasan01", [0, 0, 0, 0, 0, 5, 0, 0]),
+        entity("model_family--olmo", "model_family", "Olmo", [0, 0, 0, 1, 1, 2, 2, 3]),
+        # filler that keeps a stable share
+        entity("maker--steady", "maker", "Steady", [6, 6, 6, 6, 6, 6, 6, 6]),
+    ]
+    records = {
+        "maker--nvidia": [_record(f"nvidia/model-{n}", 160, 4000, 10 + n) for n in range(4)],
+        "maker--emonhasan01": [_record(f"emonHasan01/m{n}", 6, 400, 13 + n) for n in range(5)],
+    }
+    files = {
+        "maker--nvidia": {"relatedItems": [], "relatedRecords": records["maker--nvidia"], "neighbours": [{"key": "licence--mit", "kind": "licence", "name": "MIT", "relation": "mentioned_with", "weight": 3}, {"key": "task--text-generation", "kind": "task", "name": "text-generation", "relation": "mentioned_with", "weight": 4}]},
+        "maker--emonhasan01": {"relatedItems": [], "relatedRecords": records["maker--emonhasan01"], "neighbours": [{"key": "platform--hugging-face", "kind": "platform", "name": "Hugging Face", "relation": "mentioned_with", "weight": 5}]},
+        "model_family--olmo": {"relatedItems": [], "relatedRecords": []},
+        **(extra or {}),
+    }
+    return {"asOf": AS_OF, "siteBase": SITE_BASE, "clusters": [], "previous": None, "entityFile": lambda key: files.get(key), "index": {"entities": entities, "trending": ["licence--mit", "task--text-generation", "platform--hugging-face"]}}
+
+
 def history_entry() -> dict[str, object]:
     files = snapshot_files()
-    return {"schemaVersion": 1, "asOf": AS_OF, "runId": "run-1", "runAsOf": "2026-10-22", "archivedAt": "2026-10-22T16:59:53Z", "counts": {"clusters": 2, "entities": 4, "topics": 2},
+    return {"schemaVersion": 1, "asOf": AS_OF, "runId": "run-1", "runAsOf": "2026-10-22", "archivedAt": "2026-10-22T16:59:53Z", "counts": {"clusters": 2, "entities": 5, "topics": 2},
             "clusters": [], "snapshot": files}
 
 
@@ -194,8 +236,8 @@ def sentence(text: str, *cites: str) -> dict[str, object]:
     return {"text": text, "cites": list(cites)}
 
 
-def trend_draft(headline: str = "Hugging Face and Apache-2.0 climb together", *, section: str = "Analysis", body=None, figure=("S3",), cites=("S3", "S4")) -> dict[str, object]:
-    """A draft that passes the citation check against ``snapshot_files``: S1 and S2 are the clusters, S3 to S5 the trending entities, S6 the new one."""
+def trend_draft(headline: str = "Hugging Face and Zed climb together", *, section: str = "Analysis", body=None, figure=("S3",), cites=("S3", "S4")) -> dict[str, object]:
+    """A draft that passes the citation check against ``snapshot_files``: S1 and S2 are the clusters, S3 to S5 the entities that gained share, S6 the new one."""
     first, second = cites[0], cites[-1]
     return {
         "headline": sentence(headline, first, second),
@@ -204,7 +246,7 @@ def trend_draft(headline: str = "Hugging Face and Apache-2.0 climb together", *,
         "paragraphs": body or [
             {"sentences": [
                 sentence("Hugging Face appeared in 15 items over the last four weeks, against 10 in the four before.", "S3"),
-                sentence("Apache-2.0 appeared in 12 items over the last four weeks, against 8 before.", "S4"),
+                sentence("Zed appeared in 12 items over the last four weeks, against 8 before.", "S4"),
             ]},
             {"sentences": [sentence("The two are mentioned together in 5 items.", "S3", "S4")]},
         ],
@@ -229,7 +271,7 @@ def read_item_page(url: str) -> str:
 
 
 def release_draft(headline: str = "Zed-7B brings an Apache-2.0 coding model to Hugging Face") -> dict[str, object]:
-    """A draft about the releases that passes the check once the items are read: S3 is Hugging Face, S4 Apache-2.0, I1 the Zed-7B release, I2 the model card."""
+    """A draft about the releases that passes the check once the items are read: S3 is Hugging Face, S4 Zed, I1 the Zed-7B release, I2 the model card."""
     return {
         "headline": sentence(headline, "I1"),
         "dek": sentence("Zed's release on 2026-10-17 is one of 15 Hugging Face items in four weeks.", "I1", "S3"),
@@ -237,7 +279,7 @@ def release_draft(headline: str = "Zed-7B brings an Apache-2.0 coding model to H
         "paragraphs": [
             {"sentences": [
                 sentence("Zed released Zed-7B, a 7B coding model with 32k context, under Apache-2.0.", "I1"),
-                sentence("Apache-2.0 appeared in 12 items over the last four weeks.", "S4"),
+                sentence("Zed appeared in 12 items over the last four weeks.", "S4"),
             ]},
             {"sentences": [sentence("Another release on Hugging Face ships a model card that lists its evaluation limits, which suggests documentation is part of the pattern.", "I2", "S3")]},
         ],

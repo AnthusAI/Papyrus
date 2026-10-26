@@ -1,7 +1,7 @@
 """Monitor-delivered References as data for the Knowledge Map (``knowledge.monitorSources``, docs/knowledge-cloud-run.md).
 
 A monitor (docs/monitoring-cloud.md) delivers pending ``Reference`` rows: a Hugging Face Hub model, say. Such a row is a
-**monitor record**. It counts in the weekly Knowledge Map (clusters, entities, weekly trends) and is never a page: it is
+**monitor record**. It counts in the weekly Knowledge Map (entities and their weekly trends; not the topic model's clusters) and is never a page: it is
 not a published item, the wiki sync makes no page for an entity only records mention, and the projection never sees it.
 Notable records are promoted by a person to normal items (``papyrus references promote``).
 

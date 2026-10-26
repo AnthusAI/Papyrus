@@ -31,6 +31,26 @@ def empty_table(context):
     context.store = fx.FakeViewStore([])
 
 
+@given('a separate private email receiver partition for "{publication}"')
+def separate_email_partition(context, publication):
+    context.store = fx.FakeViewStore()
+    context.email_monitor_id = "p-apyr-us-email"
+    email_pk = f"MONITOR#{context.email_monitor_id}"
+    router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    router["pk"] = email_pk
+    digest = "a" * 64
+    receipt_id = f"EMAIL#{digest}"
+    context.email_store = fx.FakeViewStore([
+        router,
+        {"pk": email_pk, "sk": f"EMAILINDEX#2026-10-21T02:30:00Z#{digest}",
+         "receiptId": receipt_id, "destinationPublicationIds": [publication]},
+        {"pk": email_pk, "sk": receipt_id, "status": "pending_review", "emailTrustMode": "data-only",
+         "emailDestinationPublicationIds": [publication], "observedAt": "2026-10-21T02:30:00Z",
+         "subject": "Private newsletter", "linkCount": 1, "processedCount": 0,
+         "warnings": ["ses_authentication_unverified"]},
+    ])
+
+
 def ask(context, groups, publication, scope):
     context.refused = False
     try:
@@ -46,6 +66,15 @@ def ask(context, groups, publication, scope):
 @when('an editor of "{publication}" opens the monitoring overview')
 def editor_opens(context, publication):
     ask(context, ["editor"], publication, "publication")
+
+
+@when('an editor of "{publication}" opens the monitoring overview with that partition')
+def editor_opens_with_email_partition(context, publication):
+    context.refused = False
+    context.overview = monitoring_overview(
+        context.store, groups=["editor"], site_endpoint=ENDPOINTS.get(publication),
+        scope="publication", now=fx.NOW, email_store=context.email_store,
+    )
 
 
 @when('an editor of "{publication}" asks for the whole pipeline')
@@ -136,6 +165,18 @@ def refused(context):
 def nothing_yet(context):
     overview = context.overview
     assert overview["state"] == "empty" and overview["feeds"] == [] and overview["items"] == [] and overview["runs"] == []
+
+
+@then('the shared feed still comes from the "{monitor_id}" partition')
+def shared_feed_from_partition(context, monitor_id):
+    assert context.email_monitor_id == "p-apyr-us-email"
+    assert [feed["id"] for feed in context.overview["feeds"]] == [monitor_id]
+
+
+@then('the email receipt appears from the "{monitor_id}" partition')
+def email_receipt_from_partition(context, monitor_id):
+    assert context.email_monitor_id == monitor_id
+    assert [item["subject"] for item in context.overview["emailSubmissions"]] == ["Private newsletter"]
 
 
 @then("the overview contains no endpoint, role ARN, account or run identifier of the shared Cyclotron")

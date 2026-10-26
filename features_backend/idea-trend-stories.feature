@@ -8,31 +8,33 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
   Proposal in the draft state, proposed by AI, with the cited clusters and entities as its targets and a small chart spec of their
   weekly counts stored with it, so an editor approves the copy and the figure together. Nothing is approved, moved or published by the
   run. One soft review request covers the whole run. A dry run shows the drafts and the check without filing anything.
+  The entities are chosen by how far their mentions rose above what their own earlier four weeks and the corpus's growth explain, not
+  by raw counts, so a licence or a task that rises with the whole corpus is never the story (see idea-trend-quality.feature).
   A rising entity is also given the releases behind it: the items it was mentioned in during the last four weeks (up to five, newest
   first), each with its title, one-line summary, date and site address. A sentence may cite such an item as well as a signal, so a draft
   can tell what shipped and not only how many items there were. Numbers and dates in a sentence must come from the signals and items
   it cites, and the draft still needs two different signals.
 
   Background:
-    Given a weekly knowledge snapshot for the week of "2026-10-19" with two named clusters and four entities
+    Given a weekly knowledge snapshot for the week of "2026-10-19" with two named clusters and five entities
     And the site has the sections "Analysis" and "News"
 
-  Scenario: The signals are the rising clusters and entities, chosen without a model
+  Scenario: The signals are the clusters and the entities that gained share, chosen without a model
     When the operator reads the signals of the snapshot
-    Then the signals are the two clusters, then the three trending entities, then the one new entity
+    Then the signals are the two clusters, then the two makers and the concept that gained share, then the one new concept
     And each signal names its weekly counts for the 8 weeks ending 2026-10-19
 
   Scenario: A draft whose sentences all cite signals in the snapshot is filed as a draft story Proposal proposed by AI
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then 1 trend draft is filed as a "story_draft" Proposal
     And the draft is proposed by AI and still in the draft state
-    And the Proposal targets the entities "platform--hugging-face" and "licence--apache-2-0"
+    And the Proposal targets the entities "maker--hugging-face" and "maker--zed"
     And every sentence of the draft is recorded with the signals it rests on
     And the model asked for was "gpt-6-luna"
 
   Scenario: The Proposal carries a chart spec drawn from the cited signal's weekly counts
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then the Proposal evidence holds a line chart of Hugging Face with the counts 1, 2, 3, 4, 7, 3, 3, 2
     And the chart's weeks run from 2026-08-31 to 2026-10-19
@@ -65,19 +67,19 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     And the failed draft in the run record keeps its headline, dek, body and citations
 
   Scenario: The run never approves, moves or publishes anything
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then no Proposal is moved out of the draft state
     And no request to publish Proposals is made
 
   Scenario: One soft review covers the run
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals with review requests
     Then one soft review "1 new trend story draft to review" is open for the run's batch
     And the review links the filed Proposal
 
   Scenario: A dry run shows the drafts and the check and files nothing
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the model drafts a trend story with a body sentence that cites nothing
     And the operator dry-runs the trend drafts
     Then the dry run lists 1 draft that passed and 1 that failed the citation check
@@ -85,14 +87,14 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
 
   Scenario: A story draft Proposal with the same targets is not filed again
     Given an editor can read an earlier story draft Proposal with the same targets
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then 0 trend drafts are filed
     And the run record says the draft has the same targets as the earlier Proposal
 
   Scenario: An operator role files drafts under IAM and the run says dedupe against Proposals was skipped
     Given the operator signs in with IAM and cannot read Proposals
-    When the model drafts a trend story citing Hugging Face and Apache-2.0
+    When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
     Then 1 trend draft is filed as a "story_draft" Proposal
     And the run record says earlier Proposals could not be read with IAM
@@ -106,7 +108,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     Given the site publishes the pages of the releases behind its rising entities
     When the operator reads the signals of the snapshot
     Then Hugging Face carries 2 releases from the last four weeks, newest first, each with a title, a summary, a date and a site address
-    And Apache-2.0 carries only the release inside the window and not the older one
+    And Zed carries only the release inside the window and not the older one
     And the clusters carry no releases because the snapshot lists no members for them
     When the model drafts a trend story about the Zed-7B release that cites the release and the two entities
     And the operator drafts trend stories and files them as Proposals
@@ -114,7 +116,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
     And the model was shown the releases with their summaries and dates
     And the body marks the cited signals first and then the cited releases
     And the body lists the cited releases under "Sources" with their titles, dates and addresses
-    And the Proposal targets the entities "platform--hugging-face" and "licence--apache-2-0"
+    And the Proposal targets the entities "maker--hugging-face" and "maker--zed"
 
   Scenario: A release date or number the cited release does not hold blocks the draft
     Given the site publishes the pages of the releases behind its rising entities
