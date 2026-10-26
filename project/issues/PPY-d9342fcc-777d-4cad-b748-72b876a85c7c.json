@@ -1,0 +1,33 @@
+{
+  "id": "PPY-d9342fcc-777d-4cad-b748-72b876a85c7c",
+  "title": "Knowledge run and Cited Trends: safe and fast daily or on demand",
+  "description": "Weekly is too slow while iterating. Three changes: (1) trend-drafts freshness accepts a daily or manual run (snapshot asOf = start date, within TREND_DRAFTS_MAX_AGE_DAYS, or the Monday the snapshot stage writes), plus configurable trend windows in days (default 28); (2) operator IAM read of story_draft Proposals (id, title, summary, targets, state, createdAt) so ideas trends dedupes under IAM, plus an anchor-entity cooldown (default 7 days); (3) incremental, idempotent monitor-record import (content-hash ledger in the run state bucket, parallel writes), target: minutes with no new records. Shipped's schedule is not changed here.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-9ff95ba9-0007-412d-9901-7a5c397a69bd",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0316078b-8b1a-4c5f-af1f-491f8df67848",
+      "author": "home",
+      "text": "Landed in develop: #724 (trend-drafts freshness: start date, max age 1 day or the Monday the snapshot stage stamps; trend window in days, default 28), #728 (operator listStoryDrafts read: id, title, summary, targets, state, createdAt; anchor cooldown default 7 days), #727 (incremental monitor-record import: content-hash ledger in corpus state, parallel reads and writes, request counts 11,458 -> 654 per pass on a Shipped-sized fixture). No release, no deploy, Shipped schedule unchanged. Deploy order: backend (listStoryDrafts) before the image; set trendWindowDays, trendCooldownDays, KNOWLEDGE_MONITOR_FULL only if wanted.",
+      "created_at": "2026-10-26T12:44:41.172898Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-26T11:41:16.133092Z",
+  "updated_at": "2026-10-26T12:44:41.312156Z",
+  "closed_at": "2026-10-26T12:44:41.311841Z",
+  "agent": {
+    "platform": "claude-code",
+    "model": "claude-sonnet-5-5",
+    "name": "knowledge-run-daily"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
