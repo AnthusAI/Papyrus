@@ -42,13 +42,14 @@ function withNextRequestShape(request: Request) {
 }
 
 function prospectusRuntime() {
+  const revoked = new Set<string>();
   const authorizationCalls: Array<{ personId: string; accountId: string; operation: string }> = [];
   const accounts = {
     async accountDirectory(accessToken: string) {
       const personId = accessToken.replace("access-", "");
       return {
         person: { id: personId },
-        accounts: [{ id: accountId, name: "Newsroom", role: "member", products: [{ product: siteProduct, status: "active" }] }],
+        accounts: revoked.has(personId) ? [] : [{ id: accountId, name: "Newsroom", role: "member", products: [{ product: siteProduct, status: "active" }] }],
       };
     },
     async currentPerson(accessToken: string) { return { person: { id: accessToken.replace("access-", "") } }; },
@@ -61,6 +62,7 @@ function prospectusRuntime() {
   };
   return {
     authorizationCalls,
+    revoked,
     runtime: { sealingSecret: secret, accounts: accounts as never, cognitoClient: {} as never },
   };
 }
@@ -263,6 +265,13 @@ async function main() {
   assert.equal(noSession.status, 401);
   const denied = await handlePapyrusHostedChatRequest(requestFor("GET", "denied-editor", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
   assert.equal(denied.status, 403);
+  auth.revoked.add("editor-a");
+  const revokedRead = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
+  assert.equal(revokedRead.status, 403, "an editor previously allowed is denied immediately after fresh Account membership revocation");
+  const revokedSend = await handlePapyrusHostedChatRequest(requestFor("POST", "editor-a", `channels/${core.channelId}/messages`, { body: "must not be stored" }, { origin: "https://papyrus.example", "idempotency-key": "revoked-send" }), ["channels", core.channelId, "messages"], options);
+  assert.equal(revokedSend.status, 403);
+  assert.equal(core.messages.length, 1, "revocation does not create a message or model run");
+  auth.revoked.delete("editor-a");
   const noStore = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => null });
   assert.equal(noStore.status, 503, "the endpoint fails closed until a private durable store runtime is configured");
   let disabledDependencyLoads = 0;
