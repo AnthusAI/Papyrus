@@ -17,10 +17,17 @@
       "text": "Delivered in PR #721 (branch fix/PPY-a1f656-trend-quality, merged to develop). Verification: CI python, ts and smoke green; new unit tests (SelectionTests, builder trending tests), Gherkin idea-trend-quality.feature; live dry runs on the 2026-10-26 snapshot with gpt-6-luna (nothing filed). topicCount counts beats; monitor records removed from the topic model corpus. No develop to main PR yet.",
       "created_at": "2026-10-26T11:06:28.593447Z",
       "comment_type": "default"
+    },
+    {
+      "id": "93d0bcd6-f46a-416b-9fb9-1b6e27a13559",
+      "author": "home",
+      "text": "Delivered in PR #721 (branch fix/PPY-a1f656-trend-quality, merged to develop). Verification: CI python, ts and smoke green; new unit tests, Gherkin idea-trend-quality.feature; live dry runs on the 2026-10-26 snapshot with gpt-6-luna (nothing filed). topicCount counts beats; monitor records removed from the topic-model corpus. No develop to main PR yet.",
+      "created_at": "2026-10-26T11:06:37.186211Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-26T10:49:01.225018Z",
-  "updated_at": "2026-10-26T11:06:28.635498Z",
+  "updated_at": "2026-10-26T11:06:37.186247Z",
   "closed_at": "2026-10-26T11:06:28.635443Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
