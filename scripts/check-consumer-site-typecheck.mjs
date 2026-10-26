@@ -110,6 +110,11 @@ try {
     fs.writeFileSync(destination, content);
   }
   runInFixture(fixture, "npm", ["install", "--no-audit", "--no-fund"]);
+  try {
+    execFileSync("npm", ["ls", "zod", "--all"], { cwd: fixture, stdio: "inherit" });
+  } catch {
+    // `npm ls` exits non-zero on override-invalid trees; it is diagnostics only.
+  }
   runInFixture(fixture, "npx", ["papyrus-app", "sync"]);
   runInFixture(fixture, "npx", ["tsc", "--noEmit"]);
   console.log("ok: consumer site fixture type-checks against the packed package");
