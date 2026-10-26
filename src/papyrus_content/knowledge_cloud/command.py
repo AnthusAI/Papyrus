@@ -67,6 +67,12 @@ class AwsServices:
 
         return authoring_client(options)
 
+    def worker_client(self):
+        """A client of its own for a worker thread (no announcement line)."""
+        from ..knowledge_snapshot.commands import new_client
+
+        return new_client()
+
     def model(self, api_key: str, guidance: str):
         from .ai_review import LunaReviewer
 

@@ -12,6 +12,7 @@ import json
 import os
 import sys
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,7 +20,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ..env import graphql_endpoint
-from ..graphql_authoring import create_authoring_client
+from ..graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from ..ids import knowledge_corpus_id
 from ..options import normalize_string, parse_options
 from ..project_commands import _context_for, _projection_environment
@@ -28,6 +29,7 @@ from ..projection.runtime import load_projector
 from ..projection.writers import LocalDirectoryWriter, request_paths_for_key
 from ..reader_steering.snapshot import encoded
 from ..reader_steering.task import snapshot_key
+from ..categories_steering import semantic_state_key
 from ..records import apply_record_changes, build_record_change_from_current
 from .actors import Actor, actor_from_options, clean_name
 from .archive import ArchiveError, archive_entry, build_entry
@@ -66,6 +68,7 @@ from .loaders import (
 )
 from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotOptions
 from .monitor_import import is_record_mention, is_record_relation
+from .monitor_ledger import MonitorLedger
 from .monitor_records import (
     DEFAULT_WEEKS,
     biblicus_record_id,
@@ -75,6 +78,7 @@ from .monitor_records import (
     record_as_item,
     write_records,
 )
+from .parallel import DEFAULT_WORKERS, map_with_clients, worker_count
 from .publish_run import STATUS_ACCEPTED, PublishPlan, is_item_mention, plan_publish_run
 from .registry import build_registry, read_vocabulary_kinds
 from .topic_config import read_extra_stop_words, render, topic_modeling_configuration
@@ -160,18 +164,67 @@ def url_resolver(projector: Any):
     return resolve
 
 
-def plan_changes(client: Any, plan: PublishPlan) -> list[dict]:
+def new_client() -> Any:
+    """A client of its own for a worker thread (a client keeps one connection and is not shared between threads)."""
+    client, _ = create_authoring_client()
+    return client
+
+
+def worker_clients(client: Any) -> Any:
+    """The factory of worker clients for ``client``: ``new_client`` when ``client`` is a real GraphQL client, else ``None`` (a stand-in cannot be
+    cloned, so the work stays on it, one request after another)."""
+    return new_client if isinstance(client, PapyrusGraphQLAuthoringClient) else None
+
+
+def plan_changes(client: Any, plan: PublishPlan, *, workers: int = 1, client_factory: Any = None, known_rows: Iterable[Mapping[str, Any]] = ()) -> list[dict]:
+    """What applying ``plan`` would do, read record by record (a point read each, spread over ``workers`` clients). ``known_rows`` are relation rows
+    the command has just read through an index (they carry every field a point read does); a planned relation among them is compared
+    with that row and costs no request."""
+    known = {row["id"]: row for row in known_rows if row.get("relationState", "current") == "current"}
+
+    def read(reader: Any, record: dict) -> dict | None:
+        if record["modelName"] == "SemanticRelation" and record["expected"]["id"] in known:
+            return known[record["expected"]["id"]]
+        return reader.get_record(record["modelName"], record["expected"]["id"])
+
+    current = map_with_clients(plan.records, read, client=client, client_factory=client_factory, workers=workers)
     changes: list[dict] = []
-    for record in plan.records:
+    for record, existing in zip(plan.records, current):
         model, expected = record["modelName"], record["expected"]
-        current = client.get_record(model, expected["id"])
-        if record.get("createOnly") and current is not None:
-            changes.append({"modelName": model, "expected": current, "current": current, "action": "noop"})
+        if record.get("createOnly") and existing is not None:
+            changes.append({"modelName": model, "expected": existing, "current": existing, "action": "noop"})
         else:
-            changes.append(build_record_change_from_current(model, expected, current))
+            changes.append(build_record_change_from_current(model, expected, existing))
     for patch in plan.patches:
         changes.append({"modelName": patch["modelName"], "expected": patch["expected"], "current": None, "action": "update"})
     return changes
+
+
+def apply_changes(client: Any, changes: list[dict], *, workers: int = 1, client_factory: Any = None) -> None:
+    """Applies ``changes``: entities first, then everything that points at them, each group over ``workers`` clients. The writes are
+    independent (deterministic ids, create-only where a repeat must not overwrite), so their order inside a group does not matter."""
+    entities = [change for change in changes if change["modelName"] == "SemanticNode"]
+    rest = [change for change in changes if change["modelName"] != "SemanticNode"]
+    for group in (entities, rest):
+        apply_record_changes(client, group, max_parallel=workers if client_factory is not None else 1, client_factory=client_factory)
+
+
+def mention_rows_of_items(client: Any, items: list, *, workers: int = 1, client_factory: Any = None) -> list[dict]:
+    """The current links of the published items, read through the subject-state index: one query per item."""
+    pages = map_with_clients(
+        items, lambda reader, item: reader.list_semantic_relations_by_subject_state(semantic_state_key("item", item.key)), client=client, client_factory=client_factory, workers=workers
+    )
+    seen = {row["id"]: row for rows in pages for row in rows}
+    return sorted(seen.values(), key=lambda row: row["id"])
+
+
+def record_rows_of(client: Any, records: list, *, workers: int = 1, client_factory: Any = None) -> list[dict]:
+    """The current links of monitor records, read through the subject-state index: one query per record."""
+    pages = map_with_clients(
+        records, lambda reader, record: reader.list_semantic_relations_by_subject_state(semantic_state_key("reference", record.lineage_id)), client=client, client_factory=client_factory, workers=workers
+    )
+    seen = {row["id"]: row for rows in pages for row in rows if is_record_mention(row) or is_record_relation(row)}
+    return sorted(seen.values(), key=lambda row: row["id"])
 
 
 def _print_plan(label: str, plan: PublishPlan, changes: list[dict], apply: bool, as_json: bool) -> None:
@@ -218,19 +271,25 @@ def knowledge_publish_run(flags: list[str]) -> None:
         knowledge_corpus_id({"key": options["corpus-key"]}) if normalize_string(options.get("corpus-key")) else None
     )
     agent_name = clean_name(options.get("actor-name"))
+    workers = worker_count(options.get("parallel"))
     client = authoring_client(options)
     items = published_items(client.list_published_item_summaries(), _no_url)
     records = read_records(options["monitor-records"]) if normalize_string(options.get("monitor-records")) else []
+    ledger_path = _path_option(options, "monitor-ledger") if records else None
+    ledger = None if options.get("monitor-full") else (MonitorLedger.read(ledger_path) if ledger_path else None)
     if run is not None:
         known = {biblicus_item_id(item.item_id): item.item_id for item in items}
         known.update({biblicus_record_id(record.reference_id): record.reference_id for record in records})
         run = translate_item_ids(run, known)
     node_rows = current_nodes(client.list_records("SemanticNode"))
-    accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
-    relation_rows = relations_of_nodes(client, accepted)
-    mention_rows = [row for row in relation_rows if is_item_mention(row)]
-    record_rows = [row for row in relation_rows if is_record_mention(row) or is_record_relation(row)]
+    mention_rows = mention_rows_of_items(client, items, workers=workers, client_factory=worker_clients(client))
     proposal_rows = client.list_records("SteeringProposal") if run is not None and run.clusters else []
+    record_rows_read: list[dict] = []
+
+    def read_record_rows(todo: list) -> list[dict]:
+        record_rows_read.extend(record_rows_of(client, todo, workers=workers, client_factory=worker_clients(client)))
+        return record_rows_read
+
     plan = plan_publish_run(
         items=items,
         node_rows=node_rows,
@@ -244,12 +303,15 @@ def knowledge_publish_run(flags: list[str]) -> None:
         confirm_resolved=bool(options.get("confirm-resolved")),
         front_matter_actor_name=agent_name,
         records=records,
-        record_rows=record_rows,
+        record_rows_for=read_record_rows,
+        ledger=ledger,
     )
-    changes = plan_changes(client, plan)
+    changes = plan_changes(client, plan, workers=workers, client_factory=worker_clients(client), known_rows=[*mention_rows, *record_rows_read])
     _print_plan("publish-run", plan, changes, apply, bool(options.get("json")))
     if apply:
-        apply_record_changes(client, changes)
+        apply_changes(client, changes, workers=workers, client_factory=worker_clients(client))
+        if ledger_path and records:  # only after everything was written: a failed run leaves the ledger as it was
+            (ledger or MonitorLedger()).after_import(records, plan.monitor_imported).write(ledger_path)
         if not options.get("json"):
             print(f"knowledge\tpublish-run\tapplied\t{sum(1 for change in changes if change['action'] != 'noop')}")
 
@@ -271,7 +333,10 @@ def knowledge_corpus_export(flags: list[str]) -> None:
             raise ValueError("--monitor-sources needs --corpus-key (the publication's knowledge corpus key).")
         as_of = parse_day(options["as-of"]) if normalize_string(options.get("as-of")) else current_monday(datetime.now(timezone.utc).date())
         weeks = _whole(options.get("monitor-weeks"), "--monitor-weeks", DEFAULT_WEEKS)
-        records, warnings = load_monitor_records(client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks)
+        records, warnings = load_monitor_records(
+            client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks,
+            workers=worker_count(options.get("parallel")), client_factory=worker_clients(client),
+        )
         if normalize_string(options.get("monitor-records-out")):
             write_records(Path(options["monitor-records-out"]), records, as_of=as_of, sources=sources)
     in_topic_model = bool(options.get("records-in-topic-model"))
@@ -336,7 +401,7 @@ def load_knowledge_data(client: Any, projector: Any, options: dict[str, Any]) ->
         items = [*items, *(record_as_item(record) for record in read_records(options["monitor-records"]))]
     node_rows = current_nodes(client.list_records("SemanticNode"))
     accepted = [row for row in node_rows if row.get("status") == STATUS_ACCEPTED]
-    links, relations = links_and_relations(relations_of_nodes(client, accepted))
+    links, relations = links_and_relations(relations_of_nodes(client, accepted, workers=worker_count(options.get("parallel")), client_factory=worker_clients(client)))
     proposals = [row for row in client.list_records("SteeringProposal") if row.get("proposalKind") == "topic_cluster"]
     category_rows = client.list_records("Category") if proposals or options.get("beats-category-set") else []
     clusters = clusters_of(proposals, category_names(category_rows), items)
@@ -732,7 +797,7 @@ def knowledge_clusters_reject(flags: list[str]) -> None:
 
 def _node_relations(client: Any) -> list[dict]:
     accepted = [row for row in current_nodes(client.list_records("SemanticNode")) if row.get("status") == STATUS_ACCEPTED]
-    return [row for row in relations_of_nodes(client, accepted) if is_node_relation(row)]
+    return [row for row in relations_of_nodes(client, accepted, workers=DEFAULT_WORKERS, client_factory=worker_clients(client)) if is_node_relation(row)]
 
 
 def knowledge_relations_list(flags: list[str]) -> None:

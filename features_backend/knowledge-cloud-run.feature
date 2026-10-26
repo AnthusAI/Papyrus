@@ -205,3 +205,10 @@ Feature: The scheduled cloud knowledge run
     And the stages "corpus-sync", "topic-model", "typed-extraction" have run
     When the stages "publish-run", "snapshot", "archive", "wiki-sync" run
     Then each of the commands "knowledge publish-run", "knowledge snapshot", "knowledge archive", "knowledge wiki sync" was given "--monitor-records" with the week's records file
+
+  Scenario: Only the import is given the ledger of what it wrote before, kept with the corpus so it outlives the week
+    Given the site sets the monitor sources "huggingface" for 26 weeks
+    And the stages "corpus-sync", "topic-model" have run
+    When the stages "typed-extraction", "publish-run", "snapshot" run
+    Then the command "knowledge publish-run" was given "--monitor-ledger" with the corpus's import ledger
+    And no command "knowledge snapshot" was given "--monitor-ledger"

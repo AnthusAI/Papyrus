@@ -138,9 +138,21 @@ class Run:
         """The monitor records ``corpus-sync`` wrote for this week (a site that sets ``monitorSources``)."""
         return self.run_dir / "monitor-records.json"
 
+    @property
+    def monitor_ledger(self) -> Path:
+        """What the monitor-record import has written already (``monitor_ledger.py``); kept with the corpus, so it outlives the week's run directory."""
+        return self.corpus / "monitor-import-ledger.json"
+
     def monitor_options(self) -> list[str]:
         """``--monitor-records FILE`` for a command that counts the records, or nothing when the site has no monitor source."""
         return ["--monitor-records", str(self.monitor_records)] if self.config.monitor_sources else []
+
+    def import_options(self) -> list[str]:
+        """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
+        ``--monitor-full`` (``KNOWLEDGE_MONITOR_FULL=true``) to import every record again."""
+        if not self.config.monitor_sources:
+            return []
+        return [*self.monitor_options(), "--monitor-ledger", str(self.monitor_ledger), *(["--monitor-full"] if self.config.monitor_full else [])]
 
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
@@ -302,7 +314,7 @@ def typed_extraction(run: Run) -> dict:
     run.pull(corpus=True, run=True)
     state = run.read_state()
     run_dir = run.run_dir
-    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.monitor_options()]
+    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.import_options()]
     run.sh(*publish)  # the dry run: its plan is in the task log
     run.sh(*publish, "--apply")  # front-matter entities first, so the extractor resolves to accepted entities
     run.sh(
@@ -322,7 +334,7 @@ def import_arguments(run: Run) -> list[str]:
     state = run.read_state()
     return [
         "papyrus", "knowledge", "publish-run", *backend_options(run),
-        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.monitor_options(),
+        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.import_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
         "--entities", str(run.run_dir / "typed" / "output.json"),
@@ -403,7 +415,7 @@ def ai_review(run: Run) -> dict:
         nodes = c.current_nodes(client.list_records("SemanticNode"))
     accepted = [node for node in nodes if node.get("status") == "accepted"]
     by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted}
-    relations = [row for row in c.relations_of_nodes(client, accepted)]
+    relations = c.relations_of_nodes(client, accepted, workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
     found, made = review.review_relations(relations, by_lineage, typed, model, actor, now=now)
     patches += found
     decisions += made

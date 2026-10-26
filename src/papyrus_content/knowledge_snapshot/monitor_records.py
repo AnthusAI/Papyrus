@@ -30,6 +30,7 @@ from ..categories_steering import semantic_state_key
 from ..ids import deterministic_uuid
 from ..reference_policy import normalize_policy_token
 from .model import KIND_MONITOR_RECORD, PublishedItem
+from .parallel import map_with_clients
 from .weeks import iso_timestamp, parse_day
 
 SOURCE_HUGGINGFACE = "huggingface"
@@ -123,9 +124,11 @@ def _fallback_details(row: Mapping[str, Any], url: str) -> dict[str, Any]:
 
 
 def load_monitor_records(
-    client: Any, *, corpus_id: str, sources: tuple[str, ...], as_of: date, weeks: int = DEFAULT_WEEKS, limit: int = MAXIMUM_RECORDS
+    client: Any, *, corpus_id: str, sources: tuple[str, ...], as_of: date, weeks: int = DEFAULT_WEEKS, limit: int = MAXIMUM_RECORDS,
+    workers: int = 1, client_factory: Any = None,
 ) -> tuple[list[MonitorRecord], list[str]]:
-    """The records of a publication dated inside ``weeks`` weeks up to the end of ``as_of``'s week, newest first, and warnings."""
+    """The records of a publication dated inside ``weeks`` weeks up to the end of ``as_of``'s week, newest first, and warnings.
+    Each record costs one indexed query (its provenance relation); with ``workers`` above 1 and a ``client_factory`` they run over that many clients."""
     since, until = as_of - timedelta(weeks=weeks), as_of + timedelta(days=6)
     warnings: list[str] = []
     chosen: list[tuple[date, Mapping[str, Any], str]] = []
@@ -146,8 +149,8 @@ def load_monitor_records(
         warnings.append(f"{len(chosen)} monitor records fall in the window; only the newest {limit} are used")
         chosen = chosen[:limit]
     records = []
-    for _created, row, source in chosen:
-        record, missing = record_of(client, row, source)
+    read = map_with_clients(chosen, lambda reader, entry: record_of(reader, entry[1], entry[2]), client=client, client_factory=client_factory, workers=workers)
+    for (_created, row, _source), (record, missing) in zip(chosen, read):
         if missing:
             warnings.append(f"{row['id']}: no Hub details on its provenance relation; only its title, date and author are used")
         records.append(record)

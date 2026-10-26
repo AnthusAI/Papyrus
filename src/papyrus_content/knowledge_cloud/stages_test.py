@@ -391,6 +391,29 @@ def test_every_later_stage_counts_the_records_from_the_runs_file_even_in_a_fresh
     assert Path(expected).exists()
 
 
+def test_the_import_commands_get_the_ledger_kept_with_the_corpus_and_nothing_else_does(tmp_path):
+    run, shell = make_run(tmp_path, MONITORED)
+    assert run_stage("corpus-sync", run) == 0
+    for stage in ("topic-model", "typed-extraction", "publish-run", "publish-relations", "snapshot", "archive", "wiki-sync"):
+        assert run_stage(stage, run) == 0
+    ledger = str(tmp_path / "corpus" / "monitor-import-ledger.json")
+    imports = commands(shell, ["papyrus", "knowledge", "publish-run"])
+    assert len(imports) >= 4  # typed-extraction (dry run, apply), publish-run (dry run, apply), publish-relations
+    assert all(call[call.index("--monitor-ledger") + 1] == ledger and "--monitor-full" not in call for call in imports)
+    for prefix in (["papyrus", "knowledge", "snapshot"], ["papyrus", "knowledge", "archive"], ["papyrus", "knowledge", "wiki", "sync"]):
+        assert all("--monitor-ledger" not in call for call in commands(shell, prefix)), prefix
+
+
+def test_monitor_full_from_the_environment_asks_the_import_to_ignore_the_ledger(tmp_path):
+    run, shell = make_run(tmp_path, {**MONITORED, "KNOWLEDGE_MONITOR_FULL": "true"})
+    for stage in ("corpus-sync", "topic-model", "typed-extraction"):
+        assert run_stage(stage, run) == 0
+    assert run.config.monitor_full is True
+    assert all("--monitor-full" in call for call in commands(shell, ["papyrus", "knowledge", "publish-run"]))
+    other, _ = make_run(tmp_path / "other", MONITORED)
+    assert other.config.monitor_full is False
+
+
 def test_a_monitor_source_the_run_does_not_know_is_refused_before_anything_runs(tmp_path):
     from .config import ConfigError
 

@@ -60,6 +60,49 @@ Feature: Monitor records count in the Knowledge Map as data
     When the run is imported with the monitor records
     Then nothing was written
 
+  Scenario: A run with no new records imports none of them and writes nothing
+    Given the corpus was exported with the monitor records
+    And the run was imported with the monitor records and an import ledger
+    When the run is imported again with the import ledger
+    Then 0 records were imported and 3 were unchanged
+    And the import wrote nothing
+
+  Scenario: Only a new record is imported, and a record the Hub changed is imported again
+    Given the corpus was exported with the monitor records
+    And the run was imported with the monitor records and an import ledger
+    And the Hugging Face monitor delivered "org/newcomer" released on 2026-10-16
+    And the licence of "org/lone" became "gpl-3.0" on the Hub
+    When the corpus is exported again and the run is imported again with the import ledger
+    Then 2 records were imported and 2 were unchanged
+    And the entities "licence--gpl-3-0" exist
+    And "org/lone" is no longer linked to the licence "mit"
+
+  Scenario: Likes and downloads do not make a record count as changed
+    Given the corpus was exported with the monitor records
+    And the run was imported with the monitor records and an import ledger
+    And "org/base" now has 9000 likes on the Hub
+    When the corpus is exported again and the run is imported again with the import ledger
+    Then 0 records were imported and 3 were unchanged
+
+  Scenario: A record that was waiting for its base model is imported again when the base arrives
+    Given the corpus was exported with the monitor records
+    And the run was imported with the monitor records and an import ledger
+    And the Hugging Face monitor delivered "elsewhere/gone" released on 2026-10-16
+    When the corpus is exported again and the run is imported again with the import ledger
+    Then "org/tuned" is built on "elsewhere/gone"
+
+  Scenario: A failed import leaves the ledger unwritten so the next run tries the same records
+    Given the corpus was exported with the monitor records
+    When the import fails while writing
+    Then no import ledger was written
+
+  Scenario: The whole import can be asked for again
+    Given the corpus was exported with the monitor records
+    And the run was imported with the monitor records and an import ledger
+    When the run is imported again with the import ledger and every record is asked for
+    Then 3 records were imported and 0 were unchanged
+    And the import wrote nothing
+
   Scenario: Records count in the weekly snapshot by release week and have no page
     Given the corpus was exported with the monitor records
     And the run was imported with the monitor records
