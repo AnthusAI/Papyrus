@@ -56,6 +56,18 @@ export function mergeTranspilePackages(existing = []) {
   return [...new Set([...existing, ...DEFAULT_TRANSPILE_PACKAGES])];
 }
 
+/**
+ * chatticus's prebuilt chat runtime is written against zod 4 (`z.looseObject`) and imports bare `zod`.
+ * Publication repos pin zod 3.25 through a root `overrides` entry (Amplify constructs need it), which
+ * also flattens chatticus's own zod 4 dependency, so the bundle then fails to build. zod 3.25 ships the
+ * zod 4 API at `zod/v4`; point only chatticus's `zod` imports there, leaving every other zod import alone.
+ */
+export const CHATTICUS_PACKAGE_PATH = /[\\/]node_modules[\\/]chatticus[\\/]/;
+
+export function redirectChatticusZod(resource) {
+  if (resource.request === "zod" && CHATTICUS_PACKAGE_PATH.test(resource.context ?? "")) resource.request = "zod/v4";
+}
+
 export const RUNTIME_TRACED_FILES = ["./corpora/**/*", "./amplify_outputs.json"];
 
 export function mergeOutputFileTracingIncludes(existing = {}) {
@@ -99,6 +111,10 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     },
     webpack(config, context) {
       config.resolve.alias = { ...config.resolve.alias, ...aliases };
+      config.plugins = [
+        ...(config.plugins ?? []),
+        new context.webpack.NormalModuleReplacementPlugin(/^zod$/, redirectChatticusZod),
+      ];
       return typeof nextConfig.webpack === "function" ? nextConfig.webpack(config, context) : config;
     },
   };

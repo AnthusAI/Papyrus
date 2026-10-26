@@ -9,3 +9,4 @@ export function staticGenerationSettings(): {
   staticGenerationMaxConcurrency: number;
   staticGenerationRetryCount: number;
 };
+export function redirectChatticusZod(resource: { request: string; context?: string }): void;
