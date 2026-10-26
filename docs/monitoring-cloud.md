@@ -125,7 +125,7 @@ and base models, and the provenance Message body carries the whole `details` map
 
 ### Feeding the Knowledge Map
 
-Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in clusters, entities (the model, its maker, licence and task) and weekly trends, and imports `baseModels` as `built_on` relations with the Hub card as evidence. To make that possible without downloading each provenance Message, the router now also writes the model's structured `details` into the `metadata` of the `ingestion_rationale` relation that links the provenance Message to the Reference (a model delivered before this change is still counted, with its title, date and author only). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
+Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in entities (the model, its maker, licence and task) and weekly trends (not in topic-model clusters), and imports `baseModels` as `built_on` relations with the Hub card as evidence. To make that possible without downloading each provenance Message, the router now also writes the model's structured `details` into the `metadata` of the `ingestion_rationale` relation that links the provenance Message to the Reference (a model delivered before this change is still counted, with its title, date and author only). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
 
 ### Promoting a record to an item
 
@@ -329,12 +329,39 @@ version, operation, `requestId` 8 to 128 characters, payload shape, item values,
 `editorial_context` code (read-only; `contextHash: null` plus the reason when the
 publication stores no policy, never a failure) and records a receipt.
 
-`mode: live` performs one `decide` per binding per item (the bindings share one
-native decision, which is checked), polls only, records the decision receipt and
-delivers.
+`mode: live` decides each item with **one combined machine request**, polls only, records the
+decision receipt and delivers (see below). The dry-run receipt also records that request under
+`dryRun.combined`.
 
-`requestId` is `sha256(accountId \n runId \n publicationId@bindingRevision \n itemId \n fingerprint)`.
-It is identical in dry-run and live, so flipping to live cannot duplicate a decision.
+### One request per story
+
+For each story the router sends `POST /machine/decisions` (SigV4, same principals, `X-Cyclotron-Account`)
+with `{"contractVersion", "requestId", "payload": {"bindings": {"<publication>": "<bindingRevision>", ...}, "item"}}`.
+The bindings are every active publication that has no decision yet and is not parked (a publication
+waiting for a classifier is left out, as the per-publication logic always did). It then polls
+`GET /machine/decisions/{jobId}` (202 while running). The 200 body's `publications` maps each publication to
+exactly what `GET /machine/publications/{pub}/commands/{job}` returns, and each is checked and stored as
+`ROUTE.jobs[pub].checked` by the same code as before, so the `decide_binding` receipts, `route.decision`
+and delivery keep their shape. A story takes one Cyclotron job instead of one per publication.
+
+- `requestId` is `sha256("decisions" \n accountId \n runId \n sorted pub@binding list \n itemId \n revision \n fingerprint [\n attempt-N])`,
+  so a retry of the same story with the same binding set reuses it (Cyclotron's idempotency). The job is
+  stored on the route as `combinedJob` before the POST is sent; an accepted job is resumed by polling only
+  and a POST is never repeated.
+- **404** on the POST means this Cyclotron has no combined endpoint yet: the router decides that story, and
+  every later one in the run, with one `decide` per publication as before (so either side can deploy first).
+- **409 "publication binding changed"** stops the run with `stoppedBy: binding_changed`; the story stays
+  `collected`, and the next run reads the current `CONFIG#router` and asks again.
+- **409 "publication criteria are pending"** (a pending output somewhere in the set; the answer does not say
+  which) makes the router decide that story one publication at a time, which parks the waiting binding.
+  A pending or refusal entry inside a completed receipt is handled per publication: pending parks it, the others
+  are decided; `source_refused` refuses the story; stop codes (`run_busy`, ceiling, key, capacity) stop the run.
+  Other publications' receipts in the same answer are kept on the route.
+- `run_busy` and 503 defer exactly as for a single decide (non-consuming refusals bump `attempt`, giving a new request id).
+- A single remaining binding, and backfill of parked items, use the per-publication `decide`.
+
+The per-publication `requestId` is `sha256(accountId \n runId \n publicationId@bindingRevision \n itemId \n fingerprint)`.
+Both it and the combined id are identical in dry-run and live, so flipping to live cannot duplicate a decision.
 
 ## `routing` state machine
 
@@ -486,8 +513,8 @@ imports the extracted zip with a stdlib-only interpreter. The collector zip and 
 - **Enable feedback** (after the Cyclotron operators approve the editor claim): `--set feedback=true`.
   Disable with `feedback=false`; back to dry-run with `mode=dry-run`; stop entirely with `enabled=false`
   or `ScheduleState=DISABLED`.
-- Reconcile an `uncertain` item: check Cyclotron for its `requestId` (in `ROUTE#...`.`jobs`), then
-  delete that `jobs` entry or set the discovery back to `routing=collected` with
+- Reconcile an `uncertain` item: check Cyclotron for its `requestId` (in `ROUTE#...`.`jobs`, or `combinedJob` for a combined request), then
+  delete that `jobs` entry or `combinedJob` or set the discovery back to `routing=collected` with
   `gsi1pk=ROUTING#hn#collected` to let it be sent again.
 - Roll back code: build an earlier commit with `--router`, upload, update the stack with that
   `RouterCodeKey`. Delivered References stay (they are pending and editor-owned); nothing is deleted.
@@ -502,6 +529,13 @@ collector and router runs, the collected queue with each item's routing state, w
 Cyclotron judged relevant to the viewing publication (with confidence, where the Cyclotron reports
 one) and whether it reached that publication's References queue (with a link), the router mode
 (live or dry run, feedback on or off) and observed decision counts.
+
+The page covers only the monitors whose `CONFIG#router` `publications` include the viewing site's
+publication (found by its AppSync endpoint). Other monitors are named in a collapsed "Not routed to
+this site" note, with no items, runs or counts; an admin's `scope: all` combines every monitor. The
+function cannot Scan, so the monitors it looks at are `MONITOR_IDS` in `monitoring_view.py`
+(`hn`, `ttab`, `huggingface`, `p-apyr-us-email`), overridable with `PAPYRUS_MONITORING_MONITOR_IDS` (comma separated);
+add a new monitor there. Reading them needs no new IAM: the same `GetItem` and `Query` on the one table.
 
 ## Access design
 

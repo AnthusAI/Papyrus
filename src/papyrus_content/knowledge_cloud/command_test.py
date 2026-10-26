@@ -12,7 +12,8 @@ def test_papyrus_knowledge_routes_archive_and_cloud_run(monkeypatch):
     monkeypatch.setattr(cli, "_delegate_content", lambda group, command, flags: seen.append((group, command, flags)))
     cli._map_knowledge("archive", ["--as-of", "2026-10-26"])
     cli._map_knowledge("cloud-run", ["--stage", "snapshot"])
-    assert seen == [("knowledge", "archive", ["--as-of", "2026-10-26"]), ("knowledge", "cloud-run", ["--stage", "snapshot"])]
+    cli._map_knowledge("runs", ["--site", "shipped"])
+    assert seen == [("knowledge", "archive", ["--as-of", "2026-10-26"]), ("knowledge", "cloud-run", ["--stage", "snapshot"]), ("knowledge", "runs", ["--site", "shipped"])]
 
 
 def test_an_unknown_stage_is_refused():

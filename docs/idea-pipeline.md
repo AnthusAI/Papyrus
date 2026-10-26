@@ -66,8 +66,10 @@ Ideas are private by default.
   (`papyrus login`) and with `PAPYRUS_GRAPHQL_AUTH=iam` as an operator role of the site's own AWS account, so an unattended run can
   file drafts ([reader-steering.md](reader-steering.md#operator-filing)). Under IAM the proposer is still AI and the history records
   `operator:<principal ARN>`; the role needs `appsync:GraphQL` on `Mutation/fields/fileProposal`. Only editors and admins can read
-  Proposals, so an IAM run cannot dedupe against earlier drafts held as Proposals: it skips them, says so in the run record
-  (`proposalDedupe`), and still dedupes against the JSON store, stories and declined ideas. Cited references are listed in the body,
+  Proposals in full, but an operator may list the story drafts (`listStoryDrafts`: id, title, summary, targets, state and createdAt, nothing
+  else, [reader-steering.md](reader-steering.md#operator-filing)), so an IAM run dedupes against earlier drafts held as Proposals as well as
+  the JSON store, stories and declined ideas. That needs `appsync:GraphQL` on `Query/fields/listStoryDrafts` and a backend that has the
+  query; a refused read fails the run instead of silently skipping the dedupe. Cited references are listed in the body,
   because proposal targets cannot name references.
 - **Publishing is opt-in.** The reader snapshot used to publish every proposal in every state. It now writes
   `_data/proposals/` only when the site sets `proposals.publish: true` in its reader-steering config (default off). See
@@ -106,10 +108,22 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
 1. **Snapshot.** `--snapshot` is one of: a weekly archive entry (`.../_data/knowledge/history/2026-10-19.json`, self-contained), an
    `index.json`, or the `_data/knowledge/` directory or address (it reads `index.json`, `clusters.json`, `entities/<key>.json` and, for the
    cluster item counts of the last archived week before this one, `history/`). Paths and `http(s)` addresses both work.
-2. **Signals, no model.** Up to 6 named clusters (growing, new, cooling, then the rest) and up to 8 trending entities plus up to 3 new
-   entities with at least 3 items in four weeks. A signal carries what the snapshot holds: the weekly counts with their week dates, the
+2. **Signals, no model.** Up to 6 named clusters (growing, new, cooling, then the rest) and entities chosen by `select_entities`, from the
+   index's eight-week series (the published `trending` order is not used, so the selection works on any snapshot, old or new). A signal carries what the snapshot holds: the weekly counts with their week dates, the
    four-week change (`percent` is null on a small base and the model is told so), neighbours of an entity, the previous archived week's
    item count of a cluster. Signal ids are `cluster:<uid>` and `entity:<key>`; the model sees handles S1, S2, ....
+
+   **Which entities (`select_entities`).** Raw counts mislead: a licence, a task or a platform has the biggest count every week and rises with
+   the corpus. Each entity with at least 3 mentions in the last four weeks is scored by Poisson surprise over its own prior four weeks, scaled by the growth of the
+   corpus's total weekly mentions (the same function as the snapshot's `trending`, [knowledge-snapshot.md](knowledge-snapshot.md)), times a weight by kind.
+   Then:
+
+   - **Anchors**: the best 8 whose kind may anchor (`maker`, `model_family`, `model`, `concept`, `technique`) and whose weighted score is at least 1.0. Licence, task and platform never anchor.
+   - **Notable makers only.** A maker anchors only if it is on the watchlist, or the site has an item about it in the window, or at least 2 of its models were recorded in the window with likes adding up to 100 or downloads to 10,000, and in either case at least 10 likes (downloads alone are not notability) (read from the records' summaries in the entity file, the newest 12 of them). One individual with a handful of small fine-tunes cannot anchor a draft, however sharp the jump looks.
+   - **Context**: up to 2 broad-kind entities (licence, task, platform) that sit beside the anchors (their neighbours, most connected first). They carry `role: "context"` in the model's input, and the prompt says a context signal may be cited for where the releases sit but is never the subject of a headline or dek.
+   - The run record keeps `selection` (anchors with their scores and why a maker is notable, entities passed over with the reason, the thresholds), so a person can see who was left out.
+
+   **Thresholds** are configuration with these defaults (`TrendConfig`): `minimum_recent` 3, `minimum_score` 1.0, `baseline_smoothing` 1.0, `broad_kind_weight` 0.2, `other_kind_weight` 0.7, `minimum_models` 2, `minimum_likes` 100, `minimum_downloads` 10000, `likes_floor` 10, `window_days` 28, `cooldown_days` 7, `watchlist` (entity keys or names, lower-cased; empty), `broad_kinds`, `preferred_kinds`, `anchor_kinds`. Override them with `--trend-config FILE`, a JSON object of those names (for example `{"watchlist": ["maker--nvidia"], "minimum_likes": 50}`); an unknown name is refused.
 
    **Items, the releases behind a signal.** An entity signal also carries up to 5 **items**: the entity file's `relatedItems` published in
    the four weeks to the end of the snapshot's week (newest first). Each has its title, date, site path and, when the snapshot is read from
@@ -138,9 +152,12 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    (`invalid[]`) has its headline and a `citationCheck` listing each problem with the sentence (`where`, `reason`, `text`). A passing draft
    keeps its `citationCheck` (`status: passed`, sentences, signals cited) and every sentence with its signal ids (`sentences[]`).
 5. **Dedupe.** Near-duplicates of recent and in-flight stories, earlier drafts and earlier kept ones, as for `synthesize`. Then **same
-   targets**: a draft whose target set is identical to an earlier non-declined `story_draft` Proposal (readable as an editor) or to a
-   trend draft in the JSON store is dropped (`same_targets`). A declined one does not block. Under IAM the Proposals cannot be read, so that
-   comparison is skipped and the run records `proposalDedupe`, as above.
+   targets**: a draft whose target set is identical to an earlier non-declined `story_draft` Proposal (an editor reads them in full, an IAM
+   operator through `listStoryDrafts`) or to a trend draft in the JSON store is dropped (`same_targets`). A declined one does not block.
+   Before the model is asked there is also a **cooldown** (step 2): an entity that anchored a non-declined draft in the last `cooldown_days`
+   (default 7, `--cooldown-days N`, 0 is off) cannot anchor another, so a daily run does not write about the same maker every day. The
+   run record's `cooldown` lists the entities cooling down with the date of the draft each anchored, and `selection.excluded` says
+   `cooldown: anchored a story draft filed <date>`. A broad kind is only ever context, so it never cools down.
 6. **File.** A `story_draft` Proposal in state `draft`, proposer `ai` (shown as AI), with these fields:
 
    | Field | Value |
@@ -178,10 +195,10 @@ papyrus ideas trends --site <site> --snapshot ./history/2026-10-19.json --store 
 command reads the site's mission, policy, sections and stories through the CMS (a `papyrus login` session or `PAPYRUS_GRAPHQL_AUTH=iam`,
 as above) and needs `OPENAI_API_KEY`. **`--dry-run`** does everything but file: it calls the model, runs the citation check and prints each
 passing draft in full and each failing draft with its problems; it stores nothing, files nothing and requests no review. Other options:
-`--max N` (3), `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
+`--max N` (3), `--trend-config FILE`, `--cooldown-days N` (7; 0 is off), `--window-days N` (7, 14, 21 or 28; default 28, the last N days against the N before, counted in whole weeks of the snapshot's weekly series; a shorter window gives the signals `items_last_<n>_weeks` and `items_prior_<n>_weeks`, and the items behind them are those inside the window), `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
 
 Limits: the check proves that every sentence points at the snapshot and that its digits come from the signals it cites; it does not prove
-that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items.
+that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items and, for a site that counts them, monitor records.
 The weekly cloud knowledge run can run this command after it publishes the snapshot, off by default ([knowledge-cloud-run.md](knowledge-cloud-run.md#trend-drafts-optional-off-by-default)).
 
 ## Friction for the run contract

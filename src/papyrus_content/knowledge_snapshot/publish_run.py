@@ -17,7 +17,7 @@ node is never revived and never linked. Everything is keyed by deterministic ids
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -64,6 +64,9 @@ class PublishPlan:
     patches: list[dict] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    #: Monitor records imported by this plan (reference id) and the base models of each that the map could not place; the command saves them
+    #: in the monitor ledger once the plan is applied (``monitor_ledger.py``).
+    monitor_imported: dict[str, list[str]] = field(default_factory=dict)
 
     def count(self, name: str, amount: int = 1) -> None:
         self.counts[name] = self.counts.get(name, 0) + amount
@@ -389,9 +392,13 @@ def plan_publish_run(
     front_matter_actor_name: str | None = None,
     records: list | None = None,
     record_rows: list[dict] | None = None,
+    record_rows_for: Callable[[list], list[dict]] | None = None,
+    ledger: Any = None,
 ) -> PublishPlan:
-    """``records`` are monitor records (``monitor_records.py``) and ``record_rows`` the current relation rows that touch the
-    accepted entities: together they add the structured entities and relations of the records (``monitor_import.py``)."""
+    """``records`` are monitor records (``monitor_records.py``) and ``record_rows`` the current relation rows of the records' links: together
+    they add the structured entities and relations of the records (``monitor_import.py``). With a ``ledger`` (``monitor_ledger.py``) only the
+    records that are new or changed since it was saved are imported, and ``record_rows_for(records)`` reads the relation rows of just those
+    (it replaces ``record_rows``)."""
     plan = PublishPlan()
     index = NodeIndex(node_rows)
     confirmed: set[tuple[str, str]] = set()
@@ -399,9 +406,13 @@ def plan_publish_run(
         agent = Actor(actor=ACTOR_AI, name=front_matter_actor_name, on=now[:10])
         confirmed = plan_front_matter(items, index, mention_rows, plan, corpus_id=corpus_id, now=now, accepted_by=agent)
     if records:
-        from .monitor_import import plan_monitor_records  # noqa: PLC0415 - monitor_import imports this module
+        from .monitor_import import monitor_placement, plan_monitor_records  # noqa: PLC0415 - monitor_import imports this module
 
-        plan_monitor_records(records, index, record_rows or [], plan, corpus_id=corpus_id, now=now)
+        todo = ledger.changed(records, monitor_placement(records, index)) if ledger is not None else records
+        plan.count("recordsUnchanged", len(records) - len(todo))
+        plan.count("recordsImported", len(todo))
+        rows = record_rows_for(todo) if record_rows_for is not None and todo else (record_rows or [])
+        plan_monitor_records(todo, index, rows, plan, corpus_id=corpus_id, now=now)
     if run is not None:
         plan.warnings.extend(run.warnings)
         if run.entities:

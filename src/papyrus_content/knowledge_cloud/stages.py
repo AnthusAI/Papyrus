@@ -7,16 +7,19 @@ never reaches it after a failure, and ``projection`` never passes ``--allow-dele
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import subprocess
 import sys
+import time
 import urllib.parse
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .config import STAGES, CloudRunConfig
+from . import cost as costs
+from .config import PROJECTION_STAGE, STAGES, CloudRunConfig
 from .ledger import SUCCEEDED, RunLedger
 from .state import StateStore
 
@@ -57,6 +60,10 @@ class Run:
     shell: Shell
     environment: Mapping[str, str]
     services: Any = None  # what a stage needs from outside: `.api_key(parameter)`, `.record_client(options)`, `.model(key, guidance)`, `.deployed_environment(function)`
+    llm_sources: list = field(default_factory=list)  # objects with a `.usage` list of model calls (cost accounting); a stage that calls a model adds it
+    task_info: Callable[[], dict] = field(default_factory=lambda: dict)  # the Fargate task's size and start (cost accounting)
+    clock: Callable[[], float] = time.monotonic
+    now: Callable[[], dt.datetime] = field(default_factory=lambda: lambda: dt.datetime.now(dt.timezone.utc))
 
     @property
     def work(self) -> Path:
@@ -131,9 +138,21 @@ class Run:
         """The monitor records ``corpus-sync`` wrote for this week (a site that sets ``monitorSources``)."""
         return self.run_dir / "monitor-records.json"
 
+    @property
+    def monitor_ledger(self) -> Path:
+        """What the monitor-record import has written already (``monitor_ledger.py``); kept with the corpus, so it outlives the week's run directory."""
+        return self.corpus / "monitor-import-ledger.json"
+
     def monitor_options(self) -> list[str]:
         """``--monitor-records FILE`` for a command that counts the records, or nothing when the site has no monitor source."""
         return ["--monitor-records", str(self.monitor_records)] if self.config.monitor_sources else []
+
+    def import_options(self) -> list[str]:
+        """The monitor options of the commands that import the records: the records, the ledger that lets a run skip what it wrote before, and
+        ``--monitor-full`` (``KNOWLEDGE_MONITOR_FULL=true``) to import every record again."""
+        if not self.config.monitor_sources:
+            return []
+        return [*self.monitor_options(), "--monitor-ledger", str(self.monitor_ledger), *(["--monitor-full"] if self.config.monitor_full else [])]
 
     def prepare_site(self) -> None:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
@@ -295,7 +314,7 @@ def typed_extraction(run: Run) -> dict:
     run.pull(corpus=True, run=True)
     state = run.read_state()
     run_dir = run.run_dir
-    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.monitor_options()]
+    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.import_options()]
     run.sh(*publish)  # the dry run: its plan is in the task log
     run.sh(*publish, "--apply")  # front-matter entities first, so the extractor resolves to accepted entities
     run.sh(
@@ -315,7 +334,7 @@ def import_arguments(run: Run) -> list[str]:
     state = run.read_state()
     return [
         "papyrus", "knowledge", "publish-run", *backend_options(run),
-        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.monitor_options(),
+        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.import_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
         "--entities", str(run.run_dir / "typed" / "output.json"),
@@ -354,6 +373,7 @@ def ai_review(run: Run) -> dict:
     guidance_file = run.config_dir / "review-guidance.md"
     guidance = guidance_file.read_text() if guidance_file.exists() else ""
     model = run.services.model(run.services.api_key(run.config.openai_parameter), guidance)
+    run.llm_sources.append(model)  # its `usage` is read for the stage's cost even if the review fails half way
     client = run.services.record_client({"auth": "iam", "amplify-outputs": str(run.outputs)})
     actor = make_actor("ai", None, c.today())
     now = c.utc_now()
@@ -395,7 +415,7 @@ def ai_review(run: Run) -> dict:
         nodes = c.current_nodes(client.list_records("SemanticNode"))
     accepted = [node for node in nodes if node.get("status") == "accepted"]
     by_lineage = {str(node.get("lineageId") or node["id"]): node for node in accepted}
-    relations = [row for row in c.relations_of_nodes(client, accepted)]
+    relations = c.relations_of_nodes(client, accepted, workers=c.DEFAULT_WORKERS, client_factory=getattr(run.services, "worker_client", None))
     found, made = review.review_relations(relations, by_lineage, typed, model, actor, now=now)
     patches += found
     decisions += made
@@ -530,19 +550,59 @@ def run_stage(stage: str, run: Run, functions: Mapping[str, Callable[[Run], dict
     if run.ledger.status(stage) == SUCCEEDED:
         print(f"stage {stage} already succeeded in execution {run.config.execution_name}; nothing to do")
         return 0
+    earlier = _safely(lambda: run.ledger.cost(stage))  # what failed attempts of this stage in this execution already cost
     attempt = run.ledger.begin(stage)
+    began = run.clock()
     print(f"stage {stage} of {run.config.publication} {run.config.week}, execution {run.config.execution_name}, attempt {attempt}", flush=True)
     try:
         if run.config.failure_injection_allowed and run.config.fail_stage == stage:
             raise StageFailed(f"injected failure at {stage} (test execution {run.config.execution_name})")
         details = table[stage](run)
     except Exception as error:  # noqa: BLE001 - the ledger records it and the task fails so Step Functions retries or stops
-        run.ledger.fail(stage, f"{type(error).__name__}: {error}")
+        cost = _stage_cost(run, began, earlier)
+        run.ledger.fail(stage, f"{type(error).__name__}: {error}", cost)
         print(f"stage {stage} failed: {type(error).__name__}: {error}", file=sys.stderr, flush=True)
         return 1
-    run.ledger.finish(stage, _plain(details))
-    print(f"stage {stage} succeeded", flush=True)
+    details = _plain(details)
+    cost = _stage_cost(run, began, earlier)
+    if cost is not None:
+        details["cost"] = cost
+    run.ledger.finish(stage, details)
+    print(f"stage {stage} succeeded" + (f" (cost ${cost['totalUsd']:.4f})" if cost else ""), flush=True)
+    if stage == PROJECTION_STAGE:
+        _record_run_total(run)
     return 0
+
+
+def _safely(action: Callable[[], Any]) -> Any:
+    """Cost accounting must never fail a stage: an error is logged and the figure is left out."""
+    try:
+        return action()
+    except Exception as error:  # noqa: BLE001
+        print(f"cost accounting skipped: {type(error).__name__}: {error}", file=sys.stderr, flush=True)
+        return None
+
+
+def _stage_cost(run: Run, began: float, earlier: dict | None) -> dict | None:
+    def build() -> dict:
+        calls = [call for source in run.llm_sources for call in getattr(source, "usage", [])]
+        latest = costs.stage_cost(elapsed_seconds=run.clock() - began, task=run.task_info(), now=run.now(), calls=calls)
+        return costs.add_attempt(earlier, latest)
+
+    return _safely(build)
+
+
+def _record_run_total(run: Run) -> None:
+    """After the last stage: sum the execution's stages into the ledger's run row and `runs/<week>/cost-<execution>.json`, and log it."""
+
+    def record() -> None:
+        total = costs.run_total(run.ledger.rows(), STAGES)
+        run.ledger.write_run_total(total)
+        report = {"publication": run.config.publication, "week": run.config.week, "execution": run.config.execution_name, "cost": total}
+        run.state.write_text(f"runs/{run.config.week}/cost-{run.config.execution_name}.json", json.dumps(report, indent=2, sort_keys=True))
+        print(f"run cost: ${total['totalUsd']:.4f} (compute ${total['computeUsd']:.4f}, model ${total['llm']['usd']:.4f}) in {total['durationSeconds']}s" + (" [partial]" if total.get("partial") else ""), flush=True)
+
+    _safely(record)
 
 
 def _plain(value: Any) -> Any:

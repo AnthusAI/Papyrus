@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1d242cb7-d753-4f12-81b2-1d99fb110c6f",
+  "issue_id": "PPY-f7ab4101-2ead-45af-9625-d2310af1daa4",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-26T12:05:57.117Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Router: one Cyclotron machine request per story for all publications",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

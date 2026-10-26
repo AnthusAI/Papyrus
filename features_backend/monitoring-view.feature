@@ -45,3 +45,11 @@ Feature: The Monitoring page shows the automated research pipeline to editors
     Given a monitoring table with runs, routed items and a legacy quota configuration
     When an admin opens the monitoring overview for the whole pipeline
     Then the overview contains no endpoint, role ARN, account or run identifier of the shared Cyclotron
+
+  Scenario: A site sees only the monitors that are routed to it
+    Given monitors "hn", "ttab" and "huggingface" where only "ttab" routes to the publication "distinctive"
+    When an editor of "distinctive" opens the monitoring overview
+    Then the queue lists only the items of the monitor "ttab"
+    And the item "Decision on a mark" is waiting for the router
+    And no item of the monitors "hn" and "huggingface" is returned
+    And the monitors "hn" and "huggingface" are named as not routed to this site

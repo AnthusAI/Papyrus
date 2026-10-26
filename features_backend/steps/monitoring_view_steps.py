@@ -54,7 +54,11 @@ def separate_email_partition(context, publication):
 def ask(context, groups, publication, scope):
     context.refused = False
     try:
-        context.overview = monitoring_overview(context.store, groups=groups, site_endpoint=ENDPOINTS.get(publication), scope=scope, now=fx.NOW)
+        if getattr(context, "stores", None):
+            from papyrus_content.monitoring_view import monitoring_site_overview
+            context.overview = monitoring_site_overview(context.stores, groups=groups, site_endpoint=ENDPOINTS.get(publication), scope=scope, now=fx.NOW)
+        else:
+            context.overview = monitoring_overview(context.store, groups=groups, site_endpoint=ENDPOINTS.get(publication), scope=scope, now=fx.NOW)
     except Forbidden:
         context.refused = True
 
@@ -180,3 +184,36 @@ def no_leaks(context):
     text = json.dumps(context.overview)
     for marker in fx.SECRET_MARKERS:
         assert marker not in text, marker
+
+
+DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
+
+
+@given('monitors "hn", "ttab" and "huggingface" where only "ttab" routes to the publication "distinctive"')
+def several_monitors(context):
+    ENDPOINTS["distinctive"] = DISTINCTIVE
+    context.stores = {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(DISTINCTIVE)),
+                      "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface"))}
+    context.store = None
+
+
+@then('the queue lists only the items of the monitor "{monitor}"')
+def only_monitor(context, monitor):
+    assert context.overview["items"] and {i["monitorId"] for i in context.overview["items"]} == {monitor}
+
+
+@then('the item "{title}" is waiting for the router')
+def waiting(context, title):
+    assert item(context, title)["routing"] == "collected"
+
+
+@then('no item of the monitors "{a}" and "{b}" is returned')
+def none_of_others(context, a, b):
+    text = json.dumps(context.overview)
+    for title in ("Fresh Show HN", "Quantum paper on arXiv", "Model release"):
+        assert title not in text
+
+
+@then('the monitors "{a}" and "{b}" are named as not routed to this site')
+def named_not_routed(context, a, b):
+    assert sorted(context.overview["otherMonitors"]) == sorted([a, b])

@@ -17,10 +17,11 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
+from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, operator_view, read_item_page, release_draft, selection_snapshot, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus import cli as papyrus_cli  # noqa: E402
-from papyrus_content import review_requests  # noqa: E402
+from papyrus_content import proposals_commands, review_requests  # noqa: E402
 from papyrus_content.ideas import commands, trends  # noqa: E402
+from papyrus_content.knowledge_snapshot.trends import TrendConfig  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
 
 PUBLISHED = "Open licences spread through model hubs"
@@ -37,8 +38,11 @@ def snapshot_from_entry(directory: str):
     return trends.load_snapshot(write(directory, "history/2026-10-19.json", history_entry()))
 
 
+NO_COOLDOWN = TrendConfig(cooldown_days=0)  # the same-targets and near-duplicate checks are tested on their own, so the cooldown must not pre-empt them
+
+
 class ListingClient(FakeClient):
-    """Answers ``listProposals`` with earlier Proposals, as an editor session would see them."""
+    """Answers ``listProposals`` with earlier Proposals, as an editor session would see them, and ``listStoryDrafts`` with their operator view."""
 
     def __init__(self, *args, listed=(), **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -47,6 +51,8 @@ class ListingClient(FakeClient):
     def graphql(self, query, variables=None):
         if "listProposals" in query:
             return {"listProposals": {"items": self.listed, "nextToken": None}}
+        if "listStoryDrafts" in query:
+            return {"listStoryDrafts": {"status": "ok", "error": None, "message": None, "drafts": operator_view(self.listed)}}
         return super().graphql(query, variables)
 
 
@@ -56,14 +62,14 @@ class SnapshotTests(unittest.TestCase):
             snapshot = snapshot_from_entry(directory)
         self.assertEqual(snapshot["asOf"], AS_OF)
         self.assertEqual(len(snapshot["clusters"]), 2)
-        self.assertEqual(snapshot["entityFile"]("platform--hugging-face")["neighbours"][0]["weight"], 5)
+        self.assertEqual(snapshot["entityFile"]("maker--hugging-face")["neighbours"][0]["weight"], 5)
 
     def test_a_published_directory_is_read_file_by_file_with_the_archive_for_the_previous_week(self) -> None:
         files = snapshot_files()
         with tempfile.TemporaryDirectory() as directory:
             write(directory, "index.json", files["index"])
             write(directory, "clusters.json", files["clusters"])
-            write(directory, "entities/platform--hugging-face.json", files["entities"]["platform--hugging-face"])
+            write(directory, "entities/maker--hugging-face.json", files["entities"]["maker--hugging-face"])
             write(directory, "history/index.json", {"entries": [{"asOf": "2026-10-12", "file": "2026-10-12.json"}, {"asOf": AS_OF, "file": "2026-10-19.json"}]})
             write(directory, "history/2026-10-12.json", {"clusters": [{"uid": "cl-fb1252e1da52", "itemCount": 17}]})
             snapshot = trends.load_snapshot(directory)
@@ -71,8 +77,9 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(snapshot["previous"], {"asOf": "2026-10-12", "counts": {"cl-fb1252e1da52": 17}})
         cluster = by_id["cluster:cl-fb1252e1da52"]
         self.assertEqual((cluster["itemCountInPreviousArchive"], cluster["previousArchiveWeek"]), (17, "2026-10-12"))
-        self.assertEqual(by_id["entity:platform--hugging-face"]["neighbours"][0]["name"], "Apache-2.0")
-        self.assertNotIn("neighbours", by_id["entity:licence--apache-2-0"])  # an entity file that cannot be read is only missing colour
+        self.assertEqual(by_id["entity:maker--hugging-face"]["neighbours"][0]["name"], "Zed")
+        self.assertNotIn("neighbours", by_id["entity:concept--routing"])  # an entity file that cannot be read is only missing colour
+        self.assertNotIn("entity:maker--zed", by_id)  # a maker whose file cannot be read cannot show it is notable, so it does not anchor a draft
 
     def test_an_address_is_fetched_not_opened_as_a_path(self) -> None:
         files = snapshot_files()
@@ -97,9 +104,9 @@ class SignalTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             signals = trends.build_signals(snapshot_from_entry(directory))
         self.assertEqual([signal["id"] for signal in signals], [
-            "cluster:cl-fb1252e1da52", "cluster:cl-aaaa00000001", "entity:platform--hugging-face", "entity:licence--apache-2-0", "entity:task--routing", "entity:task--typed-decisions"])
+            "cluster:cl-fb1252e1da52", "cluster:cl-aaaa00000001", "entity:maker--hugging-face", "entity:maker--zed", "entity:concept--routing", "entity:concept--typed-decisions"])
         hugging = signals[2]
-        self.assertEqual((hugging["targetType"], hugging["targetId"], hugging["last4"], hugging["prior4"], hugging["percent"]), ("entity", "platform--hugging-face", 15, 10, 50))
+        self.assertEqual((hugging["targetType"], hugging["targetId"], hugging["last4"], hugging["prior4"], hugging["percent"]), ("entity", "maker--hugging-face", 15, 10, 50))
         self.assertEqual(hugging["weeks"][-1], AS_OF)
         self.assertEqual(hugging["weeks"][0], "2026-08-31")
 
@@ -129,7 +136,7 @@ class CitationCheckTests(unittest.TestCase):
         valid, invalid = self.check(trend_draft())
         self.assertEqual(invalid, [])
         self.assertEqual(valid[0]["citationCheck"]["status"], "passed")
-        self.assertEqual(valid[0]["citedSignalIds"], ["entity:platform--hugging-face", "entity:licence--apache-2-0"])
+        self.assertEqual(valid[0]["citedSignalIds"], ["entity:maker--hugging-face", "entity:maker--zed"])
 
     def test_the_one_signal_two_sentence_draft_the_live_model_returned_fails_and_the_run_record_keeps_its_text(self) -> None:
         # The shape observed against gpt-6-luna on 2026-10-24: one signal, two single-sentence paragraphs.
@@ -156,7 +163,7 @@ class CitationCheckTests(unittest.TestCase):
         self.assertEqual(invalid[0]["reason"], "citation_check_failed")
         problem = invalid[0]["citationCheck"]["problems"][0]
         self.assertEqual((problem["where"], problem["reason"]), ("paragraph 1 sentence 3", "no_citation"))
-        self.assertEqual(invalid[0]["title"], "Hugging Face and Apache-2.0 climb together")
+        self.assertEqual(invalid[0]["title"], "Hugging Face and Zed climb together")
 
     def test_a_citation_that_is_not_a_signal_in_the_snapshot_blocks_the_draft(self) -> None:
         draft = trend_draft()
@@ -170,7 +177,7 @@ class CitationCheckTests(unittest.TestCase):
 
     def test_a_number_held_by_another_signal_does_not_count_for_this_sentence(self) -> None:
         draft = trend_draft()
-        draft["paragraphs"][0]["sentences"][0] = sentence("Hugging Face appeared in 12 items over the last four weeks.", "S3")  # 12 is Apache's
+        draft["paragraphs"][0]["sentences"][0] = sentence("Hugging Face appeared in 12 items over the last four weeks.", "S3")  # 12 is Zed's
         self.assertEqual(self.reasons(draft), ["number_not_in_cited_signals:12"])
 
     def test_a_date_must_be_one_of_the_signal_dates_and_a_week_label_does_not_ground_small_numbers(self) -> None:
@@ -197,7 +204,7 @@ class CitationCheckTests(unittest.TestCase):
     def test_a_draft_needs_two_signals_three_body_sentences_a_known_section_and_a_figure_from_cited_signals(self) -> None:
         one_signal = trend_draft(cites=("S3", "S3"), body=[{"sentences": [sentence("Hugging Face appeared in 15 items.", "S3")] * 3}])
         self.assertIn("fewer_than_two_signals_cited", self.reasons(one_signal))
-        short = trend_draft(body=[{"sentences": [sentence("Hugging Face appeared in 15 items.", "S3"), sentence("Apache-2.0 appeared in 12 items.", "S4")]}])
+        short = trend_draft(body=[{"sentences": [sentence("Hugging Face appeared in 15 items.", "S3"), sentence("Zed appeared in 12 items.", "S4")]}])
         self.assertIn("fewer_than_three_body_sentences", self.reasons(short))
         self.assertEqual(self.reasons(trend_draft(section="Gossip")), ["unknown_section"])
         self.assertEqual(self.reasons(trend_draft(figure=("S5",))), ["figure_signals_must_be_one_to_three_cited_signals"])
@@ -238,7 +245,7 @@ class ItemTests(unittest.TestCase):
         return [problem["reason"] for problem in invalid[0]["citationCheck"]["problems"]]
 
     def test_an_entity_signal_carries_the_newest_items_in_the_window_with_title_summary_date_and_site_url(self) -> None:
-        items = self.by_id["entity:platform--hugging-face"]["items"]
+        items = self.by_id["entity:maker--hugging-face"]["items"]
         self.assertEqual([item["date"] for item in items], ["2026-10-17", "2026-10-14"])
         zed = items[0]
         self.assertEqual((zed["title"], zed["url"]), ("Zed releases Zed-7B, a small coding model under Apache-2.0", "https://site.example/posts/zed-7b/"))
@@ -246,7 +253,7 @@ class ItemTests(unittest.TestCase):
         self.assertNotIn("items", self.by_id["cluster:cl-fb1252e1da52"])  # the snapshot lists no members of a cluster
 
     def test_an_item_older_than_the_four_week_window_is_left_out_and_a_missing_page_is_only_a_missing_summary(self) -> None:
-        self.assertEqual([item["date"] for item in self.by_id["entity:licence--apache-2-0"]["items"]], ["2026-10-17"])
+        self.assertEqual([item["date"] for item in self.by_id["entity:maker--zed"]["items"]], ["2026-10-17"])
         signals = trends.build_signals(self.snapshot, lambda url: (_ for _ in ()).throw(OSError("down")))
         self.assertEqual([item.get("summary") for item in signals[2]["items"]], [None, None])
 
@@ -271,7 +278,7 @@ class ItemTests(unittest.TestCase):
         valid, invalid = self.check(release_draft())
         self.assertEqual(invalid, [])
         draft = valid[0]
-        self.assertEqual(draft["citedSignalIds"], ["entity:platform--hugging-face", "entity:licence--apache-2-0"])
+        self.assertEqual(draft["citedSignalIds"], ["entity:maker--hugging-face", "entity:maker--zed"])
         self.assertEqual(draft["citedItemIds"], ["item:/posts/zed-7b/", "item:/posts/a-model-card/"])
         self.assertEqual(draft["headline"]["signalIds"], [])  # a headline may rest on an item alone
         self.assertEqual(draft["headline"]["itemIds"], ["item:/posts/zed-7b/"])
@@ -325,7 +332,7 @@ class ItemTests(unittest.TestCase):
         self.assertIn("A 7B coding model with 32k context", json.dumps(sent))
         (row,) = [row for row in client.proposals if "kind" in row]
         self.assertIn("## Sources", row["body"])
-        self.assertEqual(json.loads(row["targets"]), [{"type": "entity", "id": "platform--hugging-face"}, {"type": "entity", "id": "licence--apache-2-0"}])
+        self.assertEqual(json.loads(row["targets"]), [{"type": "entity", "id": "maker--hugging-face"}, {"type": "entity", "id": "maker--zed"}])
         self.assertEqual(run["drafts"][0]["citedItems"][0]["url"], "https://site.example/posts/zed-7b/")
 
     def test_the_summary_is_the_first_block_quote_line_and_is_trimmed(self) -> None:
@@ -357,8 +364,8 @@ class RunTests(unittest.TestCase):
         self.assertEqual((run["ideasCreated"], run["invalid"], run["store"]), (1, [], "proposals"))
         (row,) = self.filed(client)
         self.assertEqual(row["kind"], "story_draft")
-        self.assertEqual(row["title"], "Hugging Face and Apache-2.0 climb together")
-        self.assertEqual(json.loads(row["targets"]), [{"type": "entity", "id": "platform--hugging-face"}, {"type": "entity", "id": "licence--apache-2-0"}])
+        self.assertEqual(row["title"], "Hugging Face and Zed climb together")
+        self.assertEqual(json.loads(row["targets"]), [{"type": "entity", "id": "maker--hugging-face"}, {"type": "entity", "id": "maker--zed"}])
         evidence = json.loads(row["evidence"])
         self.assertEqual(evidence["signals"], 2)
         self.assertIn("knowledge snapshot 2026-10-19", evidence["source"])
@@ -367,11 +374,11 @@ class RunTests(unittest.TestCase):
             figure,
             {"type": "line", "title": "Items per week", "caption": "Hugging Face peaked at 7 items in one week.", "unit": "items per week", "source": "knowledge snapshot 2026-10-19",
              "x": ["2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05", "2026-10-12", "2026-10-19"],
-             "series": [{"signal": "entity:platform--hugging-face", "label": "Hugging Face", "values": [1, 2, 3, 4, 7, 3, 3, 2]}]},
+             "series": [{"signal": "entity:maker--hugging-face", "label": "Hugging Face", "values": [1, 2, 3, 4, 7, 3, 3, 2]}]},
         )
         self.assertIn("[1]", row["body"])
         self.assertIn("## Signals cited", row["body"])
-        self.assertIn("`entity:platform--hugging-face`", row["body"])
+        self.assertIn("`entity:maker--hugging-face`", row["body"])
         self.assertEqual(model.requests[0]["model"], "gpt-6-luna")
 
     def test_the_draft_is_proposed_by_ai_and_nothing_is_transitioned_or_published(self) -> None:
@@ -422,41 +429,79 @@ class RunTests(unittest.TestCase):
         self.assertFalse([call for call in client.calls if call[0] == "list_records" and call[1] == "ReviewRequest"])
 
     def test_a_proposal_with_the_same_targets_is_not_filed_again_unless_it_was_declined(self) -> None:
-        targets = json.dumps([{"type": "entity", "id": "licence--apache-2-0"}, {"type": "entity", "id": "platform--hugging-face"}])
+        targets = json.dumps([{"type": "entity", "id": "maker--zed"}, {"type": "entity", "id": "maker--hugging-face"}])
         earlier = {"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Different words entirely", "summary": "x", "state": "draft", "targets": targets, "createdAt": "2026-10-20T00:00:00Z"}
-        run, client, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[earlier]))
+        run, client, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[earlier]), config=NO_COOLDOWN)
         self.assertEqual((run["ideasCreated"], run["duplicates"][0]["reason"]), (0, "same_targets"))
         self.assertEqual(run["duplicates"][0]["sameTargetsAs"], {"kind": "proposal", "id": earlier["id"]})
         declined = {**earlier, "state": "declined"}
-        run, _, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[declined]))
+        run, _, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[declined]), config=NO_COOLDOWN)
         self.assertEqual(run["ideasCreated"], 1)
 
     def test_a_trend_draft_kept_in_the_json_store_blocks_the_same_targets_next_run(self) -> None:
-        first, _, _ = self.run_trends([trend_draft()], proposals=False)
+        first, _, _ = self.run_trends([trend_draft()], proposals=False, config=NO_COOLDOWN)
         self.assertEqual((first["ideasCreated"], first["store"]), (1, "json"))
-        second, _, _ = self.run_trends([trend_draft("Another title for the same pair")], proposals=False)
+        second, _, _ = self.run_trends([trend_draft("Another title for the same pair")], proposals=False, config=NO_COOLDOWN)
         self.assertEqual((second["ideasCreated"], second["duplicates"][0]["reason"]), (0, "same_targets"))
 
     def test_a_draft_that_restates_a_published_story_is_a_near_duplicate(self) -> None:
-        story = {"id": "s1", "title": "Hugging Face and Apache-2.0 climb together", "summary": "Both rose in the four weeks to 2026-10-19.", "state": "published", "date": "2026-10-10"}
+        story = {"id": "s1", "title": "Hugging Face and Zed climb together", "summary": "Both rose in the four weeks to 2026-10-19.", "state": "published", "date": "2026-10-10"}
         run, _, _ = self.run_trends([trend_draft()], stories=[story])
         self.assertEqual((run["ideasCreated"], run["duplicates"][0]["reason"]), (0, "near_duplicate"))
 
-    def test_under_iam_proposals_cannot_be_read_so_dedupe_against_them_is_skipped_and_said_so(self) -> None:
-        class Denied(FakeClient):
+    def test_under_iam_the_operator_reads_story_drafts_and_dedupes_against_them_without_reading_proposals(self) -> None:
+        targets = json.dumps([{"type": "entity", "id": "maker--zed"}, {"type": "entity", "id": "maker--hugging-face"}])
+        earlier = {"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Different words entirely", "summary": "x", "state": "draft", "targets": targets,
+                   "createdAt": "2026-10-20T00:00:00Z", "body": "SECRET BODY", "evidence": "{}", "history": "[]"}
+
+        class OperatorOnly(ListingClient):
             def graphql(self, query, variables=None):
                 if "listProposals" in query:
                     raise RuntimeError("Not Authorized to access listProposals on type Query")
+                if "listStoryDrafts" in query:
+                    seen.append(query)
                 return super().graphql(query, variables)
 
+        seen: list[str] = []
         with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
-            run, client, _ = self.run_trends([trend_draft()], Denied(sections=("Analysis",)))
-        self.assertEqual(run["ideasCreated"], 1)
-        self.assertIn("cannot be read with IAM", run["proposalDedupe"])
-        self.assertEqual(len(self.filed(client)), 1)
+            run, client, _ = self.run_trends([trend_draft()], OperatorOnly(sections=("Analysis",), listed=[earlier]), config=NO_COOLDOWN)
+        self.assertEqual((run["ideasCreated"], run["duplicates"][0]["reason"]), (0, "same_targets"))
+        self.assertEqual(run["duplicates"][0]["sameTargetsAs"], {"kind": "proposal", "id": earlier["id"]})
+        self.assertNotIn("proposalDedupe", run)
+        self.assertEqual(len(seen), 1)
+
+    def test_the_operator_query_asks_for_six_fields_and_nothing_more(self) -> None:
+        fields = proposals_commands.LIST_STORY_DRAFTS_QUERY.split("drafts {")[1].split("}")[0].split()
+        self.assertEqual(fields, ["id", "title", "summary", "targets", "state", "createdAt"])
+
+    def test_a_refused_operator_read_is_an_error_not_a_silent_loss_of_dedupe(self) -> None:
+        class Refused(FakeClient):
+            def graphql(self, query, variables=None):
+                if "listStoryDrafts" in query:
+                    return {"listStoryDrafts": {"status": "refused", "error": "not_staff", "message": "Only editors.", "drafts": []}}
+                return super().graphql(query, variables)
+
+        with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}), self.assertRaises(proposals_commands.ProposalRefused):
+            self.run_trends([trend_draft()], Refused(sections=("Analysis",)))
+
+    def test_an_entity_that_anchored_a_recent_draft_cannot_anchor_another_and_the_run_says_so(self) -> None:
+        recent = {"id": "prop-" + "c" * 32, "kind": "story_draft", "title": "Zed alone", "summary": "x", "state": "draft", "createdAt": "2026-10-20T00:00:00Z",
+                  "targets": json.dumps([{"type": "entity", "id": "maker--zed"}, {"type": "entity", "id": "concept--routing"}])}
+        run, _, model = self.run_trends([], ListingClient(sections=("Analysis",), listed=[recent]))
+        self.assertEqual(run["cooldown"], {"days": 7, "entities": {"maker--zed": "2026-10-20", "concept--routing": "2026-10-20"}})
+        self.assertEqual(sorted(row["key"] for row in run["selection"]["excluded"] if row["reason"].startswith("cooldown")), ["concept--routing", "maker--zed"])
+        anchors = {row["key"] for row in run["selection"]["anchors"]}
+        self.assertTrue(anchors and not anchors & {"maker--zed", "concept--routing"})
+        shown = {signal["name"] for signal in model.model_input["signals"]}
+        self.assertNotIn("Zed", shown)
+        declined = {**recent, "state": "declined"}
+        run, _, _ = self.run_trends([], ListingClient(sections=("Analysis",), listed=[declined]))
+        self.assertEqual(run["cooldown"]["entities"], {})
+        run, _, _ = self.run_trends([], ListingClient(sections=("Analysis",), listed=[recent]), config=NO_COOLDOWN)
+        self.assertEqual(run["cooldown"], {"days": 0, "entities": {}})
 
     def test_too_few_signals_means_no_model_call(self) -> None:
-        self.snapshot = {**self.snapshot, "clusters": [], "index": {**self.snapshot["index"], "entities": self.snapshot["index"]["entities"][:1], "trending": ["platform--hugging-face"]}}
+        self.snapshot = {**self.snapshot, "clusters": [], "index": {**self.snapshot["index"], "entities": self.snapshot["index"]["entities"][:1], "trending": ["maker--hugging-face"]}}
         run, _, model = self.run_trends([trend_draft()])
         self.assertEqual((model.requests, run["ideasCreated"]), ([], 0))
         self.assertIn("at least 2", run["noCall"])
@@ -524,6 +569,82 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class SelectionTests(unittest.TestCase):
+    """Which entities become signals, modelled on the shape of the Shipped snapshot of 2026-10-26: broad kinds carry the biggest counts,
+    one individual uploader filed five small fine-tunes, and a few organisations released real models."""
+
+    def snapshot(self, extra=None):
+        return selection_snapshot(extra)
+
+    def test_broad_kinds_with_the_biggest_counts_are_not_anchors_and_the_published_trending_order_is_ignored(self) -> None:
+        selection = trends.select_entities(self.snapshot())
+        anchors = [row["key"] for row in selection["anchors"]]
+        self.assertEqual(anchors, ["model_family--olmo", "maker--nvidia"])
+        self.assertFalse({"licence--mit", "task--text-generation", "platform--hugging-face"} & set(anchors))
+
+    def test_a_single_individual_with_few_likes_cannot_anchor_a_draft_and_the_run_says_why(self) -> None:
+        selection = trends.select_entities(self.snapshot())
+        [excluded] = [row for row in selection["excluded"] if row["key"] == "maker--emonhasan01"]
+        self.assertIn("below the notability bar", excluded["reason"])
+        self.assertIn("5 model(s), 30 likes, 2000 downloads", excluded["reason"])
+
+    def test_a_maker_with_several_models_and_real_likes_is_notable(self) -> None:
+        row = next(row for row in trends.select_entities(self.snapshot())["anchors"] if row["key"] == "maker--nvidia")
+        self.assertEqual(row["notability"], "4 model(s), 640 likes, 16000 downloads in the window")
+
+    def test_a_watchlisted_maker_or_one_the_site_wrote_about_is_notable_whatever_its_numbers(self) -> None:
+        snapshot = self.snapshot()
+        listed = trends.select_entities(snapshot, TrendConfig(watchlist=frozenset({"EmonHasan01".lower()})))
+        self.assertIn("maker--emonhasan01", [row["key"] for row in listed["anchors"]])
+        self.assertEqual(next(row for row in listed["anchors"] if row["key"] == "maker--emonhasan01")["notability"], "watchlisted")
+        own = self.snapshot({"maker--emonhasan01": {"relatedItems": [{"title": "A story", "url": "/posts/a/", "publishedAt": "2026-10-14"}], "relatedRecords": []}})
+        self.assertIn("maker--emonhasan01", [row["key"] for row in trends.select_entities(own)["anchors"]])
+
+    def test_downloads_alone_are_not_notability(self) -> None:
+        snapshot = self.snapshot({"maker--emonhasan01": {"relatedItems": [], "relatedRecords": [
+            {"title": f"emonHasan01/m{n}", "url": "https://huggingface.co/x", "publishedAt": "2026-10-14T08:00:00Z", "summary": f"m is a model. {n} likes, 90000 downloads."} for n in range(3)]}})
+        [row] = [row for row in trends.select_entities(snapshot)["excluded"] if row["key"] == "maker--emonhasan01"]
+        self.assertIn("3 likes, 270000 downloads", row["reason"])  # 0 + 1 + 2 likes: under the floor of 10
+
+    def test_thresholds_are_configuration_with_documented_defaults(self) -> None:
+        config = TrendConfig.from_mapping({"minimum_likes": 10, "minimum_downloads": 1000, "watchlist": ["NVIDIA"]})
+        self.assertEqual((config.minimum_likes, config.minimum_downloads, config.watchlist), (10, 1000, frozenset({"nvidia"})))
+        self.assertIn("maker--emonhasan01", [row["key"] for row in trends.select_entities(self.snapshot(), config)["anchors"]])  # 30 likes now clears a bar of 10
+        default = TrendConfig()
+        self.assertEqual((default.minimum_recent, default.minimum_score, default.minimum_models, default.minimum_likes, default.minimum_downloads), (3, 1.0, 2, 100, 10_000))
+        with self.assertRaises(ValueError):
+            TrendConfig.from_mapping({"minimum_lykes": 1})
+
+    def test_broad_kinds_come_in_as_context_beside_the_anchors_they_sit_with_and_say_so(self) -> None:
+        signals = trends.build_signals(self.snapshot())
+        roles = {signal["targetId"]: signal["role"] for signal in signals}
+        self.assertEqual(roles["maker--nvidia"], "anchor")
+        self.assertEqual({key for key, role in roles.items() if role == "context"}, {"task--text-generation", "licence--mit"})  # the two most connected to the anchors
+        self.assertNotIn("platform--hugging-face", roles)  # only beside the excluded individual
+        snapshot = self.snapshot()
+        view = trends.build_input(snapshot, signals, {"sections": [{"title": "Analysis"}], "stories": []}, 3)["signals"]
+        self.assertEqual({entry["name"] for entry in view if entry.get("role") == "context"}, {"text-generation", "MIT"})
+        self.assertNotIn("role", next(entry for entry in view if entry["name"] == "NVIDIA"))
+
+    def test_the_prompt_forbids_a_story_about_a_context_signal(self) -> None:
+        self.assertIn('"role": "context"', trends.SYSTEM_PROMPT)
+        self.assertIn("never make it the subject of the headline", trends.SYSTEM_PROMPT)
+
+    def test_selection_is_deterministic_and_the_same_snapshot_gives_the_same_signals(self) -> None:
+        first = [signal["id"] for signal in trends.build_signals(self.snapshot())]
+        second = [signal["id"] for signal in trends.build_signals(self.snapshot())]
+        self.assertEqual(first, second)
+
+    def test_the_run_record_keeps_the_selection_so_a_person_can_see_who_was_passed_over(self) -> None:
+        model = FakeTrendModel([])
+        snapshot = {**self.snapshot(), "source": "test"}
+        run = trends.draft_trends(snapshot=snapshot, site="shipped", context={"sections": [{"title": "Analysis"}], "stories": []}, json_store=None, transport=model, dry_run=True, now=NOW)
+        self.assertEqual(len(model.requests), 1)
+        self.assertEqual([row["key"] for row in run["selection"]["anchors"]], ["model_family--olmo", "maker--nvidia"])
+        self.assertEqual(run["selection"]["excluded"][0]["key"], "maker--emonhasan01")
+        self.assertEqual(run["selection"]["thresholds"]["minimumLikes"], 100)
+
+
 class MonitorRecordTests(unittest.TestCase):
     """Cited Trends can cite monitor records (Hub models) as releases, next to the site's own items."""
 
@@ -531,15 +652,20 @@ class MonitorRecordTests(unittest.TestCase):
 
     def snapshot(self, related_records, related_items=()):
         entity = {"key": "maker--org", "name": "Org", "kind": "maker", "itemCount": 9, "weeksOfHistory": 20, "isNew": False, "change": {"last4": 8, "prior4": 4, "percent": None}, "series8": [0, 0, 1, 1, 2, 2, 1, 2], "href": None}
+        filler = {"key": "model--filler", "name": "Filler", "kind": "model", "itemCount": 48, "weeksOfHistory": 20, "isNew": False, "change": {"last4": 8, "prior4": 40, "percent": -80}, "series8": [10, 10, 10, 10, 2, 2, 2, 2], "href": None}
         files = {"maker--org": {"relatedItems": list(related_items), "relatedRecords": list(related_records)}}
-        return {"asOf": AS_OF, "siteBase": SITE_BASE, "clusters": [], "previous": None, "entityFile": lambda key: files.get(key), "index": {"entities": [entity], "trending": ["maker--org"]}}
+        return {"asOf": AS_OF, "siteBase": SITE_BASE, "clusters": [], "previous": None, "entityFile": lambda key: files.get(key), "index": {"entities": [entity, filler], "trending": ["maker--org"]}}
+
+    def signals(self, snapshot, fetch_text):
+        # The notability bar is tested apart (SelectionTests); here the maker is on the watchlist so only the records are under test.
+        return trends.build_signals(snapshot, fetch_text, TrendConfig(watchlist=frozenset({"maker--org"})))
 
     def record(self, name, day, **overrides):
         return {"title": f"org/{name}", "url": f"https://huggingface.co/org/{name}", "publishedAt": f"2026-10-{day}T08:00:00Z", "summary": self.SUMMARY, "source": "huggingface", "provenance": "from the Hugging Face Hub", **overrides}
 
     def test_records_in_the_window_become_items_with_their_own_summary_and_say_where_they_are_from(self) -> None:
         fetched = []
-        signals = trends.build_signals(self.snapshot([self.record("tuned", 14), self.record("old", 14, publishedAt="2026-08-01T00:00:00Z")]), lambda url: fetched.append(url) or "# x\n\nA page summary.\n")
+        signals = self.signals(self.snapshot([self.record("tuned", 14), self.record("old", 14, publishedAt="2026-08-01T00:00:00Z")]), lambda url: fetched.append(url) or "# x\n\nA page summary.\n")
         [signal] = signals
         [item] = signal["items"]
         self.assertEqual((item["title"], item["date"], item["url"], item["summary"], item["from"]), ("org/tuned", "2026-10-14", "https://huggingface.co/org/tuned", self.SUMMARY, "from the Hugging Face Hub"))
@@ -551,7 +677,7 @@ class MonitorRecordTests(unittest.TestCase):
         records = [self.record(f"m{number}", 10 + number) for number in range(6)]
         items = [{"title": "A story", "url": "/posts/a-story/", "publishedAt": "2026-10-13T00:00:00Z"}]
         fetched = []
-        [signal] = trends.build_signals(self.snapshot(records, items), lambda url: fetched.append(url) or "# A story\n\nIt shipped.\n")
+        [signal] = self.signals(self.snapshot(records, items), lambda url: fetched.append(url) or "# A story\n\nIt shipped.\n")
         self.assertEqual([item.get("from") for item in signal["items"]], [None, "from the Hugging Face Hub", "from the Hugging Face Hub", "from the Hugging Face Hub"])
         self.assertEqual([item["title"] for item in signal["items"][1:]], ["org/m5", "org/m4", "org/m3"])
         self.assertEqual(len(fetched), 1)  # only the site's own item has a page to read
@@ -559,11 +685,11 @@ class MonitorRecordTests(unittest.TestCase):
 
     def test_a_record_row_without_a_summary_or_an_http_address_is_ignored(self) -> None:
         rows = [self.record("nosummary", 14, summary=None), self.record("local", 14, url="/hub/local"), self.record("fine", 14)]
-        [signal] = trends.build_signals(self.snapshot(rows), None)
+        [signal] = self.signals(self.snapshot(rows), None)
         self.assertEqual([item["title"] for item in signal["items"]], ["org/fine"])
 
     def test_a_citation_of_a_records_facts_is_checked_against_its_summary(self) -> None:
-        [signal] = trends.build_signals(self.snapshot([self.record("tuned", 14)]), None)
+        [signal] = self.signals(self.snapshot([self.record("tuned", 14)]), None)
         view = trends.item_view("I1", signal["items"][0], ["S1"])
         numbers, dates = trends.facts_in(view)
         self.assertIn("1200", numbers)

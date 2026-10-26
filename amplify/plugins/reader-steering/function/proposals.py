@@ -57,6 +57,11 @@ TARGET_COUNTS: dict[str, tuple[int, int]] = {
 TARGET_TYPES = ("concept", "entity", "column", "story", "cluster")
 
 MUTATIONS = ("fileProposal", "transitionProposal", "editProposal")
+#: The one read an operator has: ``listStoryDrafts`` answers the story drafts and nothing else of them (never the body, the evidence, the
+#: history, the proposer, a vote, the editor log or a reason), so an unattended run can avoid filing a near-duplicate of an earlier draft.
+QUERIES = ("listStoryDrafts",)
+STORY_DRAFT_FIELDS = ("id", "title", "summary", "targets", "state", "createdAt")
+MAXIMUM_STORY_DRAFTS = 500
 
 #: What ``editProposal`` does beyond moving the state. Editors and admins only: an operator is refused every one of them.
 PIN, UNPIN, HOLD, RELEASE, EXCLUDE_VOTES, UNDO_EXCLUSION = "pin", "unpin", "hold", "release", "exclude_votes", "undo_exclusion"
@@ -127,6 +132,8 @@ class ProposalStore(Protocol):
     def create_proposal(self, row: dict[str, Any]) -> bool: ...
 
     def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool: ...
+
+    def list_story_drafts(self, limit: int) -> list[dict[str, Any]]: ...
 
 
 def staff_subject(identity: dict[str, Any]) -> str | None:
@@ -456,3 +463,25 @@ def handle_proposal_event(event: dict[str, Any], store: ProposalStore, *, now_is
         by=BY_OPERATOR if operator else BY_STAFF,
         allowed=OPERATOR_TRANSITIONS if operator else None,
     ).to_dict()
+
+
+def story_draft_summary(row: dict[str, Any]) -> dict[str, Any]:
+    """The six fields an operator may read of a story draft. ``targets`` stays the JSON text it is stored as."""
+    summary = {field: row.get(field) for field in STORY_DRAFT_FIELDS}
+    if summary["targets"] is not None and not isinstance(summary["targets"], str):
+        summary["targets"] = json.dumps(summary["targets"])
+    return summary
+
+
+def handle_proposal_query(event: dict[str, Any], store: ProposalStore, *, account_id: str | None = None) -> dict[str, Any]:
+    """``listStoryDrafts`` from AppSync: the story drafts, newest first, with only ``STORY_DRAFT_FIELDS``. Read only.
+
+    The same caller check as :func:`handle_proposal_event`: an editor or admin, or an IAM principal of ``account_id`` (the function's own
+    account) acting as an operator. An identity-pool user and a principal of any other account are refused. Answers a receipt-shaped
+    object, never an exception.
+    """
+    identity = event.get("identity") or {}
+    if staff_subject(identity) is None and operator_actor(identity, account_id) is None:
+        return {**refused("not_staff", "Only editors, admins and operators of this account can list story drafts.").to_dict(), "drafts": []}
+    rows = sorted(store.list_story_drafts(MAXIMUM_STORY_DRAFTS), key=lambda row: (row.get("createdAt") or "", row.get("id") or ""), reverse=True)
+    return {"status": "ok", "id": None, "error": None, "message": None, "drafts": [story_draft_summary(row) for row in rows[:MAXIMUM_STORY_DRAFTS]]}

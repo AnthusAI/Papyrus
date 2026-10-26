@@ -390,21 +390,31 @@ class PrivacyTests(unittest.TestCase):
         self.assertEqual(evidence["signals"], 2)
         self.assertIn(run["digestId"], evidence["source"])
 
-    def test_an_iam_run_files_proposals_without_reading_earlier_ones(self) -> None:
-        class DeniedRead(FakeClient):
+    def test_an_iam_run_reads_story_drafts_through_the_operator_query_and_dedupes_against_them(self) -> None:
+        earlier = {"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Cloud key rotation", "summary": "Rotating access keys after an incident.", "state": "draft",
+                   "targets": "[]", "createdAt": "2026-10-20T00:00:00Z"}
+
+        class OperatorOnly(FakeClient):
             def graphql(self, query, variables=None):
                 if "listProposals" in query:
                     raise RuntimeError("Not Authorized to access listProposals on type Query")
+                if "listStoryDrafts" in query:
+                    self.calls.append(("operator-read", "listStoryDrafts"))
+                    return {"listStoryDrafts": {"status": "ok", "error": None, "message": None, "drafts": [earlier]}}
                 return super().graphql(query, variables)
 
         with tempfile.TemporaryDirectory() as directory, mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
-            client = DeniedRead(references=five_references(), sections=("Analysis",))
+            client = OperatorOnly(references=five_references(), sections=("Analysis",))
             store = ProposalStore(client)
-            run, _ = run_pipeline(client, FakeModel([idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident.")]), root=Path(directory) / "ideas", proposal_store=store)
-        self.assertEqual([row["kind"] for row in client.proposals if "kind" in row], ["story_draft"])
-        self.assertIn("cannot be read with IAM", run["proposalDedupe"])
+            run, _ = run_pipeline(client, FakeModel([
+                idea("Cloud key rotation", ["R1", "R2"], angle="Rotating access keys after an incident."),
+                idea("Model checkpoint signing", ["R3", "R4"], angle="What a signature on a model file proves."),
+            ]), root=Path(directory) / "ideas", proposal_store=store)
+        self.assertEqual([row["title"] for row in client.proposals if "kind" in row], ["Model checkpoint signing"])
+        self.assertEqual([entry["reason"] for entry in run["duplicates"]], ["near_duplicate"])
+        self.assertIn(("operator-read", "listStoryDrafts"), client.calls)
         with mock.patch.dict("os.environ", {"PAPYRUS_GRAPHQL_AUTH": "user"}), self.assertRaises(RuntimeError):
-            ProposalStore(DeniedRead()).story_drafts()
+            ProposalStore(OperatorOnly()).story_drafts()
 
 
 class CommandTests(unittest.TestCase):

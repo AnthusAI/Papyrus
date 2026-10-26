@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import itertools
 import json
 from collections.abc import Mapping
 from pathlib import Path
@@ -35,6 +36,8 @@ ENVIRONMENT = {
     "KNOWLEDGE_AMPLIFY_APP_ID": "dapp123",
 }
 DEPLOYED_COMMIT = "d" * 40
+STAGE_SECONDS = 90
+TASK = {"vCpu": 4.0, "memoryGiB": 16.0, "ephemeralStorageGiB": 40, "startedAt": None}  # what the ECS task metadata says in the cloud
 
 
 class FakeSite:
@@ -146,4 +149,7 @@ def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execut
     table = boto3.resource("dynamodb", region_name="us-east-1").Table(LEDGER_TABLE)
     ledger = RunLedger(table, config.publication, config.week, config.execution_name, clock=lambda: dt.datetime(2026, 10, 26, 5, tzinfo=dt.timezone.utc))
     shell = FakeShell(work)
-    return Run(config=config, state=state, ledger=ledger, shell=shell, environment=values, services=FakeSite()), shell
+    ticks = itertools.count(0, STAGE_SECONDS)  # every stage takes STAGE_SECONDS on this clock (read once at its start, once at its end)
+    run = Run(config=config, state=state, ledger=ledger, shell=shell, environment=values, services=FakeSite(),
+              task_info=lambda: dict(TASK), clock=lambda: float(next(ticks)), now=lambda: dt.datetime(2026, 10, 26, 6, tzinfo=dt.timezone.utc))
+    return run, shell

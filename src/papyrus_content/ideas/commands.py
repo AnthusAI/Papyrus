@@ -17,6 +17,7 @@ from ..graphql_authoring import create_authoring_client
 from ..options import normalize_string, parse_options
 from ..papyrus_config import resolve_openai_api_key
 from . import digest as digest_module
+from ..knowledge_snapshot.trends import TrendConfig
 from . import synthesis, trends
 from .context import corpus_ids_for, hosted_corpora, load_context
 from .dedupe import DEFAULT_THRESHOLD
@@ -31,7 +32,7 @@ USAGE = (
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
     "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
-    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--model gpt-6-luna]\n"
+    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--window-days 28] [--cooldown-days 7] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
@@ -157,6 +158,21 @@ def synthesize_command(flags: list[str]) -> None:
         print(f"idea\t{idea['ideaId']}\t{idea['section']}\t{idea['title']}")
 
 
+def _trend_config(options: dict[str, Any]) -> TrendConfig:
+    """``--trend-config FILE``: a JSON object of the ``TrendConfig`` settings to override (watchlist, thresholds); none means the defaults.
+    ``--window-days N`` (7, 14, 21 or 28; default 28) sets the trend window and ``--cooldown-days N`` (default 7, 0 is off) the anchor cooldown; both win over the file."""
+    path = normalize_string(options.get("trend-config"))
+    values = json.loads(Path(path).expanduser().read_text(encoding="utf-8")) if path else {}
+    if normalize_string(options.get("window-days")):
+        values = {**values, "window_days": _integer(options, "window-days", 28)}
+    if normalize_string(options.get("cooldown-days")):
+        cooldown = normalize_string(options.get("cooldown-days"))
+        if not cooldown.isdigit():
+            raise ValueError("--cooldown-days must be a whole number of days (0 turns the cooldown off).")
+        values = {**values, "cooldown_days": int(cooldown)}
+    return TrendConfig.from_mapping(values)
+
+
 def trends_command(flags: list[str]) -> None:
     options = parse_options(flags)
     site = normalize_string(options.get("site"))
@@ -191,6 +207,7 @@ def trends_command(flags: list[str]) -> None:
             dry_run=dry_run,
             now=now,
             fetch_text=trends.read_item_summary,
+            config=_trend_config(options),
         )
     except (RunRefused, synthesis.SynthesisError) as error:
         raise ValueError(str(error)) from error
@@ -207,8 +224,8 @@ def trends_command(flags: list[str]) -> None:
     print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})\titems {inputs.get('items', 0)} ({inputs.get('itemsWithSummary', 0)} with a summary)")
     print(f"drafts\tproposed {run['proposed']}\tfailed the citation check {len(run['invalid'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
     print(f"llm\t{run['model']}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
-    if run.get("proposalDedupe"):
-        print(f"dedupe\tskipped against Proposals\t{run['proposalDedupe']}")
+    if run["cooldown"]["entities"]:
+        print(f"cooldown\t{run['cooldown']['days']} days\t" + ", ".join(f"{key} (anchored a draft filed {filed})" for key, filed in sorted(run["cooldown"]["entities"].items())))
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
     for draft in run["drafts"]:

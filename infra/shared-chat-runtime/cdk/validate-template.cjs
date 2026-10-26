@@ -3,6 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const templatePath = path.resolve(__dirname, process.argv[2] || "PapyrusChatDataCandidate.template.json");
+const candidateConfiguration = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../../config/papyrus-chat-candidate.json"), "utf8"));
+const modelKeyParameter = candidateConfiguration.modelKeyParameter;
 const template = JSON.parse(fs.readFileSync(templatePath, "utf8"));
 const resources = Object.values(template.Resources);
 const ofType = (type) => resources.filter((resource) => resource.Type === type);
@@ -51,6 +53,7 @@ if (path.basename(templatePath) === "PapyrusChatSyntheticAdapterTest.template.js
   assert.ok(!Object.hasOwn(template.Parameters, "GatewayRoleArn"), "synthetic mode must not accept an arbitrary caller role");
   assert.ok(!Object.hasOwn(template.Parameters, "CmsComputeRoleArn"), "synthetic mode must not accept the production CMS role");
   assert.ok(!templateText.includes("amplify/shared/papyrus/OPENAI_API_KEY"), "synthetic mode must not name or grant the model secret");
+  assert.ok(!templateText.includes(modelKeyParameter), "synthetic mode must not name or grant the site model secret");
   assert.equal(template.Outputs.SyntheticAdapterTestOnly.Value, "true");
   assert.equal(template.Outputs.SyntheticAdapterInvocation.Value, "Explicit Lambda Invoke only; no event source or schedule");
   assert.equal(template.Outputs.FeatureDefault.Value, "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review");
@@ -60,6 +63,9 @@ if (path.basename(templatePath) === "PapyrusChatSyntheticAdapterTest.template.js
   assert.ok(gatewayPolicy, "synthetic test role must receive its isolated adapter permissions");
   assert.equal(ofType("AWS::IAM::Role").length, 1, "synthetic mode must contain only the dedicated test role");
   const harness = functions[0];
+  const runtimeTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, "PapyrusChatDataCandidate.template.json"), "utf8"));
+  const runtimeFunction = Object.values(runtimeTemplate.Resources).find((resource) => resource.Type === "AWS::Lambda::Function" && resource.Properties.Handler === "run-worker.handler");
+  assert.notEqual(harness.Properties.Code.S3Key, runtimeFunction.Properties.Code.S3Key, "synthetic tests must not share a bundle with runtime workers");
   assert.equal(harness.Properties.Handler, "synthetic-adapter-test.handler");
   assert.equal(harness.Properties.Runtime, "nodejs22.x");
   assert.ok(refersTo(harness.Properties.Role, Object.entries(template.Resources).find(([, resource]) => resource === role)[0]), "harness must use the dedicated synthetic role");
@@ -106,6 +112,11 @@ assertExactActions(statementsFor(probe, "PrivateConversationIndex81B3261A"), [
 
 const runRoleId = roleIdByDescription("Private Papyrus computerless chat run worker.");
 const run = policyForRole(runRoleId);
-assert.ok(statementsFor(run, "amplify/shared/papyrus/OPENAI_API_KEY").some((statement) => actionList(statement).includes("ssm:GetParameter")), "only the run worker should read the configured model parameter");
+assertExactActions(statementsFor(run, modelKeyParameter.slice(1)), ["ssm:GetParameter"], "site-scoped run-worker model key");
+const modelKeyReaders = policies.filter((statement) => actionList(statement).includes("ssm:GetParameter"));
+assert.equal(modelKeyReaders.length, 1, "only one policy statement may read any model-key parameter");
+assert.ok(JSON.stringify(modelKeyReaders[0].Resource).includes(modelKeyParameter.slice(1)), "the model-key read must target only the configured site parameter");
+const runFunction = functions.find((fn) => fn.Properties.Handler === "run-worker.handler");
+assert.equal(runFunction.Properties.Environment.Variables.OPENAI_API_KEY_PARAMETER, modelKeyParameter);
 assert.equal(template.Outputs.FeatureDefault.Value, "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review");
 console.log("PASS: Papyrus chat candidate resources, exact gateway/probe IAM scopes, model-secret isolation and disabled mappings");

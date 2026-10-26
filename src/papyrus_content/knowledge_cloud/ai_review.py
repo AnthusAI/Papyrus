@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..knowledge_snapshot.actors import Actor
+from .cost import usage_entry
 from ..knowledge_snapshot.cluster_records import CLUSTER_KIND, STATUS_PROPOSED, decode_metadata
 from ..knowledge_snapshot.cluster_review import accept_cluster_patches
 from ..knowledge_snapshot.entity_review import accept_patches, reject_patches
@@ -152,6 +153,7 @@ class LunaReviewer:
         self.guidance = guidance.strip()
         self.max_calls = max_calls
         self.calls = 0
+        self.usage: list[dict[str, Any]] = []  # one entry per response received: the usage object of the API (cost accounting)
         self._transport = transport
         self._sleep = sleep
 
@@ -182,6 +184,7 @@ class LunaReviewer:
         for attempt in range(ATTEMPTS):
             try:
                 body = self._transport(RESPONSES_URL, headers, payload)
+                self.usage.append(usage_entry(self.model, body))  # billed even if the answer is then unusable
                 parsed = json.loads(response_text(body))
                 break
             except urllib.error.HTTPError as error:

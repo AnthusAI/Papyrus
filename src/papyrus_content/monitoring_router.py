@@ -81,6 +81,7 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 # The machine API (Cyclotron hosted_machine_publications.py) answers decide on a pending output with
 # HTTP 409 and a FastAPI body {"detail": "publication criteria are pending"}: no typed code.
 NOT_READY_DETAIL = "publication criteria are pending"
+BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 PARK_PREFIX = "PARK#"
 PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX, PARK_KEEP_ITEMS = 1800, 6 * 3600, 25
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
@@ -109,6 +110,10 @@ class StopSweep(Exception):
 
 class BindingNotReady(Exception):
     """One binding's output has no classifier yet: skip that binding for the item, never the sweep."""
+
+
+class CombinedUnavailable(Exception):
+    """The Cyclotron deployment has no POST /machine/decisions (404): decide per publication instead."""
 
 
 class AllBindingsNotReady(Exception):
@@ -302,6 +307,16 @@ def request_id(account_id: str, run_id: str, publication_id: str, binding_revisi
     return sha256(text.encode()).hexdigest()
 
 
+def combined_request_id(account_id: str, run_id: str, bindings: dict, item_id: str, fingerprint: str,
+                        revision: int, attempt: int = 0) -> str:
+    """Deterministic for one story (item id, revision, fingerprint) and its sorted binding set, so a retry reuses it."""
+    parts = ["decisions", account_id, run_id, ",".join(f"{pub}@{rev}" for pub, rev in sorted(bindings.items())),
+             item_id, f"revision-{revision}", fingerprint]
+    if attempt:
+        parts.append(f"attempt-{attempt}")
+    return sha256("\n".join(parts).encode()).hexdigest()
+
+
 def item_id_for(monitor_id: str, source_id: str) -> str:
     return f"{monitor_id}-{source_id}"
 
@@ -326,6 +341,36 @@ def build_decide_request(config: dict, publication: dict, discovery: dict, attem
             "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}}
     validate_request(body)
     return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
+
+
+def build_combined_request(config: dict, publications: list[dict], discovery: dict, attempt: int = 0) -> dict:
+    """One POST /machine/decisions body for a story and every given publication's binding."""
+    validate_email_discovery_scope(discovery, config)
+    cyclotron, item = config["cyclotron"], build_item(discovery)
+    bindings = {p["publicationId"]: cyclotron["bindingRevision"] for p in publications}
+    if not bindings:
+        raise ItemInvalid("no publication bindings to decide")
+    body = {"contractVersion": CONTRACT_VERSION,
+            "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], bindings, item["id"],
+                                             str(discovery["fingerprint"]), int(discovery["revision"]), attempt),
+            "payload": {"bindings": dict(sorted(bindings.items())), "item": item}}
+    validate_combined_request(body)
+    return {"path": "/machine/decisions", "body": body}
+
+
+def validate_combined_request(body: dict) -> None:
+    if body.get("contractVersion") != CONTRACT_VERSION or set(body) != {"contractVersion", "requestId", "payload"}:
+        raise ValueError("combined request shape")
+    request = body["requestId"]
+    if not isinstance(request, str) or not 8 <= len(request) <= 128 or not re.fullmatch(r"[A-Za-z0-9._:-]+", request):
+        raise ValueError("requestId must be 8 to 128 characters of [A-Za-z0-9._:-]")
+    payload = body["payload"]
+    bindings = payload.get("bindings") if isinstance(payload, dict) else None
+    if (set(payload) != {"bindings", "item"} or not isinstance(bindings, dict) or not bindings
+            or any(not PUBLICATION_ID.match(str(k)) or not isinstance(v, str) or not v for k, v in bindings.items())):
+        raise ValueError("combined payload shape")
+    validate_request({"contractVersion": CONTRACT_VERSION, "operation": "decide", "requestId": request,
+                      "payload": {"bindingRevision": "x", "item": payload["item"]}})
 
 
 def validate_request(body: dict) -> None:
@@ -431,6 +476,8 @@ class CyclotronClient:
         code = refusal_code(status, payload)
         if code == "source_refused":
             return ItemRefused(code)
+        if status == 409 and payload.get("detail") == BINDING_CHANGED_DETAIL:
+            return StopSweep("binding_changed", "http 409")
         if status == 409 and (code == NOT_READY_CODE or payload.get("detail") == NOT_READY_DETAIL):
             return BindingNotReady(NOT_READY_CODE)
         if code in STOP_CODES or status in (401, 403, 404, 429, 503, 507, 409):
@@ -456,6 +503,50 @@ class CyclotronClient:
         if status == 0 or status == 202 or str(payload.get("status") or "") in PENDING_STATUSES:
             return True
         return status >= 500 and status != 503 and refusal_code(status, payload) not in STOP_CODES
+
+    def post_combined(self, body: dict) -> tuple[str | None, dict | None]:
+        """POST /machine/decisions. (jobId, None) for an accepted job, (None, response) for a synchronous result.
+        404 raises CombinedUnavailable. Never repeated: an ambiguous answer raises ItemUncertain."""
+        try:
+            status, payload = self._call("POST", "/machine/decisions", body)
+        except (OSError, TimeoutError) as error:
+            raise ItemUncertain(f"no answer: {type(error).__name__}") from error
+        if status in (200, 201, 202) and isinstance(payload.get("jobId"), str) and payload["jobId"]:
+            return payload["jobId"], None
+        if status == 200 and isinstance(payload.get("publications"), dict):
+            return None, payload
+        if status == 404:
+            raise CombinedUnavailable()
+        raise self.classify(status, payload)
+
+    def poll_combined(self, job_id: str) -> dict:
+        """Polls GET /machine/decisions/{jobId}; the 200 body maps each publication to its single receipt."""
+        deadline = self.clock() + self.config["cyclotron"]["pollSeconds"]
+        delay = 1.0
+        while True:
+            try:
+                status, payload = self._call("GET", f"/machine/decisions/{quote(job_id)}", None)
+            except (OSError, TimeoutError):
+                status, payload = 0, {}
+            if status == 200 and isinstance(payload.get("publications"), dict):
+                return payload
+            if not self._transient(status, payload):
+                raise self.classify(status, payload)
+            if self.clock() + delay > deadline:
+                raise StopSweep("pending", "job still running")
+            self.sleep(delay)
+            delay = min(delay * 1.5, 8.0)
+
+    def classify_entry(self, entry) -> Exception:
+        """A publication's refusal inside a completed combined receipt: same shapes as the single receipt."""
+        if not isinstance(entry, dict):
+            return ItemInvalid("publication receipt is not an object")
+        status = next((entry[k] for k in ("httpStatus", "statusCode", "status") if type(entry.get(k)) is int), 0)
+        error = entry.get("error")
+        code = entry.get("code") or (error.get("code") if isinstance(error, dict) else error)
+        if code == NOT_READY_CODE or entry.get("detail") == NOT_READY_DETAIL:
+            return BindingNotReady(NOT_READY_CODE)
+        return self.classify(status, entry)
 
     def poll(self, publication_id: str, job_id: str) -> dict:
         """Polls only. Returns the completed response; raises StopSweep('pending') when still running."""
@@ -758,6 +849,7 @@ class Router:
         self._contexts: dict = {}
         self.publications = {p["publicationId"]: p for p in config["publications"]}
         self.active_publications = None
+        self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
@@ -836,10 +928,19 @@ class Router:
             requests[publication["publicationId"]] = {
                 "path": built["path"], "requestId": built["body"]["requestId"], "bytes": len(json.dumps(built["body"], separators=(",", ":"))),
                 "body": built["body"]}
-        contexts = {p["publicationId"]: self.context_for(p) for p in (self.active_publications or self.config["publications"])}
+        active = self.active_publications or self.config["publications"]
+        contexts = {p["publicationId"]: self.context_for(p) for p in active}
         previous = route.get("dryRun") or {}
         route["dryRun"] = {"count": int(previous.get("count", 0)) + 1, "validatedAt": _iso(self.now),
                            "runId": self.run_id, "requests": requests, "contexts": contexts}
+        if self.config["decisions"] == "cyclotron" and len(active) > 1:
+            try:
+                combined = build_combined_request(self.config, active, disc)
+            except (ItemInvalid, ValueError) as error:
+                return self.finish(disc, route, "error", f"invalid request: {error}")
+            route["dryRun"]["combined"] = {
+                "path": combined["path"], "requestId": combined["body"]["requestId"],
+                "bytes": len(json.dumps(combined["body"], separators=(",", ":"))), "body": combined["body"]}
         self.save(route)
         set_routing(self.store, self.monitor_id, disc, PARTITION_DRY_RUN, PARTITION_DRY_RUN)
         self.counts["dryRunValidated"] += 1
@@ -987,18 +1088,22 @@ class Router:
         A binding whose output is not ready (criteria_pending) is skipped for this item and parked."""
         jobs = route.setdefault("jobs", {})
         item_id = item_id_for(self.monitor_id, disc["sourceId"])
+        todo = []
         for publication in (self.active_publications or self.config["publications"]):
             pub_id = publication["publicationId"]
             if not jobs.get(pub_id, {}).get("checked"):
                 if not self.gate_open(pub_id):
                     self.note_not_ready(pub_id, disc, route, (self.park(pub_id) or {}).get("reason", NOT_READY_CODE))
                     continue
-                try:
-                    self.decide_binding(publication, disc, route, item_id)
-                except BindingNotReady as error:
-                    self.note_not_ready(pub_id, disc, route, str(error))
-                    continue
-                self.note_ready(pub_id)
+                todo.append(publication)
+        for publication in self.decide_combined(todo, disc, route, item_id):
+            pub_id = publication["publicationId"]
+            try:
+                self.decide_binding(publication, disc, route, item_id)
+            except BindingNotReady as error:
+                self.note_not_ready(pub_id, disc, route, str(error))
+                continue
+            self.note_ready(pub_id)
         active = self.active_publications or self.config["publications"]
         if not any(jobs.get(p["publicationId"], {}).get("checked") for p in active):
             raise AllBindingsNotReady()
@@ -1021,6 +1126,86 @@ class Router:
         self.save(route)
         self.counts["decided"] += 1
 
+
+    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str) -> list[dict]:
+        """One POST /machine/decisions for the story's unchecked bindings, one poll loop, then each publication's
+        receipt is checked and stored under `jobs` exactly as a per-publication decide would. Returns the
+        publications that still need the per-publication path (no combined endpoint, a pending output
+        somewhere in the set, or a publication the receipt left out)."""
+        stored = route.get("combinedJob")
+        if self.cyclotron is None or not todo and not stored:
+            return todo
+        if not stored and (len(todo) < 2 or self.combined_unavailable):
+            return todo
+        if stored and not stored.get("jobId"):
+            raise ItemUncertain("an earlier POST had no recorded answer")
+        if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
+            raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
+        response = None
+        if not stored:
+            built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
+            stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
+                                             "publications": list(built["body"]["payload"]["bindings"])}
+            self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
+            try:
+                job_id, response = self.cyclotron.post_combined(built["body"])
+            except ItemUncertain:
+                raise
+            except (CombinedUnavailable, BindingNotReady) as reason:
+                del route["combinedJob"]   # nothing was started
+                self.save(route)
+                self.combined_unavailable = self.combined_unavailable or isinstance(reason, CombinedUnavailable)
+                return todo
+            except Exception:
+                del route["combinedJob"]
+                self.save(route)
+                raise
+            if job_id:
+                stored["jobId"] = job_id
+                self.save(route)
+        if response is None:
+            try:
+                response = self.cyclotron.poll_combined(stored["jobId"])
+            except BindingNotReady:
+                del route["combinedJob"]   # a pending output in the set: the per-publication path finds out which
+                self.save(route)
+                return todo
+            except StopSweep as stop:
+                if stop.code in NON_CONSUMING_REFUSALS:
+                    del route["combinedJob"]
+                    route["attempt"] = int(route.get("attempt", 0)) + 1
+                    self.save(route)
+                raise
+        if response.get("accountId") not in (None, self.config["cyclotron"]["accountId"]) or \
+                response.get("jobId") not in (None, stored["jobId"]):
+            raise ItemInvalid("combined response identity mismatch")
+        receipts = response.get("publications") or {}
+        jobs = route.setdefault("jobs", {})
+        remaining, failure = [], None
+        for publication in todo:
+            pub_id = publication["publicationId"]
+            entry = receipts.get(pub_id)
+            if entry is None:
+                remaining.append(publication)
+                continue
+            try:
+                if not isinstance(entry, dict) or not entry.get("decision"):
+                    raise self.cyclotron.classify_entry(entry)
+                jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
+                                "jobId": stored["jobId"],
+                                "checked": checked_decision(entry, publication, self.config, item_id)}
+                self.note_ready(pub_id)
+            except BindingNotReady as error:
+                self.note_not_ready(pub_id, disc, route, str(error))
+            except Exception as error:   # the first refusal decides the item; the others' receipts are kept
+                failure = failure or error
+        route.pop("combinedJob", None)
+        if isinstance(failure, StopSweep) and failure.code in NON_CONSUMING_REFUSALS:
+            route["attempt"] = int(route.get("attempt", 0)) + 1
+        self.save(route)
+        if failure:
+            raise failure
+        return remaining
 
     def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str) -> None:
         validate_email_discovery_scope(disc, self.config)

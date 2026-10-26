@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,14 +24,18 @@ class FakeClient:
         self.published_rows = published_rows
         self.rows: dict[str, dict[str, dict]] = {}
         self.writes: list[tuple[str, str, str]] = []
+        self.requests: Counter = Counter()  # reads by kind, so a test can say what a run did not ask for
 
     def list_published_item_summaries(self):
+        self.requests["list"] += 1
         return copy.deepcopy(self.published_rows)
 
     def list_records(self, model):
+        self.requests["list"] += 1
         return copy.deepcopy(list(self.rows.get(model, {}).values()))
 
     def get_record(self, model, record_id):
+        self.requests["get"] += 1
         row = self.rows.get(model, {}).get(record_id)
         return copy.deepcopy(row)
 
@@ -52,9 +57,11 @@ class FakeClient:
         return copy.deepcopy([row for row in self.rows.get("SemanticRelation", {}).values() if row.get(field) == state])
 
     def list_semantic_relations_by_object_state(self, state):
+        self.requests["index"] += 1
         return self._relations_by("objectStateKey", state)
 
     def list_semantic_relations_by_subject_state(self, state):
+        self.requests["index"] += 1
         return self._relations_by("subjectStateKey", state)
 
 
@@ -1201,16 +1208,28 @@ def hub(client, tmp_path):
     return records
 
 
-def test_the_corpus_export_adds_a_document_per_record_and_writes_the_records_file(hub, tmp_path, capsys):
+def test_the_corpus_export_keeps_records_out_of_the_corpus_and_writes_the_records_file(hub, tmp_path):
     names = sorted(path.name for path in (tmp_path / "raw").iterdir())
-    assert [name for name in names if name.startswith("item-")] == ["item-alpha.md", "item-beta.md"]
+    assert names == ["item-alpha.md", "item-beta.md"]  # records are data: the topic model reads only the site's own items
+    assert [entry["referenceId"] for entry in json.loads(hub.read_text())["records"]] == ["reference-org--lone", "reference-org--tuned", "reference-org--base"]
+
+
+def test_the_corpus_export_says_records_are_data_only(hub, tmp_path, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert "3 monitor records (data only, not in the corpus)" in capsys.readouterr().out
+
+
+def test_the_corpus_export_adds_a_document_per_record_only_when_asked(hub, tmp_path, capsys):
+    capsys.readouterr()
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--records-in-topic-model")
+    names = sorted(path.name for path in (tmp_path / "raw").iterdir())
     assert [name for name in names if name.startswith("record-")] == ["record-reference-org--base.md", "record-reference-org--lone.md", "record-reference-org--tuned.md"]
     document = (tmp_path / "raw" / "record-reference-org--tuned.md").read_text(encoding="utf-8")
     assert "kind: monitor-record" in document and "Built on org/base (finetune), elsewhere/gone (adapter)." in document
-    assert [entry["referenceId"] for entry in json.loads(hub.read_text())["records"]] == ["reference-org--lone", "reference-org--tuned", "reference-org--base"]
-    capsys.readouterr()
-    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
     assert "3 monitor records" in capsys.readouterr().out
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19")
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]  # an earlier export's record documents are removed
 
 
 def test_without_monitor_sources_the_export_has_no_records(client, tmp_path):
@@ -1273,3 +1292,134 @@ def test_a_snapshot_without_the_records_option_is_what_it_was(client, hub, tmp_p
     run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19")
     index = json.loads((out / INDEX_FILE).read_text())
     assert all("recordCount" not in row for row in index["entities"])
+
+
+# -- the incremental record import: the monitor ledger (docs/knowledge-cloud-run.md, "Monitor records: a run that adds nothing costs minutes") --
+
+def import_records(hub, ledger, *flags, capsys=None):
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--monitor-ledger", str(ledger), "--apply", *flags)
+    return capsys.readouterr().out if capsys is not None else ""
+
+
+def count_of(output: str, name: str) -> int:
+    line = next((line for line in output.splitlines() if f"\tplan\t{name}\t" in line), None)
+    return int(line.rsplit("\t", 1)[1]) if line else 0
+
+
+def test_a_first_import_writes_the_ledger_and_a_second_run_with_nothing_new_reads_and_writes_nothing_for_the_records(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "corpus" / "monitor-import-ledger.json"
+    first = import_records(hub, ledger, capsys=capsys)
+    assert count_of(first, "recordsImported") == 3 and count_of(first, "recordsUnchanged") == 0
+    assert set(json.loads(ledger.read_text())["records"]) == {"reference-org--base", "reference-org--tuned", "reference-org--lone"}
+
+    writes, before = len(client.writes), Counter(client.requests)
+    second = import_records(hub, ledger, capsys=capsys)
+    assert count_of(second, "recordsImported") == 0 and count_of(second, "recordsUnchanged") == 3
+    assert len(client.writes) == writes
+    # what the records cost on a run that adds nothing: no read of their links and no point read of their entities
+    published = len(client.published_rows)
+    assert client.requests["index"] - before["index"] <= published
+    assert client.requests["get"] - before["get"] <= 2 * published + 10
+
+
+def test_the_ledger_is_saved_only_after_the_import_was_applied(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--monitor-ledger", str(ledger))  # a dry run
+    assert not ledger.exists()
+    original = client.create_record
+
+    def fail(model, payload):
+        raise RuntimeError("AppSync is down")
+
+    client.create_record = fail
+    with pytest.raises(RuntimeError, match="AppSync is down"):
+        import_records(hub, ledger)
+    client.create_record = original
+    assert not ledger.exists()  # the next run imports the same records again
+    import_records(hub, ledger)
+    assert ledger.exists()
+
+
+def test_a_new_record_is_the_only_one_imported_and_the_ledger_grows(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    hub_model(client, "org/newcomer", "2026-10-16T08:00:00Z", license="mit")
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    before = len(client.writes)
+    output = import_records(records, ledger, capsys=capsys)
+    assert (count_of(output, "recordsImported"), count_of(output, "recordsUnchanged")) == (1, 3)
+    written = [write for write in client.writes[before:] if write[0] == "create"]
+    assert ("create", "SemanticNode", "semantic-node-model--org-newcomer-v1") in written
+    assert all("newcomer" in write[2] or write[1] == "SemanticRelation" for write in written)
+    assert len(json.loads(ledger.read_text())["records"]) == 4
+
+
+def test_a_record_whose_import_fields_changed_is_imported_again_and_supersedes_the_links_it_lost(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    assert any(row["objectLineageId"] == "semantic-node-licence--mit" and row["subjectLineageId"] == "lineage-org--lone" and row["relationState"] == "current" for row in client.rows["SemanticRelation"].values())
+    hub_model(client, "org/lone", "2026-10-15T08:00:00Z", license="gpl-3.0", pipelineTag="image-classification")  # its licence changed on the Hub
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    output = import_records(records, ledger, capsys=capsys)
+    assert (count_of(output, "recordsImported"), count_of(output, "recordsUnchanged"), count_of(output, "recordLinksSuperseded")) == (1, 2, 1)
+    states = {row["objectLineageId"]: row["relationState"] for row in client.rows["SemanticRelation"].values() if row["subjectLineageId"] == "lineage-org--lone" and row["predicate"] == "mentions"}
+    assert states["semantic-node-licence--mit"] == "superseded" and states["semantic-node-licence--gpl-3-0"] == "current"
+
+
+def test_a_likes_or_downloads_change_is_not_a_change_of_the_import(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    hub_model(client, "org/base", "2026-10-06T08:00:00Z", likes=9000, downloads=1_000_000)
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    assert count_of(import_records(records, ledger, capsys=capsys), "recordsImported") == 0
+
+
+def test_a_record_waiting_for_its_base_model_is_imported_again_when_the_base_reaches_the_map(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)  # org/tuned names elsewhere/gone, which has no record and no entity
+    assert json.loads(ledger.read_text())["records"]["reference-org--tuned"]["unplacedBases"] == ["elsewhere/gone"]
+    assert len([row for row in client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"]) == 1
+    hub_model(client, "elsewhere/gone", "2026-10-16T08:00:00Z")
+    records = tmp_path / "run" / "monitor-records-2.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    capsys.readouterr()
+    output = import_records(records, ledger, capsys=capsys)
+    assert count_of(output, "recordsImported") == 2  # the newcomer and the record that was waiting for it
+    built_on = {row["subjectLineageId"]: row["objectLineageId"] for row in client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"}
+    assert built_on["semantic-node-model--org-tuned"] == "semantic-node-model--elsewhere-gone"
+    assert json.loads(ledger.read_text())["records"]["reference-org--tuned"]["unplacedBases"] == []
+    assert count_of(import_records(records, ledger, capsys=capsys), "recordsImported") == 0
+
+
+def test_monitor_full_imports_every_record_again_and_a_run_without_a_ledger_is_what_it_was(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    import_records(hub, ledger)
+    writes = len(client.writes)
+    assert count_of(import_records(hub, ledger, "--monitor-full", capsys=capsys), "recordsImported") == 3
+    assert len(client.writes) == writes  # deterministic ids: importing them again writes nothing new
+    capsys.readouterr()
+    run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")  # no --monitor-ledger: every record, every time
+    output = capsys.readouterr().out
+    assert (count_of(output, "recordsImported"), count_of(output, "recordsUnchanged")) == (3, 0)
+
+
+def test_a_ledger_that_is_not_a_ledger_stops_the_import_instead_of_being_overwritten(client, hub, tmp_path):
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text("[]")
+    with pytest.raises(ValueError, match="not a monitor import ledger"):
+        import_records(hub, ledger)
+    assert ledger.read_text() == "[]"
+
+
+def test_parallel_workers_give_the_same_import(client, hub, tmp_path, capsys):
+    ledger = tmp_path / "ledger.json"
+    output = import_records(hub, ledger, "--parallel", "4", capsys=capsys)
+    assert count_of(output, "recordsImported") == 3
+    with pytest.raises(ValueError, match="--parallel"):
+        import_records(hub, ledger, "--parallel", "0")

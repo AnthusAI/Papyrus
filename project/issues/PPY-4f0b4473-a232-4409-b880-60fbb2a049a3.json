@@ -1,0 +1,33 @@
+{
+  "id": "PPY-4f0b4473-a232-4409-b880-60fbb2a049a3",
+  "title": "Knowledge runs record their actual cost (compute and model, per stage and per run)",
+  "description": "Each stage of the cloud knowledge run records details.cost in its JobLedger row: Fargate seconds, vCPU, memory, computeUsd at the ARM us-east-1 rates, and model calls, tokens and USD from the API usage objects (null with a reason where unknown). Projection sums the run into a run-level ledger row and runs/<week>/cost-<execution>.json. CLI: papyrus knowledge runs --site <site> [--last N]. No console panel: the console has no knowledge-run status view. Out of scope: trend-drafts (after projection, not a stage).",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "37c35fb2-1d5b-4d96-b5f4-7ac446d2ef79",
+      "author": "home",
+      "text": "Delivered in PR #725 (merged to develop): details.cost on every stage row, run-level row + runs/<week>/cost-<execution>.json, papyrus knowledge runs. pytest + features_backend/knowledge-run-cost.feature + docs/knowledge-cloud-run.md. No console view exists, so none added. Not deployed or released. Follow-up: trend-drafts step is outside the total.",
+      "created_at": "2026-10-26T12:19:41.072552Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-26T11:46:39.521966Z",
+  "updated_at": "2026-10-26T12:19:41.128023Z",
+  "closed_at": "2026-10-26T12:19:41.127385Z",
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

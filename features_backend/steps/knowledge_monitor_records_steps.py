@@ -99,6 +99,14 @@ def step_export(context, key, source, day):
     )
 
 
+@when('the corpus is exported with the records in the topic model for "{key}" from the monitor source "{source}" as of {day}')
+def step_export_with_documents(context, key, source, day):
+    command(
+        context, commands.knowledge_corpus_export, "--out", str(context.out), "--monitor-sources", source, "--corpus-key", key, "--as-of", day,
+        "--monitor-records-out", str(context.records_file), "--records-in-topic-model",
+    )
+
+
 @given("the corpus was exported with the monitor records")
 def step_export_given(context):
     step_export(context, context.key, "huggingface", "2026-10-19")
@@ -247,7 +255,8 @@ def step_signals(context):
     fetched = []
     context.fetched = fetched
     snapshot = trends.load_snapshot(str(context.site / "_data" / "knowledge"))
-    context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: fetched.append(url) or "# Page\n\nSummary.\n")}
+    chosen = {"anchors": [{"key": "maker--org"}], "context": []}  # whether the maker is notable enough to anchor a draft is idea-trend-quality.feature's business
+    context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: fetched.append(url) or "# Page\n\nSummary.\n", selection=chosen)}
 
 
 @then('the signal for "{key}" has the release "{model}" from the Hugging Face Hub dated {day}')
@@ -383,3 +392,107 @@ def step_suggest_failing(context):
 @then("the suggestion says it was not raised and the run goes on")
 def step_not_raised(context):
     assert context.suggestion["status"] == "not_raised"
+
+
+# The incremental import: the monitor ledger of what was written before (features_backend/knowledge-monitor-records.feature)
+
+def import_with_ledger(context, *extra) -> None:
+    context.ledger_file = getattr(context, "ledger_file", None) or context.work / "corpus" / "monitor-import-ledger.json"
+    context.writes_before = len(context.client.writes)
+    context.error = None
+    try:
+        with backend(context), capture_output() as captured:
+            commands.knowledge_publish_run(["--monitor-records", str(context.records_file), "--monitor-ledger", str(context.ledger_file), "--apply", *extra])
+        context.import_output = captured.getvalue()
+    except (ValueError, RuntimeError) as error:
+        context.error = str(error)
+
+
+@contextmanager
+def capture_output():
+    import io
+    from contextlib import redirect_stdout
+
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        yield buffer
+
+
+@given("the run was imported with the monitor records and an import ledger")
+def step_import_ledger_given(context):
+    import_with_ledger(context)
+    assert context.error is None, context.error
+
+
+@when("the run is imported again with the import ledger")
+def step_import_ledger_again(context):
+    import_with_ledger(context)
+    assert context.error is None, context.error
+
+
+@when("the run is imported again with the import ledger and every record is asked for")
+def step_import_full(context):
+    import_with_ledger(context, "--monitor-full")
+    assert context.error is None, context.error
+
+
+@when("the corpus is exported again and the run is imported again with the import ledger")
+def step_export_and_import_again(context):
+    step_export(context, context.key, "huggingface", "2026-10-19")
+    assert context.error is None, context.error
+    import_with_ledger(context)
+    assert context.error is None, context.error
+
+
+@given('the licence of "{model}" became "{licence}" on the Hub')
+def step_licence_changed(context, model, licence):
+    hub_model(context.client, model, "2026-10-15T08:00:00Z", license=licence, pipelineTag="image-classification")
+
+
+@given('"{model}" now has {likes:d} likes on the Hub')
+def step_likes(context, model, likes):
+    hub_model(context.client, model, "2026-10-06T08:00:00Z", likes=likes)
+
+
+@when("the import fails while writing")
+def step_import_fails(context):
+    def fail(model, payload):
+        raise RuntimeError("AppSync is down")
+
+    context.client.create_record = fail
+    import_with_ledger(context)
+    assert context.error and "AppSync is down" in context.error, context.error
+
+
+def plan_count(context, name: str) -> int:
+    line = next((line for line in context.import_output.splitlines() if f"\tplan\t{name}\t" in line), None)
+    return int(line.rsplit("\t", 1)[1]) if line else 0
+
+
+@then("{imported:d} records were imported and {unchanged:d} were unchanged")
+def step_counts(context, imported, unchanged):
+    assert (plan_count(context, "recordsImported"), plan_count(context, "recordsUnchanged")) == (imported, unchanged), context.import_output
+
+
+@then("the import wrote nothing")
+def step_wrote_nothing(context):
+    assert len(context.client.writes) == context.writes_before, context.client.writes[context.writes_before:]
+
+
+@then('"{model}" is no longer linked to the licence "{licence}"')
+def step_unlinked(context, model, licence):
+    slug = model.replace("/", "--")
+    live = [row for row in context.client.rows["SemanticRelation"].values()
+            if row["subjectLineageId"] == f"lineage-{slug}" and row["predicate"] == "mentions" and row["relationState"] == "current" and row["objectLineageId"] == f"semantic-node-licence--{licence}"]
+    assert not live, live
+
+
+@then('"{model}" is built on "{base}"')
+def step_built_on(context, model, base):
+    pairs = {(row["subjectLineageId"], row["objectLineageId"]) for row in context.client.rows["SemanticRelation"].values() if row["predicate"] == "built_on"}
+    assert (f"semantic-node-model--{model.replace('/', '-')}", f"semantic-node-model--{base.replace('/', '-')}") in pairs, pairs
+
+
+@then("no import ledger was written")
+def step_no_ledger(context):
+    assert not context.ledger_file.exists()

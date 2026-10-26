@@ -167,6 +167,22 @@ export function readerSteeringSchemaDefinitions() {
       error: a.string(),
       message: a.string(),
     }),
+    // What an operator may read of a story draft: these six fields and nothing else (no body, evidence, history, proposer, vote or log).
+    StoryDraftSummary: a.customType({
+      id: a.string().required(),
+      title: a.string().required(),
+      summary: a.string(),
+      targets: a.json(),
+      state: a.string().required(),
+      createdAt: a.string().required(),
+    }),
+    StoryDraftList: a.customType({
+      status: a.string().required(),
+      id: a.string(),
+      error: a.string(),
+      message: a.string(),
+      drafts: a.ref("StoryDraftSummary").array(),
+    }),
     // Editors and admins file as themselves. AppSync also admits an IAM principal whose own policy allows the field (the
     // schema accepts IAM callers for the functions that call it); the function files an AI proposal for an IAM principal
     // of its own account only, and refuses an identity-pool user and any other account. No IAM rule is declared here.
@@ -194,6 +210,13 @@ export function readerSteeringSchemaDefinitions() {
         result: a.string(),
       })
       .returns(a.ref("ProposalReceipt"))
+      .authorization((allow) => [allow.group("editor"), allow.group("admin")])
+      .handler(functionHandler("readerActions", readerActions)),
+    // Read only, and the same caller rule as fileProposal: editors and admins, or an IAM principal of the function's own account. The function
+    // answers the story drafts' id, title, summary, targets, state and createdAt so an unattended trend run can dedupe; nothing else.
+    listStoryDrafts: a
+      .query()
+      .returns(a.ref("StoryDraftList"))
       .authorization((allow) => [allow.group("editor"), allow.group("admin")])
       .handler(functionHandler("readerActions", readerActions)),
     // Editors and admins only, and the function refuses an IAM operator: pin, unpin, hold, release, exclude_votes and

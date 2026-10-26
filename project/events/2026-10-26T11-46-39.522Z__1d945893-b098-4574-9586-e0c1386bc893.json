@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "1d945893-b098-4574-9586-e0c1386bc893",
+  "issue_id": "PPY-4f0b4473-a232-4409-b880-60fbb2a049a3",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-26T11:46:39.522Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Knowledge runs record their actual cost (compute and model, per stage and per run)",
+    "description": "Each stage of the cloud knowledge run records details.cost in its JobLedger row: Fargate seconds, vCPU, memory, computeUsd at the ARM us-east-1 rates, and model calls, tokens and USD from the API usage objects (null with a reason where unknown). Projection sums the run into a run-level ledger row and runs/<week>/cost-<execution>.json. CLI: papyrus knowledge runs --site <site> [--last N]. No console panel: the console has no knowledge-run status view. Out of scope: trend-drafts (after projection, not a stage).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

@@ -13,12 +13,13 @@ Everything here is a source fact, so it is deterministic and skips the extractor
 * links are ``mentions`` from the Reference (``subjectKind`` ``reference``), marked ``knowledge.record_mention``. They
   never count as an item's mention, so the extractor, the AI review and the wiki treat them as data.
 
-A second run with the same records plans nothing new; a record whose fields changed supersedes the links it no longer has.
+A second run with the same records plans nothing new; a record whose fields changed supersedes the links it no longer has. With the monitor
+ledger (``monitor_ledger.py``) a second run does not even look at a record whose import fields are unchanged.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 from ..categories_steering import semantic_relation_record
@@ -106,6 +107,20 @@ def built_on_row(record: MonitorRecord, subject: Mapping[str, Any], target: Mapp
     )["expected"]
 
 
+def monitor_placement(records: Iterable[MonitorRecord], index: NodeIndex) -> Callable[[str], bool]:
+    """``placed(model_id)``: whether a base model is on the map now, so a record that named it can build its ``built_on`` relation. A model
+    is placed when it has a record in this import (and its entity is not rejected) or an accepted entity of its own."""
+    models = {record.model_id for record in records}
+
+    def placed(model_id: str) -> bool:
+        node = index.by_key(entity_key("model", model_id)) or index.resolve("model", model_id) if model_id else None
+        if model_id in models:
+            return node is None or node.get("status") != STATUS_REJECTED
+        return node is not None and node.get("status") == STATUS_ACCEPTED
+
+    return placed
+
+
 def plan_monitor_records(
     records: Iterable[MonitorRecord],
     index: NodeIndex,
@@ -154,6 +169,7 @@ def plan_monitor_records(
             plan.count("recordLinks")
         per_record.append((record, model_nodes.get(record.model_id, {})))
     for record, subject in per_record:
+        plan.monitor_imported[record.reference_id] = []
         for base in record.details.get("baseModels") or []:
             base_id = str(base.get("modelId") or "")
             target = model_nodes.get(base_id)
@@ -162,6 +178,8 @@ def plan_monitor_records(
                 target = resolved if resolved is not None and resolved.get("status") == STATUS_ACCEPTED else None
             if not subject or target is None or target["lineageId"] == subject["lineageId"]:
                 plan.count("recordBaseModelsOffMap")
+                if base_id and target is None:
+                    plan.monitor_imported[record.reference_id].append(base_id)
                 continue
             row = built_on_row(record, subject, target, str(base.get("relation") or "declared"), actor, now=now)
             desired.add(row["id"])
