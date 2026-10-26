@@ -117,9 +117,46 @@ class FakeCyclotron:
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
         self.pending_polls = 0
+        self.combined_calls, self.combined_jobs = [], {}
+        self.combined_enabled = False         # False: the deployment predates POST /machine/decisions (404)
+        self.combined_post_override = None    # (status, body) for POST /machine/decisions
+        self.combined_poll_override = None    # (status, body) for GET /machine/decisions/{job}
+        self.combined_entry_override = {}     # pub -> entry replacing that publication's receipt
+
+    def combined(self, method, path, data):
+        if not self.combined_enabled:
+            return 404, {"detail": "Not Found"}
+        if method == "POST":
+            if self.combined_post_override:
+                return self.combined_post_override
+            job = f"cjob-{len(self.combined_jobs)}"
+            self.combined_jobs[job] = (sorted(data["payload"]["bindings"]), data["payload"]["item"]["id"])
+            return 202, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": job,
+                         "status": "accepted", "bindings": data["payload"]["bindings"]}
+        if self.combined_poll_override:
+            return self.combined_poll_override
+        if self.pending_polls:
+            self.pending_polls -= 1
+            return 202, {"status": "running"}
+        pubs, item = self.combined_jobs[path.rsplit("/", 1)[1]]
+        return 200, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1",
+                     "jobId": path.rsplit("/", 1)[1], "decisionId": f"dec-{item}",
+                     "publications": {pub: self.combined_entry_override.get(pub) or self.single_receipt(pub, item)
+                                      for pub in pubs}}
+
+    def single_receipt(self, pub, item):
+        return {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
+                "decision": {"decisionId": f"dec-{item}", "itemId": item, "classifiers": {
+                    f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
+                                         "fingerprint": f"fp-{pub}", "version": 3,
+                                         **({"confidence": self.confidence[(item, pub)]} if (item, pub) in self.confidence else {})}}},
+                "outputs": [{"id": f"{pub}-relevance"}], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
 
     def http(self, method, url, headers, body, timeout):
         path = url.split("amazonaws.com", 1)[1]
+        if path.startswith("/machine/decisions"):
+            self.combined_calls.append((method, path, json.loads(body) if body else None))
+            return self.combined(method, path, json.loads(body) if body else None)
         self.calls.append((method, path, json.loads(body) if body else None))
         pub = path.split("/")[3]
         if method == "POST":
@@ -1048,3 +1085,215 @@ def test_a_direct_monitor_writes_no_decision_relation(lab):
                        "ai-ml-research" if "api1" in endpoint else "anth-us" if "api0" in endpoint else "threat-intelligence"))))
     assert mr_result["counts"]["delivered"] == 3
     assert not any(c.relations() for c in lab.clients.values())
+
+
+# --- one combined machine request per story (POST /machine/decisions) --------------------------------------
+
+def combined_setup(table, **config):
+    store, cyclotron = setup_router(table, **config)
+    cyclotron.combined_enabled = True
+    return store, cyclotron
+
+
+def test_combined_request_has_the_exact_contract_shape_and_a_stable_id(table):
+    config = validate_router_config(router_config())
+    disc = table.items[("MONITOR#hn", "DISC#101#000001")]
+    built = mr.build_combined_request(config, config["publications"], disc)
+    body = built["body"]
+    assert built["path"] == "/machine/decisions"
+    assert set(body) == {"contractVersion", "requestId", "payload"} and body["contractVersion"] == "cyclotron-publication/v1"
+    assert body["payload"]["bindings"] == {p: "1" for p in sorted(PUBS)}
+    assert body["payload"]["item"]["id"] == "hn-101" and "operation" not in body
+    assert 8 <= len(body["requestId"]) <= 128 and mr.re.fullmatch(r"[A-Za-z0-9._:-]+", body["requestId"])
+    assert body["requestId"] == mr.build_combined_request(config, config["publications"][::-1], disc)["body"]["requestId"]
+    assert body["requestId"] != mr.build_combined_request(config, config["publications"][:2], disc)["body"]["requestId"]
+    assert body["requestId"] != mr.build_combined_request(config, config["publications"], disc, 1)["body"]["requestId"]
+    assert body["requestId"] != mr.build_combined_request(config, config["publications"], {**disc, "revision": 2})["body"]["requestId"]
+
+
+def test_combined_success_is_one_post_one_poll_and_the_receipt_matches_the_per_publication_shape(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.labels = {("hn-101", "p-apyr-us"): "exclude"}
+    delivery = Delivery()
+    result = go(table, store, cyclotron, deliver=delivery)
+    assert result["status"] == "complete" and result["counts"]["decided"] == 1 and result["counts"]["routed"] == 1
+    assert cyclotron.calls == []                                   # no per-publication job at all
+    assert [c[0] for c in cyclotron.combined_calls] == ["POST", "GET"]
+    assert cyclotron.combined_calls[0][2]["payload"]["bindings"] == {p: "1" for p in sorted(PUBS)}
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert "combinedJob" not in route and set(route["jobs"]) == set(PUBS)
+    assert route["jobs"]["anth-us"]["checked"] == {
+        "decisionId": "dec-hn-101", "output": "anth-us-relevance", "label": "include", "fingerprint": "fp-anth-us",
+        "version": 3, "source": {"id": "hn-101", "revision": 2, "fingerprint": "sfp"}}
+    assert route["decision"]["publications"]["p-apyr-us"]["label"] == "exclude"
+    assert sorted(c[0] for c in delivery.calls) == ["anth-us", "threat-intelligence"]
+    # the same story decided publication by publication yields the identical receipt
+    other = FakeTable()
+    other.put_item(COLLECTOR_CONFIG)
+    run_collection(DynamoStore(other), "hn", fetch=lambda url: FEED, now=1000)
+    store2, single = setup_router(other, maxItemsPerRun=1)
+    single.labels = cyclotron.labels
+    go(other, store2, single)
+    again = other.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert again["decision"]["publications"] == route["decision"]["publications"]
+    assert {p: j["checked"] for p, j in again["jobs"].items()} == {p: j["checked"] for p, j in route["jobs"].items()}
+
+
+def test_combined_confidence_and_all_stories_use_one_job_each(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.confidence = {("hn-101", "anth-us"): 0.91234}
+    go(table, store, cyclotron)
+    assert len([c for c in cyclotron.combined_calls if c[0] == "POST"]) == 3 and cyclotron.calls == []
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["jobs"]["anth-us"]["checked"]["confidence"] == Decimal("0.9123")
+
+
+def test_a_404_falls_back_to_per_publication_jobs_and_is_cached_for_the_run(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=3)       # combined_enabled is False: the endpoint is 404
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and result["counts"]["routed"] == 3
+    assert [c[0] for c in cyclotron.combined_calls] == ["POST"]    # asked once; the 404 is remembered for the run
+    assert len(cyclotron.posts()) == 9
+    assert ("MONITOR#hn", "ROUTE#101#000001") in table.items and "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+
+
+def test_combined_409_binding_changed_stops_the_sweep_and_a_later_run_reposts(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"detail": "publication binding changed"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "binding_changed"
+    assert set(routing_of(table).values()) == {"collected"} and cyclotron.calls == []
+    assert "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    cyclotron.combined_post_override = None
+    go(table, store, cyclotron, now=3000)
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_combined_pending_output_409_decides_per_publication_for_that_story(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.combined_post_override = (409, {"detail": "publication criteria are pending"})
+    cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and result["waitingForClassifier"] == ["threat-intelligence"]
+    assert result["counts"]["decided"] == 1 and result["counts"]["skippedNotReady"] == 1
+    assert set(table.items[("MONITOR#hn", "ROUTE#101#000001")]["decision"]["publications"]) == {"anth-us", "p-apyr-us"}
+
+
+@pytest.mark.parametrize("where", ["post", "poll"])
+def test_combined_run_busy_defers_without_repeating_the_post(table, where):
+    store, cyclotron = combined_setup(table)
+    override = (409, {"code": "run_busy"})
+    if where == "post":
+        cyclotron.combined_post_override = override
+    else:
+        cyclotron.combined_poll_override = override
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "run_busy"
+    assert set(routing_of(table).values()) == {"collected"}
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert ("combinedJob" in route) == (where == "poll")           # a refused POST may be sent again; an accepted job is polled
+    cyclotron.combined_post_override = cyclotron.combined_poll_override = None
+    go(table, store, cyclotron, now=3000)
+    ids = [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST" and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == (2 if where == "post" else 1) and len(set(ids)) == 1
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_combined_503_provider_key_unavailable_retries_under_a_new_request_id(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_poll_override = (503, {"code": "provider_key_unavailable"})
+    result = go(table, store, cyclotron)
+    assert result["stoppedBy"] == "provider_key_unavailable"
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert route["attempt"] == 1 and "combinedJob" not in route
+    cyclotron.combined_poll_override = None
+    go(table, store, cyclotron, now=3000)
+    ids = [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST" and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == 2 and ids[0] != ids[1]
+
+
+def test_combined_pending_job_is_resumed_by_polling_only(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.pending_polls = 10_000
+    state = {"t": 0}
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    ticking = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http,
+                              sleep=lambda s: state.__setitem__("t", state["t"] + s), clock=lambda: state["t"])
+    result = run_router(store, "hn", now=2000, cyclotron=ticking, appsync=lambda e: object(), deliver=Delivery(),
+                        context_receipt=lambda c, p: {})
+    assert result["stoppedBy"] == "pending" and routing_of(table)["DISC#101#000001"] == "collected"
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["combinedJob"]["jobId"] == "cjob-0"
+    cyclotron.pending_polls = 0
+    go(table, store, cyclotron, now=2600)
+    assert len([c for c in cyclotron.combined_calls if c[0] == "POST"]) == 1
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_a_pending_publication_inside_a_completed_receipt_is_parked_and_the_others_decided(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.combined_entry_override["threat-intelligence"] = {"status": 409, "detail": "publication criteria are pending"}
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and result["waitingForClassifier"] == ["threat-intelligence"]
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert set(route["decision"]["publications"]) == {"anth-us", "p-apyr-us"} and "threat-intelligence" in route["notReady"]
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_a_typed_criteria_pending_entry_is_also_not_ready(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.combined_entry_override["anth-us"] = {"error": {"code": "criteria_pending"}}
+    assert go(table, store, cyclotron)["waitingForClassifier"] == ["anth-us"]
+
+
+def test_a_source_refusal_inside_the_receipt_refuses_the_story_and_keeps_the_other_receipts(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.combined_entry_override["p-apyr-us"] = {"status": 409, "code": "source_refused"}
+    go(table, store, cyclotron)
+    assert routing_of(table)["DISC#101#000001"] == "refused"
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert route["final"]["reason"] == "source_refused" and "combinedJob" not in route
+    assert {p for p, j in route["jobs"].items() if j.get("checked")} == {"anth-us", "threat-intelligence"}
+
+
+def test_a_stop_code_inside_the_receipt_stops_the_sweep(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.combined_entry_override["anth-us"] = {"status": 429, "code": "request_ceiling_reached"}
+    result = go(table, store, cyclotron)
+    assert result["stoppedBy"] == "request_ceiling_reached" and set(routing_of(table).values()) == {"collected"}
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["attempt"] == 1
+
+
+def test_a_receipt_that_leaves_a_publication_out_is_completed_per_publication(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    original = cyclotron.combined
+
+    def drop(method, path, data):
+        status, body = original(method, path, data)
+        if method == "GET" and status == 200:
+            body["publications"].pop("anth-us")
+        return status, body
+    cyclotron.combined = drop
+    go(table, store, cyclotron)
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+    assert [c[1].split("/")[3] for c in cyclotron.posts()] == ["anth-us"]
+
+
+def test_combined_response_for_another_account_is_an_error(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    original = cyclotron.combined
+
+    def foreign(method, path, data):
+        status, body = original(method, path, data)
+        return status, {**body, "accountId": "other"} if method == "GET" and status == 200 else body
+    cyclotron.combined = foreign
+    go(table, store, cyclotron)
+    assert routing_of(table)["DISC#101#000001"] == "error"
+
+
+def test_dry_run_records_the_combined_request_the_live_run_sends(table):
+    store, cyclotron = combined_setup(table, mode="dry-run", maxItemsPerRun=1)
+    go(table, store, None)
+    dry = table.items[("MONITOR#hn", "ROUTE#101#000001")]["dryRun"]["combined"]
+    assert dry["path"] == "/machine/decisions" and dry["requestId"] == dry["body"]["requestId"]
+    table.put_item(router_config("live", maxItemsPerRun=1))
+    go(table, store, cyclotron, now=3000)
+    assert [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST"] == [dry["requestId"]]
