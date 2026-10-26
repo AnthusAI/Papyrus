@@ -1,0 +1,38 @@
+{
+  "id": "PPY-a1f65680-46c8-4555-895f-1cfd121cde6c",
+  "title": "Cited Trends quality: surprise-ranked signals, notable makers, records out of the topic model",
+  "description": "Shipped has real volume (1,338 entities, ~2,600 Hub monitor records on 2026-10-26) and the trend signals are dominated by generic entities. Rank entity signals by Poisson surprise over the entity's own prior four weeks and the corpus growth, demote licence/task/platform (context only, never anchors), require makers to be notable (watchlist, own item, or >=2 models with likes/downloads above a threshold), apply the same score to the snapshot's trending list, and keep monitor records out of topic-model clusters (they split 5,000 Hub lines into 27 maker clusters). topicCount counts beats, not clusters. Follow-up to PPY-fb4dfa.",
+  "type": "story",
+  "status": "closed",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-991a3277-8c62-4726-ba4d-cbfb0df80790",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "f14d7e5d-ff62-4016-9200-990ba0c6ee66",
+      "author": "home",
+      "text": "Delivered in PR #721 (branch fix/PPY-a1f656-trend-quality, merged to develop). Verification: CI python, ts and smoke green; new unit tests (SelectionTests, builder trending tests), Gherkin idea-trend-quality.feature; live dry runs on the 2026-10-26 snapshot with gpt-6-luna (nothing filed). topicCount counts beats; monitor records removed from the topic model corpus. No develop to main PR yet.",
+      "created_at": "2026-10-26T11:06:28.593447Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "93d0bcd6-f46a-416b-9fb9-1b6e27a13559",
+      "author": "home",
+      "text": "Delivered in PR #721 (branch fix/PPY-a1f656-trend-quality, merged to develop). Verification: CI python, ts and smoke green; new unit tests, Gherkin idea-trend-quality.feature; live dry runs on the 2026-10-26 snapshot with gpt-6-luna (nothing filed). topicCount counts beats; monitor records removed from the topic-model corpus. No develop to main PR yet.",
+      "created_at": "2026-10-26T11:06:37.186211Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-26T10:49:01.225018Z",
+  "updated_at": "2026-10-26T11:06:37.186247Z",
+  "closed_at": "2026-10-26T11:06:28.635443Z",
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}
