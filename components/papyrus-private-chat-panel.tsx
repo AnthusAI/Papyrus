@@ -32,6 +32,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<PapyrusPrivateChatMessage[]>([]);
   const [accountState, setAccountState] = useState<ProspectusAccountState | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +75,10 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   }, [refreshMessages]);
 
   useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("sign_in_error");
+    if (code) setConnectionNotice(code === "newsroom_identity_mismatch"
+      ? "The selected Google account did not match your newsroom session. Connect again with the same account."
+      : "The publishing-account connection did not complete. You can safely try again.");
     void openConversation();
   }, [openConversation]);
 
@@ -121,7 +126,9 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   const connect = async () => {
     setConnecting(true);
     try {
-      const target = await connectNewsroomChat(`${window.location.pathname}${window.location.search}`);
+      const returnUrl = new URL(window.location.href);
+      returnUrl.searchParams.delete("sign_in_error");
+      const target = await connectNewsroomChat(`${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`);
       window.location.assign(target);
     } catch (nextError) {
       setError(failureMessage(nextError));
@@ -148,6 +155,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     {!channel && !loading ? <div className="papyrus-console__empty" role="alert">
       {error === "chat_identity_connection_required" ? <>
         <strong>Connect your publishing account</strong>
+        {connectionNotice ? <span>{connectionNotice}</span> : null}
         <span>Continue with the same Google account you use in the newsroom, then choose the Account for this private conversation.</span>
         <button className="papyrus-console__new-session" disabled={connecting} onClick={() => void connect()} type="button">{connecting ? "Connecting…" : "Connect publishing account"}</button>
       </> : accountState?.status === "signedIn" ? <>
@@ -156,7 +164,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
         {error !== "publishing_account_required" ? <span>{error}</span> : null}
       </> : <>
         <strong>Private chat could not be opened.</strong>
-        <span>{error}</span>
+        <span>{error === "sign_in_required" ? "Your newsroom session has expired. Sign in from the account menu, then retry." : error}</span>
         <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Retry</button>
       </>}
     </div> : <PapyrusConsoleConversation
