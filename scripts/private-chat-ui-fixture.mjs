@@ -33,7 +33,7 @@ const server = createServer(async (request, response) => {
     response.end(bundle.outputFiles.find((file) => file.path.endsWith(".css")).contents);
     return;
   }
-  if (request.url === "/") {
+  if (request.url === "/" || request.url?.startsWith("/?sign_in_error=")) {
     response.setHeader("Set-Cookie", "papyrus-session=synthetic-session; HttpOnly; SameSite=Lax; Path=/");
     response.end('<!doctype html><html><head><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
     return;
@@ -53,6 +53,7 @@ const server = createServer(async (request, response) => {
     return;
   }
   if (request.url?.startsWith("/api/auth/prospectus/sign-in?")) {
+    assert.equal(new URL(request.url, "https://fixture.example").searchParams.get("returnTo"), "/");
     assert.equal(request.method, "POST");
     assert.equal(request.headers.authorization, "Bearer synthetic-newsroom-token");
     response.setHeader("content-type", "application/json");
@@ -120,8 +121,9 @@ try {
   const page = await browser.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  await page.goto(`http://127.0.0.1:${server.address().port}/${mode === "connection" ? "?sign_in_error=newsroom_identity_mismatch" : ""}`);
   if (mode === "connection") {
+    await page.getByText("The selected Google account did not match your newsroom session. Connect again with the same account.").waitFor();
     await page.getByRole("button", { name: "Connect publishing account" }).click();
     await page.getByText("Identity connection started").waitFor();
     assert.equal(sendCount, 0);
