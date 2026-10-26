@@ -1,3 +1,4 @@
+import { resolveNewsroomChatIdentity, type NewsroomChatIdentityResolver } from "./newsroom-chat-identity";
 import { createHash } from "node:crypto";
 import type { EmbeddedChatAppDependencies } from "chatticus/chat-server";
 import type { NextRequest } from "next/server";
@@ -24,6 +25,7 @@ export interface PapyrusChatScope {
 }
 
 export interface PapyrusHostedChatOptions {
+  resolveNewsroomIdentity?: NewsroomChatIdentityResolver;
   resolveRuntime?: (siteOrigin: string) => Promise<ProspectusSignInRuntime | null>;
   resolvePrivateDependencies?: () => Promise<EmbeddedChatAppDependencies | null>;
   privateChatEnabled?: boolean;
@@ -61,7 +63,7 @@ async function principalForRequest(
   request: NextRequest,
   operation: "console:read" | "console:write",
   options: PapyrusHostedChatOptions,
-): Promise<{ principal: ResolvedPapyrusPrincipal | null; status: number }> {
+): Promise<{ principal: ResolvedPapyrusPrincipal | null; status: number; error?: string }> {
   const environment = options.environment ?? process.env;
   const siteProduct = options.siteProduct !== undefined ? options.siteProduct : prospectusSiteProduct(environment);
   if (!siteProduct) return { principal: null, status: 503 };
@@ -74,11 +76,22 @@ async function principalForRequest(
   }
   if (!runtime) return { principal: null, status: 503 };
 
+  let newsroomIdentity;
+  try {
+    newsroomIdentity = await (options.resolveNewsroomIdentity ?? resolveNewsroomChatIdentity)(request);
+  } catch {
+    return { principal: null, status: 503 };
+  }
+  if (!newsroomIdentity) return { principal: null, status: 401 };
   const nowInSeconds = options.nowInSeconds?.() ?? Math.floor(Date.now() / 1000);
   const session = signedInProspectusSession(request, runtime.sealingSecret, nowInSeconds);
-  if (!session || !session.selectedAccountId || !Number.isFinite(session.accessTokenExpiresAt) || session.accessTokenExpiresAt <= nowInSeconds) {
-    return { principal: null, status: 401 };
+  if (!session || !Number.isFinite(session.accessTokenExpiresAt) || session.accessTokenExpiresAt <= nowInSeconds) {
+    return { principal: null, status: 409, error: "chat_identity_connection_required" };
   }
+  if (session.newsroomSubject !== newsroomIdentity.subject) {
+    return { principal: null, status: 409, error: "chat_identity_connection_required" };
+  }
+  if (!session.selectedAccountId) return { principal: null, status: 409, error: "publishing_account_required" };
 
   try {
     const directory = await runtime.accounts.accountDirectory(session.accessToken);
@@ -162,6 +175,9 @@ export async function handlePapyrusHostedChatRequest(
   const privateChatEnabled = options.privateChatEnabled ?? environment.PAPYRUS_PRIVATE_CHAT_ENABLED === "true";
   if (!privateChatEnabled) return jsonFailure(404, "private_chat_disabled");
 
+  const authorization = await principalForRequest(request, request.method === "POST" ? "console:write" : "console:read", options);
+  if (!authorization.principal) return jsonFailure(authorization.status, authorization.error ?? (authorization.status === 401 ? "sign_in_required" : authorization.status === 403 ? "chat_account_access_denied" : "chat_runtime_unavailable"));
+
   let dependencies: EmbeddedChatAppDependencies | null;
   try {
     if (options.resolvePrivateDependencies) {
@@ -177,9 +193,6 @@ export async function handlePapyrusHostedChatRequest(
     dependencies = null;
   }
   if (!dependencies) return jsonFailure(503, "private_chat_storage_unavailable");
-
-  const authorization = await principalForRequest(request, request.method === "POST" ? "console:write" : "console:read", options);
-  if (!authorization.principal) return jsonFailure(authorization.status, authorization.status === 401 ? "sign_in_required" : authorization.status === 403 ? "chat_account_access_denied" : "chat_runtime_unavailable");
 
   const headers = new Headers({ accept: request.headers.get("accept") ?? "application/json" });
   let body: string | undefined;
