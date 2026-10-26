@@ -1,6 +1,8 @@
 """The Monitoring page's read path: scoping, permissions, usage, empty and error states, read-only access."""
 import json
 import io
+import sys
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -10,8 +12,9 @@ from papyrus_content import monitoring_view as mv
 from papyrus_content.monitoring_view import Forbidden, monitoring_overview
 
 
-def overview(groups=("editor",), endpoint=fx.APP_ANTH, scope="publication", store=None):
-    return monitoring_overview(store or fx.FakeViewStore(), groups=list(groups), site_endpoint=endpoint, scope=scope, now=fx.NOW)
+def overview(groups=("editor",), endpoint=fx.APP_ANTH, scope="publication", store=None, email_store=None):
+    return monitoring_overview(store or fx.FakeViewStore(), groups=list(groups), site_endpoint=endpoint,
+                               scope=scope, now=fx.NOW, email_store=email_store)
 
 
 def test_editor_overview_is_scoped_to_the_viewing_publication():
@@ -216,6 +219,72 @@ def test_email_submission_list_is_scoped_to_this_publication_and_contains_signal
     assert item["subject"] == "Newsletter" and item["linkCount"] == 2
     assert item["verdicts"]["spf"] == "FAIL" and item["warnings"] == ["ses_authentication_unverified"]
     assert "https://example.org/article" not in json.dumps(result)
+
+
+def test_email_submissions_can_use_the_receiver_partition_without_switching_the_main_monitor():
+    email_pk = "MONITOR#p-apyr-us-email"
+    main_store = fx.FakeViewStore(fx.rows())
+    email_router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    email_router["pk"] = email_pk
+    email_table = [email_router, *email_rows(("p-apyr-us",))]
+    for row in email_table:
+        row["pk"] = email_pk
+    email_store = fx.FakeViewStore(email_table)
+
+    result = overview(endpoint=fx.APP_PAPYRUS, store=main_store, email_store=email_store)
+
+    assert [item["subject"] for item in result["emailSubmissions"]] == ["Newsletter"]
+    assert result["router"]["mode"] == "live"
+    assert main_store.newest("EMAILINDEX#", 10) == []
+
+
+def test_email_detail_uses_configured_receiver_partition_and_keeps_auth_checks():
+    email_pk = "MONITOR#p-apyr-us-email"
+    main_store = fx.FakeViewStore(fx.rows())
+    email_router = next(row for row in fx.rows() if row["sk"] == "CONFIG#router").copy()
+    email_router["pk"] = email_pk
+    email_table = [email_router, *email_rows(("p-apyr-us",))]
+    for row in email_table:
+        row["pk"] = email_pk
+    email_store = fx.FakeViewStore(email_table)
+    receipt_id = "EMAIL#" + "a" * 64
+    detail_event = event(["editor"], field="monitoringEmailSubmission", receiptId=receipt_id)
+    env = {"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS, "PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email"}
+
+    result = mv.handle(detail_event, env=env, store_factory=lambda: main_store,
+                       email_store_factory=lambda: email_store)
+
+    assert result["safeBodyText"] == "Read as plain text\n"
+    assert result["candidateLinks"] == [{"url": "https://example.org/article", "title": "Article"}]
+    assert mv.configured_email_monitor_id(env) == "p-apyr-us-email"
+    with pytest.raises(ValueError, match="invalid configured email monitor id"):
+        mv.configured_email_monitor_id({"PAPYRUS_EMAIL_MONITOR_ID": "MONITOR#hn"})
+
+
+def test_default_email_store_factory_uses_the_server_configured_partition(monkeypatch):
+    class FakeSSM:
+        class exceptions:
+            class ParameterNotFound(Exception):
+                pass
+
+        def get_parameter(self, *, Name):
+            assert Name == mv.TABLE_PARAMETER
+            return {"Parameter": {"Value": "monitoring-table"}}
+
+    table = object()
+    fake_boto3 = SimpleNamespace(
+        client=lambda service, **_kwargs: FakeSSM() if service == "ssm" else None,
+        resource=lambda service, **_kwargs: SimpleNamespace(Table=lambda name: table if name == "monitoring-table" else None)
+        if service == "dynamodb" else None,
+    )
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    mv._table_name_cache.clear()
+    try:
+        store = mv.default_email_store_factory({"PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email"})()
+    finally:
+        mv._table_name_cache.clear()
+    assert isinstance(store, mv.TableViewStore)
+    assert store.pk == "MONITOR#p-apyr-us-email"
 
 
 def test_email_submission_details_are_editor_only_and_publication_scoped():
