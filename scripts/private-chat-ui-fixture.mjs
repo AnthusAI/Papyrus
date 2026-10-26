@@ -19,6 +19,7 @@ const bundle = await build({
 });
 const mode = process.argv[2] ?? "conversation";
 let selected = false;
+let expired = false;
 const requests = [];
 const messages = [];
 let sendCount = 0;
@@ -83,10 +84,21 @@ const server = createServer(async (request, response) => {
     return;
   }
   if (request.url === "/api/newsroom/chat/channels/private-channel/messages" && request.method === "GET") {
+    if (mode === "poll-expiry" && messages.length > 0) {
+      response.writeHead(409, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "chat_identity_connection_required" }));
+      return;
+    }
     respond({ messages });
     return;
   }
   if (request.url === "/api/newsroom/chat/channels/private-channel/messages" && request.method === "POST") {
+    if (mode === "send-expiry" && !expired) {
+      expired = true;
+      response.writeHead(409, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "publishing_account_required" }));
+      return;
+    }
     sendCount += 1;
     const sent = JSON.parse(body);
     const message = {
@@ -135,7 +147,23 @@ try {
   const input = page.getByRole("textbox", { name: "Message input" });
   await input.fill("First private message");
   await input.press("Enter");
+  if (mode === "send-expiry") {
+    await page.getByRole("button", { name: "Test publication" }).waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0, "expired conversation is unmounted");
+    assert.equal(await page.getByText("First private message", { exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Test publication" }).click();
+    await page.getByText("Private conversation for your selected Account.").waitFor();
+    await page.getByRole("textbox", { name: "Message input" }).fill("First private message");
+    await page.getByRole("textbox", { name: "Message input" }).press("Enter");
+  }
   await page.getByText("First private message", { exact: true }).waitFor();
+  if (mode === "poll-expiry") {
+    await page.getByRole("button", { name: "Connect publishing account" }).waitFor();
+    assert.equal(await page.getByText("First private message", { exact: true }).count(), 0, "a failed reauthorization removes the old transcript");
+    assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0);
+    assert.deepEqual(errors, []);
+    console.log("PASS: polling expiry clears transcript and exposes identity recovery");
+  } else {
   const send = page.getByRole("button", { name: "Send message", exact: true });
   assert.equal(await input.isDisabled(), false, "the shared composer remains available while a reply is running");
   await input.fill("Second private message");
@@ -149,8 +177,9 @@ try {
   assert.equal(sendCount, 2, "each deliberate send reaches the private adapter exactly once");
   const channelRequests = requests.filter((request) => request.url.endsWith("/private-channel"));
   const sendRequests = requests.filter((request) => request.method === "POST" && request.url.endsWith("/messages"));
-  assert.equal(channelRequests.length, mode === "selection" ? 2 : 1);
-  assert.equal(sendRequests.length, 2);
+  assert.equal(channelRequests.length, ["selection", "send-expiry"].includes(mode) ? 2 : 1);
+  assert.equal(sendRequests.length, mode === "send-expiry" ? 3 : 2);
+  if (mode === "send-expiry") assert.notEqual(sendRequests[0].headers["idempotency-key"], sendRequests[1].headers["idempotency-key"], "identity recovery discards the old retry scope");
   for (const request of [...channelRequests, ...sendRequests]) {
     assert.equal(request.headers.cookie, "papyrus-session=synthetic-session", "the same-origin session cookie reaches the host route");
     assert.equal(request.headers.authorization, "Bearer synthetic-newsroom-token", "the client sends its existing newsroom identity for server verification");
@@ -163,6 +192,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log("PASS: shared UI sends through the private host route once, preserves pending-reply sends, and renders the reply");
+  }
   }
 } finally {
   await browser?.close();

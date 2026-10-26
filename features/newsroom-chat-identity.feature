@@ -21,3 +21,14 @@ Feature: Connect the existing newsroom editor to private chat
     When the editor opens private chat
     Then fresh Account membership and console permission are required
     And another editor cannot read the channel or its turn stream
+
+  Scenario: Recover when the identity expires during an open conversation
+    Given an editor has an open private conversation
+    When the session expires during a send or a reply poll
+    Then the old transcript and retry identity are removed from the panel
+    And the editor can reconnect or choose an authorized Account
+
+  Scenario: Recheck membership after successful access
+    Given an editor previously read their private transcript
+    When the publishing Account membership is revoked
+    Then subsequent transcript reads and sends are denied without creating a message

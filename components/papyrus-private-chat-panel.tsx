@@ -36,6 +36,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const identityGeneration = useRef(0);
   const retryAttempt = useRef<{ text: string; key: string } | null>(null);
   const isWaitingForReply = messages.length > 0 && messages[messages.length - 1].author_kind === "human" &&
     messages[messages.length - 1].addressed_to_bot_id !== null;
@@ -51,28 +52,46 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     }];
   }, [isWaitingForReply, messages]);
 
-  const refreshMessages = useCallback(async (channelId: string) => {
+  const handleFailure = useCallback(async (nextError: unknown) => {
+    const failure = failureMessage(nextError);
+    setError(failure);
+    if (["sign_in_required", "chat_identity_connection_required", "publishing_account_required", "chat_account_access_denied"].includes(failure)) {
+      const generation = ++identityGeneration.current;
+      setChannel(null);
+      setMessages([]);
+      setAccountState(null);
+      retryAttempt.current = null;
+      setSending(false);
+      setLoading(false);
+      if (failure === "publishing_account_required") {
+        const state = await loadProspectusAccountState(window.location.pathname);
+        if (generation === identityGeneration.current) setAccountState(state);
+      }
+    }
+  }, []);
+
+  const refreshMessages = useCallback(async (channelId: string, generation: number) => {
     const next = await listPapyrusPrivateChatMessages(channelId);
-    setMessages(next);
+    if (generation === identityGeneration.current) setMessages(next);
   }, []);
 
   const openConversation = useCallback(async () => {
+    const generation = ++identityGeneration.current;
     setLoading(true);
     setError(null);
+    setChannel(null);
+    setMessages([]);
     try {
       const nextChannel = await openPapyrusPrivateChat();
+      if (generation !== identityGeneration.current) return;
       setChannel(nextChannel);
-      await refreshMessages(nextChannel.channel_id);
+      await refreshMessages(nextChannel.channel_id, generation);
     } catch (nextError) {
-      const failure = failureMessage(nextError);
-      setError(failure);
-      if (failure === "publishing_account_required") {
-        setAccountState(await loadProspectusAccountState(window.location.pathname));
-      }
+      if (generation === identityGeneration.current) await handleFailure(nextError);
     } finally {
-      setLoading(false);
+      if (generation === identityGeneration.current) setLoading(false);
     }
-  }, [refreshMessages]);
+  }, [handleFailure, refreshMessages]);
 
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("sign_in_error");
@@ -80,17 +99,19 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
       ? "The selected Google account did not match your newsroom session. Connect again with the same account."
       : "The publishing-account connection did not complete. You can safely try again.");
     void openConversation();
+    return () => { identityGeneration.current += 1; };
   }, [openConversation]);
 
   useEffect(() => {
     if (!channel || !isWaitingForReply) return;
     let active = true;
+    const generation = identityGeneration.current;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const poll = async () => {
       try {
-        await refreshMessages(channel.channel_id);
+        await refreshMessages(channel.channel_id, generation);
       } catch (nextError) {
-        if (active) setError(failureMessage(nextError));
+        if (active && generation === identityGeneration.current) await handleFailure(nextError);
         return;
       }
       if (active) timer = setTimeout(poll, REFRESH_MS);
@@ -100,10 +121,11 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [channel, isWaitingForReply, refreshMessages]);
+  }, [channel, handleFailure, isWaitingForReply, refreshMessages]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!channel || !text.trim() || sending) return;
+    const generation = identityGeneration.current;
     const attempt = retryAttempt.current?.text === text
       ? retryAttempt.current
       : { text, key: globalThis.crypto.randomUUID() };
@@ -112,16 +134,17 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       const result = await sendPapyrusPrivateChatMessage(channel.channel_id, text, attempt.key);
+      if (generation !== identityGeneration.current) return;
       setMessages((current) => current.some((message) => message.message_id === result.message.message_id)
         ? current
         : [...current, result.message]);
       retryAttempt.current = null;
     } catch (nextError) {
-      setError(failureMessage(nextError));
+      if (generation === identityGeneration.current) await handleFailure(nextError);
     } finally {
-      setSending(false);
+      if (generation === identityGeneration.current) setSending(false);
     }
-  }, [channel, sending]);
+  }, [channel, handleFailure, sending]);
 
   const connect = async () => {
     setConnecting(true);
