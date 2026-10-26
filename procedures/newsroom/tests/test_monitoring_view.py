@@ -449,7 +449,7 @@ APP_DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
 def stores():
     return {"hn": fx.FakeViewStore(), "ttab": fx.FakeViewStore(fx.ttab_rows(APP_DISTINCTIVE)),
             "huggingface": fx.FakeViewStore(fx.ttab_rows(fx.APP_PAPYRUS, monitor="huggingface")),
-            "p-apyr-us-email": fx.FakeViewStore()}
+            "p-apyr-us-email": fx.FakeViewStore([])}
 
 
 def site_overview(endpoint, groups=("editor",), scope="publication"):
