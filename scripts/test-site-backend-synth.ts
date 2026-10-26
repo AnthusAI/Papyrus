@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { App, NestedStack, Stack, Token } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
+import { Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import { addInboundEmailSesIntake } from "../amplify/inbound-email/ses-intake";
+import { wireEmailReferenceIntake, wireMonitoringView } from "../amplify/functions/monitoring-view/wire";
+import { validateMonitoringConfig } from "../amplify/site-backend-config";
 import {
   deriveReceiptRuleName,
   deriveReceiptRuleSetName,
@@ -130,5 +133,45 @@ assert.equal(firstSynth.length, 3);
 assert.deepEqual(firstSynth, secondSynth, "two synths of the same site must give identical names");
 assert.ok(firstSynth.every((name) => !/token/i.test(name)), `names must not contain token: ${firstSynth}`);
 assert.ok(firstSynth.every((name) => name.includes("p-apyr-us")), `names must contain the brand: ${firstSynth}`);
+
+assert.deepEqual(validateMonitoringConfig({ emailMonitorId: "p-apyr-us-email" }), []);
+assert.ok(validateMonitoringConfig({ emailMonitorId: "MONITOR#hn" }).length > 0);
+
+function synthEmailPartitionAccess() {
+  const app = new App();
+  const stack = new Stack(app, "EmailPartitionAccess", { env: { account: "712236451410", region: "us-east-1" } });
+  const lambda = (id: string) => new LambdaFunction(stack, id, {
+    runtime: Runtime.PYTHON_3_12,
+    handler: "index.handler",
+    code: Code.fromInline("def handler(event, context): return {}"),
+  });
+  const monitoringViewLambda = lambda("MonitoringView");
+  const contentActionsLambda = lambda("ContentActions");
+  wireMonitoringView({
+    monitoringView: { resources: { lambda: monitoringViewLambda } },
+    data: { resources: { cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://example.appsync-api.us-east-1.amazonaws.com/graphql" } } } },
+  }, "p-apyr-us-email");
+  wireEmailReferenceIntake(contentActionsLambda, "p-apyr-us-email");
+  return Template.fromStack(stack).toJSON() as {
+    Resources: Record<string, { Type: string; Properties?: Record<string, any> }>;
+  };
+}
+
+const emailAccessTemplate = synthEmailPartitionAccess();
+const emailFunctions = Object.values(emailAccessTemplate.Resources).filter((resource) => resource.Type === "AWS::Lambda::Function");
+assert.equal(emailFunctions.length, 2);
+assert.ok(emailFunctions.every((resource) => resource.Properties?.Environment?.Variables?.PAPYRUS_EMAIL_MONITOR_ID === "p-apyr-us-email"));
+const policies = Object.values(emailAccessTemplate.Resources)
+  .filter((resource) => resource.Type === "AWS::IAM::Policy")
+  .flatMap((resource) => resource.Properties?.PolicyDocument?.Statement ?? []);
+const partitionPolicies = policies.filter((statement: any) => statement.Condition?.["ForAllValues:StringEquals"]?.["dynamodb:LeadingKeys"]);
+assert.deepEqual(partitionPolicies.map((statement: any) => ({
+  actions: (Array.isArray(statement.Action) ? statement.Action : [statement.Action]).sort(),
+  keys: statement.Condition["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"],
+})).sort((a, b) => a.actions.join(",").localeCompare(b.actions.join(","))), [
+  { actions: ["dynamodb:GetItem", "dynamodb:Query"], keys: ["MONITOR#p-apyr-us-email"] },
+  { actions: ["dynamodb:PutItem"], keys: ["MONITOR#p-apyr-us-email"] },
+]);
+assert.ok(!JSON.stringify(partitionPolicies).includes("MONITOR#hn"), "email permissions must not target a different monitor partition");
 
 console.log("site backend synth: ok");

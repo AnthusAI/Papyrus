@@ -17,7 +17,7 @@ import { planRenditions } from "./publication/renditions-settings";
 import { addProjectionLeaseAccess } from "./publication/projection-lease";
 import { contentActionsPublicationWiring, planS3ProjectionBackend } from "./publication/s3-projection-settings";
 import { rebuildTriggerSettings } from "./rebuild-trigger-settings";
-import { assertValidPublicationConfig } from "./site-backend-config";
+import { assertValidMonitoringConfig, assertValidPublicationConfig } from "./site-backend-config";
 import { revalidateSecretReadStatement } from "./revalidate-secret-policy";
 import {
   revalidateDistributionEnvironment,
@@ -108,6 +108,8 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   };
   const publication = resolveSitePublication(site, activeBrand?.renderer?.kind);
   if (publication !== undefined) assertValidPublicationConfig(publication);
+  assertValidMonitoringConfig(site.monitoring);
+  const emailMonitorId = site.monitoring?.emailMonitorId ?? "hn";
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
   setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
@@ -429,7 +431,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     "PAPYRUS_GRAPHQL_ENDPOINT",
     backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
   );
-  wireEmailReferenceIntake(contentActionsLambda);
+  wireEmailReferenceIntake(contentActionsLambda, emailMonitorId);
   contentActionsLambda.addToRolePolicy(
     new PolicyStatement({
       actions: ["appsync:GraphQL"],
@@ -773,7 +775,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     },
   });
   wireEditorialChecks(backend);
-  wireMonitoringView(backend);
+  wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
   wirePlugins(backend, plugins, contentActionsLambda);
 

@@ -31,6 +31,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
+EMAIL_MONITOR_ID_ENV = "PAPYRUS_EMAIL_MONITOR_ID"
+MONITOR_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 EDITOR_GROUPS = frozenset({"editor", "admin"})
 SCOPES = ("publication", "all")
 TABLE_PARAMETER = "/papyrus/monitoring/table-name"
@@ -57,7 +59,7 @@ def _clean(value):
 
 
 class TableViewStore:
-    """Scoped access to the one Monitoring partition used for email review."""
+    """Scoped access to one Monitoring partition."""
 
     def __init__(self, table, monitor_id: str = MONITOR_ID):
         self.table, self.pk = table, f"MONITOR#{monitor_id}"
@@ -219,7 +221,7 @@ def _latest_revisions(rows: list[dict]) -> list[dict]:
     return sorted(latest.values(), key=lambda r: str(r.get("observedAt")), reverse=True)
 
 
-def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
+def monitoring_overview(store, *, groups, site_endpoint, scope, now, email_store=None) -> dict:
     groups = set(groups or [])
     if not groups & EDITOR_GROUPS:
         raise Forbidden("monitoring is for editors and admins")
@@ -243,14 +245,22 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now) -> dict:
     configured = (router or {}).get("publications") or []
     own = next((p for p in configured if p.get("appsyncEndpoint") == site_endpoint), None) if site_endpoint else None
     selected = configured if scope == "all" else ([own] if own else [])
-    allowed_publications = {p["publicationId"] for p in selected}
+    email_store = store if email_store is None else email_store
+    email_router = email_store.get("CONFIG#router")
+    if email_router is None and email_store is store:
+        email_router = router
+    email_configured = (email_router or {}).get("publications") or []
+    email_allowed = {
+        p["publicationId"] for p in email_configured
+        if p.get("appsyncEndpoint") == site_endpoint
+    } if site_endpoint else set()
     submissions = []
-    for index in store.newest("EMAILINDEX#", MAX_EMAIL_SUBMISSIONS):
-        if not allowed_publications.intersection(index.get("destinationPublicationIds") or []):
+    for index in email_store.newest("EMAILINDEX#", MAX_EMAIL_SUBMISSIONS) if email_allowed else []:
+        if not email_allowed.intersection(index.get("destinationPublicationIds") or []):
             continue
-        receipt = store.get(index.get("receiptId", ""))
+        receipt = email_store.get(index.get("receiptId", ""))
         if (not receipt or receipt.get("emailTrustMode") != "data-only"
-                or not allowed_publications.intersection(receipt.get("emailDestinationPublicationIds") or [])):
+                or not email_allowed.intersection(receipt.get("emailDestinationPublicationIds") or [])):
             continue
         submissions.append(_email_summary(receipt))
     result_scope = {"mode": scope, "publicationId": (own or {}).get("publicationId"), "site": (own or {}).get("site"), "canViewAll": is_admin}
@@ -413,7 +423,7 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
 _table_name_cache: dict[str, str] = {}
 
 
-def default_store_factory(env):
+def default_store_factory(env, *, monitor_id=MONITOR_ID):
     """Finds the table through the SSM parameter the monitoring stack writes. None when it is absent."""
     def factory():
         import boto3  # provided by the Lambda runtime
@@ -425,11 +435,26 @@ def default_store_factory(env):
                 _table_name_cache[parameter] = ssm.get_parameter(Name=parameter)["Parameter"]["Value"]
             except ssm.exceptions.ParameterNotFound:
                 return None
-        return TableViewStore(boto3.resource("dynamodb", region_name=region).Table(_table_name_cache[parameter]))
+        table = boto3.resource("dynamodb", region_name=region).Table(_table_name_cache[parameter])
+        return TableViewStore(table, monitor_id=monitor_id)
     return factory
 
 
-def handle(event: dict, *, env=None, store_factory=None, now: float | None = None) -> dict:
+def configured_email_monitor_id(env) -> str:
+    """Read the deployed, server-owned email partition name; never accept it from a request."""
+    monitor_id = str(env.get(EMAIL_MONITOR_ID_ENV) or MONITOR_ID).strip()
+    if not MONITOR_ID_PATTERN.fullmatch(monitor_id):
+        raise ValueError("invalid configured email monitor id")
+    return monitor_id
+
+
+def default_email_store_factory(env):
+    """Create the private intake partition store, distinct from the shared Monitoring view."""
+    monitor_id = configured_email_monitor_id(env)
+    return default_store_factory(env, monitor_id=monitor_id)
+
+
+def handle(event: dict, *, env=None, store_factory=None, email_store_factory=None, now: float | None = None) -> dict:
     """AppSync resolver entry: `monitoringOverview(scope)`. Errors are states, never stack traces."""
     import time
     env = os.environ if env is None else env
@@ -447,19 +472,26 @@ def handle(event: dict, *, env=None, store_factory=None, now: float | None = Non
         store = (store_factory or default_store_factory(env))()
         if store is None:
             return {"state": "not_configured"}
+        email_monitor_id = configured_email_monitor_id(env)
+        if email_monitor_id == MONITOR_ID and email_store_factory is None:
+            email_store = store
+        else:
+            email_store = (email_store_factory or default_email_store_factory(env))()
+        if email_monitor_id != MONITOR_ID and email_store is None:
+            return {"state": "not_configured"}
         if field_name == "monitoringEmailSubmission":
-            return monitoring_email_submission(store, groups=groups,
+            return monitoring_email_submission(email_store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
         if field_name == "monitoringResolveEmailArticleLink":
             return monitoring_email_resolve_article_link(
-                store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
+                email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                 receipt_id=args.get("receiptId"), candidate_index=args.get("candidateIndex"),
             )
         if field_name != "monitoringOverview":
             return {"error": "bad_request"}
         return monitoring_overview(store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope,
-                                   now=time.time() if now is None else now)
+                                   now=time.time() if now is None else now, email_store=email_store)
     except Forbidden:
         return {"error": "forbidden"}
     except Exception as error:   # the browser gets a state; the cause goes to the log by type only

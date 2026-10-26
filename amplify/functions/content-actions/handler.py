@@ -359,8 +359,8 @@ def handler(event, context):
         if field == "intakeEmailSubmissionReferences":
             client, _claims = create_authoring_client()
             try:
-                from papyrus_content.monitoring_view import default_store_factory
-                receipt_store = default_store_factory(os.environ)()
+                from papyrus_content.monitoring_view import default_email_store_factory
+                receipt_store = default_email_store_factory(os.environ)()
                 return intake_email_submission_references(
                     client, arguments, event.get("identity") or {}, receipt_store=receipt_store)
             except IntakeError as error:
