@@ -33,6 +33,7 @@ const MINIMUM_SEALING_SECRET_LENGTH = 32;
 
 export interface PendingProspectusSignInCookie extends PendingProspectusSignIn {
   returnPath: string;
+  newsroomSubject?: string;
 }
 
 export interface ProspectusSignedInSession {
@@ -40,6 +41,7 @@ export interface ProspectusSignedInSession {
   accessToken: string;
   accessTokenExpiresAt: number;
   selectedAccountId?: string;
+  newsroomSubject?: string;
   siteSubject?: string;
 }
 

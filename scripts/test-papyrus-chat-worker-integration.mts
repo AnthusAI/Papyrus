@@ -19,6 +19,7 @@ function requestFor(method: string, personId: string, path: string, body?: unkno
 	const expiresAt = now + 600;
 	const sealed = sealProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, {
 		personId,
+		newsroomSubject: personId,
 		accessToken: `access-${personId}`,
 		accessTokenExpiresAt: expiresAt,
 		selectedAccountId: accountId,
@@ -27,6 +28,7 @@ function requestFor(method: string, personId: string, path: string, body?: unkno
 		method,
 		headers: {
 			cookie: `${PROSPECTUS_SESSION_COOKIE}=${sealed}`,
+      authorization: `Bearer ${personId}`,
 			...(body === undefined ? {} : { "content-type": "application/json" }),
 			...extraHeaders,
 		},
@@ -383,6 +385,7 @@ async function main() {
 		environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: botId },
 		nowInSeconds: () => now,
 		resolveRuntime: async () => prospectusRuntime(),
+    resolveNewsroomIdentity: async (request: NextRequest) => { const subject = request.headers.get("authorization")?.replace("Bearer ", ""); return subject ? { subject } : null; },
 		resolvePrivateDependencies: async () => privateDependencies as never,
 		privateChatEnabled: true,
 	};
