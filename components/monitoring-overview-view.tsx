@@ -336,7 +336,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
         <div className="news-desk-doctrine-card__header"><div><h3>Collected queue</h3><span>Newest first, with what the shared Cyclotron decided</span></div></div>
         {data.items.length ? (
           <ul className="news-desk-monitoring__queue">
-            {data.items.map((item) => <QueueItem key={`${item.sourceId}-${item.revision}`} item={item} ownId={data.scope.publicationId} demo={demo} />)}
+            {data.items.map((item) => <QueueItem key={`${item.monitorId ?? ""}-${item.sourceId}-${item.revision}`} item={item} ownId={data.scope.publicationId} demo={demo} />)}
           </ul>
         ) : <p>No items in the queue.</p>}
         {data.hiddenNotRelevant > 0 ? (
@@ -345,6 +345,14 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
           </p>
         ) : null}
       </article>
+
+      {data.otherMonitors?.length ? (
+        <details className="news-desk-delegation-note" data-monitoring-other-monitors>
+          <summary>Not routed to this site ({data.otherMonitors.length})</summary>
+          <p>These monitors collect items, but none of them is routed to this site, so their items are not shown here.</p>
+          <ul>{data.otherMonitors.map((id) => <li key={id} data-monitoring-other-monitor={id}>{id}</li>)}</ul>
+        </details>
+      ) : null}
     </>
   );
 }

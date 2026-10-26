@@ -503,6 +503,13 @@ Cyclotron judged relevant to the viewing publication (with confidence, where the
 one) and whether it reached that publication's References queue (with a link), the router mode
 (live or dry run, feedback on or off) and observed decision counts.
 
+The page covers only the monitors whose `CONFIG#router` `publications` include the viewing site's
+publication (found by its AppSync endpoint). Other monitors are named in a collapsed "Not routed to
+this site" note, with no items, runs or counts; an admin's `scope: all` combines every monitor. The
+function cannot Scan, so the monitors it looks at are `MONITOR_IDS` in `monitoring_view.py`
+(`hn`, `ttab`, `huggingface`, `p-apyr-us-email`), overridable with `PAPYRUS_MONITORING_MONITOR_IDS` (comma separated);
+add a new monitor there. Reading them needs no new IAM: the same `GetItem` and `Query` on the one table.
+
 ## Access design
 
 `monitoringOverview(scope)` is a GraphQL query in every site's own AppSync API, admitted to the
