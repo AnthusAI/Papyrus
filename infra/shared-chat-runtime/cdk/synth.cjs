@@ -6,6 +6,7 @@ const papyrusRoot = path.resolve(__dirname, "../../..");
 const dependencyRoot = process.env.PAPYRUS_CHAT_CANDIDATE_DEPS || papyrusRoot;
 const requireDependencies = createRequire(path.resolve(dependencyRoot, "package.json"));
 const mode = process.env.PAPYRUS_CHAT_CANDIDATE_MODE || "runtime";
+const modelKeyParameter = "/papyrus/p-apyr-us/openai-api-key";
 if (!["runtime", "synthetic"].includes(mode)) throw new Error("PAPYRUS_CHAT_CANDIDATE_MODE must be runtime or synthetic");
 const esbuild = requireDependencies("esbuild");
 const cdk = requireDependencies("aws-cdk-lib");
@@ -17,7 +18,8 @@ const logs = requireDependencies("aws-cdk-lib/aws-logs");
 const s3 = requireDependencies("aws-cdk-lib/aws-s3");
 const sqs = requireDependencies("aws-cdk-lib/aws-sqs");
 
-const lambdaAssetDirectory = "/tmp/papyrus-chat-candidate-lambda";
+const lambdaAssetDirectory = path.join("/tmp", mode === "runtime" ? "papyrus-chat-runtime-lambda" : "papyrus-chat-synthetic-lambda");
+fs.rmSync(lambdaAssetDirectory, { recursive: true, force: true });
 await esbuild.build({
   absWorkingDir: papyrusRoot,
   entryPoints: mode === "runtime"
@@ -33,6 +35,11 @@ await esbuild.build({
     "chatticus/chat-runtime": requireDependencies.resolve("chatticus/chat-runtime"),
   },
 });
+const expectedBundles = mode === "runtime" ? ["probe-worker.js", "run-worker.js"] : ["synthetic-adapter-test.js"];
+const emittedBundles = fs.readdirSync(lambdaAssetDirectory).sort();
+if (JSON.stringify(emittedBundles) !== JSON.stringify(expectedBundles)) {
+  throw new Error(`Unexpected ${mode} Lambda asset files: ${emittedBundles.join(", ")}`);
+}
 
 class PapyrusChatDataCandidate extends cdk.Stack {
   constructor(scope, id, props) {
@@ -178,7 +185,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     }));
     runWorker.addToPolicy(new iam.PolicyStatement({
       actions: ["ssm:GetParameter"],
-      resources: [this.formatArn({ service: "ssm", resource: "parameter", resourceName: "amplify/shared/papyrus/OPENAI_API_KEY", arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME })],
+      resources: [this.formatArn({ service: "ssm", resource: "parameter", resourceName: modelKeyParameter.slice(1), arnFormat: cdk.ArnFormat.SLASH_RESOURCE_NAME })],
     }));
     runWorker.addToPolicy(new iam.PolicyStatement({
       actions: ["logs:CreateLogStream", "logs:PutLogEvents"],
@@ -228,7 +235,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       logGroup: runLogGroup,
       environment: {
         ...hostedEnvironment,
-        OPENAI_API_KEY_PARAMETER: "/amplify/shared/papyrus/OPENAI_API_KEY",
+        OPENAI_API_KEY_PARAMETER: modelKeyParameter,
       },
       description: "Runs Papyrus private chat turns with the computerless Chatticus execution profile.",
     });
@@ -292,7 +299,7 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       new cdk.CfnOutput(this, "SyntheticAdapterTestFunctionName", { value: syntheticHarnessFunction.functionName });
       new cdk.CfnOutput(this, "SyntheticAdapterInvocation", { value: "Explicit Lambda Invoke only; no event source or schedule" });
     } else {
-      new cdk.CfnOutput(this, "WorkerModelKeyParameterName", { value: "/amplify/shared/papyrus/OPENAI_API_KEY" });
+      new cdk.CfnOutput(this, "WorkerModelKeyParameterName", { value: modelKeyParameter });
       new cdk.CfnOutput(this, "RunWorkerFunctionName", { value: runWorkerFunction.functionName });
       new cdk.CfnOutput(this, "ProbeWorkerFunctionName", { value: probeWorkerFunction.functionName });
     }
@@ -305,7 +312,7 @@ const stackId = syntheticMode ? "PapyrusChatSyntheticAdapterTest" : "PapyrusChat
 const stack = new PapyrusChatDataCandidate(app, stackId, {
   description: syntheticMode
     ? "Synthetic-only Papyrus chat adapter test resources; no CMS role, worker, production gateway, or model secret access."
-    : "Private Papyrus hosted chat data plane candidate; not production runtime composition.",
+    : "p.apyr.us private chat data plane; site entry and queue workers remain disabled until configured.",
   syntheticMode,
 });
 const assembly = app.synth();

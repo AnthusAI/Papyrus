@@ -60,6 +60,9 @@ if (path.basename(templatePath) === "PapyrusChatSyntheticAdapterTest.template.js
   assert.ok(gatewayPolicy, "synthetic test role must receive its isolated adapter permissions");
   assert.equal(ofType("AWS::IAM::Role").length, 1, "synthetic mode must contain only the dedicated test role");
   const harness = functions[0];
+  const runtimeTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, "PapyrusChatDataCandidate.template.json"), "utf8"));
+  const runtimeFunction = Object.values(runtimeTemplate.Resources).find((resource) => resource.Type === "AWS::Lambda::Function" && resource.Properties.Handler === "run-worker.handler");
+  assert.notEqual(harness.Properties.Code.S3Key, runtimeFunction.Properties.Code.S3Key, "synthetic tests must not share a bundle with runtime workers");
   assert.equal(harness.Properties.Handler, "synthetic-adapter-test.handler");
   assert.equal(harness.Properties.Runtime, "nodejs22.x");
   assert.ok(refersTo(harness.Properties.Role, Object.entries(template.Resources).find(([, resource]) => resource === role)[0]), "harness must use the dedicated synthetic role");
@@ -106,6 +109,11 @@ assertExactActions(statementsFor(probe, "PrivateConversationIndex81B3261A"), [
 
 const runRoleId = roleIdByDescription("Private Papyrus computerless chat run worker.");
 const run = policyForRole(runRoleId);
-assert.ok(statementsFor(run, "amplify/shared/papyrus/OPENAI_API_KEY").some((statement) => actionList(statement).includes("ssm:GetParameter")), "only the run worker should read the configured model parameter");
+assertExactActions(statementsFor(run, "papyrus/p-apyr-us/openai-api-key"), ["ssm:GetParameter"], "p.apyr.us run-worker model key");
+const modelKeyReaders = policies.filter((statement) => actionList(statement).includes("ssm:GetParameter"));
+assert.equal(modelKeyReaders.length, 1, "only one policy statement may read any model-key parameter");
+assert.ok(JSON.stringify(modelKeyReaders[0].Resource).includes("papyrus/p-apyr-us/openai-api-key"), "the model-key read must target only the p.apyr.us parameter");
+const runFunction = functions.find((fn) => fn.Properties.Handler === "run-worker.handler");
+assert.equal(runFunction.Properties.Environment.Variables.OPENAI_API_KEY_PARAMETER, "/papyrus/p-apyr-us/openai-api-key");
 assert.equal(template.Outputs.FeatureDefault.Value, "disabled; set PAPYRUS_PRIVATE_CHAT_ENABLED=true only after review");
 console.log("PASS: Papyrus chat candidate resources, exact gateway/probe IAM scopes, model-secret isolation and disabled mappings");

@@ -586,7 +586,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "d9b5b2d12b923acb8fbb1082f627403a69e2ab3061b55c567731b21fec0adf8b.zip"
+     "S3Key": "1a894e3bde19f60b88d895a46c0633a4d55bee0e41180217ced50e2c42376283.zip"
     },
     "Description": "Manually invoked synthetic-only adapter assertions; no model calls or production site access.",
     "Environment": {
