@@ -36,7 +36,7 @@
     "repoId": 1428297675
   },
   "knowledgeRun": {
-    "schedule": "cron(0 5 ? * MON *)",
+    "schedule": "cron(0 5 * * ? *)",
     "vCpu": 4,
     "memoryMiB": 16384,
     "ephemeralStorageGiB": 40,
