@@ -1015,6 +1015,26 @@ class DynamoReaderStore:
             raise
         return True
 
+    def list_story_drafts(self, limit: int) -> list[dict[str, Any]]:
+        """The story drafts of the table, only the fields ``listStoryDrafts`` may answer; at most ``limit`` (the newest if there are more)."""
+        fields = proposal_rules.STORY_DRAFT_FIELDS
+        names = {"#kind": "kind", **{f"#f{index}": field for index, field in enumerate(fields)}}
+        request: dict[str, Any] = {
+            "FilterExpression": "#kind = :kind",
+            "ProjectionExpression": ", ".join(f"#f{index}" for index in range(len(fields))) + ", #kind",
+            "ExpressionAttributeNames": names,
+            "ExpressionAttributeValues": {":kind": "story_draft"},
+        }
+        rows: list[dict[str, Any]] = []
+        while True:
+            page = self._table("proposal").scan(**request)
+            rows.extend(plain(item) for item in page.get("Items") or [])
+            if not page.get("LastEvaluatedKey"):
+                break
+            request["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+        rows.sort(key=lambda row: (row.get("createdAt") or "", row.get("id") or ""), reverse=True)
+        return [{field: row.get(field) for field in fields} for row in rows[:limit]]
+
     def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool:
         """Apply ``changes`` if the state (and, when given, ``updatedAt``) is still what the caller saw; a value of ``None`` removes the attribute."""
         names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
@@ -1510,6 +1530,8 @@ def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSet
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
     if proposal_rules.event_field_name(event) in proposal_rules.MUTATIONS:
         return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds), account_id=account_id)
+    if proposal_rules.event_field_name(event) in proposal_rules.QUERIES:
+        return proposal_rules.handle_proposal_query(event, store, account_id=account_id)
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []

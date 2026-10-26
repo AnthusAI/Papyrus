@@ -79,6 +79,17 @@ def test_the_trend_window_in_days_is_passed_to_the_command_only_when_set():
     assert calls[1][-2:] == ["--window-days", "14"]
 
 
+def test_the_anchor_cooldown_is_passed_to_the_command_only_when_set_and_zero_is_a_value():
+    calls = []
+    run = lambda environment: trend_drafts.run(environment, fetch=lambda url: "2026-10-26", read_key=lambda n: "k", execute=lambda a, e: calls.append(a) or 0)
+    run(BASE)
+    run({**BASE, "TREND_DRAFTS_COOLDOWN_DAYS": "3"})
+    run({**BASE, "TREND_DRAFTS_COOLDOWN_DAYS": "0", "TREND_DRAFTS_WINDOW_DAYS": "14"})
+    assert "--cooldown-days" not in calls[0]
+    assert calls[1][-2:] == ["--cooldown-days", "3"]
+    assert calls[2][-4:] == ["--window-days", "14", "--cooldown-days", "0"]
+
+
 def test_a_fresh_snapshot_runs_the_command_once_with_iam_and_the_key_only_in_the_child_environment():
     calls = []
     outcome = trend_drafts.run(BASE, fetch=lambda url: "2026-10-26", read_key=lambda name: "sk-test", execute=lambda args, env: calls.append((args, env)) or 0)

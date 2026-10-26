@@ -76,3 +76,30 @@ Feature: Operators file AI proposals through IAM
     And the operator moves it to "in_steering"
     When the snapshot publishes proposals
     Then no public proposal file names the operator
+
+  Scenario: An operator lists story drafts with six fields and nothing else
+    Given the operator filed a "story_draft" proposal titled "First trend draft" with a one-line summary
+    And the operator filed a "new_concept" proposal
+    When the operator lists the story drafts
+    Then the operator is told "ok"
+    And the list holds only the story draft "First trend draft"
+    And each listed draft has exactly its id, title, summary, targets, state and createdAt
+    And the list holds no body, evidence, history, proposer or vote
+
+  Scenario: A listed draft shows its state after the operator steers or declines it
+    Given the operator filed a "story_draft" proposal
+    And the operator moves it to "declined"
+    When the operator lists the story drafts
+    Then the listed draft is in state "declined"
+
+  Scenario: A Cognito identity-pool user cannot list story drafts
+    Given the operator filed a "story_draft" proposal
+    When an identity-pool user tries to list the story drafts
+    Then the operator is told "not_staff"
+    And the list is empty
+
+  Scenario: A principal of another AWS account cannot list story drafts
+    Given the operator filed a "story_draft" proposal
+    When a principal of another account tries to list the story drafts
+    Then the operator is told "not_staff"
+    And the list is empty

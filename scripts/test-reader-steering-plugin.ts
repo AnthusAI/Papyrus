@@ -171,11 +171,12 @@ for (const bad of [
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
 assert.deepEqual(
   Object.keys(definitions).sort(),
-  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, "ModerationReceipt", "ProposalReceipt"].sort(),
-  "the schema defines exactly the manifest's models and mutations, plus the receipt types",
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, ...(readerSteeringManifest.queries ?? []), "ModerationReceipt", "ProposalReceipt", "StoryDraftSummary", "StoryDraftList"].sort(),
+  "the schema defines exactly the manifest's models, mutations and queries, plus the receipt and list types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
 assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal", "editProposal"]);
+assert.deepEqual(readerSteeringManifest.queries, ["listStoryDrafts"]);
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -404,6 +405,20 @@ for (const name of ["fileProposal", "transitionProposal", "editProposal"]) {
   assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(proposalMutation), false, `${name} is open to groups only: ${proposalMutation}`);
   assert.match(proposalMutation, /groups: \["editor"\]/);
   assert.match(proposalMutation, /groups: \["admin"\]/);
+}
+
+{
+  // The one operator read: open to groups in the schema like the proposal mutations, a function resolver, and nothing but six fields.
+  const start = transformed.indexOf("listStoryDrafts");
+  assert.ok(start > 0, "listStoryDrafts is in the deployed schema");
+  const query = transformed.slice(start, start + 400).split("\n\n")[0];
+  assert.match(query, /@function/);
+  assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)|guest/.test(query), false, `listStoryDrafts is open to groups only: ${query}`);
+  assert.match(query, /groups: \["editor"\]/);
+  const summaryStart = transformed.indexOf("type StoryDraftSummary");
+  assert.ok(summaryStart > 0, "StoryDraftSummary is in the deployed schema");
+  const summaryFields = [...transformed.slice(summaryStart, transformed.indexOf("}", summaryStart)).matchAll(/^\s+(\w+):/gm)].map((match) => match[1]);
+  assert.deepEqual(summaryFields, ["id", "title", "summary", "targets", "state", "createdAt"], "an operator reads six fields of a draft and no body, evidence, history, proposer or vote");
 }
 
 // The operator (IAM) path lives in the function, not in the schema: no IAM rule is declared above, and the function

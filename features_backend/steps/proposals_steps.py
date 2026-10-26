@@ -456,3 +456,60 @@ def no_operator_named(context) -> None:
     assert text, "no proposal files were written"
     for private in ("operator", OPERATOR_ACCOUNT, "ideas-pipeline"):
         assert private not in text, private
+
+
+# The operator read: listStoryDrafts
+
+def list_story_drafts(context, **call) -> dict:
+    answer = backend_of(context).operator_proposal_call("listStoryDrafts", {}, **call)
+    context.proposal_answer = answer
+    context.story_draft_list = answer
+    return answer
+
+
+@given('the operator filed a "{kind}" proposal titled "{title}" with a one-line summary')
+def operator_filed_with_summary(context, kind: str, title: str) -> None:
+    assert operator_file(context, arguments_for(kind, title, summary="A one-line summary."))["status"] == "ok"
+
+
+@when("the operator lists the story drafts")
+def operator_lists(context) -> None:
+    list_story_drafts(context)
+
+
+@when("an identity-pool user tries to list the story drafts")
+def pooled_lists(context) -> None:
+    list_story_drafts(context, identity=operator_identity(cognitoIdentityId="eu-west-1:1111", cognitoIdentityPoolId="eu-west-1_pool", cognitoIdentityAuthType="authenticated"))
+
+
+@when("a principal of another account tries to list the story drafts")
+def foreign_lists(context) -> None:
+    list_story_drafts(context, identity=operator_identity(accountId="999999999999", userArn="arn:aws:sts::999999999999:assumed-role/ideas-pipeline/run-1"))
+
+
+@then('the list holds only the story draft "{title}"')
+def list_holds_only(context, title: str) -> None:
+    assert [draft["title"] for draft in context.story_draft_list["drafts"]] == [title], context.story_draft_list
+
+
+@then("each listed draft has exactly its id, title, summary, targets, state and createdAt")
+def list_fields(context) -> None:
+    for draft in context.story_draft_list["drafts"]:
+        assert set(draft) == {"id", "title", "summary", "targets", "state", "createdAt"}, draft
+
+
+@then("the list holds no body, evidence, history, proposer or vote")
+def list_private(context) -> None:
+    text = json.dumps(context.story_draft_list)
+    for private in ("Why this matters.", "history", "proposer", "evidence", "votes", "operator:"):
+        assert private not in text, private
+
+
+@then('the listed draft is in state "{state}"')
+def list_state(context, state: str) -> None:
+    assert [draft["state"] for draft in context.story_draft_list["drafts"]] == [state], context.story_draft_list
+
+
+@then("the list is empty")
+def list_empty(context) -> None:
+    assert context.story_draft_list["drafts"] == [], context.story_draft_list

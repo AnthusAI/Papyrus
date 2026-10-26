@@ -61,6 +61,8 @@ export type KnowledgeRunSettings = {
   trendWindowDays?: number;
   /** How many days older than the execution's start the published snapshot's asOf may be for the trend-drafts step to use it; default 1. */
   trendSnapshotMaxAgeDays?: number;
+  /** Days an entity that anchored a story draft rests before it can anchor another (0 turns it off). Unset means the command's own 7. */
+  trendCooldownDays?: number;
   openAiKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
@@ -95,6 +97,7 @@ export type KnowledgeRunConfig = {
   monitorSuggestions: number;
   trendWindowDays?: number;
   trendSnapshotMaxAgeDays: number;
+  trendCooldownDays?: number;
   openAiKeyParameter: string;
   alarmEmailParameter: string;
   lockWaitSeconds: number;
@@ -167,7 +170,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "trendWindowDays", "trendSnapshotMaxAgeDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -240,6 +243,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
     trendWindowDays: optionalTrendWindowDays(record.trendWindowDays),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
+    trendCooldownDays: optionalInteger(record.trendCooldownDays, "trendCooldownDays", 0, 365),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     lockWaitSeconds: optionalInteger(record.lockWaitSeconds, "lockWaitSeconds", 0, 86400),
@@ -285,6 +289,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     monitorSuggestions: settings.monitorSuggestions ?? 0,
     trendWindowDays: settings.trendWindowDays,
     trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
+    trendCooldownDays: settings.trendCooldownDays,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,
     lockWaitSeconds: settings.lockWaitSeconds ?? DEFAULT_LOCK_WAIT_SECONDS,

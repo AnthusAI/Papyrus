@@ -15,10 +15,11 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
+from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, operator_view, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import trends  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from papyrus_content.knowledge_snapshot.trends import TrendConfig  # noqa: E402
 
 
 class ListingClient(FakeClient):
@@ -30,6 +31,8 @@ class ListingClient(FakeClient):
             if self.denied:
                 raise RuntimeError("Not Authorized to access listProposals on type Query")
             return {"listProposals": {"items": self.listed, "nextToken": None}}
+        if "listStoryDrafts" in query:  # the operator read: six fields of each story draft
+            return {"listStoryDrafts": {"status": "ok", "error": None, "message": None, "drafts": operator_view(self.listed)}}
         return super().graphql(query, variables)
 
 
@@ -82,6 +85,7 @@ def step_release_pages(context):
     context.trend_fetch_text = read_item_page
 
 
+@given("an earlier story draft Proposal with the same targets exists")
 @given("an editor can read an earlier story draft Proposal with the same targets")
 def step_earlier_proposal(context):
     targets = [{"type": "entity", "id": "maker--hugging-face"}, {"type": "entity", "id": "maker--zed"}]
@@ -165,7 +169,12 @@ def run_trends(context, *, dry_run=False, reviews=False):
     context.trend_run = trends.draft_trends(
         snapshot=context.trend_snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "Explain.", "policy": "Be careful."},
         json_store=JsonStore(context.trend_root), transport=context.trend_model, proposal_store=ProposalStore(client), review_client=client if reviews else None, dry_run=dry_run, now=NOW,
-        fetch_text=getattr(context, "trend_fetch_text", None))
+        fetch_text=getattr(context, "trend_fetch_text", None), config=getattr(context, "trend_config", None))
+
+
+@given("the anchor cooldown is off")
+def step_cooldown_off(context):
+    context.trend_config = TrendConfig(cooldown_days=0)
 
 
 @when("the operator drafts trend stories and files them as Proposals")
@@ -299,11 +308,6 @@ def step_same_targets(context):
     assert duplicate["reason"] == "same_targets" and duplicate["sameTargetsAs"]["kind"] == "proposal", duplicate
 
 
-@then("the run record says earlier Proposals could not be read with IAM")
-def step_iam_note(context):
-    assert "cannot be read with IAM" in context.trend_run["proposalDedupe"]
-
-
 @then('the cluster "{name}" carries the {count:d} items of the earlier archived week')
 def step_archive(context, name, count):
     cluster = next(s for s in context.trend_signals if s["name"] == name)
@@ -348,3 +352,30 @@ def step_sources(context):
     body = filed(context)[0]["body"]
     assert "## Sources" in body
     assert "3. Zed releases Zed-7B, a small coding model under Apache-2.0 (2026-10-17) https://site.example/posts/zed-7b/" in body, body
+
+
+@given('an earlier story draft Proposal anchored on "{key}" was filed on {filed}')
+def step_cooling_proposal(context, key, filed):
+    context.trend_client.listed = [_earlier_draft(key, filed, "draft")]
+
+
+@given('an earlier declined story draft Proposal anchored on "{key}" was filed on {filed}')
+def step_declined_proposal(context, key, filed):
+    context.trend_client.listed = [_earlier_draft(key, filed, "declined")]
+
+
+def _earlier_draft(key, filed, state):
+    return {"id": "prop-" + "c" * 32, "kind": "story_draft", "title": "Earlier", "summary": "x", "state": state, "createdAt": f"{filed}T00:00:00Z",
+            "targets": json.dumps([{"type": "entity", "id": key}])}
+
+
+@then('the run did not select "{key}" as an anchor and its record says it is cooling down since {filed}')
+def step_cooling(context, key, filed):
+    assert key not in {row["key"] for row in context.trend_run["selection"]["anchors"]}
+    assert context.trend_run["cooldown"]["entities"][key] == filed, context.trend_run["cooldown"]
+    assert any(row["key"] == key and row["reason"].startswith("cooldown") for row in context.trend_run["selection"]["excluded"])
+
+
+@then('the run selected "{key}" as an anchor')
+def step_anchor(context, key):
+    assert key in {row["key"] for row in context.trend_run["selection"]["anchors"]}, context.trend_run["selection"]

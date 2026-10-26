@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..proposals_commands import FILE_MUTATION, LIST_QUERY, list_proposals, receipt
+from ..proposals_commands import FILE_MUTATION, LIST_QUERY, list_proposals, operator_story_drafts, receipt, using_iam
 
 STORE_DIRECTORY_ENVIRONMENT = "PAPYRUS_IDEAS_DIR"
 PUBLIC_DIRECTORY_NAMES = {"_data", "public", "static-root"}
@@ -86,12 +86,11 @@ class JsonStore:
 
 class ProposalStore:
     """Files ideas as draft story_draft Proposals, as an editor or admin (`papyrus login`) or as an operator role of the site's own
-    account (`PAPYRUS_GRAPHQL_AUTH=iam`). Only editors and admins may read Proposals, so an IAM run cannot dedupe against earlier
-    drafts: ``story_drafts`` answers none and ``dedupe_unavailable`` carries the reason, which the run reports."""
+    account (`PAPYRUS_GRAPHQL_AUTH=iam`). Only editors and admins may read Proposals in full; an operator reads the story drafts through
+    ``listStoryDrafts`` (id, title, summary, targets, state, createdAt and nothing else), which is all a run needs to dedupe."""
 
     def __init__(self, client: Any) -> None:
         self.client = client
-        self.dedupe_unavailable: str | None = None
 
     def file_idea(self, idea: dict[str, Any], body: str, digest_id: str) -> str:
         variables = {
@@ -116,14 +115,9 @@ class ProposalStore:
         return receipt(self.client.graphql(FILE_MUTATION, variables), "fileProposal")
 
     def story_drafts(self) -> list[dict[str, Any]]:
-        try:
-            rows = list_proposals(self.client)
-        except Exception as error:  # noqa: BLE001 - only IAM may carry on without the earlier drafts
-            if os.environ.get("PAPYRUS_GRAPHQL_AUTH", "").strip().lower() != "iam":
-                raise
-            self.dedupe_unavailable = f"Earlier Proposals cannot be read with IAM ({type(error).__name__}); drafts are deduped against the JSON store and stories only."
-            return []
-        return [row for row in rows if row.get("kind") == "story_draft"]
+        if using_iam():
+            return operator_story_drafts(self.client)
+        return [row for row in list_proposals(self.client) if row.get("kind") == "story_draft"]
 
 
 __all__ = ["JSON", "PROPOSALS", "STORES", "JsonStore", "ProposalStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root"]

@@ -101,8 +101,13 @@ class TrendConfig:
     # The window the score compares (the last N days against the N before), in days. The snapshot counts weekly and keeps eight weeks, so the
     # window is whole weeks from one to four: 7, 14, 21 or 28 (the default, the figures the snapshot publishes as ``last4`` and ``prior4``).
     window_days: int = DEFAULT_WINDOW_DAYS
+    # An entity that anchored a story draft (one that was not declined) in the last ``cooldown_days`` days cannot anchor another; 0 turns the
+    # cooldown off. A daily cadence would otherwise write about the same maker every day while the story is still waiting for an editor.
+    cooldown_days: int = 7
 
     def __post_init__(self) -> None:
+        if not 0 <= self.cooldown_days <= 365:
+            raise ValueError(f"The anchor cooldown must be from 0 to 365 days, not {self.cooldown_days}.")
         if self.window_days % DAYS_PER_WEEK or not DAYS_PER_WEEK <= self.window_days <= WINDOW_WEEKS * DAYS_PER_WEEK:
             raise ValueError(
                 f"The trend window must be 7, 14, 21 or 28 days (the snapshot counts whole weeks and keeps eight), not {self.window_days}."
@@ -126,7 +131,7 @@ class TrendConfig:
                 values[name] = frozenset(str(item) for item in value)  # type: ignore[union-attr]
             elif name == "watchlist":
                 values[name] = frozenset(str(item).strip().lower() for item in value)  # type: ignore[union-attr]
-            elif name in {"minimum_recent", "minimum_models", "minimum_likes", "minimum_downloads", "likes_floor", "window_days"}:
+            elif name in {"minimum_recent", "minimum_models", "minimum_likes", "minimum_downloads", "likes_floor", "window_days", "cooldown_days"}:
                 values[name] = int(value)  # type: ignore[arg-type]
             else:
                 values[name] = float(value)  # type: ignore[arg-type]

@@ -17,9 +17,9 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, read_item_page, release_draft, selection_snapshot, sentence, snapshot_files, trend_draft  # noqa: E402
+from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, operator_view, read_item_page, release_draft, selection_snapshot, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus import cli as papyrus_cli  # noqa: E402
-from papyrus_content import review_requests  # noqa: E402
+from papyrus_content import proposals_commands, review_requests  # noqa: E402
 from papyrus_content.ideas import commands, trends  # noqa: E402
 from papyrus_content.knowledge_snapshot.trends import TrendConfig  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
@@ -38,8 +38,11 @@ def snapshot_from_entry(directory: str):
     return trends.load_snapshot(write(directory, "history/2026-10-19.json", history_entry()))
 
 
+NO_COOLDOWN = TrendConfig(cooldown_days=0)  # the same-targets and near-duplicate checks are tested on their own, so the cooldown must not pre-empt them
+
+
 class ListingClient(FakeClient):
-    """Answers ``listProposals`` with earlier Proposals, as an editor session would see them."""
+    """Answers ``listProposals`` with earlier Proposals, as an editor session would see them, and ``listStoryDrafts`` with their operator view."""
 
     def __init__(self, *args, listed=(), **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -48,6 +51,8 @@ class ListingClient(FakeClient):
     def graphql(self, query, variables=None):
         if "listProposals" in query:
             return {"listProposals": {"items": self.listed, "nextToken": None}}
+        if "listStoryDrafts" in query:
+            return {"listStoryDrafts": {"status": "ok", "error": None, "message": None, "drafts": operator_view(self.listed)}}
         return super().graphql(query, variables)
 
 
@@ -426,17 +431,17 @@ class RunTests(unittest.TestCase):
     def test_a_proposal_with_the_same_targets_is_not_filed_again_unless_it_was_declined(self) -> None:
         targets = json.dumps([{"type": "entity", "id": "maker--zed"}, {"type": "entity", "id": "maker--hugging-face"}])
         earlier = {"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Different words entirely", "summary": "x", "state": "draft", "targets": targets, "createdAt": "2026-10-20T00:00:00Z"}
-        run, client, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[earlier]))
+        run, client, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[earlier]), config=NO_COOLDOWN)
         self.assertEqual((run["ideasCreated"], run["duplicates"][0]["reason"]), (0, "same_targets"))
         self.assertEqual(run["duplicates"][0]["sameTargetsAs"], {"kind": "proposal", "id": earlier["id"]})
         declined = {**earlier, "state": "declined"}
-        run, _, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[declined]))
+        run, _, _ = self.run_trends([trend_draft()], ListingClient(sections=("Analysis",), listed=[declined]), config=NO_COOLDOWN)
         self.assertEqual(run["ideasCreated"], 1)
 
     def test_a_trend_draft_kept_in_the_json_store_blocks_the_same_targets_next_run(self) -> None:
-        first, _, _ = self.run_trends([trend_draft()], proposals=False)
+        first, _, _ = self.run_trends([trend_draft()], proposals=False, config=NO_COOLDOWN)
         self.assertEqual((first["ideasCreated"], first["store"]), (1, "json"))
-        second, _, _ = self.run_trends([trend_draft("Another title for the same pair")], proposals=False)
+        second, _, _ = self.run_trends([trend_draft("Another title for the same pair")], proposals=False, config=NO_COOLDOWN)
         self.assertEqual((second["ideasCreated"], second["duplicates"][0]["reason"]), (0, "same_targets"))
 
     def test_a_draft_that_restates_a_published_story_is_a_near_duplicate(self) -> None:
@@ -444,18 +449,56 @@ class RunTests(unittest.TestCase):
         run, _, _ = self.run_trends([trend_draft()], stories=[story])
         self.assertEqual((run["ideasCreated"], run["duplicates"][0]["reason"]), (0, "near_duplicate"))
 
-    def test_under_iam_proposals_cannot_be_read_so_dedupe_against_them_is_skipped_and_said_so(self) -> None:
-        class Denied(FakeClient):
+    def test_under_iam_the_operator_reads_story_drafts_and_dedupes_against_them_without_reading_proposals(self) -> None:
+        targets = json.dumps([{"type": "entity", "id": "maker--zed"}, {"type": "entity", "id": "maker--hugging-face"}])
+        earlier = {"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Different words entirely", "summary": "x", "state": "draft", "targets": targets,
+                   "createdAt": "2026-10-20T00:00:00Z", "body": "SECRET BODY", "evidence": "{}", "history": "[]"}
+
+        class OperatorOnly(ListingClient):
             def graphql(self, query, variables=None):
                 if "listProposals" in query:
                     raise RuntimeError("Not Authorized to access listProposals on type Query")
+                if "listStoryDrafts" in query:
+                    seen.append(query)
                 return super().graphql(query, variables)
 
+        seen: list[str] = []
         with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
-            run, client, _ = self.run_trends([trend_draft()], Denied(sections=("Analysis",)))
-        self.assertEqual(run["ideasCreated"], 1)
-        self.assertIn("cannot be read with IAM", run["proposalDedupe"])
-        self.assertEqual(len(self.filed(client)), 1)
+            run, client, _ = self.run_trends([trend_draft()], OperatorOnly(sections=("Analysis",), listed=[earlier]), config=NO_COOLDOWN)
+        self.assertEqual((run["ideasCreated"], run["duplicates"][0]["reason"]), (0, "same_targets"))
+        self.assertEqual(run["duplicates"][0]["sameTargetsAs"], {"kind": "proposal", "id": earlier["id"]})
+        self.assertNotIn("proposalDedupe", run)
+        self.assertEqual(len(seen), 1)
+
+    def test_the_operator_query_asks_for_six_fields_and_nothing_more(self) -> None:
+        fields = proposals_commands.LIST_STORY_DRAFTS_QUERY.split("drafts {")[1].split("}")[0].split()
+        self.assertEqual(fields, ["id", "title", "summary", "targets", "state", "createdAt"])
+
+    def test_a_refused_operator_read_is_an_error_not_a_silent_loss_of_dedupe(self) -> None:
+        class Refused(FakeClient):
+            def graphql(self, query, variables=None):
+                if "listStoryDrafts" in query:
+                    return {"listStoryDrafts": {"status": "refused", "error": "not_staff", "message": "Only editors.", "drafts": []}}
+                return super().graphql(query, variables)
+
+        with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}), self.assertRaises(proposals_commands.ProposalRefused):
+            self.run_trends([trend_draft()], Refused(sections=("Analysis",)))
+
+    def test_an_entity_that_anchored_a_recent_draft_cannot_anchor_another_and_the_run_says_so(self) -> None:
+        recent = {"id": "prop-" + "c" * 32, "kind": "story_draft", "title": "Zed alone", "summary": "x", "state": "draft", "createdAt": "2026-10-20T00:00:00Z",
+                  "targets": json.dumps([{"type": "entity", "id": "maker--zed"}, {"type": "entity", "id": "concept--routing"}])}
+        run, _, model = self.run_trends([], ListingClient(sections=("Analysis",), listed=[recent]))
+        self.assertEqual(run["cooldown"], {"days": 7, "entities": {"maker--zed": "2026-10-20", "concept--routing": "2026-10-20"}})
+        self.assertEqual(sorted(row["key"] for row in run["selection"]["excluded"] if row["reason"].startswith("cooldown")), ["concept--routing", "maker--zed"])
+        anchors = {row["key"] for row in run["selection"]["anchors"]}
+        self.assertTrue(anchors and not anchors & {"maker--zed", "concept--routing"})
+        shown = {signal["name"] for signal in model.model_input["signals"]}
+        self.assertNotIn("Zed", shown)
+        declined = {**recent, "state": "declined"}
+        run, _, _ = self.run_trends([], ListingClient(sections=("Analysis",), listed=[declined]))
+        self.assertEqual(run["cooldown"]["entities"], {})
+        run, _, _ = self.run_trends([], ListingClient(sections=("Analysis",), listed=[recent]), config=NO_COOLDOWN)
+        self.assertEqual(run["cooldown"], {"days": 0, "entities": {}})
 
     def test_too_few_signals_means_no_model_call(self) -> None:
         self.snapshot = {**self.snapshot, "clusters": [], "index": {**self.snapshot["index"], "entities": self.snapshot["index"]["entities"][:1], "trending": ["maker--hugging-face"]}}

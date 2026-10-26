@@ -66,6 +66,7 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     // Read by the optional trend-drafts step only (infra/knowledge-run/trend_drafts.py).
     TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
     ...(config.trendWindowDays ? { TREND_DRAFTS_WINDOW_DAYS: String(config.trendWindowDays) } : {}),
+    ...(config.trendCooldownDays !== undefined ? { TREND_DRAFTS_COOLDOWN_DAYS: String(config.trendCooldownDays) } : {}),
     PAPYRUS_SITE_BUCKET: config.siteBucket,
     PAPYRUS_EDGE_DISTRIBUTION_ID: config.edgeDistributionId,
     PAPYRUS_REDIRECTS_KVS_ARN: config.redirectsKvsArn,

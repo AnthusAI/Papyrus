@@ -110,7 +110,14 @@ class FakeClient:
             return {"fileProposal": {"status": "ok", "id": "prop-" + "a" * 32}}
         if "listProposals" in query:
             return {"listProposals": {"items": [], "nextToken": None}}
+        if "listStoryDrafts" in query:
+            return {"listStoryDrafts": {"status": "ok", "error": None, "message": None, "drafts": []}}
         raise AssertionError(f"unexpected request: {query[:60]}")
+
+
+def operator_view(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What ``listStoryDrafts`` answers for Proposal rows: six fields of each story draft, never a body, evidence, history or vote."""
+    return [{field: row.get(field) for field in ("id", "title", "summary", "targets", "state", "createdAt")} for row in rows if row.get("kind") == "story_draft"]
 
 
 class FakeModel:
