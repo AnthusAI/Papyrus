@@ -1,0 +1,25 @@
+{
+  "id": "PPY-4f0b4473-a232-4409-b880-60fbb2a049a3",
+  "title": "Knowledge runs record their actual cost (compute and model, per stage and per run)",
+  "description": "Each stage of the cloud knowledge run records details.cost in its JobLedger row: Fargate seconds, vCPU, memory, computeUsd at the ARM us-east-1 rates, and model calls, tokens and USD from the API usage objects (null with a reason where unknown). Projection sums the run into a run-level ledger row and runs/<week>/cost-<execution>.json. CLI: papyrus knowledge runs --site <site> [--last N]. No console panel: the console has no knowledge-run status view. Out of scope: trend-drafts (after projection, not a stage).",
+  "type": "story",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-26T11:46:39.521966Z",
+  "updated_at": "2026-10-26T11:46:44.929099Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
