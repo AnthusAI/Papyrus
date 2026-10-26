@@ -21,6 +21,9 @@ export const DEFAULT_EPHEMERAL_STORAGE_GIB = 40;
 export const DEFAULT_STAGE_TIMEOUT_SECONDS = 7200;
 export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
 export const DEFAULT_MONITOR_WEEKS = 52;
+export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
+/** The trend window is whole weeks, one to four: the snapshot counts weekly and keeps eight weeks. */
+export const TREND_WINDOW_DAYS = [7, 14, 21, 28] as const;
 /** The sources `papyrus knowledge corpus export --monitor-sources` understands. */
 export const MONITOR_SOURCES = ["huggingface"] as const;
 
@@ -54,6 +57,10 @@ export type KnowledgeRunSettings = {
   monitorWeeks?: number;
   /** How many monitor records the AI review stage suggests promoting in one soft review request each week; default 0 (none). */
   monitorSuggestions?: number;
+  /** The Cited Trends window in days (7, 14, 21 or 28): the last N days against the N before. Unset means the command's own 28. */
+  trendWindowDays?: number;
+  /** How many days older than the execution's start the published snapshot's asOf may be for the trend-drafts step to use it; default 1. */
+  trendSnapshotMaxAgeDays?: number;
   openAiKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
@@ -86,6 +93,8 @@ export type KnowledgeRunConfig = {
   monitorSources?: string[];
   monitorWeeks: number;
   monitorSuggestions: number;
+  trendWindowDays?: number;
+  trendSnapshotMaxAgeDays: number;
   openAiKeyParameter: string;
   alarmEmailParameter: string;
   lockWaitSeconds: number;
@@ -130,6 +139,14 @@ function optionalInteger(value: unknown, field: string, min: number, max: number
   return value as number;
 }
 
+function optionalTrendWindowDays(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "number" || !(TREND_WINDOW_DAYS as readonly number[]).includes(value)) {
+    fail("trendWindowDays", `must be one of ${TREND_WINDOW_DAYS.join(", ")} (the snapshot counts whole weeks), got ${JSON.stringify(value)}`);
+  }
+  return value as number;
+}
+
 function optionalPlugins(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || !PLUGIN_PATTERN.test(entry))) {
@@ -150,7 +167,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "trendWindowDays", "trendSnapshotMaxAgeDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -221,6 +238,8 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorSources,
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
+    trendWindowDays: optionalTrendWindowDays(record.trendWindowDays),
+    trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     lockWaitSeconds: optionalInteger(record.lockWaitSeconds, "lockWaitSeconds", 0, 86400),
@@ -264,6 +283,8 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     monitorSources: settings.monitorSources,
     monitorWeeks: settings.monitorWeeks ?? DEFAULT_MONITOR_WEEKS,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
+    trendWindowDays: settings.trendWindowDays,
+    trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,
     lockWaitSeconds: settings.lockWaitSeconds ?? DEFAULT_LOCK_WAIT_SECONDS,

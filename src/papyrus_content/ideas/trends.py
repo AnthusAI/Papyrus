@@ -31,7 +31,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
-from ..knowledge_snapshot.trends import TrendConfig, corpus_volume, trend_score
+from ..knowledge_snapshot.trends import TrendConfig, corpus_volume, percent_change, trend_score
 from . import dedupe, synthesis
 from .digest import iso
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
@@ -227,12 +227,17 @@ def _series(values: Any) -> list[int | float]:
     return [value for value in values or [] if isinstance(value, (int, float)) and not isinstance(value, bool)]
 
 
-def window_records(related: Any, as_of: str) -> list[dict[str, Any]]:
+def window_start(as_of: str, weeks: int = WINDOW_WEEKS) -> date:
+    """The Monday that starts the window: the week of ``as_of`` and the ``weeks - 1`` before it."""
+    end = date.fromisoformat(as_of)
+    return (end - timedelta(days=end.weekday())) - timedelta(weeks=weeks - 1)
+
+
+def window_records(related: Any, as_of: str, weeks: int = WINDOW_WEEKS) -> list[dict[str, Any]]:
     """The newest ``relatedRecords`` of an entity file in the snapshot window: releases recorded from a monitored source, each with its
     title, date, address (the source's own card), the one-line summary of its structured facts and where it is from. At most
     ``MAXIMUM_RECORDS_PER_SIGNAL``, newest first. They carry their summary, so no page is fetched for them."""
-    end = date.fromisoformat(as_of)
-    start = (end - timedelta(days=end.weekday())) - timedelta(weeks=WINDOW_WEEKS - 1)
+    start = window_start(as_of, weeks)
     records: dict[str, dict[str, Any]] = {}
     for row in related or []:
         if not isinstance(row, dict) or not row.get("title") or not row.get("url") or not isinstance(row.get("publishedAt"), str) or not row.get("summary"):
@@ -256,11 +261,10 @@ def window_records(related: Any, as_of: str) -> list[dict[str, Any]]:
     return sorted(records.values(), key=lambda item: (item["date"], item["id"]), reverse=True)[:MAXIMUM_RECORDS_PER_SIGNAL]
 
 
-def window_items(related: Any, as_of: str, site_base: str | None) -> list[dict[str, Any]]:
+def window_items(related: Any, as_of: str, site_base: str | None, weeks: int = WINDOW_WEEKS) -> list[dict[str, Any]]:
     """The most recent items of an entity file's ``relatedItems`` that fall in the snapshot window (the four weeks to the end of the
     snapshot's week, plus anything published since), newest first, at most ``MAXIMUM_ITEMS_PER_SIGNAL``. Each is its title, date, path and site URL."""
-    end = date.fromisoformat(as_of)
-    start = (end - timedelta(days=end.weekday())) - timedelta(weeks=WINDOW_WEEKS - 1)
+    start = window_start(as_of, weeks)
     items: dict[str, dict[str, Any]] = {}
     for row in related or []:
         if not isinstance(row, dict) or not row.get("title") or not row.get("url") or not isinstance(row.get("publishedAt"), str):
@@ -304,15 +308,10 @@ def attach_summaries(signals: list[dict[str, Any]], fetch_text: FetchText | None
             item["summary"] = summary
 
 
-def _window_start(as_of: str) -> date:
-    end = date.fromisoformat(as_of)
-    return (end - timedelta(days=end.weekday())) - timedelta(weeks=WINDOW_WEEKS - 1)
-
-
-def window_engagement(related: Any, as_of: str) -> dict[str, int]:
+def window_engagement(related: Any, as_of: str, weeks: int = WINDOW_WEEKS) -> dict[str, int]:
     """How much the Hub's own numbers say about the releases in the window: distinct models and the likes and downloads their summaries state.
     It reads every record the entity file lists (the newest ``related_limit`` of them), not only the few the model is shown."""
-    start = _window_start(as_of)
+    start = window_start(as_of, weeks)
     models: dict[str, tuple[int, int]] = {}
     for row in related or []:
         if not isinstance(row, dict) or not row.get("title") or not isinstance(row.get("publishedAt"), str):
@@ -337,9 +336,9 @@ def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_o
     if names & config.watchlist:
         return True, "watchlisted"
     detail = detail or {}
-    if window_items(detail.get("relatedItems"), as_of, None):
+    if window_items(detail.get("relatedItems"), as_of, None, config.window_weeks):
         return True, "the site has its own item about it in the window"
-    engagement = window_engagement(detail.get("relatedRecords"), as_of)
+    engagement = window_engagement(detail.get("relatedRecords"), as_of, config.window_weeks)
     summary = f"{engagement['models']} model(s), {engagement['likes']} likes, {engagement['downloads']} downloads in the window"
     reached = engagement["likes"] >= config.minimum_likes or engagement["downloads"] >= config.minimum_downloads
     if engagement["models"] >= config.minimum_models and engagement["likes"] >= config.likes_floor and reached:
@@ -403,6 +402,7 @@ def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None)
         "candidatesRanked": len(scored), "thresholds": {
             "minimumRecent": config.minimum_recent, "minimumScore": config.minimum_score, "minimumModels": config.minimum_models,
             "minimumLikes": config.minimum_likes, "minimumDownloads": config.minimum_downloads, "watchlist": sorted(config.watchlist),
+            "windowDays": config.window_days,
         },
     }
 
@@ -411,6 +411,8 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None,
     """The week's signals, clusters first (growing, new, cooling, then the rest), then the anchor entities by score, then context entities.
     Entity signals carry ``items``: the releases behind them in the window, with a one-line summary where ``fetch_text`` can read the item page.
     The snapshot publishes no member list for a cluster, so a cluster signal has no items."""
+    config = config or TrendConfig()
+    weeks_in_window = config.window_weeks
     as_of, signals = snapshot["asOf"], []
     previous = snapshot.get("previous") or {}
     clusters = [cluster for cluster in snapshot["clusters"] if cluster.get("name") and cluster.get("uid") and cluster.get("itemCount")]
@@ -438,10 +440,13 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None,
             "last4": change.get("last4"), "prior4": change.get("prior4"), "percent": change.get("percent"),
             "series": series, "weeks": week_labels(as_of, len(series)), "href": entity.get("href"), "role": role,
         }
+        if weeks_in_window != WINDOW_WEEKS:  # the snapshot's own change is four weeks; a shorter window is counted from the weekly series
+            recent, prior = int(sum(series[-weeks_in_window:])), int(sum(series[-2 * weeks_in_window : -weeks_in_window]))
+            signal.update(last4=recent, prior4=prior, percent=percent_change(recent, prior), windowWeeks=weeks_in_window)
         detail = snapshot["entityFile"](key) or {}
         if detail.get("neighbours"):
             signal["neighbours"] = [{k: n.get(k) for k in ("name", "relation", "weight")} for n in detail["neighbours"][:3]]
-        items = [*window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase")), *window_records(detail.get("relatedRecords"), as_of)]
+        items = [*window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase"), weeks_in_window), *window_records(detail.get("relatedRecords"), as_of, weeks_in_window)]
         if items:
             signal["items"] = items
         signals.append(signal)
@@ -481,11 +486,15 @@ def signal_view(handle: str, signal: dict[str, Any], as_of: str, item_handles: d
         if "itemCountInPreviousArchive" in signal:
             view.update(items_in_cluster_in_previous_archive=signal["itemCountInPreviousArchive"], previous_archive_week=signal["previousArchiveWeek"])
     else:
+        weeks = int(signal.get("windowWeeks") or WINDOW_WEEKS)
+        unit = "week" if weeks == 1 else "weeks"
         view.update(
             entity_kind=signal.get("entityKind"), items_total=signal.get("itemCount"), weeks_of_history=signal.get("weeksOfHistory"), is_new=signal.get("isNew"),
-            items_last_4_weeks=signal.get("last4"), items_prior_4_weeks=signal.get("prior4"), percent=signal.get("percent"),
             neighbours=signal.get("neighbours"), role="context" if signal.get("role") == "context" else None,
         )
+        view[f"items_last_{weeks}_{unit}"] = signal.get("last4")
+        view[f"items_prior_{weeks}_{unit}"] = signal.get("prior4")
+        view["percent"] = signal.get("percent")
     if item_handles:
         view["items"] = [item_handles[item["id"]] for item in signal.get("items", []) if item["id"] in item_handles]
     view["items_per_week"] = dict(zip(signal["weeks"], signal["series"]))
@@ -705,7 +714,8 @@ def describe_signal(signal: dict[str, Any]) -> str:
     if signal["kind"] == "cluster":
         parts = [f"cluster, {signal.get('state') or 'steady'}, {signal['itemCount']} items"]
     else:
-        change = f"{signal['last4']} items in the last four weeks against {signal['prior4']} before" if signal.get("last4") is not None else f"{signal.get('itemCount')} items"
+        span = {1: "week", 2: "two weeks", 3: "three weeks", 4: "four weeks"}[int(signal.get("windowWeeks") or WINDOW_WEEKS)]
+        change = f"{signal['last4']} items in the last {span} against {signal['prior4']} before" if signal.get("last4") is not None else f"{signal.get('itemCount')} items"
         percent = f" ({signal['percent']:+d}%)" if isinstance(signal.get("percent"), int) else ""
         parts = [f"{signal.get('entityKind') or 'entity'}, {change}{percent}" + (", new to the map" if signal.get("isNew") else "")]
     return f"{signal['name']}: " + "; ".join(parts)

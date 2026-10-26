@@ -190,7 +190,7 @@ papyrus ideas trends --site <site> --snapshot ./history/2026-10-19.json --store 
 command reads the site's mission, policy, sections and stories through the CMS (a `papyrus login` session or `PAPYRUS_GRAPHQL_AUTH=iam`,
 as above) and needs `OPENAI_API_KEY`. **`--dry-run`** does everything but file: it calls the model, runs the citation check and prints each
 passing draft in full and each failing draft with its problems; it stores nothing, files nothing and requests no review. Other options:
-`--max N` (3), `--trend-config FILE`, `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
+`--max N` (3), `--trend-config FILE`, `--window-days N` (7, 14, 21 or 28; default 28, the last N days against the N before, counted in whole weeks of the snapshot's weekly series; a shorter window gives the signals `items_last_<n>_weeks` and `items_prior_<n>_weeks`, and the items behind them are those inside the window), `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
 
 Limits: the check proves that every sentence points at the snapshot and that its digits come from the signals it cites; it does not prove
 that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items and, for a site that counts them, monitor records.
