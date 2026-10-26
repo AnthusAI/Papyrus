@@ -778,8 +778,15 @@ def knowledge_cloud_run(flags: list[str]) -> None:
     run(flags)
 
 
+def knowledge_runs(flags: list[str]) -> None:
+    from ..knowledge_cloud.runs import knowledge_runs as runs
+
+    runs(flags)
+
+
 KNOWLEDGE_COMMANDS = {
     "cloud-run": knowledge_cloud_run,
+    "runs": knowledge_runs,
     "corpus-export": knowledge_corpus_export,
     "publish-run": knowledge_publish_run,
     "snapshot": knowledge_snapshot,

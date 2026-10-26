@@ -160,7 +160,7 @@ def _map_knowledge(command: str, flags: list[str]) -> int:
             raise ValueError("papyrus knowledge concepts requires <command>.")
         _delegate_content("relations", flags[0], flags[1:])
         return 0
-    if command in {"publish-run", "snapshot", "archive", "topic-config", "cloud-run"}:
+    if command in {"publish-run", "snapshot", "archive", "topic-config", "cloud-run", "runs"}:
         _delegate_content("knowledge", command, flags)
         return 0
     if command == "corpus":

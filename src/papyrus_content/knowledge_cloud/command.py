@@ -7,6 +7,7 @@ import sys
 
 from ..options import normalize_string, parse_options
 from .config import STAGES, CloudRunConfig, ConfigError
+from .cost import task_resources
 from .ledger import RunLedger
 from .stages import Run, run_shell, run_stage
 from .state import StateStore
@@ -87,7 +88,8 @@ def knowledge_cloud_run(flags: list[str]) -> None:
     ledger = RunLedger(table, config.publication, config.week, config.execution_name)
     state = StateStore(boto3.client("s3", region_name=config.region), config.state_bucket, config.state_prefix)
     max_calls = int(os.environ.get("KNOWLEDGE_REVIEW_MAX_CALLS") or 150)
-    run = Run(config=config, state=state, ledger=ledger, shell=run_shell, environment=dict(os.environ), services=AwsServices(config.region, max_calls))
+    run = Run(config=config, state=state, ledger=ledger, shell=run_shell, environment=dict(os.environ), services=AwsServices(config.region, max_calls),
+              task_info=lambda: task_resources(os.environ))
     config.work_dir.mkdir(parents=True, exist_ok=True)
     code = run_stage(stage, run)
     if code != 0:

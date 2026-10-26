@@ -98,7 +98,7 @@ State is per publication in the stack's S3 bucket (versioned, private), under `p
 
 A stage downloads what it needs, runs, uploads what changed. A container keeps nothing between stages.
 
-The run ledger is a DynamoDB table: partition key `publication`, sort key `runKey` = `<ISO week>#<execution name>#<stage>`, with `status` (`running`, `succeeded`, `failed`), `attempts`, timestamps, the error and a small details object. Query a week with `publication = shipped AND begins_with(runKey, '2026-W44')`.
+The run ledger is a DynamoDB table: partition key `publication`, sort key `runKey` = `<ISO week>#<execution name>#<stage>`, with `status` (`running`, `succeeded`, `failed`), `attempts`, timestamps, the error and a small details object. Query a week with `publication = shipped AND begins_with(runKey, '2026-W44')`. A stage row also carries `details.cost` (see [What a run costs](#what-a-run-costs)), and the last stage adds one run-level row, `<ISO week>#<execution>#run`.
 
 Every stage is idempotent. Within one execution a stage that already succeeded is skipped when Step Functions starts it again; another execution of the same week (a manual run after the scheduled one) runs every stage again. The site checkout is a fresh shallow clone checked against the branch tip, so a stale checkout cannot be used. Step Functions retries each stage with backoff (two retries, 60 s, doubling).
 
@@ -179,6 +179,41 @@ What the first runs taught:
 - The Amplify job list is ordered by job id, which is not the order deploys finish in, so the deployed commit is the `SUCCEED` job with the latest `endTime`.
 - CloudWatch refuses an alarm that looks back more than 7 days, hence the watchdog Lambda for the missed-week alarm (it needs the `stepfunctions` boto3 client; `states` is only the IAM prefix).
 - The deploys of the site itself also render the wiki pages that the run publishes, so the wiki can show new pages before the run's own projection.
+
+## What a run costs
+
+Every run records what it cost, from the run itself, so the bill is not a guess. These are estimates from list prices, never a bill.
+
+**Per stage.** The ledger row of each stage has `details.cost`:
+
+```json
+{
+  "computeSeconds": 412, "computeBasis": "task",
+  "vCpu": 4, "memoryGiB": 16, "ephemeralStorageGiB": 40, "computeUsd": 0.021403,
+  "llm": {
+    "calls": 35, "inputTokens": 91000, "outputTokens": 12000, "cachedInputTokens": 0, "usd": 0.0151,
+    "byModel": {"gpt-6-luna": {"calls": 35, "inputTokens": 91000, "outputTokens": 12000, "cachedInputTokens": 0, "usd": 0.0151}}
+  },
+  "totalUsd": 0.036503, "attempts": 1, "priceBasis": "AWS Fargate pricing, Linux/ARM, US East (N. Virginia) (2026-10-26); model_prices.json for models"
+}
+```
+
+- **Compute.** `computeSeconds` is the time Fargate bills: from the task's first image pull (the ECS task metadata endpoint says when; `computeBasis` is `task`) to the end of the stage, or from the start of the stage when the platform does not say (`stage`), never less than 60 seconds. `vCpu`, `memoryGiB` and `ephemeralStorageGiB` are the task's own size from the same endpoint (`KNOWLEDGE_TASK_VCPU` and `KNOWLEDGE_TASK_MEMORY_MIB` fill in what it does not say), so a stage that gets its own size in the pipeline definition is priced at that size. `computeUsd` uses the Fargate ARM, US East (N. Virginia) rates in `FARGATE_ARM_US_EAST_1` in `src/papyrus_content/knowledge_cloud/cost.py` (vCPU-hour, GB-hour, and the storage over the free 20 GiB), with the date and source beside them. Change them there when AWS changes its prices.
+- **Model.** The AI review reads the `usage` object of every Responses API reply (input, cached and output tokens) and prices it per model from `src/papyrus_content/data/model_prices.json`, the same table `automations cost` and `ideas synthesize` use. No extra call is made. A model's tokens are counted under the model name the API reported (a dated release such as `gpt-6-luna-2026-09-01` is priced at its listed prefix). The other stages call no model. A reply with no `usage` still counts as a call, with `llm.usd` null and a `reason`; a model with no price is listed the same way. `totalUsd` then adds only what is known and the record has `"partial": true`. A compute figure that cannot be known (no task size) is null with `computeReason` in the same way.
+- **Retries.** A failed attempt writes its cost into the row (`details.cost`, with the error); the next attempt adds its own, so the final row is the cost of all `attempts`.
+- **Never in the way.** If the accounting itself fails, the stage still succeeds and the row has no `cost`; the task log says `cost accounting skipped`.
+
+**Per run.** When `projection` succeeds it adds up the stage rows of the execution into the run-level ledger row `<ISO week>#<execution>#run` (`details.cost`: `status`, `durationSeconds`, `computeSeconds`, `computeUsd`, `llm`, `totalUsd`, and each stage's seconds and dollars) and writes the same as the run's cost report, `runs/<ISO week>/cost-<execution>.json` in the state bucket. The task log ends with `run cost: ...`. A run that fails early has no run-level row; `papyrus knowledge runs` still adds its stages up. The optional `trend-drafts` step runs after `projection`, is not a stage and is not in this total.
+
+**Reading it.**
+
+```bash
+export AWS_PROFILE=papyrus-production
+papyrus knowledge runs --site shipped --last 3      # per run: status, duration, total, compute and model; per stage: time and cost
+papyrus knowledge runs --site shipped --json        # the same as JSON
+```
+
+It reads the ledger table named by the `LedgerTableName` output of the stack `KnowledgeRun-<site>` (`--table` names it directly, `--region` defaults to `us-east-1`). Runs from before this accounting show `-` for the figures they lack and are marked partial. The console has no knowledge-run status view, so there is no console panel for this yet.
 
 ## Cost
 
