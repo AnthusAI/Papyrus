@@ -29,6 +29,7 @@ from .model import (
     PublishedItem,
 )
 from .monitor_import import is_record_mention
+from .parallel import DEFAULT_WORKERS, map_with_clients
 from .publish_run import NODE_KIND, is_item_mention, json_object
 
 CURRENT = "current"
@@ -109,14 +110,19 @@ def current_nodes(rows: Iterable[Mapping[str, Any]]) -> list[dict]:
     return [dict(row) for row in rows if row.get("versionState", CURRENT) == CURRENT]
 
 
-def relations_of_nodes(client: Any, node_rows: Iterable[Mapping[str, Any]]) -> list[dict]:
-    """Every current relation that touches one of the nodes, through the state indexes (no scan of the table)."""
+def relations_of_nodes(client: Any, node_rows: Iterable[Mapping[str, Any]], *, workers: int = 1, client_factory: Any = None) -> list[dict]:
+    """Every current relation that touches one of the nodes, through the state indexes (no scan of the table). Two index queries per node;
+    with ``workers`` above 1 and a ``client_factory`` they run over that many clients at once."""
+    states = [semantic_state_key(NODE_KIND, str(node.get("lineageId") or node["id"])) for node in node_rows]
+    pages = map_with_clients(
+        states,
+        lambda reader, state: [*reader.list_semantic_relations_by_object_state(state), *reader.list_semantic_relations_by_subject_state(state)],
+        client=client, client_factory=client_factory, workers=workers,
+    )
     seen: dict[str, dict] = {}
-    for node in node_rows:
-        state = semantic_state_key(NODE_KIND, str(node.get("lineageId") or node["id"]))
-        for lookup in (client.list_semantic_relations_by_object_state, client.list_semantic_relations_by_subject_state):
-            for row in lookup(state):
-                seen[row["id"]] = row
+    for rows in pages:
+        for row in rows:
+            seen[row["id"]] = row
     return sorted(seen.values(), key=lambda row: row["id"])
 
 

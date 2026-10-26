@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable
 
@@ -410,10 +411,12 @@ def apply_record_changes(
         if client_factory is None:
             raise ValueError("max_parallel > 1 requires client_factory for thread-local GraphQL clients.")
         errors: list[Exception] = []
+        local = threading.local()  # one client (one connection) per worker thread, reused for all its changes
 
         def apply_one(change: dict[str, Any]) -> None:
-            worker_client = client_factory()
-            _apply_change(worker_client, change)
+            if not hasattr(local, "client"):
+                local.client = client_factory()
+            _apply_change(local.client, change)
 
         with ThreadPoolExecutor(max_workers=parallel) as executor:
             futures = [executor.submit(apply_one, change) for change in owner_changes]

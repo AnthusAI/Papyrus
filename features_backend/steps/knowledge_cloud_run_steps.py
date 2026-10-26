@@ -426,3 +426,18 @@ def step_monitor_records_file(context, commands):
         found = [call for call in context.shell.calls if text in " ".join(call)]
         assert found, text
         assert all(call[call.index("--monitor-records") + 1] == expected for call in found), (text, found)
+
+
+@then('the command "{text}" was given "--monitor-ledger" with the corpus\'s import ledger')
+def step_monitor_ledger(context, text):
+    expected = str(context.run_.work / "corpus" / "monitor-import-ledger.json")
+    found = [call for call in context.shell.calls if text in " ".join(call)]
+    assert found, text
+    assert all(call[call.index("--monitor-ledger") + 1] == expected for call in found), found
+
+
+@then('no command "{text}" was given "--monitor-ledger"')
+def step_no_monitor_ledger(context, text):
+    found = [call for call in context.shell.calls if text in " ".join(call)]
+    assert found, text
+    assert not [call for call in found if "--monitor-ledger" in call], found
