@@ -4,13 +4,18 @@
  * tarball and type-check it with only the dependencies real site repos declare.
  *   node scripts/check-consumer-site-typecheck.mjs <path to anthusai-papyrus-<version>.tgz>
  * Fails when a Papyrus source file needs a package the sites do not install.
+ *
+ * With `--build` it also runs `next build` of the generated app shell, the way a site's Amplify job does.
+ * The fixture carries the root `overrides: { zod: "^3.25.76" }` every site has, which flattens nested
+ * zod 4 dependencies (chatticus), so a dependency that needs a newer zod than the sites resolve fails here.
  */
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const tarballArgument = process.argv[2];
+const withBuild = process.argv.includes("--build");
+const tarballArgument = process.argv.slice(2).find((argument) => !argument.startsWith("--"));
 if (!tarballArgument || !fs.existsSync(tarballArgument)) {
   console.error("usage: node scripts/check-consumer-site-typecheck.mjs <anthusai-papyrus tarball>");
   process.exit(1);
@@ -42,6 +47,7 @@ const fixtureFiles = {
       type: "module",
       dependencies: { "@anthusai/papyrus": `file:${tarball}`, ...siteRepositoryDependencies },
       devDependencies: siteRepositoryDevDependencies,
+      overrides: { "@aws-cdk/toolkit-lib": "1.32.0", "@opentelemetry/core": "2.11.0", zod: "^3.25.76" },
     },
     null,
     2,
@@ -77,6 +83,7 @@ const fixtureFiles = {
     null,
     2,
   ),
+  "next.config.mjs": 'import { withPapyrus } from "@anthusai/papyrus/next";\n\nexport default withPapyrus({});\n',
   "papyrus-modules.d.ts": 'declare module "*.css";\n',
   "papyrus.config.ts": 'import { defineSite } from "@anthusai/papyrus/define-site";\n\nexport default defineSite({});\n',
   "amplify/backend.ts":
@@ -103,9 +110,21 @@ try {
     fs.writeFileSync(destination, content);
   }
   runInFixture(fixture, "npm", ["install", "--no-audit", "--no-fund"]);
+  try {
+    execFileSync("npm", ["ls", "zod", "--all"], { cwd: fixture, stdio: "inherit" });
+  } catch {
+    // `npm ls` exits non-zero on override-invalid trees; it is diagnostics only.
+  }
   runInFixture(fixture, "npx", ["papyrus-app", "sync"]);
   runInFixture(fixture, "npx", ["tsc", "--noEmit"]);
   console.log("ok: consumer site fixture type-checks against the packed package");
+  if (withBuild) {
+    // Staging drafts mode skips the build-time AppSync enumeration, so no deployed backend or secrets are needed.
+    process.env.SITE_ENV = "staging";
+    process.env.PAPYRUS_CONTENT_SOURCE = "drafts";
+    runInFixture(fixture, "npx", ["next", "build"]);
+    console.log("ok: consumer site fixture builds against the packed package");
+  }
 } finally {
   fs.rmSync(fixture, { recursive: true, force: true });
 }

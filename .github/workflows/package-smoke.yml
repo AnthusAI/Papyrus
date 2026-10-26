@@ -14,6 +14,9 @@ on:
       - "pyproject.toml"
       - "package.json"
       - "release.config.cjs"
+      - "scripts/check-consumer-site-typecheck.mjs"
+      - "scripts/check-github-tarball-pins.mjs"
+      - ".github/workflows/package-smoke.yml"
 
 permissions:
   contents: read
@@ -34,3 +37,31 @@ jobs:
       - run: node packages/stage.mjs --version 0.0.0-smoke.1
       - run: node packages/verify-packages.mjs 0.0.0-smoke.1
       - run: node scripts/check-consumer-site-typecheck.mjs dist-packages/anthusai-papyrus-0.0.0-smoke.1.tgz
+
+  # Installs the packed tarball into a site-shaped fixture (zod 3.25 override, as every site pins) and runs
+  # `next build`, so a dependency of the app shell that breaks a consumer build fails here, not in Amplify.
+  consumer-site-build:
+    name: consumer-site-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: npm ci
+      - run: node packages/stage.mjs --version 0.0.0-smoke.1
+      - run: node scripts/check-consumer-site-typecheck.mjs dist-packages/anthusai-papyrus-0.0.0-smoke.1.tgz --build
+
+  github-tarball-pins:
+    name: github-tarball-pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/check-github-tarball-pins.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
