@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "2defe9b8-f97c-49cd-bee5-01163805f4d7",
+  "issue_id": "PPY-0d18a6ba-c78d-4f96-8245-fa11de233b83",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-27T06:32:56.250Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "346050f8-e403-4fc9-90d5-9323742ef06b",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6",
+      "name": "Chat mobile correction"
+    }
+  }
+}

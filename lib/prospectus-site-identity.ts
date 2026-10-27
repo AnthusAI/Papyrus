@@ -281,6 +281,7 @@ export interface CompleteProspectusGoogleSignInInput {
   pendingSignIn: PendingProspectusSignIn;
   returnedState: string;
   authorizationCode: string;
+  expectedNewsroomSubject?: string;
   verifyCognitoTokens?: CognitoTokenVerifier;
   fetcher?: typeof fetch;
   nowInSeconds?: number;
@@ -320,6 +321,12 @@ export async function completeProspectusGoogleSignIn(
     expiresInSeconds: Number(tokenBody.expires_in) || 0,
   };
   await (input.verifyCognitoTokens ?? cognitoTokenVerifier(input.cognitoClient))(tokens, input.pendingSignIn.nonce);
+  if (input.expectedNewsroomSubject) {
+    const claims = JSON.parse(Buffer.from(tokens.accessToken.split(".")[1], "base64url").toString("utf8")) as { sub?: string };
+    if (claims.sub !== input.expectedNewsroomSubject) {
+      throw new ProspectusAccountsError(403, "newsroom_identity_mismatch", "Continue with the same Google account as your newsroom session.");
+    }
+  }
   const { person } = await input.accounts.resolveGoogleSignIn(input.pendingSignIn, tokens.accessToken, tokens.idToken);
   return {
     person,
