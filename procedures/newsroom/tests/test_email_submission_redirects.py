@@ -190,3 +190,20 @@ def test_parser_uses_only_explicit_resolver_and_excludes_action_anchors_before_c
     assert result["links"] == [{"url": "https://news.example.org/story", "title": "Read story"}]
     assert len(called) == 1
     assert TRACKER not in repr(result)
+
+
+@pytest.mark.parametrize('hops,status', [(0, 405), (1, 403), (1, 500)])
+def test_response_diagnostic_reports_status_and_hops_without_accepting_failure(hops, status):
+    calls = []
+    def request(url, **options):
+        calls.append(url)
+        if hops and len(calls) == 1:
+            return {'status': 302, 'headers': {'Location': 'https://news.example.org/article'}}
+        return {'status': status, 'headers': {}}
+    with pytest.raises(RedirectResolutionError) as caught:
+        resolve_beehiiv_tracking_url(TRACKER, resolve_host=lambda *_a, **_k: [PUBLIC_IP], request=request)
+    assert caught.value.code == 'redirect_response_unusable'
+    assert caught.value.http_status == status
+    assert caught.value.redirect_hops == hops
+    assert len(calls) == hops + 1
+    assert TRACKER not in str(caught.value)

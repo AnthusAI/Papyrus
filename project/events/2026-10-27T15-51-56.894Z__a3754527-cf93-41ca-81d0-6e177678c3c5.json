@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "a3754527-cf93-41ca-81d0-6e177678c3c5",
+  "issue_id": "PPY-98b5e907-782c-4799-888a-79b4f63825c2",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-27T15:51:56.894Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "labels": {
+        "from": [],
+        "to": [
+          "handoff"
+        ]
+      }
+    }
+  }
+}

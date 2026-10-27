@@ -141,8 +141,10 @@ def safe_editorial_url(raw: str) -> str | None:
 class RedirectResolutionError(ValueError):
     """A stable, URL-free failure code for the optional redirect resolver."""
 
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, http_status=None, redirect_hops=None):
         self.code = code
+        self.http_status = http_status if type(http_status) is int and 100 <= http_status <= 599 else None
+        self.redirect_hops = redirect_hops if type(redirect_hops) is int and 0 <= redirect_hops <= MAX_REDIRECTS else None
         super().__init__(code)
 
 
@@ -154,7 +156,7 @@ def is_supported_email_tracking_url(raw: str) -> bool:
         parts = urlsplit(unescape(raw.strip()))
         host = (parts.hostname or "").rstrip(".").encode("idna").decode("ascii").lower()
         if (parts.scheme.lower() != "https" or safe_editorial_url("https://" + host + "/") is None
-                or not (host == "link.mail.beehiiv.com" or re.fullmatch(r"/ss/c/u001\.[A-Za-z0-9_.-]+", parts.path))
+                or not (host == "link.mail.beehiiv.com" or re.fullmatch(r"/ss/c/u001\.[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*", parts.path))
                 or parts.username or parts.password or parts.port not in {None, 443}
                 or not parts.path.startswith("/ss/c/")):
             return False
@@ -272,7 +274,7 @@ def resolve_email_tracking_url(raw: str, *, resolve_host, request, clock=None) -
             redirects += 1
             continue
         if status not in {200, 204}:
-            raise RedirectResolutionError("redirect_response_unusable")
+            raise RedirectResolutionError("redirect_response_unusable", http_status=status, redirect_hops=redirects)
         final_url = safe_editorial_url(current)
         if final_url is None:
             raise RedirectResolutionError("redirect_target_unsafe")

@@ -404,8 +404,14 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     try:
         destination = (resolver or _resolve_beehiiv_article)(link["url"])
     except RedirectResolutionError as error:
-        LOG.warning("email article link resolution rejected: %s", error.code)
-        return {"error": "resolution_failed", "reason": error.code}
+        LOG.warning("email article link resolution rejected: %s status=%s hops=%s",
+                    error.code, error.http_status, error.redirect_hops)
+        diagnostic = {}
+        if error.http_status is not None:
+            diagnostic["httpStatus"] = error.http_status
+        if error.redirect_hops is not None:
+            diagnostic["redirectHops"] = error.redirect_hops
+        return {"error": "resolution_failed", "reason": error.code, **diagnostic}
     except (OSError, TimeoutError, http.client.HTTPException) as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "redirect_request_failed"}

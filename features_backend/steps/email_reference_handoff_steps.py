@@ -56,3 +56,23 @@ def legacy_tracking_import_contract(context):
         "procedures/newsroom/tests/test_email_reference_handoff.py", "-k", "legacy_branded"],
         capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@given("a legacy branded wrapper with multiple routing path segments")
+def routed_branded_wrapper(context):
+    context.handoff_root = Path(__file__).resolve().parents[2]
+
+
+@when("its complete intake and bounded response contracts are exercised")
+def routed_branded_contracts(context):
+    context.handoff_result = subprocess.run([sys.executable, "-m", "pytest", "-q",
+        "procedures/newsroom/tests/test_email_reference_handoff.py",
+        "procedures/newsroom/tests/test_email_submission_redirects.py",
+        "procedures/newsroom/tests/test_monitoring_view.py", "-k", "legacy_branded or response_diagnostic"],
+        cwd=context.handoff_root, capture_output=True, text=True, timeout=120)
+
+
+@then("it imports only after resolution and failures disclose only HTTP status and hop count")
+def routed_branded_satisfied(context):
+    result = context.handoff_result
+    assert result.returncode == 0, result.stdout + result.stderr

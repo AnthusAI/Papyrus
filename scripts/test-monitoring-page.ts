@@ -6,6 +6,7 @@ import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../l
 import {
   beginEmailSubmissionAction,
   emailReferenceBatches,
+  emailArticleResolutionFailureNotice,
   endEmailSubmissionAction,
   isCurrentEmailSubmissionAction,
 } from "../lib/monitoring-overview";
@@ -16,6 +17,14 @@ function text(html: string): string {
 }
 
 async function main() {
+  assert.match(emailArticleResolutionFailureNotice({error: "resolution_failed", reason: "redirect_response_unusable",
+    httpStatus: 405, redirectHops: 0}), /HTTP 405; at the tracker/);
+  assert.match(emailArticleResolutionFailureNotice({error: "resolution_failed", reason: "redirect_response_unusable",
+    httpStatus: 403, redirectHops: 1}), /HTTP 403; after 1 redirect/);
+  const unsafeDiagnostic = emailArticleResolutionFailureNotice({error: "resolution_failed",
+    reason: "https://private.example/token", httpStatus: 9999, redirectHops: -1});
+  assert.ok(!unsafeDiagnostic.includes("private.example") && !unsafeDiagnostic.includes("9999"));
+
   const newsletterLinks = Array.from({ length: 41 }, (_, index) => `https://example.org/${index}`);
   const linkBatches = emailReferenceBatches(newsletterLinks);
   assert.deepEqual(linkBatches.map((batch) => batch.length), [20, 20, 1],

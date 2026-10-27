@@ -98,7 +98,11 @@ def test_selected_negative_prediction_is_delivered_once_without_procedures(initi
     assert len(delivered) == 1 and len(model.posts()) == (2 if initially_not_ready else 1)
 
 
-def test_legacy_branded_tracking_receipt_resolves_imports_and_queues_only_clean_article():
+@pytest.mark.parametrize('tracker', [
+    'https://news.example.org/ss/c/u001.synthetic-Recipient.Route',
+    'https://news.example.org/ss/c/u001.synthetic-Recipient.Route/route/recipient-id/h1/h001.synthetic-signature',
+])
+def test_legacy_branded_tracking_receipt_resolves_imports_and_queues_only_clean_article(tracker):
     import json
     from papyrus_content.monitoring_view import monitoring_email_submission, monitoring_email_resolve_article_link
     from papyrus_content.reference_intake import intake_email_submission_references
@@ -107,7 +111,6 @@ def test_legacy_branded_tracking_receipt_resolves_imports_and_queues_only_clean_
     receipt = store.get(request['receiptId'])
     receipt['ttl'] = 4_000_000_000
     f.table.put_item(Item=receipt)
-    tracker = 'https://news.example.org/ss/c/u001.synthetic-Recipient.Route'
     details = f.table.by_prefix('EMAILDETAIL#')
     link_row = next(row for row in details if '#LINKS#' in row['sk'])
     links = json.loads(link_row['json'])

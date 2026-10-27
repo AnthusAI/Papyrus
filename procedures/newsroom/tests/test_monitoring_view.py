@@ -507,3 +507,20 @@ def test_tracking_failure_logs_only_safe_reason_without_recipient_url(caplog):
     assert result == {"error": "resolution_failed", "reason": "redirect_target_unsafe"}
     assert "redirect_target_unsafe" in caplog.text
     assert "private-recipient" not in caplog.text and "https://" not in caplog.text
+
+
+def test_response_diagnostic_is_url_free_in_editor_result_and_logs(caplog):
+    from papyrus_content.email_submission import RedirectResolutionError
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = json.dumps([
+        {"url": "https://link.mail.beehiiv.com/ss/c/private-recipient", "title": "Article"}])
+    def reject(_url):
+        raise RedirectResolutionError("redirect_response_unusable", http_status=405, redirect_hops=0)
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=reject)
+    assert result == {"error": "resolution_failed", "reason": "redirect_response_unusable",
+                      "httpStatus": 405, "redirectHops": 0}
+    assert "status=405 hops=0" in caplog.text
+    assert "private-recipient" not in caplog.text and "https://" not in caplog.text

@@ -212,7 +212,7 @@ def test_branded_tracking_wrappers_are_private_unresolved_candidates():
     assert result["links"][0]["resolutionStatus"] == "unresolved"
     assert result["links"][0]["url"] == tracker
     for invalid in [tracker.replace("https:", "http:"), tracker.replace("news.example.org", "127.0.0.1"),
-                    tracker.replace("news.example.org", "host.internal"), tracker + "?action=unsubscribe",
+                    tracker.replace("news.example.org", "host.internal"), tracker + "?action=unsubscribe", tracker + "/route/unsubscribe/h001.signature",
                     tracker.replace("news.example.org", "user:pass@news.example.org")]:
         assert not is_supported_email_tracking_url(invalid)
 
@@ -234,9 +234,12 @@ def test_branded_tracking_resolution_preserves_public_dns_and_action_guards():
     assert calls == [tracker]
 
 
-def test_branded_tracking_resolves_only_to_clean_article_with_synthetic_transport():
+@pytest.mark.parametrize("tracker", [
+    "https://news.example.org/ss/c/u001.synthetic-Recipient.Route",
+    "https://news.example.org/ss/c/u001.synthetic-Recipient.Route/route/recipient-id/h1/h001.synthetic-signature",
+])
+def test_branded_tracking_resolves_only_to_clean_article_with_synthetic_transport(tracker):
     from papyrus_content.email_submission import resolve_email_tracking_url
-    tracker = "https://news.example.org/ss/c/u001.synthetic-Recipient.Route"
     calls = []
     def request(url, **options):
         calls.append(url)

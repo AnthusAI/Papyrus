@@ -46,7 +46,25 @@ export type MonitoringEmailDetails = {
 
 export type MonitoringEmailArticleResolution = {
   url: string; title: string; resolved: true;
-} | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string } | { state: "unavailable" };
+} | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string; httpStatus?: number; redirectHops?: number } | { state: "unavailable" };
+
+export function emailArticleResolutionFailureNotice(result: MonitoringEmailArticleResolution): string {
+  const details: string[] = [];
+  if ("reason" in result && typeof result.reason === "string" && result.reason.length <= 80
+      && /^(?:redirect_[a-z_]+|resolution_record_invalid|resolution_not_recorded)$/.test(result.reason)) {
+    details.push(result.reason);
+  }
+  if ("httpStatus" in result && typeof result.httpStatus === "number"
+      && Number.isInteger(result.httpStatus) && result.httpStatus >= 100 && result.httpStatus <= 599) {
+    details.push(`HTTP ${result.httpStatus}`);
+  }
+  if ("redirectHops" in result && typeof result.redirectHops === "number"
+      && Number.isInteger(result.redirectHops) && result.redirectHops >= 0 && result.redirectHops <= 5) {
+    details.push(result.redirectHops === 0 ? "at the tracker" : `after ${result.redirectHops} redirect(s)`);
+  }
+  const diagnostic = details.length ? ` (${details.join("; ")})` : "";
+  return `The article destination could not be resolved safely${diagnostic}. The original link remains private and unchanged.`;
+}
 
 export type EmailReferenceImportItem = { candidateIndex: number; source_uri: string };
 export type EmailReferenceImportOutcome = {

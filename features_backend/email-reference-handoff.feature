@@ -17,3 +17,8 @@ Feature: Imported newsletter articles receive cloud predictions
     When its exact receipt is opened and its tracking contracts are exercised
     Then opaque tracking URLs are never offered as direct References and redirect protections remain enforced
     And a resolved legacy candidate imports and queues once while its raw wrapper is rejected
+
+  Scenario: Actual branded route shapes remain private and HTTP failures are diagnosable
+    Given a legacy branded wrapper with multiple routing path segments
+    When its complete intake and bounded response contracts are exercised
+    Then it imports only after resolution and failures disclose only HTTP status and hop count

@@ -11,6 +11,7 @@ import {
   routingLabel,
   beginEmailSubmissionAction,
   endEmailSubmissionAction,
+  emailArticleResolutionFailureNotice,
   isCurrentEmailSubmissionAction,
   type MonitoringItem,
   type MonitoringEmailDetails,
@@ -138,10 +139,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
       const result = await onResolveArticleLink(requestReceiptId, index);
       if (!isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) return;
       if (!("url" in result)) {
-        const reason = "reason" in result && typeof result.reason === "string"
-          && /^(?:redirect_[a-z_]+|resolution_record_invalid|resolution_not_recorded)$/.test(result.reason)
-          ? ` (${result.reason})` : "";
-        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `The article destination could not be resolved safely${reason}. The original link remains private and unchanged.` }));
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: emailArticleResolutionFailureNotice(result) }));
         return;
       }
       const candidate = detail && "submission" in detail ? detail.candidateLinks[index] : null;
