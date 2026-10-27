@@ -13,13 +13,9 @@ from __future__ import annotations
 import io
 import json
 import time
-import urllib.request
 from typing import Any
 
 from papyrus_newsroom.tactus_runtime import execute_tactus_harnessed as _execute_tactus_harnessed
-
-PDF_FETCH_TIMEOUT_SECONDS = 60
-PDF_FETCH_USER_AGENT = "Papyrus procedure (+https://github.com/AnthusAI/Papyrus)"
 
 
 def execute_tactus(
@@ -64,14 +60,9 @@ def papyrus_fetch_pdf_text(url: str, first_page: int = 1, last_page: int = 0) ->
     """Download a PDF (for example a TTAB or court opinion) and return its text page by page,
     numbered as printed in the file, so findings can be pin-cited. last_page 0 means the end."""
 
-    from pypdf import PdfReader
+    from papyrus_content.pdf_text import download_pdf, extract_pages
 
-    request = urllib.request.Request(url, headers={"User-Agent": PDF_FETCH_USER_AGENT})
-    with urllib.request.urlopen(request, timeout=PDF_FETCH_TIMEOUT_SECONDS) as response:
-        reader = PdfReader(io.BytesIO(response.read()))
-    page_count = len(reader.pages)
-    end = page_count if last_page <= 0 else min(last_page, page_count)
-    pages = [{"page": number, "text": reader.pages[number - 1].extract_text() or ""} for number in range(max(first_page, 1), end + 1)]
+    page_count, pages = extract_pages(download_pdf(url), first_page, last_page)
     return {"url": url, "pageCount": page_count, "pages": pages}
 
 

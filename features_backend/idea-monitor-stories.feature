@@ -4,7 +4,7 @@ Feature: A site writes about the items its monitors find
   is never written about. This feature picks the few most worth a story and drafts one short story for each, for any monitor, with no
   code that knows a source. The relevance Cyclotron has already judged each delivered item, and its verdict (a label and a score)
   is the only ranking signal that every source has. A source's own numbers, such as likes or downloads, only break a tie between
-  items the Cyclotron scored the same. For each chosen item the command reads the linked page, asks the repository's default model
+  items the Cyclotron scored the same. For each chosen item the command reads the linked page (HTML, or a PDF such as a decision or a paper, directly or through a short page that links to it), asks the repository's default model
   (GPT-6 Luna) once for a story written as single sentences, and runs the same deterministic citation check as Cited Trends: every
   sentence must cite the source, and every number and date in it must appear in what the source says. A draft that fails is not
   filed. A draft that passes is filed as a story draft Proposal in the draft state, proposed by AI, with the source's address in its
@@ -155,6 +155,33 @@ Feature: A site writes about the items its monitors find
     And the linked page of "A tool that checks claims" cannot be read
     When the operator drafts monitor stories with the default limit
     Then 1 story is drafted from the stored details
+
+  Scenario: A source that is a PDF document is read as text and drafted with citations
+    Given the monitors of the site delivered these items:
+      | monitor | title                  | verdict      | days ago |
+      | hn      | A decision in PDF form | include 0.80 | 1        |
+    And the linked address of "A decision in PDF form" is a PDF document
+    When the operator drafts monitor stories with the default limit
+    Then 1 story is drafted
+    And the model was shown the text of the PDF as the source
+
+  Scenario: A short page that links to the PDF of the same document leads to that PDF
+    Given the monitors of the site delivered these items:
+      | monitor | title                 | verdict      | days ago |
+      | hn      | A decision on a page  | include 0.80 | 1        |
+    And the linked page of "A decision on a page" is a short page that links to its PDF
+    When the operator drafts monitor stories with the default limit
+    Then 1 story is drafted
+    And the model was shown the text of the PDF as the source
+
+  Scenario: A PDF that cannot be read is skipped like any unreadable source
+    Given the monitors of the site delivered these items:
+      | monitor | title             | verdict      | days ago |
+      | hn      | A broken document | include 0.80 | 1        |
+    And the linked address of "A broken document" is a PDF that cannot be read
+    When the operator drafts monitor stories with the default limit
+    Then the model was asked exactly 0 times
+    And "A broken document" is skipped because there is no source text
 
   Scenario: An item with nothing but a title is skipped without asking the model
     Given the monitors of the site delivered these items:
