@@ -156,7 +156,7 @@ async function main() {
   assert.ok(copyDates.every((date) => groupedHtml.includes(formatUtc(date))), "every copy shows its date");
   assert.ok(groupedText.includes("One decision applies to all 3 copies of this email."), "Accept/Reject covers the group");
   assert.equal((groupedHtml.match(/data-email-decision="accept"/g) ?? []).length, 1, "one Accept for the group");
-  const single_ = renderToStaticMarkup(createElement(EmailSubmissions, { items: [{ ...grouped, group: undefined }] }));
+  const single_ = renderToStaticMarkup(createElement(EmailSubmissions, { items: [{ ...grouped, group: undefined }], detail: null }));
   assert.ok(!single_.includes("Received") && !single_.includes("data-email-group"), "a single email shows no group");
 
   // A held message is read-only text until an editor accepts it; Accept and Reject are buttons with Lucide icons.
