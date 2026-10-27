@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const fixtureMode = process.argv[2] ?? "conversation";
 const mobile = fixtureMode.startsWith("mobile");
 const mode = fixtureMode.startsWith("mobile-") ? fixtureMode.slice(7) : fixtureMode;
+const fixtureColors = process.env.PAPYRUS_CHAT_TEST_THEME === "dark" ? "--paper-rgb:22 26 26;--ink:#eef0eb;--org-ink:#eef0eb;--org-paper:#161a1a" : "--paper-rgb:255 255 255;--ink:#111;--org-ink:#111;--org-paper:white";
 const bundle = await build({
   entryPoints: [fileURLToPath(new URL(mobile ? "./fixtures/mobile-chat-frame.tsx" : "./fixtures/private-chat-panel.tsx", import.meta.url))],
   plugins: [{ name: "synthetic-newsroom-session", setup(builder) {
@@ -19,13 +20,15 @@ const bundle = await build({
   outfile: "app.js",
   platform: "browser",
   jsx: "automatic",
-  define: { "process.env.NODE_ENV": '"development"' },
+  define: { "process.env.NODE_ENV": '"development"', "process.env": "{}" },
 });
 let selected = false;
 let expired = false;
 const requests = [];
 const messages = mode === "mobile" ? Array.from({ length: 35 }, (_, index) => ({ message_id: `fixture-${index}`, channel_id: "private-channel", seq: index + 1, author_kind: "bot", body: `Synthetic scroll test message ${index + 1}. This is local fixture content.`, created_at: "2026-10-24T00:00:00.000Z" })) : [];
 let sendCount = 0;
+let accountChecks = 0;
+let selectionCount = 0;
 const server = createServer(async (request, response) => {
   if (request.url === "/app.js") {
     response.setHeader("Content-Type", "text/javascript");
@@ -37,17 +40,19 @@ const server = createServer(async (request, response) => {
     response.end(Buffer.concat([bundle.outputFiles.find((file) => file.path.endsWith(".css")).contents, Buffer.from(mobile ? readFileSync(new URL("../app/globals.css", import.meta.url), "utf8").replace(/^@import[^;]+;/gm, "") + readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8") : "")]));
     return;
   }
-  if (request.url === "/" || request.url?.startsWith("/?")) {
+  if (request.url === "/" || request.url === "/public" || request.url?.startsWith("/?")) {
     response.setHeader("Set-Cookie", "papyrus-session=synthetic-session; HttpOnly; SameSite=Lax; Path=/");
-    response.end('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column;--paper-rgb:255 255 255;--ink:#111;--org-ink:#111;--org-paper:white}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
+    response.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column;${fixtureColors};--kb-theme-ui-font:Arial,sans-serif;--kb-theme-title-font:Georgia,serif;background:rgb(var(--paper-rgb))}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>`);
     return;
   }
   if (request.url === "/api/auth/prospectus/session") {
+    accountChecks += 1;
     response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ signedIn: true, publishingAccounts: [{ accountId: "account-1", name: "Test publication", role: "editor" }], selectedAccountId: null }));
+    response.end(JSON.stringify({ signedIn: true, publishingAccounts: mode === "no-account" && accountChecks === 1 ? [] : [{ accountId: "account-1", name: "Test publication", role: "editor" }], selectedAccountId: null }));
     return;
   }
   if (request.url === "/api/auth/prospectus/selection" && request.method === "POST") {
+    selectionCount += 1;
     let body = "";
     for await (const chunk of request) body += chunk;
     assert.deepEqual(JSON.parse(body), { accountId: "account-1" });
@@ -78,7 +83,7 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify(payload));
   };
   if (request.url === "/api/newsroom/chat/private-channel" && request.method === "POST") {
-    if (mode === "connection" || (mode === "selection" && !selected)) {
+    if (mode === "connection" || mode === "no-account" || (mode === "selection" && !selected)) {
       response.writeHead(409, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: mode === "connection" ? "chat_identity_connection_required" : "publishing_account_required" }));
       return;
@@ -133,9 +138,9 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 let browser;
 try {
   browser = await chromium.launch({ executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined, headless: true });
-  const page = await browser.newPage();
+  const page = await browser.newPage({ hasTouch: mobile });
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => { errors.push(error.message); console.error(error.message); });
   await page.goto(`http://127.0.0.1:${server.address().port}/${mode === "connection" ? "?sign_in_error=newsroom_identity_mismatch" : ""}`);
   if (mobile && mode !== "mobile") {
     await page.setViewportSize({ width: 375, height: 667 });
@@ -145,6 +150,23 @@ try {
     const { verifyMobileChat } = await import("./verify-mobile-chat.mjs");
     await verifyMobileChat(page, `http://127.0.0.1:${server.address().port}`);
     assert.deepEqual(errors, []);
+  } else if (mode === "no-account") {
+    await page.getByText("Chat access is unavailable", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0);
+    assert.equal(await page.getByRole("alert").filter({ hasText: "Chat access is unavailable" }).evaluate(el => {
+      const r = el.getBoundingClientRect();
+      return r.y < 120 && getComputedStyle(el).textAlign !== "center" && !el.textContent.includes("Ask the Account owner");
+    }), true);
+    if (process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-access.png` });
+    await page.getByRole("button", { name: "Check again", exact: true }).click();
+    await page.getByRole("button", { name: "Test publication", exact: true }).waitFor();
+    assert.equal(accountChecks, 2);
+    assert.equal(selectionCount, 0);
+    assert.equal(sendCount, 0);
+    await page.getByRole("button", { name: "Back to newsroom", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    assert.deepEqual(errors, []);
+    console.log("PASS: unavailable Account state is readable, retry refreshes access without granting or sending, and return navigation works");
   } else if (mode === "connection") {
     await page.getByText("The selected Google account did not match your newsroom session. Connect again with the same account.").waitFor();
     await page.getByRole("button", { name: "Connect publishing account" }).click();

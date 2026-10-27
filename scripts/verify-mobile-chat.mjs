@@ -9,13 +9,19 @@ export async function verifyMobileChat(page, origin) {
     const box = await locator.boundingBox();
     assert.ok(box && box.width > 0 && box.height > 0 && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= top && box.y + box.height <= top + height + 1, JSON.stringify(box));
   };
-  for (const [width, height] of [[320, 568], [375, 667], [390, 844], [430, 932], [844, 390]]) {
+  for (const [width, height] of [[315, 683], [320, 568], [375, 667], [390, 844], [430, 932], [844, 390]]) {
     console.log(`Checking mobile chat at ${width}x${height}`);
     await page.setViewportSize({ width, height });
     await fits(trigger, width, height);
     if (width === 375 && process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-entry-375.png` });
     assert.equal(await page.getByRole("button", { name: "Open console", exact: true }).isVisible(), false);
-    await trigger.click();
+    const target = await trigger.boundingBox();
+    assert.equal(await trigger.evaluate(el => {
+      const r = el.getBoundingClientRect(), nav = el.closest('nav')?.getBoundingClientRect();
+      return !!nav && r.top >= nav.top && r.bottom <= nav.bottom && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === el;
+    }), true, "Chat is an unobstructed navigation item, not a content overlay");
+    assert.equal(await page.locator('.organizer-bottom-nav > ul > li').count(), 5);
+    await page.touchscreen.tap(target.x + target.width / 2, target.y + target.height / 2);
     await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
     await composer.waitFor();
     await fits(close, width, height);
@@ -28,6 +34,18 @@ export async function verifyMobileChat(page, origin) {
     await trigger.waitFor();
     await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Open private chat");
   }
+  await trigger.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  const openHistoryLength = await page.evaluate(() => history.length);
+  await page.reload();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), openHistoryLength, "reload adopts the existing chat entry");
+  await page.goBack();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor({ state: "hidden" });
+  assert.equal(new URL(page.url()).pathname, "/");
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  assert.equal(await page.getByRole("navigation", { name: "All workspaces" }).getByRole("link", { name: "Messages", exact: true }).isVisible(), true);
+  await page.getByRole("button", { name: "More", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.organizer-main a[href="#references"]').click();
   await trigger.click();
@@ -79,6 +97,7 @@ export async function verifyMobileChat(page, origin) {
     return scrollable.scrollTop > before;
   }), true, "transcript remains scrollable in the keyboard viewport");
   await close.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor({ state: "hidden" });
   assert.equal(new URL(page.url()).hash, "#references");
   await page.goBack();
   await trigger.waitFor();
@@ -90,7 +109,20 @@ export async function verifyMobileChat(page, origin) {
   assert.equal(await page.locator('[aria-modal="true"]').count(), 0);
   assert.equal(await page.locator('.papyrus-console-page[inert]').count(), 0);
   await close.click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await trigger.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  const beforePublic = await page.evaluate(() => history.length);
+  await page.goto(`${origin}/public`);
+  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), beforePublic + 1, "public navigation adds only its own entry");
+  assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:console-open")), "true");
+  assert.equal(await trigger.count(), 0);
+  assert.equal(await page.locator('.papyrus-console').count(), 0);
+  const beforeUnavailable = await page.evaluate(() => history.length);
   await page.goto(`${origin}/?unauthorized=1`);
+  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), beforeUnavailable + 1, "unavailable chat adds no hidden history entry");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await trigger.count(), 0);
   assert.equal(await page.locator('.papyrus-console').count(), 0);

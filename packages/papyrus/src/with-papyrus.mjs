@@ -50,7 +50,7 @@ export function staticGenerationSettings() {
   };
 }
 
-export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron", "chatticus"];
+export const DEFAULT_TRANSPILE_PACKAGES = ["@anthusai/papyrus", "cyclotron", "chatticus", "lucide-react"];
 
 export function mergeTranspilePackages(existing = []) {
   return [...new Set([...existing, ...DEFAULT_TRANSPILE_PACKAGES])];

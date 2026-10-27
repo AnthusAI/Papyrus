@@ -175,21 +175,26 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
       <button className="papyrus-console__close" onClick={onClose} type="button" aria-label="Close console">×</button>
     </header>
     {channel ? <p className="papyrus-console__empty" role="status">Private conversation for your selected Account.</p> : null}
-    {!channel && !loading ? <div className="papyrus-console__empty" role="alert">
+    {!channel && !loading ? <div className="papyrus-console__access" role="alert">
       {error === "chat_identity_connection_required" ? <>
         <strong>Connect your publishing account</strong>
         {connectionNotice ? <span>{connectionNotice}</span> : null}
         <span>Continue with the same Google account you use in the newsroom, then choose the Account for this private conversation.</span>
         <button className="papyrus-console__new-session" disabled={connecting} onClick={() => void connect()} type="button">{connecting ? "Connecting…" : "Connect publishing account"}</button>
       </> : accountState?.status === "signedIn" ? <>
-        <strong>Choose your publishing Account</strong>
-        {accountState.publishingAccounts.length === 0 ? <span>This identity has no publishing Account for this site. Ask the Account owner to confirm your existing access.</span> : accountState.publishingAccounts.map(account => <button className="papyrus-console__new-session" disabled={connecting} key={account.accountId} onClick={() => void chooseAccount(account.accountId)} type="button">{account.name ?? account.accountId}</button>)}
+        <strong>{accountState.publishingAccounts.length === 0 ? "Chat access is unavailable" : "Choose your publishing Account"}</strong>
+        {accountState.publishingAccounts.length === 0 ? <>
+          <span>None of your Accounts is enabled for this publication. Publication setup must be resolved before you can chat.</span>
+          <span>You can return to the newsroom while this is resolved. Check again after access has been corrected.</span>
+          <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Check again</button>
+        </> : accountState.publishingAccounts.map(account => <button className="papyrus-console__new-session" disabled={connecting} key={account.accountId} onClick={() => void chooseAccount(account.accountId)} type="button">{account.name ?? account.accountId}</button>)}
         {error !== "publishing_account_required" ? <span>{error}</span> : null}
       </> : <>
         <strong>Private chat could not be opened.</strong>
-        <span>{error === "sign_in_required" ? "Your newsroom session has expired. Sign in from the account menu, then retry." : error}</span>
+        <span>{error === "sign_in_required" ? "Your newsroom session has expired. Return to the newsroom and sign in from the account menu, then retry." : error === "chat_account_access_denied" ? "Your access to this conversation has changed. Retry to check your current access." : error === "publishing_account_required" ? "Publishing Account access could not be checked. Retry when your connection is available." : error}</span>
         <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Retry</button>
       </>}
+      <button className="papyrus-console__new-session" onClick={onClose} type="button">Back to newsroom</button>
     </div> : <PapyrusConsoleConversation
       messages={conversationMessages}
       isSending={sending || loading || !channel}

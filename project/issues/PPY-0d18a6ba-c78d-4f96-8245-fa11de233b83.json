@@ -86,10 +86,58 @@
         "model": "GPT-6",
         "name": "Chat mobile continuation"
       }
+    },
+    {
+      "id": "346050f8-e403-4fc9-90d5-9323742ef06b",
+      "author": "home",
+      "text": "User rejected floating mobile Chat control. Screenshot inspected locally: panel opened and reports no publishing Account; no evidence of a failed tap. Correcting navigation integration and the misleading, low-contrast access state; provisioning remains separate and unchanged. Will test real navigation component, touch hit targets, Back/close, resize, recovery, and empty eligible-Account response. Narrow maintenance branch only.",
+      "created_at": "2026-10-27T06:32:56.250045Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "649aa685-0668-4309-a7d9-019a80933bb9",
+      "author": "home",
+      "text": "Correction PR https://github.com/AnthusAI/Papyrus/pull/748 at f4e26679. Replaces floating control with existing navigation slot, preserves Messages in More, adds mobile Back and accurate readable eligibility recovery. Typecheck, lint, production build and 21 shared-chat scenarios / 70 steps pass; responsive touch and dark render checks pass. Real iOS and real model reply remain unverified; product eligibility is a separate blocker. Maintenance 5.41.x only.",
+      "created_at": "2026-10-27T06:51:10.961075Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "90cdb233-d5ab-4056-a474-abfe477fe1aa",
+      "author": "home",
+      "text": "PR748 smoke blocked by fresh lucide-react registry resolution exposing ./src/*.ts. Existing range unchanged. Add existing icon dependency to default consumer transpilation and regression coverage as minimal package compatibility prerequisite; no new package, backend, or permissions.",
+      "created_at": "2026-10-27T06:59:40.287095Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
+    },
+    {
+      "id": "634bcc5d-5826-4272-8f93-b7885bd19964",
+      "author": "home",
+      "text": "Independent PR review found hidden public-route and duplicate reload history entries. Correction gates restoration/history on actual console availability and adopts an existing marker after reload. Added browser regressions for reload while open, public/unavailable route with persisted state, and normal Back. Release remains gated on final-head tests.",
+      "created_at": "2026-10-27T07:08:29.856015Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-27T05:28:00.764475Z",
+  "updated_at": "2026-10-27T07:08:29.856693Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

@@ -6,6 +6,7 @@ const defaults = withPapyrus({}).transpilePackages;
 assert.ok(defaults.includes("@anthusai/papyrus"), "the package itself is transpiled");
 assert.ok(defaults.includes("cyclotron"), "cyclotron ships TypeScript source and is transpiled by default");
 assert.ok(defaults.includes("chatticus"), "shared chat source exports are transpiled in publication consumers");
+assert.ok(defaults.includes("lucide-react"), "navigation icon source exports are transpiled in publication consumers");
 assert.deepEqual(defaults, DEFAULT_TRANSPILE_PACKAGES);
 
 const merged = withPapyrus({ transpilePackages: ["my-ui", "cyclotron"] }).transpilePackages;

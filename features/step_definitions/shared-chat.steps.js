@@ -2,6 +2,20 @@ const assert = require("node:assert/strict");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { Given, When, Then } = require("@cucumber/cucumber");
+Then("reloading open chat does not add another history entry", function () {
+  assert.ok(this.mobileChatResult.includes("PASS: mobile chat entry"));
+});
+Then("public or unavailable routes do not restore chat or add hidden history entries", function () {
+  assert.ok(this.mobileChatResult.includes("PASS: mobile chat entry"));
+});
+Given("mobile navigation uses the existing icon package", function () {});
+When("the publication transpilation configuration is checked", async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/test-with-papyrus-transpile.mjs"]);
+  this.transpilationResult = result.stdout;
+});
+Then("icon source exports are transpiled alongside the shared chat packages", function () {
+  assert.ok(this.transpilationResult.includes("with-papyrus transpile tests passed"));
+});
 Given("Papyrus supplies an editorial conversation to the shared chat", function () {});
 for (const [action, mode] of [
   ["the editor sends a new console message", "send"],
@@ -114,6 +128,14 @@ for (const action of ["the editor opens chat from the visible mobile control", "
     for (const mode of ["mobile-connection", "mobile-selection"]) await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
   });
 }
-for (const result of ["the conversation and close control fit the viewport", "keyboard focus stays within the mobile conversation", "closing chat returns focus and preserves the newsroom location", "the message composer and close control remain reachable", "the transcript scrolls without horizontal page overflow", "desktop layout keeps its existing toolbar behavior", "an unauthorized visitor has no chat entry point"]) {
+for (const result of ["the conversation and close control fit the viewport", "keyboard focus stays within the mobile conversation", "closing chat returns focus and preserves the newsroom location", "browser Back closes mobile chat before leaving the newsroom", "the message composer and close control remain reachable", "the transcript scrolls without horizontal page overflow", "desktop layout keeps its existing toolbar behavior", "an unauthorized visitor has no chat entry point"]) {
   Then(result, function () { assert.match(this.mobileChatResult, /PASS: mobile chat entry/); });
 }
+
+Given("a signed-in editor has no eligible publishing Account", function () {});
+When("the editor opens private chat from mobile navigation", { timeout: 120_000 }, async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "mobile-no-account"], { maxBuffer: 4 * 1024 * 1024 });
+  this.accountAccessResult = result.stdout;
+});
+Then("the panel explains the setup blocker below its header", function () { assert.match(this.accountAccessResult, /PASS: unavailable Account state/); });
+Then("checking again refreshes access without granting it or sending a message", function () { assert.match(this.accountAccessResult, /retry refreshes access without granting or sending/); });
