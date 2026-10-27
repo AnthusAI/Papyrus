@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import tempfile
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -67,6 +68,9 @@ def step_items(context):
             details["likes"] = int(row["likes"])
         if "summary" in row.headings and row["summary"].strip():
             details["summary"] = row["summary"].strip()
+        if "days to accept" in row.headings and row["days to accept"].strip():
+            created = datetime.fromisoformat(item["createdAt"].replace("Z", "+00:00"))
+            item["curationStatusUpdatedAt"] = (created + timedelta(days=float(row["days to accept"]))).isoformat().replace("+00:00", "Z")
         held.rows.append(item)
         held.numbers[row["title"]] = number
         held.incoming[item["lineageId"]] = [provenance(item, row["monitor"].strip(), details or None)]
@@ -163,6 +167,16 @@ def step_limit(context, limit):
     run_drafts(context, limit=limit)
 
 
+@when('the operator drafts monitor stories with a limit of {limit:d} and a window of "{window}"')
+def step_window(context, limit, window):
+    run_drafts(context, limit=limit, since=window)
+
+
+@when("the operator drafts monitor stories as a dry run with a limit of {limit:d}")
+def step_dry_limit(context, limit):
+    run_drafts(context, limit=limit, dry_run=True)
+
+
 @when("the operator drafts monitor stories and files them as Proposals with a limit of {limit:d}")
 def step_files(context, limit):
     run_drafts(context, limit=limit, proposals=True)
@@ -228,6 +242,11 @@ def step_two(context, first, second):
     assert sorted(titles_of(last(context))) == sorted([first, second]), titles_of(last(context))
 
 
+@then('the three stories drafted are "{first}", "{second}" and "{third}"')
+def step_three(context, first, second, third):
+    assert sorted(titles_of(last(context))) == sorted([first, second, third]), titles_of(last(context))
+
+
 @then('the stories drafted are "{title}"')
 def step_one_title(context, title):
     assert titles_of(last(context)) == [title], titles_of(last(context))
@@ -237,6 +256,22 @@ def step_one_title(context, title):
 def step_counts(context):
     inputs = last(context)["inputs"]
     assert (inputs["judgedNotRelevant"], inputs["notMonitored"]) == (1, 1), inputs
+
+
+@then("the run record has no window")
+def step_no_window(context):
+    assert last(context)["window"]["since"] is None, last(context)["window"]
+
+
+@then("the run record learned a freshness of {tau:f} days from {examples:d} examples")
+def step_learned(context, tau, examples):
+    fresh = last(context)["freshness"]
+    assert abs(fresh["tauDays"] - tau) < 0.001 and fresh["examples"] == examples, fresh
+
+
+@then("the run record has no freshness weight")
+def step_no_freshness(context):
+    assert last(context)["freshness"]["tauDays"] is None, last(context)["freshness"]
 
 
 @then("the model was asked exactly {count:d} times")

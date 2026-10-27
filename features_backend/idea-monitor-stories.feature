@@ -8,7 +8,7 @@ Feature: A site writes about the items its monitors find
   (GPT-6 Luna) once for a story written as single sentences, and runs the same deterministic citation check as Cited Trends: every
   sentence must cite the source, and every number and date in it must appear in what the source says. A draft that fails is not
   filed. A draft that passes is filed as a story draft Proposal in the draft state, proposed by AI, with the source's address in its
-  body and the monitor named as its provenance. A Reference is never drafted twice. Nothing is approved, moved or published by the run;
+  body and the monitor named as its provenance. A Reference is never drafted twice. Every undrafted item is considered, however old: there is no default window, and an older item is only ranked lower, by a freshness weight learned from how quickly the site's editors accepted items. Nothing is approved, moved or published by the run;
   one soft review request covers the batch. Turning a draft into a story is a later step.
 
   Background:
@@ -49,13 +49,64 @@ Feature: A site writes about the items its monitors find
       | hn      | Pending and recent     | include 0.80  | 1        | pending  |
       | hn      | Accepted and recent    | include 0.70  | 2        | accepted |
       | hn      | Rejected by an editor  | include 0.99  | 1        | rejected |
-      | hn      | Too old for the window | include 0.99  | 30       | pending  |
+      | hn      | Old but still wanted   | include 0.99  | 30       | pending  |
       | hn      | Judged not relevant    | exclude 0.05  | 1        | pending  |
     And a Reference that no monitor delivered arrived 1 day ago
     And every linked page can be read
     When the operator drafts monitor stories with the default limit
-    Then the stories drafted are "Pending and recent" and "Accepted and recent"
+    Then the three stories drafted are "Old but still wanted", "Pending and recent" and "Accepted and recent"
     And the run record counts 1 item judged not relevant and 1 that no monitor delivered
+
+  Scenario: There is no default window, so an old, highly relevant item is still considered
+    Given the monitors of the site delivered these items:
+      | monitor | title                | verdict      | days ago |
+      | hn      | A year old and great | include 0.99 | 400      |
+      | hn      | New and fine         | include 0.60 | 1        |
+    And every linked page can be read
+    When the operator drafts monitor stories with a limit of 1
+    Then the stories drafted are "A year old and great"
+    And the run record has no window
+
+  Scenario: A window is only an optional filter
+    Given the monitors of the site delivered these items:
+      | monitor | title                | verdict      | days ago |
+      | hn      | A year old and great | include 0.99 | 400      |
+      | hn      | New and fine         | include 0.60 | 1        |
+    And every linked page can be read
+    When the operator drafts monitor stories with a limit of 1 and a window of "7d"
+    Then the stories drafted are "New and fine"
+
+  Scenario: Freshness is learned from how long the editors took to accept items
+    Given the monitors of the site delivered these items:
+      | monitor | title                | verdict      | days ago | status   | days to accept |
+      | hn      | Accepted 1           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 2           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 3           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 4           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 5           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 6           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 7           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 8           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 9           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 10          | include 0.10 | 20       | accepted | 2              |
+      | hn      | Old and relevant     | include 0.90 | 40       | pending  |                |
+      | hn      | Fresh and decent     | include 0.60 | 1        | pending  |                |
+    And every linked page can be read
+    When the operator drafts monitor stories as a dry run with a limit of 1
+    Then the stories drafted are "Fresh and decent"
+    And the run record learned a freshness of 2.885 days from 10 examples
+
+  Scenario: With too few accepted examples nothing is guessed and the score alone ranks
+    Given the monitors of the site delivered these items:
+      | monitor | title                | verdict      | days ago | status   | days to accept |
+      | hn      | Accepted 1           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Accepted 2           | include 0.10 | 20       | accepted | 2              |
+      | hn      | Old and relevant     | include 0.90 | 40       | pending  |                |
+      | hn      | Fresh and decent     | include 0.60 | 1        | pending  |                |
+    And every linked page can be read
+    When the operator drafts monitor stories with a limit of 1
+    Then the stories drafted are "Old and relevant"
+    And the run record has no freshness weight
 
   Scenario: The Cyclotron's score ranks the items and only the best few are drafted
     Given the monitors of the site delivered these items:
