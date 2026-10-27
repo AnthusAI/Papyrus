@@ -420,6 +420,14 @@ def test_corpus_sync_exports_the_monitor_records_dated_for_the_week_and_keeps_th
     assert json.loads(run.state.read_text("runs/2026-W44/monitor-records.json"))["sources"] == ["huggingface"]
 
 
+def test_a_site_that_sets_no_monitor_weeks_exports_all_history(tmp_path):
+    run, shell = make_run(tmp_path, {"KNOWLEDGE_MONITOR_SOURCES": "huggingface"})
+    assert run.config.monitor_weeks is None
+    assert run_stage("corpus-sync", run) == 0
+    [export] = commands(shell, ["papyrus", "knowledge", "corpus", "export"])
+    assert "--monitor-sources" in export and "--monitor-weeks" not in export
+
+
 def test_every_later_stage_counts_the_records_from_the_runs_file_even_in_a_fresh_container(tmp_path):
     first, _ = make_run(tmp_path / "first", MONITORED)
     assert run_stage("corpus-sync", first) == 0
@@ -505,6 +513,7 @@ def test_the_week_gets_one_soft_review_request_listing_the_records_most_worth_a_
     assert request["id"] == "rr-monitor-records-shipped-2026-w44" and request["mode"] == "soft_review"
     assert "2 monitor records worth a look this week" in request["reason"] and "papyrus references promote" in request["ask"]
     assert "org/big (reference-big)" in json.dumps(request["links"])
+    assert request.get("deadline") is None  # no expiry: it stays open until someone handles it
     assert suggest_promotions(run, backend)["status"] == "requested" and len(backend.created) == 1  # a second run in the week raises no second request
 
 

@@ -16,7 +16,7 @@ Checked read-only against account 712236451410 (`AWS_PROFILE=papyrus-production`
 | `p-apyr-us` | `papyrus-scheduled-job-knowledge-run-p-apyr-us` | `cron(0 10 * * ? *)` | `knowledge-corpus-ai-ml-research`: 6,052 (23 routed) | `/papyrus/p-apyr-us/openai-api-key` | infra/site.json 5.41.5 (fallback) | Ready (`corpusKey` `ai-ml-research`) |
 | `dataparade` | `papyrus-scheduled-job-knowledge-run-dataparade` | `cron(0 11 * * ? *)` | `knowledge-corpus-data-parade`: 181 (none routed) | `/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY` | requirements-publication.txt 5.42.1 | Ready (`corpusKey` `data-parade`); no routed records yet |
 
-Every block has `monitorSources: ["routed"]`, `monitorWeeks: 52`, `monitorStories: {"limit": 3}` and `alarmEmailParameter: /papyrus/shipped/knowledge-run/alarm-email` (one mailbox for every alarm; each new SNS subscription still has to be confirmed once from it). Each stack is 41 resources (42 in a `cdk synth` template, which adds `CDKMetadata`), the same as Shipped's. `conceptKinds` and `beatsConfig` are left to the default vocabulary the first run seeds; add them when a site writes its own `vocabulary.yml`.
+Every block has `monitorSources: ["routed"]`, no `monitorWeeks` (all history counts), `monitorStories: {"limit": 3}` and `alarmEmailParameter: /papyrus/shipped/knowledge-run/alarm-email` (one mailbox for every alarm; each new SNS subscription still has to be confirmed once from it). Each stack is 41 resources (42 in a `cdk synth` template, which adds `CDKMetadata`), the same as Shipped's. `conceptKinds` and `beatsConfig` are left to the default vocabulary the first run seeds; add them when a site writes its own `vocabulary.yml`.
 
 ## Pins
 

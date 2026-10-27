@@ -23,6 +23,15 @@ Feature: Human review points let any step ask a person without making review a s
     And the request is timed out with the note "proceeded without review"
     And the request can no longer be answered
 
+  Scenario: A soft review with no deadline stays open until it is handled
+    Given a site with no review requests
+    When the procedure "ideas" raises a soft review on story "story-1" with no deadline
+    And ten years go by with nobody answering
+    Then the request has no deadline
+    And the request was not timed out
+    When the editor answers with approve
+    Then the outcome is "approved"
+
   Scenario: A soft review answered in time returns the answer instead
     Given a site with no review requests
     When the procedure "ideas" raises a soft review on story "story-1" with a deadline in 7 days
@@ -62,7 +71,7 @@ Feature: Human review points let any step ask a person without making review a s
     Given a site with no review requests
     When the idea pipeline raises a batch review for run "2026-W43" with 3 proposals
     Then there is one open soft review "3 new story ideas to review"
-    And its deadline is 7 days away
+    And it has no deadline
     When the idea pipeline raises the batch review for run "2026-W43" again
     Then there is still one review request
 

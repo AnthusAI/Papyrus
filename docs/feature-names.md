@@ -67,7 +67,7 @@ Rules for the names: no newspaper or newsprint metaphors; "section", never "desk
 
 ## Review Requests and the Notification Center
 
-**Definition.** A step asks a person to look without making review a story state. Three modes: a **flag** (nothing waits), a **soft review** (the process waits for a deadline and then proceeds, recording "proceeded without review") and a **hard gate** (never proceeds without an answer). The console home page, the Notification Center, lists them. If an editor only looks, the system keeps doing what it was doing; if they steer, the next run takes the steering into account.
+**Definition.** A step asks a person to look without making review a story state. Three modes: a **flag** (nothing waits), a **soft review** (open until handled by default; if a caller passes an explicit deadline the process waits for it and then proceeds, recording "proceeded without review") and a **hard gate** (never proceeds without an answer). The console home page, the Notification Center, lists them. If an editor only looks, the system keeps doing what it was doing; if they steer, the next run takes the steering into account.
 
 **Not.** Not an approval workflow with a state for every handoff, and not an inbox that has to reach zero.
 

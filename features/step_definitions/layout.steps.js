@@ -636,9 +636,9 @@ Then("the references desk should show reference metadata and semantic neighbors"
 
 Then("the reference detail should render the curation cluster", async function () {
   const page = requirePage(this);
-  await page.locator("[data-news-desk-reference-curation-cluster]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-news-desk-reference-accept]").waitFor({ state: "visible", timeout: 10_000 });
-  await page.locator("[data-news-desk-reference-reject]").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-review-row='you']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-review-row='you'] [data-review-choice='accept']").waitFor({ state: "visible", timeout: 10_000 });
+  await page.locator("[data-review-row='you'] [data-review-choice='reject']").waitFor({ state: "visible", timeout: 10_000 });
 });
 
 Then("the reference detail curation controls should share one height", async function () {
@@ -754,7 +754,7 @@ Then("the reference detail toolbar should show previous and next actions", async
   const page = requirePage(this);
   const report = await page.evaluate(() => {
     const shell = document.querySelector("[data-newsroom-list-detail-shell][data-news-desk-section='references']");
-    const buttons = Array.from(shell?.querySelectorAll(".newsroom-list-detail-shell__detail-toolbar-trailing button") ?? []).map((button) => {
+    const buttons = Array.from(shell?.querySelectorAll("[data-review-queue-bar] button") ?? []).map((button) => {
       const rect = button.getBoundingClientRect();
       return {
         ariaLabel: button.getAttribute("aria-label"),
@@ -775,7 +775,7 @@ Then("the reference detail toolbar should show previous and next actions", async
 
 Then("the reference detail toolbar previous action should be disabled", async function () {
   const disabled = await requirePage(this)
-    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Previous']")
+    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Previous']")
     .first()
     .isDisabled();
   assert.equal(disabled, true, "Expected Previous action to be disabled");
@@ -783,7 +783,7 @@ Then("the reference detail toolbar previous action should be disabled", async fu
 
 Then("the reference detail toolbar previous action should be enabled", async function () {
   const disabled = await requirePage(this)
-    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Previous']")
+    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Previous']")
     .first()
     .isDisabled();
   assert.equal(disabled, false, "Expected Previous action to be enabled");
@@ -791,7 +791,7 @@ Then("the reference detail toolbar previous action should be enabled", async fun
 
 Then("the reference detail toolbar next action should be enabled", async function () {
   const disabled = await requirePage(this)
-    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Next']")
+    .locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Next']")
     .first()
     .isDisabled();
   assert.equal(disabled, false, "Expected Next action to be enabled");
@@ -801,7 +801,7 @@ When("I open the next reference from the detail toolbar", async function () {
   const page = requirePage(this);
   const currentId = await page.locator("[data-news-desk-reference-detail]").first().getAttribute("data-news-desk-reference-detail");
   this.previousReferenceDetailId = currentId;
-  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Next']").first().click();
+  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Next']").first().click();
   await page.waitForFunction((id) => {
     const detail = document.querySelector("[data-news-desk-reference-detail]");
     return detail?.getAttribute("data-news-desk-reference-detail") !== id;
@@ -817,7 +817,7 @@ Then("the selected reference detail should change", async function () {
 
 When("I open the previous reference from the detail toolbar", async function () {
   const page = requirePage(this);
-  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] .newsroom-list-detail-shell__detail-toolbar-trailing button[aria-label='Previous']").first().click();
+  await page.locator("[data-newsroom-list-detail-shell][data-news-desk-section='references'] [data-review-queue-bar] button[aria-label='Previous']").first().click();
 });
 
 Then("the selected reference detail should return to the original selection", async function () {

@@ -10,7 +10,7 @@ state. This is PPY-ab6a50; the console page that lists the requests is the [Noti
 | Mode | Waits? | At the deadline |
 |---|---|---|
 | `flag` | Nothing waits. | None. Stays open until acknowledged or withdrawn. |
-| `soft_review` | The process waits until the deadline (default 7 days). | If nobody answered, the request becomes `timed_out` and records "proceeded without review"; the process continues. |
+| `soft_review` | No expiry by default: the request stays open until someone handles it. A caller may pass an explicit deadline (`deadline` or `deadline_days`); then the process waits until it. | Without a deadline, never: it is not timed out and stays in the Notification Center. With an explicit deadline, if nobody answered the request becomes `timed_out` and records "proceeded without review"; the process continues. |
 | `hard_gate` | Never proceeds without an explicit answer. No deadline. | Never. |
 
 An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the editor saw it; it counts like the old flag `approve` everywhere downstream, including the `approved` outcome), `reject` or `feedback`, with optional feedback text and an optional steer (`adjust` or `not_this_kind`).
@@ -23,7 +23,7 @@ An answer is `approve`, `acknowledge` (a flag only: nothing was approved, the ed
 | `subject` | `{type, id}`: `story`, `proposal`, `reference`, `automation_run`, `cyclotron_decision` or `batch`. |
 | `mode`, `reason`, `ask` | The mode, why (the headline), and what is asked. |
 | `raisedBy`, `raisedAt` | The automation, procedure or AI step, and when. |
-| `deadline` | Soft reviews only. |
+| `deadline` | Soft reviews only, and only when the caller passes one. Empty means no expiry. |
 | `state` | `open`, `answered`, `timed_out`, `withdrawn`. |
 | `answer` | `{decision, feedback, steer, by, at}`. |
 | `links` | Items in the request (for a batch, each proposal) or URLs. |
@@ -38,7 +38,7 @@ The audit trail lives on the request. A line on the *item's* own trail (the stor
 
 ## The deadline mechanism: checked on read
 
-v0 has no scheduled function. `expire_due` marks every open soft review whose deadline has passed as `timed_out`. It runs whenever the
+v0 has no scheduled function. `expire_due` marks every open soft review that has a deadline and whose deadline has passed as `timed_out`. It runs whenever the
 requests are read: the Python `list_reviews`, `get_review`, `answer_review` and `wait_for_review`, and the console when the page loads. The
 raising process learns the outcome by waiting or reading; nothing else has to happen at the deadline. Writes carry the condition
 `state = open` in the console, so an answer racing the deadline cannot both win. (The Python client reads then writes; the window is small and
@@ -82,7 +82,7 @@ Synthesis raises ONE soft review per run:
 ```python
 rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id=run_id, proposal_ids=[p["id"] for p in proposals])
 # reason: "3 new story ideas to review"; subject {type: batch, id: run_id}; each proposal is a link;
-# deadline 7 days (deadline_days=...); idempotent per batch_id.
+# no deadline unless deadline_days=... is passed; idempotent per batch_id.
 ```
 
 At the start of the next synthesis (and digest) run, call `steering_for(client, raised_by="idea-pipeline")` and feed the feedback in as input,

@@ -59,6 +59,16 @@ def test_a_spike_is_found_over_a_short_window():
     assert window["correctedPValue"] < 1e-6 and window["surprise"] > 4
 
 
+def test_an_entity_is_scanned_over_its_full_history_when_the_snapshot_has_it():
+    full = [0] * 70 + [1] * 30 + [3] * 20  # 120 weeks; a window of 26 weeks cannot see the whole build
+    row = {"key": "concept--slow", "series26": full[-26:], "series8": full[-8:], "seriesWeekly": full}
+    assert trends.history_of(row) == full
+    assert trends.history_of({**row, "seriesWeekly": None}) == full[-26:]
+    assert trends.history_of({"series8": [1, 2]}) == [1, 2]
+    assert window_lengths(len(full), 4) == [1, 2, 4, 8, 16, 32, 64]
+    assert window_lengths(26, 4) == [1, 2, 4, 8, 16]
+
+
 def test_a_slow_build_is_found_over_a_long_window():
     window = scan_window([0] * 10 + [1] * 3 + [2] * 4 + [3] * 5 + [4] * 4, FLAT)
     assert window["windowWeeks"] == 16 and window["count"] == 3 + 8 + 15 + 16

@@ -30,6 +30,17 @@ Feature: Monitor records count in the Knowledge Map as data
     Then the corpus holds the item documents "alpha" and "beta" and no record document
     And the monitor records file holds 3 records
 
+  Scenario: Without a weeks limit every record counts, however old and however many
+    Given the Hugging Face monitor delivered "org/oldest" released on 2023-03-01
+    And the Hugging Face monitor delivered 5100 more models released on 2025-05-05
+    When the corpus is exported for "shipped" with the monitor source "huggingface" as of 2026-10-19
+    Then the monitor records file holds 5104 records
+
+  Scenario: A site can still limit how far back records count
+    Given the Hugging Face monitor delivered "org/oldest" released on 2023-03-01
+    When the corpus is exported limited to 52 weeks for "shipped" with the monitor source "huggingface" as of 2026-10-19
+    Then the monitor records file holds 3 records
+
   Scenario: A site can still ask for a document per delivered model in the topic model
     When the corpus is exported with the records in the topic model for "shipped" from the monitor source "huggingface" as of 2026-10-19
     Then the corpus holds the record documents "org/base", "org/lone" and "org/tuned"

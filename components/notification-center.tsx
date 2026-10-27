@@ -153,7 +153,7 @@ export function NotificationCenterView({ loadState, requests, readIds, held, aut
         <h1 className="text-lg font-semibold">Notification Center</h1>
         <p className="text-sm" data-notification-summary>{summaryText(summary)}</p>
         <p className="text-xs text-muted-foreground">
-          Look, or steer. Anything you ignore keeps going: soft reviews proceed at their deadline and flags never wait. Only a hard gate waits for you.
+          Look, or steer. Anything you ignore keeps going: a soft review with a deadline proceeds at it, one without stays open until handled, and flags never wait. Only a hard gate waits for you.
         </p>
         <p className="text-xs text-muted-foreground" data-notification-unread>
           {unreadCount ? `${unreadCount} unread` : "Nothing unread"}
