@@ -3,14 +3,22 @@
   "repository": "https://github.com/AnthusAI/p.apyr.us",
   "brand": "p-apyr-us",
   "frontend": "pretext",
-  "aws": { "accountId": "712236451410", "region": "us-east-1" },
+  "aws": {
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
   "hostedZoneId": "Z10285921B1G7MVRV06W9",
-  "papyrusVersion": "1.0.0-next.1",
+  "papyrusVersion": "5.41.5",
   "cms": {
     "domainName": "apyr.us",
     "domainPrefix": "p",
     "stagingDomainPrefix": "p-staging",
-    "redirects": [{ "source": "apyr.us", "status": 301 }],
+    "redirects": [
+      {
+        "source": "apyr.us",
+        "status": 301
+      }
+    ],
     "cognitoDomainPrefix": "papyrus-p-apyr-us",
     "applyCognitoDomainPrefix": true,
     "environment": {
@@ -26,6 +34,27 @@
     "owner": "AnthusAI",
     "repo": "p.apyr.us",
     "ciCanDeployInfra": false
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 10 * * ? *)",
+    "corpusKey": "ai-ml-research",
+    "siteBucket": "amplify-ds6yswxui41yi-main-bran-sitebucket397a1860-y3dzuduvsux5",
+    "edgeDistributionId": "E2EM0JLBC2W9WW",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/27bad446-124c-42fd-86cd-11bf831baf97",
+    "appSyncApiId": "36xh4ckhhvfyrlxxbltoy246ea",
+    "amplifyAppId": "ds6yswxui41yi",
+    "contentActionsFunction": "amplify-ds6yswxui41yi-mai-papyruscontentactionsE8B-l8LUa08YMLSs",
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorWeeks": 52,
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/papyrus/p-apyr-us/openai-api-key"
   },
   "email": {
     "mode": "existing",

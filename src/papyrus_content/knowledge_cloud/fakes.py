@@ -73,6 +73,8 @@ class FakeShell:
         self.current = "cur" + "0" * 61
         self.trends = "trd" + "0" * 61
         self.items = 1  # published items the fake corpus export writes (0: a new site)
+        self.pin_file = True  # the site repo has a requirements-publication.txt
+        self.site_json: str | None = None  # the text of the site repo's infra/site.json, when it has one
         self.records = 0  # monitor records the fake export writes when the site has monitor sources
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
@@ -86,7 +88,11 @@ class FakeShell:
             site = Path(args[-1])
             (site / "web").mkdir(parents=True, exist_ok=True)
             (site / "web" / "scoring.json").write_text("{}")
-            (site / "requirements-publication.txt").write_text("papyrus-newsroom[markus]==5.28.0\n")
+            if self.pin_file:
+                (site / "requirements-publication.txt").write_text("papyrus-newsroom[markus]==5.28.0\n")
+            if self.site_json is not None:
+                (site / "infra").mkdir(parents=True, exist_ok=True)
+                (site / "infra" / "site.json").write_text(self.site_json)
         elif args[:2] == ["pip", "install"]:
             Path(args[args.index("--target") + 1]).mkdir(parents=True, exist_ok=True)
         elif args[:2] == ["python", "-c"]:

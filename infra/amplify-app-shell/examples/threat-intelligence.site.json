@@ -8,7 +8,7 @@
     "region": "us-east-1"
   },
   "hostedZoneId": "Z02552332GG6AM25SFP73",
-  "papyrusVersion": "1.0.0-next.1",
+  "papyrusVersion": "5.42.1",
   "cms": {
     "domainName": "anth.us",
     "domainPrefix": "threat-intelligence",
@@ -24,6 +24,26 @@
     "owner": "AnthusAI",
     "repo": "Threat-Intelligence",
     "ciCanDeployInfra": false
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 7 * * ? *)",
+    "siteBucket": "amplify-d12wnrx15qbcc2-main-bra-sitebucket397a1860-xjgv47daarzs",
+    "edgeDistributionId": "E20NJAIXZ1WKWD",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/cbee416b-6a8e-474e-8e8e-09540f156375",
+    "appSyncApiId": "gillpcb565fqrdrvqrijhqaily",
+    "amplifyAppId": "d12wnrx15qbcc2",
+    "contentActionsFunction": "amplify-d12wnrx15qbcc2-ma-papyruscontentactionsE8B-0UOYOpOwOChS",
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorWeeks": 52,
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY"
   },
   "email": {
     "mode": "existing",
