@@ -3,6 +3,8 @@ import os
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from .staff_groups import claim_groups, has_editor_rights
+
 class IntakeError(ValueError):
     pass
 
@@ -34,13 +36,10 @@ def _actor(identity: dict[str, Any]) -> str:
         raise IntakeError("Validated publication claims are required.")
     issuer = os.environ.get("PAPYRUS_USER_POOL_ISSUER", "")
     subject = identity.get("sub")
-    groups = claims.get("cognito:groups") or []
-    if isinstance(groups, str):
-        # AppSync can expose this claim as a comma-separated string.
-        groups = groups.split(",")
+    groups = claim_groups(claims.get("cognito:groups"))  # AppSync can expose this claim as a string
     if (not issuer or identity.get("issuer") != issuer or claims.get("iss") != issuer
             or not isinstance(subject, str) or not subject or claims.get("sub") != subject
-            or not isinstance(groups, list) or not {"editor", "admin"}.intersection(groups)):
+            or not has_editor_rights(groups)):
         raise IntakeError(
             "A validated editor of this publication is required. Operators without an editor session can run "
             "`papyrus references create-from-catalog --status pending` with IAM credentials "

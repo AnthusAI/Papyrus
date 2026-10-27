@@ -49,9 +49,15 @@ def test_submission_receipt_preserves_ses_authority_and_separates_legacy_command
     assert table["Condition"]["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == [{"Sub": "MONITOR#${MonitorId}"}]
     manifest = next(s for s in policy if "s3:PutObject" in s["Action"])
     assert manifest["Resource"] == {"Sub": "${RawMailBucket.Arn}/email-submissions/manifests/*"}
-    pending = next(s for s in policy if "dynamodb:Query" in s["Action"])
-    assert pending["Resource"] == {"Sub": "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}/index/routing"}
-    assert pending["Condition"]["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == [{"Sub": "EMAIL_PENDING#${MonitorId}"}]
+    table_arn = "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}"
+    queries = {s["Resource"]["Sub"]: s for s in policy if "dynamodb:Query" in s["Action"]}
+    assert set(queries) == {table_arn + "/index/routing", table_arn}
+    index = queries[table_arn + "/index/routing"]
+    assert index["Condition"]["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == [
+        {"Sub": "EMAIL_PENDING#${MonitorId}"}, {"Sub": "EMAIL_ACTION#${MonitorId}"}]
+    # Quarantine reads stay inside the one receiver partition.
+    partition = queries[table_arn]
+    assert partition["Condition"]["ForAllValues:StringEquals"]["dynamodb:LeadingKeys"] == [{"Sub": "MONITOR#${MonitorId}"}]
     assert not any(any(a.startswith(("ses:", "appsync:", "sts:", "lambda:")) for a in s["Action"]) for s in policy)
     assert resources["SesInvokePermission"]["Properties"]["SourceAccount"] == {"Ref": "AWS::AccountId"}
     assert "FailureAlarm" in resources

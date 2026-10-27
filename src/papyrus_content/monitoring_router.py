@@ -31,6 +31,7 @@ Imports stay light: stdlib, boto3/botocore (Lambda runtime) and the existing mod
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import string
@@ -107,7 +108,11 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 # HTTP 409 and a FastAPI body {"detail": "publication criteria are pending"}: no typed code.
 NOT_READY_DETAIL = "publication criteria are pending"
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
+LOG = logging.getLogger(__name__)
 PARK_PREFIX = "PARK#"
+#: A story the lab refused for a non-permanent reason waits REFUSAL_BACKOFF_FIRST * 2**n seconds (n = refusals so far),
+#: capped at REFUSAL_BACKOFF_MAX. This is a backoff between asks, not a limit: the router never gives up on the story.
+REFUSAL_BACKOFF_FIRST, REFUSAL_BACKOFF_MAX = 900, 24 * 3600
 PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
@@ -168,6 +173,11 @@ class ItemUncertain(Exception):
 
 class ItemInvalid(Exception):
     pass
+
+
+class ItemRetryLater(ItemInvalid):
+    """The lab refused this story's request for a reason that is not explicitly permanent (an unknown 409, another
+    4xx the contract does not name). Nothing ran at the lab, so the story backs off and is asked again on a later run."""
 
 
 class ItemExcluded(Exception):
@@ -502,6 +512,19 @@ def sigv4_signer(config: dict, credentials: Callable[[], dict]) -> Callable[[str
     return sign
 
 
+def body_excerpt(status: int, payload) -> str:
+    """A short, secret-free description of a lab refusal: only its code and detail fields, never the whole body."""
+    payload = payload if isinstance(payload, dict) else {}
+    error = payload.get("error")
+    parts = []
+    for label, value in (("code", payload.get("code") or (error.get("code") if isinstance(error, dict) else error)),
+                         ("detail", payload.get("detail"))):
+        if value not in (None, "", [], {}):
+            text = value if isinstance(value, str) else json.dumps(value, separators=(",", ":"), default=str)
+            parts.append(f"{label}={' '.join(text.split())}")
+    return f"http {status}: {'; '.join(parts) or 'no detail'}"[:300]
+
+
 def refusal_code(status: int, payload: dict) -> str:
     error = payload.get("error")
     code = payload.get("code") or (error.get("code") if isinstance(error, dict) else error)
@@ -513,6 +536,7 @@ class CyclotronClient:
                  sleep=time.sleep, clock=time.monotonic):
         self.config, self.sign, self.http, self.sleep, self.clock = config, sign, http, sleep, clock
         self.base = config["cyclotron"]["endpoint"]
+        self.refusals: list[dict] = []   # every non-2xx the lab answered, for the run receipt's errors list
 
     def _call(self, method: str, path: str, body: dict | None):
         data = json.dumps(body, separators=(",", ":")).encode() if body is not None else b""
@@ -521,16 +545,26 @@ class CyclotronClient:
 
     def classify(self, status: int, payload: dict) -> Exception:
         code = refusal_code(status, payload)
+        if not 200 <= status < 300:
+            excerpt = body_excerpt(status, payload)
+            LOG.warning("cyclotron refused: %s", excerpt)
+            self.refusals.append({"sourceId": None, "message": f"cyclotron {excerpt}"})
         if code == "source_refused":
             return ItemRefused(code)
         if status == 409 and payload.get("detail") == BINDING_CHANGED_DETAIL:
             return StopSweep("binding_changed", "http 409")
         if status == 409 and (code == NOT_READY_CODE or payload.get("detail") == NOT_READY_DETAIL):
             return BindingNotReady(NOT_READY_CODE)
-        if code in STOP_CODES or status in (401, 403, 404, 429, 503, 507, 409):
+        if status == 409 and code not in STOP_CODES:
+            # not a known conflict: it concerns this request only, so it must not stop the whole run, and it may
+            # clear by itself, so the story is asked again later
+            return ItemRetryLater(body_excerpt(status, payload))
+        if code in STOP_CODES or status in (401, 403, 404, 429, 503, 507):
             return StopSweep(code, f"http {status}")
         if status in (400, 413, 422):
-            return ItemInvalid(code)
+            return ItemInvalid(code)   # invalid per the contract: permanent
+        if 400 <= status < 500:
+            return ItemRetryLater(body_excerpt(status, payload))   # a definite refusal the contract does not call permanent
         return ItemUncertain(code)
 
     def post(self, publication_id: str, body: dict) -> tuple[str | None, dict | None]:
@@ -925,7 +959,7 @@ class Router:
         self.post_allowed = True   # the collector sets this False: it never sends a new POST
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
-                       "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
+                       "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
         self._parks: dict = {}
@@ -964,7 +998,8 @@ class Router:
             return part(PARTITION_COLLECTED)
         decided = [d for d in part(PARTITION_DECIDED)
                    if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now]
-        fresh = sorted(part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN), key=lambda d: d["gsi1sk"])
+        fresh = sorted((d for d in part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN)
+                        if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now), key=lambda d: d["gsi1sk"])
         return decided + fresh
 
     def selected_references(self, source_ids=None) -> dict:
@@ -1651,10 +1686,22 @@ class Router:
             self.finish(disc, route, "refused", str(error))
         except ItemUncertain as error:
             self.finish(disc, route, "uncertain", str(error))
+        except ItemRetryLater as error:
+            self.back_off(route, str(error))
         except ItemInvalid as error:
             self.finish(disc, route, "error", str(error))
         finally:
             self.active_publications = original_active_publications
+
+    def back_off(self, route: dict, reason: str):
+        """The lab refused the story for a non-permanent reason: keep it where it is, record the refusal, and ask
+        again after an exponential backoff (REFUSAL_BACKOFF_FIRST * 2**n, capped at REFUSAL_BACKOFF_MAX). Never final."""
+        refusals = int(route.get("refusals", 0))
+        route["refusals"] = refusals + 1
+        route["nextAttemptAt"] = int(self.now + min(REFUSAL_BACKOFF_FIRST * 2 ** min(refusals, 32), REFUSAL_BACKOFF_MAX))
+        route["lastRefusal"] = {"message": reason[:300], "at": _iso(self.now), "refusals": refusals + 1}
+        self.save(route)
+        self.counts["backedOff"] += 1
 
     def finish(self, disc: dict, route: dict, routing: str, reason: str):
         route["final"] = {"routing": routing, "reason": reason[:300], "at": _iso(self.now)}
@@ -1684,7 +1731,7 @@ class Router:
             try:
                 self.backfill()
             except StopSweep as stop:
-                return {"status": "stopped", "stoppedBy": stop.code, "errors": [],
+                return {"status": "stopped", "stoppedBy": stop.code, "errors": self.with_lab_errors([]),
                         "waitingForClassifier": self.waiting_for_classifier()}
             self.nowait = True
         awaiting: list[dict] = []
@@ -1712,8 +1759,13 @@ class Router:
             status = "partial"
         if awaiting and stopped is None:
             status, stopped = AWAITING, AWAITING   # jobs are still running at the lab; the collector delivers them
-        return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
+        return {"status": status, "stoppedBy": stopped, "errors": self.with_lab_errors(errors),
                 "waitingForClassifier": self.waiting_for_classifier() if self.config["decisions"] == "cyclotron" else []}
+
+    def with_lab_errors(self, errors: list) -> list:
+        """The receipt's errors: item errors first, then each non-2xx the lab answered (status + short excerpt)."""
+        lab = list(getattr(self.cyclotron, "refusals", None) or [])
+        return (errors + lab)[:10]
 
     def collect_jobs(self, awaiting: list[dict], errors: list) -> list[dict]:
         """Polls the outstanding jobs round-robin with backoff for at most cyclotron.pollSeconds (and never into the
@@ -1775,13 +1827,13 @@ class Router:
             if still and stopped is None:
                 still = self.collect_jobs(still, errors)
         except StopSweep as stop:
-            return {"status": "stopped", "stoppedBy": stop.code, "errors": errors[:10], "waitingForClassifier": []}
+            return {"status": "stopped", "stoppedBy": stop.code, "errors": self.with_lab_errors(errors), "waitingForClassifier": []}
         self.counts["awaiting"] = len(still)
         if errors and status == "complete":
             status = "partial"
         if still and stopped is None:
             status, stopped = AWAITING, AWAITING
-        return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
+        return {"status": status, "stoppedBy": stopped, "errors": self.with_lab_errors(errors),
                 "waitingForClassifier": self.waiting_for_classifier()}
 
     # feedback ---------------------------------------------------------------------------------------

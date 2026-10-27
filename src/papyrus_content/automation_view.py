@@ -22,12 +22,13 @@ import os
 import time
 from datetime import datetime, timezone
 
+from .staff_groups import STAFF_GROUPS
 from .automations import (
     DEFAULT_RUN_LIMIT, AutomationError, MonitoringReader, MonitoringWriter, automation_overview, lambda_invoker,
     monitoring_reader_from_environment, monitoring_table_from_environment, read_record, run_now)
 
 LOG = logging.getLogger(__name__)
-EDITOR_GROUPS = frozenset({"editor", "admin"})
+EDITOR_GROUPS = STAFF_GROUPS
 
 
 def default_client_factory(env):

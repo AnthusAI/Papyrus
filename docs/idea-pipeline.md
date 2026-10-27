@@ -5,7 +5,7 @@
 `papyrus ideas digest` and `papyrus ideas synthesize` turn a site's recent references into private story ideas. This is the first
 version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud CMS. `papyrus ideas trends` adds the trend-story path
 ([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,
-`features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`.
+`features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`, `test_excluded_hosts.py`; excluded source hosts: `features_backend/idea-excluded-source-hosts.feature`.
 
 ## Running it
 
@@ -253,8 +253,12 @@ It is the same for every monitor: no source is named in the code, so a new site 
    before a lower one, where the score is multiplied by a **freshness weight** `exp(-age / tau)` (age in days at the run) and `tau` is learned per site from its editors' own decisions: the median age at curation (`curationStatusUpdatedAt` minus arrival) of the monitored References they accepted, divided by ln 2 (for an exponential the median is `tau * ln 2`). With fewer than 10 such examples there is no weight at all (the score alone ranks, newest arrival breaking ties); no constant is guessed. An old, highly relevant item is therefore never excluded, only ranked lower when this site's editors tend to act fast. The run record's `freshness` holds `tauDays`, `medianAgeDays` and `examples` (or `tauDays: null` and a note); then, only to break a tie, the source's own numbers when the item has them (`likes`, then `downloads`, in `SECONDARY_SIGNALS`);
    then the newest arrival; then the Reference id, so the same input always gives the same order. An item with no verdict (a site whose monitor runs
    without the Cyclotron) ranks after the scored ones.
-3. **Fetch.** The linked page as plain text (a meta description and a few paragraphs, 4,000 characters at most) through the digest's reader, which
-   only reads public http(s) addresses. A page that cannot be read is not an error: the story then rests on the title and the details the monitor stored
+3. **Fetch.** The linked source as plain text, 4,000 characters at most (the model's input budget, not a limit on the source), through `ideas/source_text.py`, which
+   only reads public http(s) addresses (redirects are re-checked, a PDF is capped at 8 MB). An HTML page gives its meta description and a few paragraphs. A
+   PDF (by content type or a `.pdf` address) gives the text of its first four pages, which for a decision or a paper carries the caption, the holding and the
+   summary of grounds, extracted by the shared `papyrus_content/pdf_text.py` (pypdf; the same helper is the `papyrus_fetch_pdf_text` Tactus tool, and it
+   knows that a TTAB Reading Room document downloads at its double-slash address). An HTML page with little text of its own whose first PDF link is on the
+   same host is read through that PDF. Details the monitor stored on the provenance relation (`details`) are facts for the model as before. A page that cannot be read is not an error: the story then rests on the title and the details the monitor stored
    (a `summary` or `description`, and the simple facts such as numbers and short text). An item with nothing but a title is skipped with the reason
    `no_source_text` and no model call, because a story needs something to stand on.
 4. **Draft.** One call to the repository's default model (`gpt-6-luna`, `--model` overrides) per item, through the same transport as the trends path.
@@ -297,6 +301,33 @@ problems, `modelCalls` (the usage of each call, for the ledger) and the cost. Th
 
 Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
 so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
+
+## Excluded source hosts
+
+A site can list source hosts that must never be cited in an AI draft, for example a competing publication. In the site file:
+`"knowledgeRun": {"excludedSourceHosts": ["ipwatchdog.com"]}`. The scheduled run passes them to `papyrus ideas trends` and
+`papyrus ideas monitor-stories` as `--exclude-host HOST` (repeatable; a comma-separated value is several hosts; an address is reduced to its host). A host
+matches itself and every subdomain (`ipwatchdog.com` matches `www.ipwatchdog.com`, not `notipwatchdog.com`).
+
+**The site lists hosts explicitly.** Papyrus does not classify source hosts by kind (news, blog, publication) anywhere, so there is no
+`excludedSourceKinds` setting. To exclude "any other blog or news-publication host", name each host.
+
+- **Monitor stories.** A Reference whose `sourceUri` host is excluded is never read further and never a candidate. The run record counts them in
+  `inputs.excludedHost` (also in the CLI summary line, the report and the ledger row's `details.result.excludedHost`) and lists the hosts in `excludedSourceHosts`.
+- **Cited Trends.** An item (a published story or a recorded release) whose address is on an excluded host is never shown to the model as citable
+  evidence and never appears in a draft's cited items or its Sources list. The run record counts them in `inputs.itemsExcludedByHost` and the signal
+  names them in `excludedItemIds`. **The statistics still count them**: a signal's item counts, window counts and weekly history come from the published
+  snapshot and describe the topic, not the source, so an excluded host's items can still make a topic rise. Only the evidence the story may cite and
+  quote is filtered.
+- **The citation check.** Defence in depth: a sentence that cites an excluded item fails with `cites_excluded_source_host:<handle>`, even though no
+  excluded item is offered, so the draft is not filed.
+
+### Monitors an automation handles
+
+Monitor stories skip every Reference delivered by a monitor that an **enabled Automation** of the site already handles (an Automation record whose trigger is
+`{"kind": "monitor", "config": {"monitorId": ...}}`, see [automations](automations.md)), so a site that turns monitor stories on does not get a second draft of what
+the automation drafts. They are counted in `inputs.handledByAutomation`; the monitors are listed in the run record's `automatedMonitors`. A disabled Automation
+hides nothing. If the Automation records cannot be read the run goes ahead and records `automationLookupError`.
 
 ## Friction for the run contract
 

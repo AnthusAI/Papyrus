@@ -7,10 +7,26 @@ import { addCloudEmail } from "./cloud-email";
 import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
+}
+
+/**
+ * The production branch's private chat environment. Only a site with an enabled `chat` block gets the flag and the
+ * resource names (imported from the chat data stack's exports, so that stack must be deployed first); every other
+ * site keeps the flag "false" and no chat variables, and its newsroom serves neither the chat route nor the UI.
+ */
+function chatEnvironment(config: AmplifyAppShellSiteConfig): Record<string, string> {
+  const chatStackName = resolveChatStackName(config);
+  if (!chatStackName) return { PAPYRUS_PRIVATE_CHAT_ENABLED: "false" };
+  return {
+    PAPYRUS_PRIVATE_CHAT_ENABLED: "true",
+    ...Object.fromEntries(CHAT_EXPORTED_RESOURCES.map((resource) => [CHAT_ENVIRONMENT_NAMES[resource], Fn.importValue(chatExportName(chatStackName, resource))])),
+    PAPYRUS_CHAT_PRIVATE_BOT_ID: CHAT_PRIVATE_ASSISTANT_ID,
+    PAPYRUS_CHAT_PRIVATE_BOT_NAME: CHAT_PRIVATE_ASSISTANT_NAME,
+  };
 }
 
 function readerCustomHeaders(rules: ReaderCustomHeaderRule[] | undefined): string | undefined {
@@ -221,7 +237,7 @@ export class AmplifyAppShellStack extends Stack {
       environmentVariables: environmentVariables({
         ...config.cms.environment,
         ...emailEnvironment,
-        PAPYRUS_PRIVATE_CHAT_ENABLED: config.cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED ?? "false",
+        ...(config.chat?.enabled ? chatEnvironment(config) : { PAPYRUS_PRIVATE_CHAT_ENABLED: config.cms.environment.PAPYRUS_PRIVATE_CHAT_ENABLED ?? "false" }),
         PAPYRUS_COGNITO_DOMAIN_PREFIX: config.cms.cognitoDomainPrefix,
         ...(config.cms.applyCognitoDomainPrefix ? { PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX: "true" } : {}),
         PAPYRUS_OAUTH_REDIRECT_URLS: oauthRedirectUrls,

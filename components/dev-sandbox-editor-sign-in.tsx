@@ -2,9 +2,9 @@
 
 import { fetchAuthSession, signIn, signOut } from "aws-amplify/auth";
 import { configureAmplifyClient } from "./amplify-client-provider";
+import { hasEditorRights } from "../lib/staff-groups";
 import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
 
-const EDITOR_GROUPS = new Set(["editor", "admin"]);
 
 function readSessionGroups(session: Awaited<ReturnType<typeof fetchAuthSession>>): string[] {
   const accessPayload = session.tokens?.accessToken?.payload ?? {};
@@ -29,7 +29,7 @@ function readSessionGroups(session: Awaited<ReturnType<typeof fetchAuthSession>>
 
 function sessionHasEditorAccess(session: Awaited<ReturnType<typeof fetchAuthSession>>): boolean {
   if (!session.tokens?.accessToken) return false;
-  return readSessionGroups(session).some((group) => EDITOR_GROUPS.has(group));
+  return hasEditorRights(readSessionGroups(session));
 }
 
 export async function ensureDevSandboxEditorSession(

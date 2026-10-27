@@ -23,9 +23,19 @@ module.exports = {
     require: ["features/step_definitions/email-receipt.steps.js"],
     format: ["summary"],
   },
+  adminEditorRights: {
+    paths: ["features/newsroom-admin-editor-rights.feature"],
+    require: ["features/step_definitions/admin-editor-rights.steps.js"],
+    format: ["summary"],
+  },
   referenceEditor: {
     paths: ["features/newsroom-reference-editor-review.feature"],
     require: ["features/step_definitions/reference-editor.steps.js"],
+    format: ["summary"],
+  },
+  notificationCenter: {
+    paths: ["features/newsroom-notification-center.feature"],
+    require: ["features/step_definitions/notification-center.steps.js"],
     format: ["summary"],
   },
   cliLoginDiscovery: {

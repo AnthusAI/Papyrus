@@ -20,6 +20,7 @@ from .email_submission import (
     SubmissionRejected,
     extract_submission,
 )
+from .email_quarantine import LEGACY_REJECTION_CODES, QUARANTINE_STATUS, RECEIPT_ID
 from .monitoring import SourceItem, _digest, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_router import email_routing_fingerprint, validate_router_config
@@ -209,6 +210,36 @@ class EmailStore(DynamoStore):
             f"EMAIL_PENDING#{monitor_id}"), Limit=limit, ScanIndexForward=True)
         return [self._clean(row) for row in response.get("Items", [])]
 
+    def prefixed(self, monitor_id, prefix):
+        """Every row of one partition whose sort key starts with `prefix`, in key order."""
+        rows, start = [], None
+        while True:
+            extra = {"ExclusiveStartKey": start} if start else {}
+            response = self.table.query(
+                KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+                ExpressionAttributeValues={":pk": pk(monitor_id), ":prefix": prefix}, ScanIndexForward=True, **extra)
+            rows.extend(self._clean(row) for row in response.get("Items", []))
+            start = response.get("LastEvaluatedKey")
+            if not start:
+                return rows
+
+    def email_links(self, monitor_id, receipt_key):
+        """The candidate links an editor reviewed, exactly as stored at quarantine time."""
+        links = []
+        for row in self.prefixed(monitor_id, f"EMAILDETAIL#{receipt_key.removeprefix('EMAIL#')}#LINKS#"):
+            chunk = json.loads(row.get("json", "[]"))
+            if not isinstance(chunk, list) or any(not isinstance(link, dict) for link in chunk):
+                raise RuntimeError("email_quarantine_links_corrupt")
+            links.extend(chunk)
+        return links
+
+    def pending_decisions(self, monitor_id, limit=25):
+        from boto3.dynamodb.conditions import Key
+
+        response = self.table.query(IndexName="routing", KeyConditionExpression=Key("gsi1pk").eq(
+            f"EMAIL_ACTION#{monitor_id}"), Limit=limit, ScanIndexForward=True)
+        return [self._clean(row) for row in response.get("Items", [])]
+
     def reserve_rate(self, monitor_id, sender, message_id, first_seen, maximum):
         """A bounded set makes retrying the same SES delivery consume one slot."""
         hour = int(first_seen // 3600)
@@ -309,6 +340,49 @@ def _manifest_batch(s3, bucket, key, cursor, size, digest):
     return lines
 
 
+LINK_EXPLORATION_SECONDS = 30  # one link's whole exploration, well inside the resume batch and the lock
+
+# Installed by handler(); None (no network) everywhere else, so extraction and tests never explore.
+link_explorer = None
+
+
+def explore_email_link(link, row):
+    """Follow one subscriber-specific wrapper to its article, or find the article by its headline (link_exploration).
+
+    Returns the exploration; its destination is only ever the canonical public address that passes the editorial-address check.
+    """
+    from .email_submission import safe_editorial_url
+    from .link_exploration import Context, explore
+
+    return explore(link["url"], Context(title=link.get("title") or "", sender=row.get("headerFrom") or ""),
+                   want_text=False, accept=safe_editorial_url, deadline_seconds=LINK_EXPLORATION_SECONDS)
+
+
+def install_link_explorer(environ=None):
+    """Turn exploration on for the deployed intake unless EMAIL_LINK_EXPLORATION=off."""
+    global link_explorer
+    link_explorer = None if (environ or os.environ).get("EMAIL_LINK_EXPLORATION", "on").strip().lower() == "off" else explore_email_link
+
+
+def _explored(link, row):
+    """The resolved link for an unresolved wrapper, or None. Records the typed reason when it cannot be resolved."""
+    if link_explorer is None:
+        return None
+    result = link_explorer(link, row)
+    if not result.ok:
+        reasons = row.setdefault("unresolvedReasons", {})
+        reasons[result.failure] = int(reasons.get(result.failure, 0)) + 1
+        return None
+    title = link.get("title") or ""
+    # Anchor-less links were titled with their own address: never carry the subscriber-specific wrapper into a title.
+    found = {"url": result.url, "title": result.url if not title or link["url"] in title or title.startswith(("http://", "https://")) else title}
+    if result.via == "search" and result.search:
+        # DynamoDB takes Decimal, not float.
+        found["linkExploration"] = json.loads(json.dumps({"foundVia": "search", **result.search.as_dict()}), parse_float=Decimal)
+    row["exploredLinkCount"] = int(row.get("exploredLinkCount", 0)) + 1
+    return found
+
+
 def _discovery(monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications):
     source_id = sha256(f"{message_id}\n{link['url']}".encode()).hexdigest()
     item = SourceItem(source_id, link["title"] or link["url"], link["url"], link["url"], None)
@@ -316,6 +390,8 @@ def _discovery(monitor_id, config, row, receipt_key, message_id, link, source_ur
                                            "s3Bucket", "s3Key", "mimeSha256", "accountId", "observedAt")}
     provenance.update(receiptId=receipt_key, destinationKind=config["kind"], inputTrust="untrusted-source-material",
                       trustMode="data-only", sesDiagnostics=row["sesDiagnostics"])
+    if link.get("linkExploration"):
+        provenance["linkExploration"] = link["linkExploration"]  # found via search: the query and match score, never a subscriber link
     return {"pk": pk(monitor_id), "sk": f"DISC#{source_id}#000001", "monitorId": monitor_id,
             "sourceType": "email", "sourceId": source_id, "title": item.title,
             "canonicalUrl": item.canonical_url, "sourceItemUrl": item.source_item_url,
@@ -342,7 +418,9 @@ def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
         for link, next_cursor in links:
             if time.monotonic() >= deadline:
                 break
-            if link.get("resolutionStatus") != "unresolved":
+            if link.get("resolutionStatus") == "unresolved":
+                link = _explored(link, row)
+            if link is not None:
                 store.put_discovery(monitor_id, _discovery(
                     monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications))
             cursor = next_cursor
@@ -365,6 +443,36 @@ def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
             "processedCount": row.get("processedCount", 0), "cursorBytes": cursor}
 
 
+def _check_runtime_binding(monitor_id, bucket, prefix):
+    if (not MONITOR_ID.fullmatch(monitor_id or "") or not bucket or not prefix
+            or not prefix.endswith("/") or prefix.startswith("/") or ".." in prefix
+            or prefix == "inbound-email/"):
+        raise ConfigurationError("email_runtime_binding_invalid")
+
+
+def _store_details(store, monitor_id, receipt_key, row, parsed):
+    """Private, expiring, inert rendering and candidate links for editor review."""
+    detail_body = parsed.get("safeBodyText", "")
+    store.put_email_detail_chunks(monitor_id, receipt_key, detail_body, parsed["links"], row["ttl"])
+    row["safeBodyBytes"] = len(detail_body.encode("utf-8"))
+    row["safeBodyChunks"] = max(1, (row["safeBodyBytes"] + EMAIL_DETAIL_CHUNK_BYTES - 1) // EMAIL_DETAIL_CHUNK_BYTES)
+    row["unresolvedLinkCount"] = sum(link.get("resolutionStatus") == "unresolved" for link in parsed["links"])
+
+
+def _hold_for_review(store, monitor_id, config, row, receipt_key, parsed, now=None):
+    row.update(status=QUARANTINE_STATUS, processingStage="pending_review",
+               reviewRequired=True, pendingReviewLinkCount=len(parsed["links"]),
+               processedCount=0, updatedAt=_iso(time.time() if now is None else now))
+    row.pop("gsi1pk", None)
+    row.pop("gsi1sk", None)
+    store.put(monitor_id, row)
+    store.put(monitor_id, {"sk": f"EMAILINDEX#{row['observedAt']}#{receipt_key.removeprefix('EMAIL#')}",
+                           "receiptId": receipt_key, "destinationPublicationIds": config["publicationIds"],
+                           "ttl": row["ttl"]})
+    return {"status": QUARANTINE_STATUS, "receiptId": receipt_key,
+            "linkCount": row["linkCount"], "processedCount": 0}
+
+
 def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submissions/", s3, cognito, now=None):
     """Process one authenticated SES delivery; expected refusals are durable receipts.
 
@@ -372,10 +480,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
     Discoveries are immutable conditional writes; interrupted batches resume safely.
     """
     now = time.time() if now is None else now
-    if (not MONITOR_ID.fullmatch(monitor_id or "") or not bucket or not prefix
-            or not prefix.endswith("/") or prefix.startswith("/") or ".." in prefix
-            or prefix == "inbound-email/"):
-        raise ConfigurationError("email_runtime_binding_invalid")
+    _check_runtime_binding(monitor_id, bucket, prefix)
     message_id = ((record.get("ses") or {}).get("mail") or {}).get("messageId")
     if not isinstance(message_id, str) or not SES_ID.fullmatch(message_id):
         raise SubmissionRejected("ses_message_id_invalid")
@@ -389,7 +494,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
     try:
         config = validate_email_config(store.get(monitor_id, EMAIL_CONFIG_SK), store.get(monitor_id, "CONFIG#router"))
         row = store.get(monitor_id, receipt_key)
-        if row and row.get("status") in {"queued", "pending_review"}:
+        if row and (row.get("status") in {"queued", "pending_review", "discarded"} or row.get("releasedAt")):
             return {"status": "duplicate", "previousStatus": row["status"], "receiptId": receipt_key}
         if row and row.get("status") == "rejected":
             # Replay only the former authentication/membership refusals when SES
@@ -449,26 +554,11 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
                    destinationFingerprint=config["destinationFingerprint"],
                    emailTrustMode="data-only", emailDestinationPublicationIds=config["publicationIds"],
                    excludedLinkCount=parsed.get("excludedLinkCount", 0))
-        detail_body = parsed.get("safeBodyText", "")
-        store.put_email_detail_chunks(monitor_id, receipt_key, detail_body, parsed["links"], row["ttl"])
-        row["safeBodyBytes"] = len(detail_body.encode("utf-8"))
-        row["safeBodyChunks"] = max(1, (row["safeBodyBytes"] + EMAIL_DETAIL_CHUNK_BYTES - 1) // EMAIL_DETAIL_CHUNK_BYTES)
-        row["unresolvedLinkCount"] = sum(link.get("resolutionStatus") == "unresolved"
-                                         for link in parsed["links"])
+        _store_details(store, monitor_id, receipt_key, row, parsed)
         if diagnostics["warnings"]:
-            # Authentication failures are visible to editors with the inert
-            # source and extracted links, but never enter the shared router.
-            row.update(status="pending_review", processingStage="pending_review",
-                       reviewRequired=True, pendingReviewLinkCount=len(parsed["links"]),
-                       processedCount=0, updatedAt=_iso(time.time()))
-            row.pop("gsi1pk", None)
-            row.pop("gsi1sk", None)
-            store.put(monitor_id, row)
-            store.put(monitor_id, {"sk": f"EMAILINDEX#{row['observedAt']}#{receipt_key.removeprefix('EMAIL#')}",
-                                   "receiptId": receipt_key, "destinationPublicationIds": config["publicationIds"],
-                                   "ttl": row["ttl"]})
-            return {"status": "pending_review", "receiptId": receipt_key,
-                    "linkCount": row["linkCount"], "processedCount": 0}
+            # Authentication failures are quarantined: visible to editors as inert text
+            # with the extracted links, but never routed until an editor accepts them.
+            return _hold_for_review(store, monitor_id, config, row, receipt_key, parsed)
         if not row.get("manifestKey"):
             manifest = _manifest_bytes(parsed["links"])
             manifest_key = _manifest_key(receipt_key)
@@ -504,6 +594,161 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
         raise
     finally:
         store.release_email_lock(monitor_id, owner)
+
+
+LEGACY_VERDICTS = {name: "UNAVAILABLE" for name in SES_VERDICTS}
+
+
+def quarantine_legacy_receipt(store, s3, *, monitor_id, bucket, prefix="email-submissions/", receipt_key, now=None):
+    """Move one receipt refused by the earlier authentication gate into quarantine.
+
+    The earlier gate refused before parsing the MIME, so the receipt has no stored text or
+    links and no per-check verdicts. The private MIME is still in the 30-day prefix: read it
+    once through the normal bounded parser, store the inert text and links for editor review,
+    and hold the receipt as `pending_review`. Existing receipt fields are kept. Nothing is
+    routed; the message waits for an editor's Accept or Reject like any other held message.
+    """
+    now = time.time() if now is None else now
+    _check_runtime_binding(monitor_id, bucket, prefix)
+    if not isinstance(receipt_key, str) or not RECEIPT_ID.fullmatch(receipt_key):
+        raise ConfigurationError("email_receipt_id_invalid")
+    owner = uuid.uuid4().hex
+    if not store.acquire_email_lock(monitor_id, owner, now):
+        raise IntakeBusy("email_intake_busy")
+    try:
+        config = validate_email_config(store.get(monitor_id, EMAIL_CONFIG_SK), store.get(monitor_id, "CONFIG#router"))
+        row = store.get(monitor_id, receipt_key)
+        if row is None:
+            return {"status": "not_found", "receiptId": receipt_key}
+        if row.get("status") != "rejected" or row.get("errorCode") not in LEGACY_REJECTION_CODES:
+            return {"status": "unchanged", "previousStatus": row.get("status"), "receiptId": receipt_key}
+        ttl = row.get("ttl")
+        if not isinstance(ttl, int) or isinstance(ttl, bool) or ttl <= now:
+            return {"status": "expired", "receiptId": receipt_key}
+        diagnostics = row.get("sesDiagnostics") if isinstance(row.get("sesDiagnostics"), dict) else None
+        verdicts = (diagnostics or {}).get("verdicts") or {}
+        if any(verdicts.get(name, "PASS") != "PASS" for name in ("spam", "virus")):
+            return {"status": "unchanged", "reason": "safety_verdict_not_passed", "receiptId": receipt_key}
+        message_id = row.get("sesMessageId")
+        if not isinstance(message_id, str) or not SES_ID.fullmatch(message_id) or \
+                "EMAIL#" + sha256(message_id.encode()).hexdigest() != receipt_key:
+            raise ConfigurationError("email_receipt_message_id_invalid")
+        key = prefix + message_id
+        if row.get("s3Bucket", bucket) != bucket or row.get("s3Key", key) != key:
+            raise ConfigurationError("email_retry_object_changed")
+        raw = _mime(s3, bucket, key, config["maxMessageBytes"])
+        parsed = extract_submission(raw)
+        observed = row.get("observedAt") or _iso(row.get("firstSeen", now))
+        row.update(
+            legacyErrorCode=row["errorCode"], errorCode=None, observedAt=observed, s3Bucket=bucket, s3Key=key,
+            accountId=config["accountId"], routingFingerprint=config["routingFingerprint"],
+            destinationFingerprint=config["destinationFingerprint"], sender=row.get("sender", "unknown"),
+            recipients=row.get("recipients", []),  # not recorded by the earlier gate; never inferred
+            sesDiagnostics=diagnostics or {"provenance": "legacy-receipt-no-verdict-snapshot",
+                                           "verdicts": dict(LEGACY_VERDICTS), "warnings": [], "blockedGateCodes": []},
+            mimeSha256=sha256(raw).hexdigest(), subject=parsed["subject"], rfcMessageId=parsed["messageId"],
+            headerFrom=parsed["sender"], warnings=sorted(set(parsed["warnings"]) | {"legacy_authentication_rejection"}),
+            linkCount=len(parsed["links"]), emailTrustMode="data-only",
+            emailDestinationPublicationIds=config["publicationIds"],
+            excludedLinkCount=parsed.get("excludedLinkCount", 0))
+        _store_details(store, monitor_id, receipt_key, row, parsed)
+        return _hold_for_review(store, monitor_id, config, row, receipt_key, parsed, now)
+    except SubmissionRejected as error:
+        # Unparseable or oversized mail stays refused; editors are never shown unsafe content.
+        return {"status": "unchanged", "reason": error.code, "receiptId": receipt_key}
+    finally:
+        store.release_email_lock(monitor_id, owner)
+
+
+def quarantine_legacy_receipts(store, s3, *, monitor_id, bucket, prefix="email-submissions/", receipt_keys=None, now=None):
+    """Quarantine the named receipts, or every legacy-refused receipt when none are named."""
+    if receipt_keys is None:
+        receipt_keys = [row["sk"] for row in store.prefixed(monitor_id, "EMAIL#")
+                        if row.get("status") == "rejected" and row.get("errorCode") in LEGACY_REJECTION_CODES]
+    return [quarantine_legacy_receipt(store, s3, monitor_id=monitor_id, bucket=bucket, prefix=prefix,
+                                      receipt_key=key, now=now) for key in receipt_keys]
+
+
+def _finish_decision(store, monitor_id, action, outcome, now):
+    store.put(monitor_id, {**{k: v for k, v in action.items() if k not in {"gsi1pk", "gsi1sk"}},
+                           "outcome": outcome, "appliedAt": _iso(now)})
+    return {"status": outcome, "receiptId": action["receiptId"], "decision": action["decision"]}
+
+
+def _apply_decision(store, s3, monitor_id, bucket, action, now):
+    """Apply one recorded editor decision to its receipt. Idempotent; the receipt's only writer."""
+    receipt_key = action.get("receiptId")
+    if (not isinstance(receipt_key, str) or not RECEIPT_ID.fullmatch(receipt_key)
+            or action.get("decision") not in {"release", "discard"}):
+        return _finish_decision(store, monitor_id, action, "decision_invalid", now)
+    row = store.get(monitor_id, receipt_key)
+    if row is None:
+        return _finish_decision(store, monitor_id, action, "receipt_missing", now)
+    record = {key: action[key] for key in ("decision", "actor", "actorEmail", "reason", "requestedAt", "publicationId")
+              if key in action}
+    record["appliedAt"] = _iso(now)
+    if action["decision"] == "discard":
+        if row.get("status") == "pending_review":
+            row.update(status="discarded", processingStage="discarded", reviewRequired=False,
+                       decision=record, discardedAt=_iso(now), updatedAt=_iso(now))
+            row.pop("gsi1pk", None)
+            row.pop("gsi1sk", None)
+            store.put(monitor_id, row)
+        elif row.get("status") != "discarded":
+            return _finish_decision(store, monitor_id, action, "not_quarantined", now)
+        return _finish_decision(store, monitor_id, action, "discarded", now)
+    if row.get("releasedAt"):
+        return _finish_decision(store, monitor_id, action, "released", now)
+    if row.get("status") != "pending_review":
+        return _finish_decision(store, monitor_id, action, "not_quarantined", now)
+    ttl = row.get("ttl")
+    if not isinstance(ttl, int) or isinstance(ttl, bool) or ttl <= now:
+        return _finish_decision(store, monitor_id, action, "expired", now)
+    config = validate_email_config(store.get(monitor_id, EMAIL_CONFIG_SK), store.get(monitor_id, "CONFIG#router"))
+    if not config["enabled"]:
+        raise RuntimeError("email_destination_disabled")  # retried on the next sweep, never dropped
+    if (row.get("routingFingerprint") != config["routingFingerprint"]
+            or row.get("destinationFingerprint") != config["destinationFingerprint"]):
+        return _finish_decision(store, monitor_id, action, "email_retry_binding_changed", now)
+    if not set(row.get("emailDestinationPublicationIds", [])) & set(config["publicationIds"]):
+        return _finish_decision(store, monitor_id, action, "email_destination_scope_empty", now)
+    links = store.email_links(monitor_id, receipt_key)
+    if int(row.get("linkCount") or 0) and not links:
+        return _finish_decision(store, monitor_id, action, "quarantine_details_missing", now)
+    row.update(releasedAt=_iso(now), decision=record, reviewRequired=False, errorCode=None, updatedAt=_iso(now))
+    if links:
+        manifest = _manifest_bytes(links)
+        manifest_key = _manifest_key(receipt_key)
+        s3.put_object(Bucket=bucket, Key=manifest_key, Body=manifest,
+                      ContentType="application/x-ndjson", ServerSideEncryption="AES256",
+                      Metadata={"sha256": sha256(manifest).hexdigest()})
+        row.update(manifestKey=manifest_key, manifestSha256=sha256(manifest).hexdigest(),
+                   manifestBytes=len(manifest), cursorBytes=0, processedCount=0, status="processing",
+                   processingStage="release_queue", gsi1pk=f"EMAIL_PENDING#{monitor_id}",
+                   gsi1sk=f"{row['observedAt']}#{receipt_key}")
+    else:
+        row.update(status="queued", processingStage="queued", processedCount=0,
+                   sectionHandoff="pending-reference-site-sweep")
+    store.put(monitor_id, row)  # the existing resume sweep drains the manifest into discoveries
+    return _finish_decision(store, monitor_id, action, "released", now)
+
+
+def apply_pending_decisions(store, s3, *, monitor_id, bucket, now=None, batch=25):
+    """Apply recorded editor decisions. A busy lease or dependency failure leaves them pending."""
+    now = time.time() if now is None else now
+    results = []
+    for action in store.pending_decisions(monitor_id, batch):
+        owner = uuid.uuid4().hex
+        if not store.acquire_email_lock(monitor_id, owner, now):
+            break
+        try:
+            results.append(_apply_decision(store, s3, monitor_id, bucket, action, now))
+        except Exception as error:
+            print(json.dumps({"decisionRetry": type(error).__name__, "receiptId": action.get("receiptId")}))
+            results.append({"status": "retry", "receiptId": action.get("receiptId")})
+        finally:
+            store.release_email_lock(monitor_id, owner)
+    return results
 
 
 def _resume_pending(store, monitor_id, bucket, s3, cognito, *, now=None, limit=1):
@@ -601,13 +846,26 @@ def handler(event, context):
     if isinstance(event, dict) and event.get("task") == "resume":
         if event.get("monitorId") != monitor_id:
             raise ConfigurationError("email_resume_monitor_mismatch")
-        result = _resume_pending(EmailStore(table), monitor_id, os.environ["EMAIL_RAW_BUCKET"],
-                                 s3, cognito)
+        install_link_explorer()
+        store, bucket = EmailStore(table), os.environ["EMAIL_RAW_BUCKET"]
+        decisions = apply_pending_decisions(store, s3, monitor_id=monitor_id, bucket=bucket)
+        result = _resume_pending(store, monitor_id, bucket, s3, cognito)
+        result["decisions"] = decisions
+        print(json.dumps(result))
+        return result
+    if isinstance(event, dict) and event.get("task") == "quarantine-legacy":
+        # Operator task: hold receipts refused by the earlier authentication gate for editor review.
+        if event.get("monitorId") != monitor_id:
+            raise ConfigurationError("email_quarantine_monitor_mismatch")
+        result = {"status": "quarantined", "receipts": quarantine_legacy_receipts(
+            EmailStore(table), s3, monitor_id=monitor_id, bucket=os.environ["EMAIL_RAW_BUCKET"],
+            prefix=os.environ.get("EMAIL_RAW_PREFIX", "email-submissions/"), receipt_keys=event.get("receiptIds"))}
         print(json.dumps(result))
         return result
     records = event.get("Records") if isinstance(event, dict) else None
     if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
         raise SubmissionRejected("one_ses_record_required")
+    install_link_explorer()
     result = process_ses_record(records[0], EmailStore(table), monitor_id=monitor_id,
                                 bucket=os.environ["EMAIL_RAW_BUCKET"],
                                 prefix=os.environ.get("EMAIL_RAW_PREFIX", "email-submissions/"), s3=s3,

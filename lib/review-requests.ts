@@ -3,7 +3,7 @@
  * the auto-decided stream, and the words the page says about each. Pure functions only, so the page and its tests share them.
  *
  * Principle (docs/notification-center.md): everything except a hard gate keeps moving if nobody acts. Each entry says in words
- * what happens next without the reader, and only a hard gate says "Waiting for you".
+ * what happens next without the reader, and only a hard gate says "Waiting for you". One decision vocabulary: Accept or Reject.
  */
 import type { ReferenceRecord } from "./category-repository";
 import { getNewsroomNavHref } from "./newsroom-nav";
@@ -16,9 +16,11 @@ export type ReviewState = "open" | "answered" | "timed_out" | "withdrawn";
 export type ReviewDecision = "approve" | "acknowledge" | "reject" | "feedback";
 export type ReviewSteer = "adjust" | "not_this_kind";
 
-export type ReviewAnswer = { decision: ReviewDecision; feedback: string | null; steer: ReviewSteer | null; by: string; at: string };
+/** One AI draft's answer inside a batch request: Accept or Reject, an optional why, and whether the editor called it the wrong kind of story. */
+export type DraftDecision = { choice: "accept" | "reject"; title?: string; why?: string | null; notThisKind?: boolean; by: string; at: string };
+export type ReviewAnswer = { decision: ReviewDecision; feedback: string | null; steer: ReviewSteer | null; by: string; at: string; drafts?: (DraftDecision & { id: string })[] };
 export type ReviewHistoryEntry = { at: string; event: string; by?: string; note?: string };
-export type ReviewLink = { label?: string; url?: string; type?: string; id?: string };
+export type ReviewLink = { label?: string; url?: string; type?: string; id?: string; decision?: DraftDecision };
 
 export type ReviewRequest = {
   id: string;
@@ -84,7 +86,11 @@ export function timeoutUpdate(request: ReviewRequest, now: Date): Record<string,
   return { id: request.id, state: "timed_out", updatedAt: at, history: JSON.stringify(history) };
 }
 
-export type AnswerInput = { decision: ReviewDecision; feedback?: string | null; steer?: ReviewSteer | null };
+export type AnswerInput = {
+  decision: ReviewDecision; feedback?: string | null; steer?: ReviewSteer | null;
+  /** A batch of AI drafts: each draft's decision, recorded on the answer and on the request's links. */
+  drafts?: (DraftDecision & { id: string })[]; links?: ReviewLink[];
+};
 
 /** The update for an answer, or an Error saying why it is refused. Applied with the condition state = open. */
 export function answerUpdate(request: ReviewRequest, input: AnswerInput, by: string, now: Date): Record<string, unknown> {
@@ -94,9 +100,12 @@ export function answerUpdate(request: ReviewRequest, input: AnswerInput, by: str
   const steer = input.steer ?? null;
   if (input.decision === "feedback" && !feedback && !steer) throw new Error("Write a note, or choose \"Not this kind of thing\".");
   const at = now.toISOString();
-  const answer: ReviewAnswer = { decision: input.decision, feedback, steer, by, at };
+  const answer: ReviewAnswer = { decision: input.decision, feedback, steer, by, at, ...(input.drafts?.length ? { drafts: input.drafts } : {}) };
   const history = [...request.history, { at, event: "answered", by, note: input.decision }].slice(-MAX_HISTORY);
-  return { id: request.id, state: "answered", answer: JSON.stringify(answer), updatedAt: at, history: JSON.stringify(history) };
+  return {
+    id: request.id, state: "answered", answer: JSON.stringify(answer), updatedAt: at, history: JSON.stringify(history),
+    ...(input.links ? { links: JSON.stringify(input.links) } : {}),
+  };
 }
 
 // --- words ------------------------------------------------------------------------------------------------
@@ -112,30 +121,49 @@ export function modeLabel(mode: ReviewMode): string {
   return mode === "hard_gate" ? "Hard gate" : mode === "soft_review" ? "Soft review" : "Flag";
 }
 
-/** A mark and the words, never colour alone. */
-export function modeMark(mode: ReviewMode): string {
-  return mode === "hard_gate" ? "■" : mode === "soft_review" ? "◐" : "⚑";
+/** The proposal ids a request is about: its proposal links, or its subject when that is a proposal. Empty for every other request. */
+export function draftIdsOf(request: Pick<ReviewRequest, "subject" | "links">): string[] {
+  const linked = request.links.filter((link) => link.type === "proposal" && link.id).map((link) => String(link.id));
+  const ids = linked.length ? linked : request.subject.type === "proposal" ? [request.subject.id] : [];
+  return [...new Set(ids)];
+}
+
+/** A review of AI drafts: each draft is shown and decided in the card. Flags are never drafts to decide. */
+export function isDraftReview(request: Pick<ReviewRequest, "mode" | "subject" | "links">): boolean {
+  return request.mode !== "flag" && draftIdsOf(request).length > 0;
 }
 
 /** What happens next without the reader. Only a hard gate says "Waiting for you". */
 export function nextText(request: ReviewRequest): string {
+  const drafts = isDraftReview(request);
   if (request.state === "open") {
-    if (request.mode === "hard_gate") return "Waiting for you. Nothing continues until you approve or reject.";
-    if (request.mode === "soft_review") return request.deadline ? `Proceeds automatically on ${formatWhen(request.deadline)} unless you steer it.` : "Stays open until someone handles it. It never proceeds or expires on its own.";
+    if (request.mode === "hard_gate") return "Waiting for you. Nothing continues until you accept or reject.";
+    if (request.mode === "soft_review") {
+      if (drafts) return request.deadline ? `Closes on ${formatWhen(request.deadline)} if nobody answers. The drafts stay in Proposals.` : "No deadline. The drafts stay in Proposals until an editor decides them.";
+      return request.deadline ? `If nobody answers by ${formatWhen(request.deadline)}, this closes and ${request.raisedBy} carries on without a review.` : "No deadline. Stays open until someone answers it.";
+    }
     return "Nothing is waiting on this. It stays here until you acknowledge it.";
   }
-  if (request.state === "timed_out") return `Proceeded without review on ${formatWhen(request.updatedAt)}.`;
+  if (request.state === "timed_out") return drafts ? `Closed with no answer on ${formatWhen(request.updatedAt)}. The drafts stay in Proposals.` : `Proceeded without review on ${formatWhen(request.updatedAt)}.`;
   if (request.state === "withdrawn") return "Withdrawn by the step that raised it.";
   const answer = request.answer;
   return answer ? `${answerWords(answer, request)} by ${answer.by} on ${formatWhen(answer.at)}.` : "Answered.";
 }
 
 export function answerWords(answer: ReviewAnswer, request?: Pick<ReviewRequest, "mode">): string {
-  if (answer.steer === "not_this_kind") return "Steered: not this kind of thing";
+  if (answer.drafts?.length) {
+    const accepted = answer.drafts.filter((draft) => draft.choice === "accept").length;
+    const rejected = answer.drafts.length - accepted;
+    const noun = (count: number) => `${count} ${count === 1 ? "draft" : "drafts"}`;
+    if (!rejected) return `Accepted ${noun(accepted)}`;
+    if (!accepted) return `Rejected ${noun(rejected)}`;
+    return `Accepted ${noun(accepted)} and rejected ${rejected}`;
+  }
   if (answer.decision === "acknowledge") return "Acknowledged";
-  if (answer.decision === "approve") return request?.mode === "flag" ? "Acknowledged" : "Approved";
-  if (answer.decision === "reject") return "Rejected";
-  return "Steered with a note";
+  if (answer.decision === "approve") return request?.mode === "flag" ? "Acknowledged" : "Accepted";
+  if (answer.decision === "reject") return answer.steer === "not_this_kind" ? "Rejected as not this kind of thing" : "Rejected";
+  if (answer.steer === "not_this_kind") return "Rejected as not this kind of thing";
+  return "Answered with a note";
 }
 
 /** "You steered X, applied in run Y": what became of a person's input. */
@@ -153,11 +181,16 @@ export function subjectLabel(subject: { type: string; id: string }, titles: Read
   return `${subject.type.replace("_", " ")} ${subject.id}`;
 }
 
+/** The Proposals panel, opened on one proposal. */
+export function proposalHref(proposalId: string, demo = false): string {
+  return getNewsroomNavHref(`/newsroom/administration/proposals?proposal=${encodeURIComponent(proposalId)}`, demo);
+}
+
 export function subjectHref(subject: { type: string; id: string }, demo = false): string | null {
   const id = encodeURIComponent(subject.id);
   if (subject.type === "story") return getNewsroomNavHref(`/newsroom/articles/${id}`, demo);
   if (subject.type === "reference" || subject.type === "cyclotron_decision") return getNewsroomNavHref(`/newsroom/references/${id}`, demo);
-  if (subject.type === "proposal") return getNewsroomNavHref(`/newsroom/topics?proposal=${id}`, demo);
+  if (subject.type === "proposal") return proposalHref(subject.id, demo);
   if (subject.type === "automation_run") return getNewsroomNavHref("/newsroom/administration/automations", demo);
   return null;
 }
@@ -210,6 +243,9 @@ export function cyclotronAutoDecided(references: ReferenceRecord[], decisions: R
 
 export type NotificationSections = {
   hardGates: ReviewRequest[];
+  /** Open soft reviews of AI drafts (each draft is decided in its card). */
+  draftBatches: ReviewRequest[];
+  /** Every other open soft review. */
   softReviews: ReviewRequest[];
   flags: ReviewRequest[];
   /** Answered, timed out or withdrawn, newest first: what people said and what became of it. */
@@ -221,26 +257,30 @@ export function sectionReviews(requests: ReviewRequest[]): NotificationSections 
   const byRaised = (a: ReviewRequest, b: ReviewRequest) => a.raisedAt.localeCompare(b.raisedAt);
   // Requests with a deadline first, soonest first; requests with no deadline after them, oldest first.
   const bySoonestDeadline = (a: ReviewRequest, b: ReviewRequest) => (a.deadline && b.deadline ? a.deadline.localeCompare(b.deadline) : a.deadline ? -1 : b.deadline ? 1 : byRaised(a, b));
+  const soft = open.filter((request) => request.mode === "soft_review");
   return {
     hardGates: open.filter((request) => request.mode === "hard_gate").sort(byRaised),
-    softReviews: open.filter((request) => request.mode === "soft_review").sort(bySoonestDeadline),
+    draftBatches: soft.filter(isDraftReview).sort(bySoonestDeadline),
+    softReviews: soft.filter((request) => !isDraftReview(request)).sort(bySoonestDeadline),
     flags: open.filter((request) => request.mode === "flag").sort((a, b) => b.raisedAt.localeCompare(a.raisedAt)),
     decided: requests.filter((request) => request.state !== "open").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
   };
 }
 
-export type NotificationSummary = { waiting: number; proceedingSoon: number; decidedBySystem: number; unread: number };
+export type NotificationSummary = { waiting: number; drafts: number; otherReviews: number; decidedBySystem: number; unread: number };
 
 /**
- * "N waiting for you · N proceeding soon · N recently decided by the system".
- * Waiting = hard gates plus Cyclotron items held for review (both stay put until a person acts). Proceeding soon = open soft reviews.
+ * "N waiting for you · N AI drafts to review · N other reviews open · N recently decided by the system".
+ * Waiting = hard gates plus Cyclotron items held for review (both stay put until a person acts). `draftsToDecide` is the number of
+ * drafts in open draft reviews that nobody has decided yet.
  */
-export function summarize(sections: NotificationSections, held: CyclotronEntry[], autoDecided: CyclotronEntry[], unread: number): NotificationSummary {
-  return { waiting: sections.hardGates.length + held.length, proceedingSoon: sections.softReviews.length, decidedBySystem: autoDecided.length, unread };
+export function summarize(sections: NotificationSections, held: CyclotronEntry[], autoDecided: CyclotronEntry[], unread: number, draftsToDecide?: number): NotificationSummary {
+  const drafts = draftsToDecide ?? sections.draftBatches.reduce((total, request) => total + draftIdsOf(request).length, 0);
+  return { waiting: sections.hardGates.length + held.length, drafts, otherReviews: sections.softReviews.length, decidedBySystem: autoDecided.length, unread };
 }
 
 export function summaryText(summary: NotificationSummary): string {
-  return `${summary.waiting} waiting for you · ${summary.proceedingSoon} proceeding soon · ${summary.decidedBySystem} recently decided by the system`;
+  return `${summary.waiting} waiting for you · ${summary.drafts} AI ${summary.drafts === 1 ? "draft" : "drafts"} to review · ${summary.otherReviews} other ${summary.otherReviews === 1 ? "review" : "reviews"} open · ${summary.decidedBySystem} recently decided by the system`;
 }
 
 export function isUnread(request: ReviewRequest, readIds: ReadonlySet<string>): boolean {

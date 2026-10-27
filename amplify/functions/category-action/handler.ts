@@ -24,6 +24,7 @@ import {
   requestDelegation,
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
+import { claimGroups } from "../../../lib/staff-groups";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -360,7 +361,7 @@ function requireSignedInPerson(event: { identity?: unknown }): { sub: string; la
   }
   const identity = event.identity as { sub?: unknown; claims?: Record<string, unknown> };
   const claims = identity.claims ?? {};
-  const groups = Array.isArray(claims["cognito:groups"]) ? (claims["cognito:groups"] as unknown[]) : [];
+  const groups = claimGroups(claims["cognito:groups"]);
   return {
     sub: normalizeRequiredString(claims.sub ?? identity.sub, "identity.sub"),
     label: normalizeOptionalString(claims.email) ?? normalizeOptionalString(claims.name) ?? "Newsroom editor",

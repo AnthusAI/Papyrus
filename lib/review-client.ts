@@ -2,9 +2,10 @@
 
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
+import { draftDecisionUpdate, draftView, type DraftRow, type DraftView } from "./review-drafts";
 import {
   answerUpdate, isDue, normalizeReviewRow, timeoutUpdate,
-  type AnswerInput, type ReviewRequest,
+  type AnswerInput, type DraftDecision, type ReviewRequest,
 } from "./review-requests";
 
 /**
@@ -117,4 +118,40 @@ export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<s
     if (title) titles[id] = title;
   }));
   return { titles, deleted };
+}
+
+const MAX_DRAFT_LOOKUPS = 60;
+const DRAFT_FIELDS = "id kind title summary body state held evidence history override createdAt";
+
+/** Records one draft's decision on the request while it stays open. Same condition as an answer: state = open. */
+export async function saveDraftDecision(request: ReviewRequest, draftId: string, decision: DraftDecision): Promise<ReviewRequest> {
+  const result = await run(
+    `mutation Decide($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) { updateReviewRequest(input: $input, condition: $condition) { ${FIELDS} } }`,
+    { input: draftDecisionUpdate(request, draftId, decision), condition: { state: { eq: "open" } } },
+  );
+  if (result.errors?.some((entry) => /conditional/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) {
+    throw new Error("Someone else answered this, or it closed at its deadline. Refresh to see the result.");
+  }
+  if (result.errors?.length || !result.data?.updateReviewRequest) throw new Error("The draft was decided, but the request could not record it. Try again.");
+  return normalizeReviewRow(result.data.updateReviewRequest);
+}
+
+export type DraftLoad = { drafts: Record<string, DraftView>; missing: string[]; failed: string[] };
+
+/**
+ * The Proposals that review requests are about, by id (editors and admins may read them). `missing` ids have no proposal (an idea kept
+ * only as JSON has no proposal to open); `failed` ids could not be read right now, which says nothing about whether they exist.
+ */
+export async function loadDrafts(ids: string[], demo = false): Promise<DraftLoad> {
+  const drafts: Record<string, DraftView> = {};
+  const missing: string[] = [];
+  const failed: string[] = [];
+  await Promise.all([...new Set(ids)].slice(0, MAX_DRAFT_LOOKUPS).map(async (id) => {
+    const result = await run(`query Draft($id: ID!) { getProposal(id: $id) { ${DRAFT_FIELDS} } }`, { id });
+    const row = result.data?.getProposal as DraftRow | null | undefined;
+    if (row) drafts[id] = draftView(row, demo);
+    else if (result.errors?.length || !result.data) failed.push(id);
+    else missing.push(id);
+  }));
+  return { drafts, missing, failed };
 }

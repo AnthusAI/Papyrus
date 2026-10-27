@@ -28,6 +28,14 @@ export const monitoringViewSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("monitoringView", monitoringView)),
+  // Accept ("release") or Reject ("discard") one held email submission. The function validates the
+  // signed-in editor and that the message is routed to this publication; the receiver applies it.
+  monitoringDecideEmailSubmission: a
+    .mutation()
+    .arguments({ receiptId: a.string().required(), decision: a.string().required(), reason: a.string() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("monitoringView", monitoringView)),
   monitoringResolveEmailArticleLink: a
     .mutation()
     .arguments({ receiptId: a.string().required(), candidateIndex: a.integer().required() })

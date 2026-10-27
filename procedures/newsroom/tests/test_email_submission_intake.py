@@ -155,6 +155,64 @@ def test_unresolved_subscriber_tracking_url_is_private_and_never_routed():
     assert all(row[1]["canonicalUrl"] != TRACKER for row in delivered)
 
 
+def explored_fixture(monkeypatch, explorer):
+    from procedures.newsroom.tests.test_email_submission_redirects import TRACKER
+    from papyrus_content import email_submission_intake as intake
+    monkeypatch.setattr(intake, "link_explorer", explorer)
+    fixture = email_fixture()
+    fixture.s3.raw = fixture.s3.raw.replace(b"https://example.org/alpha", TRACKER.encode())
+    return fixture, TRACKER
+
+
+def test_an_explored_tracker_is_routed_as_its_canonical_destination_only(monkeypatch):
+    from papyrus_content.link_exploration import Exploration, SearchMatch
+
+    def explorer(link, row):
+        return Exploration(True, "https://news.example.org/story", None, "direct", readable=False)
+
+    fixture, tracker = explored_fixture(monkeypatch, explorer)
+    assert collect_email(fixture)["status"] == "queued"
+    discoveries = fixture.table.by_prefix("DISC#")
+    assert any(row["canonicalUrl"] == "https://news.example.org/story" for row in discoveries)
+    assert all(tracker not in json.dumps(row, default=str) for row in discoveries)
+    receipt = fixture.table.by_prefix("EMAIL#")[0]
+    assert receipt["exploredLinkCount"] == 1 and "unresolvedReasons" not in receipt
+
+
+def test_a_story_found_by_search_is_marked_in_the_discovery_provenance(monkeypatch):
+    from papyrus_content.link_exploration import Exploration, SearchMatch
+
+    def explorer(link, row):
+        return Exploration(True, "https://news.example.org/story", None, "search", search=SearchMatch("A headline of words", 0.85, "fake", "A headline"))
+
+    fixture, tracker = explored_fixture(monkeypatch, explorer)
+    collect_email(fixture)
+    row = next(row for row in fixture.table.by_prefix("DISC#") if row["canonicalUrl"] == "https://news.example.org/story")
+    found = row["emailProvenance"]["linkExploration"]
+    assert found["foundVia"] == "search" and found["query"] == "A headline of words" and found["matchScore"] == Decimal("0.85")
+    assert tracker not in json.dumps(row, default=str)
+
+
+def test_an_unexplorable_tracker_records_a_typed_reason_and_stays_unrouted(monkeypatch):
+    from papyrus_content.link_exploration import Exploration
+
+    fixture, tracker = explored_fixture(monkeypatch, lambda link, row: Exploration(False, failure="http_4xx", direct_failure="http_4xx"))
+    collect_email(fixture)
+    receipt = fixture.table.by_prefix("EMAIL#")[0]
+    assert receipt["unresolvedReasons"] == {"http_4xx": 1}
+    assert all(row["canonicalUrl"] != tracker for row in fixture.table.by_prefix("DISC#"))
+
+
+def test_exploration_is_off_unless_the_deployed_handler_installs_it():
+    from papyrus_content import email_submission_intake as intake
+    assert intake.link_explorer is None
+    intake.install_link_explorer({"EMAIL_LINK_EXPLORATION": "off"})
+    assert intake.link_explorer is None
+    intake.install_link_explorer({})
+    assert intake.link_explorer is intake.explore_email_link
+    intake.link_explorer = None
+
+
 def test_editor_membership_is_never_inferred_and_email_without_links_remains_readable():
     fixture = email_fixture()
     fixture.cognito.editors["us-east-1_fixture"].clear()

@@ -33,14 +33,19 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from collections.abc import Callable, Iterable
 from typing import Any
 
+from .. import link_exploration
 from ..categories_steering import semantic_state_key
+from ..link_exploration import Context, Exploration
 from ..knowledge_snapshot.monitor_records import RATIONALE_PREDICATE, _details_from_relations
 from ..monitor_promotion import promoted_reference_ids
 from . import dedupe, synthesis, trends
 from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
-from .excerpt import Fetcher, excerpt_from_html, fetch_html
+from .excluded_hosts import is_excluded, normalize_hosts
+from . import source_text
+from .source_text import SourceFetcher, fetch_source
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, comparison_documents
 from .review import request_human_review
 from .store import JsonStore, ProposalStore
@@ -146,21 +151,56 @@ def monitor_of(relations: list[dict[str, Any]]) -> str | None:
     return max(found)[1] if found else None
 
 
+def automated_monitor_ids(client: Any) -> tuple[set[str], str | None]:
+    """(the monitors an enabled Automation of the site is triggered by, an error name or None). An Automation whose trigger is
+    ``{"kind": "monitor", "config": {"monitorId": ...}}`` drafts from that monitor's deliveries itself (docs/monitoring-cloud.md), so monitor stories
+    leave them alone. When the records cannot be read the set is empty and the error is returned, so the run still goes ahead and says so."""
+    try:
+        rows = client.list_records("Automation")
+    except Exception as error:  # noqa: BLE001 - a role that cannot list Automations must not stop the step
+        return set(), type(error).__name__
+    monitors: set[str] = set()
+    for row in rows or []:
+        trigger = row.get("trigger")
+        if isinstance(trigger, str):
+            try:
+                trigger = json.loads(trigger)
+            except ValueError:
+                continue
+        if row.get("enabled") is False or not isinstance(trigger, dict) or trigger.get("kind") != "monitor":
+            continue
+        monitor = str((trigger.get("config") or {}).get("monitorId") or "").strip()
+        if monitor:
+            monitors.add(monitor)
+    return monitors, None
+
+
 def collect_monitored_items(
-    client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset()
+    client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset(), excluded_hosts: Iterable[str] = (),
+    automated_monitors: Iterable[str] = (),
 ) -> tuple[list[MonitoredItem], dict[str, int]]:
     """Every monitored Reference of ``site`` (all of them, or only those that arrived inside ``since`` when it is given), each with the monitor,
     the stored details and the Cyclotron's verdict. One indexed query per Reference for its provenance and one more for its decision; the
-    decision is not read for a Reference in ``drafted`` (it is never a candidate again)."""
+    decision is not read for a Reference in ``drafted`` (it is never a candidate again). A Reference whose ``sourceUri`` host is one of
+    ``excluded_hosts`` (or a subdomain) is never read further, never a candidate, and is counted as ``excludedHost``. A Reference delivered by a monitor in ``automated_monitors`` (one an
+    enabled Automation of the site already handles) is never a candidate either, and is counted as ``handledByAutomation``."""
     rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(STATUSES), now - parse_window(since) if since else None)
-    counts = {"inWindow": len(rows), "notMonitored": 0, "judgedNotRelevant": 0}
+    counts = {"inWindow": len(rows), "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0}
+    automated = set(automated_monitors)
+    excluded_hosts = normalize_hosts(excluded_hosts)
     items: list[MonitoredItem] = []
     for row in sorted(rows, key=lambda entry: str(entry["id"])):
+        if is_excluded(row.get("sourceUri"), excluded_hosts):
+            counts["excludedHost"] += 1
+            continue
         lineage = row.get("lineageId") or row["id"]
         incoming = list(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
         monitor = monitor_of(incoming)
         if monitor is None or not row.get("sourceUri"):
             counts["notMonitored"] += 1
+            continue
+        if monitor in automated:
+            counts["handledByAutomation"] += 1
             continue
         item = MonitoredItem(
             reference_id=row["id"], lineage_id=lineage, title=str(row.get("title") or row["sourceUri"]).strip(), url=str(row["sourceUri"]),
@@ -271,13 +311,20 @@ def stored_summary(details: dict[str, Any]) -> str | None:
     return None
 
 
-def read_source_text(url: str, fetch: Fetcher = fetch_html) -> str | None:
-    """The plain text of the linked page (a few paragraphs), or None when it cannot be read. Never raises."""
-    try:
-        html = fetch(url)
-    except Exception:  # noqa: BLE001 - an unreadable page only means no text
-        return None
-    return excerpt_from_html(html, TEXT_LIMIT) if html else None
+def read_source_text(url: str, fetch: SourceFetcher = fetch_source) -> str | None:
+    """The plain text of the linked page or PDF (a few paragraphs, TEXT_LIMIT characters at most), or None when it cannot be read. Never raises."""
+    return source_text.read_source_text(url, fetch, TEXT_LIMIT)
+
+
+Explorer = Callable[[MonitoredItem], Exploration]
+
+
+def explore_item(item: MonitoredItem) -> Exploration:
+    """Follow the item's address through trackers and read it; when that fails, search the web for its title and read the best match.
+
+    The context is the stored title and summary only. Nothing here raises.
+    """
+    return link_exploration.explore(item.url, Context(title=item.title, summary=stored_summary(item.details) or ""), want_text=True, text_limit=TEXT_LIMIT)
 
 
 def source_view(item: MonitoredItem, page_text: str | None) -> dict[str, Any]:
@@ -393,8 +440,9 @@ def run_id_for(site: str, now: datetime) -> str:
     return f"monitor-stories-run-{now.strftime('%Y%m%dT%H%M%SZ')}-{hashlib.sha256((site + iso(now)).encode()).hexdigest()[:6]}"
 
 
-def draft_record(draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any], *, run: dict[str, Any], now: datetime) -> dict[str, Any]:
-    return {
+def draft_record(draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any], *, run: dict[str, Any], now: datetime, exploration: Exploration | None = None) -> dict[str, Any]:
+    found_by_search = exploration is not None and exploration.via == "search"
+    record = {
         "ideaId": "idea-" + hashlib.sha256(f"{run['runId']}|{item.lineage_id}".encode()).hexdigest()[:10],
         "kind": "story_draft", "origin": "monitor", "state": "draft", "proposer": "ai", "proposedBy": "AI", "private": True,
         "publication": run["publication"], "runId": run["runId"], "createdAt": iso(now),
@@ -403,12 +451,16 @@ def draft_record(draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any
         "targets": [target_for(item)],
         "evidence": {"signals": 1, "source": f"{item.monitor_id} monitor: {item.url}"[:200]},
         "monitorId": item.monitor_id, "referenceId": item.reference_id, "referenceLineageId": item.lineage_id, "relevance": item.verdict,
-        "sourceText": "page" if "page_text" in view else "stored details",
+        "sourceText": ("page found by search" if found_by_search else "page") if "page_text" in view else "stored details",
         "citedItems": [{"id": f"item:{item.url}", "title": item.title, "date": (item.published_at or "")[:10] or None, "url": item.url}],
         "citationCheck": draft["citationCheck"],
         "sentences": [{"role": role, **sentence} for role, sentence in [("headline", draft["headline"]), ("dek", draft["dek"])]]
         + [{"role": "body", **sentence} for paragraph in draft["paragraphs"] for sentence in paragraph],
     }
+    if found_by_search:
+        # The original address could not be read, so the text came from a different page: say so, with the query and the match score.
+        record["sourceExploration"] = exploration.as_record()
+    return record
 
 
 # --- the run -------------------------------------------------------------------------------------------------------------------
@@ -430,8 +482,10 @@ def draft_monitor_stories(
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
-    fetch: Fetcher = fetch_html,
+    fetch: SourceFetcher = fetch_source,
     corpus_key: str | None = None,
+    excluded_hosts: Iterable[str] = (),
+    explorer: Explorer | None = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -439,11 +493,18 @@ def draft_monitor_stories(
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else ("proposals" if proposal_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit,
+        "excludedSourceHosts": list(normalize_hosts(excluded_hosts)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
     proposals = proposal_store.story_drafts() if proposal_store else []
     already = drafted_lineage_ids(proposals, stored)
-    items, counts = collect_monitored_items(client, site=corpus_key or site, since=since, now=moment, drafted=already)
+    automated, automation_error = automated_monitor_ids(client)
+    items, counts = collect_monitored_items(
+        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated,
+    )
+    run["automatedMonitors"] = sorted(automated)
+    if automation_error:
+        run["automationLookupError"] = automation_error
     freshness = learn_freshness(items)
     run["freshness"] = freshness or {"tauDays": None, "examples": sum(item.status == "accepted" for item in items), "note": f"Fewer than {MINIMUM_FRESHNESS_EXAMPLES} accepted examples: no freshness weight, the score alone ranks."}
     promoted = promoted_reference_ids(client, items) if items else set()
@@ -460,10 +521,14 @@ def draft_monitor_stories(
     for item in candidates:
         if len(kept) >= limit or run["attempted"] >= limit * ATTEMPT_FACTOR:
             break
-        page_text = read_source_text(item.url, fetch)
+        exploration = explorer(item) if explorer else None
+        page_text = exploration.text if exploration else read_source_text(item.url, fetch)
         view = source_view(item, page_text)
         if not has_material(view):
-            run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "no_source_text"})
+            skipped = {"referenceId": item.reference_id, "title": item.title, "reason": "no_source_text"}
+            if exploration:
+                skipped.update(readFailure=exploration.failure or "unreadable", directFailure=exploration.direct_failure, searchFailure=exploration.search_failure)
+            run["skipped"].append({key: value for key, value in skipped.items() if value})
             continue
         model_input = build_input(item, view, context)
         size = len(SYSTEM_PROMPT) + len(str(model_input))
@@ -487,7 +552,7 @@ def draft_monitor_stories(
             title = str(((raw.get("headline") or {}).get("text")) if isinstance(raw, dict) and isinstance(raw.get("headline"), dict) else "")[:200]
             run["invalid"].append({"referenceId": item.reference_id, "title": title or item.title, "reason": "citation_check_failed", "citationCheck": record, "draft": raw})
             continue
-        built = draft_record(draft, item, view, run=run, now=moment)
+        built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration)
         similar, dropped = dedupe.split_duplicates([built], [*documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
         kept += similar
@@ -528,7 +593,7 @@ def render_report(run: dict[str, Any]) -> str:
         f"Run `{run['runId']}`, " + (f"items that arrived in the last {run['window']['since']}" if run["window"]["since"] else "every undrafted monitored item") + f". Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
         "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
-        f"- Monitored items read: {inputs['inWindow'] - inputs['notMonitored']}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
+        f"- Monitored items read: {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (never drafted here): {inputs.get('handledByAutomation', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} (limit {run['limit']}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",
@@ -537,7 +602,7 @@ def render_report(run: dict[str, Any]) -> str:
         lines += [f"## {number}. {draft['title']}", "", f"From the {draft['monitorId']} monitor, {draft['citedItems'][0]['url']} (source text: {draft['sourceText']}). Citation check: passed ({draft['citationCheck']['sentences']} sentences).", "", draft["body"].rstrip(), ""]
     for heading, rows, describe in (
         ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),
-        ("Skipped", run["skipped"], lambda r: f"{r['title']}: {r['reason']}"),
+        ("Skipped", run["skipped"], lambda r: f"{r['title']}: {r['reason']}" + (f" ({r['readFailure']})" if r.get("readFailure") else "")),
         ("Dropped as duplicates", run["duplicates"], lambda r: f"{r['title']}: {r['reason']}"),
     ):
         if rows:

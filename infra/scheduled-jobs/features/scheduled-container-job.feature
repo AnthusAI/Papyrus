@@ -71,6 +71,11 @@ Feature: Scheduled container jobs
     And when it is enabled and the step fails or times out, the execution still ends in Done
     And the failure is in the task log and the ledger row, and no Fail state, alarm or rollback follows from it
 
+  Scenario: a site can list source hosts its AI drafts never cite
+    Given the site's knowledgeRun block says excludedSourceHosts is ["ipwatchdog.com"]
+    Then the task environment has KNOWLEDGE_EXCLUDED_SOURCE_HOSTS "ipwatchdog.com" and the trend-drafts and monitor-stories steps pass it to their commands as --exclude-host
+    And a site without the setting gets no such variable, and a value that is not a list of bare lowercase host names is refused with the field named
+
   Scenario: the monitorStories setting is validated
     Then a limit below 1 or above 20, a limit that is not a whole number, an unknown field and a value that is not an object are all refused with the field named
 

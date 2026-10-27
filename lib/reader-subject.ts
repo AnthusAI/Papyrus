@@ -1,10 +1,11 @@
 import { createHmac } from "node:crypto";
 import type { ProspectusSignedInSession } from "./prospectus-session";
+import { hasEditorRights, STAFF_GROUPS } from "./staff-groups";
 
 export const SITE_SUBJECT_PATTERN = /^ss1_[A-Za-z0-9_-]{43}$/;
 export const INTERIM_SUBJECT_PATTERN = /^ssdev_[A-Za-z0-9_-]{43}$/;
 export const READER_DEV_SECRET_ENV = "PAPYRUS_READER_DEV_SECRET";
-export const READER_STAFF_GROUPS = ["editor", "admin"] as const;
+export const READER_STAFF_GROUPS = STAFF_GROUPS;
 
 const MINIMUM_DEV_SECRET_LENGTH = 16;
 const INTERIM_SUBJECT_PREFIX = "ssdev_";
@@ -46,7 +47,7 @@ export function readerIsStaff(session: Pick<ProspectusSignedInSession, "accessTo
   try {
     const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { "cognito:groups"?: unknown };
     const groups = claims["cognito:groups"];
-    return Array.isArray(groups) && groups.some((group) => (READER_STAFF_GROUPS as readonly unknown[]).includes(group));
+    return Array.isArray(groups) && hasEditorRights(groups);
   } catch {
     return false;
   }

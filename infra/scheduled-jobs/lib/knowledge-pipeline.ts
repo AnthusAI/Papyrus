@@ -87,6 +87,8 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
     // Read by the optional monitor-stories step only (infra/knowledge-run/monitor_stories.py); set only when the site opted in.
     ...(config.monitorStories ? { MONITOR_STORIES_LIMIT: String(config.monitorStories.limit) } : {}),
+    // Read by the trend-drafts and monitor-stories steps (infra/knowledge-run/*.py), which pass each host as --exclude-host; set only when the site lists hosts.
+    ...(config.excludedSourceHosts?.length ? { KNOWLEDGE_EXCLUDED_SOURCE_HOSTS: config.excludedSourceHosts.join(",") } : {}),
     PAPYRUS_SITE_BUCKET: config.siteBucket,
     PAPYRUS_EDGE_DISTRIBUTION_ID: config.edgeDistributionId,
     PAPYRUS_REDIRECTS_KVS_ARN: config.redirectsKvsArn,

@@ -1,7 +1,7 @@
 Feature: Review cards say what actually happened
   The Notification Center shows each review request as a card. A flag is informational, so an editor
-  acknowledges it: nothing is approved, and the card says "Acknowledged by", never "Approved by". Soft reviews
-  and hard gates keep approve and reject. Answers stored before this change recorded a flag acknowledgement as
+  acknowledges it: nothing is approved, and the card says "Acknowledged by", never "Accepted by". Soft reviews
+  and hard gates keep accept and reject. Answers stored before this change recorded a flag acknowledgement as
   "approve"; those still read as Acknowledged. A card about a story that has since been deleted keeps the id but
   says "(story deleted)", so nobody follows a link to nothing.
 
@@ -11,15 +11,15 @@ Feature: Review cards say what actually happened
     And the editor acknowledges the request
     Then the stored decision is "acknowledge"
     And the outcome is "approved"
-    And the card says "Acknowledged by editor" and not "Approved by"
+    And the card says "Acknowledged by editor" and not "Accepted by"
 
   Scenario: A flag answered before this change as "approve" still reads as acknowledged
     Given a flag answered with the old decision "approve" by "Ed Itor"
-    Then the card says "Acknowledged by Ed Itor" and not "Approved by"
+    Then the card says "Acknowledged by Ed Itor" and not "Accepted by"
 
-  Scenario: A hard gate keeps approve semantics
+  Scenario: A hard gate keeps accept semantics
     Given a hard gate answered with the decision "approve" by "Ed Itor"
-    Then the card says "Approved by Ed Itor" and not "Acknowledged by"
+    Then the card says "Accepted by Ed Itor" and not "Acknowledged by"
 
   Scenario: Only a flag can be acknowledged
     Given a site with no review requests

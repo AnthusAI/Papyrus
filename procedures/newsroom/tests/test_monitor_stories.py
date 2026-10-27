@@ -23,10 +23,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ideas_fixtures import CORPUS, NOW, FakeClient, FakeModel, operator_view, reference  # noqa: E402
 from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import proposals_commands  # noqa: E402
+from papyrus_content.link_exploration import Exploration  # noqa: E402
 from papyrus_content.ideas import commands, monitor_stories as stories  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
 
 SITE = "example-site"
+PAGE_TEXT = "The tool, released on 2026-10-20, reads a draft, finds each claim and links it to the source page it came from. It is written in Rust and has 42 contributors."
 PAGE = "<html><head><meta name='description' content='Foo is an open tool that checks claims against their sources.'></head><body><p>The tool, released on 2026-10-20, reads a draft, finds each claim and links it to the source page it came from. It is written in Rust and has 42 contributors.</p></body></html>"
 
 
@@ -61,7 +63,11 @@ class MonitorClient(FakeClient):
         self.items = list(items)
         self.filed: list[dict] = []
 
+    automations: list = []
+
     def list_records(self, model):
+        if model == "Automation":
+            return list(self.automations)
         return list(self.items) if model == "Item" else super().list_records(model)
 
     def list_semantic_relations_by_object_state(self, key):
@@ -331,6 +337,32 @@ class DraftingTests(unittest.TestCase):
         self.assertEqual([entry["reason"] for entry in run["skipped"]], ["no_source_text"])
         self.assertEqual(len(run["drafts"]), 1)
 
+    def test_an_explorer_supplies_the_source_text_and_a_page_found_by_search_is_marked(self) -> None:
+        from papyrus_content.link_exploration import Exploration, SearchMatch
+
+        _, client = world(1)
+
+        def explorer(item):
+            return Exploration(True, "https://mirror.example/copy", PAGE_TEXT, "search", search=SearchMatch(item.title, 0.8, "fake"), readable=True, text_source="page")
+
+        model = StoryModel()
+        run = draft(client, model, explorer=explorer, fetch=lambda url: self.fail("the explorer replaces the plain fetch"))
+        self.assertEqual(json.loads(model.requests[0]["input"])["source"]["page_text"], PAGE_TEXT)
+        self.assertEqual(run["drafts"][0]["sourceText"], "page found by search")
+        self.assertEqual(run["drafts"][0]["sourceExploration"]["search"]["matchScore"], 0.8)
+        self.assertNotIn("sourceExploration", draft(world(1)[1], StoryModel(), explorer=lambda item: Exploration(True, item.url, PAGE_TEXT, "direct", readable=True))["drafts"][0])
+
+    def test_an_item_the_explorer_cannot_read_is_skipped_with_the_typed_reason(self) -> None:
+        from papyrus_content.link_exploration import Exploration
+
+        _, client = world(2)
+        model = StoryModel()
+        run = draft(client, model, explorer=lambda item: Exploration(False, failure="search_unavailable", direct_failure="http_4xx", search_failure="search_unavailable"))
+        self.assertEqual(model.requests, [])
+        self.assertEqual(run["skipped"][0]["reason"], "no_source_text")
+        self.assertEqual((run["skipped"][0]["readFailure"], run["skipped"][0]["directFailure"], run["skipped"][0]["searchFailure"]), ("search_unavailable", "http_4xx", "search_unavailable"))
+        self.assertIn("(search_unavailable)", stories.render_report(run))
+
     def test_a_draft_that_fails_the_check_is_replaced_by_the_next_item_and_never_filed(self) -> None:
         rows, client = world(3, verdicts={1: 0.9, 2: 0.8, 3: 0.7})
         bad = good_story("", cites=())
@@ -495,7 +527,9 @@ class CommandTests(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
-             mock.patch.object(commands.monitor_stories, "fetch_html", side_effect=lambda url: PAGE), \
+             mock.patch.object(commands.monitor_stories, "fetch_source", side_effect=lambda url: PAGE), \
+             mock.patch.object(commands.monitor_stories, "explore_item", side_effect=lambda item: Exploration(
+                 True, item.url, stories.read_source_text(item.url, lambda url: PAGE), "direct", readable=True)), \
              mock.patch.object(commands, "datetime", wraps=commands.datetime) as clock, \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", **(environment or {})}), \
              mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
@@ -552,3 +586,54 @@ class CommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExcludedHostAndAutomationTests(unittest.TestCase):
+    def test_a_reference_on_an_excluded_host_is_never_a_candidate_and_is_counted(self) -> None:
+        rows, client = world(3)
+        rows[0]["sourceUri"] = "https://www.ipwatchdog.com/2026/10/story"
+        items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW, excluded_hosts=["ipwatchdog.com"])
+        self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows[1:]))
+        self.assertEqual(counts["excludedHost"], 1)
+        self.assertEqual(counts["notMonitored"], 0)
+        self.assertNotIn(("incoming", f"reference#{rows[0]['lineageId']}"), [call for call in client.calls if call[0] == "incoming"])
+
+    def test_a_run_never_drafts_from_an_excluded_host(self) -> None:
+        rows, client = world(3)
+        rows[0]["sourceUri"] = "https://ipwatchdog.com/example1/post"
+        model = StoryModel()
+        run = draft(client, model, fetch=lambda url: PAGE, excluded_hosts=["ipwatchdog.com"])
+        self.assertEqual(run["inputs"]["excludedHost"], 1)
+        self.assertEqual(run["excludedSourceHosts"], ["ipwatchdog.com"])
+        self.assertTrue(run["drafts"])
+        self.assertFalse([d for d in run["drafts"] if "ipwatchdog.com" in str(d["citedItems"])])
+        self.assertFalse([req for req in model.requests if "ipwatchdog.com" in req["input"]])
+
+    def test_a_monitor_an_enabled_automation_handles_is_left_to_it(self) -> None:
+        rows, client = world(2)
+        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab")]
+        client.automations = [{"id": "distinctive.ttab", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": "ttab", "publicationId": "distinctive"}})}]
+        run = draft(client, StoryModel(), fetch=lambda url: PAGE)
+        self.assertEqual(run["inputs"]["handledByAutomation"], 1)
+        self.assertEqual(run["automatedMonitors"], ["ttab"])
+        self.assertEqual({d["monitorId"] for d in run["drafts"]}, {"hn"})
+
+    def test_a_disabled_automation_or_another_trigger_kind_does_not_hide_a_monitor(self) -> None:
+        _, client = world(1)
+        client.automations = [
+            {"id": "a", "enabled": False, "trigger": {"kind": "monitor", "config": {"monitorId": "hn"}}},
+            {"id": "b", "enabled": True, "trigger": {"kind": "event", "config": {"onStage": "draft"}}},
+            {"id": "c", "enabled": True, "trigger": "not json"},
+        ]
+        self.assertEqual(stories.automated_monitor_ids(client), (set(), None))
+
+    def test_unreadable_automations_do_not_stop_the_run(self) -> None:
+        _, client = world(2)
+
+        def refuse(model):
+            if model == "Automation":
+                raise PermissionError("denied")
+            return []
+
+        client.list_records = refuse
+        self.assertEqual(stories.automated_monitor_ids(client), (set(), "PermissionError"))

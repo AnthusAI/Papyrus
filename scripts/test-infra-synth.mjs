@@ -651,6 +651,13 @@ try {
   assert.equal(deployArguments[deployArguments.indexOf("--app") + 1], deployOutputDirectory, "the deploy passes the synthesized directory as the app, not a command string");
   assert.ok(fs.existsSync(path.join(deployOutputDirectory, "manifest.json")), "the deploy synthesizes before it runs the deploy");
 
+  // The private chat data stack comes out of the staged package from the site's chat block (pinned worker code: nothing to bundle).
+  const chatOut = path.join(infraApp, "cdk.out.chat");
+  run("node", [cli, "synth", "--site", path.join(shell, "examples/p-apyr-us.site.json"), "--part", "chat", "--out", chatOut], { cwd: infraApp });
+  const chatTemplate = JSON.parse(fs.readFileSync(path.join(chatOut, "PapyrusChatDataCandidate.template.json"), "utf8"));
+  assert.equal(resourcesOfType(chatTemplate, "AWS::DynamoDB::Table").length, 2, "chat: two tables");
+  assert.equal(resourcesOfType(chatTemplate, "AWS::Lambda::EventSourceMapping").length, 2, "chat: two worker mappings");
+  assert.throws(() => run("node", [cli, "synth", "--site", path.join(shell, "examples/pretext.site.json"), "--part", "chat", "--out", path.join(infraApp, "cdk.out.nochat")], { cwd: infraApp }), /no enabled chat block/, "a site without chat cannot synthesize the chat stack");
   console.log("infra synth tests passed");
 } finally {
   fs.rmSync(work, { recursive: true, force: true });

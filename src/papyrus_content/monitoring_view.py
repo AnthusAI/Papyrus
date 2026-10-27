@@ -22,12 +22,9 @@ import http.client
 import json
 import logging
 import os
-import queue
 import re
-import socket
-import ssl
-import threading
-from urllib.parse import urlsplit, urlunsplit
+
+from .staff_groups import STAFF_GROUPS
 
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
@@ -36,7 +33,7 @@ MONITOR_ID = "hn"
 MONITOR_IDS = ("hn", "ttab", "huggingface", "p-apyr-us-email")
 EMAIL_MONITOR_ID_ENV = "PAPYRUS_EMAIL_MONITOR_ID"
 MONITOR_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
-EDITOR_GROUPS = frozenset({"editor", "admin"})
+EDITOR_GROUPS = STAFF_GROUPS
 SCOPES = ("publication", "all")
 TABLE_PARAMETER = "/papyrus/monitoring/table-name"
 MAX_ITEMS = 60
@@ -45,6 +42,7 @@ MAX_ROUTER_RUNS = 10
 MAX_ERROR_TEXT = 160
 MAX_DECISION_PAGES = 20
 MAX_EMAIL_SUBMISSIONS = 20
+VIEWABLE_EMAIL_STATUSES = {"queued", "processing", "failed", "pending_review", "discarded"}
 
 
 class Forbidden(Exception):
@@ -109,14 +107,32 @@ class TableViewStore:
             if not start:
                 return rows
 
-    def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None):
-        """Persist one editor-requested destination so later Reference intake can verify it."""
+    def put_email_decision(self, item: dict) -> bool:
+        """Create the one decision row for a held message; False when one already exists."""
+        try:
+            self.table.put_item(Item={**item, "pk": self.pk}, ConditionExpression="attribute_not_exists(pk)")
+            return True
+        except Exception as error:
+            if ("ConditionalCheckFailed" not in str(error)
+                    and getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException"):
+                raise
+            return False
+
+    def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None,
+                                found_via_search=None):
+        """Persist one editor-requested destination so later Reference intake can verify it.
+
+        ``found_via_search`` (query, match score, provider) marks a destination found by searching the headline because the
+        original link could not be followed. Editors see it so they can check it; it never contains the original link.
+        """
         sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
         item = {"pk": self.pk, "sk": sk, "receiptDigest": receipt_digest,
                 "candidateIndex": candidate_index, "sourceUri": url, "title": title,
                 "resolvedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z")}
         if isinstance(ttl, int) and not isinstance(ttl, bool):
             item["ttl"] = ttl
+        if found_via_search:
+            item["foundViaSearch"] = json.loads(json.dumps(found_via_search), parse_float=Decimal)
         try:
             self.table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
             return item
@@ -202,7 +218,9 @@ def _item(disc: dict, route: dict | None, publications: list[dict], monitor_id: 
             "relevance": [_relevance(p, route) for p in publications]}
 
 
-def _email_summary(row: dict) -> dict:
+def _email_summary(row: dict, action: dict | None = None, *, now: float | None = None) -> dict:
+    import time
+    from .email_quarantine import quarantine_summary
     diagnostics = row.get("sesDiagnostics") if isinstance(row.get("sesDiagnostics"), dict) else {}
     verdicts = diagnostics.get("verdicts") if isinstance(diagnostics.get("verdicts"), dict) else {}
     return {"receiptId": row.get("sk"), "observedAt": row.get("observedAt"), "status": row.get("status"),
@@ -212,7 +230,16 @@ def _email_summary(row: dict) -> dict:
             "linkCount": int(row.get("linkCount") or 0), "processedCount": int(row.get("processedCount") or 0),
             "unresolvedLinkCount": int(row.get("unresolvedLinkCount") or 0),
             "reviewRequired": row.get("reviewRequired") is True,
-            "errorCode": _short(row.get("errorCode"))}
+            "errorCode": _short(row.get("errorCode")),
+            "quarantine": quarantine_summary(row, action, now=time.time() if now is None else now)}
+
+
+def _held_action(store, receipt: dict) -> dict | None:
+    """The recorded editor decision for a message that is still held, if any."""
+    if receipt.get("status") != "pending_review" or not isinstance(receipt.get("sk"), str):
+        return None
+    from .email_quarantine import action_key
+    return store.get(action_key(receipt["sk"]))
 
 
 def _latest_revisions(rows: list[dict]) -> list[dict]:
@@ -266,7 +293,7 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id:
         if (not receipt or receipt.get("emailTrustMode") != "data-only"
                 or not email_allowed.intersection(receipt.get("emailDestinationPublicationIds") or [])):
             continue
-        submissions.append(_email_summary(receipt))
+        submissions.append(_email_summary(receipt, _held_action(email_store, receipt), now=now))
     result_scope = {"mode": scope, "publicationId": (own or {}).get("publicationId"), "site": (own or {}).get("site"), "canViewAll": is_admin}
 
     routes = {(r.get("sourceId"), r.get("revision")): r for r in store.newest("ROUTE#", MAX_ITEMS * 2)}
@@ -339,23 +366,30 @@ def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now)
             "otherMonitors": others}
 
 
-def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> dict:
-    """Return one safe rendering only to an editor of an explicitly routed destination."""
+def _authorized_receipt(store, *, groups, site_endpoint, receipt_id, statuses=None):
+    """The receipt and publication, only for an editor of an explicitly routed destination."""
     if not set(groups or []) & EDITOR_GROUPS:
         raise Forbidden("email submissions are for editors and admins")
-    if not isinstance(receipt_id, str) or not re.fullmatch(r"EMAIL#[a-f0-9]{64}", receipt_id):
-        return {"error": "bad_request"}
     router = store.get("CONFIG#router") or {}
     publication = next((p for p in router.get("publications", [])
                         if site_endpoint and p.get("appsyncEndpoint") == site_endpoint), None)
     if not publication:
         raise Forbidden("site endpoint is not a configured publication")
     row = store.get(receipt_id)
-    publication_id = publication["publicationId"]
-    if (not row or row.get("status") not in {"queued", "processing", "failed", "pending_review"}
+    if (not row or row.get("status") not in (statuses or VIEWABLE_EMAIL_STATUSES)
             or row.get("emailTrustMode") != "data-only"
-            or publication_id not in (row.get("emailDestinationPublicationIds") or [])):
+            or publication["publicationId"] not in (row.get("emailDestinationPublicationIds") or [])):
         raise Forbidden("email receipt is outside this publication")
+    return row, publication
+
+
+def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> dict:
+    """Return one safe rendering only to an editor of an explicitly routed destination."""
+    if not set(groups or []) & EDITOR_GROUPS:
+        raise Forbidden("email submissions are for editors and admins")
+    if not isinstance(receipt_id, str) or not re.fullmatch(r"EMAIL#[a-f0-9]{64}", receipt_id):
+        return {"error": "bad_request"}
+    row, publication = _authorized_receipt(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
     details = store.email_details(receipt_id.removeprefix("EMAIL#"))
     body = "".join(item.get("text", "") for item in details if "#BODY#" in item.get("sk", ""))
     links = []
@@ -366,68 +400,64 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
     # this authorized detail response; never rewrite the receipt or follow links.
     from .email_submission import normalize_email_candidate
     links = [normalize_email_candidate(link) for link in links]
-    return {"submission": {**_email_summary(row), "corpusId": publication.get("corpusId")}, "safeBodyText": body,
-            "candidateLinks": links, "sourceMaterialIsUntrusted": True}
+    return {"submission": {**_email_summary(row, _held_action(store, row)), "corpusId": publication.get("corpusId")},
+            "safeBodyText": body, "candidateLinks": links, "sourceMaterialIsUntrusted": True}
 
 
-def _resolve_beehiiv_article(url: str) -> str:
-    """Resolve only a selected supported article wrapper with bounded pinned-IP HEADs."""
-    from .email_submission import resolve_email_tracking_url
+def email_submission_accepted(submission: dict) -> bool:
+    """True once a message is accepted: it never needed review, or an editor released it.
 
-    def resolve_host(host, *, timeout):
-        # getaddrinfo has no timeout parameter, so isolate it on a daemon thread
-        # and bound how long this editor request waits without mutating the
-        # process-wide socket defaults used by other Lambda invocations.
-        result = queue.Queue(maxsize=1)
-        def lookup():
-            try:
-                result.put((True, sorted({entry[4][0] for entry in socket.getaddrinfo(
-                    host, 443, type=socket.SOCK_STREAM
-                )})))
-            except (OSError, ValueError) as error:
-                result.put((False, error))
-        worker = threading.Thread(target=lookup, daemon=True)
-        worker.start()
-        worker.join(timeout)
-        if worker.is_alive():
-            raise TimeoutError("DNS lookup timed out")
-        ok, value = result.get_nowait()
-        if not ok:
-            raise value
-        return value
+    A held, discarded or expired message is read-only: nothing is resolved or imported from it.
+    """
+    held = submission.get("quarantine")
+    return held is None or held.get("state") == "released"
 
-    def request(current, *, connect_addresses, method, allow_redirects, read_body, trust_env, timeout):
-        if method != "HEAD" or allow_redirects or read_body or trust_env or not connect_addresses:
-            raise ValueError("unsafe redirect transport options")
-        parts = urlsplit(current)
-        host = parts.hostname or ""
-        path = urlunsplit(("", "", parts.path or "/", parts.query, ""))
-        address = connect_addresses[0]
 
-        class PinnedHTTPSConnection(http.client.HTTPSConnection):
-            def connect(self):
-                raw = socket.create_connection((address, 443), timeout=self.timeout)
-                try:
-                    self.sock = self._context.wrap_socket(raw, server_hostname=host)
-                except Exception:
-                    raw.close()
-                    raise
+def monitoring_decide_email_submission(store, arguments, identity, *, groups, site_endpoint) -> dict:
+    """Accept (release) or reject (discard) one held message; the receiver applies it.
 
-        connection = PinnedHTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
+    Only a validated editor or admin of a publication the message is routed to may decide.
+    Nothing in the message, its sender or its authentication signals is consulted.
+    """
+    from .email_quarantine import RECEIPT_ID, request_decision
+    from .reference_intake_validation import IntakeError, _actor
+
+    if not set(groups or []) & EDITOR_GROUPS:
+        raise Forbidden("email submissions are for editors and admins")
+    if isinstance(arguments, str):
         try:
-            connection.request("HEAD", path, headers={
-                "Host": host,
-                "User-Agent": "Papyrus email article-link review",
-                "Accept": "*/*",
-                "Connection": "close",
-            })
-            response = connection.getresponse()
-            # Do not read even a byte of the remote response body.
-            return {"status": response.status, "headers": {"Location": response.getheader("Location")}}
-        finally:
-            connection.close()
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return {"error": "bad_request"}
+    if (not isinstance(arguments, dict) or set(arguments) - {"receiptId", "decision", "reason"}
+            or not isinstance(arguments.get("receiptId"), str) or not RECEIPT_ID.fullmatch(arguments["receiptId"])):
+        return {"error": "bad_request"}
+    try:
+        actor = _actor(identity)
+    except IntakeError:
+        raise Forbidden("a validated editor session is required") from None
+    claims = (identity or {}).get("claims") or {}
+    email = claims.get("email") if isinstance(claims.get("email"), str) else None
+    row, publication = _authorized_receipt(store, groups=groups, site_endpoint=site_endpoint,
+                                           receipt_id=arguments["receiptId"])
+    return request_decision(store, receipt=row, receipt_id=arguments["receiptId"],
+                            decision=arguments.get("decision"), reason=arguments.get("reason"),
+                            actor=actor, actor_email=email, publication_id=publication["publicationId"])
 
-    return resolve_email_tracking_url(url, resolve_host=resolve_host, request=request)
+
+def _explore_article(link: dict, submission: dict):
+    """Follow a selected wrapper to its article, or find the article by its headline when the wrapper cannot be followed.
+
+    Public http(s) only (link_exploration checks every hop and connects to the address it verified). The destination must also pass
+    the intake's own editorial-address check, so an account action or a private-looking address is never offered for import.
+    """
+    from .email_submission import safe_editorial_url
+    from .link_exploration import Context, explore
+
+    return explore(
+        link["url"], Context(title=str(link.get("title") or ""), sender=str(submission.get("sender") or "")),
+        want_text=False, accept=safe_editorial_url,
+    )
 
 
 def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
@@ -440,6 +470,8 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     detail = monitoring_email_submission(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
     if "submission" not in detail:
         return detail
+    if not email_submission_accepted(detail["submission"]):
+        return {"error": "quarantined"}
     if type(candidate_index) is not int or not 0 <= candidate_index < len(detail["candidateLinks"]):
         return {"error": "bad_request"}
     link = detail["candidateLinks"][candidate_index]
@@ -451,28 +483,43 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
         if (saved.get("receiptDigest") != digest or saved.get("candidateIndex") != candidate_index
                 or (isinstance(saved.get("ttl"), int) and saved["ttl"] <= int(datetime.now(UTC).timestamp()))):
             return {"error": "resolution_failed", "reason": "resolution_record_invalid"}
-        return {"url": saved.get("sourceUri"), "title": str(saved.get("title") or link.get("title") or "")[:1000],
-                "resolved": True}
+        recorded = {"url": saved.get("sourceUri"), "title": str(saved.get("title") or ("" if str(link.get("title") or "").lower().startswith(("http://", "https://")) else link.get("title")) or "")[:1000],
+                    "resolved": True}
+        return {**recorded, "foundVia": "search", "search": saved["foundViaSearch"]} if saved.get("foundViaSearch") else recorded
+    exploration = None
+    title = str(link.get("title") or "")[:1000]
+    if title.lower().startswith(("http://", "https://")):
+        title = ""  # an anchor-less link is titled with its own (subscriber-specific) address; never echo or record it
     try:
-        destination = (resolver or _resolve_beehiiv_article)(link["url"])
+        if resolver:
+            destination = resolver(link["url"])
+        else:
+            exploration = _explore_article(link, detail["submission"])
+            if not exploration.ok:
+                LOG.warning("email article link resolution failed: %s", exploration.failure)
+                return {"error": "resolution_failed", "reason": exploration.failure}
+            destination = exploration.url
     except RedirectResolutionError as error:
         LOG.warning("email article link resolution rejected: %s", error.code)
         return {"error": "resolution_failed", "reason": error.code}
     except (OSError, TimeoutError, http.client.HTTPException) as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "redirect_request_failed"}
+    found = exploration.search.as_dict() if exploration and exploration.via == "search" and exploration.search else None
     try:
         # Keep the AWS SDK imports local so importing this Lambda module remains lightweight.
         from botocore.exceptions import BotoCoreError, ClientError
 
         store.record_email_resolution(
             digest, candidate_index, url=destination,
-            title=str(link.get("title") or "")[:1000], ttl=store.get(receipt_id).get("ttl"),
+            title=title, ttl=store.get(receipt_id).get("ttl"),
+            found_via_search=found,
         )
     except (BotoCoreError, ClientError, ValueError) as error:
         LOG.error("email article resolution could not be recorded: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "resolution_not_recorded"}
-    return {"url": destination, "title": str(link.get("title") or "")[:1000], "resolved": True}
+    result = {"url": destination, "title": title, "resolved": True}
+    return {**result, "foundVia": "search", "search": found} if found else result
 
 
 # --- the Lambda boundary --------------------------------------------------------------------------
@@ -530,7 +577,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     if field_name is not None and nested_field is not None and field_name != nested_field:
         return {"error": "bad_request"}
     field_name = field_name if field_name is not None else nested_field
-    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"}:
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringDecideEmailSubmission"}:
         return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
@@ -541,7 +588,8 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
-        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"):
+        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference",
+                          "monitoringDecideEmailSubmission"):
             email_monitor_id = configured_email_monitor_id(env)
             if email_monitor_id == MONITOR_ID and email_store_factory is None:
                 email_store = make_store(MONITOR_ID)
@@ -553,6 +601,11 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
             return monitoring_email_submission(email_store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
+        if field_name == "monitoringDecideEmailSubmission":
+            return monitoring_decide_email_submission(
+                email_store, {"receiptId": args.get("receiptId"), "decision": args.get("decision"),
+                              "reason": args.get("reason")},
+                event.get("identity") or {}, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
         if field_name == "monitoringQueueEmailReference":
             from .email_reference_handoff import queue_email_reference
             from .reference_intake_validation import IntakeError

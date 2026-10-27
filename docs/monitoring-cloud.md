@@ -692,6 +692,14 @@ This UI change requires an engine release and a site pin update before the link
 is supported on a deployed site. It does not establish live email acceptance.
 
 
+### Held email submissions: Accept or Reject
+
+Mail that fails sender authentication, and the receipts the earlier authentication gate refused, are
+held privately until an editor or admin presses Accept (release) or Reject (discard) on the receipt
+page. The decision is recorded as an `EMAILACTION#` row in the email partition and applied by the
+receiver on its one-minute schedule; nothing is routed, resolved or imported while a message is
+held. See [email reference intake](email-reference-intake.md#quarantine-accept-or-reject).
+
 ### Predictions for editor-selected newsletter References
 
 Importing a receipt's selected candidates now registers normal pending References and then

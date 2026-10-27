@@ -55,6 +55,21 @@ export type CmsConfig = {
   deployStackInBuild?: boolean;
 };
 
+export type ChatConfig = {
+  enabled: boolean;
+  /** SSM SecureString parameter holding the site's OpenAI key; only the chat run worker may read it. */
+  modelKeyParameter: string;
+  /** Chat data stack name (also its CDK construct id). Default `papyrus-chat-<siteId>`. */
+  stackName?: string;
+  /** CloudWatch log group prefix of the two workers (`<prefix>-run-worker`, `<prefix>-probe-worker`). Default `/aws/lambda/papyrus-chat-<siteId>`. */
+  logGroupPrefix?: string;
+  /**
+   * Pins the worker code to an already uploaded CDK asset object (key in the CDK assets bucket) instead of
+   * bundling and uploading new bytes. Only for adopting a stack whose workers are already verified live.
+   */
+  workerCodeS3Key?: string;
+};
+
 export type AmplifyAppShellSiteConfig = {
   siteId: string;
   repository: string;
@@ -82,6 +97,11 @@ export type AmplifyAppShellSiteConfig = {
   };
   papyrusVersion: string;
   storagePreviewPrefix?: string;
+  /**
+   * Private newsroom chat for this publication (docs/private-newsroom-chat-per-site.md). Absent or
+   * `enabled: false` means the site gets neither the chat data stack nor the chat environment on its CMS.
+   */
+  chat?: ChatConfig;
   /**
    * The scheduled cloud knowledge run for this publication. The app-shell stack ignores it; it is validated by
    * infra/scheduled-jobs/lib/knowledge-run-config.ts, which owns the schema.
@@ -153,6 +173,9 @@ const HOST_NAME_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
 const SITE_ORIGIN_PATTERN = /^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(:\d{1,5})?$/;
 const DOMAIN_PREFIX_PATTERN = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 const APP_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _.-]*$/;
+const CHAT_MODEL_KEY_PARAMETER_PATTERN = /^\/[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)+$/;
+const CHAT_LOG_GROUP_PREFIX_PATTERN = /^\/aws\/lambda\/[A-Za-z0-9_.-]{1,100}$/;
+const CHAT_WORKER_CODE_KEY_PATTERN = /^[0-9a-f]{64}\.zip$/;
 const STACK_NAME_PATTERN = /^[A-Za-z][A-Za-z0-9-]{0,127}$/;
 const BRANCH_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9/_.-]*$/;
 const PAPYRUS_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+\.\d+)?$/;
@@ -339,6 +362,57 @@ export function resolveStackName(config: Pick<AmplifyAppShellSiteConfig, "siteId
   return config.stackName ?? `amplify-app-shell-${config.siteId}`;
 }
 
+/** The chat data stack of a site; its construct id and CloudFormation name. Nothing when chat is not enabled. */
+export function resolveChatStackName(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "chat">): string | undefined {
+  if (!config.chat?.enabled) return undefined;
+  return config.chat.stackName ?? `papyrus-chat-${config.siteId}`;
+}
+
+export function resolveChatLogGroupPrefix(config: Pick<AmplifyAppShellSiteConfig, "siteId" | "chat">): string {
+  return config.chat?.logGroupPrefix ?? `/aws/lambda/papyrus-chat-${config.siteId}`;
+}
+
+/** CloudFormation export names the chat stack publishes and the app shell imports (no stack ever references the other directly). */
+export const CHAT_EXPORTED_RESOURCES = ["MessagingTableName", "ConversationIndexTableName", "SessionBucketName", "TurnRunsQueueUrl", "TurnProbesQueueUrl"] as const;
+export const CHAT_ENVIRONMENT_NAMES: Record<(typeof CHAT_EXPORTED_RESOURCES)[number], string> = {
+  MessagingTableName: "PAPYRUS_CHAT_MESSAGING_TABLE",
+  ConversationIndexTableName: "PAPYRUS_CHAT_CONVERSATIONS_TABLE",
+  SessionBucketName: "PAPYRUS_CHAT_SESSION_BUCKET",
+  TurnRunsQueueUrl: "PAPYRUS_CHAT_TURN_RUNS_QUEUE_URL",
+  TurnProbesQueueUrl: "PAPYRUS_CHAT_TURN_PROBES_QUEUE_URL",
+};
+export const CHAT_PRIVATE_ASSISTANT_ID = "papyrus-private-assistant";
+export const CHAT_PRIVATE_ASSISTANT_NAME = "Papyrus Assistant";
+export function chatExportName(stackName: string, resource: (typeof CHAT_EXPORTED_RESOURCES)[number]): string {
+  return `${stackName}:${resource}`;
+}
+
+function parseChat(value: unknown, cms: CmsConfig | undefined): ChatConfig | undefined {
+  if (value === undefined) return undefined;
+  const record = requireObject(value, "chat");
+  rejectUnknownKeys(record, ["enabled", "modelKeyParameter", "stackName", "logGroupPrefix", "workerCodeS3Key"], "chat");
+  if (typeof record.enabled !== "boolean") fail("chat.enabled", "must be a boolean");
+  const chat: ChatConfig = {
+    enabled: record.enabled,
+    modelKeyParameter: requireString(record.modelKeyParameter, "chat.modelKeyParameter", CHAT_MODEL_KEY_PARAMETER_PATTERN, "SSM parameter name such as /papyrus/<site>/openai-api-key"),
+    stackName: optionalString(record.stackName, "chat.stackName", STACK_NAME_PATTERN, "CloudFormation stack name"),
+    logGroupPrefix: optionalString(record.logGroupPrefix, "chat.logGroupPrefix", CHAT_LOG_GROUP_PREFIX_PATTERN, "/aws/lambda/<name>"),
+    workerCodeS3Key: optionalString(record.workerCodeS3Key, "chat.workerCodeS3Key", CHAT_WORKER_CODE_KEY_PATTERN, "<64 hex>.zip CDK asset key"),
+  };
+  for (const key of ["stackName", "logGroupPrefix", "workerCodeS3Key"] as const) {
+    if (chat[key] === undefined) delete chat[key];
+  }
+  if (chat.enabled && cms === undefined) fail("chat.enabled", "requires cms (the chat gateway runs in the CMS compute role)");
+  if (chat.enabled && cms) {
+    for (const key of Object.keys(cms.environment)) {
+      if (key === "PAPYRUS_PRIVATE_CHAT_ENABLED" || key.startsWith("PAPYRUS_CHAT_")) {
+        fail(`cms.environment.${key}`, "is managed by the chat block when chat is enabled: remove it and use chat.enabled");
+      }
+    }
+  }
+  return chat;
+}
+
 export function resolveStoragePreviewPrefix(config: Pick<AmplifyAppShellSiteConfig, "storagePreviewPrefix">): string {
   return config.storagePreviewPrefix ?? "preview/";
 }
@@ -498,7 +572,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
   const record = requireObject(raw, "site");
   rejectUnknownKeys(
     record,
-    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "knowledgeRun", "autoDeploy", "github"],
+    ["siteId", "repository", "repositoryAccessTokenSecretArn", "brand", "frontend", "hostedZoneId", "stackName", "aws", "cms", "email", "reader", "papyrusVersion", "storagePreviewPrefix", "chat", "knowledgeRun", "autoDeploy", "github"],
     "site",
   );
 
@@ -590,6 +664,8 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     github = { owner, repo, branches, ciCanDeployInfra: ciCanDeployInfra as boolean, ...(ownerId !== undefined ? { ownerId, repoId } : {}) };
   }
 
+  const chat = parseChat(record.chat, cms);
+
   const hasDomain = cms?.domainName !== undefined || reader?.domainName !== undefined;
   if (hasDomain && hostedZoneId === undefined) {
     fail("hostedZoneId", "is required when cms.domainName or reader.domainName is set");
@@ -612,6 +688,7 @@ export function parseSiteConfig(raw: unknown): AmplifyAppShellSiteConfig {
     reader,
     papyrusVersion,
     storagePreviewPrefix,
+    ...(chat ? { chat } : {}),
     autoDeploy: autoDeploy as boolean,
     github,
     ...(record.knowledgeRun !== undefined ? { knowledgeRun: record.knowledgeRun } : {}),

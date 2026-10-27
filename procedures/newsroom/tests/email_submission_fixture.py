@@ -3,7 +3,9 @@ from copy import deepcopy
 from io import BytesIO
 from types import SimpleNamespace
 
-from papyrus_content.email_submission_intake import EmailStore, process_ses_record
+from papyrus_content.email_quarantine import request_decision
+from papyrus_content.email_submission_intake import EmailStore, apply_pending_decisions, process_ses_record
+from papyrus_content.monitoring_view import TableViewStore
 from papyrus_content.monitoring_router import RouterStore, run_router
 from procedures.newsroom.tests.test_monitoring_router import FakeTable
 
@@ -109,3 +111,24 @@ def route_email(fixture, **options):
                         appsync=lambda endpoint: object(), deliver=deliver,
                         context_receipt=lambda client, publication: {}, cognito=fixture.cognito, **options)
     return result, delivered
+
+
+def decide_email(fixture, decision, *, receipt_key=None, reason="", publication_id="publication", now=1500):
+    """An editor's recorded Accept ("release") or Reject ("discard"), as the Monitoring view writes it."""
+    store = TableViewStore(fixture.table, "email-publication")
+    receipt_key = receipt_key or fixture.table.by_prefix("EMAIL#")[0]["sk"]
+    return request_decision(store, receipt=store.get(receipt_key), receipt_id=receipt_key, decision=decision,
+                            reason=reason, actor="editor-sub", actor_email=None,
+                            publication_id=publication_id, now=now)
+
+
+def apply_email_decisions(fixture, now=1600):
+    return apply_pending_decisions(EmailStore(fixture.table), fixture.s3, monitor_id="email-publication",
+                                   bucket="mail-fixture", now=now)
+
+
+def accept_held_email(fixture, **options):
+    """Accept the held message and let the receiver apply it, as the live editor flow does."""
+    result = decide_email(fixture, "release", **options)
+    assert result.get("ok"), result
+    return apply_email_decisions(fixture)

@@ -36,11 +36,13 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
+from .staff_groups import STAFF_GROUPS, has_editor_rights
+
 MODES = ("flag", "soft_review", "hard_gate")
 STATES = ("open", "answered", "timed_out", "withdrawn")
 DECISIONS = ("approve", "acknowledge", "reject", "feedback")
 STEERS = ("adjust", "not_this_kind")
-ANSWERING_ROLES = frozenset({"editor", "admin"})
+ANSWERING_ROLES = STAFF_GROUPS
 RECIPIENT_SCOPES = ("default", "mode", "automation")
 RECIPIENT_ROLES = ("editor", "admin")
 PROCEEDED_WITHOUT_REVIEW = "proceeded without review"
@@ -262,7 +264,7 @@ def expire_due(client, *, now: datetime | None = None) -> list[str]:
 def answer_review(client, request_id: str, *, decision: str, by: str, feedback: str | None = None, steer: str | None = None,
                   roles: list[str] | None = None, now: datetime | None = None) -> dict[str, Any]:
     """Approve, reject, or give feedback (with an optional steer). Only an open request can be answered."""
-    if roles is not None and not ANSWERING_ROLES & set(roles):
+    if roles is not None and not has_editor_rights(roles):
         raise ReviewError("only editors and admins can answer a review request.")
     if decision not in DECISIONS:
         raise ReviewError(f"decision must be one of {', '.join(DECISIONS)}.")
@@ -390,7 +392,7 @@ def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: l
     return raise_review(
         client, subject={"type": "batch", "id": batch_id}, mode="soft_review", raised_by=raised_by,
         reason=f"{count} new {plural} to review",
-        ask="Approve to keep them all, reject to drop the batch, or steer with a note about what kind of ideas you want.",
+        ask="Accept or reject each one. Rejecting one as not this kind of story tells the idea pipeline what you do not want.",
         deadline_days=deadline_days, links=[*entries, *(_links(links))], request_id=f"rr-batch-{safe}", now=now)
 
 

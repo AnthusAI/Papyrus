@@ -93,12 +93,14 @@ class FakeViewStore:
         found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"])
         return deepcopy(found)
 
-    def record_email_resolution(self, receipt_digest, candidate_index, *, url, title, ttl=None):
+    def record_email_resolution(self, receipt_digest, candidate_index, *, url, title, ttl=None, found_via_search=None):
         sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
         item = {"pk": PK, "sk": sk, "receiptDigest": receipt_digest,
                 "candidateIndex": candidate_index, "sourceUri": url, "title": title}
         if ttl is not None:
             item["ttl"] = ttl
+        if found_via_search:
+            item["foundViaSearch"] = found_via_search
         prior = self.table.get(sk)
         if prior and prior.get("sourceUri") != url:
             raise ValueError("email_candidate_resolution_conflict")

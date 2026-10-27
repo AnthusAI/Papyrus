@@ -39,6 +39,23 @@ Feature: The router asks Cyclotron once per story for every publication
     When the binding is current and the router sweeps again
     Then the story is decided and delivered
 
+  Scenario: An unrecognised conflict backs the story off and it is asked again on a later run
+    Given Cyclotron answers the combined request with a conflict the router does not recognise
+    When the router sweeps the collected story
+    Then the run does not stop
+    And the story is not given up on and waits to be asked again later
+    And the run receipt says what Cyclotron answered
+    When the router sweeps again before the wait is over
+    Then Cyclotron is not asked about the story again
+    When Cyclotron stops refusing and the router sweeps after the wait
+    Then the story is decided and delivered
+
+  Scenario: A story the lab refuses for now does not hold back the other stories
+    Given the lab refuses the first story with a conflict the router does not recognise
+    When the router sweeps the collected story
+    Then the run does not stop
+    And the other story is decided and delivered
+
   Scenario: A publication whose classifier is not ready is parked while the others carry on
     Given Cyclotron says one publication's criteria are pending inside the combined answer
     When the router sweeps the collected story

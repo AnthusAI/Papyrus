@@ -9,13 +9,15 @@ from .reference_intake_validation import IntakeError, _actor, canonical_source_u
 
 
 def queue_email_reference(store, arguments, identity, *, endpoint):
-    from .monitoring_view import monitoring_email_submission
+    from .monitoring_view import email_submission_accepted, monitoring_email_submission
 
     actor = _actor(identity)
     if not isinstance(arguments, dict) or set(arguments) != {'receiptId', 'candidateIndex', 'source_uri', 'referenceId'}:
         raise IntakeError('One imported email candidate is required.')
     receipt_id, index = arguments['receiptId'], arguments['candidateIndex']
     detail = monitoring_email_submission(store, groups=['editor'], site_endpoint=endpoint, receipt_id=receipt_id)
+    if 'submission' in detail and not email_submission_accepted(detail['submission']):
+        raise IntakeError('Accept this held email before importing from it.')
     if 'submission' not in detail or type(index) is not int or not 0 <= index < len(detail['candidateLinks']):
         raise IntakeError('The candidate does not belong to this receipt.')
     reference_id = arguments['referenceId']

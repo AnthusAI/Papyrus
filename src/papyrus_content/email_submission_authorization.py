@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import re
 
+from .staff_groups import STAFF_GROUPS
+
 USER_POOL_ID = re.compile(r"^[A-Za-z0-9-]+_[A-Za-z0-9]+$")
-CONTENT_WRITE_GROUPS = frozenset({"editor", "admin"})
+CONTENT_WRITE_GROUPS = STAFF_GROUPS
 
 
 class EditorLookupUnavailable(RuntimeError):

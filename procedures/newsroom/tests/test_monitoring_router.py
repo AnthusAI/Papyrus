@@ -136,12 +136,15 @@ class FakeCyclotron:
         self.combined_busy_after = None       # accept this many POSTs, then answer 409 run_busy
         self.combined_poll_override = None    # (status, body) for GET /machine/decisions/{job}
         self.combined_entry_override = {}     # pub -> entry replacing that publication's receipt
+        self.combined_post_queue = []         # one-shot (status, body) answers to POST /machine/decisions, first in first out
         self.combined_poll_queue = []         # one-shot (status, body) answers to GET /machine/decisions/{job}, first in first out
 
     def combined(self, method, path, data):
         if not self.combined_enabled:
             return 404, {"detail": "Not Found"}
         if method == "POST":
+            if self.combined_post_queue:
+                return self.combined_post_queue.pop(0)
             if self.combined_post_override:
                 return self.combined_post_override
             if self.combined_busy_after is not None and len(self.combined_jobs) >= self.combined_busy_after:
@@ -944,12 +947,95 @@ def test_a_park_row_written_with_its_items_inside_is_split_into_rows_when_read_a
     assert [row["sourceId"] for row in parked(table, "threat-intelligence")] == ["1000", "1001", "1002"]
 
 
-def test_other_409_and_ceiling_refusals_still_stop_the_sweep(table):
+def test_unknown_409_skips_only_that_story_and_is_logged(table, caplog):
     store, cyclotron = setup_router(table)
-    cyclotron.post_override["anth-us"] = (409, {"error": {"code": "something_else"}})
-    result = go(table, store, cyclotron)
-    assert result["status"] == "stopped" and result["stoppedBy"] == "something_else"
+    cyclotron.post_override["anth-us"] = (409, {"error": {"code": "something_else"}, "token": "SECRET"})
+    with caplog.at_level("WARNING", logger="papyrus_content.monitoring_router"):
+        result = go(table, store, cyclotron)
+    assert result["status"] != "stopped" and result["stoppedBy"] is None
+    assert "error" not in set(routing_of(table).values())   # not final: the story is retried later
+    assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["refusals"] == 1
+    assert any("http 409" in e["message"] and "something_else" in e["message"] for e in result["errors"])
+    assert "http 409" in caplog.text and "something_else" in caplog.text
+    assert "SECRET" not in caplog.text and "SECRET" not in json.dumps(result["errors"])
     assert ("MONITOR#hn", "PARK#anth-us") not in table.items
+
+
+def test_unknown_409_detail_is_truncated_to_300_characters():
+    assert len(mr.body_excerpt(409, {"detail": "x" * 1000})) == 300
+    assert mr.body_excerpt(502, {"detail": ["a", "b"]}) == 'http 502: detail=["a","b"]'
+    assert mr.body_excerpt(500, "html") == "http 500: no detail"
+
+
+def test_unknown_combined_409_continues_to_the_next_story(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"detail": "something odd"})
+    result = go(table, store, cyclotron)
+    assert result["stoppedBy"] is None and routing_of(table)["DISC#101#000001"] == "collected"
+    assert any("something odd" in e["message"] for e in result["errors"])
+
+
+def refused_route(table):
+    return table.items[("MONITOR#hn", "ROUTE#101#000001")]
+
+
+def test_unknown_409_backs_off_exponentially_is_retried_and_never_final(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"detail": "something odd"})
+    waits = []
+    for n, now in enumerate((2000, 2000 + 900, 2900 + 1800)):
+        go(table, store, cyclotron, now=now)
+        route = refused_route(table)
+        waits.append(int(route["nextAttemptAt"]) - now)
+        assert route["refusals"] == n + 1 and "final" not in route
+        assert route["lastRefusal"]["message"].startswith("http 409") and "something odd" in route["lastRefusal"]["message"]
+        assert routing_of(table)["DISC#101#000001"] == "collected"
+    assert waits == [900, 1800, 3600]
+    posts = len(post_ids(cyclotron))
+    go(table, store, cyclotron, now=int(refused_route(table)["nextAttemptAt"]) - 1)   # still backing off: not asked
+    assert len(post_ids(cyclotron)) == posts
+    cyclotron.combined_post_override = None
+    result = go(table, store, cyclotron, now=int(refused_route(table)["nextAttemptAt"]))
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(set(post_ids(cyclotron))) == 1   # a refusal started nothing: the retry keeps the request identity
+
+
+def test_the_backoff_is_capped_at_24_hours_and_has_no_limit_on_refusals(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"detail": "something odd"})
+    go(table, store, cyclotron, now=2000)
+    refused_route(table)["refusals"] = 40
+    now = int(refused_route(table)["nextAttemptAt"])
+    go(table, store, cyclotron, now=now)
+    route = refused_route(table)
+    assert route["refusals"] == 41 and "final" not in route
+    assert int(route["nextAttemptAt"]) - now == mr.REFUSAL_BACKOFF_MAX == 24 * 3600
+
+
+def test_a_backed_off_story_does_not_hold_back_the_other_stories(table3):
+    store, cyclotron = combined_setup(table3)
+    cyclotron.combined_post_queue = [(409, {"detail": "something odd"})]
+    result = go(table3, store, cyclotron)
+    assert result["stoppedBy"] is None
+    states = routing_of(table3)
+    assert list(states.values()).count("collected") == 1 and "routed" in states.values() and "error" not in states.values()
+
+
+def test_other_definite_4xx_refusals_back_off_but_400_and_422_stay_final(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["anth-us"] = (410, {"detail": "gone for now"})
+    go(table, store, cyclotron)
+    assert routing_of(table)["DISC#101#000001"] == "collected" and refused_route(table)["refusals"] == 1
+    cyclotron.post_override["anth-us"] = (422, {"detail": "bad"})
+    go(table, store, cyclotron, now=int(refused_route(table)["nextAttemptAt"]))
+    assert routing_of(table)["DISC#101#000001"] == "error"
+
+
+def test_ceiling_refusals_still_stop_the_sweep(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["anth-us"] = (507, {"code": "standing_capacity_reached"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "standing_capacity_reached"
 
 
 def test_typed_criteria_pending_code_is_also_not_ready(table):

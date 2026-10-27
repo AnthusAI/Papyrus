@@ -108,8 +108,9 @@ def _email_receipt_candidates(receipt_store, receipt_id: str, publication: str) 
     """Load and scope one private receipt and its canonical candidate sequence."""
     if receipt_store is None:
         raise IntakeError("Email receipt verification is not configured.")
+    # A held (quarantined) or discarded message is read-only until an editor accepts it.
     receipt = receipt_store.get(receipt_id)
-    if (not receipt or receipt.get("status") not in {"pending_review", "queued"}
+    if (not receipt or receipt.get("status") not in {"processing", "queued"}
             or receipt.get("emailTrustMode") != "data-only"):
         raise IntakeError("The email receipt is unavailable for Reference intake.")
     receipt_ttl = receipt.get("ttl")
@@ -191,7 +192,8 @@ def intake_email_submission_references(client, arguments: dict, identity: dict, 
         elif original_url != source_url:
             raise IntakeError("The selected URL does not match this receipt candidate.")
         title = recorded.get("title")
-        if not isinstance(title, str) or not title.strip():
+        if not isinstance(title, str) or not title.strip() or title.strip().lower().startswith(("http://", "https://")):
+            # An anchor-less link is titled with its own address, which for a newsletter wrapper is subscriber-specific.
             title = source_url.split("/", 3)[2]
         items.append({
             "source_uri": source_url,

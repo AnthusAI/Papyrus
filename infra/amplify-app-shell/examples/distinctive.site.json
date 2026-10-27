@@ -9,6 +9,10 @@
     "region": "us-east-1"
   },
   "papyrusVersion": "3.2.0",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY"
+  },
   "cms": {
     "staging": true,
     "cognitoDomainPrefix": "papyrus-distinctive-cms",
@@ -40,9 +44,9 @@
     "monitorSources": [
       "routed"
     ],
-    "monitorStories": {
-      "limit": 3
-    },
+    "excludedSourceHosts": [
+      "ipwatchdog.com"
+    ],
     "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
     "openAiKeyParameter": "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY"
   },

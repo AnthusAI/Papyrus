@@ -37,8 +37,38 @@ export type MonitoringEmailSummary = {
   receiptId: string; observedAt: string | null; status: string; subject: string | null;
   envelopeSender: string | null; headerFrom: string | null; warnings: string[];
   verdicts: Record<string, string>; linkCount: number; processedCount: number; unresolvedLinkCount: number;
-  reviewRequired: boolean; errorCode: string | null;
+  reviewRequired: boolean; errorCode: string | null; quarantine: EmailQuarantine | null;
 };
+
+/** Where a held email submission stands. `null` means it never needed review. */
+export type EmailQuarantineState =
+  | "quarantined" | "release_requested" | "released" | "discard_requested" | "discarded"
+  | "expired" | "decision_failed" | "release_failed";
+export type EmailQuarantine = {
+  state: EmailQuarantineState;
+  decision: { action: "accept" | "reject"; by: string; at: string | null; reason: string } | null;
+  failure: string | null;
+};
+export type EmailDecisionResult =
+  | { ok: true; already: boolean; quarantine: EmailQuarantine }
+  | { error: "forbidden" | "bad_request" | "already_decided" | "not_quarantined" | "expired"; quarantine?: EmailQuarantine }
+  | { state: "unavailable" | "not_configured" };
+
+export const QUARANTINE_LABELS: Record<EmailQuarantineState, string> = {
+  quarantined: "Held for review",
+  release_requested: "Accepted, being queued",
+  released: "Accepted",
+  discard_requested: "Rejected, being closed",
+  discarded: "Rejected",
+  expired: "Expired",
+  decision_failed: "Decision could not be applied",
+  release_failed: "Accepted, retrying",
+};
+
+/** Links and import are available only once a message is accepted (or never needed review). */
+export function emailSubmissionAccepted(quarantine: EmailQuarantine | null): boolean {
+  return quarantine === null || quarantine.state === "released";
+}
 
 export type MonitoringEmailDetails = {
   submission: MonitoringEmailSummary & { corpusId: string | null }; safeBodyText: string;
@@ -47,6 +77,8 @@ export type MonitoringEmailDetails = {
 
 export type MonitoringEmailArticleResolution = {
   url: string; title: string; resolved: true;
+  /** Present when the original link could not be followed and the destination was found by searching the headline. */
+  foundVia?: "search"; search?: { query: string; matchScore: number; provider: string; matchedTitle?: string };
 } | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string } | { state: "unavailable" };
 
 export type EmailReferenceImportItem = { candidateIndex: number; source_uri: string };

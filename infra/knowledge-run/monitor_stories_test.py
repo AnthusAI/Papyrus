@@ -84,7 +84,7 @@ def test_the_step_writes_a_ledger_row_with_its_cost_like_a_stage(aws):
     assert cost["llm"]["calls"] == 3 and (cost["llm"]["inputTokens"], cost["llm"]["outputTokens"]) == (6000, 1200)
     assert cost["llm"]["usd"] > 0 and cost["llm"]["byModel"]["gpt-6-luna"]["calls"] == 3
     assert cost["computeUsd"] > 0 and cost["totalUsd"] == pytest.approx(cost["computeUsd"] + cost["llm"]["usd"])
-    assert saved["details"]["result"] == {"filed": 2, "attempted": 3, "candidates": 9, "alreadyDrafted": 2, "failedTheCheck": 1, "skipped": 0, "duplicates": 0, "review": "requested"}
+    assert saved["details"]["result"] == {"filed": 2, "attempted": 3, "candidates": 9, "alreadyDrafted": 2, "excludedHost": 0, "handledByAutomation": 0, "failedTheCheck": 1, "skipped": 0, "duplicates": 0, "review": "requested"}
     assert "x" * 100 not in json.dumps(saved), "the drafts themselves are not kept in the ledger"
 
 
@@ -153,3 +153,13 @@ def test_a_corpus_key_of_its_own_is_passed_to_the_command_and_the_default_is_not
     plain = []
     go({**BASE, "KNOWLEDGE_CORPUS_KEY": "shipped"}, execute=lambda args, env: plain.append(args) or answer()(args, env))
     assert "--corpus-key" not in plain[0], "a key equal to the publication is the default: the command line is what it was"
+
+
+def test_each_excluded_source_host_is_passed_to_the_command_as_a_flag():
+    calls = []
+    go({**BASE, "KNOWLEDGE_EXCLUDED_SOURCE_HOSTS": "ipwatchdog.com,other.example"}, execute=lambda args, env: calls.append(args) or answer()(args, env))
+    args = calls[0]
+    assert args[args.index("--exclude-host"):args.index("--json")] == ["--exclude-host", "ipwatchdog.com", "--exclude-host", "other.example"]
+    plain = []
+    go(execute=lambda args, env: plain.append(args) or answer()(args, env))
+    assert "--exclude-host" not in plain[0]

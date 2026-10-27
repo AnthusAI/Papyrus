@@ -24,6 +24,7 @@ import {
 import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { NotificationCenter } from "./notification-center";
+import { CyclotronRow, predictionFromDecision } from "./reference-review-card";
 
 type NewsroomOpsOverviewProps = {
   assignments: AssignmentRecord[];
@@ -105,9 +106,13 @@ export function NewsroomOpsOverview({
                     href={href}
                     key={lineageId}
                   >
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 space-y-1">
                       <p className="truncate text-sm font-medium text-foreground">{referenceDisplayTitle(reference)}</p>
                       <p className="text-xs text-muted-foreground">Review source intake · {formatReferenceListDate(reference)}</p>
+                      <div data-needs-attention-suggestion={lineageId}>
+                        <CyclotronRow prediction={decisions.get(lineageId) ? predictionFromDecision(decisions.get(lineageId)!) : { state: "none" }} />
+                      </div>
+                      <p className="text-xs font-medium text-foreground">Open it to Accept or Reject in the review queue</p>
                     </div>
                     <Badge className="mt-0.5 shrink-0" variant="outline">Pending</Badge>
                   </Link>

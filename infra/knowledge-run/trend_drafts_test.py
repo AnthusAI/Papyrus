@@ -144,3 +144,13 @@ def test_main_never_fails_the_run(monkeypatch, capsys):
 def test_a_nonzero_exit_of_the_command_is_reported_as_a_failure():
     with pytest.raises(RuntimeError, match="exited with 3"):
         trend_drafts.run(BASE, fetch=lambda url: "2026-10-26", read_key=lambda n: "k", execute=lambda a, e: 3)
+
+
+def test_each_excluded_source_host_is_passed_to_the_command_as_a_flag():
+    calls = []
+    environment = {**BASE, "KNOWLEDGE_EXCLUDED_SOURCE_HOSTS": "ipwatchdog.com, other.example"}
+    trend_drafts.run(environment, fetch=lambda url: "2026-10-26", read_key=lambda n: "k", execute=lambda a, e: calls.append(a) or 0)
+    assert calls[0][-4:] == ["--exclude-host", "ipwatchdog.com", "--exclude-host", "other.example"]
+    calls.clear()
+    trend_drafts.run(BASE, fetch=lambda url: "2026-10-26", read_key=lambda n: "k", execute=lambda a, e: calls.append(a) or 0)
+    assert "--exclude-host" not in calls[0]

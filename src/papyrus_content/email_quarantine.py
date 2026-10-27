@@ -1,0 +1,116 @@
+"""Quarantined email submissions: one recorded editor decision per message.
+
+A message the receiver cannot accept on its own (failed authentication signals, or a
+refusal from the earlier authentication gate) is held privately as `pending_review`.
+An editor or admin of a destination publication either *accepts* it (release: the
+receiver then queues it exactly as if it had been accepted) or *rejects* it (discard).
+Authentication signals never grant a role or choose a destination; only this recorded
+human decision moves a held message forward.
+
+The Monitoring view writes one append-only decision row (`EMAILACTION#<digest>`, first
+decision wins). The receiver is the only writer of the receipt: it applies the decision
+on its one-minute schedule. This module holds the vocabulary shared by both sides and
+the view-side request; it imports nothing heavy.
+"""
+from __future__ import annotations
+
+from datetime import UTC, datetime
+import re
+
+ACTION_PREFIX = "EMAILACTION#"
+DECISIONS = ("release", "discard")
+REASON_MAX_CHARACTERS = 500
+RECEIPT_ID = re.compile(r"^EMAIL#[a-f0-9]{64}$")
+QUARANTINE_STATUS = "pending_review"
+#: Receipt refusals from the earlier authentication/membership gate. They never parsed the
+#: MIME, so they have no stored text or links until the receiver quarantines them.
+LEGACY_REJECTION_CODES = frozenset({"sender_authentication_failed", "sender_not_active_editor"})
+
+
+def action_key(receipt_id: str) -> str:
+    return ACTION_PREFIX + receipt_id.removeprefix("EMAIL#")
+
+
+def clean_reason(value) -> str:
+    """Optional free text from the editor: plain, single paragraph, bounded."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("reason_invalid")
+    text = " ".join("".join(c if c.isprintable() or c in "\n\t" else " " for c in value).split())
+    return text[:REASON_MAX_CHARACTERS]
+
+
+def quarantine_state(receipt: dict, action: dict | None, *, now: float) -> str | None:
+    """The precise state an editor sees, or None when the receipt was never quarantined."""
+    status = receipt.get("status")
+    if status == "discarded":
+        return "discarded"
+    if receipt.get("releasedAt"):
+        return "release_failed" if status == "failed" else "released"
+    if status != QUARANTINE_STATUS:
+        return None
+    ttl = receipt.get("ttl")
+    if isinstance(ttl, int) and not isinstance(ttl, bool) and ttl <= now:
+        return "expired"
+    if action:
+        if action.get("outcome") and action["outcome"] not in {"released", "discarded"}:
+            return "decision_failed"
+        return "release_requested" if action.get("decision") == "release" else "discard_requested"
+    return "quarantined"
+
+
+def quarantine_summary(receipt: dict, action: dict | None, *, now: float) -> dict | None:
+    state = quarantine_state(receipt, action, now=now)
+    if state is None:
+        return None
+    decision = receipt.get("decision") if isinstance(receipt.get("decision"), dict) else action
+    shown = None
+    if isinstance(decision, dict) and decision.get("decision") in DECISIONS:
+        shown = {"action": "accept" if decision["decision"] == "release" else "reject",
+                 "by": str(decision.get("actorEmail") or decision.get("actor") or "")[:254],
+                 "at": decision.get("requestedAt"), "reason": str(decision.get("reason") or "")[:REASON_MAX_CHARACTERS]}
+    failure = action.get("outcome") if action and action.get("outcome") not in {None, "released", "discarded"} else None
+    return {"state": state, "decision": shown, "failure": failure}
+
+
+def request_decision(store, *, receipt: dict, receipt_id: str, decision: str, reason, actor: str,
+                     actor_email: str | None, publication_id: str, now: float | None = None) -> dict:
+    """Record the editor's decision for one held message; idempotent, first decision wins.
+
+    `store` is the Monitoring view store of the email partition. The caller has already
+    authenticated the editor and checked the receipt belongs to the editor's publication.
+    """
+    if decision not in DECISIONS:
+        return {"error": "bad_request"}
+    try:
+        text = clean_reason(reason)
+    except ValueError:
+        return {"error": "bad_request"}
+    now = datetime.now(UTC).timestamp() if now is None else now
+    existing = store.get(action_key(receipt_id))
+    if existing:
+        if existing.get("decision") == decision:
+            return {"ok": True, "already": True, "quarantine": quarantine_summary(receipt, existing, now=now)}
+        return {"error": "already_decided", "quarantine": quarantine_summary(receipt, existing, now=now)}
+    state = quarantine_state(receipt, None, now=now)
+    if state != "quarantined":
+        return {"error": "expired" if state == "expired" else "not_quarantined"}
+    requested = datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z")
+    digest = receipt_id.removeprefix("EMAIL#")
+    diagnostics = receipt.get("sesDiagnostics") if isinstance(receipt.get("sesDiagnostics"), dict) else {}
+    item = {"sk": action_key(receipt_id), "receiptId": receipt_id, "decision": decision, "reason": text,
+            "actor": actor, "publicationId": publication_id, "requestedAt": requested,
+            "verdicts": dict(diagnostics.get("verdicts") or {}), "ttl": receipt.get("ttl"),
+            "gsi1pk": f"EMAIL_ACTION#{store.pk.removeprefix('MONITOR#')}", "gsi1sk": f"{requested}#{digest}"}
+    if actor_email:
+        item["actorEmail"] = actor_email[:254]
+    if not isinstance(item["ttl"], int) or isinstance(item["ttl"], bool):
+        del item["ttl"]
+    if store.put_email_decision(item):
+        return {"ok": True, "already": False, "quarantine": quarantine_summary(receipt, item, now=now)}
+    # Lost a race with another click or retry: report what is now recorded.
+    recorded = store.get(action_key(receipt_id)) or {}
+    if recorded.get("decision") == decision:
+        return {"ok": True, "already": True, "quarantine": quarantine_summary(receipt, recorded, now=now)}
+    return {"error": "already_decided", "quarantine": quarantine_summary(receipt, recorded, now=now)}

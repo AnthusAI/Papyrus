@@ -54,6 +54,6 @@ try {
 const cliSource = fs.readFileSync(path.join(repo, "packages/papyrus/bin/papyrus-infra.mjs"), "utf8");
 const moduleSource = fs.readFileSync(path.join(repo, "packages/papyrus/src/cdk-environment.mjs"), "utf8");
 for (const source of [cliSource, moduleSource]) assert.equal(source.includes(legacyAccount), false, "no hard-coded legacy account remains");
-assert.equal((cliSource.match(/resolveEnvironmentOrExit\(\)/g) ?? []).length, 2, "both stacks resolve the environment through the shared resolver");
+assert.equal((cliSource.match(/resolveEnvironmentOrExit\(\)/g) ?? []).length, 3, "all three stacks (OIDC provider, app shell, chat) resolve the environment through the shared resolver");
 
 console.log("papyrus-infra cdk environment tests passed");

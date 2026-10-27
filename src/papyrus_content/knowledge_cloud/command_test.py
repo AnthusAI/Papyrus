@@ -56,3 +56,11 @@ def test_no_successful_deploy_is_an_error():
 
     with pytest.raises(ValueError, match="No successful Amplify deploy"):
         latest_successful_commit([{"jobId": "1", "status": "FAILED", "commitId": "x", "endTime": dt.datetime.now(dt.timezone.utc)}], "app", "main")
+
+
+def test_the_cloud_run_config_reads_the_excluded_source_hosts_from_the_environment():
+    from .config import CloudRunConfig
+
+    base = {"KNOWLEDGE_PUBLICATION": "shipped", "KNOWLEDGE_STATE_BUCKET": "b", "KNOWLEDGE_LEDGER_TABLE": "t", "KNOWLEDGE_SITE_REPO": "https://example.test/r", "PAPYRUS_SITE_BUCKET": "s"}
+    assert CloudRunConfig.from_environment(base).excluded_source_hosts == ()
+    assert CloudRunConfig.from_environment({**base, "KNOWLEDGE_EXCLUDED_SOURCE_HOSTS": "IPWatchdog.com, a.example"}).excluded_source_hosts == ("ipwatchdog.com", "a.example")
