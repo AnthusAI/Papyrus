@@ -13,6 +13,7 @@ import { useEffect, useRef, useState, type ReactNode, type PointerEvent as React
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { RatingGrid } from "./review-rating-grid";
+import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { REFERENCE_REJECTION_REASON_CODES, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 
 export type ReviewChoice = "accept" | "reject";
@@ -141,8 +142,11 @@ export function ReviewCard({
   summary,
   title,
   titleHref,
+  ratings,
 }: {
   children?: ReactNode;
+  /** A shared rating store, so the grid card and this card stay in step. Optional: the card works alone without it. */
+  ratings?: RatingController;
   /** The saved human answer, or null while the item is undecided. */
   decided: ReviewChoice | null;
   /** When set, the controls explain in words why they cannot change anything. */
@@ -157,70 +161,21 @@ export function ReviewCard({
   title: string;
   titleHref?: string | null;
 }) {
-  const [draft, setDraft] = useState<ReviewChoice | null>(null);
-  const [note, setNote] = useState(initialNote);
-  const [reason, setReason] = useState<ReferenceRejectionReasonCode | null>(initialReason);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inFlight = useRef(false);
-  const noteTouched = useRef(false);
-  const reasonTouched = useRef(false);
-  const savedNote = useRef(initialNote);
-
-  // Saved values from outside (another editor, a reload) refresh whatever the human has not touched.
-  useEffect(() => {
-    savedNote.current = initialNote;
-    if (!noteTouched.current) setNote(initialNote);
-  }, [initialNote]);
-  useEffect(() => {
-    if (!reasonTouched.current) setReason(initialReason);
-  }, [initialReason]);
-
-  const chosen = draft ?? decided;
-
-  async function save(choice: ReviewChoice, nextReason: ReferenceRejectionReasonCode | null, nextNote: string) {
-    if (disabledReason || inFlight.current) return;
-    if (choice === "reject" && !nextReason) return;
-    inFlight.current = true;
-    setSaving(true);
-    setSaved(false);
-    setError(null);
-    try {
-      await onDecide(choice, { note: nextNote.trim(), reasonCode: choice === "reject" ? nextReason : null });
-      savedNote.current = nextNote.trim();
-      noteTouched.current = false;
-      reasonTouched.current = false;
-      setDraft(null);
-      setSaved(true);
-    } catch (failure) {
-      setDraft(null);
-      setError(failure instanceof Error ? failure.message : "Your answer could not be saved. Tap it again to retry.");
-    } finally {
-      inFlight.current = false;
-      setSaving(false);
-    }
-  }
-
-  function choose(choice: ReviewChoice) {
-    if (disabledReason) return;
-    if (chosen === choice && draft === null) return; // the selected answer never unselects itself
-    setError(null);
-    setDraft(choice);
-    void save(choice, reason, note);
-  }
-
-  function chooseReason(code: ReferenceRejectionReasonCode) {
-    if (disabledReason) return;
-    setReason(code);
-    reasonTouched.current = true;
-    if (chosen === "reject") void save("reject", code, note);
-  }
-
-  function commitNote() {
-    if (!decided || disabledReason || note.trim() === savedNote.current.trim()) return;
-    void save(decided, reason, note);
-  }
+  // The rating state lives in a store. Given one (`ratings`), the grid card and this card share it, so a vote or a reason typed in
+  // either shows in both at once; without one the card keeps a private store, exactly as before.
+  const local = useRatingStore({
+    save: (_id, choice, detail) => onDecide(choice, detail),
+    saved: () => decided,
+    seed: () => ({ note: initialNote, reasonCode: initialReason }),
+  });
+  const store = ratings ?? local;
+  const item = store.get(itemId);
+  const note = item.note ?? initialNote;
+  const reason = item.reasonCode !== undefined ? item.reasonCode : initialReason;
+  const chosen = item.pending ?? decided;
+  const choose = (choice: ReviewChoice) => { if (!disabledReason) store.choose(itemId, choice); };
+  const chooseReason = (code: ReferenceRejectionReasonCode) => { if (!disabledReason) store.setReason(itemId, code); };
+  const commitNote = () => { if (!disabledReason) store.commitNote(itemId); };
 
   // Desktop shortcuts: A accepts, R rejects. Never while typing.
   useEffect(() => {
@@ -253,7 +208,7 @@ export function ReviewCard({
         decided={decided}
         disabled={Boolean(disabledReason)}
         disabledReason={disabledReason}
-        feedback={saving ? { phase: "saving" } : error ? { phase: "error", message: error } : saved ? { phase: "saved" } : { phase: "idle" }}
+        feedback={item.feedback}
         onChoose={choose}
         prediction={prediction}
         size="large"
@@ -266,7 +221,7 @@ export function ReviewCard({
           aria-label="Why? (optional)"
           className="mt-1 block min-h-24 w-full rounded-md border bg-background p-3 text-base font-normal"
           onBlur={commitNote}
-          onChange={(event) => { setNote(event.target.value); noteTouched.current = true; setSaved(false); }}
+          onChange={(event) => store.setNote(itemId, event.target.value)}
           placeholder="Say what made this an easy yes or a clear no. Your note teaches the Cyclotron."
           value={note}
         />

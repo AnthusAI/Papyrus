@@ -6,7 +6,7 @@ import { ReferenceCurationControls, useReferenceImport } from "./reference-curat
 
 import { ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +43,11 @@ import { normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRe
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
-import { partitionReferenceFeed, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
+import { ReferenceCapturePanel } from "./reference-capture-panel";
+import { useReferenceCapture } from "./reference-capture-client";
+import { useRatingStore, type RatingController } from "./use-reference-ratings";
+import { captureStatusesByLineage } from "../lib/reference-capture";
+import { applyFeedOrderSnapshot, partitionReferenceFeed, takeFeedOrderSnapshot, type FeedOrderSnapshot, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
 import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
@@ -291,6 +295,9 @@ function cardPrediction(decision: RelevanceDecisionView | undefined, predictionS
 }
 
 function ReferenceDetailPanel({
+  captureTeaserLine,
+  ratings,
+  sectionChoices,
   countsAsTrainingLabel,
   delegated,
   decision,
@@ -306,6 +313,11 @@ function ReferenceDetailPanel({
   sectionSuggestion,
   sections = [],
 }: {
+  captureTeaserLine: number;
+  /** The rating store shared with the grid cards. */
+  ratings?: RatingController;
+  /** Where this panel records the Section chosen for an accept, so the shared store's save can include it. */
+  sectionChoices?: MutableRefObject<Map<string, string | null>>;
   countsAsTrainingLabel?: boolean;
   delegated?: DelegatedCuration;
   decision?: RelevanceDecisionView;
@@ -333,6 +345,8 @@ function ReferenceDetailPanel({
     if (!sectionEdited.current) setChosenSectionId(reviewSectionId ?? null);
   }, [reviewSectionId]);
   const url = referenceUrl(reference);
+  useEffect(() => { sectionChoices?.current.set(lineageId, chosenSectionId); }, [chosenSectionId, lineageId, sectionChoices]);
+  const capture = useReferenceCapture(reference, previewAttachments, captureTeaserLine);
 
   async function decide(choice: ReviewChoice, review: ReviewCardDecision) {
     const action: ReferenceCurationAction = choice;
@@ -362,6 +376,7 @@ function ReferenceDetailPanel({
           initialNote={sourceNote}
           initialReason={sourceReason}
           itemId={lineageId}
+          ratings={ratings}
           onArchive={status === "archived" ? undefined : async () => { await onReview("archive"); }}
           onDecide={decide}
           prediction={cardPrediction(decision, predictionState)}
@@ -391,6 +406,8 @@ function ReferenceDetailPanel({
         </ReviewCard>
 
         <Separator />
+
+        <ReferenceCapturePanel capture={capture} />
 
         <section aria-label="Source preview" className="space-y-2">
           <h3 className="text-sm font-medium text-foreground">Source preview</h3>
@@ -544,10 +561,21 @@ export function NewsroomReferencesView({
   );
 
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const partition = useMemo(
+  const livePartition = useMemo(
     () => partitionReferenceFeed(canonicalReferences, decisions, { now: mountedAt, visitRated, tauDaysOverride }),
     [canonicalReferences, decisions, mountedAt, tauDaysOverride, visitRated],
   );
+  // The feed's order is taken ONCE per visit, when the feed has loaded (References and predictions), and then left alone. Selecting an
+  // item, rating one, a background refresh or a cache revalidation changes cards' content, never their places. Items that arrive later
+  // wait behind a "N new items: show" pill. (The Rated tab is a live list: it is the one place a new answer is meant to appear.)
+  const orderSnapshot = useRef<FeedOrderSnapshot | null>(null);
+  const [, bumpOrder] = useState(0);
+  const orderReady = !loading && !showingSavedCopy && !previewSkeleton && predictionState !== "loading" && canonicalReferences.length > 0;
+  if (!orderSnapshot.current && orderReady) orderSnapshot.current = takeFeedOrderSnapshot(livePartition);
+  const stable = orderSnapshot.current ? applyFeedOrderSnapshot(orderSnapshot.current, livePartition) : null;
+  const partition = stable?.partition ?? livePartition;
+  const showNewItems = () => { orderSnapshot.current = takeFeedOrderSnapshot(livePartition); bumpOrder((count) => count + 1); };
+  const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null);
   const feedOrderIds = useMemo(
     () => (feedTab === "feed" ? [...partition.feed, ...partition.earlier] : feedTab === "rated" ? partition.rated : partition.earlier).map((item) => item.lineageId),
     [feedTab, partition],
@@ -635,7 +663,7 @@ export function NewsroomReferencesView({
   };
 
   const goNext = () => {
-    if (nextLineageId) selectReference(nextLineageId);
+    if (nextLineageId) { selectReference(nextLineageId); setScrollTarget({ id: nextLineageId, nonce: Date.now() }); }
     else if (queue.length && !caughtUp) {
       // Past the last item: say so, rather than showing an empty page.
       setCaughtUp(true);
@@ -644,7 +672,7 @@ export function NewsroomReferencesView({
     } else if (!queue.length) setCaughtUp(true);
   };
   const goPrevious = () => {
-    if (previousLineageId) selectReference(previousLineageId);
+    if (previousLineageId) { selectReference(previousLineageId); setScrollTarget({ id: previousLineageId, nonce: Date.now() }); }
   };
   const gestures = useQueueGestures({ onNext: goNext, onPrevious: goPrevious });
 
@@ -671,6 +699,47 @@ export function NewsroomReferencesView({
       ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
     });
   };
+  // One rating store for the whole view: the grid cards and the detail pane read and write the same state, so a vote or a reason
+  // entered in either shows in both. Reason then vote, or vote then reason, both end up on one decision.
+  const sectionChoices = useRef<Map<string, string | null>>(new Map());
+  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId);
+  const ratings = useRatingStore({
+    save: async (lineageId, choice, detail) => {
+      const reference = referenceById(lineageId);
+      if (!reference) throw new Error("This reference is no longer in the list.");
+      markVisitRated(lineageId);
+      const decision = decisions?.get(lineageId);
+      const sectionId = choice === "accept" ? sectionChoices.current.get(lineageId) : null;
+      await onReview(reference, choice, {
+        note: detail.note || undefined,
+        reasonCode: choice === "reject" ? detail.reasonCode : null,
+        ...(sectionId ? { sectionId } : {}),
+        ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
+      });
+    },
+    saved: (lineageId) => {
+      const status = normalizeReferenceCurationStatus(referenceById(lineageId)?.curationStatus);
+      return status === "accepted" ? "accept" : status === "rejected" ? "reject" : null;
+    },
+    seed: (lineageId) => {
+      const reference = referenceById(lineageId);
+      const status = normalizeReferenceCurationStatus(reference?.curationStatus);
+      return {
+        note: reference && status !== "pending" ? reference.curationStatusReason ?? "" : "",
+        reasonCode: reviewReasons?.get(lineageId) ?? (reference ? referenceReasonCode(reference) : null) ?? null,
+      };
+    },
+  });
+  const { statuses: captureStatuses, teaserLine } = useMemo(
+    () => captureStatusesByLineage(referenceAttachments, canonicalReferences.map(referenceLineageId)),
+    [canonicalReferences, referenceAttachments],
+  );
+  // Preview only: a fixture can carry captured text inline; say so, since production stores none for monitored References.
+  const previewCapturedText = useMemo(
+    () => isLocalPreviewEnabled() && referenceAttachments.some((attachment) => attachment.role === "extracted_text" && String(attachment.storagePath ?? "").startsWith("preview://")),
+    [referenceAttachments],
+  );
+  const showCaptures = !showingSavedCopy && !loading && !previewSkeleton;
   const feedDisabledReason = disabled
     ? "Editor access is required to change this reference."
     : showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null;
@@ -689,9 +758,14 @@ export function NewsroomReferencesView({
     ? "No references match this filter."
     : "No private references imported yet.";
 
+  // The grid must not move when a detail opens, so in the feed the detail pane's place is reserved all the time (from the md breakpoint
+  // up): opening it changes nothing, and the grid's column count follows the width it has beside that place, never the selection. Below
+  // md the detail is a sheet over the grid. There is no overlay mode: an overlay would hide the cards Previous / Next scrolls to.
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[calc(100dvh-8.5rem)] md:flex-row"
+      data-detail-reserved={view === "feed" ? "true" : undefined}
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
@@ -744,6 +818,11 @@ export function NewsroomReferencesView({
             Preview only: {synthetic.changed} of these predictions are made up to show the Reject end of the feed. Real data has none yet.
           </p>
         ) : null}
+        {previewCapturedText ? (
+          <p className="rounded-2xl bg-[var(--feed-card)] p-3 text-sm" data-preview-captured-text role="status" {...FEED_SURFACE_PROPS}>
+            Preview only: the captured text here was fetched live for this preview. In the newsroom record none of these References has stored text yet.
+          </p>
+        ) : null}
         {predictionState === "loading" && view === "list" ? <p role="status">Loading predictions…</p> : null}
         {predictionState === "error" ? (
           <div role="alert" className="space-y-2 rounded-2xl bg-[var(--feed-card)] p-4" {...FEED_SURFACE_PROPS}>
@@ -773,7 +852,21 @@ export function NewsroomReferencesView({
         </div>
 
         {view === "feed" ? (
-          <ScrollArea className="min-h-0 flex-1" data-reference-feed-scroll>
+          <div className="relative flex min-h-0 flex-1 flex-col" {...FEED_SURFACE_PROPS}>
+          {stable && stable.newCount > 0 && feedTab === "feed" ? (
+            // Floats over the top of the grid, outside the scrolling content: announcing new items never moves a card.
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+              <button
+                className="pointer-events-auto inline-flex min-h-9 items-center rounded-full bg-[var(--feed-control)] px-4 text-sm font-medium text-foreground shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                data-feed-new-items
+                onClick={showNewItems}
+                type="button"
+              >
+                {stable.newCount} new {stable.newCount === 1 ? "item" : "items"}: show
+              </button>
+            </div>
+          ) : null}
+          <ScrollArea className="min-h-0 flex-1 [overflow-anchor:none]" data-reference-feed-scroll>
             <div className="pb-6 pr-1">
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
@@ -786,6 +879,11 @@ export function NewsroomReferencesView({
                 partition={partition}
                 predictionLoading={predictionState === "loading"}
                 previews={previews}
+                captures={showCaptures ? captureStatuses : undefined}
+                groups={stable?.groups}
+                leadId={stable?.leadId}
+                scrollTarget={scrollTarget}
+                ratings={ratings}
                 selectedLineageId={selectedLineageId}
                 stale={showingSavedCopy || (loading && references.length > 0)}
                 tab={feedTab}
@@ -793,6 +891,7 @@ export function NewsroomReferencesView({
               />
             </div>
           </ScrollArea>
+          </div>
         ) : (
           <>
         <Tabs
@@ -877,7 +976,6 @@ export function NewsroomReferencesView({
       <div
         className={cn(
           "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]",
-          view === "feed" && !selectedReference && "md:hidden",
         )}
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
@@ -893,6 +991,9 @@ export function NewsroomReferencesView({
           {selectedReference ? (
             <ReferenceDetailPanel
               key={referenceLineageId(selectedReference)}
+              captureTeaserLine={teaserLine}
+              ratings={ratings}
+              sectionChoices={sectionChoices}
               predictionState={predictionState}
               reviewReason={reviewReasons?.get(referenceLineageId(selectedReference))}
               reviewSectionId={reviewSectionIds?.get(referenceLineageId(selectedReference))}
@@ -935,6 +1036,9 @@ export function NewsroomReferencesView({
               <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}><ScrollArea className="max-h-[70dvh]">
                 <ReferenceDetailPanel
                   key={referenceLineageId(selectedReference)}
+                  captureTeaserLine={teaserLine}
+                  ratings={ratings}
+                  sectionChoices={sectionChoices}
                   predictionState={predictionState}
               reviewReason={reviewReasons?.get(referenceLineageId(selectedReference))}
               reviewSectionId={reviewSectionIds?.get(referenceLineageId(selectedReference))}

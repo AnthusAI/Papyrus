@@ -86,3 +86,39 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor opens how this feed is ranked
     Then it explains best bets first, confidence, fading toward not sure, Earlier and why a rated card stays put
     And it says how many accepted examples have been learned from, or how many more are needed
+
+  Scenario: The detail pane shows our captured record above the source preview, so the editor can see whether the item was really captured
+    Given References where one has full stored text, one only a teaser, and one nothing but its link
+    When the editor opens each of them
+    Then the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction
+    And the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing
+    And each state has its own Lucide icon as well as its words, and the record sits above the source preview
+    And every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened
+
+  Scenario: A vote, then a reason, ends up as one decision, and both the card and the detail pane show it
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor accepts on the grid card and then types a reason in the detail pane
+    Then the pane shows the vote, the green match state, and the reason is saved onto the same decision after a pause or on blur, with a Saved tick in both places
+
+  Scenario: A reason, then a vote, ends up as one decision that carries the reason, and a typed reason is never lost
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor types a reason in the detail pane before voting, then votes
+    Then the vote carries the reason, a Reject waits for its reason code, and a failed save keeps what was typed
+
+  Scenario: A reason chosen in the pane shows on the card, and a Reject waiting for its reason is waiting in both
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor rejects on the card and chooses the reason in the detail pane
+    Then both show the Reject, the card shows the reason and the red or green match state with its icon
+
+  Scenario: Previous and Next scroll the grid to the same item and select it
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens a card and steps through the queue with Next and Previous
+    Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline
+    And opening a card from the grid selects it too
+
+  Scenario: The grid stays put while the editor selects, rates and the data refreshes
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item
+    Then every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels
+    And the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet
+    And the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it

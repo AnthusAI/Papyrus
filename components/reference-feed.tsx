@@ -21,6 +21,9 @@ import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
 import { RatingGrid } from "./review-rating-grid";
+import { CaptureBadge } from "./reference-capture-panel";
+import { useRatingStore, type RatingController } from "./use-reference-ratings";
+import type { CaptureStatus } from "../lib/reference-capture";
 
 /**
  * Flat surfaces, no borders: the page tone, a card tone one step away from it, a footer tone, and a control tone for chips and
@@ -62,20 +65,32 @@ export type ReferenceFeedProps = {
   predictionLoading?: boolean;
   previews: ReadonlyMap<string, ReferencePreview>;
   selectedLineageId?: string;
+  /** Capture status per Reference lineage, for the small badge on each card. Optional. */
+  captures?: ReadonlyMap<string, CaptureStatus>;
+  /** The sections and lead, when the caller keeps the order stable (a snapshot). Without them the feed groups its own partition. */
+  groups?: Array<{ key: FeedGroupKey; items: FeedItem[] }>;
+  leadId?: string;
+  /** Scrolls the grid to a card, deliberately (Previous / Next). A new nonce is a new request; selecting alone never scrolls. */
+  scrollTarget?: { id: string; nonce: number } | null;
+  /** A rating store shared with the detail pane, so a vote or reason in either shows in both. Optional. */
+  ratings?: RatingController;
   /** True when the cards are a saved copy that is being refreshed. */
   stale?: boolean;
   tab: ReferenceFeedTabKey;
   visitRated: ReadonlySet<string>;
 };
 
-const GRID = "grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+/** Columns follow the width the feed has (a container query, not the screen), so they stay put while a detail pane holds its place beside it. */
+const GRID = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-5";
+/** The lead spans two columns only where there are at least two to span (two 17rem columns and the gap). */
+const LEAD_SPAN = "@[36rem]:col-span-2";
 
 /** Pulsing placeholder cards: the page shell is on screen at once, with no "checking" screen in front of it. */
 export function ReferenceFeedSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div aria-busy="true" aria-label="Loading references" className={GRID} data-reference-feed-skeleton role="status" {...FEED_SURFACE_PROPS}>
+    <div aria-busy="true" aria-label="Loading references" className={cn("@container", GRID)} data-reference-feed-skeleton role="status" {...FEED_SURFACE_PROPS}>
       {Array.from({ length: count }, (_, index) => (
-        <div className={cn("overflow-hidden rounded-[20px] bg-[var(--feed-card)]", index === 0 && "sm:col-span-2")} key={index}>
+        <div className={cn("overflow-hidden rounded-[20px] bg-[var(--feed-card)]", index === 0 && LEAD_SPAN)} key={index}>
           <div className={cn("animate-pulse bg-[var(--feed-control)]", index === 0 ? "aspect-[2/1]" : "aspect-[16/10]")} />
           <div className="space-y-3 p-5">
             <div className="h-3 w-1/3 animate-pulse rounded-full bg-[var(--feed-control)]" />
@@ -145,14 +160,17 @@ function FeedImage({ host, lead, name, src }: { host: string | null; lead: boole
     const element = ref.current;
     if (element?.complete && element.naturalWidth > 0) { setState("loaded"); measure(element); }
   }, [src]);
-  const card = isCardStyleImage(src, ratio);
+  // The frame is decided before the picture loads (from its address), so loading never moves the cards around. A picture found to be
+  // a 2:1 text card afterwards is contained inside the same frame instead of changing it.
+  const hostCard = isCardStyleImage(src, null);
+  const card = hostCard || isCardStyleImage(src, ratio);
   return (
     <div
-      className={cn("relative w-full overflow-hidden bg-[var(--feed-control)]", !card && (lead ? "aspect-[16/10] sm:aspect-[2/1] xl:aspect-[21/9]" : "aspect-[16/10]"))}
+      className={cn("relative w-full overflow-hidden bg-[var(--feed-control)]", !hostCard && (lead ? "aspect-[16/10] @[36rem]:aspect-[2/1] @[60rem]:aspect-[21/9]" : "aspect-[16/10]"))}
       data-feed-image
       data-feed-image-fit={card ? "contain" : "cover"}
       data-feed-image-state={state}
-      style={card ? { aspectRatio: String(ratio ?? 2) } : undefined}
+      style={hostCard ? { aspectRatio: "2" } : undefined}
     >
       {state === "loading" ? <div aria-hidden="true" className="absolute inset-0 animate-pulse bg-[var(--feed-footer)] blur-sm" data-feed-image-placeholder /> : null}
       {src && state !== "failed" ? (
@@ -175,9 +193,8 @@ function FeedImage({ host, lead, name, src }: { host: string | null; lead: boole
   );
 }
 
-type RateState = { phase: "idle" | "saving" | "saved" | "error" | "reason"; message?: string };
-
 function FeedCard({
+  capture,
   decision,
   disabledReason,
   item,
@@ -187,9 +204,11 @@ function FeedCard({
   onRate,
   predictionLoading,
   preview,
+  ratings,
   selected,
   visitRated,
 }: {
+  capture: CaptureStatus | undefined;
   decision: RelevanceDecisionView | undefined;
   disabledReason: string | null;
   item: FeedItem;
@@ -199,6 +218,7 @@ function FeedCard({
   onRate: ReferenceFeedProps["onRate"];
   predictionLoading: boolean;
   preview: ReferencePreview | undefined;
+  ratings: RatingController | undefined;
   selected: boolean;
   visitRated: boolean;
 }) {
@@ -206,8 +226,15 @@ function FeedCard({
   const titleId = useId();
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
   const answer: ReviewChoice | null = status === "accepted" ? "accept" : status === "rejected" ? "reject" : null;
-  const [rate, setRate] = useState<RateState>({ phase: "idle" });
-  const inFlight = useRef(false);
+  // Rating state lives in a store: the shared one when given (so the detail pane and this card stay in step), else a private one.
+  const local = useRatingStore({
+    save: async (_id, choice, detail) => { await onRate(reference, choice, detail.reasonCode); },
+    saved: () => answer,
+    seed: () => ({ note: "", reasonCode: null }),
+  });
+  const store = ratings ?? local;
+  const rating = store.get(item.lineageId);
+  const chosen = rating.pending ?? answer;
   const host = referenceSourceHost(reference);
   const site = preview?.siteName ?? host ?? "Unknown source";
   const title = referenceDisplayTitle(reference);
@@ -215,42 +242,26 @@ function FeedCard({
   const showDek = dekAddsInformation(title, dek, preview?.imageUrl ?? null);
   const time = referenceDisplayTime(reference);
   const age = formatFeedAge(time, now);
-
-  async function save(choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) {
-    if (disabledReason || inFlight.current) return;
-    inFlight.current = true;
-    setRate({ phase: "saving" });
-    try {
-      await onRate(reference, choice, reasonCode);
-      setRate({ phase: "saved" });
-    } catch (failure) {
-      setRate({ phase: "error", message: failure instanceof Error ? failure.message : "Your answer could not be saved. Tap it again to retry." });
-    } finally {
-      inFlight.current = false;
-    }
-  }
-
-  function choose(choice: ReviewChoice) {
-    if (disabledReason) return;
-    if (answer === choice) return; // the chosen answer never unselects itself; the other choice is the undo
-    if (choice === "reject") { setRate({ phase: "reason" }); return; }
-    void save("accept", null);
-  }
+  const feedback = rating.feedback.phase === "idle" && visitRated && answer ? { phase: "saved" as const } : rating.feedback;
+  const reasonLabel = answer === "reject" && rating.reasonCode ? REASON_LABELS[rating.reasonCode] : null;
 
   return (
     <article
       aria-labelledby={titleId}
+      aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex flex-col overflow-hidden rounded-[20px] text-card-foreground",
-        selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)]",
-        lead && "sm:col-span-2",
+        "relative flex flex-col overflow-hidden rounded-[20px] text-card-foreground transition-[background-color,box-shadow] duration-200",
+        selected ? "bg-[var(--feed-control)] shadow-xl" : "bg-[var(--feed-card)]",
+        lead && LEAD_SPAN,
       )}
       data-feed-card={item.lineageId}
       data-feed-lead={lead || undefined}
       data-feed-rated={answer ?? undefined}
+      data-feed-selected={selected || undefined}
       data-feed-visit-rated={visitRated || undefined}
       data-newsroom-card-id={item.lineageId}
     >
+      {selected ? <span aria-hidden="true" className="absolute inset-y-0 left-0 z-10 w-1.5 bg-[var(--primary)]" data-feed-selected-bar /> : null}
       <button
         aria-label={`Open: ${title}`}
         className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -259,42 +270,48 @@ function FeedCard({
         type="button"
       >
         <FeedImage host={host} lead={lead} name={site} src={preview?.imageUrl ?? null} />
-        <span className={cn("flex flex-1 flex-col gap-2.5", lead ? "p-5 sm:p-7" : "p-5")}>
+        <span className={cn("flex flex-1 flex-col gap-2.5", lead ? "p-5 @[36rem]:p-7" : "p-5")}>
           <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground" data-feed-source>
             <SourceMark host={host} />
             <span className="truncate">{site}</span>
           </span>
-          <span className={cn("font-bold leading-[1.15] tracking-tight text-foreground", lead ? "line-clamp-3 text-2xl sm:text-3xl xl:text-4xl" : "line-clamp-3 text-xl")} data-feed-title id={titleId}>
+          <span className={cn("font-bold leading-[1.15] tracking-tight text-foreground", lead ? "line-clamp-3 text-2xl @[36rem]:text-3xl @[60rem]:text-4xl" : "line-clamp-3 text-xl")} data-feed-title id={titleId}>
             {title}
           </span>
           {showDek ? <span className={cn("text-muted-foreground", lead ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")} data-feed-dek>{dek}</span> : null}
-          <span className="mt-auto pt-1 text-xs text-muted-foreground">
-            {age ? <time dateTime={new Date(time ?? now).toISOString()} title={new Date(time ?? now).toLocaleString()}>{age}</time> : null}
-            {age && host ? <span aria-hidden="true"> · </span> : null}
-            {host}
+          <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-muted-foreground">
+            <span>
+              {age ? <time dateTime={new Date(time ?? now).toISOString()} title={new Date(time ?? now).toLocaleString()}>{age}</time> : null}
+              {age && host ? <span aria-hidden="true"> · </span> : null}
+              {host}
+            </span>
+            {capture ? <CaptureBadge status={capture} /> : null}
           </span>
         </span>
       </button>
 
-      <div className="space-y-2.5 bg-[var(--feed-footer)] p-3" data-feed-actions>
+      <div className="relative bg-[var(--feed-footer)] p-3" data-feed-actions>
         <RatingGrid
-          answer={answer}
+          answer={chosen}
+          decided={answer}
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
-          feedback={rate.phase === "saving" ? { phase: "saving" } : rate.phase === "error" ? { phase: "error", message: rate.message } : rate.phase === "saved" || (visitRated && rate.phase === "idle" && answer) ? { phase: "saved" } : { phase: "idle" }}
-          onChoose={choose}
+          feedback={feedback}
+          note={reasonLabel ? `Reason: ${reasonLabel}` : null}
+          onChoose={(choice) => { if (!disabledReason) store.choose(item.lineageId, choice); }}
           prediction={decision ? predictionFromDecision(decision) : predictionLoading ? { state: "loading" } : { state: "none" }}
         />
-        {rate.phase === "reason" ? (
-          <div className="space-y-2" data-review-reasons>
+        {rating.askReason ? (
+          // Covers the footer rather than adding to it, so asking for a reason never pushes the cards below it down.
+          <div className="absolute inset-0 z-10 flex flex-col justify-center space-y-2 bg-[var(--feed-footer)] p-3" data-review-reasons>
             <p className="text-xs font-medium">Reason for rejecting. Choose one to save your Reject.</p>
             <div className="flex flex-wrap gap-1.5">
               {REFERENCE_REJECTION_REASON_CODES.map((code) => (
-                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason={code} key={code} onClick={() => void save("reject", code)} type="button">
+                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason={code} key={code} onClick={() => store.setReason(item.lineageId, code)} type="button">
                   {REASON_LABELS[code]}
                 </button>
               ))}
-              <button className={cn(PILL, "min-h-8 px-3 text-xs text-muted-foreground")} onClick={() => setRate({ phase: "idle" })} type="button">Cancel</button>
+              <button className={cn(PILL, "min-h-8 px-3 text-xs text-muted-foreground")} onClick={() => store.cancelReason(item.lineageId)} type="button">Cancel</button>
             </div>
           </div>
         ) : null}
@@ -380,6 +397,11 @@ export function ReferenceFeed({
   predictionLoading = false,
   previews,
   selectedLineageId = "",
+  captures,
+  groups: stableGroups,
+  leadId: stableLeadId,
+  ratings,
+  scrollTarget = null,
   stale = false,
   tab,
   visitRated,
@@ -388,6 +410,7 @@ export function ReferenceFeed({
 
   const renderCard = (item: FeedItem, lead: boolean) => (
     <FeedCard
+      capture={captures?.get(item.lineageId)}
       decision={item.decision}
       disabledReason={disabledReason}
       item={item}
@@ -398,6 +421,7 @@ export function ReferenceFeed({
       onRate={async (reference, choice, reasonCode) => { onVisitRated(item.lineageId); await onRate(reference, choice, reasonCode); }}
       predictionLoading={predictionLoading}
       preview={previews.get(item.lineageId)}
+      ratings={ratings}
       selected={selectedLineageId === item.lineageId}
       visitRated={visitRated.has(item.lineageId)}
     />
@@ -407,12 +431,18 @@ export function ReferenceFeed({
     <div className="rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty>{label}</div>
   );
 
-  const groups = groupFeedItems(partition.feed);
+  // Previous / Next in the detail pane scrolls the grid to the same card, smoothly. Selecting a card by clicking it never scrolls.
+  useEffect(() => {
+    if (!scrollTarget || typeof document === "undefined") return;
+    document.querySelector(`[data-feed-card="${CSS.escape(scrollTarget.id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [scrollTarget]);
+
+  const groups = stableGroups ?? groupFeedItems(partition.feed);
   const headings = groups.length > 1;
-  const leadId = groups[0]?.key !== "least" ? groups[0]?.items[0]?.lineageId : undefined;
+  const leadId = stableGroups ? stableLeadId : groups[0]?.key !== "least" ? groups[0]?.items[0]?.lineageId : undefined;
 
   return (
-    <div className="space-y-5" data-reference-feed data-feed-tab={tab} {...FEED_SURFACE_PROPS}>
+    <div className="@container space-y-5" data-reference-feed data-feed-tab={tab} {...FEED_SURFACE_PROPS}>
       <div className="flex items-center justify-between gap-2">
         <div aria-label="Feed sections" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="tablist">
           {(Object.keys(TAB_LABELS) as ReferenceFeedTabKey[]).map((key) => (

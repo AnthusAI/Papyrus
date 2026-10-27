@@ -42,6 +42,7 @@ export function RatingGrid({
   disabled = false,
   disabledReason = null,
   feedback = { phase: "idle" },
+  note = null,
   onChoose,
   prediction,
   size = "compact",
@@ -54,6 +55,8 @@ export function RatingGrid({
   disabled?: boolean;
   disabledReason?: string | null;
   feedback?: RatingFeedback;
+  /** A short line shown in the status row beside the Saved tick (for example the reason). It never adds a row. */
+  note?: string | null;
   onChoose: (choice: ReviewChoice) => void;
   prediction: CardPrediction;
   size?: "compact" | "large";
@@ -118,11 +121,10 @@ export function RatingGrid({
             ) : null}
             <span aria-hidden="true" className={cn("absolute inset-y-0 left-1/2 w-1 -translate-x-1/2", surface === "footer" ? "bg-[var(--feed-footer)]" : "bg-[var(--feed-card)]")} />
           </div>
-          {prediction.state === "ready" ? null : (
-            <small className="text-center text-xs text-muted-foreground" data-cyclotron-state={prediction.state}>
-              {prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
-            </small>
-          )}
+          {/* The line is always there, so a prediction arriving later never changes the card's height. */}
+          <small className="min-h-4 text-center text-xs text-muted-foreground" data-cyclotron-state={prediction.state === "ready" ? undefined : prediction.state}>
+            {prediction.state === "ready" ? "\u00a0" : prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
+          </small>
         </div>
       </div>
 
@@ -153,7 +155,8 @@ export function RatingGrid({
         })}
       </div>
 
-      <div className="col-span-3 min-h-5 text-xs text-muted-foreground" data-feed-saved role="status">
+      <div className="col-span-3 flex min-h-5 flex-wrap items-center gap-x-3 text-xs text-muted-foreground" data-feed-saved role="status">
+        {note ? <span data-feed-reason>{note}</span> : null}
         {feedback.phase === "saving" ? <span className="inline-flex items-center gap-1"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Saving…</span> : null}
         {feedback.phase === "saved" ? <span className="inline-flex items-center gap-1" data-review-saved><CheckIcon aria-hidden="true" className="size-3.5" />Saved</span> : null}
       </div>
