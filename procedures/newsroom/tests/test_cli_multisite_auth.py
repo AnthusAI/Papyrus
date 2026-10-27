@@ -74,9 +74,9 @@ def test_discovery_reads_the_wellknown_file_over_https_and_returns_the_config():
     assert opener.requests[0].full_url == 'https://shipped.anth.us/.well-known/papyrus-cli.json'
 
 
-def test_discovery_missing_file_says_the_site_has_no_native_cli_client():
+def test_discovery_missing_file_says_the_site_does_not_register_the_cli_callback():
     error = urllib.error.HTTPError('u', 404, 'nf', {}, BytesIO(b''))
-    with pytest.raises(AuthError, match='does not publish CLI login.*native CLI client'):
+    with pytest.raises(AuthError, match='does not publish CLI login.*does not register the CLI callback'):
         discover('shipped.anth.us', opener=Opener(error=error))
 
 
@@ -381,3 +381,20 @@ def test_doctor_dispatches_from_the_real_cli(world, capsys, monkeypatch):
     monkeypatch.setattr(cli_doctor, 'latest_version', lambda: None)
     assert cli.main(['doctor']) == 0
     assert 'version\t' in capsys.readouterr().out
+
+
+def test_busy_callback_port_is_named_and_nothing_is_saved():
+    import socket
+    from papyrus_content.cli_user_auth import receive_code
+    blocker = socket.socket(); blocker.bind(('127.0.0.1', 0)); blocker.listen(1)
+    port = blocker.getsockname()[1]
+    try:
+        with pytest.raises(AuthError, match=f'local port {port}.*already in use.*Stop whatever is using it'):
+            receive_code(f'http://localhost:{port}/', 'https://auth.example.test/authorize', 'state', 1.0)
+    finally:
+        blocker.close()
+
+
+def test_localhost_3001_web_client_callback_is_a_valid_login_config():
+    config = site('shipped.anth.us', callback_uri='http://localhost:3001/')
+    assert discover('shipped.anth.us', opener=Opener(asdict(config))) == config

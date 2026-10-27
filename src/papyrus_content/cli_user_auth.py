@@ -216,8 +216,8 @@ def discover(site: str, *, opener=None) -> AuthConfig:
             raw = response.read(DISCOVERY_MAX_BYTES+1)
     except urllib.error.HTTPError as error:
         if error.code == 404:
-            raise AuthError(f'{host} does not publish CLI login (no native CLI client is configured for it). '
-                            'Ask the site owner to enable it, or use `papyrus login --config <public-config.json>`.') from None
+            raise AuthError(f'{host} does not publish CLI login (its sign-in client does not register the CLI callback). '
+                            'Deploy the site frontend that serves the file, or use `papyrus login --config <public-config.json>`.') from None
         raise AuthError(f'{host} did not serve its CLI login metadata (HTTP {error.code}); redirects are refused.') from None
     except (OSError, urllib.error.URLError, ValueError):
         raise AuthError(f'Could not reach {host} to read its CLI login metadata; check the name and your connection.') from None
@@ -401,7 +401,8 @@ def receive_code(callback_uri: str, authorization_url: str, state: str, timeout:
         # it to choose the listening interface or bind to wildcard interfaces.
         server = CallbackServer(('127.0.0.1', callback.port), Callback)
     except OSError:
-        raise AuthError('Native OAuth callback port is unavailable; close the conflicting login and retry.') from None
+        raise AuthError(f'Sign-in needs local port {callback.port} for its callback, but it is already in use (for example by a dev server '
+                        'or another login). Stop whatever is using it and run the login again.') from None
     with server:
         server.timeout = min(0.25, timeout)
         if not webbrowser.open(authorization_url):

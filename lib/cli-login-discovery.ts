@@ -5,7 +5,7 @@ import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfigured
 /**
  * The public values `papyrus login <site>` needs, served at `/.well-known/papyrus-cli.json`.
  * Every value is public (Cognito pool/client ids, hosted-UI domain, API URL). Nothing here is a
- * secret, and the file only exists for a site whose backend declared a native CLI client.
+ * secret, and the file only exists for a site whose web client registers the CLI callback.
  */
 export const CLI_LOGIN_PATH = "/.well-known/papyrus-cli.json";
 
@@ -16,49 +16,41 @@ export interface CliLoginDocument {
   oauth_domain: string;
   graphql_endpoint: string;
   callback_uri: string;
-  refresh_lifetime_seconds?: number;
 }
 
 export interface AmplifyOutputsForCliLogin {
-  auth?: { user_pool_id?: string; aws_region?: string; oauth?: { domain?: string } };
+  auth?: {
+    user_pool_id?: string;
+    user_pool_client_id?: string;
+    aws_region?: string;
+    oauth?: { domain?: string; redirect_sign_in_uri?: string[] };
+  };
   data?: { url?: string };
-  custom?: { cliLogin?: { clientId?: string; callbackUri?: string; refreshLifetimeSeconds?: number } | null };
 }
 
-/** The same rule the CLI applies: plain HTTP only to a loopback host on a fixed unprivileged port. */
-export function isLoopbackCallback(value: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return false;
-  }
-  const port = Number(url.port);
-  return url.protocol === "http:" && (url.hostname === "127.0.0.1" || url.hostname === "localhost")
-    && Number.isInteger(port) && port >= 1024 && port <= 65535
-    && !url.username && !url.password && !url.search && !url.hash;
-}
+/**
+ * The CLI signs in through the site's existing public web app client, which every app-shell site
+ * registers with this callback (infra/amplify-app-shell/lib/site-config.ts). No separate client exists.
+ */
+export const CLI_CALLBACK_URI = "http://localhost:3001/";
 
 export function cliLoginDocumentFromOutputs(outputs: AmplifyOutputsForCliLogin | null, siteOrigin: string): CliLoginDocument | null {
   const userPoolId = outputs?.auth?.user_pool_id;
+  const clientId = outputs?.auth?.user_pool_client_id;
   const domain = outputs?.auth?.oauth?.domain;
   const endpoint = outputs?.data?.url;
-  const cliLogin = outputs?.custom?.cliLogin;
-  if (!userPoolId || !domain || !endpoint || !cliLogin?.clientId || !cliLogin.callbackUri) return null;
-  if (!endpoint.startsWith("https://") || !isLoopbackCallback(cliLogin.callbackUri)) return null;
+  if (!userPoolId || !clientId || !domain || !endpoint || !endpoint.startsWith("https://")) return null;
+  // Only when the client really registers the callback; otherwise the sign-in could never complete.
+  if (!outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(CLI_CALLBACK_URI)) return null;
   const region = outputs?.auth?.aws_region ?? userPoolId.split("_")[0];
-  const document: CliLoginDocument = {
+  return {
     publication: siteOrigin,
     issuer: `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`,
-    client_id: cliLogin.clientId,
+    client_id: clientId,
     oauth_domain: `https://${domain}`,
     graphql_endpoint: endpoint,
-    callback_uri: cliLogin.callbackUri,
+    callback_uri: CLI_CALLBACK_URI,
   };
-  if (typeof cliLogin.refreshLifetimeSeconds === "number" && cliLogin.refreshLifetimeSeconds > 0) {
-    document.refresh_lifetime_seconds = cliLogin.refreshLifetimeSeconds;
-  }
-  return document;
 }
 
 export interface CliLoginDiscoveryOptions {
@@ -78,7 +70,7 @@ export function handleCliLoginDiscovery(request: Pick<NextRequest, "nextUrl">, o
   const document = cliLoginDocumentFromOutputs(outputs, origin);
   if (!document) {
     return NextResponse.json(
-      { error: "cli_login_not_configured", message: "This site has no native CLI sign-in client." },
+      { error: "cli_login_not_configured", message: "This site does not register the CLI sign-in callback." },
       { status: 404, headers: { "cache-control": "public, max-age=60" } },
     );
   }

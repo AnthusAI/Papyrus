@@ -22,11 +22,6 @@ export type PapyrusAuthConfig = {
    * domain replaces it and changes the Google redirect URI.
    */
   applyCognitoDomainPrefix?: boolean;
-  /**
-   * Opt in to `papyrus login <site>`: adds a Google-only native Cognito client for the CLI and
-   * publishes its public values at /.well-known/papyrus-cli.json. Ignored when Google is disabled.
-   */
-  cliLogin?: { callbackUri: string; refreshTokenValidityDays?: number };
 };
 
 export type S3ProjectionDistributionConfig = {

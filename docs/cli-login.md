@@ -53,11 +53,17 @@ every field it does, and requires `publication` to equal the origin you asked fo
 The same validation as for a hand-written config then applies (HTTPS endpoints, a
 registered loopback callback, and so on). Nothing is saved if any check fails.
 
-If a site has no native CLI client the file is not served and the CLI says:
-`<site> does not publish CLI login (no native CLI client is configured for it)`. The
-site owner then needs the infrastructure change described under
-[Enabling a site](#enabling-a-site-for-papyrus-login). `--config` keeps working for a
-site you configure by hand.
+If a site's frontend does not serve the file, the CLI says:
+`<site> does not publish CLI login (its sign-in client does not register the CLI callback)`.
+Deploy a frontend that includes the route (see
+[How a site publishes the file](#how-a-site-publishes-the-file)). `--config` keeps
+working for a site you configure by hand.
+
+Sign-in uses the fixed callback `http://localhost:3001/`. If something else already
+listens on that port (a dev server, another login), the CLI stops before opening a
+browser and says `Sign-in needs local port 3001 ... already in use`; stop that program
+and run the login again. Signing in to several sites at once is sequential, so one
+login never competes with another for the port.
 
 ## Many sites at once
 
@@ -91,28 +97,20 @@ AWS credentials. A site whose file names an endpoint already registered for a di
 site is refused, so one site cannot capture another's requests. `--config` and
 `PAPYRUS_CLI_AUTH_CONFIG` still select exactly one hand-written config.
 
-## Enabling a site for `papyrus login`
+## How a site publishes the file
 
-The client is infrastructure and is off by default. A site opts in with
-`auth.cliLogin` in its `defineSiteBackend` config (or, for Papyrus's own backend, the
-`PAPYRUS_CLI_LOGIN_CALLBACK_URI` branch environment variable):
-
-```ts
-auth: { /* ... */ cliLogin: { callbackUri: "http://localhost:5182/oauth/callback" } }
-```
-
-On the next backend deploy that adds a Google-only public Cognito client
-(`papyrus-cli-native`: authorization code with PKCE, no secret, only refresh-token
-authentication, token revocation on, 60-minute access/ID tokens, 30-day refresh by
-default, one registered loopback callback), and writes `custom.cliLogin` to
-`amplify_outputs.json`. The app shell's `/.well-known/papyrus-cli.json` route builds the
-file from those outputs plus the site's configured public origin
-(`PAPYRUS_SITE_ORIGIN`, never the request's Host header), using the user pool id,
-region, hosted-UI domain and GraphQL URL already in the outputs. Without
-`custom.cliLogin` the route answers 404. The callback port must be fixed and free on
-every machine that signs in; Cognito accepts plain HTTP only for loopback callbacks.
-The publication API must still accept this client's tokens under the normal user/group
-permissions, as described below.
+No infrastructure or backend change is needed. The app shell serves
+`/.well-known/papyrus-cli.json` from the site's own `amplify_outputs.json`, so deploying
+a frontend that includes the route is the whole setup. The file reuses the site's
+**existing public web app client** (`auth.user_pool_client_id`: no secret, authorization
+code flow, Google, 30-day refresh), the user pool id and region (the issuer), the
+hosted-UI domain, and the GraphQL URL (`data.url`). The callback is always
+`http://localhost:3001/`, which every app-shell site already registers
+(`infra/amplify-app-shell/lib/site-config.ts`). The route emits the file only if that
+exact URI is in the outputs' `auth.oauth.redirect_sign_in_uri`; otherwise it answers
+404. The `publication` value comes from `PAPYRUS_SITE_ORIGIN`, never the request's Host
+header. Every field is public. The publication API still decides what a signed-in
+person may do under the normal user/group permissions.
 
 ## Required configuration and approval
 
@@ -170,8 +168,8 @@ not a TTL the CLI can impose on Cognito or a remaining-lifetime guarantee. The
 172800 value above is illustrative, not a policy applied to a live client.
 Published metadata must agree with reviewed provider settings and the current
 publication's `PAPYRUS_GRAPHQL_ENDPOINT`/Amplify outputs. The CLI rejects endpoint
-mismatches before sending any token. It does not infer a native client from a
-web client or guess a tenant when data is absent.
+mismatches before sending any token. It never guesses a client or tenant: it uses only a
+site's own published file or the config you pass.
 
 ## Commands
 

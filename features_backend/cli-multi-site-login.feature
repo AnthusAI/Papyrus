@@ -12,7 +12,7 @@ Feature: Sign in to many Papyrus sites from one CLI
     And the user is signed in to "a.anth.us" only
     And the registry file is private and holds no tokens
 
-  Scenario: A site with no native CLI client says so
+  Scenario: A site that does not publish the login file says so
     Given the site "c.anth.us" publishes no CLI login file
     When the user tries to sign in to "c.anth.us"
     Then the sign-in is refused saying the site does not publish CLI login
@@ -117,3 +117,10 @@ Feature: Sign in to many Papyrus sites from one CLI
     Given the CLI is running from a virtualenv that is not on the PATH
     When the user runs "papyrus doctor"
     Then it recommends installing with pipx or uv tool
+
+  Scenario: A busy callback port is reported clearly
+    Given the site "a.anth.us" publishes CLI login metadata with callback port 53001
+    And another program is already listening on port 53001
+    When the user tries to sign in to "a.anth.us"
+    Then the sign-in fails saying port 53001 is in use and to stop whatever uses it
+    And no site is registered

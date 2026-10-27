@@ -27,11 +27,6 @@ function resolveAuthRedirectUrls(): string[] {
     .filter((url) => url.length > 0);
 }
 
-function cliLoginFromEnv(): PapyrusAuthConfig["cliLogin"] {
-  const callbackUri = (process.env.PAPYRUS_CLI_LOGIN_CALLBACK_URI ?? "").trim();
-  return callbackUri ? { callbackUri } : undefined;
-}
-
 /** Auth config from the environment (what Papyrus's own backend uses today). */
 export function authConfigFromEnv(): PapyrusAuthConfig {
   return {
@@ -39,7 +34,6 @@ export function authConfigFromEnv(): PapyrusAuthConfig {
     disableGoogleOAuth: process.env.PAPYRUS_DISABLE_GOOGLE_OAUTH === "1",
     cognitoDomainPrefix: (process.env.PAPYRUS_COGNITO_DOMAIN_PREFIX ?? "").trim(),
     applyCognitoDomainPrefix: process.env.PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX === "true",
-    cliLogin: cliLoginFromEnv(),
   };
 }
 

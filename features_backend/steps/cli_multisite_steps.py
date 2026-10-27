@@ -398,3 +398,31 @@ def offline(context):
 @then('it recommends installing with pipx or uv tool')
 def recommends(context):
     assert 'pipx install papyrus-newsroom' in context.output and 'uv tool install papyrus-newsroom' in context.output
+
+
+@given('the site "{host}" publishes CLI login metadata with callback port {port:d}')
+def publishes_with_port(context, host, port):
+    from dataclasses import replace
+    _setup(context)
+    session = context.multisite.sessions['https://'+host]
+    session.config = replace(session.config, callback_uri=f'http://localhost:{port}/')
+    context.published[host] = {'body': asdict(session.config)}
+
+
+@given('another program is already listening on port {port:d}')
+def port_busy(context, port):
+    import socket
+    from papyrus_content import cli_user_auth
+    blocker = socket.socket()
+    blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+    blocker.bind(('127.0.0.1', port))
+    blocker.listen(1)
+    context.add_cleanup(blocker.close)
+    # Use the real loopback listener rather than the scenario's fake browser step.
+    session = context.multisite.sessions['https://a.anth.us']
+    session.receive = lambda uri, url, state, timeout: cli_user_auth.receive_code(uri, url, state, timeout)
+
+
+@then('the sign-in fails saying port {port:d} is in use and to stop whatever uses it')
+def busy_message(context, port):
+    assert f'port {port}' in context.error and 'already in use' in context.error and 'Stop whatever is using it' in context.error, context.error
