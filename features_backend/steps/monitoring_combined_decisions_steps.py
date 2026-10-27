@@ -189,16 +189,37 @@ def step_gone_always(context):
     context.cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"}), (404, {"detail": "Not Found"})]
 
 
-@then("the earlier run's job is never polled")
-def step_not_polled(context):
-    assert not any(c[0] == "GET" and c[1].endswith(context.old_job) for c in context.cyclotron.combined_calls)
+@given("the story holds a combined job that was posted under an old-format request id")
+def step_old_format(context):
+    stale_job(context)
+    route_of(context)["combinedJob"]["requestId"] = "old-format-request-id-0"
 
 
-@then("the story is decided and delivered under a new request")
-def step_new_request(context):
-    ids = [c[2]["requestId"] for c in context.cyclotron.combined_calls if c[0] == "POST"]
-    assert ids and len(ids) == 1
-    assert tr.routing_of(context.table_)["DISC#101#000001"] == "routed" and context.delivery.calls
+@given("the story holds a pending combined job stored under an old-format request id")
+def step_old_format_pending(context):
+    step_old_format(context)
+    context.cyclotron.pending_polls = 10_000
+
+
+@given("the story holds a combined job that the lab reports as failed")
+def step_failed_job(context):
+    stale_job(context, runId="run-1", bindingRevision="1")
+    context.cyclotron.combined_poll_queue = [(200, {"status": "failed"})]
+
+
+@when("the router sweeps the collected story again")
+def step_sweep_again(context):
+    run(context, now=2200)
+
+
+@then("the earlier run's job is polled")
+def step_polled(context):
+    assert any(c[0] == "GET" and c[1].endswith(context.old_job) for c in context.cyclotron.combined_calls)
+
+
+@then("the story is not posted again")
+def step_not_posted(context):
+    assert not [c for c in context.cyclotron.combined_calls if c[0] == "POST"]
 
 
 @then("the story is posted again once")
@@ -295,11 +316,11 @@ def step_build_other(context):
 
 @given("the router has a pending job for the story under the current publication set")
 def step_pending_job(context):
-    context.cyclotron.combined_post_override = (202, {"jobId": "old-job"})
     context.cyclotron.combined_poll_override = (202, {"status": "running"})
     run(context)
-    assert route_of(context)["combinedJob"]["jobId"] == "old-job"
+    context.old_job = route_of(context)["combinedJob"]["jobId"]
     context.first_ids = posted_ids(context)
+    context.cyclotron.combined_calls.clear()
     context.cyclotron.combined_post_override = context.cyclotron.combined_poll_override = None
 
 
@@ -311,16 +332,9 @@ def step_change_set(context):
     run(context, now=3000)
 
 
-@then("the stored job is discarded as stale")
-def step_discarded(context):
-    assert "old-job" not in {j.get("jobId") for j in route_of(context).get("jobs", {}).values()}
-    assert "combinedJob" not in route_of(context)
-
-
-@then("the story is posted again under a different request identity")
-def step_new_identity(context):
-    ids = posted_ids(context)
-    assert len(ids) == 2 and ids[1] != context.first_ids[0]
+@then("the stored job is polled and collected")
+def step_polled_collected(context):
+    assert any(c[0] == "GET" and c[1].endswith(context.old_job) for c in context.cyclotron.combined_calls)
 
 
 @then("the story is decided and delivered without a conflict")
