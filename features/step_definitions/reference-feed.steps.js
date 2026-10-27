@@ -11,6 +11,8 @@ const sync = (name) => run("scripts/test-reference-sync.ts", name);
 const ranking = async () => (await promisify(execFile)(process.execPath, ["--import", "tsx", "--test", "scripts/test-reference-feed-ranking.ts"], { cwd: root, maxBuffer: 8 * 1024 * 1024 })).stdout;
 
 for (const given of [
+  "References with a ready curation card, a failed one, a failed one beside older extracted text, a degraded one that may be paywalled, and one still running",
+  "a Reference with no captured text",
   "References where one has full stored text, one only a teaser, and one nothing but its link",
   "a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction",
   "References whose accepted examples show how quickly the editor acts",
@@ -64,6 +66,7 @@ const outcomes = [
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
+  "the editor chooses Paste or correct the text, pastes the article and marks the capture complete",
   "the editor accepts on the grid card and then types a reason in the detail pane",
   "the editor types a reason in the detail pane before voting, then votes",
   "the editor rejects on the card and chooses the reason in the detail pane",
@@ -71,6 +74,15 @@ for (const action of [
   "the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item",
 ]) When(action, function () { this.feedResult = ""; });
 const syncOutcomes = [
+  ["curation_card", [
+    "the record shows the card's status, word count, summary, GROBID fields and the curation text, and the card badge follows the curation status",
+    '"No text captured" shows only when neither a card with text nor extracted text exists, with the card\'s typed reason in words',
+    "a paywall phrase at the end of a long capture says it may be cut off, and a degraded card says a stage is unfinished",
+  ]],
+  ["correct_capture", [
+    "correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run",
+    "a verdict alone is saved as just a label, and nothing can be saved without a verdict",
+  ]],
   ["capture_status", [
     'the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction',
     'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',

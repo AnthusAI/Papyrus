@@ -122,3 +122,16 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels
     And the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet
     And the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it
+
+  Scenario: The captured record reads the curation card first, with extracted text as a fallback
+    Given References with a ready curation card, a failed one, a failed one beside older extracted text, a degraded one that may be paywalled, and one still running
+    When the editor opens each of them
+    Then the record shows the card's status, word count, summary, GROBID fields and the curation text, and the card badge follows the curation status
+    And "No text captured" shows only when neither a card with text nor extracted text exists, with the card's typed reason in words
+    And a paywall phrase at the end of a long capture says it may be cut off, and a degraded card says a stage is unfinished
+
+  Scenario: An editor pastes or corrects the text and says whether the capture was complete
+    Given a Reference with no captured text
+    When the editor chooses Paste or correct the text, pastes the article and marks the capture complete
+    Then correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run
+    And a verdict alone is saved as just a label, and nothing can be saved without a verdict

@@ -13,7 +13,7 @@ import {
   partitionReferenceFeed,
 } from "../lib/reference-feed-ranking";
 import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
-import { captureLine, captureStatus, captureStatusesByLineage, countWords, structuredRows, teaserWords, DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
+import { captureLine, captureStatus, curationCardOf, completenessFlags, captureStatusesByLineage, countWords, structuredRows, teaserWords, DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
 import { clearSavedNewsroomDisplay, loadFeedSnapshot, loadSessionDisplay, saveFeedSnapshot, saveSessionDisplay, SESSION_DISPLAY_TTL_MS } from "../lib/reference-feed-cache";
 
 const DAY = 86_400_000;
@@ -190,7 +190,7 @@ const attach = (lineage: string, role: string, extra: Record<string, unknown> = 
 
 test("Capture status: none without extracted text, thin under the teaser line, full above it, with plain words", () => {
   const source = attach("a", "source", { sourceUri: "https://a.example.org" });
-  assert.deepEqual(captureStatus([source]), { state: "none", words: null, estimated: false }, "a monitored Reference has only its address");
+  assert.deepEqual({ ...captureStatus([source]) }, { state: "none", words: null, estimated: false, source: "none", curation: null, reason: null, flags: [], assessment: null, summaryStale: false }, "a monitored Reference has only its address");
   const text = (characters: number) => attach("a", "extracted_text", { storagePath: "s3://x", metadata: JSON.stringify({ textLength: characters }) });
   assert.equal(captureStatus([source, text(600)]).state, "thin", "100 words is a teaser");
   assert.equal(captureStatus([source, text(6000)]).state, "full");
@@ -236,4 +236,34 @@ test("The feed order is taken once and kept: new predictions re-rank nothing, ne
   assert.ok(!ids(stable.partition.feed).includes("e"), "and not shuffled in");
   const refreshed = applyFeedOrderSnapshot(takeFeedOrderSnapshot(live), live);
   assert.ok(ids(refreshed.partition.feed).includes("e") && refreshed.newCount === 0, "showing the new items takes a fresh snapshot");
+});
+
+const curation = (body: Record<string, unknown>) => attach("a", "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", ...body }) });
+
+test("The curation card is read first; extracted_text is the fallback; No text only when neither exists", () => {
+  const source = attach("a", "source");
+  const ready = curation({ status: "ready", capture: { status: "completed", wordCount: 912, textSortKey: "curation-text" }, signals: { wordCount: 912, endingPattern: "sentence_end" } });
+  const status = captureStatus([source, ready]);
+  assert.deepEqual([status.state, status.words, status.estimated, status.source, status.curation], ["full", 912, false, "curation", "ready"]);
+  const failed = curation({ status: "capture_failed", capture: { status: "failed", reason: "blocked" }, signals: {} });
+  const none = captureStatus([source, failed]);
+  assert.deepEqual([none.state, none.source, none.curation, none.reason], ["none", "none", "capture_failed", "blocked"]);
+  assert.match(captureLine(none).detail, /refused our request/);
+  const extracted = attach("a", "extracted_text", { storagePath: "p", metadata: JSON.stringify({ textLength: 6000 }) });
+  assert.deepEqual([captureStatus([source, failed, extracted]).state, captureStatus([source, failed, extracted]).source], ["full", "extracted"], "a failed card does not hide older extracted text");
+  assert.equal(captureStatus([source, curation({ status: "running", capture: { status: "not_run" }, signals: {} })]).state, "running");
+  assert.equal(curationCardOf([source]), null);
+  assert.equal(curationCardOf([attach("a", "curation", { metadata: JSON.stringify({ status: "nonsense" }) })]), null, "an unknown status is not a card");
+});
+
+test("Completeness signals become plain facts, and a paywall phrase in the tail makes a long capture doubtful", () => {
+  assert.deepEqual(completenessFlags({ paywallMarkers: [{ id: "subscribe_to_continue", inTail: true }], endingPattern: "ellipsis", bodyNotLongerThanDescription: true }),
+    ["The text ends with a subscribe or sign-in phrase.", "The text stops with an ellipsis or a cut-off marker.", "The text is no longer than the page's own description."]);
+  assert.deepEqual(completenessFlags({ endingPattern: "sentence_end" }), []);
+  const tail = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] } });
+  assert.equal(captureStatus([attach("a", "source"), tail]).thinBy, "signals");
+  const vouched = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] }, labels: [{ kind: "capture_completeness", assessment: "complete" }] });
+  assert.equal(captureStatus([attach("a", "source"), vouched]).state, "full", "an editor's Complete is not second-guessed");
+  const edited = curation({ status: "ready", capture: { status: "completed", wordCount: 5 }, signals: { wordCount: 5 }, editedSignals: { wordCount: 1500 }, current: { textSortKey: "curation-edit-0001-text" } });
+  assert.equal(captureStatus([attach("a", "source"), edited]).words, 1500, "the edited text's own word count");
 });

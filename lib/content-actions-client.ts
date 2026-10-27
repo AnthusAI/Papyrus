@@ -30,6 +30,18 @@ export type SaveItemDraftResult = { ok: true; item: SavedItemSummary };
 export type PublishItemResult = { ok: true; changed: boolean; publishedId: string; versionNumber: number | null };
 export type UnpublishItemResult = { ok: true; changed: boolean };
 
+export type CaptureAssessment = "complete" | "incomplete" | "incorrect";
+export type CorrectReferenceCaptureInput = {
+  referenceId: string;
+  /** The full corrected or pasted text. */
+  text?: string;
+  grobid?: Record<string, unknown>;
+  /** Required with text; alone it is just a label on the capture. */
+  assessment?: CaptureAssessment;
+  note?: string;
+};
+export type CorrectReferenceCaptureResult = { ok: true; referenceId: string; status: string; edits: unknown[]; label: unknown; summaryStale: boolean };
+
 export class ContentActionFailure extends Error {
   readonly errors: ContentActionError[];
 
@@ -48,6 +60,7 @@ export type ContentActionsTransport = {
     saveItemDraft: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     publishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
     unpublishItem: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
+    correctReferenceCapture: (args: { input: string }, options: { authMode: "userPool" }) => Promise<GraphqlEnvelope>;
   };
 };
 
@@ -80,6 +93,9 @@ export function createContentActionsClient(transport: ContentActionsTransport) {
     async publishItem(id: string): Promise<PublishItemResult> {
       return parseActionResponse(await transport.mutations.publishItem({ input: JSON.stringify({ id }) }, USER_POOL));
     },
+    async correctReferenceCapture(input: CorrectReferenceCaptureInput): Promise<CorrectReferenceCaptureResult> {
+      return parseActionResponse(await transport.mutations.correctReferenceCapture({ input: JSON.stringify(input) }, USER_POOL));
+    },
     async unpublishItem(id: string): Promise<UnpublishItemResult> {
       return parseActionResponse(await transport.mutations.unpublishItem({ input: JSON.stringify({ id }) }, USER_POOL));
     },
@@ -99,3 +115,5 @@ export const deriveMarkus = (input: DeriveMarkusInput) => contentActionsClient()
 export const saveItemDraft = (input: SaveItemDraftInput) => contentActionsClient().saveItemDraft(input);
 export const publishItem = (id: string) => contentActionsClient().publishItem(id);
 export const unpublishItem = (id: string) => contentActionsClient().unpublishItem(id);
+
+export const correctReferenceCapture = (input: CorrectReferenceCaptureInput) => contentActionsClient().correctReferenceCapture(input);

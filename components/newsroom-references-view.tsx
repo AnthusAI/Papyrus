@@ -44,7 +44,7 @@ import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
-import { useReferenceCapture } from "./reference-capture-client";
+import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { captureStatusesByLineage } from "../lib/reference-capture";
 import { applyFeedOrderSnapshot, partitionReferenceFeed, takeFeedOrderSnapshot, type FeedOrderSnapshot, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
@@ -132,6 +132,8 @@ type NewsroomReferencesViewProps = {
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
   referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
+  /** Saves an editor's pasted or corrected capture text and their verdict on it. Optional: without it the capture panel only reads. */
+  onCorrectCapture?: CorrectCaptureAction;
   /** True while the References are still being read: the feed shows card skeletons instead of an empty page. */
   loading?: boolean;
   /** The last view this browser saved. Shown, read only, until the live read arrives. */
@@ -296,6 +298,7 @@ function cardPrediction(decision: RelevanceDecisionView | undefined, predictionS
 
 function ReferenceDetailPanel({
   captureTeaserLine,
+  correctCapture,
   ratings,
   sectionChoices,
   countsAsTrainingLabel,
@@ -314,6 +317,8 @@ function ReferenceDetailPanel({
   sections = [],
 }: {
   captureTeaserLine: number;
+  /** Saves a pasted or corrected capture (the `correctReferenceCapture` action). Without it the panel has no edit action. */
+  correctCapture?: CorrectCaptureAction;
   /** The rating store shared with the grid cards. */
   ratings?: RatingController;
   /** Where this panel records the Section chosen for an accept, so the shared store's save can include it. */
@@ -346,7 +351,7 @@ function ReferenceDetailPanel({
   }, [reviewSectionId]);
   const url = referenceUrl(reference);
   useEffect(() => { sectionChoices?.current.set(lineageId, chosenSectionId); }, [chosenSectionId, lineageId, sectionChoices]);
-  const capture = useReferenceCapture(reference, previewAttachments, captureTeaserLine);
+  const capture = useReferenceCapture(reference, previewAttachments, captureTeaserLine, correctCapture);
 
   async function decide(choice: ReviewChoice, review: ReviewCardDecision) {
     const action: ReferenceCurationAction = choice;
@@ -494,6 +499,7 @@ export function NewsroomReferencesView({
   referenceAttachments = [],
   references: liveReferences,
   loading = false,
+  onCorrectCapture,
   savedCopy = null,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
@@ -992,6 +998,7 @@ export function NewsroomReferencesView({
             <ReferenceDetailPanel
               key={referenceLineageId(selectedReference)}
               captureTeaserLine={teaserLine}
+              correctCapture={onCorrectCapture}
               ratings={ratings}
               sectionChoices={sectionChoices}
               predictionState={predictionState}
@@ -1037,6 +1044,7 @@ export function NewsroomReferencesView({
                 <ReferenceDetailPanel
                   key={referenceLineageId(selectedReference)}
                   captureTeaserLine={teaserLine}
+              correctCapture={onCorrectCapture}
                   ratings={ratings}
                   sectionChoices={sectionChoices}
                   predictionState={predictionState}

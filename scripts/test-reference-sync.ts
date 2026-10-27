@@ -57,7 +57,7 @@ const initialDecisions = new Map([["r1", decision("include", 0.95)], ["r2", deci
 const attachment = (n, role, extra = {}) => ({ id: "att-" + n + "-" + role, referenceId: "r" + n + "-v1", referenceLineageId: "r" + n, referenceVersionKey: "reference#r" + n + "-v1", role, sortKey: "900-" + role, ...extra });
 const words = (count) => Array.from({ length: count }, (_, index) => "word" + index).join(" ");
 window.fixtureTexts = { "fixture://full": "Captured article. " + words(600), "fixture://thin": "Only a teaser. " + words(60) };
-window.fixturePayloads = { "r1-v1": [{ attachment: { role: "metadata" }, json: { summary: "A stored summary of the full article." }, text: null, error: null }] };
+window.fixturePayloads = { "r1-v1": [{ attachment: { role: "metadata", sortKey: "metadata" }, json: { summary: "A stored summary of the full article." }, text: null, error: null }] };
 const attachments = [
   attachment(1, "source", { sourceUri: "https://site1.example.org/a" }),
   attachment(1, "extracted_text", { storagePath: "fixture://full", byteSize: 4200, metadata: JSON.stringify({ textLength: 4200, grobid: { title: "Parsed paper title", authors: ["A. Author", "B. Author"], abstract: "Parsed abstract." } }) }),
@@ -65,6 +65,19 @@ const attachments = [
   attachment(2, "extracted_text", { storagePath: "fixture://thin", byteSize: 420, metadata: JSON.stringify({ textLength: 420 }) }),
   ...fixture.slice(2).map((row, index) => attachment(index + 3, "source", { sourceUri: row.sourceUri })),
 ];
+// Curation before review: one card per Reference (role curation, sort key 003-curation); the bodies are ModelAttachments.
+const card = (n, body) => attachments.push(attachment(n, "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", schemaVersion: 1, ...body }) }));
+const body = (sortKey, extra) => ({ attachment: { role: "metadata", sortKey }, text: null, json: null, error: null, ...extra });
+card(4, { status: "ready", capture: { status: "completed", sourceKind: "html", wordCount: 912, textSortKey: "curation-text" }, signals: { wordCount: 912, endingPattern: "sentence_end" },
+  summary: { status: "completed", text: "Curated summary of the article.", stale: false }, grobid: { status: "completed", title: "Curated paper", authorCount: 1, sectionCount: 3, referenceCount: 2, fieldsSortKey: "curation-grobid" }, current: { textSortKey: "curation-text", grobidSortKey: "curation-grobid" } });
+window.fixturePayloads["r4-v1"] = [body("curation-text", { text: "Curated article body. " + words(909) }), body("curation-grobid", { json: { title: "Curated paper", authors: [{ name: "Ada L." }], abstract: "A curated abstract.", sections: [1, 2, 3], references: [1, 2] } }), body("metadata", { json: { summary: "Older metadata summary." } })];
+card(5, { status: "capture_failed", capture: { status: "failed", reason: "blocked", transient: false }, signals: {}, summary: { status: "skipped" } });
+card(6, { status: "capture_failed", capture: { status: "failed", reason: "timeout", transient: true }, signals: {} });
+attachments.push(attachment(6, "extracted_text", { storagePath: "fixture://full", byteSize: 4200, metadata: JSON.stringify({ textLength: 4200 }) }));
+card(7, { status: "degraded", capture: { status: "completed", wordCount: 800, textSortKey: "curation-text" }, signals: { wordCount: 800, endingPattern: "sentence_end", paywallMarkers: [{ id: "subscribe_to_continue", inTail: true }] }, summary: { status: "failed", reason: "openai_not_configured" }, current: { textSortKey: "curation-text" } });
+window.fixturePayloads["r7-v1"] = [body("curation-text", { text: "Teaser article. " + words(798) })];
+card(8, { status: "running", capture: { status: "not_run" }, signals: {} });
+window.fixtureCorrections = [];
 window.fixtureRequests = [];
 window.fixtureFailNext = false;
 function Fixture() {
@@ -83,7 +96,7 @@ function Fixture() {
     setReasons((current) => { const next = new Map(current); if (action === "reject") next.set(reference.lineageId, options.reasonCode); else next.delete(reference.lineageId); return next; });
   }
   return <div style={{ height: "100dvh", display: "flex", flexDirection: "column", padding: 12 }}>
-    <NewsroomReferencesView decisions={decisions} onReview={save} referenceAttachments={attachments} references={references} reviewReasons={reasons} />
+    <NewsroomReferencesView decisions={decisions} onCorrectCapture={params.has("nocorrect") ? undefined : async (input) => { window.fixtureCorrections.push(input); }} onReview={save} referenceAttachments={attachments} references={references} reviewReasons={reasons} />
   </div>;
 }
 createRoot(document.getElementById("root")).render(<Fixture />);
@@ -125,6 +138,102 @@ const rgbOf = (locator: ReturnType<Page["locator"]>, property: "color" | "backgr
 const WHY = "Why? (optional)";
 
 const scenarios: Record<string, () => Promise<void>> = {
+  /** The curation card is read first (status, words, signals, summary, GROBID fields, the curation-text body); extracted_text is the fallback. */
+  async curation_card() {
+    for (const width of [375, 1440]) {
+      const { browser, page, errors } = await setup(width);
+      try {
+        const badge = (id: string) => card(page, id).locator("[data-capture-badge]");
+        assert.equal(await badge("r4").getAttribute("data-capture-badge"), "full");
+        assert.equal(await badge("r4").getAttribute("data-capture-curation"), "ready", "the badge follows the curation status");
+        assert.equal(await badge("r5").getAttribute("data-capture-badge"), "none", "capture_failed with no other text is No text");
+        assert.equal(await badge("r6").getAttribute("data-capture-badge"), "full", "capture_failed but an extracted_text exists: the fallback is used");
+        assert.equal(await badge("r7").getAttribute("data-capture-badge"), "thin", "a paywall phrase at the end makes a long capture doubtful");
+        assert.ok((await badge("r7").innerText()).includes("Maybe cut off"));
+        assert.equal(await badge("r8").getAttribute("data-capture-badge"), "running");
+
+        const panelOf = () => review(page).locator("xpath=ancestor::*[.//*[@data-capture-panel]][1]").locator("[data-capture-panel]");
+        await open(page, "r4");
+        let panel = panelOf();
+        await panel.locator("[data-capture-text]").waitFor();
+        assert.equal(await panel.locator("[data-capture-status]").getAttribute("data-capture-source"), "curation");
+        assert.equal(await panel.locator("[data-capture-label]").innerText(), "Full text captured");
+        assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("Curated article body."), "the curation-text body is shown");
+        assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("912 words"));
+        assert.ok((await panel.locator("[data-capture-summary]").innerText()).includes("Curated summary of the article."), "the card's own summary wins over metadata.json");
+        const rows = await panel.locator("[data-capture-structured]").innerText();
+        assert.ok(rows.includes("Curated paper") && rows.includes("Ada L.") && rows.includes("A curated abstract.") && rows.includes("3 sections") && rows.includes("2 cited works"), "the GROBID fields");
+        await closeDetail(page, width);
+
+        await open(page, "r5");
+        panel = panelOf();
+        assert.equal(await panel.locator("[data-capture-label]").innerText(), "No text captured");
+        assert.ok((await panel.locator("[data-capture-detail]").innerText()).includes("refused our request"), "the typed reason in words");
+        await closeDetail(page, width);
+
+        await open(page, "r6");
+        panel = panelOf();
+        await panel.locator("[data-capture-text]").waitFor();
+        assert.equal(await panel.locator("[data-capture-status]").getAttribute("data-capture-source"), "extracted", "extracted_text is the fallback");
+        assert.equal(await panel.locator("[data-capture-label]").innerText(), "Full text captured");
+        await closeDetail(page, width);
+
+        await open(page, "r7");
+        panel = panelOf();
+        await panel.locator("[data-capture-text]").waitFor();
+        assert.equal(await panel.locator("[data-capture-label]").innerText(), "Captured, but it may be cut off or paywalled");
+        assert.ok((await panel.locator("[data-capture-detail]").innerText()).includes("subscribe or sign-in phrase"));
+        assert.ok((await panel.locator("[data-capture-curation-note]").innerText()).includes("summary"), "a degraded card says a stage is unfinished");
+        await closeDetail(page, width);
+
+        await open(page, "r8");
+        assert.equal(await panelOf().locator("[data-capture-label]").innerText(), "Being captured now");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** "Paste or correct the text": the editor's text and verdict go to correctReferenceCapture, and the panel shows them. */
+  async correct_capture() {
+    for (const width of [375, 1440]) {
+      const { browser, page, errors } = await setup(width);
+      try {
+        await open(page, "r5");
+        const panel = review(page).locator("xpath=ancestor::*[.//*[@data-capture-panel]][1]").locator("[data-capture-panel]");
+        await panel.locator("[data-capture-correct]").click();
+        const save = panel.locator("[data-capture-correction-save]");
+        await save.click({ force: true });
+        assert.equal(await page.evaluate(() => (window as unknown as { fixtureCorrections: unknown[] }).fixtureCorrections.length), 0, "a verdict is required, and the form says so in words");
+        assert.ok(await panel.locator("[data-capture-correction-reason]").isVisible());
+        await panel.locator("[data-capture-correction-text]").fill("The whole article, pasted by an editor.");
+        await panel.locator("[data-capture-assessment=complete]").click();
+        await save.click();
+        await panel.locator("[data-capture-correction-saved]").waitFor();
+        assert.deepEqual(await page.evaluate(() => (window as unknown as { fixtureCorrections: unknown[] }).fixtureCorrections), [{ referenceId: "r5-v1", text: "The whole article, pasted by an editor.", assessment: "complete" }]);
+        assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("pasted by an editor"), "the panel shows the new text");
+        assert.ok((await panel.locator("[data-capture-assessment-note]").innerText()).includes("complete"), "and the verdict");
+        assert.ok(await panel.locator("[data-capture-summary-stale]").isVisible(), "the summary is marked as awaiting the next run");
+        await closeDetail(page, width);
+        // A verdict alone is just a label on the capture.
+        await open(page, "r4");
+        const second = review(page).locator("xpath=ancestor::*[.//*[@data-capture-panel]][1]").locator("[data-capture-panel]");
+        await second.locator("[data-capture-correct]").click();
+        await second.locator("[data-capture-assessment=incomplete]").click();
+        await second.locator("[data-capture-correction-save]").click();
+        await second.locator("[data-capture-correction-saved]").waitFor();
+        const sent = await page.evaluate(() => (window as unknown as { fixtureCorrections: Array<Record<string, unknown>> }).fixtureCorrections);
+        assert.deepEqual(sent[1], { referenceId: "r4-v1", assessment: "incomplete" });
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+    // Without the action there is no edit button.
+    const { browser, page } = await setup(1440, "?nocorrect=1");
+    try {
+      await open(page, "r5");
+      assert.equal(await page.locator("[data-capture-correct]").count(), 0);
+    } finally { await browser.close(); }
+  },
+
   /** Vote, then reason: the reason is saved onto the existing decision after a pause or on blur, and both views show it. */
   async vote_then_reason() {
     for (const width of [375, 1440]) {
