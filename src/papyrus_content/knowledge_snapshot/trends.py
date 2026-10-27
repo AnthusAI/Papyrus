@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from statistics import NormalDist
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
@@ -13,7 +14,6 @@ NEW_BELOW_WEEKS = 4
 SERIES_SHORT = 8
 SERIES_LONG = 26
 DAYS_PER_WEEK = 7
-DEFAULT_WINDOW_DAYS = WINDOW_WEEKS * DAYS_PER_WEEK  # 28: the current window against the 28 days before it
 
 
 @dataclass(frozen=True)
@@ -98,24 +98,17 @@ class TrendConfig:
     minimum_downloads: int = 10_000
     likes_floor: int = 10  # whatever its downloads, a maker needs this many likes (a build pipeline or a bot inflates downloads, nobody likes it)
     anchor_kinds: frozenset[str] = field(default=PREFERRED_KINDS)
-    # The window the score compares (the last N days against the N before), in days. The snapshot counts weekly and keeps eight weeks, so the
-    # window is whole weeks from one to four: 7, 14, 21 or 28 (the default, the figures the snapshot publishes as ``last4`` and ``prior4``).
-    window_days: int = DEFAULT_WINDOW_DAYS
-    # An entity that anchored a story draft (one that was not declined) in the last ``cooldown_days`` days cannot anchor another; 0 turns the
-    # cooldown off. A daily cadence would otherwise write about the same maker every day while the story is still waiting for an editor.
-    cooldown_days: int = 7
+    # Adaptive window (see ``scan_window``): the most recent window is tried at 1, 2, 4, 8, 16, ... weeks, each against everything before it,
+    # and the most surprising one is kept. A window may not leave fewer than ``minimum_baseline_weeks`` weeks of baseline.
+    minimum_baseline_weeks: int = 4
+    # The Bonferroni-corrected p-value the best window must reach before an entity counts as trending (a re-draft uses the same bar).
+    significance: float = 0.01
 
     def __post_init__(self) -> None:
-        if not 0 <= self.cooldown_days <= 365:
-            raise ValueError(f"The anchor cooldown must be from 0 to 365 days, not {self.cooldown_days}.")
-        if self.window_days % DAYS_PER_WEEK or not DAYS_PER_WEEK <= self.window_days <= WINDOW_WEEKS * DAYS_PER_WEEK:
-            raise ValueError(
-                f"The trend window must be 7, 14, 21 or 28 days (the snapshot counts whole weeks and keeps eight), not {self.window_days}."
-            )
-
-    @property
-    def window_weeks(self) -> int:
-        return self.window_days // DAYS_PER_WEEK
+        if self.minimum_baseline_weeks < 1:
+            raise ValueError(f"The minimum baseline must be at least one week, not {self.minimum_baseline_weeks}.")
+        if not 0 < self.significance < 1:
+            raise ValueError(f"The significance must be between 0 and 1, not {self.significance}.")
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, object] | None) -> "TrendConfig":
@@ -131,7 +124,7 @@ class TrendConfig:
                 values[name] = frozenset(str(item) for item in value)  # type: ignore[union-attr]
             elif name == "watchlist":
                 values[name] = frozenset(str(item).strip().lower() for item in value)  # type: ignore[union-attr]
-            elif name in {"minimum_recent", "minimum_models", "minimum_likes", "minimum_downloads", "likes_floor", "window_days", "cooldown_days"}:
+            elif name in {"minimum_recent", "minimum_models", "minimum_likes", "minimum_downloads", "likes_floor", "minimum_baseline_weeks"}:
                 values[name] = int(value)  # type: ignore[arg-type]
             else:
                 values[name] = float(value)  # type: ignore[arg-type]
@@ -163,9 +156,9 @@ def surprise(last4: float, prior4: float, volume_last4: float, volume_prior4: fl
 
 def trend_score(kind: str | None, values: Sequence[int | float], volume: Sequence[float], config: TrendConfig) -> dict[str, float]:
     """``{"surprise", "score", "last4", "prior4"}`` of one entity's eight-week series against the corpus ``volume``; the score is the
-    surprise times the weight of the entity's kind (broad kinds are demoted). ``last4`` and ``prior4`` are the counts of the configured
-    window (four weeks by default) and of the window before it."""
-    weeks = config.window_weeks
+    surprise times the weight of the entity's kind (broad kinds are demoted). ``last4`` and ``prior4`` are the counts of the last four
+    weeks and of the four before them. This is the snapshot's published four-week figure; story drafting uses ``scan_window`` instead."""
+    weeks = WINDOW_WEEKS
     last4, prior4 = float(sum(values[-weeks:])), float(sum(values[-2 * weeks : -weeks]))
     z = surprise(last4, prior4, sum(volume[-weeks:]), sum(volume[-2 * weeks : -weeks]), config.baseline_smoothing)
     return {"surprise": round(z, 3), "score": round(z * config.kind_weight(kind), 3), "last4": last4, "prior4": prior4}
@@ -183,3 +176,103 @@ def rank_trending(rows: Iterable[tuple[str, str | None, Sequence[int | float]]],
         if result["last4"] >= config.minimum_recent and result["score"] >= config.minimum_score:
             ranked.append({"key": key, "kind": kind, **result})
     return sorted(ranked, key=lambda row: (-row["score"], -row["last4"], row["key"]))
+
+
+# --- adaptive window: a scan statistic over the most recent weeks ---------------------------------------------------------------
+#
+# A trend has no natural length: a release can spike for one week, a technique can build for a quarter. Rather than fix a span, the scan
+# tries the most recent window at 1, 2, 4, 8, 16, ... weeks, each against the rest of the history, and keeps the most surprising one.
+#
+# Surprise of one window is the exact conditional test for two Poisson counts. With ``count`` mentions in the window and ``baseline`` in the
+# weeks before it, and if the entity's rate had not changed, each of the ``count + baseline`` mentions falls in the window with probability
+# ``share`` (the window's part of the corpus's volume in window and baseline together, so corpus growth is not a trend). ``count`` is then
+# Binomial, and the p-value is its upper tail. Unlike comparing the count to a plug-in expectation, it allows for the baseline rate being
+# estimated from few weeks, so it does not over-flag short histories.
+#
+# Trying several windows and keeping the best inflates the false-alarm rate, so the best p-value is corrected for the number of windows
+# tried (Bonferroni: multiply by that number, cap at one). It is the simplest correction that is sound whatever the dependence between the
+# windows (nested windows are strongly dependent, which makes it conservative, never liberal), it needs no random draws, so the same
+# snapshot gives the same signals, and with at most five windows it costs little power.
+
+
+def window_lengths(history: int, minimum_baseline: int = 4) -> list[int]:
+    """The window lengths in weeks to try: 1, 2, 4, 8, ... while at least ``minimum_baseline`` weeks of baseline remain before the window."""
+    lengths, length = [], 1
+    while history - length >= minimum_baseline:
+        lengths.append(length)
+        length *= 2
+    return lengths
+
+
+def binomial_upper_tail(count: int, trials: int, probability: float) -> float:
+    """P(X >= count) for X Binomial(trials, probability), summed from the count upward so that a tiny tail keeps its precision."""
+    if count <= 0:
+        return 1.0
+    if count > trials:
+        return 0.0
+    if probability >= 1:
+        return 1.0
+    if probability <= 0:
+        return 0.0
+    log_odds = math.log(probability) - math.log1p(-probability)
+    term = math.exp(math.lgamma(trials + 1) - math.lgamma(count + 1) - math.lgamma(trials - count + 1) + count * math.log(probability) + (trials - count) * math.log1p(-probability))
+    total = term
+    for position in range(count, trials):
+        term *= (trials - position) / (position + 1) * math.exp(log_odds)
+        total += term
+        if term < total * 1e-17 and position + 1 > trials * probability:
+            break
+    return min(1.0, total)
+
+
+def significance_z(p_value: float) -> float:
+    """The normal z-score a one-sided p-value corresponds to (so a score reads like the z-score the ranking used before)."""
+    return round(-NormalDist().inv_cdf(min(max(p_value, 1e-300), 1 - 1e-12)), 3)
+
+
+def _round_p(p_value: float) -> float:
+    return float(f"{p_value:.3g}")
+
+
+def scan_window(values: Sequence[int | float], volume: Sequence[float], config: TrendConfig | None = None) -> dict | None:
+    """The most surprising recent window of one weekly series (oldest first, ending with the as-of week), or ``None`` when the history is
+    too short for any window.
+
+    For each length ``L`` from ``window_lengths``: ``count`` mentions in the last ``L`` weeks against ``baselineCount`` in every earlier week.
+    ``pValue`` is the upper tail of the conditional test described above and ``expected`` the count it would expect in the window. The window
+    with the smallest p-value wins (the shorter on a tie); its p-value is multiplied by the number of windows tried and capped at one
+    (Bonferroni) as ``correctedPValue``. ``surprise`` is the z-score of the corrected p-value."""
+    config = config or TrendConfig()
+    history = len(volume)
+    series = [0] * (history - len(values)) + list(values)[-history:]
+    lengths = window_lengths(history, config.minimum_baseline_weeks)
+    best: dict | None = None
+    for length in lengths:
+        count, baseline = int(sum(series[-length:])), int(sum(series[:-length]))
+        in_window, in_baseline = sum(volume[-length:]), sum(volume[:-length])
+        share = in_window / (in_window + in_baseline) if in_window + in_baseline > 0 else length / history
+        trials = count + baseline
+        p_value = binomial_upper_tail(count, trials, share)
+        if best is None or p_value < best["pValue"]:
+            best = {
+                "windowWeeks": length, "count": count, "baselineWeeks": history - length, "baselineCount": baseline,
+                "expected": round(trials * share, 3), "pValue": p_value,
+            }
+    if best is None:
+        return None
+    corrected = min(1.0, best["pValue"] * len(lengths))
+    return {**best, "pValue": _round_p(best["pValue"]), "tested": len(lengths), "correctedPValue": _round_p(corrected), "surprise": significance_z(corrected)}
+
+
+def exceeds_report(window: dict, report: dict, config: TrendConfig | None = None) -> tuple[bool, float]:
+    """(materially more, corrected p-value): whether the window just found is significantly above what an earlier draft reported.
+
+    The earlier draft reported ``count`` mentions in ``windowWeeks`` weeks. The new window holds ``count`` mentions in ``windowWeeks``. If the rate had
+    not changed, each of the mentions of the two would fall in the new window with probability ``L / (L + L_reported)``; the upper tail of that
+    binomial, multiplied by the number of windows the scan tried (the new window was the best of them), must reach the significance the scan itself
+    needs. The same count over a longer window, or a few more than reported, is therefore not new evidence."""
+    config = config or TrendConfig()
+    trials = window["count"] + report["count"]
+    share = window["windowWeeks"] / (window["windowWeeks"] + report["windowWeeks"])
+    p_value = min(1.0, binomial_upper_tail(window["count"], trials, share) * window["tested"])
+    return p_value <= config.significance, _round_p(p_value)
