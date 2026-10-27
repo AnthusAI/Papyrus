@@ -45,3 +45,8 @@ export const loadMessagesWithHeadStart = () => take("messages");
 export function discardReferencesHeadStart() {
   started.clear();
 }
+
+/** The pages that need the References straight away: the feed itself and the home page, whose Notification Center shows References cards. */
+export function wantsReferencesHeadStart(pathname: string): boolean {
+  return /\/newsroom\/references(\/|$)/.test(pathname) || /\/newsroom\/?$/.test(pathname);
+}

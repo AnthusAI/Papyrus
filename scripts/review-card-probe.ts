@@ -10,7 +10,7 @@ const input = JSON.parse(process.argv[2] ?? "{}") as { request: ReviewRequest; d
 async function main() {
   const { NotificationCenterView } = await import("../components/notification-center");
   const html = renderToStaticMarkup(createElement(NotificationCenterView, {
-    loadState: "ready", requests: [input.request], readIds: new Set<string>(), held: [], autoDecided: [],
+    loadState: "ready", requests: [input.request], stay: new Set([input.request.id]),
     storyTitles: input.storyTitles ?? {}, deletedStories: new Set(input.deletedStories ?? []),
   }));
   process.stdout.write(html.replace(/<[^>]+>/g, " ").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " "));

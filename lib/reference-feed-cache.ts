@@ -7,9 +7,12 @@
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
 import type { ReferencePreview } from "./reference-preview";
+import type { DraftView } from "./review-drafts";
+import type { ReviewRequest } from "./review-requests";
 
 const FEED_PREFIX = "papyrus.references.feed.v1.";
 const SESSION_PREFIX = "papyrus.newsroom.session.v1.";
+const NOTIFICATION_PREFIX = "papyrus.notifications.v1.";
 /** A saved session summary is trusted for display only this long; the live check always still runs. */
 export const SESSION_DISPLAY_TTL_MS = 15 * 60 * 1000;
 
@@ -126,8 +129,42 @@ export function saveSessionDisplay(siteId: string, display: Omit<SessionDisplay,
   write("session", `${SESSION_PREFIX}${siteId}`, { ...display, savedAt: now });
 }
 
+/** What the Notification Center last showed: review requests (without their history) and the drafts they cover. Display only. */
+export type NotificationSnapshot = {
+  savedAt: number;
+  requests: ReviewRequest[];
+  drafts: Record<string, DraftView>;
+  missing: string[];
+};
+
+export function notificationCacheKey(siteId: string): string {
+  return `${NOTIFICATION_PREFIX}${siteId}`;
+}
+
+export function loadNotificationSnapshot(siteId: string): NotificationSnapshot | null {
+  const snapshot = read<NotificationSnapshot>("local", notificationCacheKey(siteId));
+  if (!snapshot || !Array.isArray(snapshot.requests) || typeof snapshot.drafts !== "object" || !snapshot.drafts) return null;
+  return snapshot;
+}
+
+/** Saves the newest copy; who did what stays out of storage. Quiet when storage is blocked or full. */
+export function saveNotificationSnapshot(siteId: string, parts: { requests: ReviewRequest[]; drafts: Readonly<Record<string, DraftView>>; missing: Iterable<string> }, now = Date.now()): boolean {
+  const snapshot: NotificationSnapshot = {
+    savedAt: now,
+    requests: parts.requests.map((request) => ({ ...request, history: [] })),
+    drafts: { ...parts.drafts },
+    missing: [...parts.missing],
+  };
+  return write("local", notificationCacheKey(siteId), snapshot);
+}
+
+export function clearNotificationSnapshot(siteId: string) {
+  remove("local", notificationCacheKey(siteId));
+}
+
 /** Sign-out: nothing of the signed-in view survives in this browser. */
 export function clearSavedNewsroomDisplay(siteId: string) {
   remove("session", `${SESSION_PREFIX}${siteId}`);
   clearFeedSnapshot(siteId);
+  clearNotificationSnapshot(siteId);
 }

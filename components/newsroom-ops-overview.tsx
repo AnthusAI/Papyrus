@@ -1,19 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AssignmentRecord, NewsroomSectionRecord, ReferenceRecord } from "../lib/category-repository";
+import type { AssignmentRecord, NewsroomSectionRecord, ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import {
-  filterReferencesByStatus,
-  formatReferenceListDate,
-  referenceDisplayTitle,
-  referenceLineageId,
-  selectCanonicalReferenceRecords,
-} from "../lib/newsroom-references";
+import { referenceLineageId, selectCanonicalReferenceRecords, type ReferenceCurationAction } from "../lib/newsroom-references";
 import {
   buildNewsroomSectionHref,
   displayNewsroomSectionShortTitle,
@@ -23,37 +17,70 @@ import {
 } from "../lib/newsroom-sections";
 import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
+import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
+import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
+import type { NotificationFixture } from "./notification-center";
 import { NotificationCenter } from "./notification-center";
-import { CyclotronRow, predictionFromDecision } from "./reference-review-card";
+import type { ReviewChoice } from "./reference-review-card";
 
 type NewsroomOpsOverviewProps = {
   assignments: AssignmentRecord[];
   actorLabel?: string;
   decisions?: ReadonlyMap<string, RelevanceDecisionView>;
   demo?: boolean;
-  humanCuratedReferenceLineageIds?: ReadonlySet<string>;
   newsroomSections: NewsroomSectionRecord[];
   references: ReferenceRecord[];
+  referenceAttachments?: ReferenceAttachmentRecord[];
+  /** True until the References have been read; a saved copy of the last view fills the page meanwhile. */
+  loading?: boolean;
+  savedCopy?: { references: ReferenceRecord[]; previews: Array<[string, ReferencePreview]>; decisions: Array<[string, RelevanceDecisionView]> } | null;
+  predictionState?: "loading" | "ready" | "error";
+  /** Words for why a rating cannot be saved right now, or null. */
+  disabledReason?: string | null;
+  onReview?: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: { reasonCode?: ReferenceRejectionReasonCode | null; decisionRelationId?: string; shareable?: boolean }) => Promise<void> | void;
+  /** Local real-data preview of the Notification Center (scripts/export-notification-center-fixture.py). */
+  notificationFixture?: NotificationFixture | null;
 };
 
 const NO_DECISIONS: ReadonlyMap<string, RelevanceDecisionView> = new Map();
-const NO_IDS: ReadonlySet<string> = new Set();
 
 export function NewsroomOpsOverview({
   actorLabel = "",
   assignments,
   decisions = NO_DECISIONS,
   demo = false,
-  humanCuratedReferenceLineageIds = NO_IDS,
+  disabledReason = null,
+  loading = false,
   newsroomSections,
+  notificationFixture = null,
+  onReview,
+  predictionState = "ready",
+  referenceAttachments = [],
   references,
+  savedCopy = null,
 }: NewsroomOpsOverviewProps) {
   const pathname = usePathname();
-  const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const pendingReferences = useMemo(
-    () => filterReferencesByStatus(canonicalReferences, "pending").slice(0, 5),
-    [canonicalReferences],
+  const router = useRouter();
+  const liveReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
+  // Until the live read arrives, a saved copy of the last view fills the page. It is display only.
+  const showingSavedCopy = loading && !liveReferences.length && Boolean(savedCopy?.references.length);
+  const canonicalReferences = showingSavedCopy ? savedCopy!.references : liveReferences;
+  const shownDecisions = useMemo(() => (showingSavedCopy && !decisions.size ? new Map(savedCopy!.decisions) : decisions), [decisions, savedCopy, showingSavedCopy]);
+  const previews = useMemo(() => {
+    const live = referencePreviewsByLineage(referenceAttachments);
+    return showingSavedCopy && !live.size ? new Map(savedCopy!.previews) : live;
+  }, [referenceAttachments, savedCopy, showingSavedCopy]);
+  const openReference = useCallback(
+    (lineageId: string) => router.push(getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo)),
+    [demo, router],
   );
+  const rateReference = useCallback(async (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => {
+    const decision = shownDecisions.get(referenceLineageId(reference));
+    await onReview?.(reference, choice, {
+      reasonCode: choice === "reject" ? reasonCode : null,
+      ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
+    });
+  }, [onReview, shownDecisions]);
   const attentionAssignments = useMemo(
     () => assignments
       .filter((assignment) => {
@@ -69,55 +96,34 @@ export function NewsroomOpsOverview({
   );
   const coreDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "core"), [desks]);
   const rotatingDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "rotating"), [desks]);
+  const rateDisabled = disabledReason ?? (showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null);
 
   return (
     <div
-      className="space-y-8 font-sans"
+      className="space-y-12 font-sans"
       data-news-desk-section="overview"
       data-newsroom-ops-home="true"
     >
-      <div className="space-y-8" data-newsroom-overview-feeds>
-        <div aria-label="Notification Center feed" className="newsroom-overview-feed-frame rounded-xl border bg-card p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" data-newsroom-overview-notifications role="region" tabIndex={0}>
+      <div className="space-y-12" data-newsroom-overview-feeds>
+        <div data-newsroom-overview-notifications>
           <NotificationCenter
             actorLabel={actorLabel}
-            decisions={decisions}
+            decisions={shownDecisions}
             demo={demo}
-            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            fixture={notificationFixture}
+            onOpenReference={openReference}
+            onRateReference={rateReference}
+            predictionLoading={predictionState === "loading"}
+            previews={previews}
+            referenceDisabledReason={rateDisabled}
             references={canonicalReferences}
+            referencesLoading={loading && !canonicalReferences.length}
           />
         </div>
-        <section aria-label="Needs attention" className="space-y-3">
-          <h2 className="text-sm font-medium text-muted-foreground">Needs attention</h2>
-          {pendingReferences.length || attentionAssignments.length ? (
+        {attentionAssignments.length ? (
+          <section aria-label="Open assignments" className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Open assignments</h2>
             <div className="space-y-2">
-              {pendingReferences.map((reference) => {
-                const lineageId = referenceLineageId(reference);
-                const href = getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo);
-                const active = pathname === href || pathname.startsWith(`${href}/`);
-                return (
-                  <Link
-                    aria-current={active ? "true" : undefined}
-                    className={newsroomInboxRowClassName(active)}
-                    data-newsroom-inbox-item="reference"
-                    data-newsroom-list-row
-                    data-selected={active || undefined}
-                    data-newsroom-card
-                    data-newsroom-card-id={lineageId}
-                    href={href}
-                    key={lineageId}
-                  >
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <p className="truncate text-sm font-medium text-foreground">{referenceDisplayTitle(reference)}</p>
-                      <p className="text-xs text-muted-foreground">Review source intake · {formatReferenceListDate(reference)}</p>
-                      <div data-needs-attention-suggestion={lineageId}>
-                        <CyclotronRow prediction={decisions.get(lineageId) ? predictionFromDecision(decisions.get(lineageId)!) : { state: "none" }} />
-                      </div>
-                      <p className="text-xs font-medium text-foreground">Open it to Accept or Reject in the review queue</p>
-                    </div>
-                    <Badge className="mt-0.5 shrink-0" variant="outline">Pending</Badge>
-                  </Link>
-                );
-              })}
               {attentionAssignments.map((assignment) => {
                 const href = getNewsroomNavHref(`/newsroom/assignments/${encodeURIComponent(assignment.id)}`, demo);
                 const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -140,14 +146,8 @@ export function NewsroomOpsOverview({
                 );
               })}
             </div>
-          ) : (
-            <Card>
-              <CardContent className="p-4 text-sm text-muted-foreground">
-                No pending references or open assignments. Check those destinations for other work.
-              </CardContent>
-            </Card>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         {desks.length ? (
           <section aria-label="Sections" className="space-y-3" data-newsroom-ops-desks>
