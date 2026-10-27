@@ -117,6 +117,8 @@ class FakeCyclotron:
         self.post_override, self.poll_override = {}, {}
         self.feedback_override = None
         self.pending_polls = 0
+        self.polls_needed = 0                 # each job answers "running" this many times before it completes
+        self.job_gets = {}
         self.combined_calls, self.combined_jobs = [], {}
         self.combined_enabled = False         # False: the deployment predates POST /machine/decisions (404)
         self.combined_post_override = None    # (status, body) for POST /machine/decisions
@@ -138,11 +140,17 @@ class FakeCyclotron:
         if self.pending_polls:
             self.pending_polls -= 1
             return 202, {"status": "running"}
+        if self.still_running(path.rsplit("/", 1)[1]):
+            return 202, {"status": "running"}
         pubs, item = self.combined_jobs[path.rsplit("/", 1)[1]]
         return 200, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1",
                      "jobId": path.rsplit("/", 1)[1], "decisionId": f"dec-{item}",
                      "publications": {pub: self.combined_entry_override.get(pub) or self.single_receipt(pub, item)
                                       for pub in pubs}}
+
+    def still_running(self, job):
+        seen = self.job_gets[job] = self.job_gets.get(job, 0) + 1
+        return seen <= self.polls_needed
 
     def single_receipt(self, pub, item):
         return {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
@@ -173,6 +181,8 @@ class FakeCyclotron:
             return self.poll_override[pub]
         if self.pending_polls:
             self.pending_polls -= 1
+            return 202, {"status": "running"}
+        if self.still_running(job):
             return 202, {"status": "running"}
         _, item = self.jobs[job]
         return 200, {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
@@ -461,12 +471,13 @@ def test_pending_job_is_resumed_by_polling_only(table):
                               sleep=lambda s: state.__setitem__("t", state["t"] + s), clock=lambda: state["t"])
     result = run_router(store, "hn", now=2000, cyclotron=ticking, appsync=lambda e: object(), deliver=Delivery(),
                         context_receipt=lambda c, p: {})
-    assert result["stoppedBy"] == "pending" and routing_of(table)["DISC#101#000001"] == "collected"
+    assert result["status"] == "awaiting" and result["stoppedBy"] == "awaiting"
+    assert routing_of(table)["DISC#101#000001"] == "collected"
     job = table.items[("MONITOR#hn", "ROUTE#101#000001")]["jobs"]["anth-us"]
-    assert job["jobId"] and len(cyclotron.posts()) == 1
+    assert job["jobId"] and len(cyclotron.posts()) == 3   # every binding is posted before anything waits
     cyclotron.pending_polls = 0
     go(table, store, cyclotron, now=2600)
-    assert len(cyclotron.posts()) == 3          # one per publication in total: the anth-us POST was not repeated
+    assert len(cyclotron.posts()) == 3          # one per publication in total: no POST was repeated
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
@@ -1220,7 +1231,7 @@ def test_combined_pending_job_is_resumed_by_polling_only(table):
                               sleep=lambda s: state.__setitem__("t", state["t"] + s), clock=lambda: state["t"])
     result = run_router(store, "hn", now=2000, cyclotron=ticking, appsync=lambda e: object(), deliver=Delivery(),
                         context_receipt=lambda c, p: {})
-    assert result["stoppedBy"] == "pending" and routing_of(table)["DISC#101#000001"] == "collected"
+    assert result["status"] == "awaiting" and routing_of(table)["DISC#101#000001"] == "collected"
     assert table.items[("MONITOR#hn", "ROUTE#101#000001")]["combinedJob"]["jobId"] == "cjob-0"
     cyclotron.pending_polls = 0
     go(table, store, cyclotron, now=2600)
@@ -1297,3 +1308,127 @@ def test_dry_run_records_the_combined_request_the_live_run_sends(table):
     table.put_item(router_config("live", maxItemsPerRun=1))
     go(table, store, cyclotron, now=3000)
     assert [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST"] == [dry["requestId"]]
+
+
+# --- post first, then collect --------------------------------------------------------------------------
+
+def ticking_client(table, cyclotron):
+    state = {"t": 0}
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    return CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http,
+                           sleep=lambda s: state.__setitem__("t", state["t"] + s), clock=lambda: state["t"])
+
+
+def run_with(table, store, cyclotron, now=2000, deliver=None, **kwargs):
+    return run_router(store, "hn", now=now, cyclotron=ticking_client(table, cyclotron), appsync=lambda e: object(),
+                      deliver=deliver or Delivery(), context_receipt=lambda c, p: {}, **kwargs)
+
+
+def combined_posts(cyclotron):
+    return [c for c in cyclotron.combined_calls if c[0] == "POST"]
+
+
+def test_slow_jobs_for_several_stories_are_all_posted_in_one_run(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.polls_needed = 10_000
+    result = run_with(table, store, cyclotron)
+    assert len(combined_posts(cyclotron)) == 3
+    assert result["status"] == "awaiting" and result["stoppedBy"] == "awaiting" and result["counts"]["awaiting"] == 3
+    assert result["counts"]["examined"] == 3 and result["counts"]["routed"] == 0
+    assert set(routing_of(table).values()) == {"collected"}
+    for n in (101, 102, 103):
+        assert table.items[("MONITOR#hn", f"ROUTE#{n}#000001")]["combinedJob"]["jobId"]
+    receipt = next(v for k, v in table.items.items() if k[1].startswith("ROUTERUN#"))
+    assert receipt["stoppedBy"] == "awaiting" and receipt["counts"]["awaiting"] == 3
+
+
+def test_jobs_that_finish_inside_the_collect_window_are_delivered_in_the_same_run(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.polls_needed = 3          # running for the first check and the first two collect rounds
+    delivery = Delivery()
+    result = run_with(table, store, cyclotron, deliver=delivery)
+    assert result["status"] == "complete" and result["stoppedBy"] is None and result["counts"]["awaiting"] == 0
+    assert set(routing_of(table).values()) == {"routed"} and result["counts"]["routed"] == 3
+    assert len(delivery.calls) == 9 and len(combined_posts(cyclotron)) == 3
+
+
+def test_the_collect_window_is_bounded_by_poll_seconds(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.polls_needed = 10_000
+    run_with(table, store, cyclotron)
+    gets = [c for c in cyclotron.combined_calls if c[0] == "GET"]
+    assert 1 < len(gets) <= 6           # pollSeconds is 10: a few backed-off rounds, not a busy wait
+
+
+def test_a_job_still_running_at_run_end_is_resumed_by_the_collector_without_a_second_post(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=2)
+    cyclotron.polls_needed = 10_000
+    run_with(table, store, cyclotron)
+    assert len(combined_posts(cyclotron)) == 2 and set(routing_of(table).values()) == {"collected"}
+    cyclotron.polls_needed = 0
+    delivery = Delivery()
+    result = run_with(table, store, cyclotron, now=2120, task="collect", deliver=delivery)
+    assert result["status"] == "complete" and result["counts"]["routed"] == 2
+    assert routing_of(table)["DISC#101#000001"] == "routed" and routing_of(table)["DISC#102#000001"] == "routed"
+    assert len(delivery.calls) == 6
+    assert len(combined_posts(cyclotron)) == 2 and result["feedback"] == {"status": "skipped"}
+
+
+def test_the_collector_never_posts_a_story_that_has_no_job(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.polls_needed = 10_000
+    run_with(table, store, cyclotron)
+    cyclotron.polls_needed = 0
+    result = run_with(table, store, cyclotron, now=2120, task="collect")
+    assert result["counts"]["examined"] == 1
+    assert len(combined_posts(cyclotron)) == 1
+    assert routing_of(table)["DISC#102#000001"] == "collected" and ("MONITOR#hn", "ROUTE#102#000001") not in table.items
+
+
+def test_the_collector_reports_jobs_that_are_still_running(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.polls_needed = 10_000
+    run_with(table, store, cyclotron)
+    result = run_with(table, store, cyclotron, now=2120, task="collect")
+    assert result["status"] == "awaiting" and result["counts"]["awaiting"] == 1 and result["counts"]["routed"] == 0
+
+
+def test_the_collector_and_the_route_run_share_the_per_monitor_lock(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    assert store.acquire_router_lock("hn", "route-run", 2000)
+    assert run_with(table, store, cyclotron, now=2010, task="collect")["status"] == "locked"
+    assert cyclotron.combined_calls == [] and cyclotron.calls == []
+    store.release_router_lock("hn", "route-run")
+    cyclotron.polls_needed = 10_000
+    assert store.acquire_router_lock("hn", "collector", 2020)
+    assert run_with(table, store, cyclotron, now=2030)["status"] == "locked"
+    assert cyclotron.combined_calls == []
+    store.release_router_lock("hn", "collector")
+
+
+def test_the_per_publication_path_posts_all_bindings_before_it_waits(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)     # no combined endpoint
+    cyclotron.polls_needed = 10_000
+    result = run_with(table, store, cyclotron)
+    assert len(cyclotron.posts()) == 3 and result["status"] == "awaiting" and result["counts"]["awaiting"] == 1
+    cyclotron.polls_needed = 0
+    delivery = Delivery()
+    result = run_with(table, store, cyclotron, now=2120, task="collect", deliver=delivery)
+    assert len(cyclotron.posts()) == 3 and routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(delivery.calls) == 3
+
+
+def test_a_stop_from_cyclotron_still_stops_the_run_and_is_not_reported_as_awaiting(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.combined_post_override = (409, {"code": "run_busy"})
+    result = run_with(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "run_busy"
+
+
+def test_the_template_schedules_the_collector_on_the_router_function_without_new_permissions():
+    resources = _template()["Resources"]
+    schedule = resources["RouterCollectSchedule"]["Properties"]
+    assert schedule["ScheduleExpression"] == "rate(2 minutes)" and schedule["State"] == ("Ref", "ScheduleState")
+    assert schedule["Target"]["Arn"] == resources["RouteSchedule"]["Properties"]["Target"]["Arn"]
+    assert schedule["Target"]["RoleArn"] == resources["RouteSchedule"]["Properties"]["Target"]["RoleArn"]
+    assert json.loads(schedule["Target"]["Input"]) == {"monitorId": "hn", "task": "collect"}
