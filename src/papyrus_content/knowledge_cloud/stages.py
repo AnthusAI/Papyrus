@@ -20,6 +20,7 @@ from typing import Any
 
 from . import cost as costs
 from .config import PROJECTION_STAGE, STAGES, CloudRunConfig
+from .defaults import OUTPUTS_FILE, VOCABULARY_FILE, default_outputs, default_vocabulary
 from .ledger import SUCCEEDED, RunLedger
 from .state import StateStore
 
@@ -120,12 +121,30 @@ class Run:
     # -- state transfer ---------------------------------------------------------------------------------------------
     def pull(self, *, corpus: bool = False, run: bool = False, site: bool = False) -> None:
         self.state.download("config/", self.config_dir)
+        self.seed_config()
         if corpus:
             self.state.download("corpus/", self.corpus)
         if run:
             self.state.download(f"runs/{self.config.week}/", self.run_dir)
         if site:
             self.clone_site()
+
+    def seed_config(self) -> None:
+        """Write the default of every operator file that is missing from ``config/``, locally and into the state, never over a file that exists.
+
+        A site that has not written a vocabulary gets the generic one (organization, product, person, topic); a site whose state has no
+        ``amplify_outputs.json`` gets one built from ``appSyncApiId``. Stop words and review guidance are optional and have no default file."""
+        seeds = {VOCABULARY_FILE: default_vocabulary(self.config.publication)}
+        if self.config.appsync_api_id:
+            seeds[OUTPUTS_FILE] = default_outputs(self.config.appsync_api_id, self.config.region)
+        for name, text in seeds.items():
+            target = self.config_dir / name
+            if target.exists():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+            self.state.write_text(f"config/{name}", text)
+            print(f"config/{name} was not in the run state; seeded the default", flush=True)
 
     def push(self, *, corpus: bool = False, run: bool = False) -> None:
         if corpus:
@@ -158,6 +177,24 @@ class Run:
         """The site checkout plus the plugin check, for every stage that writes to the site."""
         self.pull(site=True, run=bool(self.config.monitor_sources))
         self.verify_plugins()
+
+    def nothing_to_do(self, *, needs_documents: bool = False) -> dict | None:
+        """The stage's result when ``corpus-sync`` found nothing for it to work on this week, else None.
+
+        A publication with no published items and no monitor records has nothing to model, extract, snapshot or project: every later stage
+        succeeds without running a tool (its cost is still recorded). A stage that works on the items themselves (the topic model, the
+        typed extraction, the AI review) also has nothing to do when only monitor records exist, which are data and never documents.
+        Without ``corpus-sync``'s counts in the run state (a stage started alone) the answer is None and the stage runs as it always did."""
+        self.pull(run=True)
+        state = self.read_state()
+        if state.get("empty") is True:
+            reason = "the publication has no published items and no monitor records this week"
+        elif needs_documents and state.get("documents") == 0:
+            reason = "the publication has no published items this week (monitor records are data, not documents)"
+        else:
+            return None
+        print(f"nothing to do: {reason}", flush=True)
+        return {"status": "nothing to do", "reason": reason}
 
     def verify_plugins(self) -> None:
         """Fail before writing anything unless this stage's plugin list is the one the site's deployed Lambda uses.
@@ -245,8 +282,7 @@ def knowledge_options(run: Run) -> list[str]:
         "--entity-href", ENTITY_HREF,
         "--as-of", run.config.monday.isoformat(),
     ]
-    if run.config.beats_config:
-        options += ["--beats-config", str(run.site / run.config.beats_config)]
+    options += beats_options(run)
     if run.config.concept_kinds:
         options += ["--concept-kinds", run.config.concept_kinds]
     return options + run.monitor_options()
@@ -256,23 +292,50 @@ def backend_options(run: Run) -> list[str]:
     return ["--auth", "iam", "--amplify-outputs", str(run.outputs)]
 
 
+def beats_options(run: Run) -> list[str]:
+    """``--beats-config FILE`` when the site names one and its checkout has it; a site without a beats file gets a snapshot with no beats."""
+    if not run.config.beats_config:
+        return []
+    path = run.site / run.config.beats_config
+    if not path.exists():
+        print(f"beats config {run.config.beats_config} is not in the site checkout; continuing without beats", flush=True)
+        return []
+    return ["--beats-config", str(path)]
+
+
 def corpus_sync(run: Run) -> dict:
     run.pull(corpus=True, run=True, site=True)
     export = ["papyrus", "knowledge", "corpus", "export", "--out", str(run.corpus / "raw" / "papyrus"), *backend_options(run), "--static-dir", str(run.static_dir)]
     if run.config.monitor_sources:  # monitor-delivered References join the corpus as data documents, dated by their source date
         export += [
             "--monitor-sources", ",".join(run.config.monitor_sources), "--monitor-weeks", str(run.config.monitor_weeks),
-            "--corpus-key", run.config.publication, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
+            "--corpus-key", run.config.corpus_key, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
         ]
     run.sh(*export)
+    documents = len(list((run.corpus / "raw" / "papyrus").glob("*.md")))
+    records = monitor_record_count(run)
+    if documents == 0 and records == 0:  # a new site, or one whose monitors have delivered nothing: nothing for the later stages to work on
+        run.write_state(empty=True, documents=0, records=0, asOf=run.config.as_of.isoformat())
+        run.push(corpus=True, run=True)
+        print("corpus-sync: no published items and no monitor records; the rest of the run has nothing to do", flush=True)
+        return {"status": "nothing to do", "documents": 0, "records": 0}
     if not (run.corpus / "metadata").is_dir():
         run.sh("biblicus", "init", str(run.corpus))
     run.sh("biblicus", "reindex", "--corpus", str(run.corpus))
     run.sh("biblicus", "extract", "build", "--corpus", str(run.corpus), "--stage", "pass-through-text")
     latest = json.loads((run.corpus / "extracted" / "pipeline" / "latest.json").read_text())
-    run.write_state(extraction=latest["snapshot_id"], asOf=run.config.as_of.isoformat())
+    run.write_state(extraction=latest["snapshot_id"], asOf=run.config.as_of.isoformat(), empty=False, documents=documents, records=records)
     run.push(corpus=True, run=True)
     return {"extraction": latest["snapshot_id"]}
+
+
+def monitor_record_count(run: Run) -> int:
+    """How many monitor records the export wrote for this week (0 for a site without monitor sources)."""
+    if not run.config.monitor_sources or not run.monitor_records.exists():
+        return 0
+    from ..knowledge_snapshot.monitor_records import read_records  # noqa: PLC0415
+
+    return len(read_records(run.monitor_records))
 
 
 def previous_run_id(corpus: Path) -> str | None:
@@ -283,6 +346,8 @@ def previous_run_id(corpus: Path) -> str | None:
 
 
 def topic_model(run: Run) -> dict:
+    if (idle := run.nothing_to_do(needs_documents=True)) is not None:
+        return idle
     run.pull(corpus=True, run=True)
     state = run.read_state()
     extraction = state["extraction"]
@@ -311,10 +376,12 @@ def topic_model(run: Run) -> dict:
 
 
 def typed_extraction(run: Run) -> dict:
+    if (idle := run.nothing_to_do(needs_documents=True)) is not None:
+        return idle
     run.pull(corpus=True, run=True)
     state = run.read_state()
     run_dir = run.run_dir
-    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.import_options()]
+    publish = ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.corpus_key, "--actor-name", run.config.actor_name, *run.import_options()]
     run.sh(*publish)  # the dry run: its plan is in the task log
     run.sh(*publish, "--apply")  # front-matter entities first, so the extractor resolves to accepted entities
     run.sh(
@@ -332,9 +399,11 @@ def typed_extraction(run: Run) -> dict:
 
 def import_arguments(run: Run) -> list[str]:
     state = run.read_state()
+    if state.get("documents") == 0:  # only monitor records this week: no clusters, no extracted entities, just the records
+        return ["papyrus", "knowledge", "publish-run", *backend_options(run), "--corpus-key", run.config.corpus_key, "--actor-name", run.config.actor_name, *run.import_options()]
     return [
         "papyrus", "knowledge", "publish-run", *backend_options(run),
-        "--corpus-key", run.config.publication, "--actor-name", run.config.actor_name, *run.import_options(),
+        "--corpus-key", run.config.corpus_key, "--actor-name", run.config.actor_name, *run.import_options(),
         "--identity", str(run.corpus / "analysis" / "topic-identity" / state["current"] / "output.json"),
         "--trends", str(run.corpus / "analysis" / "topic-governance" / state["trends"] / "output.json"),
         "--entities", str(run.run_dir / "typed" / "output.json"),
@@ -342,11 +411,15 @@ def import_arguments(run: Run) -> list[str]:
 
 
 def publish_run(run: Run) -> dict:
+    if (idle := run.nothing_to_do()) is not None:
+        return idle
     run.pull(corpus=True, run=True)
     state = run.read_state()
     arguments = import_arguments(run)
     run.sh(*arguments)
     run.sh(*arguments, "--apply")
+    if state.get("documents") == 0:  # no topic run this week: next week still compares with the last one that was imported
+        return {"status": "records only"}
     record = {"previousRunId": state["current"], "runOn": run.config.as_of.isoformat(), "trendsSnapshotId": state["trends"]}
     (run.corpus / "knowledge-run.json").write_text(json.dumps(record) + "\n")
     run.push(corpus=True)
@@ -355,6 +428,8 @@ def publish_run(run: Run) -> dict:
 
 def publish_relations(run: Run) -> dict:
     """Import again after the review: relations between entities that are now accepted."""
+    if (idle := run.nothing_to_do()) is not None:
+        return idle
     run.pull(corpus=True, run=True)
     run.sh(*import_arguments(run), "--apply")
     return {}
@@ -368,6 +443,8 @@ def ai_review(run: Run) -> dict:
     from ..records import apply_record_changes  # noqa: PLC0415
     from . import ai_review as review  # noqa: PLC0415
 
+    if (idle := run.nothing_to_do(needs_documents=True)) is not None:
+        return idle
     run.pull(corpus=True, run=True)
     state = run.read_state()
     guidance_file = run.config_dir / "review-guidance.md"
@@ -463,12 +540,16 @@ def suggest_promotions(run: Run, client: Any) -> dict:
 
 
 def snapshot(run: Run) -> dict:
+    if (idle := run.nothing_to_do()) is not None:
+        return idle
     run.prepare_site()
     run.sh("papyrus", "knowledge", "snapshot", *knowledge_options(run))
     return {"asOf": run.config.monday.isoformat()}
 
 
 def archive(run: Run) -> dict:
+    if (idle := run.nothing_to_do()) is not None:
+        return idle
     run.prepare_site()
     entry = f"{ARCHIVE_DIRECTORY}/{run.config.monday.isoformat()}.json"
     stored = run.services.read_object(run.config.site_bucket, entry)
@@ -488,10 +569,11 @@ def archive(run: Run) -> dict:
 
 
 def wiki_sync(run: Run) -> dict:
+    if (idle := run.nothing_to_do()) is not None:
+        return idle
     run.pull(site=True, run=bool(run.config.monitor_sources))
     sync = ["papyrus", "knowledge", "wiki", "sync", *backend_options(run), *run.monitor_options()]
-    if run.config.beats_config:
-        sync += ["--beats-config", str(run.site / run.config.beats_config)]
+    sync += beats_options(run)
     run.sh(*sync)
     run.sh(*sync, "--apply")  # drafts only
     # --no-trigger: publishing must not project; the projection stage does that once, under the lease, last.
@@ -500,6 +582,8 @@ def wiki_sync(run: Run) -> dict:
 
 
 def projection(run: Run) -> dict:
+    if (idle := run.nothing_to_do()) is not None:
+        return idle
     run.prepare_site()
     arguments = ["papyrus", "ops", "content", "project", "--all", "--static-dir", str(run.static_dir), "--bucket", run.config.site_bucket, "--json"]
     assert not set(FORBIDDEN_FLAGS) & set(arguments)  # the #565 guard stays on; a bad run must never delete pages

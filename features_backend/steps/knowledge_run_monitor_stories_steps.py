@@ -55,6 +55,11 @@ def step_limit(context, limit):
     context.environment["MONITOR_STORIES_LIMIT"] = str(limit)
 
 
+@given('the task is configured with the knowledge corpus key "{key}"')
+def step_corpus_key(context, key):
+    context.environment["KNOWLEDGE_CORPUS_KEY"] = key
+
+
 @given("the command drafted {drafts:d} stories with {calls:d} model calls")
 def step_drafted(context, drafts, calls):
     context.drafted, context.calls_made = drafts, calls
@@ -187,3 +192,14 @@ def step_accounting_logged(context):
 @then("the step is skipped, nothing is called and the ledger has no row")
 def step_skipped(context):
     assert context.skip and context.calls == [] and context.table_.scan()["Items"] == []
+
+
+@then('the command was given the corpus key "{key}" beside the site "{site}"')
+def step_corpus_args(context, key, site):
+    args = context.calls[0][0]
+    assert args[args.index("--corpus-key") + 1] == key and args[args.index("--site") + 1] == site, args
+
+
+@then("the command was not given a corpus key")
+def step_no_corpus_args(context):
+    assert "--corpus-key" not in context.calls[0][0], context.calls[0][0]

@@ -13,7 +13,7 @@ This script never fails the run: every problem is logged as `monitor-stories: sk
 the exit status is 0. It reads the OpenAI key from SSM at run time and hands it to the child process only; the key is never printed. Accounting
 that goes wrong never gets in the way: the step still succeeds and the row has no `cost`.
 
-Environment: KNOWLEDGE_PUBLICATION, KNOWLEDGE_EXECUTION_NAME, KNOWLEDGE_EXECUTION_START (ISO time), KNOWLEDGE_OPENAI_KEY_PARAMETER,
+Environment: KNOWLEDGE_PUBLICATION, KNOWLEDGE_CORPUS_KEY (optional), KNOWLEDGE_EXECUTION_NAME, KNOWLEDGE_EXECUTION_START (ISO time), KNOWLEDGE_OPENAI_KEY_PARAMETER,
 KNOWLEDGE_LEDGER_TABLE, MONITOR_STORIES_ENDPOINT, and optionally MONITOR_STORIES_LIMIT (3).
 """
 
@@ -45,8 +45,10 @@ def start_time(started: str) -> dt.datetime:
     return moment.astimezone(dt.timezone.utc) if moment.tzinfo else moment.replace(tzinfo=dt.timezone.utc)
 
 
-def command_for(publication: str, limit: int) -> list[str]:
-    return ["papyrus", "ideas", "monitor-stories", "--site", publication, "--store", "proposals", "--limit", str(limit), "--json"]
+def command_for(publication: str, limit: int, corpus_key: str = "") -> list[str]:
+    """``corpus_key`` is the knowledge corpus the site's References live in; empty means the corpus named like the publication."""
+    corpus = ["--corpus-key", corpus_key] if corpus_key and corpus_key != publication else []
+    return ["papyrus", "ideas", "monitor-stories", "--site", publication, *corpus, "--store", "proposals", "--limit", str(limit), "--json"]
 
 
 def read_openai_key(parameter: str) -> str:
@@ -131,7 +133,7 @@ def run(environment: Mapping[str, str], *, read_key: Callable[[str], str] = read
     attempt, clock = ledger.begin(STAGE), time.monotonic()
     run_record: dict[str, Any] | None = None
     try:
-        command = command_for(publication, limit)
+        command = command_for(publication, limit, (environment.get("KNOWLEDGE_CORPUS_KEY") or "").strip())
         print("+ " + " ".join(command), flush=True)
         status, output = execute(command, child_environment)
         if status != 0:

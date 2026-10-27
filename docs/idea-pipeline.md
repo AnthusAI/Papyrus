@@ -249,6 +249,8 @@ It is the same for every monitor: no source is named in the code, so a new site 
 ```bash
 papyrus ideas monitor-stories --site <site> --dry-run
 papyrus ideas monitor-stories --site <site> --limit 3 --since 7d --store proposals --report monitor-stories.md
+# a site whose References live in a corpus of another name (knowledge-corpus-<key>):
+papyrus ideas monitor-stories --site <site> --corpus-key <key> --dry-run
 ```
 
 `--limit N` (default 3) is the number of stories wanted, `--since` the window (`7d`, `36h`), `--store json|proposals` (default `json`; the cloud step uses `proposals`),
