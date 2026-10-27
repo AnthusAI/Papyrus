@@ -10170,3 +10170,36 @@ img {
   }
 }
 
+
+.papyrus-console-mobile-trigger { display: none; }
+@media (max-width: 900px) {
+  .edition-progress__button--console { display: none; }
+  .papyrus-console-mobile-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 16px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    z-index: 1200;
+    min-width: 64px;
+    min-height: 44px;
+    padding: 8px 16px;
+    background: rgb(var(--paper-rgb));
+    color: var(--ink);
+    border: 1px solid currentColor;
+    font: 600 14px Arial, sans-serif;
+  }
+  .papyrus-console-mobile-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+  .papyrus-console--open {
+    --papyrus-console-width: 100vw;
+    background: rgb(var(--paper-rgb));
+    height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 900px) {
+  .papyrus-console__header button { min-width: 44px; min-height: 44px; }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "30854acc-31e9-44fd-be8b-224af4822b14",
+  "issue_id": "PPY-0d18a6ba-c78d-4f96-8245-fa11de233b83",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-27T05:27:16.463Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "5847aa2a-96ed-487e-9e7f-285566b63d53",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "GPT-6",
+      "name": "Chat mobile continuation"
+    }
+  }
+}

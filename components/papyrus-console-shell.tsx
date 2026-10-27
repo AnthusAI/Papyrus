@@ -35,6 +35,7 @@ import {
   type ReaderMotionSetting,
 } from "./reader-settings";
 import { PapyrusConsoleConversation, type ConsoleConversationMessage } from "./papyrus-console-conversation";
+import { PapyrusConsoleFrame } from "./papyrus-console-frame";
 import { PapyrusPrivateChatPanel } from "./papyrus-private-chat-panel";
 import { ModelSelector } from "./ai-elements/model-selector";
 import { Suggestion, Suggestions } from "./ai-elements/suggestion";
@@ -358,20 +359,15 @@ export function PapyrusConsoleShell({ children, privateChatEnabled = false }: Pa
 
   return (
     <PapyrusConsoleContext.Provider value={consoleContext}>
-      <div className={canUseConsole && open ? "papyrus-console-page papyrus-console-page--open" : "papyrus-console-page"}>
-        {children}
-      </div>
-      {shouldOfferConsole ? (
-        <aside className={open ? "papyrus-console papyrus-console--open" : "papyrus-console"} aria-label="Papyrus console">
-          {open ? (
-            canUseConsole
-              ? privateChatEnabled
-                ? <PapyrusPrivateChatPanel onClose={toggleOpen} />
-                : <ConsolePanel actorEmail={session?.auth.status === "signedIn" ? (session.auth.email ?? null) : null} actorLabel={session?.auth.label ?? "Papyrus editor"} onClose={toggleOpen} />
-              : <ConsoleAccessPanel onClose={toggleOpen} session={session} />
-          ) : null}
-        </aside>
-      ) : null}
+      <PapyrusConsoleFrame available={shouldOfferConsole} open={open} reserveSpace={canUseConsole && open} onClose={toggleOpen} onOpen={openConsole} page={children}>
+        {open ? (
+          canUseConsole
+            ? privateChatEnabled
+              ? <PapyrusPrivateChatPanel onClose={toggleOpen} />
+              : <ConsolePanel actorEmail={session?.auth.status === "signedIn" ? (session.auth.email ?? null) : null} actorLabel={session?.auth.label ?? "Papyrus editor"} onClose={toggleOpen} />
+            : <ConsoleAccessPanel onClose={toggleOpen} session={session} />
+        ) : null}
+      </PapyrusConsoleFrame>
     </PapyrusConsoleContext.Provider>
   );
 }
