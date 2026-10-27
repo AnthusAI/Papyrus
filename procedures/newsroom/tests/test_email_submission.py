@@ -201,3 +201,47 @@ def test_classifier_link_titles_do_not_retain_urls_addresses_or_secret_values():
                       'editor@example.org token=secret AbCdEfGhIjKlMnOpQrStUvWxYz1234567890</a>', subtype="html")
     result = extract_submission(email.as_bytes())
     assert result["links"] == [{"url": "https://example.org/article", "title": "Research notes"}]
+
+
+def test_branded_tracking_wrappers_are_private_unresolved_candidates():
+    from papyrus_content.email_submission import is_supported_email_tracking_url
+    tracker = "https://news.example.org/ss/c/u001.synthetic-Recipient.Route"
+    assert safe_editorial_url(tracker) is None
+    assert is_supported_email_tracking_url(tracker)
+    result = extract_submission(message(tracker))
+    assert result["links"][0]["resolutionStatus"] == "unresolved"
+    assert result["links"][0]["url"] == tracker
+    for invalid in [tracker.replace("https:", "http:"), tracker.replace("news.example.org", "127.0.0.1"),
+                    tracker.replace("news.example.org", "host.internal"), tracker + "?action=unsubscribe",
+                    tracker.replace("news.example.org", "user:pass@news.example.org")]:
+        assert not is_supported_email_tracking_url(invalid)
+
+
+def test_branded_tracking_resolution_preserves_public_dns_and_action_guards():
+    from papyrus_content.email_submission import resolve_email_tracking_url, RedirectResolutionError
+    tracker = "https://news.example.org/ss/c/u001.synthetic-Recipient.Route"
+    calls = []
+    def request(url, **options):
+        calls.append(url)
+        assert options["method"] == "HEAD"
+        assert not options["allow_redirects"] and not options["read_body"] and not options["trust_env"]
+        return {"status": 302, "headers": {"Location": "https://news.example.org/unsubscribe"}}
+    with pytest.raises(RedirectResolutionError, match="redirect_address_not_public"):
+        resolve_email_tracking_url(tracker, resolve_host=lambda *_a, **_k: ["127.0.0.1"], request=request)
+    assert calls == []
+    with pytest.raises(RedirectResolutionError, match="redirect_target_unsafe"):
+        resolve_email_tracking_url(tracker, resolve_host=lambda *_a, **_k: ["8.8.8.8"], request=request)
+    assert calls == [tracker]
+
+
+def test_branded_tracking_resolves_only_to_clean_article_with_synthetic_transport():
+    from papyrus_content.email_submission import resolve_email_tracking_url
+    tracker = "https://news.example.org/ss/c/u001.synthetic-Recipient.Route"
+    calls = []
+    def request(url, **options):
+        calls.append(url)
+        return ({"status": 302, "headers": {"Location": "https://publisher.example.org/article?utm_source=mail"}}
+                if url == tracker else {"status": 200, "headers": {}})
+    assert resolve_email_tracking_url(tracker, resolve_host=lambda *_a, **_k: ["8.8.8.8"],
+                                      request=request) == "https://publisher.example.org/article"
+    assert calls == [tracker, "https://publisher.example.org/article"]

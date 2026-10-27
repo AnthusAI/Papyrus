@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "ba7f7fd1-aa00-4271-99fc-ccdd2ab3fd5d",
+  "issue_id": "PPY-98b5e907-782c-4799-888a-79b4f63825c2",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-27T13:16:42.878Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "7186d5b0-3bed-49cd-85d3-8cba2552017b",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6.1-sol",
+      "name": "newsletter-acceptance"
+    }
+  }
+}
