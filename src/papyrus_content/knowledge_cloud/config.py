@@ -67,6 +67,8 @@ def _required(environment: Mapping[str, str], name: str) -> str:
 @dataclass(frozen=True)
 class CloudRunConfig:
     publication: str
+    corpus_key: str
+    appsync_api_id: str | None
     state_bucket: str
     ledger_table: str
     execution_name: str
@@ -116,6 +118,9 @@ class CloudRunConfig:
         publication = _required(environment, "KNOWLEDGE_PUBLICATION")
         return cls(
             publication=publication,
+            # The knowledge corpus the publication's References live in (`knowledge-corpus-<key>`); the publication's own id unless the site says otherwise.
+            corpus_key=(environment.get("KNOWLEDGE_CORPUS_KEY") or "").strip() or publication,
+            appsync_api_id=(environment.get("KNOWLEDGE_APPSYNC_API_ID") or "").strip() or None,
             state_bucket=_required(environment, "KNOWLEDGE_STATE_BUCKET"),
             ledger_table=_required(environment, "KNOWLEDGE_LEDGER_TABLE"),
             execution_name=(environment.get("KNOWLEDGE_EXECUTION_NAME") or "manual").strip(),

@@ -388,6 +388,17 @@ end the sweep cleanly: the run receipt says
 until the next schedule. A refused POST leaves no job marker, so it may be sent later; an
 accepted job keeps its `jobId` under `ROUTE#...`.`jobs` and is only polled.
 
+### Jobs left over from an earlier Cyclotron run
+
+A stored job (`combinedJob`, `jobs.<pub>`) also records the `runId` and `bindingRevision` it was posted under.
+After a Cyclotron run cutover the lab no longer answers for the old run's jobs (`GET /machine/decisions/{jobId}`
+returns 404). Before polling, the router compares the stored markers with `CONFIG#router`.`cyclotron`; a job
+with different markers (or, for a job stored before the markers existed, a `requestId` that does not match the
+request the current config would build) is discarded and the story is posted again under the current binding,
+as a new idempotent request. A 404 on a stored job is handled the same way, once: the job is discarded and
+re-posted in the same run. If the re-post's poll also answers 404 that one story ends as `error` and the sweep
+carries on; a single story's 404 never stops the run. Every other refusal behaves as before.
+
 ### Post first, then collect
 
 A cold lab job takes about 100 seconds, so a live sweep never waits on one story while others sit idle:
@@ -534,6 +545,32 @@ account quota cannot reserve any; the table lease serializes runs anyway). Alarm
 router, the two YAML data files the shared Reference factories read, and pure-Python PyYAML (the
 runtime has boto3/botocore only). `PAPYRUS_ROOT=/var/task` lets the factories find `corpora/`. A test
 imports the extracted zip with a stdlib-only interpreter. The collector zip and its hash are unchanged.
+
+## Decision-ready events
+
+When a `/machine/decisions` job finishes, the Cyclotron lab can ring a doorbell so the router collects
+the answer in seconds instead of waiting for the 2-minute collector. The event is **only a doorbell**:
+it never carries a decision and nothing in it is delivered. The router still fetches each answer with
+its signed GET.
+
+- **Bus**: `papyrus-cyclotron-decisions` (output `CyclotronDecisionsBusArn`). Its resource policy allows
+  `events:PutEvents` only for the role in parameter `CyclotronWorkerRoleArn` (default
+  `arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime`) and only when `events:source` is
+  `cyclotron.lab`.
+- **Event**: source `cyclotron.lab`, detail-type `Decision Ready`, detail `{contractVersion:
+  "cyclotron-publication/v1", accountId, runId, jobId, requestId, itemId, publications, status:
+  "complete"|"failed"}`. Delivery is at least once; resends are harmless.
+- **Rule** `papyrus-monitoring-decision-ready` (state follows `ScheduleState`) invokes the router
+  Lambda with the event unchanged, with a small retry policy and the router dead-letter queue.
+- **Handler**: a strictly validated event is accepted; anything malformed is dropped with a log line
+  (it never raises, so EventBridge never retries it). Monitors are not derived from `itemId`. The
+  handler looks at every monitor that can hold a router config (`DOORBELL_MONITORS`: `hn`,
+  `huggingface`, `ttab`; add a new monitor there), skips any whose `CONFIG#router` `cyclotron.accountId`
+  or `cyclotron.runId` differs from the event's (counted in the log), and runs `collect` for the rest.
+  Each collect takes that monitor's own router lock; a locked monitor is skipped and its job is picked up
+  by the 2-minute collector or the next route run. A collect that finds nothing new changes nothing, so a
+  duplicate event is harmless.
+- Scheduled events (`{"monitorId", "task"}`) are unchanged.
 
 ## Operating the router
 

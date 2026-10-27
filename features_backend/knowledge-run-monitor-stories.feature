@@ -15,6 +15,18 @@ Feature: The weekly knowledge run can write about the items a site's monitors fo
     Then the command "papyrus ideas monitor-stories" runs once for "shipped" with the limit 5 and the Proposals store
     And the command runs as the task role and the key is only in its environment
 
+  Scenario: A site whose References live in a corpus named differently from the site is read from that corpus
+    Given an execution of the knowledge run for "p-apyr-us" that started on 2026-10-28
+    And the task is configured with the knowledge corpus key "ai-ml-research"
+    When the monitor-stories step runs
+    Then the command was given the corpus key "ai-ml-research" beside the site "p-apyr-us"
+
+  Scenario: A site that names no corpus key, or names its own id, uses the command line it always did
+    Given an execution of the knowledge run for "shipped" that started on 2026-10-28
+    And the task is configured with the knowledge corpus key "shipped"
+    When the monitor-stories step runs
+    Then the command was not given a corpus key
+
   Scenario: Three stories are the default
     Given an execution of the knowledge run for "shipped" that started on 2026-10-28
     When the monitor-stories step runs

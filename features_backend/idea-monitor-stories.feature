@@ -25,6 +25,24 @@ Feature: A site writes about the items its monitors find
     Then 3 stories are drafted
     And the drafted stories name the monitors "hn", "huggingface" and "email"
 
+  Scenario: A site whose References live in a differently named corpus is read from that corpus
+    Given the site keeps its References in the knowledge corpus "ai-ml-research"
+    And the monitors of the site delivered these items:
+      | monitor | title                  | verdict      | days ago |
+      | hn      | A paper worth a story  | include 0.80 | 1        |
+    And every linked page can be read
+    When the operator drafts monitor stories from the corpus "ai-ml-research"
+    Then the stories drafted are "A paper worth a story"
+
+  Scenario: Without a corpus key the site's own key names the corpus, so another corpus is not read
+    Given the site keeps its References in the knowledge corpus "ai-ml-research"
+    And the monitors of the site delivered these items:
+      | monitor | title                  | verdict      | days ago |
+      | hn      | A paper worth a story  | include 0.80 | 1        |
+    And every linked page can be read
+    When the operator drafts monitor stories with the default limit
+    Then 0 stories are drafted
+
   Scenario: Only monitored, current, wanted items are candidates
     Given the monitors of the site delivered these items:
       | monitor | title                  | verdict       | days ago | status   |

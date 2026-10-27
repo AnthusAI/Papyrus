@@ -72,6 +72,8 @@ class FakeShell:
         self.tip = DEPLOYED_COMMIT
         self.current = "cur" + "0" * 61
         self.trends = "trd" + "0" * 61
+        self.items = 1  # published items the fake corpus export writes (0: a new site)
+        self.records = 0  # monitor records the fake export writes when the site has monitor sources
 
     def __call__(self, args: list[str], *, cwd: Path, env: Mapping[str, str], stdout: Path | None = None) -> None:
         self.calls.append(list(args))
@@ -96,11 +98,17 @@ class FakeShell:
         elif args[:3] == ["papyrus", "knowledge", "corpus"]:
             raw = Path(args[args.index("--out") + 1])
             raw.mkdir(parents=True, exist_ok=True)
-            (raw / "item-1.md").write_text("# one")
+            for number in range(1, self.items + 1):
+                (raw / f"item-{number}.md").write_text("# one" if number == 1 else f"# item {number}")
             if "--monitor-records-out" in args:  # the export also writes the monitor records of a site that sets monitorSources
                 records = Path(args[args.index("--monitor-records-out") + 1])
                 records.parent.mkdir(parents=True, exist_ok=True)
-                records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": []}))
+                rows = [
+                    {"referenceId": f"ref-{n}", "lineageId": f"ref-{n}", "source": "routed", "url": f"https://example.test/{n}", "title": f"Record {n}",
+                     "createdAt": "2026-10-20T00:00:00Z", "details": {"monitorId": "hn"}, "state": "pending"}
+                    for n in range(1, self.records + 1)
+                ]
+                records.write_text(json.dumps({"schemaVersion": 1, "asOf": "2026-10-26", "sources": ["huggingface"], "records": rows}))
         elif args[:2] == ["biblicus", "init"]:
             (Path(args[2]) / "metadata").mkdir(parents=True, exist_ok=True)
         elif args[:3] == ["biblicus", "extract", "build"]:
@@ -125,7 +133,7 @@ class FakeShell:
             stdout.write_text(out)
 
 
-def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execution: str | None = None) -> tuple[Run, FakeShell]:
+def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execution: str | None = None, seeded: bool = True) -> tuple[Run, FakeShell]:
     """A Run over moto S3 and DynamoDB (call inside ``mock_aws``). ``config/`` holds the operator-maintained files."""
     values = {**ENVIRONMENT, "KNOWLEDGE_WORK_DIR": str(work), **(environment or {})}
     if execution:
@@ -142,9 +150,10 @@ def make_run(work: Path, environment: Mapping[str, str] | None = None, *, execut
             BillingMode="PAY_PER_REQUEST",
         )
         state = StateStore(s3, STATE_BUCKET, config.state_prefix)
-        state.write_text("config/vocabulary.yml", "entity_kinds:\n  - {key: maker, label: company or developer}\n")
-        state.write_text("config/stop-words.txt", "card\n")
-        state.write_text("config/amplify_outputs.json", json.dumps({"data": {"url": "https://api.example.test/graphql"}}))
+        if seeded:  # a publication whose operator wrote its config; a new site has none of it
+            state.write_text("config/vocabulary.yml", "entity_kinds:\n  - {key: maker, label: company or developer}\n")
+            state.write_text("config/stop-words.txt", "card\n")
+            state.write_text("config/amplify_outputs.json", json.dumps({"data": {"url": "https://api.example.test/graphql"}}))
     state = StateStore(s3, STATE_BUCKET, config.state_prefix)
     table = boto3.resource("dynamodb", region_name="us-east-1").Table(LEDGER_TABLE)
     ledger = RunLedger(table, config.publication, config.week, config.execution_name, clock=lambda: dt.datetime(2026, 10, 26, 5, tzinfo=dt.timezone.utc))

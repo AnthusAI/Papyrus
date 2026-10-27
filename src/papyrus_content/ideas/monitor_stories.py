@@ -392,6 +392,7 @@ def draft_monitor_stories(
     dry_run: bool = False,
     now: datetime | None = None,
     fetch: Fetcher = fetch_html,
+    corpus_key: str | None = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -402,7 +403,7 @@ def draft_monitor_stories(
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
     proposals = proposal_store.story_drafts() if proposal_store else []
-    items, counts = collect_monitored_items(client, site=site, since=since, now=moment)
+    items, counts = collect_monitored_items(client, site=corpus_key or site, since=since, now=moment)
     already = drafted_lineage_ids(proposals, stored)
     promoted = promoted_reference_ids(client, items) if items else set()
     counts.update(alreadyDrafted=sum(item.lineage_id in already for item in items), promoted=sum(item.reference_id in promoted and item.lineage_id not in already for item in items))

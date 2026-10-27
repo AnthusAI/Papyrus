@@ -160,3 +160,57 @@ def step_story_refused(context):
 @then("the answers of the other publications are kept on the story's receipt")
 def step_kept(context):
     assert {p for p, j in route_of(context)["jobs"].items() if j.get("checked")} == {"anth-us", "threat-intelligence"}
+
+
+def stale_job(context, **marker):
+    """Leave the story holding a real combined job, then rewrite it as posted under another run."""
+    cy = context.cyclotron
+    tr.leave_job_pending(context.table_, context.store, cy)
+    job = route_of(context)["combinedJob"]
+    job.update(marker)
+    context.old_job = job["jobId"]
+    cy.pending_polls, cy.combined_calls = 0, []
+
+
+@given("the story holds a combined job that was posted under an earlier Cyclotron run")
+def step_stale(context):
+    stale_job(context, runId="run-0", bindingRevision="0")
+
+
+@given("the story holds a combined job under the current run that the lab answers with not found once")
+def step_gone_once(context):
+    stale_job(context, runId="run-1", bindingRevision="1")
+    context.cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"})]
+
+
+@given("the lab answers not found for every job of the first two stories")
+def step_gone_always(context):
+    context.table_.put_item(tr.router_config(maxItemsPerRun=2))
+    context.cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"}), (404, {"detail": "Not Found"})]
+
+
+@then("the earlier run's job is never polled")
+def step_not_polled(context):
+    assert not any(c[0] == "GET" and c[1].endswith(context.old_job) for c in context.cyclotron.combined_calls)
+
+
+@then("the story is decided and delivered under a new request")
+def step_new_request(context):
+    ids = [c[2]["requestId"] for c in context.cyclotron.combined_calls if c[0] == "POST"]
+    assert ids and len(ids) == 1
+    assert tr.routing_of(context.table_)["DISC#101#000001"] == "routed" and context.delivery.calls
+
+
+@then("the story is posted again once")
+def step_reposted(context):
+    assert len([c for c in context.cyclotron.combined_calls if c[0] == "POST"]) == 1
+
+
+@then("the first story is an error")
+def step_first_error(context):
+    assert tr.routing_of(context.table_)["DISC#101#000001"] == "error"
+
+
+@then("the run is complete rather than stopped")
+def step_complete(context):
+    assert context.result["status"] == "complete" and not context.result.get("stoppedBy")

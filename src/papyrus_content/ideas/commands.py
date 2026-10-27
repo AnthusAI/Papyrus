@@ -36,7 +36,7 @@ USAGE = (
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--window-days 28] [--cooldown-days 7] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
-    "  papyrus ideas monitor-stories --site KEY [--limit 3] [--since 7d] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
+    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
@@ -280,6 +280,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         dry_run=dry_run,
         now=now,
         fetch=monitor_stories.fetch_html,
+        corpus_key=normalize_string(options.get("corpus-key")),
     )
     report = normalize_string(options.get("report"))
     if report:

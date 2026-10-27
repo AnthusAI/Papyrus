@@ -75,6 +75,10 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     PAPYRUS_PROJECTION_LOCK_TABLE: PROJECTION_LOCK_TABLE_NAME,
     PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS: String(config.lockWaitSeconds),
     KNOWLEDGE_PUBLICATION: config.publication,
+    // Only a site whose corpus key is not its siteId sets it; every other task finds the corpus by the siteId, as before.
+    ...(config.corpusKey ? { KNOWLEDGE_CORPUS_KEY: config.corpusKey } : {}),
+    // Lets the first stage write config/amplify_outputs.json into a state bucket that has none (the run only reads the endpoint from it).
+    KNOWLEDGE_APPSYNC_API_ID: config.appSyncApiId,
     KNOWLEDGE_SITE_REPO: config.siteRepo,
     KNOWLEDGE_SITE_BRANCH: config.siteBranch,
     KNOWLEDGE_STATIC_SUBDIR: config.staticSubdir,
