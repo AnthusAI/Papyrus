@@ -14,8 +14,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from papyrus_content.ideas import trends  # noqa: E402
-from papyrus_content.knowledge_snapshot.trends import TrendConfig  # noqa: E402
+from papyrus_content.ideas import commands  # noqa: E402
 
 _spec = importlib.util.spec_from_file_location("trend_drafts_job", REPO_ROOT / "infra" / "knowledge-run" / "trend_drafts.py")
 trend_drafts = importlib.util.module_from_spec(_spec)
@@ -64,12 +63,6 @@ def step_run(context):
     run_step(context)
 
 
-@when("the trend window is set to {days:d} days and the trend-drafts step runs")
-def step_run_with_window(context, days):
-    context.step_environment["TREND_DRAFTS_WINDOW_DAYS"] = str(days)
-    run_step(context)
-
-
 @then('the step drafts from the snapshot as of "{as_of}"')
 def step_drafted(context, as_of):
     assert context.step_skip is None, context.step_skip
@@ -83,36 +76,25 @@ def step_stale(context):
     assert context.step_commands == []
 
 
-@then("the command uses the default trend window")
-def step_default_window(context):
-    assert "--window-days" not in context.step_commands[0]
+@given("the old trend window and cooldown are still set in the environment")
+def step_old_settings(context):
+    context.step_environment.update(TREND_DRAFTS_WINDOW_DAYS="14", TREND_DRAFTS_COOLDOWN_DAYS="0")
 
 
-@then("the command uses a trend window of {days:d} days")
-def step_window(context, days):
-    assert context.step_commands[-1][-2:] == ["--window-days", str(days)]
+@then("the command carries no trend window and no cooldown")
+def step_no_window(context):
+    assert not [flag for flag in context.step_commands[0] if flag in {"--window-days", "--cooldown-days"}], context.step_commands[0]
 
 
-@when("the trend window is {days:d} days")
-def step_window_days(context, days):
-    context.window_error = None
+@when('the operator passes the retired option "{flag}"')
+def step_retired(context, flag):
+    context.retired_error = None
     try:
-        context.window_config = TrendConfig(window_days=days)
+        commands._trend_config({flag.lstrip("-"): "14"})
     except ValueError as error:
-        context.window_error = str(error)
-        return
-    snapshot = getattr(context, "quality_snapshot", None)
-    if snapshot is not None:
-        selection = trends.select_entities(snapshot, TrendConfig(window_days=days, minimum_recent=1))
-        context.window_signals = {signal["targetId"]: signal for signal in trends.build_signals(snapshot, None, context.window_config, selection)}
+        context.retired_error = str(error)
 
 
-@then("NVIDIA is counted with {recent:d} mentions against {prior:d} before")
-def step_counted(context, recent, prior):
-    signal = context.window_signals["maker--nvidia"]
-    assert (signal["last4"], signal["prior4"]) == (recent, prior), signal
-
-
-@then("the operator is told the window must be 7, 14, 21 or 28 days")
-def step_refused(context):
-    assert context.window_error and "7, 14, 21 or 28 days" in context.window_error, context.window_error
+@then("the operator is told the window is chosen from the data")
+def step_retired_told(context):
+    assert context.retired_error and "retired" in context.retired_error and "chosen from the data" in context.retired_error, context.retired_error

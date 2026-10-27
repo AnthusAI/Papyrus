@@ -40,19 +40,13 @@ Feature: Cited Trends can run daily or on demand
     When the trend-drafts step runs
     Then the step drafts from the snapshot as of "2026-10-24"
 
-  Scenario: The trend window is 28 days against the 28 before unless it is configured
+  Scenario: A trend window or cooldown left in the environment is not passed to the command
     Given the run started at "2026-10-26T05:00:12Z"
     And the published snapshot says it is as of "2026-10-26"
+    And the old trend window and cooldown are still set in the environment
     When the trend-drafts step runs
-    Then the command uses the default trend window
-    When the trend window is set to 14 days and the trend-drafts step runs
-    Then the command uses a trend window of 14 days
+    Then the command carries no trend window and no cooldown
 
-  Scenario: A shorter window compares the last weeks with the same number of weeks before them
-    Given the knowledge snapshot of a week in which a licence, a task and a platform carry the biggest counts
-    When the trend window is 14 days
-    Then NVIDIA is counted with 5 mentions against 1 before
-
-  Scenario: A window that is not whole weeks of the snapshot is refused
-    When the trend window is 10 days
-    Then the operator is told the window must be 7, 14, 21 or 28 days
+  Scenario: The command refuses the retired window and cooldown options and says why
+    When the operator passes the retired option "--window-days"
+    Then the operator is told the window is chosen from the data

@@ -157,20 +157,24 @@ def snapshot_files() -> dict[str, object]:
     """A small weekly knowledge snapshot: two named clusters, two makers and a concept that gained share, one new concept and a broad task that only fell, as the site publishes them."""
 
     def entity(key, name, kind, series, last4, prior4, percent, new=False):
+        history = [0] * (26 - len(series)) + series if len(series) < 26 else series  # the snapshot publishes 26 weeks and its last 8
         return {"acceptedBy": {"actor": "ai", "name": None, "on": "2026-10-22"}, "aliases": [], "change": {"last4": last4, "percent": percent, "prior4": prior4},
-                "href": f"/wiki/{key.replace('--', '-')}/", "isNew": new, "itemCount": sum(series), "key": key, "kind": kind, "name": name, "series8": series,
-                "weeksOfHistory": 3 if new else 52}
+                "href": f"/wiki/{key.replace('--', '-')}/", "isNew": new, "itemCount": sum(history), "key": key, "kind": kind, "name": name, "series8": history[-8:],
+                "series26": history, "weeksOfHistory": 3 if new else 52}
 
     index = {
         "asOf": AS_OF, "beats": [], "conceptOfTheWeek": None, "entityCount": 5, "kinds": [], "schemaVersion": 1, "topicCount": 2,
         "trending": ["maker--hugging-face", "maker--zed", "concept--routing"],
         "entities": [
-            entity("maker--hugging-face", "Hugging Face", "maker", [1, 2, 3, 4, 7, 3, 3, 2], 15, 10, 50),
-            entity("maker--zed", "Zed", "maker", [1, 1, 3, 3, 5, 3, 2, 2], 12, 8, 50),
-            entity("concept--routing", "routing", "concept", [1, 1, 1, 1, 1, 2, 2, 2], 7, 4, None),
-            entity("concept--typed-decisions", "typed decisions", "concept", [0, 0, 1, 1, 1, 1, 1, 1], 4, 2, None, new=True),
+            # a spike: a quiet entity jumps for a week (the week before the last, so the window is two weeks)
+            entity("maker--hugging-face", "Hugging Face", "maker", [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 30, 2], 34, 3, 1033),
+            # a rise over a few weeks
+            entity("maker--zed", "Zed", "maker", [0] * 22 + [3, 4, 4, 5], 16, 0, None),
+            # a slow build: a little more every week for a quarter
+            entity("concept--routing", "routing", "concept", [0] * 8 + [1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4], 13, 8, None),
+            entity("concept--typed-decisions", "typed decisions", "concept", [0, 0, 0, 0, 2, 3, 3, 4], 12, 5, None, new=True),
             # The biggest count in the corpus and falling: a task everything mentions is not news, whatever its count.
-            entity("task--text-generation", "text-generation", "task", [30, 30, 30, 30, 10, 10, 10, 10], 40, 120, -67),
+            entity("task--text-generation", "text-generation", "task", [30] * 18 + [30, 30, 30, 30, 10, 10, 10, 10], 40, 120, -67),
         ],
     }
     clusters = {
@@ -204,8 +208,9 @@ def selection_snapshot(extra=None):
     """The shape of the Shipped snapshot of 2026-10-26: broad kinds carry the biggest counts, one individual filed five small fine-tunes, and a few
     organisations released real models. ``extra`` replaces or adds entity files."""
     def entity(key, kind, name, series):
-        return {"key": key, "kind": kind, "name": name, "series8": series, "itemCount": sum(series), "weeksOfHistory": 40, "isNew": False,
-                "change": {"last4": sum(series[-4:]), "prior4": sum(series[-8:-4]), "percent": None}, "href": None}
+        history = [series[0]] * (26 - len(series)) + series if len(series) < 26 else series  # 26 weeks, as the index publishes them
+        return {"key": key, "kind": kind, "name": name, "series8": history[-8:], "series26": history, "itemCount": sum(history), "weeksOfHistory": 40, "isNew": False,
+                "change": {"last4": sum(history[-4:]), "prior4": sum(history[-8:-4]), "percent": None}, "href": None}
 
     entities = [
         # the broad kinds rise with the corpus: the biggest counts, and no news
@@ -213,10 +218,10 @@ def selection_snapshot(extra=None):
         entity("task--text-generation", "task", "text-generation", [40, 44, 60, 66, 90, 96, 100, 110]),
         entity("platform--hugging-face", "platform", "Hugging Face", [4, 5, 7, 8, 9, 10, 12, 12]),
         # a notable organisation: four models, 640 likes
-        entity("maker--nvidia", "maker", "NVIDIA", [0, 0, 1, 0, 0, 1, 1, 4]),
+        entity("maker--nvidia", "maker", "NVIDIA", [0] * 22 + [1, 2, 3, 4]),
         # one individual, five small fine-tunes, 30 likes: the largest surprise of the week and still not an anchor
-        entity("maker--emonhasan01", "maker", "emonHasan01", [0, 0, 0, 0, 0, 5, 0, 0]),
-        entity("model_family--olmo", "model_family", "Olmo", [0, 0, 0, 1, 1, 2, 2, 3]),
+        entity("maker--emonhasan01", "maker", "emonHasan01", [0] * 22 + [0, 7, 0, 0]),
+        entity("model_family--olmo", "model_family", "Olmo", [0] * 14 + [0, 0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 3]),
         # filler that keeps a stable share
         entity("maker--steady", "maker", "Steady", [6, 6, 6, 6, 6, 6, 6, 6]),
     ]
@@ -252,14 +257,33 @@ def trend_draft(headline: str = "Hugging Face and Zed climb together", *, sectio
         "section": section,
         "paragraphs": body or [
             {"sentences": [
-                sentence("Hugging Face appeared in 15 items over the last four weeks, against 10 in the four before.", "S3"),
-                sentence("Zed appeared in 12 items over the last four weeks, against 8 before.", "S4"),
+                sentence("Hugging Face appeared in 32 items over the last 2 weeks, against 12 in the 24 weeks before.", "S3"),
+                sentence("Zed appeared in 16 items over the last 4 weeks, against 0 before.", "S4"),
             ]},
             {"sentences": [sentence("The two are mentioned together in 5 items.", "S3", "S4")]},
         ],
         "figure_signals": list(figure),
         "figure_title": "Items per week",
-        "figure_caption": "Hugging Face peaked at 7 items in one week.",
+        "figure_caption": "Hugging Face peaked at 30 items in one week.",
+    }
+
+
+def cluster_draft(headline: str = "Decision models and open-weights models both stay in view") -> dict[str, object]:
+    """A draft that rests only on the two clusters of ``snapshot_files`` (S1 and S2): no entity anchors it, so only the same-targets check guards a repeat."""
+    return {
+        "headline": sentence(headline, "S1", "S2"),
+        "dek": sentence("Two clusters hold most of the weekly coverage.", "S1", "S2"),
+        "section": "Analysis",
+        "paragraphs": [
+            {"sentences": [
+                sentence("Decision models holds 21 items.", "S1"),
+                sentence("Open-weights language models holds 22 items.", "S2"),
+            ]},
+            {"sentences": [sentence("Together the two clusters hold 21 and 22 items.", "S1", "S2")]},
+        ],
+        "figure_signals": ["S1"],
+        "figure_title": "Items per week",
+        "figure_caption": "Decision models in the weeks to 2026-10-19.",
     }
 
 
@@ -281,18 +305,18 @@ def release_draft(headline: str = "Zed-7B brings an Apache-2.0 coding model to H
     """A draft about the releases that passes the check once the items are read: S3 is Hugging Face, S4 Zed, I1 the Zed-7B release, I2 the model card."""
     return {
         "headline": sentence(headline, "I1"),
-        "dek": sentence("Zed's release on 2026-10-17 is one of 15 Hugging Face items in four weeks.", "I1", "S3"),
+        "dek": sentence("Zed's release on 2026-10-17 is one of 32 Hugging Face items in two weeks.", "I1", "S3"),
         "section": "Analysis",
         "paragraphs": [
             {"sentences": [
                 sentence("Zed released Zed-7B, a 7B coding model with 32k context, under Apache-2.0.", "I1"),
-                sentence("Zed appeared in 12 items over the last four weeks.", "S4"),
+                sentence("Zed appeared in 16 items over the last 4 weeks.", "S4"),
             ]},
             {"sentences": [sentence("Another release on Hugging Face ships a model card that lists its evaluation limits, which suggests documentation is part of the pattern.", "I2", "S3")]},
         ],
         "figure_signals": ["S3"],
         "figure_title": "Items per week",
-        "figure_caption": "Hugging Face peaked at 7 items in one week.",
+        "figure_caption": "Hugging Face peaked at 30 items in one week.",
     }
 
 

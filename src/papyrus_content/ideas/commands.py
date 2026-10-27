@@ -33,7 +33,7 @@ USAGE = (
     "  papyrus ideas synthesize --publication KEY [--digest ID|PATH | --since 7d [--status ...] [--excerpts]] [--max 5]\n"
     "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
-    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--window-days 28] [--cooldown-days 7] [--model gpt-6-luna]\n"
+    "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
@@ -164,16 +164,12 @@ def synthesize_command(flags: list[str]) -> None:
 
 def _trend_config(options: dict[str, Any]) -> TrendConfig:
     """``--trend-config FILE``: a JSON object of the ``TrendConfig`` settings to override (watchlist, thresholds); none means the defaults.
-    ``--window-days N`` (7, 14, 21 or 28; default 28) sets the trend window and ``--cooldown-days N`` (default 7, 0 is off) the anchor cooldown; both win over the file."""
+    There is no window or cooldown setting: the window is chosen per entity from the data and a repeat needs new evidence (docs/idea-pipeline.md)."""
     path = normalize_string(options.get("trend-config"))
     values = json.loads(Path(path).expanduser().read_text(encoding="utf-8")) if path else {}
-    if normalize_string(options.get("window-days")):
-        values = {**values, "window_days": _integer(options, "window-days", 28)}
-    if normalize_string(options.get("cooldown-days")):
-        cooldown = normalize_string(options.get("cooldown-days"))
-        if not cooldown.isdigit():
-            raise ValueError("--cooldown-days must be a whole number of days (0 turns the cooldown off).")
-        values = {**values, "cooldown_days": int(cooldown)}
+    for retired in ("window-days", "cooldown-days"):
+        if normalize_string(options.get(retired)):
+            raise ValueError(f"--{retired} is retired: the window is chosen from the data and a repeat needs materially new evidence (docs/idea-pipeline.md).")
     return TrendConfig.from_mapping(values)
 
 
@@ -228,8 +224,10 @@ def trends_command(flags: list[str]) -> None:
     print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})\titems {inputs.get('items', 0)} ({inputs.get('itemsWithSummary', 0)} with a summary)")
     print(f"drafts\tproposed {run['proposed']}\tfailed the citation check {len(run['invalid'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
     print(f"llm\t{run['model']}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
-    if run["cooldown"]["entities"]:
-        print(f"cooldown\t{run['cooldown']['days']} days\t" + ", ".join(f"{key} (anchored a draft filed {filed})" for key, filed in sorted(run["cooldown"]["entities"].items())))
+    if run["priorDrafts"]:
+        print("prior\t" + ", ".join(
+            f"{row['key']} (draft filed {row['filed']}, {row['state']}: {row['reported']['count']} in {row['reported']['windowWeeks']}w; now {row['now']['count']} in {row['now']['windowWeeks']}w; "
+            f"{'new evidence' if row['renewed'] else 'no new evidence'})" for row in run["priorDrafts"]))
     review = run["review"]
     print(f"review\t{review['status']}\trequested {str(review['requested']).lower()}" + (f"\t{review['error']}" if review.get("error") else ""))
     for draft in run["drafts"]:
