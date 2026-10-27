@@ -18,6 +18,11 @@ const defaultProfile = {
 module.exports = {
   default: defaultProfile,
   // Hermetic component/browser acceptance: no server, credentials or production reads.
+  emailReceipt: {
+    paths: ["features/newsroom-email-receipt.feature"],
+    require: ["features/step_definitions/email-receipt.steps.js"],
+    format: ["summary"],
+  },
   referenceEditor: {
     paths: ["features/newsroom-reference-editor-review.feature"],
     require: ["features/step_definitions/reference-editor.steps.js"],

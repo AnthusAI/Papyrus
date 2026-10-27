@@ -148,6 +148,7 @@ function synthEmailPartitionAccess() {
   const monitoringViewLambda = lambda("MonitoringView");
   const contentActionsLambda = lambda("ContentActions");
   wireMonitoringView({
+    auth: { resources: { userPool: { userPoolId: "us-east-1_fixture" } } },
     monitoringView: { resources: { lambda: monitoringViewLambda } },
     data: { resources: { cfnResources: { cfnGraphqlApi: { attrGraphQlUrl: "https://example.appsync-api.us-east-1.amazonaws.com/graphql" } } } },
   }, "p-apyr-us-email");
@@ -160,6 +161,7 @@ function synthEmailPartitionAccess() {
 const emailAccessTemplate = synthEmailPartitionAccess();
 const emailFunctions = Object.values(emailAccessTemplate.Resources).filter((resource) => resource.Type === "AWS::Lambda::Function");
 assert.equal(emailFunctions.length, 2);
+assert.equal(emailFunctions.find((resource) => resource.Properties?.Environment?.Variables?.PAPYRUS_USER_POOL_ISSUER)?.Properties?.Environment?.Variables?.PAPYRUS_USER_POOL_ISSUER, "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_fixture");
 assert.ok(emailFunctions.every((resource) => resource.Properties?.Environment?.Variables?.PAPYRUS_EMAIL_MONITOR_ID === "p-apyr-us-email"));
 const policies = Object.values(emailAccessTemplate.Resources)
   .filter((resource) => resource.Type === "AWS::IAM::Policy")

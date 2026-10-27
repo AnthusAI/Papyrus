@@ -20,6 +20,11 @@ assert.ok(emailQuery, "the base schema defines the private email detail query");
 assert.match(emailQuery, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/,
   "email details are limited to editors and admins");
 
+const handoffMutation = /monitoringQueueEmailReference\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(handoffMutation, "the base schema defines the selected Reference handoff");
+assert.match(handoffMutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/);
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(handoffMutation));
+
 // The resolver finishes inside AppSync's 30 second limit.
 assert.ok(MONITORING_VIEW_TIMEOUT_SECONDS < 30);
 

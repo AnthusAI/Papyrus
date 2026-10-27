@@ -58,7 +58,7 @@ class ReferenceIntake:
         text = "; ".join(p for p in parts if p)
         return f" {text[:1].upper()}{text[1:]}." if text else ""
 
-    def __call__(self, item: SourceItem, provenance: dict, extra_records=None) -> dict:
+    def __call__(self, item: SourceItem, provenance: dict, extra_records=None, *, reference_id=None) -> dict:
         """`extra_records(reference)` may return more records for the same persist batch (the router's lab
         decision relation), so they land with the Reference and its provenance Message or not at all."""
         for key, value in self.monitor.binding.items():
@@ -74,7 +74,13 @@ class ReferenceIntake:
                 addresses.add(canonical_url(alias))
             except ValueError:
                 continue
-        for row in self.client.list_records("Reference"):
+        if reference_id:
+            selected = self.client.get_record("Reference", reference_id)
+            if (not selected or selected.get("corpusId") != self.monitor.corpus_id
+                    or selected.get("versionState") != "current" or selected.get("sourceUri") != item.canonical_url):
+                raise ValueError("Selected Reference no longer matches the imported candidate")
+            matches = [selected]
+        for row in ([] if reference_id else self.client.list_records("Reference")):
             if row.get("corpusId") != self.monitor.corpus_id or row.get("versionState") not in {None, "current"}:
                 continue
             try:
