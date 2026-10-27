@@ -3,7 +3,7 @@ import type { JwksCache } from "aws-jwt-verify/jwk";
 import type { NextRequest } from "next/server";
 import { readAmplifyOutputsFile } from "./amplify-outputs-path";
 
-export type NewsroomChatIdentity = { subject: string };
+export type NewsroomChatIdentity = { subject: string; issuer: string; clientId: string; expiresAt: number };
 export type NewsroomChatIdentityResolver = (request: NextRequest) => Promise<NewsroomChatIdentity | null>;
 
 export function newsroomChatIdentityResolver(
@@ -21,7 +21,7 @@ export function newsroomChatIdentityResolver(
     if (!token) return null;
     try {
       const claims = await verifier.verify(token);
-      return { subject: claims.sub };
+      return { subject: claims.sub, issuer: claims.iss, clientId: auth.user_pool_client_id, expiresAt: claims.exp };
     } catch {
       return null;
     }

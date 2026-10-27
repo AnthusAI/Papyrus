@@ -966,7 +966,7 @@ class Router:
                 raise ValueError("Provide 1 to 20 exact selected source ids")
             candidates = [self.store.get_any(self.monitor_id, f"DISC#{source}#000001") for source in dict.fromkeys(source_ids)]
         else:
-            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"), self.config["maxItemsPerRun"])
+            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"))
         for disc in candidates:
             if (not disc or not disc.get("editorSelectedReference") or disc.get("sourceType") != "email"
                     or disc.get("gsi1pk") != gsi_partition(self.monitor_id, "email-references")):
