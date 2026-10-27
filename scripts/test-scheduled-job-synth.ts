@@ -580,7 +580,7 @@ for (const [siteId, expected] of Object.entries(siteExpectations)) {
   assert.ok(!seenHours.has(expected.hour), `${siteId}: no two sites share an hour`);
   seenHours.add(expected.hour);
   assert.ok(resolved.monitorSources?.includes("routed"), `${siteId} counts routed monitor records`);
-  assert.equal(resolved.monitorWeeks, 52);
+  assert.equal(resolved.monitorWeeks, undefined, `${siteId} sets no monitorWeeks: all history counts`);
   assert.deepEqual(resolved.monitorStories, { limit: 3 });
   assert.equal(resolved.openAiKeyParameter, expected.key);
   assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);
