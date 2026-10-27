@@ -44,10 +44,12 @@ export const MAXIMUM_SOURCES = 5;
 const MAXIMUM_EVIDENCE = 3;
 const KIND_WORDS: Record<string, string> = { story_draft: "Story draft", new_concept: "New concept", rename: "Rename", merge: "Merge", split: "Split", new_column: "New column", element_symbol: "Element symbol" };
 
-function parseJson(value: unknown): unknown {
+/** JSON fields arrive as strings, and a field written through `JSON.stringify` of a string arrives encoded twice: unwrap until it is not text. */
+function parseJson(value: unknown, depth = 0): unknown {
   if (typeof value !== "string") return value ?? null;
   try {
-    return JSON.parse(value);
+    const parsed: unknown = JSON.parse(value);
+    return typeof parsed === "string" && depth < 2 ? parseJson(parsed, depth + 1) : parsed;
   } catch {
     return null;
   }
@@ -96,7 +98,10 @@ function evidenceLines(row: DraftRow): string[] {
   const source = evidence && typeof evidence === "object" && typeof (evidence as { source?: unknown }).source === "string" ? String((evidence as { source: string }).source) : "";
   if (!source) return [];
   const monitor = source.match(/^(.+?) monitor:/);
-  return [monitor ? `Found by the ${monitor[1]} monitor.` : source];
+  const lines = [monitor ? `Found by the ${monitor[1]} monitor.` : source];
+  const check = body.match(/relevance check labelled it (\w+) with a score of (\d+(?:\.\d+)?)\./i);
+  if (check) lines.push(`Relevance check: ${check[1]}, score ${check[2]}.`);
+  return lines;
 }
 
 export function draftChoiceOf(state: string): DraftChoice | null {

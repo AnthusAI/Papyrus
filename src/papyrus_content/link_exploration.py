@@ -156,6 +156,9 @@ class Exploration:
     text_source: str | None = None  # "page" or "search_snippet"
     hops: int = 0
     metadata: PageMetadata | None = None  # the destination page's own preview metadata, for direct HTML results
+    # The destination's HTTP response (status, headers, body), only when the caller asked for it with ``keep_response``. It lets a caller
+    # that wants more than the excerpt (full article text, a whole PDF) read the page it was already sent to without fetching it twice.
+    response: "Response | None" = field(default=None, repr=False, compare=False)
 
     def as_record(self) -> dict[str, Any]:
         """A JSON-safe, URL-free-except-for-the-destination description for ledgers and receipts."""
@@ -649,6 +652,7 @@ def explore(
     use_search: bool = True,
     deadline_seconds: float = DEADLINE_SECONDS,
     clock: Callable[[], float] = time.monotonic,
+    keep_response: bool = False,
 ) -> Exploration:
     """Resolve, read and (if needed) search. Never raises.
 
@@ -683,7 +687,7 @@ def explore(
             metadata = page_metadata(_html(trace.response), trace.url or destination)
         if destination and (text or not want_text):
             return Exploration(True, destination, text, "direct", None, direct_failure, readable=bool(text), text_source="page" if text else None,
-                               hops=trace.hops, metadata=metadata)
+                               hops=trace.hops, metadata=metadata, response=trace.response if keep_response else None)
 
         search_failure = None
         if use_search:
@@ -697,6 +701,7 @@ def explore(
                     return Exploration(**{**found.__dict__, "direct_failure": direct_failure or "unreadable", "hops": trace.hops})
         # A destination that resolved but cannot be read is still reported when text was wanted: the caller may use the address.
         final_failure = search_failure or direct_failure or "unreadable"
-        return Exploration(False, destination, None, None, final_failure, direct_failure or "unreadable", search_failure, hops=trace.hops, metadata=metadata)
+        return Exploration(False, destination, None, None, final_failure, direct_failure or "unreadable", search_failure, hops=trace.hops, metadata=metadata,
+                           response=trace.response if keep_response else None)
     except Exception:  # noqa: BLE001 - exploration is best effort; a bug must not take down intake or a run
         return Exploration(False, None, None, None, "unreadable", "unreadable")

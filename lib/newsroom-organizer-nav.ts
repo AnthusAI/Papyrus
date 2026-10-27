@@ -8,7 +8,7 @@ export type OrganizerDestination = {
 };
 export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly OrganizerDestination[] }[] = [
   { title: "Editorial work", items: [
-    { key: "overview", label: "Overview", description: "See notifications and work needing attention.", path: "/newsroom", primary: true },
+    { key: "overview", label: "Needs me", description: "See what needs you: drafts, references and reviews.", path: "/newsroom", primary: true },
     { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
     { key: "drafts", label: "Drafts", description: "Read the story drafts that AI proposes, then accept or reject them.", path: "/newsroom/administration/proposals" },

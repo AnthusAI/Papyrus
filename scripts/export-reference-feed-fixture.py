@@ -83,6 +83,9 @@ def main() -> None:
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--output", default=str(ROOT / ".local-preview" / "reference-feed-fixture.json"))
     parser.add_argument("--no-images", action="store_true", help="skip fetching source pages for preview images")
+    parser.add_argument("--capture-text", action="store_true",
+                        help="also fetch each source page's readable text and add it as an extracted_text attachment carrying the text inline "
+                             "(local preview only: it shows what the capture panel looks like with captured text; nothing is written to AWS)")
     args = parser.parse_args()
     if not args.graphql_url.startswith("https://") or "appsync-api" not in args.graphql_url:
         raise SystemExit("--graphql-url must be an AppSync https GraphQL address.")
@@ -117,6 +120,28 @@ def main() -> None:
                 if row:
                     attachments.append(row)
 
+    if args.capture_text:
+        from papyrus_content.ids import hash_short
+        from papyrus_content.link_exploration import explore as explore_text
+
+        def capture(reference: dict) -> dict | None:
+            found = explore_text(reference["sourceUri"], want_text=True, use_search=False, text_limit=80_000)
+            if not found.text:
+                return None
+            version_key = f"reference#{reference['id']}"
+            return {
+                "id": f"preview-extracted-{hash_short([version_key])}", "referenceId": reference["id"], "referenceLineageId": reference["lineageId"],
+                "referenceVersionNumber": reference.get("versionNumber"), "referenceVersionKey": version_key, "role": "extracted_text",
+                "sortKey": "900-extracted-text", "storagePath": f"preview://extracted/{reference['lineageId']}", "sourceUri": None, "filename": "extracted.txt",
+                "mediaType": "text/plain", "byteSize": len(found.text.encode()), "importedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "metadata": json.dumps({"source": "local-preview-live-fetch", "textLength": len(found.text), "previewText": found.text}),
+            }
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for row in pool.map(capture, [reference for reference in references if reference.get("sourceUri")]):
+                if row:
+                    attachments.append(row)
+
     fixture = {
         "schema": "papyrus-reference-feed-fixture/1",
         "exportedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -129,7 +154,10 @@ def main() -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(fixture, indent=1) + "\n", encoding="utf-8")
     previews = sum(1 for row in attachments if row["role"] == "preview" and row.get("sourceUri"))
-    print(f"{output}: {len(references)} references, {len(relations)} decisions, {previews} preview images", file=sys.stderr)
+    texts = [json.loads(row["metadata"]).get("textLength", 0) for row in attachments if row["role"] == "extracted_text"]
+    print(f"{output}: {len(references)} references, {len(relations)} decisions, {previews} preview images, {len(texts)} captured texts", file=sys.stderr)
+    stored = [row for row in attachments if row["role"] in ("extracted_text", "extracted_text_raw") and not str(row.get("storagePath", "")).startswith("preview://")]
+    print(f"stored extracted text in the record: {len(stored)} of {len(references)} references", file=sys.stderr)
 
 
 if __name__ == "__main__":

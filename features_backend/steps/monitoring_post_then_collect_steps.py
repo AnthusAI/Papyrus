@@ -57,6 +57,8 @@ def step_slow(context):
 @given("the lab answers each job after a few checks")
 def step_few(context):
     context.cyclotron.polls_needed = 3
+    # pacing at 4/s would eat the 10 s collect window of this fixture; the scenario is about the window, not the pacing
+    context.table_.items[("MONITOR#hn", "CONFIG#router")]["cyclotron"]["maxRequestsPerSecond"] = 1000
 
 
 @given("Cyclotron is busy with another run when the router posts")

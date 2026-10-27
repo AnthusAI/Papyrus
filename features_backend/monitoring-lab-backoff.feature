@@ -1,5 +1,5 @@
 Feature: The router backs off from the lab instead of asking about every job on every run
-  When the lab is struggling it answers 429 or 503. The router then stops calling the lab for the whole monitor
+  When the lab is struggling it answers 503 (or 429 with a Retry-After; a bare 429 is the gateway throttle, see monitoring-lab-pacing). The router then stops calling the lab for the whole monitor
   until the lab's Retry-After has passed (or, with no Retry-After, an exponential wait). A job that is still
   running is not asked about again until its own wait is over, and the collector asks oldest job first and
   stops at the first refusal. These are backoffs, not limits: every job stays recorded and is asked about again

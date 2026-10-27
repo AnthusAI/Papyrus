@@ -189,3 +189,47 @@ export function groupFeedItems(items: FeedItem[]): Array<{ key: FeedGroupKey; it
   }
   return (["top", "more", "least"] as const).filter((key) => groups[key].length).map((key) => ({ key, items: groups[key] }));
 }
+
+/**
+ * The order of the feed, taken once per visit when it loads and then left alone: selecting, rating, a background refresh and a cache
+ * revalidation never re-rank it. Items that arrive later are counted as new and wait behind a "N new items: show" pill.
+ */
+export type FeedOrderSnapshot = {
+  /** Every Reference lineage the snapshot knew about (pending, rated and earlier): anything else is new. */
+  known: ReadonlySet<string>;
+  feed: string[];
+  earlier: string[];
+  groups: Array<{ key: FeedGroupKey; ids: string[] }>;
+  leadId: string | undefined;
+};
+
+export function takeFeedOrderSnapshot(partition: ReferenceFeedPartition): FeedOrderSnapshot {
+  const groups = groupFeedItems(partition.feed);
+  return {
+    known: new Set([...partition.feed, ...partition.earlier, ...partition.rated].map((item) => item.lineageId)),
+    feed: partition.feed.map((item) => item.lineageId),
+    earlier: partition.earlier.map((item) => item.lineageId),
+    groups: groups.map((group) => ({ key: group.key, ids: group.items.map((item) => item.lineageId) })),
+    leadId: groups[0]?.key !== "least" ? groups[0]?.items[0]?.lineageId : undefined,
+  };
+}
+
+/** The live partition with its feed order, sections and lead taken from the snapshot; records and scores stay current. */
+export function applyFeedOrderSnapshot(snapshot: FeedOrderSnapshot, live: ReferenceFeedPartition): {
+  partition: ReferenceFeedPartition;
+  groups: Array<{ key: FeedGroupKey; items: FeedItem[] }>;
+  leadId: string | undefined;
+  newCount: number;
+} {
+  const byId = new Map<string, FeedItem>();
+  for (const item of [...live.rated, ...live.earlier, ...live.feed]) byId.set(item.lineageId, item);
+  const pick = (ids: string[]) => ids.flatMap((id) => { const item = byId.get(id); return item ? [item] : []; });
+  const groups = snapshot.groups.map((group) => ({ key: group.key, items: pick(group.ids) })).filter((group) => group.items.length);
+  const newCount = [...live.feed, ...live.earlier].filter((item) => !snapshot.known.has(item.lineageId)).length;
+  return {
+    partition: { ...live, feed: pick(snapshot.feed), earlier: pick(snapshot.earlier) },
+    groups,
+    leadId: snapshot.leadId && byId.has(snapshot.leadId) ? snapshot.leadId : undefined,
+    newCount,
+  };
+}

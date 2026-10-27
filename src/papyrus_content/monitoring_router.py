@@ -34,6 +34,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import string
 import time
@@ -109,6 +110,7 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 # The machine API (Cyclotron hosted_machine_publications.py) answers decide on a pending output with
 # HTTP 409 and a FastAPI body {"detail": "publication criteria are pending"}: no typed code.
 NOT_READY_DETAIL = "publication criteria are pending"
+REQUEST_CONFLICT_CODE = "request_conflict"   # 409: the requestId was already used for a job with different content
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 LOG = logging.getLogger(__name__)
 PARK_PREFIX = "PARK#"
@@ -120,7 +122,15 @@ PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
 #: the lab's Retry-After when it sends one, otherwise LAB_BACKOFF_FIRST * 2**n seconds (n = consecutive refused runs),
 #: capped at LAB_BACKOFF_MAX. A Retry-After is honoured up to LAB_RETRY_AFTER_MAX so a bad header cannot park the monitor
 #: for good. This is a backoff between asks, not a limit: every job stays recorded and is asked about again afterwards.
+#: A 429 WITHOUT a Retry-After is not the lab asking for a pause: it is the API Gateway stage throttle on the lab's HTTP API
+#: ("Too Many Requests", 5 requests/second sustained, burst 10) saying "too fast this second". The client therefore paces
+#: itself (below), waits LAB_THROTTLE_WAIT seconds (jittered) and repeats the same call up to LAB_THROTTLE_RETRIES times,
+#: and never sets the monitor-level pause for it. Only a 503, or a 429 that carries a Retry-After, does.
 LAB_BACKOFF_SK = "STATE#labBackoff"
+#: Client-side pacing: at most cyclotron.maxRequestsPerSecond lab calls per second per invocation. The default is 4, just under
+#: the API Gateway stage limit of 5 requests/second, which is a real constraint of the lab's endpoint (not an arbitrary cap).
+LAB_REQUESTS_PER_SECOND = 4
+LAB_THROTTLE_WAIT, LAB_THROTTLE_RETRIES, LAB_THROTTLE_SLOWEST_INTERVAL = (1.0, 2.0), 3, 2.0
 LAB_BACKOFF_FIRST, LAB_BACKOFF_MAX, LAB_RETRY_AFTER_MAX = 60, 1800, 3600
 #: A job that is still running is not asked about again until its own `nextPollAt`: POLL_BACKOFF_FIRST * 2**n seconds
 #: after its n-th unanswered check, capped at the collector cadence times POLL_BACKOFF_CADENCES. Backoff, not a limit; the
@@ -172,6 +182,11 @@ class JobGone(Exception):
     The router discards the stored job and re-posts once; it is never a run-stopping event."""
 
 
+class JobFailed(Exception):
+    """Polling a stored job answered a terminal failed state: nothing more will come from it. The router discards it
+    and re-posts once under a new id; it is never a run-stopping event."""
+
+
 class AllBindingsNotReady(Exception):
     """Every binding for the item is waiting for a classifier: nothing to decide or deliver yet."""
 
@@ -191,6 +206,11 @@ class ItemInvalid(Exception):
 class ItemRetryLater(ItemInvalid):
     """The lab refused this story's request for a reason that is not explicitly permanent (an unknown 409, another
     4xx the contract does not name). Nothing ran at the lab, so the story backs off and is asked again on a later run."""
+
+
+class RequestConflict(ItemRetryLater):
+    """409 request_conflict: the lab holds this requestId for a job with different content. Nothing ran; the request
+    is re-posted once under a new id."""
 
 
 class ItemExcluded(Exception):
@@ -247,11 +267,15 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
+    rate = cyclotron.get("maxRequestsPerSecond", LAB_REQUESTS_PER_SECOND)
+    if isinstance(rate, bool) or not isinstance(rate, (int, float, Decimal)) or not rate > 0:
+        raise ValueError("router cyclotron.maxRequestsPerSecond must be a positive number")
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
             "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
-                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}, **account_scope}
+                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll,
+                          "maxRequestsPerSecond": float(rate)}, **account_scope}
 
 
 def email_routing_fingerprint(config: dict) -> str:
@@ -363,25 +387,27 @@ def lambda_procedure_starter(function_name: str | None) -> Callable[[dict], None
 
 # --- request building -------------------------------------------------------------------------------
 
-def request_id(account_id: str, run_id: str, publication_id: str, binding_revision: str, item_id: str,
-               fingerprint: str, attempt: int = 0) -> str:
-    """Deterministic: the same item revision against the same binding always has the same id.
+def canonical_json(value) -> str:
+    """Sorted keys, no whitespace: the same content always serialises to the same text."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def request_id(account_id: str, run_id: str, publication_id: str, payload: dict, attempt: int = 0) -> str:
+    """Content-addressed: the id is derived from the exact payload sent, so a retry of the same content reuses it
+    and any change of content (bindings, item values) gets a new id instead of a `request_conflict` at the lab.
 
     `attempt` is 0 until Cyclotron refuses a job without consuming any provider request (key missing,
     ceiling reached). Cyclotron keeps a refused job under its request id, so a later retry needs a new one.
     """
-    parts = [account_id, run_id, f"{publication_id}@{binding_revision}", item_id, fingerprint]
+    parts = [account_id, run_id, publication_id, canonical_json(payload)]
     if attempt:
         parts.append(f"attempt-{attempt}")
-    text = "\n".join(parts)
-    return sha256(text.encode()).hexdigest()
+    return sha256("\n".join(parts).encode()).hexdigest()
 
 
-def combined_request_id(account_id: str, run_id: str, bindings: dict, item_id: str, fingerprint: str,
-                        revision: int, attempt: int = 0) -> str:
-    """Deterministic for one story (item id, revision, fingerprint) and its sorted binding set, so a retry reuses it."""
-    parts = ["decisions", account_id, run_id, ",".join(f"{pub}@{rev}" for pub, rev in sorted(bindings.items())),
-             item_id, f"revision-{revision}", fingerprint]
+def combined_request_id(account_id: str, run_id: str, payload: dict, attempt: int = 0) -> str:
+    """Content-addressed over the whole POST /machine/decisions payload (sorted bindings map and item incl. values)."""
+    parts = ["decisions", account_id, run_id, canonical_json(payload)]
     if attempt:
         parts.append(f"attempt-{attempt}")
     return sha256("\n".join(parts).encode()).hexdigest()
@@ -405,10 +431,11 @@ def build_item(discovery: dict) -> dict:
 def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0) -> dict:
     validate_email_discovery_scope(discovery, config)
     cyclotron, item = config["cyclotron"], build_item(discovery)
+    payload = {"bindingRevision": cyclotron["bindingRevision"], "item": item}
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
-                                    cyclotron["bindingRevision"], item["id"], str(discovery["fingerprint"]), attempt),
-            "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}}
+                                    payload, attempt),
+            "payload": payload}
     validate_request(body)
     return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
 
@@ -420,10 +447,10 @@ def build_combined_request(config: dict, publications: list[dict], discovery: di
     bindings = {p["publicationId"]: cyclotron["bindingRevision"] for p in publications}
     if not bindings:
         raise ItemInvalid("no publication bindings to decide")
+    payload = {"bindings": dict(sorted(bindings.items())), "item": item}
     body = {"contractVersion": CONTRACT_VERSION,
-            "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], bindings, item["id"],
-                                             str(discovery["fingerprint"]), int(discovery["revision"]), attempt),
-            "payload": {"bindings": dict(sorted(bindings.items())), "item": item}}
+            "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], payload, attempt),
+            "payload": payload}
     validate_combined_request(body)
     return {"path": "/machine/decisions", "body": body}
 
@@ -569,24 +596,52 @@ def refusal_code(status: int, payload: dict) -> str:
 
 class CyclotronClient:
     def __init__(self, config: dict, *, sign: Callable[[str, str, bytes], dict], http=default_http,
-                 sleep=time.sleep, clock=time.monotonic):
-        self.config, self.sign, self.http, self.sleep, self.clock = config, sign, http, sleep, clock
+                 sleep=time.sleep, clock=time.monotonic, jitter=random.uniform):
+        self.config, self.sign, self.http, self.sleep, self.clock, self.jitter = config, sign, http, sleep, clock, jitter
+        rate = float(config["cyclotron"].get("maxRequestsPerSecond") or LAB_REQUESTS_PER_SECOND)
+        self.interval = 1.0 / rate          # seconds between lab calls: the pacing, shared by every POST and GET
+        self._next_slot = 0.0               # the earliest time the next call may leave
+        self.throttled = 0                  # bare 429s (API Gateway "Too Many Requests") answered this run
         self.base = config["cyclotron"]["endpoint"]
         self.refusals: list[dict] = []   # every non-2xx the lab answered, for the run receipt's errors list
         self.rate_limited: dict | None = None   # the first 429/503 this run: {"status", "retryAfter"}; the monitor backs off
         self.answered = 0                        # calls the lab answered below 400 this run
 
+    def _pace(self):
+        """Waits for this call's slot: one call per `interval`, however the calls are spread over POST/GET/feedback."""
+        now = self.clock()
+        start = max(now, self._next_slot)
+        self._next_slot = start + self.interval
+        if start > now:
+            self.sleep(start - now)
+
+    @staticmethod
+    def bare_throttle(status: int, payload: dict) -> bool:
+        """API Gateway's stage throttle: a 429 with no Retry-After. The lab itself only refuses with 503 + Retry-After."""
+        return (status == 429 and parse_retry_after(payload.get("_retryAfter") or payload.get("retryAfter")) is None
+                and not (payload.get("code") or payload.get("error")))   # a coded 429 is the lab's own refusal
+
     def _call(self, method: str, path: str, body: dict | None):
         data = json.dumps(body, separators=(",", ":")).encode() if body is not None else b""
         url = self.base + path
-        status, payload = self.http(method, url, self.sign(method, url, data), data or None, 30)
+        for attempt in range(LAB_THROTTLE_RETRIES + 1):
+            self._pace()
+            status, payload = self.http(method, url, self.sign(method, url, data), data or None, 30)
+            if not self.bare_throttle(status, payload):
+                break
+            # too fast this second; the gateway refused before the lab saw the call, so repeating it is safe
+            self.throttled += 1
+            if self.throttled > 1:   # it keeps happening: slow the pacing for the rest of the run
+                self.interval = min(self.interval * 1.5, LAB_THROTTLE_SLOWEST_INTERVAL)
+            if attempt < LAB_THROTTLE_RETRIES:
+                self.sleep(self.jitter(*LAB_THROTTLE_WAIT))
         if status < 400:
             self.answered += 1
         return status, payload
 
     def classify(self, status: int, payload: dict) -> Exception:
         code = refusal_code(status, payload)
-        if status in LAB_OVERLOAD_STATUSES and self.rate_limited is None:
+        if status in LAB_OVERLOAD_STATUSES and not self.bare_throttle(status, payload) and self.rate_limited is None:
             self.rate_limited = {"status": status,
                                  "retryAfter": parse_retry_after(payload.get("_retryAfter") or payload.get("retryAfter"))}
         if not 200 <= status < 300:
@@ -595,6 +650,8 @@ class CyclotronClient:
             self.refusals.append({"sourceId": None, "message": f"cyclotron {excerpt}"})
         if code == "source_refused":
             return ItemRefused(code)
+        if status == 409 and code == REQUEST_CONFLICT_CODE:
+            return RequestConflict(body_excerpt(status, payload))
         if status == 409 and payload.get("detail") == BINDING_CHANGED_DETAIL:
             return StopSweep("binding_changed", "http 409")
         if status == 409 and (code == NOT_READY_CODE or payload.get("detail") == NOT_READY_DETAIL):
@@ -658,6 +715,8 @@ class CyclotronClient:
                 return payload
             if status == 404:
                 raise JobGone()
+            if status == 200 and str(payload.get("status") or "") == "failed":
+                raise JobFailed()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -692,6 +751,8 @@ class CyclotronClient:
                 return payload
             if status == 404:
                 raise JobGone()
+            if status == 200 and str(payload.get("status") or "") == "failed":
+                raise JobFailed()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -1018,6 +1079,10 @@ class Router:
     def lab_backoff_until(self) -> int:
         if self._lab_state is None:
             self._lab_state = self.store.get_any(self.monitor_id, LAB_BACKOFF_SK) or {}
+            if self._lab_state.get("status") == 429 and not self._lab_state.get("retryAfter"):
+                # an old pause caused by the API Gateway throttle, which is not the lab asking for one: clear it
+                self.store.delete_any(self.monitor_id, LAB_BACKOFF_SK)
+                self._lab_state = {}
         return int(self._lab_state.get("until", 0))
 
     def lab_paused(self) -> bool:
@@ -1417,13 +1482,6 @@ class Router:
         cyclotron = self.config["cyclotron"]
         return {"runId": cyclotron["runId"], "bindingRevision": cyclotron["bindingRevision"]}
 
-    def job_is_stale(self, stored: dict, expected_request_id: str) -> bool:
-        """A stored job posted under an earlier run or binding revision (after a Cyclotron cutover)."""
-        current = self.posted_under()
-        if "runId" in stored or "bindingRevision" in stored:
-            return any(stored.get(key) != value for key, value in current.items())
-        return stored.get("requestId") != expected_request_id
-
     def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str, reposted: bool = False) -> list[dict]:
         """One POST /machine/decisions for the story's unchecked bindings, one poll loop, then each publication's
         receipt is checked and stored under `jobs` exactly as a per-publication decide would. Returns the
@@ -1434,11 +1492,8 @@ class Router:
             return todo
         if not stored and (len(todo) < 2 or self.combined_unavailable):
             return todo
-        if stored and todo and self.job_is_stale(stored, build_combined_request(
-                self.config, todo, disc, int(route.get("attempt", 0)))["body"]["requestId"]):
-            del route["combinedJob"]   # posted under an earlier run: its id is unknown to the lab now, re-post
-            self.save(route)
-            return self.decide_combined(todo, disc, route, item_id, reposted)
+        # a stored job is always polled by its jobId, whatever request id or run it was posted under: only a 409
+        # request_conflict, a failed job or a 404 (below) discards it
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
         if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
@@ -1456,6 +1511,14 @@ class Router:
                 job_id, response = self.cyclotron.post_combined(built["body"])
             except ItemUncertain:
                 raise
+            except RequestConflict:
+                del route["combinedJob"]   # the lab knows this id under other content: discard, re-post once under a new id
+                if reposted:
+                    self.save(route)
+                    raise
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+                return self.decide_combined(todo, disc, route, item_id, True)
             except (CombinedUnavailable, BindingNotReady) as reason:
                 del route["combinedJob"]   # nothing was started
                 self.save(route)
@@ -1486,6 +1549,13 @@ class Router:
                 self.save(route)
                 if reposted:
                     raise ItemInvalid("lab does not know the job posted for this story (404 after a re-post)")
+                return self.decide_combined(todo, disc, route, item_id, True)
+            except JobFailed:
+                del route["combinedJob"]   # the job ended failed: re-post once under a new id
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+                if reposted:
+                    raise ItemInvalid("the job posted for this story failed again after a re-post")
                 return self.decide_combined(todo, disc, route, item_id, True)
             except StopSweep as stop:
                 if stop.code in NON_CONSUMING_REFUSALS:
@@ -1532,12 +1602,7 @@ class Router:
         job = jobs.get(pub_id)
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
-        if job and self.job_is_stale(job, built["body"]["requestId"]):
-            del jobs[pub_id]   # posted under an earlier run or binding: re-post under the current one
-            self.save(route)
-            return self.decide_binding(publication, disc, route, item_id, reposted)
-        if job and job.get("requestId") != built["body"]["requestId"]:
-            raise ItemInvalid("stored job belongs to a different request")
+        # a stored job is polled by its jobId whatever request id or run it was posted under
         if job and job.get("jobId"):
             if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
                 raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
@@ -1552,6 +1617,14 @@ class Router:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
             except ItemUncertain:
                 raise
+            except RequestConflict:
+                del jobs[pub_id]   # the lab knows this id under other content: discard, re-post once under a new id
+                if reposted:
+                    self.save(route)
+                    raise
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+                return self.decide_binding(publication, disc, route, item_id, True)
             except Exception:
                 del jobs[pub_id]   # definitively refused: nothing was started, a later run may send it
                 self.save(route)
@@ -1580,6 +1653,13 @@ class Router:
             self.save(route)
             if reposted:
                 raise ItemInvalid("lab does not know the job posted for this publication (404 after a re-post)")
+            return self.decide_binding(publication, disc, route, item_id, True)
+        except JobFailed:
+            del jobs[pub_id]   # the job ended failed: re-post once under a new id
+            route["attempt"] = int(route.get("attempt", 0)) + 1
+            self.save(route)
+            if reposted:
+                raise ItemInvalid("the job posted for this publication failed again after a re-post")
             return self.decide_binding(publication, disc, route, item_id, True)
         except StopSweep as stop:
             if stop.code in NON_CONSUMING_REFUSALS:

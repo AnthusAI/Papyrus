@@ -285,12 +285,16 @@ def test_config_validation_accepts_the_shape_and_rejects_unsafe_values():
     assert validate_router_config(router_config("dry-run", cyclotron={**router_config()["cyclotron"], "roleArn": ""}))["mode"] == "dry-run"
 
 
-def test_request_ids_are_deterministic_and_bound_to_every_input():
-    base = request_id("a", "r", "p", "1", "hn-1", "fp")
-    assert base == request_id("a", "r", "p", "1", "hn-1", "fp") and len(base) == 64
-    assert len({base, request_id("b", "r", "p", "1", "hn-1", "fp"), request_id("a", "s", "p", "1", "hn-1", "fp"),
-                request_id("a", "r", "q", "1", "hn-1", "fp"), request_id("a", "r", "p", "2", "hn-1", "fp"),
-                request_id("a", "r", "p", "1", "hn-2", "fp"), request_id("a", "r", "p", "1", "hn-1", "fx")}) == 7
+def test_request_ids_are_content_addressed_and_bound_to_every_input():
+    payload = {"bindingRevision": "1", "item": {"id": "hn-1", "values": {"title": "T"}}}
+    base = request_id("a", "r", "p", payload)
+    assert base == request_id("a", "r", "p", payload) and len(base) == 64
+    assert base == request_id("a", "r", "p", {"item": {"values": {"title": "T"}, "id": "hn-1"}, "bindingRevision": "1"})
+    changed_value = {**payload, "item": {"id": "hn-1", "values": {"title": "U"}}}
+    assert len({base, request_id("b", "r", "p", payload), request_id("a", "s", "p", payload),
+                request_id("a", "r", "q", payload), request_id("a", "r", "p", payload, 1),
+                request_id("a", "r", "p", {**payload, "bindingRevision": "2"}),
+                request_id("a", "r", "p", changed_value)}) == 7
 
 
 def test_decide_request_has_the_exact_contract_shape(table):
@@ -300,7 +304,7 @@ def test_decide_request_has_the_exact_contract_shape(table):
     body = built["body"]
     assert built["path"] == "/machine/publications/anth-us/operations"
     assert body["contractVersion"] == "cyclotron-publication/v1" and body["operation"] == "decide"
-    assert body["requestId"] == request_id("acct-1", "run-1", "anth-us", "1", "hn-101", disc["fingerprint"])
+    assert body["requestId"] == request_id("acct-1", "run-1", "anth-us", body["payload"])
     assert body["payload"] == {"bindingRevision": "1", "item": {"id": "hn-101", "values": {
         "title": "Alpha source", "url": "https://example.org/alpha", "source": "hacker-news",
         "sourceItemUrl": "https://news.ycombinator.com/item?id=101", "text": "Alpha source\nhttps://example.org/alpha"}}}
@@ -1279,7 +1283,8 @@ def test_combined_request_has_the_exact_contract_shape_and_a_stable_id(table):
     assert body["requestId"] == mr.build_combined_request(config, config["publications"][::-1], disc)["body"]["requestId"]
     assert body["requestId"] != mr.build_combined_request(config, config["publications"][:2], disc)["body"]["requestId"]
     assert body["requestId"] != mr.build_combined_request(config, config["publications"], disc, 1)["body"]["requestId"]
-    assert body["requestId"] != mr.build_combined_request(config, config["publications"], {**disc, "revision": 2})["body"]["requestId"]
+    assert body["requestId"] == mr.build_combined_request(config, config["publications"], {**disc, "revision": 2})["body"]["requestId"]
+    assert body["requestId"] != mr.build_combined_request(config, config["publications"], {**disc, "title": "Changed"})["body"]["requestId"]
 
 
 def test_combined_success_is_one_post_one_poll_and_the_receipt_matches_the_per_publication_shape(table):
@@ -1409,13 +1414,41 @@ def stale_combined_job(table, store, cyclotron, **marker):
 
 
 @pytest.mark.parametrize("marker", [{"runId": "run-0", "bindingRevision": "0"}, {"runId": "run-1", "bindingRevision": "0"}, {}])
-def test_a_combined_job_from_an_earlier_run_is_reposted_without_polling_it(table, marker):
+def test_a_stored_combined_job_from_an_earlier_run_or_id_is_polled_and_collected_without_a_new_post(table, marker):
     store, cyclotron = combined_setup(table)
     old = stale_combined_job(table, store, cyclotron, **marker)
     result = go(table, store, cyclotron, now=2100)
     assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
-    assert not any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
-    assert len(post_ids(cyclotron)) == 1
+    assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
+    assert post_ids(cyclotron) == []
+
+
+def test_a_stored_pending_combined_job_is_never_posted_behind(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.pending_polls = 10_000
+    go(table, store, cyclotron, now=2100)
+    go(table, store, cyclotron, now=2200)
+    assert post_ids(cyclotron) == [] and routing_of(table)["DISC#101#000001"] == "collected"
+
+
+def test_a_failed_combined_job_is_reposted_once_under_a_new_id(table):
+    store, cyclotron = combined_setup(table)
+    old = stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_queue = [(200, {"status": "failed"})]
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    ids = post_ids(cyclotron)
+    assert len(ids) == 1 and ids[0] != "stale-request-id-0"
+    assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
+
+
+def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_override = (200, {"status": "failed"})
+    go(table, store, cyclotron, now=2100)
+    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
 
 
 def test_a_404_on_a_stored_combined_job_reposts_once_in_the_same_run(table):
@@ -1446,7 +1479,7 @@ def test_a_404_on_a_stored_single_publication_job_reposts_once_and_a_repeat_erro
     assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "p-apyr-us"]) == 2   # posted, then re-posted once
 
 
-def test_a_single_publication_job_from_an_earlier_run_is_reposted(table):
+def test_a_single_publication_job_from_an_earlier_run_is_still_polled_and_collected(table):
     store, cyclotron = setup_router(table)
     leave_job_pending(table, store, cyclotron)
     route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
@@ -1455,8 +1488,8 @@ def test_a_single_publication_job_from_an_earlier_run_is_reposted(table):
     cyclotron.pending_polls, cyclotron.calls = 0, []
     result = go(table, store, cyclotron, now=2100)
     assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
-    assert not any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.calls)
-    assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "anth-us"]) == 1
+    assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.calls)
+    assert [c for c in cyclotron.posts() if c[1].split("/")[3] == "anth-us"] == []
 
 
 def test_combined_503_provider_key_unavailable_retries_under_a_new_request_id(table):
@@ -1594,6 +1627,7 @@ def test_slow_jobs_for_several_stories_are_all_posted_in_one_run(table3):
 
 def test_jobs_that_finish_inside_the_collect_window_are_delivered_in_the_same_run(table3):
     store, cyclotron = combined_setup(table3)
+    table3.items[("MONITOR#hn", "CONFIG#router")]["cyclotron"]["maxRequestsPerSecond"] = 1000   # pacing would eat the 10 s window
     cyclotron.polls_needed = 3          # running for the first check and the first two collect rounds
     delivery = Delivery()
     result = run_with(table3, store, cyclotron, deliver=delivery)
@@ -1877,7 +1911,7 @@ def test_a_429_with_retry_after_pauses_every_lab_call_until_then(table3):
     assert done["status"] == "complete" and BACKOFF_KEY not in table3.items   # the lab answered: the pause is cleared
 
 
-def test_a_429_without_retry_after_backs_off_exponentially_and_a_clean_run_resets_it(table3):
+def test_a_503_without_retry_after_backs_off_exponentially_and_a_clean_run_resets_it(table3):
     store, cyclotron = waiting_jobs(table3)
     cyclotron.combined_poll_override = (503, {})
     run_with(table3, store, cyclotron, now=3000, task="collect")
@@ -1889,14 +1923,14 @@ def test_a_429_without_retry_after_backs_off_exponentially_and_a_clean_run_reset
     cyclotron.combined_poll_override = None
     run_with(table3, store, cyclotron, now=3500, task="collect")
     assert BACKOFF_KEY not in table3.items
-    cyclotron.combined_poll_override = (429, {})
+    cyclotron.combined_poll_override = (503, {})
     run_with(table3, store, cyclotron, now=4000, task="collect")
     assert table3.items[BACKOFF_KEY]["until"] == 4060     # back to the first step
 
 
 def test_the_pause_is_capped_so_it_never_grows_without_bound(table3):
     store, cyclotron = waiting_jobs(table3)
-    cyclotron.combined_poll_override = (429, {})
+    cyclotron.combined_poll_override = (503, {})
     now, waits = 3000, []
     for _ in range(12):
         run_with(table3, store, cyclotron, now=now, task="collect")
@@ -1907,7 +1941,7 @@ def test_the_pause_is_capped_so_it_never_grows_without_bound(table3):
 
 def test_the_collector_stops_at_the_first_429_having_asked_about_the_oldest_job_first(table3):
     store, cyclotron = waiting_jobs(table3)
-    cyclotron.combined_poll_override = (429, {})
+    cyclotron.combined_poll_override = (429, {"retryAfter": 30})
     seen = len(lab_gets(cyclotron))
     result = run_with(table3, store, cyclotron, now=3000, task="collect")
     assert result["status"] == "stopped" and len(lab_gets(cyclotron)) == seen + 1     # one question, then the pass stops
@@ -1972,3 +2006,168 @@ def test_feedback_posts_wait_for_the_pause_too(table):
     result = feedback_run(table, store, cyclotron, {}, now=5000)
     assert result["feedback"]["status"] == "stopped" and result["feedback"]["stoppedBy"] == "lab_backoff"
     assert cyclotron.calls == []
+
+
+def combined_ids(cyclotron):
+    return [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST"]
+
+
+def test_same_content_gets_the_same_combined_id_across_runs(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"code": "run_busy"})
+    go(table, store, cyclotron)
+    cyclotron.combined_post_override = None
+    go(table, store, cyclotron, now=3000)
+    ids = combined_ids(cyclotron)
+    assert len(ids) == 2 and ids[0] == ids[1]
+
+
+def test_changed_bindings_do_not_repost_a_stored_job_under_the_old_id(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_poll_override = (202, {"status": "running"})
+    go(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    old_job = route["combinedJob"]["jobId"]
+    cyclotron.combined_poll_override = None
+    table.put_item({**table.items[("MONITOR#hn", "CONFIG#router")], "publications": [
+        p for p in table.items[("MONITOR#hn", "CONFIG#router")]["publications"] if p["publicationId"] != "p-apyr-us"]})
+    go(table, store, cyclotron, now=3000)
+    assert len(combined_ids(cyclotron)) == 1
+    assert any(c[0] == "GET" and c[1].endswith(old_job) for c in cyclotron.combined_calls)
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_a_request_conflict_discards_the_job_and_reposts_once_under_a_new_id(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_queue = [(409, {"code": "request_conflict", "detail": "command identity has different content"})]
+    result = go(table, store, cyclotron)
+    ids = combined_ids(cyclotron)
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "routed" and result["stoppedBy"] is None
+
+
+def test_a_second_request_conflict_is_not_reposted_again(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"code": "request_conflict"})
+    go(table, store, cyclotron)
+    assert len(combined_ids(cyclotron)) == 2
+    assert "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+
+
+def test_a_per_publication_request_conflict_reposts_once_under_a_new_id(table):
+    store, cyclotron = setup_router(table)
+    real = cyclotron.http
+    seen = {"n": 0}
+
+    def http(method, url, headers, body, timeout):
+        if method == "POST" and "/anth-us/operations" in url and seen["n"] == 0:
+            seen["n"] += 1
+            cyclotron.calls.append((method, url.split("amazonaws.com", 1)[1], json.loads(body)))
+            return 409, {"code": "request_conflict"}
+        return real(method, url, headers, body, timeout)
+    cyclotron.http = http
+    go(table, store, cyclotron)
+    ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/anth-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_a_failed_single_publication_job_is_reposted_once_and_a_repeat_errors_the_story(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.poll_override["p-apyr-us"] = (200, {"status": "failed"})
+    go(table, store, cyclotron)
+    ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/p-apyr-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "error"
+
+
+# --- pacing under the API Gateway stage limit ------------------------------------------------------------
+
+class Clocked:
+    """A fake clock: sleep advances it, and every call the lab receives is stamped with the time it arrived."""
+
+    def __init__(self):
+        self.t, self.arrivals = 0.0, []
+
+    def sleep(self, seconds):
+        self.t += seconds
+
+    def clock(self):
+        return self.t
+
+
+def paced_client(table, cyclotron, fake, **overrides):
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+
+    def http(method, url, headers, body, timeout):
+        fake.arrivals.append(fake.t)
+        return cyclotron.http(method, url, headers, body, timeout)
+    return CyclotronClient(config, sign=lambda m, u, b: {}, http=http, sleep=fake.sleep, clock=fake.clock,
+                           jitter=lambda lo, hi: lo, **overrides)
+
+
+def test_the_default_pacing_is_four_requests_a_second_and_is_configurable(table3):
+    assert validate_router_config(router_config())["cyclotron"]["maxRequestsPerSecond"] == 4
+    raw = router_config()
+    raw["cyclotron"]["maxRequestsPerSecond"] = 2
+    assert validate_router_config(raw)["cyclotron"]["maxRequestsPerSecond"] == 2
+    raw["cyclotron"]["maxRequestsPerSecond"] = 0
+    with pytest.raises(ValueError):
+        validate_router_config(raw)
+
+
+def test_lab_calls_leave_at_most_four_a_second_whatever_their_kind(table3):
+    store, cyclotron = combined_setup(table3)
+    fake = Clocked()
+    client = paced_client(table3, cyclotron, fake)
+    cyclotron.polls_needed = 10_000
+    for _ in range(3):
+        client.post_combined({"payload": {"bindings": ["anth-us"], "item": {"id": "x"}}})
+    for _ in range(5):
+        try:
+            client.poll_combined("cjob-0", wait=False)
+        except Exception:
+            pass
+    gaps = [round(b - a, 6) for a, b in zip(fake.arrivals, fake.arrivals[1:])]
+    assert len(fake.arrivals) == 8 and min(gaps) >= 0.25
+    assert all(second_count <= 4 for second_count in
+               [sum(1 for t in fake.arrivals if start <= t < start + 1) for start in fake.arrivals])
+
+
+def test_a_bare_429_is_retried_after_a_short_wait_without_pausing_the_monitor(table3):
+    store, cyclotron = combined_setup(table3)
+    fake = Clocked()
+    cyclotron.combined_poll_queue = [(429, {"message": "Too Many Requests"}), (429, {"message": "Too Many Requests"})]
+    client = paced_client(table3, cyclotron, fake)
+    cyclotron.polls_needed = 0
+    run_router(store, "hn", now=2000, cyclotron=client, appsync=lambda e: object(), deliver=Delivery(),
+               context_receipt=lambda c, p: {})
+    assert client.throttled == 2 and client.rate_limited is None
+    assert BACKOFF_KEY not in table3.items
+    assert set(routing_of(table3).values()) == {"routed"}          # the run carried on and delivered
+    assert fake.t >= 2.0                                            # it waited 1 s (jitter fixed at the low end) per bare 429
+    assert client.interval > 0.25                                   # and kept slowing the pacing for the rest of the run
+
+
+def test_a_bare_429_that_never_clears_stops_the_run_without_a_monitor_pause(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (429, {"message": "Too Many Requests"})
+    result = run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert result["status"] == "stopped" and BACKOFF_KEY not in table3.items
+
+
+def test_a_503_with_retry_after_pauses_until_then(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (503, {"retryAfter": 45})
+    run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert table3.items[BACKOFF_KEY]["until"] == 3045 and table3.items[BACKOFF_KEY]["status"] == 503
+
+
+def test_an_old_429_pause_without_retry_after_is_cleared_on_the_next_run(table3):
+    store, cyclotron = waiting_jobs(table3)
+    table3.put_item({"pk": "MONITOR#hn", "sk": "STATE#labBackoff", "until": 9000, "strikes": 4, "status": 429, "retryAfter": None})
+    seen = len(lab_gets(cyclotron))
+    result = run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert result["stoppedBy"] != "lab_backoff" and len(lab_gets(cyclotron)) > seen
+    assert BACKOFF_KEY not in table3.items
