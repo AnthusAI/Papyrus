@@ -108,7 +108,7 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 NOT_READY_DETAIL = "publication criteria are pending"
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 PARK_PREFIX = "PARK#"
-PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX, PARK_KEEP_ITEMS = 1800, 6 * 3600, 25
+PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
@@ -773,6 +773,15 @@ class RouterStore(DynamoStore):
             start = {"ExclusiveStartKey": result["LastEvaluatedKey"]}
 
 
+def park_item_prefix(pub_id: str) -> str:
+    return f"{PARK_PREFIX}{pub_id}#"
+
+
+def park_item_sk(pub_id: str, source_id: str, revision: int) -> str:
+    """One row per parked item: PARK#<pub>#<sourceId>#<rev>."""
+    return f"{park_item_prefix(pub_id)}{source_id}#{revision:06d}"
+
+
 def gsi_partition(monitor_id: str, name: str) -> str:
     return f"ROUTING#{monitor_id}#{name}"
 
@@ -966,7 +975,7 @@ class Router:
                 raise ValueError("Provide 1 to 20 exact selected source ids")
             candidates = [self.store.get_any(self.monitor_id, f"DISC#{source}#000001") for source in dict.fromkeys(source_ids)]
         else:
-            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"), self.config["maxItemsPerRun"])
+            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"))
         for disc in candidates:
             if (not disc or not disc.get("editorSelectedReference") or disc.get("sourceType") != "email"
                     or disc.get("gsi1pk") != gsi_partition(self.monitor_id, "email-references")):
@@ -1038,11 +1047,37 @@ class Router:
     # not-ready bindings and parking ---------------------------------------------------------------
 
     def park(self, pub_id: str) -> dict | None:
+        """The binding's park header (`PARK#<pub>`: reason, backoff, probes, ready). Its parked items are rows of
+        their own (`park_item_sk`), so nothing is dropped and no item can outgrow a DynamoDB row."""
         if pub_id not in self._parks:
-            self._parks[pub_id] = self.store.get_any(self.monitor_id, PARK_PREFIX + pub_id)
+            park = self.store.get_any(self.monitor_id, PARK_PREFIX + pub_id)
+            if park and "items" in park:
+                park = self.migrate_park(pub_id, park)
+            self._parks[pub_id] = park
         return self._parks[pub_id]
 
+    def migrate_park(self, pub_id: str, park: dict) -> dict:
+        """A header written before items had rows of their own carried them in one list (kept to the last 25).
+        Keep every one of them as a row, then rewrite the header without the list; a crash between the two is
+        repaired by the next read."""
+        for entry in park["items"]:
+            self.put_park_item(pub_id, entry["sourceId"], int(entry["revision"]), park.get("since"))
+        park = {k: v for k, v in park.items() if k != "items"}
+        self.store.put_any(self.monitor_id, park)
+        return park
+
+    def put_park_item(self, pub_id: str, source_id: str, revision: int, parked_at: str | None = None):
+        self.store.put_any(self.monitor_id, {"pk": pk(self.monitor_id), "sk": park_item_sk(pub_id, source_id, revision),
+                                             "publicationId": pub_id, "sourceId": source_id, "revision": revision,
+                                             "parkedAt": parked_at or _iso(self.now)})
+
+    def parked_items(self, pub_id: str) -> list[dict]:
+        """Every item parked for the binding (all pages of the partition's PARK#<pub># rows), oldest first."""
+        return sorted(self.store.query_prefix(self.monitor_id, park_item_prefix(pub_id)),
+                      key=lambda row: (str(row.get("parkedAt")), row["sk"]))
+
     def save_park(self, pub_id: str, park: dict):
+        park = {k: v for k, v in park.items() if k != "items"}
         self._parks[pub_id] = park
         self.store.put_any(self.monitor_id, park)
 
@@ -1089,9 +1124,9 @@ class Router:
         park = self.park(pub_id) or {"pk": pk(self.monitor_id), "sk": PARK_PREFIX + pub_id, "publicationId": pub_id,
                                       "since": _iso(self.now), "backoffSeconds": PARK_BACKOFF_FIRST,
                                       "nextProbeAt": int(self.now + PARK_BACKOFF_FIRST), "probes": 0}
-        entry = {"sourceId": disc["sourceId"], "revision": int(disc["revision"])}
-        items = [i for i in park.get("items", []) if i != entry] + ([] if disc.get("editorSelectedReference") else [entry])
-        self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False, "items": items[-PARK_KEEP_ITEMS:]})
+        if not disc.get("editorSelectedReference"):
+            self.put_park_item(pub_id, disc["sourceId"], int(disc["revision"]))
+        self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False})
         route.setdefault("notReady", {})[pub_id] = {"reason": reason[:200], "at": _iso(self.now)}
         self.counts["skippedNotReady"] += 1
 
@@ -1099,7 +1134,7 @@ class Router:
         park = self.park(pub_id)
         if not park or park.get("ready"):
             return
-        if park.get("items"):
+        if self.parked_items(pub_id):
             self.save_park(pub_id, {**park, "ready": True})   # parked items are decided by backfill()
         else:
             self.store.delete_any(self.monitor_id, PARK_PREFIX + pub_id)
@@ -1115,18 +1150,17 @@ class Router:
         for publication in (self.active_publications or self.config["publications"]):
             pub_id = publication["publicationId"]
             park = self.park(pub_id)
-            while park and park.get("ready") and park.get("items"):
+            for row in (self.parked_items(pub_id) if park and park.get("ready") else ()):
                 if self.time_left() < MIN_REMAINING_SECONDS:
                     return done
-                entry, rest = park["items"][0], park["items"][1:]
-                park = {**park, "items": rest}
-                self.save_park(pub_id, park)
+                entry = row
+                self.store.delete_any(self.monitor_id, row["sk"])
                 disc = self.store.get_any(self.monitor_id, f"DISC#{entry['sourceId']}#{int(entry['revision']):06d}")
                 route = self.store.get_any(self.monitor_id, f"ROUTE#{entry['sourceId']}#{int(entry['revision']):06d}")
                 if disc and route and route.get("decision"):
                     done += 1
                     self.backfill_one(publication, disc, route)
-            if park and park.get("ready") and not park.get("items"):
+            if park and park.get("ready") and not self.store.query_prefix(self.monitor_id, park_item_prefix(pub_id)):
                 self.store.delete_any(self.monitor_id, PARK_PREFIX + pub_id)
                 self._parks[pub_id] = None
         return done

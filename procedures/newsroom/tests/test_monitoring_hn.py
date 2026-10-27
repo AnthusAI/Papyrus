@@ -15,7 +15,7 @@ FEED = b'''<rss><channel>
 def monitor(tmp_path, **changes):
     return Monitor(**{**dict(id="hn", publication="publication-a", corpus_id="knowledge-corpus-a",
                              endpoint="https://example.appsync-api.us-east-1.amazonaws.com/graphql",
-                             state=tmp_path / "checkpoint.sqlite3", interval_seconds=900, limit=3), **changes})
+                             state=tmp_path / "checkpoint.sqlite3", interval_seconds=900), **changes})
 
 
 class Intake:
@@ -103,3 +103,17 @@ def test_intake_must_supply_a_real_receipt(tmp_path):
     result = collect(monitor(tmp_path), lambda *_: {}, fetch=lambda: FEED, now=1000)
     assert result["status"] == "partial" and len(result["errors"]) == 2
     assert result["discoveries"] == []
+
+
+def test_a_local_config_that_still_has_a_limit_loads_and_ignores_it_with_one_log_line(tmp_path, capsys):
+    import json
+    from papyrus_content.monitoring_commands import load_monitor
+    path = tmp_path / "hn.json"
+    path.write_text(json.dumps({"schemaVersion": 1, "monitorId": "hn", "publication": "example", "corpusId": "c",
+                                "endpoint": "https://example.appsync-api.us-east-1.amazonaws.com/graphql",
+                                "state": "hn.sqlite3", "intervalSeconds": 900, "limit": 10}))
+
+    monitor = load_monitor(str(path))
+
+    assert not hasattr(monitor, "limit")
+    assert json.loads(capsys.readouterr().out) == {"monitor": "ignored_retired_config", "fields": ["limit"]}

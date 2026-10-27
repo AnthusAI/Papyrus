@@ -28,7 +28,7 @@ Feature: A Hugging Face Hub Monitor collects new machine-learning models with th
     When the Hugging Face monitor collects another day later and the model has a new commit
     Then the model has a second discovery revision that carries the new commit
 
-  Scenario: Backfill a window of history, bounded and repeatable
+  Scenario: Backfill a window of history, repeatable
     Given a Hugging Face monitor for text-generation models that need at least 5000 likes
     And the Hub lists the most-liked text-generation models
     When the operator backfills models created since the middle of 2024
@@ -36,12 +36,12 @@ Feature: A Hugging Face Hub Monitor collects new machine-learning models with th
     When the operator backfills the same window again
     Then nothing is read or written twice
 
-  Scenario: A backfill that hits its request bound resumes where it stopped
+  Scenario: A backfill the operator interrupts with Ctrl-C resumes where it stopped
     Given a Hugging Face monitor for text-generation models that need at least 5000 likes
     And the Hub lists the most-liked text-generation models
-    When the operator backfills with room for only one Hub request
-    Then the backfill reports that it paused and stored a checkpoint
-    When the operator backfills the same window again with room to finish
+    When the operator presses Ctrl-C during the backfill after its first Hub page
+    Then the backfill reports that it was interrupted and stored a checkpoint
+    When the operator runs the same backfill command again
     Then the backfill continues from the stored cursor and completes with all models loaded once
 
   Scenario: The models a model was built on become relation-ready fields

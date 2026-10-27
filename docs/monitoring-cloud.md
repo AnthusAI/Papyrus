@@ -20,8 +20,38 @@ any of them rather than creating a second one for the same decision. Each source
 accepts a `sourceUrl` on its own host. `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
-`seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400 --limit 100` and
+`seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
 `seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`.
+
+### Reading a source: no item, page or request limits
+
+A monitor does not read "the latest N". Each pass pages its source, newest first, until it reaches items it already
+collected (the high-water mark: a page that holds a collected item ends that feed) or the source has no more. The
+first pass over a new monitor therefore reads the whole window; a steady pass usually reads one page. Nothing in the
+config caps it: `limit`, `maxItems` and `pagesPerQuery` are retired, and a stored config that still has them loads,
+ignores them and logs one `{"monitor": "ignored_retired_config", "fields": [...]}` line. They can be deleted from the
+table; `seed_config.py` no longer writes them. `pageSize` (Hugging Face and TTAB) is the source API's page size, not a
+total.
+
+Only real constraints bound a pass:
+
+- **Lambda time.** The collector Lambda times out at 120 s. A pass reads for at most 80 s (`READ_BUDGET_SECONDS`), then
+  finishes the page it is on and writes its receipt; a page's items are committed before the next page is asked for, so
+  a stop loses nothing. When it stops early the receipt says `read.stoppedBy: time_budget` and `STATE.resume` holds a
+  cursor per feed; `nextDueAt` is then "now", so the monitor's next scheduled tick continues (15 minutes for `hn`, 6 hours
+  for `ttab` and `huggingface`; for a large first load of history use the backfill command, which has no such pause). The next pass
+  first re-reads the top of each feed (new items first, up to the high-water mark) and then continues at each cursor,
+  so nothing between the two is skipped. Only when every feed is read to its end is `resume` cleared and the next pass
+  due an `intervalSeconds` later.
+- **The source's rate limit.** A 429 is waited out for as long as `Retry-After` says (seconds or an HTTP date); with no
+  header the wait starts at 5 s and doubles to at most 300 s while the limit lasts. If the wait would not fit in the
+  pass's time, the pass stops there (`read.stoppedBy: rate_limited`) and resumes at the same page next pass.
+- **DynamoDB's item size.** Nothing the monitor stores grows with the backlog (see parking below).
+
+A feed that is not ordered by time (a Hugging Face query sorted by `likes`, `downloads` or `trendingScore`) has no
+high-water mark. It is read until the metric falls under its minimum (`minLikes` / `minDownloads`, and at least 1, so
+the long tail of models nobody has liked, downloaded or trended is not paged through), resuming from its cursor if time
+runs out.
 
 | Monitor | Source | Collect | Route | Decisions | Publications |
 | --- | --- | --- | --- | --- | --- |
@@ -62,7 +92,8 @@ recreated, and nothing is ever superseded, so a re-run writes nothing. Options: 
 
 Feeds Shipped's knowledge map. It reads the public model list (`https://huggingface.co/api/models`, no key). The
 Hub cannot filter by date or by likes, so the monitor's `CONFIG` describes a few **queries** and the reader pages each
-one (cursor from the `Link` header; `pageSize` rows a page, at most `pagesPerQuery` pages) until it passes the window:
+one (cursor from the `Link` header; `pageSize` is the Hub's page size, not a total) until it reaches models already collected,
+passes the window, or the Hub has no more ([reading a source](#reading-a-source-no-item-page-or-request-limits)):
 
 - one query per `authors` entry (a watchlist of organisations), newest first;
 - one per `search` term, newest first;
@@ -73,8 +104,8 @@ either from a watchlisted author, or has at least `minLikes` likes, or at least 
 With neither threshold set, every match is kept. Each day's run re-reads the whole window, so a model that reaches a
 threshold within `lookbackDays` of its release is picked up then; one that gets there later is not. Only
 `https://huggingface.co/api/models` is ever requested (the source URL, and every cursor, are checked), with a
-descriptive `User-Agent` and a pause between requests. A 429 ends the read and the receipt says `stoppedBy:
-rate_limited`; a query that fails does not stop the others; reads stop after 70 s (`stoppedBy: time_budget`).
+descriptive `User-Agent` and a pause between requests. A 429 is waited out (`Retry-After`) or, if that does not fit in
+the pass, ends it with `stoppedBy: rate_limited` to continue next pass; a query that fails does not stop the others.
 
 | `CONFIG` field | Meaning |
 | --- | --- |
@@ -87,8 +118,8 @@ rate_limited`; a query that fails does not stop the others; reads stop after 70 
 | `excludeTags` | Hub tags that mark a repackaged copy (`gguf`, `mlx`, `exl2`, `awq`, `4-bit`, ...); a model carrying any is not collected. Case-insensitive; default none |
 | `excludeBaseRelations` | skip a model whose `baseModels` has one of these relations (`finetune`, `quantized`, `adapter`, `merge`, `declared`). Default none; `finetune` and `adapter` are real work, so list only `quantized` and `merge` unless you want them gone too |
 | `excludeIdPatterns` | up to 50 case-insensitive regular expressions searched in the model id (`org/name`), for repackagers that do not tag (`-(q|iq)[0-9]`, `abliterat`, `bpw`) |
-| `lookbackDays` (7), `pageSize` (200, up to 1000), `pagesPerQuery` (10) | window and bounds per query |
-| `intervalSeconds`, `limit` | as for every monitor; `limit` is the most models stored per run, up to 1000 here (100 elsewhere) |
+| `lookbackDays` (7), `pageSize` (200, up to 1000) | the window, and the Hub's page size (not a total) |
+| `intervalSeconds` | as for every monitor |
 
 **Repackaged models.** A week of Shipped's models was mostly copies of existing ones (89 of 127): quantisations, "abliterated" or
 uncensored variants, wrappers. The three `exclude*` fields drop them at collection, so they are never stored as
@@ -148,10 +179,11 @@ the monitor's `CONFIG` would accept, through the same `ITEM#` dedupe as the live
 run beside the schedule). It is a **dry run** (reads the Hub, counts what it would add, writes nothing) unless `--apply`.
 Because the Hub cannot filter by date, it pages each author and search query newest first until `--since`, and each
 `pipelineTags` query in `likes` order (and again in `downloads` order when `minDownloads` is set) until the metric falls
-under the threshold, keeping only models created inside the window. Options: `--until`, `--max-pages` per query
-(default 50), `--max-requests` per run (default 300; the Hub allows 500 requests per 5 minutes). It **pauses** on either
-bound or on a 429 and keeps a `BACKFILL#<since>#<scope>` checkpoint (each query's cursor); running the same command again
-resumes there, and a finished backfill reads nothing. Backfilled discoveries are `collected` like any other, so the router
+under the threshold, keeping only models created inside the window. It has no page or request budget: it reads the whole
+window. Option: `--until`. The Hub allows 500 requests per 5 minutes, so on a 429 it waits for `Retry-After` (else 5 s,
+doubling to 300 s), printing `rate limited: waiting Ns`, and carries on; it prints a progress line after every chunk of
+pages. After every chunk it saves a `BACKFILL#<since>#<scope>` checkpoint (each query's cursor), so Ctrl-C is safe (it
+reports `interrupted` and exits 130) and running the same command again resumes there; a finished backfill reads nothing. Backfilled discoveries are `collected` like any other, so the router
 delivers them on its next runs, oldest collection first.
 
 ### Starting Shipped
@@ -206,7 +238,7 @@ open weights). Sampled from the live Hub on 2026-10-25: it receives about 3,600 
  "excludeTags": ["gguf", "mlx", "exl2", "exl3", "awq", "gptq", "bitsandbytes", "4-bit", "8-bit"],
  "excludeBaseRelations": ["quantized", "merge"],
  "excludeIdPatterns": ["gguf", "-(q|iq)[0-9]", "exl[23]", "mlx", "awq", "gptq", "abliterat", "uncensored", "bpw", "dflash", "comfyui"],
- "lookbackDays": 7, "pageSize": 500, "pagesPerQuery": 10, "intervalSeconds": 86400, "limit": 500}
+ "lookbackDays": 7, "pageSize": 500, "intervalSeconds": 86400}
 ```
 
 Recommended `shipped-huggingface-router.json` (a watchlist name that does not exist on the Hub just returns nothing):
@@ -261,8 +293,8 @@ Keys are `pk` and `sk`; every item of the HN monitor has `pk = MONITOR#hn`.
 
 | `sk` | Meaning |
 | --- | --- |
-| `CONFIG` | Config as data: `sourceUrl` (an https news.ycombinator.com feed), `intervalSeconds` (>= 60), `limit` (1 to 100), `enabled`. Seeded by `infra/monitoring/seed_config.py`, edited in the table, never in Lambda environment |
-| `STATE` | Checkpoint: `nextDueAt` (epoch seconds), `lastRunId`, `lastStatus` |
+| `CONFIG` | Config as data: `sourceUrl` (an https news.ycombinator.com feed), `intervalSeconds` (>= 60), `enabled` (no item limit: the collector pages until it meets items it already has). Seeded by `infra/monitoring/seed_config.py`, edited in the table, never in Lambda environment |
+| `STATE` | Checkpoint: `nextDueAt` (epoch seconds), `lastRunId`, `lastStatus`, and `resume` (cursors per feed, only while a pass stopped early on time or a rate limit) |
 | `LOCK` | Lease: `owner`, `expiresAt`. Taken by conditional write when absent or expired, released only by its owner. Lease is 150 s, longer than the timeout, so a crashed run cannot block longer than that |
 | `ITEM#<sourceId>` | Current `fingerprint` and `revision` for an HN item (the dedupe record) |
 | `DISC#<sourceId>#<revision, 6 digits>` | One discovery per revision: title, canonical and HN item URLs, source time, fingerprint, `eventId`, `observedAt`, `runId`, `routing` |
@@ -434,12 +466,14 @@ delivers the other bindings, and the sweep continues. It makes no Cyclotron call
 binding beyond one probe, so it uses no retries and no ceiling. If every binding is waiting, the item
 is final `parked`. Any other 409 still stops the sweep.
 
-Parking: one `PARK#<publicationId>` item per waiting publication holds `reason`, `since`, `nextProbeAt`,
-`backoffSeconds` and the newest 25 skipped items. No call is made until `nextProbeAt`; then the next item
+Parking: one `PARK#<publicationId>` header item per waiting publication holds `reason`, `since`, `nextProbeAt` and
+`backoffSeconds`; each skipped item is a row of its own, `PARK#<publicationId>#<sourceId>#<revision>`, so nothing is
+dropped and no row grows with the backlog. No call is made until `nextProbeAt`; then the next item
 probes once, and a still-pending answer doubles the backoff (30 minutes up to 6 hours). When a probe
-succeeds the park becomes `ready`, and each run first decides the parked items (all of them,
-bounded only by the Lambda's time) and delivers positives, then removes the park. Items older than the
-newest 25 are not backfilled. The run receipt carries `waitingForClassifier` (publication ids) and the
+succeeds the park becomes `ready`, and each run first decides the parked items (all of them, paging through the
+partition, bounded only by the Lambda's time) and delivers positives, then removes the park. A header written by an
+earlier version, which carried the newest 25 items in a list, is split into rows the first time it is read, keeping
+every item it had. The run receipt carries `waitingForClassifier` (publication ids) and the
 Monitoring page shows it on the router run.
 
 ## Router items
@@ -640,6 +674,7 @@ authorization point and one least-privilege grant.
 
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
+- Old `limit`, `maxItems` and `pagesPerQuery` fields in a collector `CONFIG` are ignored the same way (the collector logs one `ignored_retired_config` line).
 - Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. They can be deleted from the stored config; `infra/monitoring/seed_router_config.py --set` drops them on its next write.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
 

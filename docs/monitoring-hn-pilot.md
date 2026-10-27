@@ -25,8 +25,7 @@ Example configuration (use verified publication values):
   "corpusId": "knowledge-corpus-example",
   "endpoint": "https://example.appsync-api.us-east-1.amazonaws.com/graphql",
   "state": "private-state/hn.sqlite3",
-  "intervalSeconds": 900,
-  "limit": 10
+  "intervalSeconds": 900
 }
 ```
 
@@ -169,7 +168,7 @@ An exact invocation for the current small checkout is:
 cd /Users/home/Documents/Codex/2026-10-19/task-4/papyrus-planning
 PYTHONPATH=src /Users/home/miniconda3/bin/python -m papyrus_content.monitoring_commands collect-local \
   --directory /Users/home/Documents/Codex/2026-10-19/task-4/hn-private-review \
-  --interval-seconds 900 --limit 30 \
+  --interval-seconds 900 \
   --shown-records /Users/home/Documents/Codex/2026-10-19/task-4/hn-private-review-shown.json
 ```
 

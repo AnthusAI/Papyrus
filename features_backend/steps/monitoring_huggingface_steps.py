@@ -161,18 +161,31 @@ def step_idempotent(context):
     assert context.again_requests == 0 and len(context.table_.by_prefix("DISC#")) == context.before == 2
 
 
-@when("the operator backfills with room for only one Hub request")
-def step_one_request(context):
-    run_backfill(context, "2024-06-01T00:00:00Z", max_requests=1)
+@when("the operator presses Ctrl-C during the backfill after its first Hub page")
+def step_interrupt(context):
+    from papyrus_content import monitoring_backfill
+    calls, hub = [], th.liked_hub()
+
+    def fetch(url):
+        calls.append(url)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return hub(url)
+
+    previous, monitoring_backfill.CHUNK_PAGES = monitoring_backfill.CHUNK_PAGES, 1     # checkpoint after every page
+    try:
+        run_backfill(context, "2024-06-01T00:00:00Z", hub=fetch)
+    finally:
+        monitoring_backfill.CHUNK_PAGES = previous
 
 
-@then("the backfill reports that it paused and stored a checkpoint")
+@then("the backfill reports that it was interrupted and stored a checkpoint")
 def step_paused(context):
-    assert context.backfill["status"] == "paused" and context.table_.by_prefix("BACKFILL#")
+    assert context.backfill["status"] == "interrupted" and context.table_.by_prefix("BACKFILL#")
     assert any("run the same command again" in line for line in context.lines)
 
 
-@when("the operator backfills the same window again with room to finish")
+@when("the operator runs the same backfill command again")
 def step_resume(context):
     context.resume_hub = th.liked_hub()
     run_backfill(context, "2024-06-01T00:00:00Z", hub=context.resume_hub)

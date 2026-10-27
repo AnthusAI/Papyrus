@@ -24,7 +24,7 @@ FEED = b'''<rss><channel>
 <item><title>Gamma source</title><link>https://example.org/gamma</link><comments>https://news.ycombinator.com/item?id=103</comments></item>
 </channel></rss>'''
 COLLECTOR_CONFIG = {"pk": "MONITOR#hn", "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss",
-                    "intervalSeconds": 900, "limit": 30, "enabled": True}
+                    "intervalSeconds": 900, "enabled": True}
 ENDPOINT = "https://abc123.appsync-api.us-east-1.amazonaws.com/graphql"
 ONE_FEED = FEED.split(b"<item>")[0] + b"<item>" + FEED.split(b"<item>")[1] + b"</channel></rss>"   # the first story only
 PUBS = ("anth-us", "p-apyr-us", "threat-intelligence")
@@ -97,8 +97,13 @@ class FakeTable:
     def query(self, KeyConditionExpression, ExpressionAttributeValues, IndexName=None, ScanIndexForward=True, Limit=None, **_):
         if IndexName is None:   # the base table: one partition, sort keys that start with a prefix
             assert KeyConditionExpression == "pk = :pk AND begins_with(sk, :prefix)"
-            return {"Items": [deepcopy(v) for k, v in sorted(self.items.items())
-                              if k[0] == ExpressionAttributeValues[":pk"] and k[1].startswith(ExpressionAttributeValues[":prefix"])]}
+            rows = [deepcopy(v) for k, v in sorted(self.items.items())
+                    if k[0] == ExpressionAttributeValues[":pk"] and k[1].startswith(ExpressionAttributeValues[":prefix"])]
+            page = getattr(self, "page_size", None)    # a table that answers a few rows at a time, as DynamoDB does at 1 MB
+            if page:
+                start = int(_.get("ExclusiveStartKey") or 0)
+                return {"Items": rows[start:start + page], **({"LastEvaluatedKey": start + page} if start + page < len(rows) else {})}
+            return {"Items": rows}
         assert IndexName == "routing" and KeyConditionExpression == "gsi1pk = :p"
         rows = sorted((v for v in self.items.values() if v.get("gsi1pk") == ExpressionAttributeValues[":p"]),
                       key=lambda v: v["gsi1sk"], reverse=not ScanIndexForward)
@@ -861,6 +866,11 @@ def test_not_ready_binding_must_not_halt_the_sweep(table3):
     assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "threat-intelligence"]) == 1
 
 
+def parked(table, pub_id):
+    """The rows of the items parked for a publication (PARK#<pub>#<sourceId>#<rev>), not its header."""
+    return [v for k, v in sorted(table.items.items()) if k[1].startswith(f"PARK#{pub_id}#")]
+
+
 def test_not_ready_binding_is_parked_probed_after_backoff_and_backfilled_when_ready(table3):
     store, cyclotron = setup_router(table3)
     cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
@@ -869,7 +879,7 @@ def test_not_ready_binding_is_parked_probed_after_backoff_and_backfilled_when_re
     first = go(table3, store, cyclotron, now=2000, deliver=delivery)
     assert first["status"] == "complete" and len(ti()) == 1
     park = table3.items[("MONITOR#hn", "PARK#threat-intelligence")]
-    assert park["ready"] is False and park["nextProbeAt"] == 2000 + 1800 and len(park["items"]) == 3
+    assert park["ready"] is False and park["nextProbeAt"] == 2000 + 1800 and len(parked(table3, "threat-intelligence")) == 3
     # inside the backoff window: no call at all for the waiting binding, other bindings carry on
     second = go(table3, store, cyclotron, now=2300, deliver=delivery)
     assert len(ti()) == 1 and second["waitingForClassifier"] == ["threat-intelligence"]
@@ -879,7 +889,7 @@ def test_not_ready_binding_is_parked_probed_after_backoff_and_backfilled_when_re
     third = go(table3, store, cyclotron, now=3900, deliver=delivery)
     assert len(ti()) == 2 and third["status"] == "complete"
     park = table3.items[("MONITOR#hn", "PARK#threat-intelligence")]
-    assert park["backoffSeconds"] == 3600 and park["probes"] == 1 and len(park["items"]) == 4
+    assert park["backoffSeconds"] == 3600 and park["probes"] == 1 and len(parked(table3, "threat-intelligence")) == 4
     # classifier ready: the next item's probe succeeds, then every parked item is decided
     cyclotron.post_override.clear()
     echo = b"<item><title>Echo source</title><link>https://example.org/echo</link><comments>https://news.ycombinator.com/item?id=105</comments></item>"
@@ -890,6 +900,48 @@ def test_not_ready_binding_is_parked_probed_after_backoff_and_backfilled_when_re
         go(table3, store, cyclotron, now=8000 + 900 * n, deliver=delivery)
     assert {"101", "102", "103", "104", "105"} == {c[1] for c in delivery.calls if c[0] == "threat-intelligence"}
     assert ("MONITOR#hn", "PARK#threat-intelligence") not in table3.items
+
+
+def many_stories(count, first=1000):
+    items = "".join(f"<item><title>Story {n}</title><link>https://example.org/s{n}</link>"
+                    f"<comments>https://news.ycombinator.com/item?id={n}</comments></item>" for n in range(first, first + count))
+    return f"<rss><channel>{items}</channel></rss>".encode()
+
+
+def test_more_than_25_parked_items_all_survive_and_are_backfilled_when_the_classifier_is_ready():
+    table = collected_table(many_stories(40))
+    table.page_size = 7                                   # DynamoDB answers a page at a time: the router must read them all
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
+    delivery = Delivery()
+    go(table, store, cyclotron, now=2000, deliver=delivery)
+    assert len(parked(table, "threat-intelligence")) == 40       # nothing dropped: the old row kept the last 25
+    assert not any("items" in v for k, v in table.items.items() if k[1].startswith("PARK#"))     # no row grows with the backlog
+
+    cyclotron.post_override.clear()
+    story = lambda n: f"<item><title>S{n}</title><link>https://example.org/s{n}</link><comments>https://news.ycombinator.com/item?id={n}</comments></item>".encode()
+    run_collection(DynamoStore(table), "hn", fetch=lambda url: many_stories(40).replace(b"</channel>", story(2000) + b"</channel>"), now=7000)
+    for n in range(12):
+        go(table, store, cyclotron, now=8000 + 900 * n, deliver=delivery)
+    expected = {str(n) for n in range(1000, 1040)} | {"2000"}
+    assert expected == {c[1] for c in delivery.calls if c[0] == "threat-intelligence"}
+    assert ("MONITOR#hn", "PARK#threat-intelligence") not in table.items and not parked(table, "threat-intelligence")
+
+
+def test_a_park_row_written_with_its_items_inside_is_split_into_rows_when_read_and_keeps_every_item():
+    table = collected_table(many_stories(3))
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["threat-intelligence"] = (409, {"detail": "publication criteria are pending"})
+    go(table, store, cyclotron, now=2000)
+    header = table.items[("MONITOR#hn", "PARK#threat-intelligence")]
+    for key in [k for k in table.items if k[1].startswith("PARK#threat-intelligence#")]:
+        del table.items[key]
+    header["items"] = [{"sourceId": str(n), "revision": 1} for n in (1000, 1001, 1002)]        # the capped list of the old layout
+
+    go(table, store, cyclotron, now=2300)                                                       # any run reads the park
+
+    assert "items" not in table.items[("MONITOR#hn", "PARK#threat-intelligence")]
+    assert [row["sourceId"] for row in parked(table, "threat-intelligence")] == ["1000", "1001", "1002"]
 
 
 def test_other_409_and_ceiling_refusals_still_stop_the_sweep(table):

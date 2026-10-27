@@ -299,7 +299,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
                   <strong>{feed.id}</strong>
                   <span>{feedHost(feed.sourceUrl)}</span>
                 </div>
-                <span>{feed.enabled ? "Enabled" : "Disabled"} &middot; {everyText(feed.intervalSeconds)}{feed.limit ? ` · up to ${feed.limit} items` : ""}</span>
+                <span>{feed.enabled ? "Enabled" : "Disabled"} &middot; {everyText(feed.intervalSeconds)}</span>
                 <span>Last run {formatUtc(feed.lastFinishedAt)}{feed.lastStatus ? ` (${status(feed.lastStatus)})` : ""} &middot; next {formatUtc(feed.nextDueAt)}</span>
               </li>
             ))}

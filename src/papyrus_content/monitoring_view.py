@@ -145,7 +145,7 @@ def _feed(config: dict | None, state: dict | None, monitor_id: str = MONITOR_ID)
         return []
     state = state or {}
     return [{"id": monitor_id, "sourceUrl": config.get("sourceUrl"), "intervalSeconds": config.get("intervalSeconds"),
-             "limit": config.get("limit"), "enabled": config.get("enabled", True) is not False,
+             "enabled": config.get("enabled", True) is not False,
              "lastStatus": state.get("lastStatus"), "lastFinishedAt": state.get("lastFinishedAt"),
              "nextDueAt": _iso(state.get("nextDueAt"))}]
 

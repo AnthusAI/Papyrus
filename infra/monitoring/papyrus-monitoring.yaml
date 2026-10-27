@@ -170,7 +170,7 @@ Resources:
       Architectures: [arm64]
       Handler: papyrus_content.monitoring_cloud.handler
       MemorySize: 256
-      Timeout: 120
+      Timeout: 120   # the real bound on a pass: keep in step with LAMBDA_TIMEOUT_SECONDS in monitoring_paging.py
       ReservedConcurrentExecutions: !If [ReserveConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
       Role: !GetAtt CollectorRole.Arn
       Code:

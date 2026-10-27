@@ -168,26 +168,29 @@ def command(args) -> int:
 # --- collection backfill: a Hugging Face monitor's history -----------------------------------------------
 
 BACKFILL_LEASE_SECONDS = 1800
-CHUNK_PAGES = 5            # pages read, committed and checkpointed together
+CHUNK_PAGES = 5            # pages read, committed and checkpointed together (a checkpoint grain, not a limit)
 
 
 def backfill_sorts(config: dict) -> tuple[str, ...]:
     """The Hub cannot filter by date or likes, so a threshold is applied by paging the list sorted by that
-    metric until it falls under the minimum. With no thresholds, newest first until the window starts."""
-    sorts = tuple(sort for key, sort in (("minLikes", "likes"), ("minDownloads", "downloads")) if config.get(key) is not None)
+    metric until it falls under the minimum. With no thresholds (a minimum of 0 is none), newest first until
+    the window starts."""
+    sorts = tuple(sort for key, sort in (("minLikes", "likes"), ("minDownloads", "downloads")) if config.get(key))
     return sorts or ("createdAt",)
 
 
 def backfill_collection(store, monitor_id: str, since: datetime, *, until: datetime | None = None,
-                        fetch: Callable | None = None, now: float | None = None, max_pages: int = 50,
-                        max_requests: int = 300, apply: bool = False, emit: Callable[[str], None] = print,
-                        owner: str | None = None) -> dict:
+                        fetch: Callable | None = None, now: float | None = None, apply: bool = False,
+                        emit: Callable[[str], None] = print, owner: str | None = None,
+                        sleep: Callable[[float], None] = time.sleep) -> dict:
     """Load the models created in [since, until) that the monitor's CONFIG would accept, through the collector's
     own dedupe (`ITEM#`), so it is idempotent and safe next to the live schedule.
 
-    Bounded by `max_pages` per query and `max_requests` overall; it stops cleanly (`paused`) on either, or on a
-    Hub 429. A checkpoint item `BACKFILL#...` keeps each query's cursor, so running the same command again
-    continues where it stopped. Dry-run (the default) reads the Hub and counts, and writes nothing.
+    It pages every query through the whole window (the Hub's own end, the window's start, or the metric's
+    minimum) and is bound only by the Hub's rate limit: a 429 is waited out (`Retry-After`, else a doubling
+    pause) with a progress line. A checkpoint item `BACKFILL#...` keeps each query's cursor after every chunk of
+    pages, so Ctrl-C is safe (it reports `interrupted`) and running the same command again continues where it
+    stopped. Dry-run (the default) reads the Hub and counts, and writes nothing.
     """
     raw = store.get_config(monitor_id)
     if raw is None:
@@ -210,15 +213,13 @@ def backfill_collection(store, monitor_id: str, since: datetime, *, until: datet
     owner = owner or uuid.uuid4().hex
     if apply and not store.acquire_lock(monitor_id, owner, now, BACKFILL_LEASE_SECONDS):
         raise ValueError("the collector (or another backfill) holds this monitor's lock; try again shortly")
-    reading, totals = Reading(None, max_requests), Counter()
+    reading, totals, interrupted = Reading(None, sleep=sleep, emit=emit), Counter(), False
     try:
         for query in queries:
             entry = state[query["key"]]
-            while not entry["done"] and entry["pages"] < max_pages and reading.may_request():
+            while not entry["done"]:
                 try:
-                    result = read_query(config, query, since, fetch, reading, start_url=entry["next"],
-                                        max_pages=min(CHUNK_PAGES, max_pages - entry["pages"]),
-                                        stop_below={"likes": config.get("minLikes"), "downloads": config.get("minDownloads")})
+                    result = read_query(config, query, since, fetch, reading, start_url=entry["next"], max_pages=CHUNK_PAGES)
                 except Exception as error:
                     reading.errors.append({"query": query["key"], "message": str(error)[:300]})
                     emit(f"  ! {query['key']}: {error}")
@@ -237,26 +238,30 @@ def backfill_collection(store, monitor_id: str, since: datetime, *, until: datet
                 if apply:
                     store.put_item(monitor_id, {"pk": pk(monitor_id), "sk": checkpoint_sk, "since": _iso(since.timestamp()),
                                                 "queries": state, "updatedAt": _iso(now), "runId": run_id})
+                if not entry["done"]:
+                    emit(f"  {query['key']}: {entry['pages']} pages read, {entry['accepted']} accepted so far ({reading.requests} requests)")
                 if result["pages"] == 0:
                     break
             emit(f"  {query['key']}: {'done' if entry['done'] else 'more to read'}, {entry['pages']} pages, {entry['accepted']} accepted")
+    except KeyboardInterrupt:
+        interrupted = True
+        emit("  interrupted: progress up to the last chunk is saved" if apply else "  interrupted")
     finally:
         if apply:
             store.release_lock(monitor_id, owner)
     finished = all(entry["done"] for entry in state.values())
-    status = "complete" if finished else "paused"
+    status = "complete" if finished else "interrupted" if interrupted else "paused"
     emit(f"{'APPLIED' if apply else 'DRY RUN (no writes)'} monitor={monitor_id} since={_iso(since.timestamp())}: "
          f"{status}, {reading.requests} requests, " + (", ".join(f"{k}={v}" for k, v in sorted(totals.items())) or "no models")
-         + (f", stopped by {reading.stopped_by}" if reading.stopped_by else "")
+         + (f", waited {reading.waited:.0f}s on rate limits" if reading.waited else "")
          + (", skipped as repackaged: " + ", ".join(f"{k}={v}" for k, v in reading.skipped().items()) if reading.excluded else "")
-         + ("" if finished else (" -- run the same command again to continue" if apply else " -- dry runs do not checkpoint; raise --max-pages/--max-requests to count more")))
-    return {"applied": apply, "status": status, "requests": reading.requests, "stoppedBy": reading.stopped_by,
+         + ("" if finished else (" -- run the same command again to continue" if apply else " -- dry runs do not checkpoint")))
+    return {"applied": apply, "status": status, "requests": reading.requests, "waitedSeconds": reading.waited,
             "counts": dict(totals), "skipped": reading.skipped(), "errors": reading.errors, "queries": state, "checkpoint": checkpoint_sk}
 
 
 def collection_command(args) -> int:
     table = open_table()
     result = backfill_collection(DynamoStore(table), args.monitor, parse_since(args.since),
-                                 until=parse_since(args.until) if args.until else None,
-                                 max_pages=args.max_pages, max_requests=args.max_requests, apply=args.apply)
-    return 1 if result["errors"] else 0
+                                 until=parse_since(args.until) if args.until else None, apply=args.apply)
+    return 130 if result["status"] == "interrupted" else 1 if result["errors"] else 0
