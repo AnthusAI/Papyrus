@@ -1608,7 +1608,7 @@ class Router:
             except Exception as error:   # one bad item must not hide the rest
                 errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
                 self.counts["error"] += 1
-        if awaiting and stopped in (None, "time_budget"):
+        if awaiting and stopped in (None, "time_budget", "run_busy"):   # a busy lab stops new posts, not the collecting
             try:
                 awaiting = self.collect_jobs(awaiting, errors)
             except StopSweep as stop:
