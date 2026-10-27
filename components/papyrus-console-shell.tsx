@@ -151,12 +151,12 @@ const PapyrusConsoleContext = createContext<PapyrusConsoleContextValue | null>(n
 export function PapyrusConsoleShell({ children, privateChatEnabled = false }: PapyrusConsoleShellProps) {
   const pathname = usePathname();
   const [session, setSession] = useState<ReaderSessionSnapshot | null>(null);
-  const { open, openConsole, closeConsole, toggleOpen } = useConsoleVisibility();
   const [openingReferenceChat, setOpeningReferenceChat] = useState(false);
   const internalPathname = browserPathToInternalNewsroomPath(pathname);
   const isNewsroomPath = internalPathname === "/newsroom" || internalPathname.startsWith("/newsroom/");
   const canUseConsole = Boolean(session?.hasSession && session.groups.some((group) => group === "editor" || group === "admin"));
   const shouldOfferConsole = isNewsroomPath && canUseConsole;
+  const { open, openConsole, closeConsole, toggleOpen } = useConsoleVisibility({ available: shouldOfferConsole });
 
   useEffect(() => {
     let active = true;

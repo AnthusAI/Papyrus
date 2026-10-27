@@ -9,9 +9,9 @@ import { useConsoleVisibility } from "../../components/use-console-visibility";
 import { Menu } from "lucide-react";
 
 function Fixture() {
-  const { open, openConsole, closeConsole } = useConsoleVisibility({ persist: false });
   const [moreOpen, setMoreOpen] = useState(false);
-  const available = !new URLSearchParams(location.search).has("unauthorized");
+  const available = location.pathname !== "/public" && !new URLSearchParams(location.search).has("unauthorized");
+  const { open, openConsole, closeConsole } = useConsoleVisibility({ available });
   return <PapyrusConsoleFrame available={available} open={open} reserveSpace={open} onClose={closeConsole} page={
     <div className="newsroom-organizer" data-sidebar-collapsed="true">
       <div className="organizer-workspace">

@@ -122,10 +122,22 @@
         "model": "GPT-6",
         "name": "Chat mobile correction"
       }
+    },
+    {
+      "id": "634bcc5d-5826-4272-8f93-b7885bd19964",
+      "author": "home",
+      "text": "Independent PR review found hidden public-route and duplicate reload history entries. Correction gates restoration/history on actual console availability and adopts an existing marker after reload. Added browser regressions for reload while open, public/unavailable route with persisted state, and normal Back. Release remains gated on final-head tests.",
+      "created_at": "2026-10-27T07:08:29.856015Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-27T06:59:40.287726Z",
+  "updated_at": "2026-10-27T07:08:29.856693Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

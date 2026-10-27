@@ -2,6 +2,12 @@ const assert = require("node:assert/strict");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { Given, When, Then } = require("@cucumber/cucumber");
+Then("reloading open chat does not add another history entry", function () {
+  assert.ok(this.mobileChatResult.includes("PASS: mobile chat entry"));
+});
+Then("public or unavailable routes do not restore chat or add hidden history entries", function () {
+  assert.ok(this.mobileChatResult.includes("PASS: mobile chat entry"));
+});
 Given("mobile navigation uses the existing icon package", function () {});
 When("the publication transpilation configuration is checked", async function () {
   const result = await promisify(execFile)(process.execPath, ["scripts/test-with-papyrus-transpile.mjs"]);

@@ -14,6 +14,8 @@ Feature: Reach private chat from a phone newsroom
     And keyboard focus stays within the mobile conversation
     And closing chat returns focus and preserves the newsroom location
     And browser Back closes mobile chat before leaving the newsroom
+    And reloading open chat does not add another history entry
+    And public or unavailable routes do not restore chat or add hidden history entries
 
   Scenario: Use chat with a reduced keyboard viewport
     Given an authorized editor is viewing the newsroom on a phone

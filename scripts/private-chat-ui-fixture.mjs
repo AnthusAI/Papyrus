@@ -40,7 +40,7 @@ const server = createServer(async (request, response) => {
     response.end(Buffer.concat([bundle.outputFiles.find((file) => file.path.endsWith(".css")).contents, Buffer.from(mobile ? readFileSync(new URL("../app/globals.css", import.meta.url), "utf8").replace(/^@import[^;]+;/gm, "") + readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8") : "")]));
     return;
   }
-  if (request.url === "/" || request.url?.startsWith("/?")) {
+  if (request.url === "/" || request.url === "/public" || request.url?.startsWith("/?")) {
     response.setHeader("Set-Cookie", "papyrus-session=synthetic-session; HttpOnly; SameSite=Lax; Path=/");
     response.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column;${fixtureColors};--kb-theme-ui-font:Arial,sans-serif;--kb-theme-title-font:Georgia,serif;background:rgb(var(--paper-rgb))}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>`);
     return;

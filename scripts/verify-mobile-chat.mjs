@@ -36,6 +36,10 @@ export async function verifyMobileChat(page, origin) {
   }
   await trigger.click();
   await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  const openHistoryLength = await page.evaluate(() => history.length);
+  await page.reload();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), openHistoryLength, "reload adopts the existing chat entry");
   await page.goBack();
   await page.getByRole("dialog", { name: "Papyrus console" }).waitFor({ state: "hidden" });
   assert.equal(new URL(page.url()).pathname, "/");
@@ -105,7 +109,20 @@ export async function verifyMobileChat(page, origin) {
   assert.equal(await page.locator('[aria-modal="true"]').count(), 0);
   assert.equal(await page.locator('.papyrus-console-page[inert]').count(), 0);
   await close.click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await trigger.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  const beforePublic = await page.evaluate(() => history.length);
+  await page.goto(`${origin}/public`);
+  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), beforePublic + 1, "public navigation adds only its own entry");
+  assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:console-open")), "true");
+  assert.equal(await trigger.count(), 0);
+  assert.equal(await page.locator('.papyrus-console').count(), 0);
+  const beforeUnavailable = await page.evaluate(() => history.length);
   await page.goto(`${origin}/?unauthorized=1`);
+  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), beforeUnavailable + 1, "unavailable chat adds no hidden history entry");
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await trigger.count(), 0);
   assert.equal(await page.locator('.papyrus-console').count(), 0);
