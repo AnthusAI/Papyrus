@@ -8,7 +8,7 @@ const vm = require('node:vm');
       args.path === 'react' ? 'exports.useState=v=>[v, globalThis.h.set]; exports.useEffect=f=>globalThis.h.effects.push(f);' :
       args.path === 'react/jsx-runtime' ? 'exports.jsx=exports.jsxs=(type,props)=>({type,props});' :
       args.path === 'next/navigation' ? 'exports.useSearchParams=()=>new URLSearchParams(globalThis.h.search);' :
-      args.path.endsWith('monitoring-client') ? 'exports.loadMonitoringEmailSubmission=id=>{globalThis.h.calls.push(id);return globalThis.h.response}; exports.loadMonitoringOverview=()=>{throw Error("overview read")}; exports.resolveMonitoringEmailArticleLink=()=>{}; exports.importMonitoringEmailCandidates=()=>{};' :
+      args.path.endsWith('monitoring-client') ? 'exports.loadMonitoringEmailSubmission=id=>{globalThis.h.calls.push(id);return globalThis.h.response}; exports.loadMonitoringOverview=()=>{throw Error("overview read")}; exports.resolveMonitoringEmailArticleLink=()=>{}; exports.importMonitoringEmailCandidates=()=>{}; exports.decideMonitoringEmailSubmission=()=>{};' :
       args.path.endsWith('monitoring-overview-view') ? 'exports.EmailSubmissions=()=>null; exports.MonitoringOverviewView=()=>null;' : 'exports.FIXTURE_ALL_PIPELINE_OVERVIEW={}; exports.FIXTURE_MONITORING_OVERVIEW={};'
     }));
   }}] });

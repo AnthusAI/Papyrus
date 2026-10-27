@@ -3,6 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import { emailReferenceBatches } from "./monitoring-overview";
 import type {
+  EmailDecisionResult,
   EmailReferenceImportItem,
   EmailReferenceImportOutcome,
   MonitoringEmailArticleResolution,
@@ -10,7 +11,7 @@ import type {
   MonitoringResult,
 } from "./monitoring-overview";
 
-type QueryField = "monitoringOverview" | "monitoringEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences" | "monitoringQueueEmailReference";
+type QueryField = "monitoringOverview" | "monitoringEmailSubmission" | "monitoringDecideEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences" | "monitoringQueueEmailReference";
 type GraphQLResult = { data?: Partial<Record<QueryField, unknown>>; errors?: { message?: string; errorType?: string }[] };
 
 async function query<T>(field: QueryField, queryText: string, variables: Record<string, string | number>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
@@ -38,6 +39,18 @@ export async function loadMonitoringOverview(scope: "publication" | "all"): Prom
 export async function loadMonitoringEmailSubmission(receiptId: string): Promise<MonitoringEmailDetails> {
   return query<MonitoringEmailDetails>("monitoringEmailSubmission",
     `query MonitoringEmailSubmission($receiptId: String!) { monitoringEmailSubmission(receiptId: $receiptId) }`, { receiptId });
+}
+
+/**
+ * Accept or Reject one held email submission. "Accept" releases it into the normal intake and
+ * "Reject" discards it; the editor and the optional reason are recorded server-side.
+ */
+export async function decideMonitoringEmailSubmission(
+  receiptId: string, decision: "accept" | "reject", reason: string,
+): Promise<EmailDecisionResult> {
+  return query<EmailDecisionResult>("monitoringDecideEmailSubmission",
+    `mutation MonitoringDecideEmailSubmission($receiptId: String!, $decision: String!, $reason: String) { monitoringDecideEmailSubmission(receiptId: $receiptId, decision: $decision, reason: $reason) }`,
+    { receiptId, decision: decision === "accept" ? "release" : "discard", reason });
 }
 
 /** Resolve one explicitly selected Beehiiv article redirect; this may register a click with the sender. */

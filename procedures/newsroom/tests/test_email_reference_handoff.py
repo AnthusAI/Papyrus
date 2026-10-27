@@ -7,7 +7,7 @@ from papyrus_content.reference_intake_validation import IntakeError
 from papyrus_content.monitoring_view import TableViewStore, Forbidden
 from papyrus_content.monitoring_router import RouterStore, CyclotronClient, run_router, validate_router_config, item_id_for
 from procedures.newsroom.tests.test_email_submission_intake import shared_fixture, AccountCyclotron
-from procedures.newsroom.tests.email_submission_fixture import collect_email
+from procedures.newsroom.tests.email_submission_fixture import accept_held_email, collect_email
 from procedures.newsroom.tests.test_reference_intake import IDENTITY, ENV
 
 
@@ -15,6 +15,7 @@ def fixture():
     f = shared_fixture()
     f.event['Records'][0]['ses']['receipt']['dmarcVerdict']['status'] = 'FAIL'
     assert collect_email(f)['status'] == 'pending_review'
+    accept_held_email(f)
     store = TableViewStore(f.table, 'email-publication')
     receipt = f.table.by_prefix('EMAIL#')[0]
     request = {'receiptId': receipt['sk'], 'candidateIndex': 0, 'source_uri': 'https://example.org/alpha', 'referenceId': 'reference-selected'}

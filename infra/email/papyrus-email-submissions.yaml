@@ -130,7 +130,14 @@ Resources:
                 Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}/index/routing
                 Condition:
                   ForAllValues:StringEquals:
-                    dynamodb:LeadingKeys: [!Sub "EMAIL_PENDING#${MonitorId}"]
+                    dynamodb:LeadingKeys: [!Sub "EMAIL_PENDING#${MonitorId}", !Sub "EMAIL_ACTION#${MonitorId}"]
+              # Quarantine: read a held message's stored text and links, and find refused receipts, in this partition only.
+              - Effect: Allow
+                Action: [dynamodb:Query]
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${MonitoringTableName}
+                Condition:
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys: [!Sub "MONITOR#${MonitorId}"]
               - Effect: Allow
                 Action: [sqs:SendMessage]
                 Resource: !GetAtt FailureQueue.Arn

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  decideMonitoringEmailSubmission,
   importMonitoringEmailCandidates,
   loadMonitoringEmailSubmission,
   loadMonitoringOverview,
@@ -39,7 +40,8 @@ function MonitoringEmailReceipt({ receiptId, isDemo }: { receiptId: string; isDe
   return <div data-news-desk-admin-panel="monitoring">
     {detail === null ? <p role="status">Loading email submission…</p> :
       <EmailSubmissions items={"submission" in detail ? [detail.submission] : []} detail={detail}
-        onResolveArticleLink={resolveMonitoringEmailArticleLink} onImportCandidates={importMonitoringEmailCandidates} />}
+        onResolveArticleLink={resolveMonitoringEmailArticleLink} onImportCandidates={importMonitoringEmailCandidates}
+        onDecide={decideMonitoringEmailSubmission} />}
   </div>;
 }
 
@@ -86,5 +88,5 @@ function MonitoringOverviewPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo
 
   return <MonitoringOverviewView result={result} canViewAll={isAdmin} mode={mode} onModeChange={setMode} demo={isDemo}
     emailDetail={emailDetail} onEmailOpen={isDemo ? () => {} : openEmail} onResolveArticleLink={isDemo ? undefined : resolveEmailArticleLink}
-    onImportCandidates={importEmailCandidates} />;
+    onImportCandidates={importEmailCandidates} onDecide={isDemo ? undefined : decideMonitoringEmailSubmission} />;
 }

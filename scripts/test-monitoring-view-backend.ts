@@ -25,6 +25,13 @@ assert.ok(handoffMutation, "the base schema defines the selected Reference hando
 assert.match(handoffMutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/);
 assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(handoffMutation));
 
+// Accept/Reject of a held email submission is an editor/admin mutation, never public.
+const decideMutation = /monitoringDecideEmailSubmission\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(decideMutation, "the base schema defines the held-message decision");
+assert.match(decideMutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/);
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(decideMutation));
+assert.match(decideMutation, /receiptId: String!/);
+
 // The resolver finishes inside AppSync's 30 second limit.
 assert.ok(MONITORING_VIEW_TIMEOUT_SECONDS < 30);
 

@@ -108,8 +108,9 @@ def _email_receipt_candidates(receipt_store, receipt_id: str, publication: str) 
     """Load and scope one private receipt and its canonical candidate sequence."""
     if receipt_store is None:
         raise IntakeError("Email receipt verification is not configured.")
+    # A held (quarantined) or discarded message is read-only until an editor accepts it.
     receipt = receipt_store.get(receipt_id)
-    if (not receipt or receipt.get("status") not in {"pending_review", "queued"}
+    if (not receipt or receipt.get("status") not in {"processing", "queued"}
             or receipt.get("emailTrustMode") != "data-only"):
         raise IntakeError("The email receipt is unavailable for Reference intake.")
     receipt_ttl = receipt.get("ttl")
