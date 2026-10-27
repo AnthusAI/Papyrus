@@ -1627,6 +1627,7 @@ def test_slow_jobs_for_several_stories_are_all_posted_in_one_run(table3):
 
 def test_jobs_that_finish_inside_the_collect_window_are_delivered_in_the_same_run(table3):
     store, cyclotron = combined_setup(table3)
+    table3.items[("MONITOR#hn", "CONFIG#router")]["cyclotron"]["maxRequestsPerSecond"] = 1000   # pacing would eat the 10 s window
     cyclotron.polls_needed = 3          # running for the first check and the first two collect rounds
     delivery = Delivery()
     result = run_with(table3, store, cyclotron, deliver=delivery)
@@ -1910,7 +1911,7 @@ def test_a_429_with_retry_after_pauses_every_lab_call_until_then(table3):
     assert done["status"] == "complete" and BACKOFF_KEY not in table3.items   # the lab answered: the pause is cleared
 
 
-def test_a_429_without_retry_after_backs_off_exponentially_and_a_clean_run_resets_it(table3):
+def test_a_503_without_retry_after_backs_off_exponentially_and_a_clean_run_resets_it(table3):
     store, cyclotron = waiting_jobs(table3)
     cyclotron.combined_poll_override = (503, {})
     run_with(table3, store, cyclotron, now=3000, task="collect")
@@ -1922,14 +1923,14 @@ def test_a_429_without_retry_after_backs_off_exponentially_and_a_clean_run_reset
     cyclotron.combined_poll_override = None
     run_with(table3, store, cyclotron, now=3500, task="collect")
     assert BACKOFF_KEY not in table3.items
-    cyclotron.combined_poll_override = (429, {})
+    cyclotron.combined_poll_override = (503, {})
     run_with(table3, store, cyclotron, now=4000, task="collect")
     assert table3.items[BACKOFF_KEY]["until"] == 4060     # back to the first step
 
 
 def test_the_pause_is_capped_so_it_never_grows_without_bound(table3):
     store, cyclotron = waiting_jobs(table3)
-    cyclotron.combined_poll_override = (429, {})
+    cyclotron.combined_poll_override = (503, {})
     now, waits = 3000, []
     for _ in range(12):
         run_with(table3, store, cyclotron, now=now, task="collect")
@@ -1940,7 +1941,7 @@ def test_the_pause_is_capped_so_it_never_grows_without_bound(table3):
 
 def test_the_collector_stops_at_the_first_429_having_asked_about_the_oldest_job_first(table3):
     store, cyclotron = waiting_jobs(table3)
-    cyclotron.combined_poll_override = (429, {})
+    cyclotron.combined_poll_override = (429, {"retryAfter": 30})
     seen = len(lab_gets(cyclotron))
     result = run_with(table3, store, cyclotron, now=3000, task="collect")
     assert result["status"] == "stopped" and len(lab_gets(cyclotron)) == seen + 1     # one question, then the pass stops
@@ -2079,3 +2080,94 @@ def test_a_failed_single_publication_job_is_reposted_once_and_a_repeat_errors_th
     ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/p-apyr-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
     assert len(ids) == 2 and ids[0] != ids[1]
     assert routing_of(table)["DISC#101#000001"] == "error"
+
+
+# --- pacing under the API Gateway stage limit ------------------------------------------------------------
+
+class Clocked:
+    """A fake clock: sleep advances it, and every call the lab receives is stamped with the time it arrived."""
+
+    def __init__(self):
+        self.t, self.arrivals = 0.0, []
+
+    def sleep(self, seconds):
+        self.t += seconds
+
+    def clock(self):
+        return self.t
+
+
+def paced_client(table, cyclotron, fake, **overrides):
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+
+    def http(method, url, headers, body, timeout):
+        fake.arrivals.append(fake.t)
+        return cyclotron.http(method, url, headers, body, timeout)
+    return CyclotronClient(config, sign=lambda m, u, b: {}, http=http, sleep=fake.sleep, clock=fake.clock,
+                           jitter=lambda lo, hi: lo, **overrides)
+
+
+def test_the_default_pacing_is_four_requests_a_second_and_is_configurable(table3):
+    assert validate_router_config(router_config())["cyclotron"]["maxRequestsPerSecond"] == 4
+    raw = router_config()
+    raw["cyclotron"]["maxRequestsPerSecond"] = 2
+    assert validate_router_config(raw)["cyclotron"]["maxRequestsPerSecond"] == 2
+    raw["cyclotron"]["maxRequestsPerSecond"] = 0
+    with pytest.raises(ValueError):
+        validate_router_config(raw)
+
+
+def test_lab_calls_leave_at_most_four_a_second_whatever_their_kind(table3):
+    store, cyclotron = combined_setup(table3)
+    fake = Clocked()
+    client = paced_client(table3, cyclotron, fake)
+    cyclotron.polls_needed = 10_000
+    for _ in range(3):
+        client.post_combined({"payload": {"bindings": ["anth-us"], "item": {"id": "x"}}})
+    for _ in range(5):
+        try:
+            client.poll_combined("cjob-0", wait=False)
+        except Exception:
+            pass
+    gaps = [round(b - a, 6) for a, b in zip(fake.arrivals, fake.arrivals[1:])]
+    assert len(fake.arrivals) == 8 and min(gaps) >= 0.25
+    assert all(second_count <= 4 for second_count in
+               [sum(1 for t in fake.arrivals if start <= t < start + 1) for start in fake.arrivals])
+
+
+def test_a_bare_429_is_retried_after_a_short_wait_without_pausing_the_monitor(table3):
+    store, cyclotron = combined_setup(table3)
+    fake = Clocked()
+    cyclotron.combined_poll_queue = [(429, {"message": "Too Many Requests"}), (429, {"message": "Too Many Requests"})]
+    client = paced_client(table3, cyclotron, fake)
+    cyclotron.polls_needed = 0
+    run_router(store, "hn", now=2000, cyclotron=client, appsync=lambda e: object(), deliver=Delivery(),
+               context_receipt=lambda c, p: {})
+    assert client.throttled == 2 and client.rate_limited is None
+    assert BACKOFF_KEY not in table3.items
+    assert set(routing_of(table3).values()) == {"routed"}          # the run carried on and delivered
+    assert fake.t >= 2.0                                            # it waited 1 s (jitter fixed at the low end) per bare 429
+    assert client.interval > 0.25                                   # and kept slowing the pacing for the rest of the run
+
+
+def test_a_bare_429_that_never_clears_stops_the_run_without_a_monitor_pause(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (429, {"message": "Too Many Requests"})
+    result = run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert result["status"] == "stopped" and BACKOFF_KEY not in table3.items
+
+
+def test_a_503_with_retry_after_pauses_until_then(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (503, {"retryAfter": 45})
+    run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert table3.items[BACKOFF_KEY]["until"] == 3045 and table3.items[BACKOFF_KEY]["status"] == 503
+
+
+def test_an_old_429_pause_without_retry_after_is_cleared_on_the_next_run(table3):
+    store, cyclotron = waiting_jobs(table3)
+    table3.put_item({"pk": "MONITOR#hn", "sk": "STATE#labBackoff", "until": 9000, "strikes": 4, "status": 429, "retryAfter": None})
+    seen = len(lab_gets(cyclotron))
+    result = run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert result["stoppedBy"] != "lab_backoff" and len(lab_gets(cyclotron)) > seen
+    assert BACKOFF_KEY not in table3.items
