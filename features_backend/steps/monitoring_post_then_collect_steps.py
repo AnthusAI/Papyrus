@@ -249,3 +249,19 @@ def step_once(context):
 @then("it is not treated as a decision-ready event")
 def step_not_decision(context):
     assert context.is_decision is False
+
+
+@given("Cyclotron accepts one job and is then busy with another run")
+def step_busy_after_one(context):
+    context.cyclotron.combined_busy_after = 1
+
+
+@then("one story is routed and delivered")
+def step_one_routed(context):
+    assert sorted(tr.routing_of(context.table_).values()).count("routed") == 1
+
+
+@then("the other two stories were refused by the busy lab, hold no job and are not errors")
+def step_refused_no_job(context):
+    refused = [k for k, v in context.table_.items.items() if k[1].startswith("ROUTE#") and "combinedJob" not in v]
+    assert len(refused) == 2 and context.result["counts"]["error"] == 0

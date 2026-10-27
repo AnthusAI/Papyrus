@@ -122,6 +122,7 @@ class FakeCyclotron:
         self.combined_calls, self.combined_jobs = [], {}
         self.combined_enabled = False         # False: the deployment predates POST /machine/decisions (404)
         self.combined_post_override = None    # (status, body) for POST /machine/decisions
+        self.combined_busy_after = None       # accept this many POSTs, then answer 409 run_busy
         self.combined_poll_override = None    # (status, body) for GET /machine/decisions/{job}
         self.combined_entry_override = {}     # pub -> entry replacing that publication's receipt
         self.combined_poll_queue = []         # one-shot (status, body) answers to GET /machine/decisions/{job}, first in first out
@@ -132,6 +133,8 @@ class FakeCyclotron:
         if method == "POST":
             if self.combined_post_override:
                 return self.combined_post_override
+            if self.combined_busy_after is not None and len(self.combined_jobs) >= self.combined_busy_after:
+                return 409, {"code": "run_busy"}
             job = f"cjob-{len(self.combined_jobs)}"
             self.combined_jobs[job] = (sorted(data["payload"]["bindings"]), data["payload"]["item"]["id"])
             return 202, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": job,
@@ -1613,3 +1616,43 @@ def test_template_rule_targets_the_router_with_a_permission_scoped_to_it():
     assert target["DeadLetterConfig"]["Arn"] == ("GetAtt", "RouterDeadLetterQueue.Arn") and target["RetryPolicy"]
     permission = template["DecisionReadyInvokePermission"]["Properties"]
     assert permission["Principal"] == "events.amazonaws.com" and permission["SourceArn"] == ("GetAtt", "DecisionReadyRule.Arn")
+
+
+SUB = "-".join(["1" * 8, "2" * 4, "3" * 4, "4" * 4, "5" * 12])   # placeholder Cognito sub
+
+
+def test_feedback_is_sent_for_ui_editor_actors_with_a_non_pii_subject(table):
+    store, cyclotron = delivered_table(table)
+    references = {"reference-anth-us-101": ref("accepted", "Editor@Example.test"),
+                  "reference-p-apyr-us-101": ref("rejected", "google_1234567890"),
+                  "reference-threat-intelligence-101": ref("accepted", SUB)}
+    result = feedback_run(table, store, cyclotron, references)
+    assert result["feedback"]["sent"] == 3
+    from hashlib import sha256
+    sent = {c[1].split("/")[3]: c[2]["payload"]["editor"] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
+    digest = sha256(b"anth-us:editor@example.test").hexdigest()[:32]
+    assert sent["anth-us"] == {"site": "anth-us.example", "subject": f"editor:{digest}"}
+    assert sent["p-apyr-us"]["subject"].startswith("editor:")
+    assert sent["threat-intelligence"]["subject"] == f"cognito:{SUB}"
+    assert all("@" not in e["subject"] for e in sent.values())
+
+
+def test_feedback_skips_machine_and_missing_actors(table):
+    store, cyclotron = delivered_table(table)
+    references = {"reference-anth-us-101": ref("accepted", "ai"),
+                  "reference-p-apyr-us-101": ref("accepted", "papyrus-monitoring-worker"),
+                  "reference-threat-intelligence-101": ref("accepted", "Papyrus newsroom")}
+    result = feedback_run(table, store, cyclotron, references)
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] == 3
+    for actor in ("", "user:", "system:monitor", "worker:abc", "papyrus-relevance", "demo-import", "behave-x"):
+        assert not mr.human_actor(actor)
+
+
+def test_run_busy_during_posting_still_collects_the_jobs_already_posted(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.combined_busy_after = 1
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "run_busy"
+    assert sorted(routing_of(table).values()).count("routed") == 1     # the posted story was collected and delivered
+    refused = [k for k, v in table.items.items() if k[1].startswith("ROUTE#") and "combinedJob" not in v]
+    assert len(refused) == 2 and result["counts"]["error"] == 0       # refused posts store no job and are not errors

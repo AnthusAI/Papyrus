@@ -512,8 +512,13 @@ the runner.
 Only when `mode` is `live` **and** `feedback` is `true`. For each `DELIV#` row still pending
 (25 per run, rotated) the router reads the Reference. `pending` is ignored. `accepted` maps to
 `include` and `rejected` to `exclude` for that publication's output. The editor comes from
-`curationStatusUpdatedBy` (`user:<sub>`, sent as the subject with the configured `site`); a missing
-actor, the worker's own actor or anything not `user:` is skipped and the reason recorded on the row.
+`curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
+newsroom UI records), a Cognito username (`google_<digits>`) or a Cognito sub (UUID). A missing actor, the
+worker's own actor and every other machine actor (`ai`, `system:*`, `worker:*`, `papyrus*`, `*-import`, the
+"Papyrus newsroom" fallback) are skipped and the reason recorded on the row. Cyclotron's `editor.subject` is
+free text and must never be an email address, so the subject sent with the configured `site` is:
+`user:<x>` as is (when `<x>` is not an email); `cognito:<sub>` for a bare Cognito sub; otherwise
+`editor:` + the first 32 hex characters of `sha256(publicationId + ":" + lowercased actor)`.
 `requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt)`, so repeats are
 idempotent; the item revision and output come from the stored decision receipt.
 

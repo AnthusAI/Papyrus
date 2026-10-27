@@ -439,7 +439,7 @@ class CommandTests(unittest.TestCase):
     def test_a_dry_run_prints_the_ranked_drafts_without_filing(self) -> None:
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
-            code, output = self.run_cli(["--site", SITE, "--limit", "2", "--store", "proposals", "--dry-run", "--out", directory], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "2", "--store", "proposals", "--dry-run", "--out", directory], client, StoryModel())
             self.assertFalse(Path(directory, "runs").exists())
         self.assertEqual(code, 0, output)
         self.assertIn("would file 2", output)
@@ -451,7 +451,7 @@ class CommandTests(unittest.TestCase):
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.md"
-            code, output = self.run_cli(["--site", SITE, "--limit", "1", "--store", "proposals", "--out", directory, "--report", str(report)], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "1", "--store", "proposals", "--out", directory, "--report", str(report)], client, StoryModel())
             self.assertEqual(code, 0, output)
             self.assertTrue(report.read_text().startswith("# Monitor story drafts"))
         self.assertIn("filed 1", output)
@@ -461,7 +461,7 @@ class CommandTests(unittest.TestCase):
     def test_json_output_carries_the_run(self) -> None:
         _, client = world(1)
         with tempfile.TemporaryDirectory() as directory:
-            code, output = self.run_cli(["--site", SITE, "--dry-run", "--json", "--out", directory], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--dry-run", "--json", "--out", directory], client, StoryModel())
         self.assertEqual(code, 0, output)
         self.assertEqual(json.loads(output)["run"]["kind"], "monitor-stories-run")
 
@@ -477,7 +477,7 @@ class CommandTests(unittest.TestCase):
     def test_it_needs_the_openai_key(self) -> None:
         _, client = world(1)
         with mock.patch.object(commands, "resolve_openai_api_key", return_value=None):
-            code, output = self.run_cli(["--site", SITE, "--dry-run"], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--dry-run"], client, StoryModel())
         self.assertEqual(code, 2)
         self.assertIn("OPENAI_API_KEY", output)
 
