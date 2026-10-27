@@ -20,7 +20,8 @@ from .email_submission import (
     SubmissionRejected,
     extract_submission,
 )
-from .email_quarantine import LEGACY_REJECTION_CODES, QUARANTINE_STATUS, RECEIPT_ID
+from .email_fingerprint import content_fingerprint, group_key, member_key
+from .email_quarantine import LEGACY_REJECTION_CODES, QUARANTINE_STATUS, RECEIPT_ID, inherit_group_decision
 from .monitoring import SourceItem, _digest, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_router import email_routing_fingerprint, validate_router_config
@@ -457,18 +458,32 @@ def _store_details(store, monitor_id, receipt_key, row, parsed):
     row["safeBodyBytes"] = len(detail_body.encode("utf-8"))
     row["safeBodyChunks"] = max(1, (row["safeBodyBytes"] + EMAIL_DETAIL_CHUNK_BYTES - 1) // EMAIL_DETAIL_CHUNK_BYTES)
     row["unresolvedLinkCount"] = sum(link.get("resolutionStatus") == "unresolved" for link in parsed["links"])
+    row["contentFingerprint"] = content_fingerprint(parsed["subject"], parsed["links"], detail_body)
 
 
-def _hold_for_review(store, monitor_id, config, row, receipt_key, parsed, now=None):
+def _write_index(store, monitor_id, config, row, receipt_key):
+    """The newest-first list row and, for grouping, this copy's membership of its fingerprint group."""
+    digest = receipt_key.removeprefix("EMAIL#")
+    store.put(monitor_id, {"sk": f"EMAILINDEX#{row['observedAt']}#{digest}",
+                           "receiptId": receipt_key, "destinationPublicationIds": config["publicationIds"],
+                           "ttl": row["ttl"]})
+    if row.get("contentFingerprint"):
+        store.put(monitor_id, {"sk": member_key(row["contentFingerprint"], receipt_key), "receiptId": receipt_key,
+                               "observedAt": row["observedAt"], "ttl": row["ttl"]})
+
+
+def _hold_for_review(store, monitor_id, config, row, receipt_key, parsed, now=None, group=None):
     row.update(status=QUARANTINE_STATUS, processingStage="pending_review",
                reviewRequired=True, pendingReviewLinkCount=len(parsed["links"]),
                processedCount=0, updatedAt=_iso(time.time() if now is None else now))
     row.pop("gsi1pk", None)
     row.pop("gsi1sk", None)
     store.put(monitor_id, row)
-    store.put(monitor_id, {"sk": f"EMAILINDEX#{row['observedAt']}#{receipt_key.removeprefix('EMAIL#')}",
-                           "receiptId": receipt_key, "destinationPublicationIds": config["publicationIds"],
-                           "ttl": row["ttl"]})
+    _write_index(store, monitor_id, config, row, receipt_key)
+    group = group or store.get(monitor_id, group_key(row["contentFingerprint"]))
+    if group:
+        # The group was already decided: this copy takes that decision (the receiver applies it) and no one is asked again.
+        inherit_group_decision(store, monitor_id, group, row)
     return {"status": QUARANTINE_STATUS, "receiptId": receipt_key,
             "linkCount": row["linkCount"], "processedCount": 0}
 
@@ -555,10 +570,12 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
                    emailTrustMode="data-only", emailDestinationPublicationIds=config["publicationIds"],
                    excludedLinkCount=parsed.get("excludedLinkCount", 0))
         _store_details(store, monitor_id, receipt_key, row, parsed)
-        if diagnostics["warnings"]:
+        group = store.get(monitor_id, group_key(row["contentFingerprint"]))
+        if diagnostics["warnings"] or (group and group.get("decision") == "discard"):
             # Authentication failures are quarantined: visible to editors as inert text
             # with the extracted links, but never routed until an editor accepts them.
-            return _hold_for_review(store, monitor_id, config, row, receipt_key, parsed)
+            # A copy of an email whose group was rejected is held only to be closed by that decision.
+            return _hold_for_review(store, monitor_id, config, row, receipt_key, parsed, group=group)
         if not row.get("manifestKey"):
             manifest = _manifest_bytes(parsed["links"])
             manifest_key = _manifest_key(receipt_key)
@@ -569,9 +586,7 @@ def process_ses_record(record, store, *, monitor_id, bucket, prefix="email-submi
                        manifestBytes=len(manifest), cursorBytes=0, processedCount=0)
         row.update(gsi1pk=f"EMAIL_PENDING#{monitor_id}", gsi1sk=f"{row['observedAt']}#{receipt_key}")
         store.put(monitor_id, row)
-        store.put(monitor_id, {"sk": f"EMAILINDEX#{row['observedAt']}#{receipt_key.removeprefix('EMAIL#')}",
-                               "receiptId": receipt_key, "destinationPublicationIds": config["publicationIds"],
-                               "ttl": row["ttl"]})
+        _write_index(store, monitor_id, config, row, receipt_key)
         result = _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
                                  config["publicationIds"])
         return result
@@ -669,6 +684,57 @@ def quarantine_legacy_receipts(store, s3, *, monitor_id, bucket, prefix="email-s
                                       receipt_key=key, now=now) for key in receipt_keys]
 
 
+def backfill_fingerprints(store, *, monitor_id, now=None):
+    """One-off: give receipts stored before grouping a content fingerprint and group membership.
+
+    Data-preserving. Reads each receipt's stored inert text and candidate links (the same inputs
+    intake fingerprints), adds only ``contentFingerprint`` and the ``EMAILFP#`` membership row, and
+    leaves every other field untouched. A receipt that was already decided seeds its group's decision
+    so later copies inherit it. Idempotent; receipts without stored details are skipped.
+    """
+    now = time.time() if now is None else now
+    owner = uuid.uuid4().hex
+    if not store.acquire_email_lock(monitor_id, owner, now):
+        raise IntakeBusy("email_intake_busy")
+    counts = {"fingerprinted": 0, "alreadyFingerprinted": 0, "skipped": 0, "groupsSeeded": 0}
+    try:
+        for row in store.prefixed(monitor_id, "EMAIL#"):
+            key = row.get("sk")
+            if not isinstance(key, str) or not RECEIPT_ID.fullmatch(key) or row.get("emailTrustMode") != "data-only":
+                counts["skipped"] += 1
+                continue
+            if row.get("contentFingerprint"):
+                counts["alreadyFingerprinted"] += 1
+                fingerprint = row["contentFingerprint"]
+            else:
+                digest = key.removeprefix("EMAIL#")
+                details = store.prefixed(monitor_id, f"EMAILDETAIL#{digest}#")
+                if not details and not row.get("subject"):
+                    counts["skipped"] += 1
+                    continue
+                body = "".join(item.get("text", "") for item in details if "#BODY#" in item["sk"])
+                fingerprint = content_fingerprint(row.get("subject"), store.email_links(monitor_id, key), body)
+                store.put(monitor_id, {**row, "contentFingerprint": fingerprint})
+                counts["fingerprinted"] += 1
+            if isinstance(row.get("ttl"), int) and row["ttl"] > now:
+                store.put(monitor_id, {"sk": member_key(fingerprint, key), "receiptId": key,
+                                       "observedAt": row.get("observedAt"), "ttl": row["ttl"]})
+            decision = row.get("decision") if isinstance(row.get("decision"), dict) else None
+            if (decision and decision.get("decision") in {"release", "discard"} and decision.get("requestedAt")
+                    and not store.get(monitor_id, group_key(fingerprint))):
+                seed = {"sk": group_key(fingerprint), "fingerprint": fingerprint, "ttl": row.get("ttl"),
+                        **{k: decision[k] for k in ("decision", "actor", "actorEmail", "reason", "requestedAt",
+                                                    "publicationId") if k in decision}}
+                if seed["ttl"] is None:
+                    del seed["ttl"]
+                if "actor" in seed and "publicationId" in seed:
+                    store.put(monitor_id, seed)
+                    counts["groupsSeeded"] += 1
+        return {"status": "fingerprint-backfilled", **counts}
+    finally:
+        store.release_email_lock(monitor_id, owner)
+
+
 def _finish_decision(store, monitor_id, action, outcome, now):
     store.put(monitor_id, {**{k: v for k, v in action.items() if k not in {"gsi1pk", "gsi1sk"}},
                            "outcome": outcome, "appliedAt": _iso(now)})
@@ -684,7 +750,8 @@ def _apply_decision(store, s3, monitor_id, bucket, action, now):
     row = store.get(monitor_id, receipt_key)
     if row is None:
         return _finish_decision(store, monitor_id, action, "receipt_missing", now)
-    record = {key: action[key] for key in ("decision", "actor", "actorEmail", "reason", "requestedAt", "publicationId")
+    record = {key: action[key] for key in ("decision", "actor", "actorEmail", "reason", "requestedAt", "publicationId",
+                                        "groupFingerprint")
               if key in action}
     record["appliedAt"] = _iso(now)
     if action["decision"] == "discard":
@@ -851,6 +918,13 @@ def handler(event, context):
         decisions = apply_pending_decisions(store, s3, monitor_id=monitor_id, bucket=bucket)
         result = _resume_pending(store, monitor_id, bucket, s3, cognito)
         result["decisions"] = decisions
+        print(json.dumps(result))
+        return result
+    if isinstance(event, dict) and event.get("task") == "fingerprint-backfill":
+        # Operator task: fingerprint receipts stored before duplicate grouping existed.
+        if event.get("monitorId") != monitor_id:
+            raise ConfigurationError("email_fingerprint_monitor_mismatch")
+        result = backfill_fingerprints(EmailStore(table), monitor_id=monitor_id)
         print(json.dumps(result))
         return result
     if isinstance(event, dict) and event.get("task") == "quarantine-legacy":

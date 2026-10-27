@@ -287,7 +287,9 @@ def test_concurrent_requests_record_exactly_one_decision():
     results = []
 
     def racing(item):
-        # Another click lands between this request's read and its write.
+        # Another click lands between this request's read and its write of the group decision.
+        if not item["sk"].startswith("EMAILGROUP#"):
+            return real_put(item)
         results.append(real_put({**item, "decision": "release", "actor": "other-click"}))
         return real_put(item)
 

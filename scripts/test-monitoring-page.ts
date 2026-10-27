@@ -7,6 +7,7 @@ import {
   beginEmailSubmissionAction,
   emailReferenceBatches,
   endEmailSubmissionAction,
+  formatUtc,
   isCurrentEmailSubmissionAction,
 } from "../lib/monitoring-overview";
 import { mergeListPages, withLoadedPages } from "../lib/monitoring-paging";
@@ -139,6 +140,24 @@ async function main() {
     onImportCandidates: async () => ({ imported: 1, references: [{ id: "ref-1", sourceUri: "https://example.org/story", title: "Story", curationStatus: "pending" }] }),
   });
   assert.match(importReadyHtml, /Add selected links to References/);
+
+  // Several copies of the same email are one item: "received N times", the dates, and one decision for all.
+  const copyDates = ["2026-10-27T01:00:00Z", "2026-10-27T01:05:00Z", "2026-10-27T01:09:00Z"];
+  const grouped = { ...emailDetail.submission, status: "pending_review",
+    quarantine: { state: "quarantined" as const, decision: null, failure: null },
+    group: { fingerprint: "f".repeat(64), count: 3, copies: copyDates.map((observedAt, index) => ({
+      receiptId: `EMAIL#${String(index).repeat(64)}`, observedAt, status: "pending_review", linkCount: 41, processedCount: 0,
+      quarantine: { state: "quarantined" as const, decision: null, failure: null } })) } };
+  const groupedHtml = renderToStaticMarkup(createElement(EmailSubmissions, { items: [grouped],
+    detail: { ...emailDetail, submission: grouped }, onDecide: async () => ({ error: "bad_request" as const }) }));
+  const groupedText = text(groupedHtml);
+  assert.ok(groupedText.includes("Received 3 times"), "a repeated email shows how many times it was received");
+  assert.equal((groupedHtml.match(/data-email-copy=/g) ?? []).length, 3, "expanding lists every copy");
+  assert.ok(copyDates.every((date) => groupedHtml.includes(formatUtc(date))), "every copy shows its date");
+  assert.ok(groupedText.includes("One decision applies to all 3 copies of this email."), "Accept/Reject covers the group");
+  assert.equal((groupedHtml.match(/data-email-decision="accept"/g) ?? []).length, 1, "one Accept for the group");
+  const single_ = renderToStaticMarkup(createElement(EmailSubmissions, { items: [{ ...grouped, group: undefined }] }));
+  assert.ok(!single_.includes("Received") && !single_.includes("data-email-group"), "a single email shows no group");
 
   // A held message is read-only text until an editor accepts it; Accept and Reject are buttons with Lucide icons.
   const held = { ...emailDetail.submission, status: "pending_review",

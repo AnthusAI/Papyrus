@@ -122,6 +122,21 @@ class TableViewStore:
             if not start:
                 return rows
 
+    def email_group_members(self, fingerprint: str) -> list[dict]:
+        """The membership rows of one fingerprint group: every received copy of the same email."""
+        from .email_fingerprint import MEMBER_PREFIX
+
+        rows, start = [], None
+        while True:
+            extra = {"ScanIndexForward": True}
+            if start:
+                extra["ExclusiveStartKey"] = start
+            result = self._query(f"{MEMBER_PREFIX}{fingerprint}#", **extra)
+            rows.extend(_clean(item) for item in result.get("Items", []))
+            start = result.get("LastEvaluatedKey")
+            if not start:
+                return rows
+
     def put_email_decision(self, item: dict) -> bool:
         """Create the one decision row for a held message; False when one already exists."""
         try:
@@ -257,6 +272,35 @@ def _held_action(store, receipt: dict) -> dict | None:
     return store.get(action_key(receipt["sk"]))
 
 
+def _group_copies(store, receipt: dict, allowed: set) -> list[dict]:
+    """Every received copy of this email that is the viewer's to see, newest first (just the receipt if ungrouped)."""
+    fingerprint = receipt.get("contentFingerprint")
+    found = {receipt["sk"]: receipt}
+    if fingerprint:
+        for member in store.email_group_members(fingerprint):
+            copy_id = member.get("receiptId")
+            if not isinstance(copy_id, str) or copy_id in found:
+                continue
+            copy = store.get(copy_id)
+            if (copy and copy.get("emailTrustMode") == "data-only" and copy.get("contentFingerprint") == fingerprint
+                    and copy.get("status") in VIEWABLE_EMAIL_STATUSES
+                    and allowed.intersection(copy.get("emailDestinationPublicationIds") or [])):
+                found[copy_id] = copy
+    return sorted(found.values(), key=lambda c: (str(c.get("observedAt")), c["sk"]), reverse=True)
+
+
+def _group_summary(store, copies: list[dict], *, now: float) -> dict:
+    """One list item for all copies of the same email: the copy that needs a decision (else the newest), plus the copies."""
+    summaries = [_email_summary(copy, _held_action(store, copy), now=now) for copy in copies]
+    held = [s for s in summaries if (s["quarantine"] or {}).get("state") in HELD_STATES]
+    shown = dict((held or summaries)[0])
+    if len(copies) > 1:
+        shown["group"] = {"fingerprint": copies[0].get("contentFingerprint"), "count": len(copies),
+                          "copies": [{key: s[key] for key in ("receiptId", "observedAt", "status", "linkCount",
+                                                              "processedCount", "quarantine")} for s in summaries]}
+    return shown
+
+
 def _latest_revisions(rows: list[dict]) -> list[dict]:
     latest: dict = {}
     for row in rows:
@@ -324,7 +368,7 @@ def _email_rows(email_store, allowed: set, start, *, held_only: bool, now: float
     Index rows for receipts that are not this site's are skipped without counting. With ``held_only`` the page is filled
     with held messages only, reading as far back as it takes, so an old held message is always reachable.
     """
-    out, position = [], start
+    out, position, groups = [], start, {}
     while allowed:
         rows, following = email_store.page("EMAILINDEX#", EMAIL_PAGE_SIZE, position)
         for offset, index in enumerate(rows):
@@ -334,8 +378,15 @@ def _email_rows(email_store, allowed: set, start, *, held_only: bool, now: float
             if (not receipt or receipt.get("emailTrustMode") != "data-only"
                     or not allowed.intersection(receipt.get("emailDestinationPublicationIds") or [])):
                 continue
-            summary = _email_summary(receipt, _held_action(email_store, receipt), now=now)
-            if held_only and (summary["quarantine"] or {}).get("state") not in HELD_STATES:
+            fingerprint = receipt.get("contentFingerprint")
+            if fingerprint not in groups or not fingerprint:
+                groups[fingerprint] = _group_copies(email_store, receipt, allowed)
+            copies = groups[fingerprint] if fingerprint else [receipt]
+            if copies[0]["sk"] != receipt["sk"]:
+                continue  # an older copy: it is listed with the newest copy of the same email
+            summary = _group_summary(email_store, copies, now=now)
+            if held_only and not any((c["quarantine"] or {}).get("state") in HELD_STATES
+                                     for c in (summary.get("group") or {}).get("copies", [summary])):
                 continue
             out.append(summary)
             if len(out) >= EMAIL_PAGE_SIZE:
@@ -554,7 +605,7 @@ def monitoring_decide_email_submission(store, arguments, identity, *, groups, si
     Only a validated editor or admin of a publication the message is routed to may decide.
     Nothing in the message, its sender or its authentication signals is consulted.
     """
-    from .email_quarantine import RECEIPT_ID, request_decision
+    from .email_quarantine import RECEIPT_ID, action_key, request_decision, request_group_decision
     from .reference_intake_validation import IntakeError, _actor
 
     if not set(groups or []) & EDITOR_GROUPS:
@@ -575,9 +626,17 @@ def monitoring_decide_email_submission(store, arguments, identity, *, groups, si
     email = claims.get("email") if isinstance(claims.get("email"), str) else None
     row, publication = _authorized_receipt(store, groups=groups, site_endpoint=site_endpoint,
                                            receipt_id=arguments["receiptId"])
-    return request_decision(store, receipt=row, receipt_id=arguments["receiptId"],
-                            decision=arguments.get("decision"), reason=arguments.get("reason"),
-                            actor=actor, actor_email=email, publication_id=publication["publicationId"])
+    fingerprint = row.get("contentFingerprint")
+    if not fingerprint or store.get(action_key(row["sk"])):
+        # Not fingerprinted yet, or already decided on its own before grouping existed.
+        return request_decision(store, receipt=row, receipt_id=arguments["receiptId"],
+                                decision=arguments.get("decision"), reason=arguments.get("reason"),
+                                actor=actor, actor_email=email, publication_id=publication["publicationId"])
+    # One decision covers every copy of the same email.
+    copies = _group_copies(store, row, {publication["publicationId"]})
+    return request_group_decision(store, copies=copies, fingerprint=fingerprint,
+                                  decision=arguments.get("decision"), reason=arguments.get("reason"),
+                                  actor=actor, actor_email=email, publication_id=publication["publicationId"])
 
 
 def _explore_article(link: dict, submission: dict):

@@ -69,7 +69,8 @@ def quarantine_summary(receipt: dict, action: dict | None, *, now: float) -> dic
     if isinstance(decision, dict) and decision.get("decision") in DECISIONS:
         shown = {"action": "accept" if decision["decision"] == "release" else "reject",
                  "by": str(decision.get("actorEmail") or decision.get("actor") or "")[:254],
-                 "at": decision.get("requestedAt"), "reason": str(decision.get("reason") or "")[:REASON_MAX_CHARACTERS]}
+                 "at": decision.get("requestedAt"), "reason": str(decision.get("reason") or "")[:REASON_MAX_CHARACTERS],
+                 "viaGroup": bool(decision.get("groupFingerprint"))}
     failure = action.get("outcome") if action and action.get("outcome") not in {None, "released", "discarded"} else None
     return {"state": state, "decision": shown, "failure": failure}
 
@@ -114,3 +115,73 @@ def request_decision(store, *, receipt: dict, receipt_id: str, decision: str, re
     if recorded.get("decision") == decision:
         return {"ok": True, "already": True, "quarantine": quarantine_summary(receipt, recorded, now=now)}
     return {"error": "already_decided", "quarantine": quarantine_summary(receipt, recorded, now=now)}
+
+
+def _copy_action(copy_id: str, group: dict, *, receipt: dict, store_monitor_id: str) -> dict:
+    """One copy's own decision row, recorded from a group decision (actor, time and reason are the group's)."""
+    diagnostics = receipt.get("sesDiagnostics") if isinstance(receipt.get("sesDiagnostics"), dict) else {}
+    digest = copy_id.removeprefix("EMAIL#")
+    item = {"sk": action_key(copy_id), "receiptId": copy_id, "decision": group["decision"],
+            "reason": group.get("reason", ""), "actor": group["actor"], "publicationId": group["publicationId"],
+            "requestedAt": group["requestedAt"], "groupFingerprint": group["fingerprint"],
+            "verdicts": dict(diagnostics.get("verdicts") or {}), "ttl": receipt.get("ttl"),
+            "gsi1pk": f"EMAIL_ACTION#{store_monitor_id}", "gsi1sk": f"{group['requestedAt']}#{digest}"}
+    if group.get("actorEmail"):
+        item["actorEmail"] = group["actorEmail"]
+    if not isinstance(item["ttl"], int) or isinstance(item["ttl"], bool):
+        del item["ttl"]
+    return item
+
+
+def inherit_group_decision(store, monitor_id: str, group: dict, receipt: dict) -> None:
+    """A copy that arrives after its group was decided takes that decision; the editor is never asked again."""
+    store.put(monitor_id, _copy_action(receipt["sk"], group, receipt=receipt, store_monitor_id=monitor_id))
+
+
+def request_group_decision(store, *, copies: list[dict], fingerprint: str, decision: str, reason, actor: str,
+                           actor_email: str | None, publication_id: str, now: float | None = None) -> dict:
+    """One decision for every copy of the same email. First group decision wins.
+
+    ``copies`` are the group's receipts (the caller has already checked each belongs to the
+    editor's publication). Each copy that is still held and undecided gets its own decision row
+    that references the group decision; a copy already decided keeps its decision.
+    """
+    from .email_fingerprint import group_key
+
+    if decision not in DECISIONS:
+        return {"error": "bad_request"}
+    try:
+        text = clean_reason(reason)
+    except ValueError:
+        return {"error": "bad_request"}
+    now = datetime.now(UTC).timestamp() if now is None else now
+    shown = copies[0]
+    monitor_id = store.pk.removeprefix("MONITOR#")
+    actions = {copy["sk"]: store.get(action_key(copy["sk"])) for copy in copies}
+    pending = [copy for copy in copies if quarantine_state(copy, actions[copy["sk"]], now=now) == "quarantined"]
+    group = store.get(group_key(fingerprint))
+    created = False
+    if group is None:
+        if not pending:
+            states = {quarantine_state(copy, actions[copy["sk"]], now=now) for copy in copies}
+            return {"error": "expired" if "expired" in states else "not_quarantined"}
+        requested = datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z")
+        ttl = max((copy.get("ttl") for copy in copies if isinstance(copy.get("ttl"), int)), default=None)
+        group = {"sk": group_key(fingerprint), "fingerprint": fingerprint, "decision": decision, "reason": text,
+                 "actor": actor, "publicationId": publication_id, "requestedAt": requested,
+                 "copyCount": len(copies)}
+        if ttl is not None and not isinstance(ttl, bool):
+            group["ttl"] = ttl
+        if actor_email:
+            group["actorEmail"] = actor_email[:254]
+        created = store.put_email_decision(group)
+        if not created:
+            group = store.get(group_key(fingerprint)) or group  # lost a race: report what is recorded
+    if group.get("decision") != decision:
+        return {"error": "already_decided", "quarantine": quarantine_summary(shown, group, now=now)}
+    # Every held copy without a decision of its own takes the group decision. Idempotent, so a retry
+    # completes what an interrupted request left undone; a copy already decided keeps its decision.
+    for copy in pending:
+        store.put_email_decision(_copy_action(copy["sk"], group, receipt=copy, store_monitor_id=monitor_id))
+    return {"ok": True, "already": not created, "decidedCopies": len(pending),
+            "quarantine": quarantine_summary(shown, group, now=now)}
