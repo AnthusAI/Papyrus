@@ -21,7 +21,7 @@ export type NewsroomNavItem = {
 };
 
 export const NEWSROOM_OPS_NAV: NewsroomNavItem[] = [
-  { id: "overview", label: "Overview", detail: "Newsroom home", href: newsroomHref() },
+  { id: "overview", label: "Needs me", detail: "Newsroom home", href: newsroomHref() },
   { id: "articles", label: getContentItemName().plural, detail: "Drafts & published", href: newsroomHref("articles") },
   { id: "assignments", label: "Assignments", detail: "Work queue", href: newsroomHref("assignments") },
   { id: "references", label: "References", detail: "Knowledge base", href: newsroomHref("references") },

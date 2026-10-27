@@ -15,7 +15,7 @@ const scenarios = [
     ["every draft shows its headline, dek, section, evidence line, source chips, batch caption and a link to its full draft in Proposals",
       "every draft has large Accept and Reject buttons and a full-width Why box, with no prediction row, no borders and nothing scrolling sideways",
       "the header counts drafts, the cards are one column on a phone and three on a wide screen, and the retired Approve, Steer and Agree wording is gone"]],
-  ["decide", "the editor accepts one draft, rejects one as not this kind of story with a Why, and accepts the last",
+  ["decide", "the editor accepts one draft, rejects one with one tap and the \"Not this kind of story\" chip and a Why, and accepts the last",
     ["each Proposal is moved to approved or declined, decided cards stay in place showing their answer, and the request stays open until the last draft is decided",
       "the request closes with every decision recorded, \"not this kind\" as its one steering signal, and the page says \"All caught up\" and lists what was decided"]],
   ["uniform", "the editor accepts all three drafts, and in another batch rejects all three",

@@ -13,18 +13,17 @@ says what waits ("3 drafts and 12 references waiting for you"), and pills narrow
 
 * **Drafts.** Every AI draft is its own card: the cited source's picture, headline, dek, section, the evidence line, source chips (favicon and
   domain), a caption "from Monitor stories run · Oct 27" and "Open full draft", then the shared Accept / Reject grid (no Cyclotron row, a draft has
-  no prediction) with an optional full-width Why?. Reject asks one question, "Not this kind of story" or "Just this draft"; the first is the
-  steering signal. A request that covers several drafts is never shown as a batch; it closes itself when its last draft is decided. A card decided
+  no prediction) with an optional full-width Why?. Reject is one tap; a quiet "Not this kind of story" chip beside the Why? box, when on, is the steering signal. A request that covers several drafts is never shown as a batch; it closes itself when its last draft is decided. A card decided
   in this visit stays in place showing its answer.
 * **References.** The References feed's own cards (best bets first, a screenful at a time), rated in place through the References review; a card opens the
   References queue.
 * **Other.** Hard gates and other soft reviews are cards with Accept / Reject; flags are slim cards with Acknowledge and an optional note.
+* **Decided automatically (N)** is a collapsed footer listing what the Cyclotron decided on its own confidence, read only.
 * **All caught up** when nothing waits, with the last few things you decided ("Recently decided" is always shown under the cards).
 * **Loading.** Skeleton cards at once; a return visit paints the last view (saved in this browser, display only, dropped on sign-out) marked "Showing your
   last view while it updates", and answering waits for the live read. The References reads start as soon as the session is confirmed, as on the References page.
 
-The model is `lib/notification-feed.ts`; the cards are `components/notification-cards.tsx`. The earlier "Needs attention" list, the Cyclotron
-"held" and "decided by the system" lists and the unread badges are gone from the page.
+The model is `lib/notification-feed.ts`; the cards are `components/notification-cards.tsx`. The earlier "Needs attention" list, the Cyclotron "held" list and the unread badges are gone from the page. The nav item is "Needs me".
 
 Preview with real data: `scripts/export-notification-center-fixture.py` (read-only, IAM, strips people) beside `scripts/export-reference-feed-fixture.py`, then
 `PAPYRUS_FEED_FIXTURE=... PAPYRUS_NOTIFICATION_FIXTURE=... npm run dev:preview`; `scripts/capture-notification-center-shots.mjs` takes the screenshots.

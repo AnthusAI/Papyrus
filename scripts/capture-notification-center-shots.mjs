@@ -87,9 +87,16 @@ try {
     await drafts.nth(0).locator('[data-review-choice="accept"]').click();
     await session.page.waitForTimeout(900);
     await shoot(session.page, "draft-accepted", { clip: await clipOf(drafts.nth(0)) });
+    // Reject is one tap; the quiet chip beside the Why box makes it "not this kind of story".
+    await drafts.nth(1).locator('[data-review-reason="not_this_kind"]').click();
+    await shoot(session.page, "draft-chip-on", { clip: await clipOf(drafts.nth(1)) });
     await drafts.nth(1).locator('[data-review-choice="reject"]').click();
-    await session.page.waitForTimeout(500);
-    await shoot(session.page, "draft-reject-asks", { clip: await clipOf(drafts.nth(1)) });
+    await session.page.waitForTimeout(700);
+    await shoot(session.page, "draft-rejected", { clip: await clipOf(drafts.nth(1)) });
+    await session.page.locator('[data-notification-section="auto-decided"] summary').scrollIntoViewIfNeeded();
+    await session.page.locator('[data-notification-section="auto-decided"] summary').click();
+    await session.page.waitForTimeout(600);
+    await shoot(session.page, "decided-automatically-open");
     await session.context.close();
 
     session = await open("?ncState=loading");

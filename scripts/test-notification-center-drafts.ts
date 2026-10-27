@@ -137,10 +137,10 @@ const calls = (page: Page) => page.evaluate(() => (window as unknown as { calls:
 const draft = (page: Page, id: string) => page.locator(`[data-review-draft="${id}"]`);
 const choice = (page: Page, id: string, which: "accept" | "reject") => draft(page, id).locator(`[data-review-choice="${which}"]`);
 const WORDS_GONE = ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read"];
-/** Rejecting asks what the AI should learn; either answer saves it. */
-const reject = async (page: Page, id: string, kind: "not_this_kind" | "just_this" = "just_this") => {
+/** Reject is one tap; the quiet "Not this kind of story" chip, when on, rides along as the steering signal. */
+const reject = async (page: Page, id: string, notThisKind = false) => {
+  if (notThisKind) await draft(page, id).locator('[data-review-reason="not_this_kind"]').click();
   await choice(page, id, "reject").click();
-  await draft(page, id).locator(`[data-review-reason="${kind}"]`).click();
 };
 const answered = (page: Page) => page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "answer"));
 
@@ -208,9 +208,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await page.locator("[data-review-draft]").count(), 3, "the decided card stays in place, showing its answer");
 
       await draft(page, "proposal-2").getByLabel("Why? (optional)").fill("Too thin for a story.");
-      await choice(page, "proposal-2", "reject").click();
-      assert.ok((await draft(page, "proposal-2").innerText()).includes("What should the AI learn from it?"), "Reject asks one question");
-      await draft(page, "proposal-2").locator('[data-review-reason="not_this_kind"]').click();
+      assert.equal(await draft(page, "proposal-2").locator('[data-review-reason="not_this_kind"]').getAttribute("aria-pressed"), "false", "the chip starts off");
+      await reject(page, "proposal-2", true);
+      assert.equal((await draft(page, "proposal-2").innerText()).includes("What should the AI learn"), false, "Reject asks nothing more");
       await draft(page, "proposal-2").locator('[data-draft-decided="reject"]').waitFor();
       await choice(page, "proposal-3", "accept").click();
       await answered(page);
@@ -222,7 +222,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const answer = all.find((call) => call.type === "answer")!;
       assert.equal(answer.by, "Ed Itor");
       assert.equal(answer.answer!.decision, "feedback", "a mix of Accept and Reject is an answer with a note");
-      assert.equal(answer.answer!.steer, "not_this_kind", "the answer to the one question is the steering signal");
+      assert.equal(answer.answer!.steer, "not_this_kind", "the chip is the steering signal");
       assert.match(String(answer.answer!.feedback), /Rejected "A new quantisation paper challenges 4-bit defaults" as not this kind of story: Too thin for a story\./);
       assert.equal((answer.answer!.drafts as unknown[]).length, 3, "every decision is recorded");
       const text = await page.locator("body").innerText();

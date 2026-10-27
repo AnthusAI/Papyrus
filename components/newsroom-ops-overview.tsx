@@ -28,6 +28,7 @@ type NewsroomOpsOverviewProps = {
   actorLabel?: string;
   decisions?: ReadonlyMap<string, RelevanceDecisionView>;
   demo?: boolean;
+  humanCuratedReferenceLineageIds?: ReadonlySet<string>;
   newsroomSections: NewsroomSectionRecord[];
   references: ReferenceRecord[];
   referenceAttachments?: ReferenceAttachmentRecord[];
@@ -49,6 +50,7 @@ export function NewsroomOpsOverview({
   assignments,
   decisions = NO_DECISIONS,
   demo = false,
+  humanCuratedReferenceLineageIds,
   disabledReason = null,
   loading = false,
   newsroomSections,
@@ -111,6 +113,7 @@ export function NewsroomOpsOverview({
             decisions={shownDecisions}
             demo={demo}
             fixture={notificationFixture}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
             onOpenReference={openReference}
             onRateReference={rateReference}
             predictionLoading={predictionState === "loading"}

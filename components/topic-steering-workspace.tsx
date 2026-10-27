@@ -3104,6 +3104,7 @@ function NewsDeskDashboard({
             decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
             disabledReason={controlsDisabled ? "Editor access is required to change this reference." : null}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
             loading={!dashboard.isDemo && !hasHydratedReferences}
             newsroomSections={newsroomSections}
             notificationFixture={dashboard.notificationFixture ?? null}

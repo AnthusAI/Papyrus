@@ -170,6 +170,10 @@ async function main() {
   assert.ok(!/\bdesk\b/i.test(page), "no avoided vocabulary");
   assert.match(html, /aria-pressed="true"[^>]*data-notification-filter="all"|data-notification-filter="all"/, "the active filter is marked");
   assert.ok(text(render({ requests: [], drafts: {} })).includes("All caught up"), "empty state");
+  const autoCards = [{ lineageId: "x", title: "A confident call", label: "include", confidence: 0.97, decidedAt: null, reviewDetail: null, reviewedByPerson: false, href: "/newsroom/references/x" }];
+  assert.ok(text(render({ autoDecided: autoCards })).includes("Decided automatically (1)"), "the system's decisions are a collapsed footer");
+  assert.match(render({ autoDecided: autoCards }), /<details[^>]*data-notification-section="auto-decided"/);
+  assert.ok(!text(render()).includes("Decided automatically"), "no footer when there are none");
   assert.ok(text(render({ loadState: "forbidden" })).includes("for editors and admins"));
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
   assert.match(render({ loadState: "loading" }), /data-notification-skeleton/);

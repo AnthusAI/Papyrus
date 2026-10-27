@@ -91,18 +91,13 @@ function DecisionFooter({ busy, decision, disabledReason, error, kind, lockedNot
   placeholder: string;
 }) {
   const [why, setWhy] = useState("");
-  const [asking, setAsking] = useState(false);
+  const [notThisKind, setNotThisKind] = useState(false);
   const [pending, setPending] = useState<DraftChoice | null>(null);
   const locked = decision !== null;
-  const send = (choice: DraftChoice, notThisKind: boolean) => {
-    setPending(choice);
-    setAsking(false);
-    onDecide(choice, { why: why.trim(), notThisKind });
-  };
   const choose = (choice: DraftChoice) => {
     if (locked || busy || disabledReason) return;
-    if (choice === "reject") setAsking(true);
-    else send("accept", false);
+    setPending(choice);
+    onDecide(choice, { why: why.trim(), notThisKind: choice === "reject" && notThisKind });
   };
   return (
     <div className="space-y-2.5 bg-[var(--feed-footer)] p-3" data-feed-actions {...(locked ? {} : { "data-review-controls": "" })}>
@@ -118,6 +113,20 @@ function DecisionFooter({ busy, decision, disabledReason, error, kind, lockedNot
       ) : (
         <>
           <WhyField onChange={setWhy} placeholder={placeholder} readOnly={busy} value={why} />
+          <div className="flex flex-wrap items-center gap-2" data-review-reasons>
+            <button
+              aria-disabled={busy || undefined}
+              aria-pressed={notThisKind}
+              className={cn(PILL, "min-h-8 px-3 text-xs", notThisKind ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)]/60 text-muted-foreground hover:text-foreground")}
+              data-review-reason="not_this_kind"
+              onClick={() => { if (!busy) setNotThisKind((current) => !current); }}
+              type="button"
+            >
+              {notThisKind ? <CheckIcon aria-hidden="true" className="size-3.5" /> : null}
+              {kind === "story" ? "Not this kind of story" : "Not this kind of thing"}
+            </button>
+            <span className="text-xs text-muted-foreground">Optional. Counts if you reject.</span>
+          </div>
           <RatingGrid
             answer={busy ? pending : null}
             disabled={Boolean(disabledReason)}
@@ -128,20 +137,6 @@ function DecisionFooter({ busy, decision, disabledReason, error, kind, lockedNot
             showPrediction={false}
             surface="footer"
           />
-          {asking ? (
-            <div className="space-y-2" data-review-reasons>
-              <p className="text-xs font-medium">Reject. What should the AI learn from it?</p>
-              <div className="flex flex-wrap gap-1.5">
-                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason="not_this_kind" onClick={() => send("reject", true)} type="button">
-                  {kind === "story" ? "Not this kind of story" : "Not this kind of thing"}
-                </button>
-                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason="just_this" onClick={() => send("reject", false)} type="button">
-                  {kind === "story" ? "Just this draft" : "Just this one"}
-                </button>
-                <button className={cn(PILL, "min-h-8 px-3 text-xs text-muted-foreground")} data-review-reason-cancel onClick={() => setAsking(false)} type="button">Cancel</button>
-              </div>
-            </div>
-          ) : null}
         </>
       )}
     </div>

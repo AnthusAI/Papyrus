@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, CircleCheckBigIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, CircleCheckBigIcon } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,7 @@ import {
   FILTER_LABELS, NOTIFICATION_FILTERS, buildNotificationItems, filterCount, previewsBySourceAddress, recentDecisions, showsSection, waitingText,
   type NotificationFilter,
 } from "../lib/notification-feed";
-import { answerUpdate, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
+import { answerUpdate, cyclotronAutoDecided, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type CyclotronEntry, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
 import type { ReferenceRecord } from "../lib/category-repository";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { partitionReferenceFeed } from "../lib/reference-feed-ranking";
@@ -50,6 +50,8 @@ type ViewProps = {
   referencesLoading?: boolean;
   predictionLoading?: boolean;
   referenceDisabledReason?: string | null;
+  /** What the Cyclotron decided on its own confidence: read only, collapsed at the foot of the page. */
+  autoDecided?: CyclotronEntry[];
   now?: number;
   visitRated?: ReadonlySet<string>;
   storyTitles?: Readonly<Record<string, string>>;
@@ -97,7 +99,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 /** The CMS console home. It answers one question, "What needs me?": cards for AI drafts, References and anything else, one tap to decide each. */
 export function NotificationCenterView({
   loadState, requests, references = [], decisions, previews = NO_PREVIEWS, referencesLoading = false, predictionLoading = false, referenceDisabledReason = null,
-  now = 0, visitRated = NO_VISIT, demo = false, stale = false, storyTitles = {}, deletedStories = new Set<string>(), busyId = null, error = null,
+  autoDecided = [], now = 0, visitRated = NO_VISIT, demo = false, stale = false, storyTitles = {}, deletedStories = new Set<string>(), busyId = null, error = null,
   drafts = {}, missingDrafts = new Set<string>(), draftsState = "ready", draftErrors = {}, draftBusyId = null, stay = new Set<string>(), initialFilter = "all",
   onAnswer, onDecideDraft, onRetryDrafts, onMarkRead, onOpenReference, onRateReference, onVisitRated,
 }: ViewProps) {
@@ -249,6 +251,28 @@ export function NotificationCenterView({
         <Note data-filter-empty>Nothing in {FILTER_LABELS[filter]} needs you right now.</Note>
       ) : null}
 
+      {autoDecided.length ? (
+        <details className="group rounded-[20px] bg-[var(--feed-card)] p-4" data-notification-section="auto-decided">
+          <summary className="flex min-h-9 cursor-pointer list-none items-center gap-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <ChevronDownIcon aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
+            Decided automatically ({autoDecided.length})
+          </summary>
+          <p className="mt-2 text-xs text-muted-foreground">Read only. The Cyclotron was confident enough to decide these without you. To correct one, open it in References.</p>
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {autoDecided.map((entry) => (
+              <li data-cyclotron-entry={entry.lineageId} key={entry.lineageId}>
+                <Link className="block rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring" href={entry.href}>
+                  <span className="block break-words font-medium leading-snug">{entry.title}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Classified as {entry.label} · {entry.confidence === null ? "confidence not recorded" : `confidence ${Math.round(entry.confidence * 100)}%`}{entry.reviewedByPerson ? " · reviewed by a person" : ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+
       {recent.length ? (
         <Section id="decided" subtitle="The last few things you decided." title="Recently decided">
           <RecentDecisions entries={recent} />
@@ -299,6 +323,7 @@ const demoApi: NotificationApi = {
 type ContainerProps = {
   references: ReferenceRecord[];
   decisions: ReadonlyMap<string, RelevanceDecisionView>;
+  humanCuratedReferenceLineageIds?: ReadonlySet<string>;
   previews?: ReadonlyMap<string, ReferencePreview>;
   referencesLoading?: boolean;
   predictionLoading?: boolean;
@@ -322,7 +347,7 @@ function previewState(): "loading" | "caught-up" | "sample" | null {
 }
 
 export function NotificationCenter({
-  references, decisions, previews, referencesLoading, predictionLoading, referenceDisabledReason, onOpenReference, onRateReference, actorLabel, demo, fixture = null, api: liveOverride = liveApi,
+  references, decisions, humanCuratedReferenceLineageIds = NO_VISIT, previews, referencesLoading, predictionLoading, referenceDisabledReason, onOpenReference, onRateReference, actorLabel, demo, fixture = null, api: liveOverride = liveApi,
 }: ContainerProps) {
   const api = demo ? demoApi : liveOverride;
   const [loadState, setLoadState] = useState<NotificationLoadState>("loading");
@@ -510,10 +535,11 @@ export function NotificationCenter({
   }, [api, demo, drafts, draftsState, requests, stale]);
 
   // Preview only: caught-up hides what is still pending; loading holds the skeleton.
+  const autoDecided = useMemo(() => cyclotronAutoDecided(references, decisions, humanCuratedReferenceLineageIds, demo), [references, decisions, humanCuratedReferenceLineageIds, demo]);
   const shownReferences = preview === "caught-up" ? references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) !== "pending") : references;
   return (
     <NotificationCenterView
-      busyId={busyId} decisions={decisions} deletedStories={deletedStories} demo={demo} draftBusyId={draftBusyId} draftErrors={draftErrors} drafts={drafts} draftsState={draftsState}
+      autoDecided={autoDecided} busyId={busyId} decisions={decisions} deletedStories={deletedStories} demo={demo} draftBusyId={draftBusyId} draftErrors={draftErrors} drafts={drafts} draftsState={draftsState}
       error={error} loadState={preview === "loading" ? "loading" : loadState} missingDrafts={missingDrafts} now={now} onAnswer={(request, input) => void answer(request, input)}
       onDecideDraft={(request, draftId, choice, extras) => void decideDraft(request, draftId, choice, extras)} onMarkRead={(requestId) => void markRead(requestId)}
       onOpenReference={onOpenReference} onRateReference={onRateReference} onRetryDrafts={() => void loadDraftsFor(requests)}

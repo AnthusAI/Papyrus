@@ -18,7 +18,7 @@ Feature: The Notification Center answers "What needs me?" with a feed of cards
 
   Scenario: Accept approves the Proposal, Reject declines it, and the request closes itself
     Given an isolated Notification Center with a batch of three AI drafts
-    When the editor accepts one draft, rejects one as not this kind of story with a Why, and accepts the last
+    When the editor accepts one draft, rejects one with one tap and the "Not this kind of story" chip and a Why, and accepts the last
     Then each Proposal is moved to approved or declined, decided cards stay in place showing their answer, and the request stays open until the last draft is decided
     And the request closes with every decision recorded, "not this kind" as its one steering signal, and the page says "All caught up" and lists what was decided
 
