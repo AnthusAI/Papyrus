@@ -136,7 +136,8 @@ def _email_receipt_candidates(receipt_store, receipt_id: str, publication: str) 
         if not isinstance(chunk, list) or any(not isinstance(link, dict) for link in chunk):
             raise IntakeError("The email receipt candidate list is unavailable.")
         links.extend(chunk)
-    return receipt, links, target
+    from .email_submission import normalize_email_candidate
+    return receipt, [normalize_email_candidate(link) for link in links], target
 
 
 def intake_email_submission_references(client, arguments: dict, identity: dict, *, env=None, receipt_store=None) -> dict:

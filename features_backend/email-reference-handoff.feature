@@ -16,3 +16,4 @@ Feature: Imported newsletter articles receive cloud predictions
     Given a stored newsletter with branded SendGrid article wrappers
     When its exact receipt is opened and its tracking contracts are exercised
     Then opaque tracking URLs are never offered as direct References and redirect protections remain enforced
+    And a resolved legacy candidate imports and queues once while its raw wrapper is rejected

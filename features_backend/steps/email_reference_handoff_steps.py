@@ -48,3 +48,11 @@ def branded_contracts(context):
 def branded_satisfied(context):
     result = context.handoff_result
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@then("a resolved legacy candidate imports and queues once while its raw wrapper is rejected")
+def legacy_tracking_import_contract(context):
+    result = subprocess.run([sys.executable, "-m", "pytest", "-q",
+        "procedures/newsroom/tests/test_email_reference_handoff.py", "-k", "legacy_branded"],
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr

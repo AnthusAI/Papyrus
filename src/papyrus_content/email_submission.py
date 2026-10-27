@@ -172,6 +172,12 @@ def is_supported_email_tracking_url(raw: str) -> bool:
         return False
 
 
+def normalize_email_candidate(link: dict) -> dict:
+    """Keep legacy wrappers private without changing candidate order or storage."""
+    return ({**link, "resolutionStatus": "unresolved"}
+            if is_supported_email_tracking_url(link.get("url", "")) else dict(link))
+
+
 def is_supported_beehiiv_tracking_url(raw: str) -> bool:
     """Compatibility predicate restricted to the original Beehiiv host."""
     return is_supported_email_tracking_url(raw) and urlsplit(raw).hostname == "link.mail.beehiiv.com"

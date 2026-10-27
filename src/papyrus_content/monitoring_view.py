@@ -364,10 +364,8 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
             links.extend(json.loads(item.get("json", "[]")))
     # Stored receipts may predate branded-wrapper recognition. Normalize only
     # this authorized detail response; never rewrite the receipt or follow links.
-    from .email_submission import is_supported_email_tracking_url
-    links = [{**link, "resolutionStatus": "unresolved"}
-             if is_supported_email_tracking_url(link.get("url", "")) else link
-             for link in links]
+    from .email_submission import normalize_email_candidate
+    links = [normalize_email_candidate(link) for link in links]
     return {"submission": {**_email_summary(row), "corpusId": publication.get("corpusId")}, "safeBodyText": body,
             "candidateLinks": links, "sourceMaterialIsUntrusted": True}
 
