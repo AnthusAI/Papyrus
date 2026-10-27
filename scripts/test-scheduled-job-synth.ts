@@ -229,6 +229,13 @@ const routedEnvironment = Object.fromEntries(
   (Object.values(withRouted.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
 );
 assert.equal(routedEnvironment.KNOWLEDGE_MONITOR_SOURCES, "routed", "routed References are a monitor source of their own");
+// Excluded source hosts: no list, no variable; a list reaches the tasks as one comma-separated variable the trend-drafts and monitor-stories steps turn into --exclude-host flags.
+assert.ok(!("KNOWLEDGE_EXCLUDED_SOURCE_HOSTS" in staticEnvironment), "no excludedSourceHosts: no variable");
+const withExcluded = knowledgeStack((site) => { site.knowledgeRun.excludedSourceHosts = ["ipwatchdog.com", "news.example.org", "ipwatchdog.com"]; });
+const excludedEnvironment = Object.fromEntries(
+  (Object.values(withExcluded.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.equal(excludedEnvironment.KNOWLEDGE_EXCLUDED_SOURCE_HOSTS, "ipwatchdog.com,news.example.org", "sorted, de-duplicated, comma-separated");
 assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
 assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
@@ -502,6 +509,8 @@ rejects((block) => { block.monitorStories = { limit: 0 }; }, /knowledgeRun\.moni
 rejects((block) => { block.monitorStories = { limit: 21 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
 rejects((block) => { block.monitorStories = { sources: ["hn"] }; }, /knowledgeRun\.monitorStories\.sources is not a known field/);
 rejects((block) => { block.monitorStories = 3; }, /knowledgeRun\.monitorStories must be an object/);
+rejects((block) => { block.excludedSourceHosts = "ipwatchdog.com"; }, /knowledgeRun\.excludedSourceHosts must be an array of lowercase host names/);
+rejects((block) => { block.excludedSourceHosts = ["https://ipwatchdog.com/"]; }, /knowledgeRun\.excludedSourceHosts must be an array of lowercase host names/);
 rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
 rejects((block) => { block.environment = { "1BAD": "x" }; }, /knowledgeRun\.environment\.1BAD is not a valid environment variable name/);
 rejects((block) => { block.corpusKey = "Not A Key"; }, /knowledgeRun\.corpusKey is invalid/);
@@ -557,11 +566,12 @@ for (const siteId of ["shipped", "p-apyr-us"]) {
 // Every site's example config carries a daily, staggered knowledge run that files routed records and monitor-story drafts.
 const SHIPPED_KEY = "/papyrus/shipped/openai-api-key";
 const SHIPPED_ALARM = "/papyrus/shipped/knowledge-run/alarm-email";
-const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string }> = {
+const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string; noMonitorStories?: boolean; excludedSourceHosts?: string[] }> = {
   shipped: { hour: 5, key: SHIPPED_KEY },
   "anth-us": { hour: 6, key: SHIPPED_KEY },
   "threat-intelligence": { hour: 7, key: "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY" },
-  distinctive: { hour: 8, key: "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY" },
+  // Distinctive's own TTAB automation drafts its monitor decisions, so it keeps trend drafts and leaves monitor stories off; a rival publication is never cited.
+  distinctive: { hour: 8, key: "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY", noMonitorStories: true, excludedSourceHosts: ["ipwatchdog.com"] },
   "pilobol-us": { hour: 9, key: SHIPPED_KEY },
   "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
   dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
@@ -577,7 +587,8 @@ for (const [siteId, expected] of Object.entries(siteExpectations)) {
   seenHours.add(expected.hour);
   assert.ok(resolved.monitorSources?.includes("routed"), `${siteId} counts routed monitor records`);
   assert.equal(resolved.monitorWeeks, undefined, `${siteId} sets no monitorWeeks: all history counts`);
-  assert.deepEqual(resolved.monitorStories, { limit: 3 });
+  assert.deepEqual(resolved.monitorStories, expected.noMonitorStories ? undefined : { limit: 3 });
+  assert.deepEqual(resolved.excludedSourceHosts, expected.excludedSourceHosts);
   assert.equal(resolved.openAiKeyParameter, expected.key);
   assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);
   assert.equal(resolved.corpusKey, expected.corpusKey);

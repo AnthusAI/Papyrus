@@ -45,10 +45,16 @@ def start_time(started: str) -> dt.datetime:
     return moment.astimezone(dt.timezone.utc) if moment.tzinfo else moment.replace(tzinfo=dt.timezone.utc)
 
 
-def command_for(publication: str, limit: int, corpus_key: str = "") -> list[str]:
+def exclude_flags(environment: Mapping[str, str]) -> list[str]:
+    """``--exclude-host HOST`` for each host in KNOWLEDGE_EXCLUDED_SOURCE_HOSTS (comma-separated; the site's `knowledgeRun.excludedSourceHosts`)."""
+    hosts = [host.strip() for host in (environment.get("KNOWLEDGE_EXCLUDED_SOURCE_HOSTS") or "").split(",") if host.strip()]
+    return [flag for host in hosts for flag in ("--exclude-host", host)]
+
+
+def command_for(publication: str, limit: int, corpus_key: str = "", excluded_hosts: list[str] | None = None) -> list[str]:
     """``corpus_key`` is the knowledge corpus the site's References live in; empty means the corpus named like the publication."""
     corpus = ["--corpus-key", corpus_key] if corpus_key and corpus_key != publication else []
-    return ["papyrus", "ideas", "monitor-stories", "--site", publication, *corpus, "--store", "proposals", "--limit", str(limit), "--json"]
+    return ["papyrus", "ideas", "monitor-stories", "--site", publication, *corpus, "--store", "proposals", "--limit", str(limit), *(excluded_hosts or []), "--json"]
 
 
 def read_openai_key(parameter: str) -> str:
@@ -88,7 +94,7 @@ def summary_of(run: dict[str, Any]) -> dict[str, Any]:
     inputs = run.get("inputs") or {}
     return {
         "filed": len(run.get("drafts") or []), "attempted": run.get("attempted", 0), "candidates": inputs.get("candidates", 0),
-        "alreadyDrafted": inputs.get("alreadyDrafted", 0), "failedTheCheck": len(run.get("invalid") or []), "skipped": len(run.get("skipped") or []),
+        "alreadyDrafted": inputs.get("alreadyDrafted", 0), "excludedHost": inputs.get("excludedHost", 0), "handledByAutomation": inputs.get("handledByAutomation", 0), "failedTheCheck": len(run.get("invalid") or []), "skipped": len(run.get("skipped") or []),
         "duplicates": len(run.get("duplicates") or []), "review": (run.get("review") or {}).get("status"),
     }
 
@@ -133,7 +139,7 @@ def run(environment: Mapping[str, str], *, read_key: Callable[[str], str] = read
     attempt, clock = ledger.begin(STAGE), time.monotonic()
     run_record: dict[str, Any] | None = None
     try:
-        command = command_for(publication, limit, (environment.get("KNOWLEDGE_CORPUS_KEY") or "").strip())
+        command = command_for(publication, limit, (environment.get("KNOWLEDGE_CORPUS_KEY") or "").strip(), exclude_flags(environment))
         print("+ " + " ".join(command), flush=True)
         status, output = execute(command, child_environment)
         if status != 0:

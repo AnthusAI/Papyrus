@@ -101,8 +101,14 @@ def read_openai_key(parameter: str) -> str:
     return value
 
 
-def trends_command(publication: str, snapshot_url: str, maximum: int) -> list[str]:
-    return ["papyrus", "ideas", "trends", "--site", publication, "--snapshot", snapshot_url, "--store", "proposals", "--max", str(maximum)]
+def exclude_flags(environment: Mapping[str, str]) -> list[str]:
+    """``--exclude-host HOST`` for each host in KNOWLEDGE_EXCLUDED_SOURCE_HOSTS (comma-separated; the site's `knowledgeRun.excludedSourceHosts`)."""
+    hosts = [host.strip() for host in (environment.get("KNOWLEDGE_EXCLUDED_SOURCE_HOSTS") or "").split(",") if host.strip()]
+    return [flag for host in hosts for flag in ("--exclude-host", host)]
+
+
+def trends_command(publication: str, snapshot_url: str, maximum: int, excluded_hosts: list[str] | None = None) -> list[str]:
+    return ["papyrus", "ideas", "trends", "--site", publication, "--snapshot", snapshot_url, "--store", "proposals", "--max", str(maximum), *(excluded_hosts or [])]
 
 
 def run(environment: Mapping[str, str], *, fetch: Callable[[str], str | None] = fetch_as_of, sleep: Callable[[float], None] = time.sleep,
@@ -128,7 +134,7 @@ def run(environment: Mapping[str, str], *, fetch: Callable[[str], str | None] = 
     )
     child_environment = dict(environment)
     child_environment.update(PAPYRUS_GRAPHQL_AUTH="iam", PAPYRUS_GRAPHQL_ENDPOINT=endpoint, OPENAI_API_KEY=read_key(key_parameter))
-    command = trends_command(publication, snapshot_url, int(environment.get("TREND_DRAFTS_MAX") or 2))
+    command = trends_command(publication, snapshot_url, int(environment.get("TREND_DRAFTS_MAX") or 2), exclude_flags(environment))
     print("+ " + " ".join(command), flush=True)
     status = (execute or (lambda args, env: subprocess.run(args, env=env, check=False).returncode))(command, child_environment)
     if status != 0:

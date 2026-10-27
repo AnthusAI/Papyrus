@@ -708,3 +708,56 @@ class MonitorRecordTests(unittest.TestCase):
 
     def test_the_prompt_tells_the_model_not_to_call_a_recorded_release_published(self) -> None:
         self.assertIn('an item with a "from" field', trends.SYSTEM_PROMPT)
+
+
+class ExcludedHostTests(unittest.TestCase):
+    """A site can list source hosts that are never offered to the model, never cited and never listed as sources (docs/idea-pipeline.md#excluded-source-hosts)."""
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.snapshot = {**snapshot_from_entry(self.directory.name), "siteBase": SITE_BASE}
+
+    def test_items_on_an_excluded_host_are_not_offered_but_the_statistics_still_count_them(self) -> None:
+        plain = {signal["id"]: signal for signal in trends.build_signals(self.snapshot, read_item_page)}
+        signals = trends.build_signals(self.snapshot, read_item_page, excluded_hosts=["site.example"])
+        by_id = {signal["id"]: signal for signal in signals}
+        self.assertFalse(trends.collect_items(signals))
+        zed = by_id["entity:maker--zed"]
+        self.assertEqual(zed["excludedItemIds"], [item["id"] for item in plain["entity:maker--zed"]["items"]])
+        for key in ("windowCount", "baselineCount", "history", "series", "itemCount"):
+            self.assertEqual(zed[key], plain["entity:maker--zed"][key])
+        model_input = trends.build_input(self.snapshot, signals, {"sections": [{"title": "Analysis"}], "stories": []}, 3)
+        self.assertEqual(model_input["items"], [])
+        self.assertNotIn("site.example", str(model_input))
+
+    def test_the_citation_check_rejects_a_sentence_citing_an_excluded_item_even_if_it_was_offered(self) -> None:
+        signals = trends.build_signals(self.snapshot, read_item_page)
+        by_id = {signal["id"]: signal for signal in signals}
+        handles = trends.handles_for(signals)
+        valid, invalid = trends.validate_drafts([release_draft()], handles, by_id, ["Analysis", "News"], 3, excluded_hosts=["Site.Example"])
+        self.assertEqual(valid, [])
+        reasons = [problem["reason"] for problem in invalid[0]["citationCheck"]["problems"]]
+        self.assertIn("cites_excluded_source_host:I1", reasons)
+        self.assertIn("cites_excluded_source_host:I2", reasons)
+        valid, _ = trends.validate_drafts([release_draft()], handles, by_id, ["Analysis", "News"], 3)
+        self.assertEqual(len(valid), 1)
+
+    def test_a_run_never_cites_an_excluded_item_and_records_how_many_it_left_out(self) -> None:
+        client = FakeClient(sections=("Analysis", "News"), stories=[])
+        run = trends.draft_trends(
+            snapshot=self.snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "m", "policy": "p"},
+            json_store=None, transport=FakeTrendModel([release_draft()]), proposal_store=ProposalStore(client), review_client=client, now=NOW,
+            fetch_text=read_item_page, excluded_hosts=["site.example"])
+        self.assertEqual(run["drafts"], [])
+        self.assertEqual(run["excludedSourceHosts"], ["site.example"])
+        self.assertEqual(run["inputs"]["itemsExcludedByHost"], 2)
+        self.assertEqual(run["inputs"]["items"], 0)
+        self.assertEqual(run["invalid"][0]["reason"], "citation_check_failed")  # the model cited handles that were never offered
+
+    def test_the_command_reads_every_exclude_host_flag(self) -> None:
+        self.assertEqual(commands._excluded_hosts(["--site", "x", "--exclude-host", "ipwatchdog.com", "--exclude-host", "https://News.Example.org/a", "--max", "2"]), ("ipwatchdog.com", "news.example.org"))
+        self.assertEqual(commands._excluded_hosts(["--exclude-host", "a.com,b.com"]), ("a.com", "b.com"))
+        self.assertEqual(commands._excluded_hosts(["--site", "x"]), ())
+        with self.assertRaises(ValueError):
+            commands._excluded_hosts(["--exclude-host"])
