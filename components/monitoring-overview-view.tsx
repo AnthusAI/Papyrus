@@ -18,6 +18,7 @@ import {
   type EmailDecisionResult,
   type EmailQuarantine,
   type MonitoringItem,
+  type MonitoringListName,
   type MonitoringEmailDetails,
   type MonitoringEmailArticleResolution,
   type EmailReferenceImportItem,
@@ -29,6 +30,27 @@ import {
 } from "../lib/monitoring-overview";
 
 export type MonitoringMode = "publication" | "all";
+
+/** How a paged list loads more: the page owns the cursors and the requests, the view only shows the button. */
+export type MonitoringPaging = {
+  /** Loads the next page of a list; the page appends it. */
+  onLoadMore?: (list: MonitoringListName) => void;
+  /** The list whose next page is being fetched. */
+  loadingList?: MonitoringListName | null;
+  /** Show only email submissions held for review (restarts the email list from its newest held message). */
+  heldOnly?: boolean;
+  onHeldOnlyChange?: (heldOnly: boolean) => void;
+};
+
+function LoadMore({ list, cursor, paging }: { list: MonitoringListName; cursor: string | null | undefined; paging?: MonitoringPaging }) {
+  if (!cursor || !paging?.onLoadMore) return null;
+  const loading = paging.loadingList === list;
+  return (
+    <button type="button" data-monitoring-load-more={list} disabled={loading} onClick={() => paging.onLoadMore?.(list)}>
+      {loading ? "Loading…" : "Load more"}
+    </button>
+  );
+}
 
 const STATUS_WORDS: Record<string, string> = { complete: "Complete", partial: "Partial", stopped: "Stopped", failed: "Failed", error: "Error" };
 const status = (value: string) => STATUS_WORDS[value] ?? value;
@@ -102,8 +124,9 @@ function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string 
   );
 }
 
-export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates, onDecide }: {
+export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates, onDecide, cursor, paging }: {
   items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen?: (receiptId: string) => void;
+  cursor?: string | null; paging?: MonitoringPaging;
   onDecide?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
@@ -242,6 +265,12 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
   return (
     <article className="news-desk-doctrine-card" data-monitoring-section="email-submissions">
       <div className="news-desk-doctrine-card__header"><div><h3>Email submissions</h3><span>Untrusted source material held privately for editor review</span></div></div>
+      {paging?.onHeldOnlyChange ? (
+        <div className="news-desk-monitoring__scope" role="group" aria-label="Filter email submissions">
+          <button type="button" aria-pressed={!paging.heldOnly} data-email-filter="all" onClick={() => paging.onHeldOnlyChange?.(false)}>All</button>
+          <button type="button" aria-pressed={paging.heldOnly === true} data-email-filter="held" onClick={() => paging.onHeldOnlyChange?.(true)}>Held for review</button>
+        </div>
+      ) : null}
       {items.length ? <ul className="news-desk-monitoring__list">
         {items.map((item) => <li key={item.receiptId} data-email-submission={item.receiptId}>
           <strong>{item.subject || "(no subject)"}</strong>
@@ -256,7 +285,8 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
           {item.quarantine ? <span data-email-quarantine-state={item.quarantine.state}>{QUARANTINE_LABELS[item.quarantine.state]}</span> : null}
           {onOpen ? <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button> : null}
         </li>)}
-      </ul> : <p>No email submissions are available for this publication.</p>}
+      </ul> : <p>{paging?.heldOnly ? "No email submissions are held for review." : "No email submissions are available for this publication."}</p>}
+      <LoadMore list="emailSubmissions" cursor={cursor} paging={paging} />
       {detail && "submission" in detail ? (
         <section aria-label="Email submission details" data-email-submission-details={detail.submission.receiptId}>
           <h4>{detail.submission.subject || "Submitted email"}</h4>
@@ -323,8 +353,8 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
   );
 }
 
-function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onImportCandidates, onDecide }: {
-  data: MonitoringOverview; demo: boolean; emailDetail: MonitoringEmailDetails | null; onEmailOpen: (id: string) => void;
+function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onImportCandidates, onDecide, paging }: {
+  data: MonitoringOverview; demo: boolean; paging?: MonitoringPaging; emailDetail: MonitoringEmailDetails | null; onEmailOpen: (id: string) => void;
   onDecide?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
@@ -337,6 +367,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
       ) : null}
 
       <EmailSubmissions items={data.emailSubmissions ?? []} detail={emailDetail} onOpen={onEmailOpen}
+        cursor={data.cursors?.emailSubmissions} paging={paging}
         onResolveArticleLink={demo ? undefined : onResolveArticleLink}
         onImportCandidates={demo ? undefined : onImportCandidates}
         onDecide={demo ? undefined : onDecide} />
@@ -397,6 +428,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
             ))}
           </ul>
         ) : <p>No collector runs recorded yet.</p>}
+        <LoadMore list="runs" cursor={data.cursors?.runs} paging={paging} />
         {data.routerRuns.length ? (
           <ul className="news-desk-monitoring__list" data-monitoring-router-runs>
             {data.routerRuns.map((run) => (
@@ -409,6 +441,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
             ))}
           </ul>
         ) : null}
+        <LoadMore list="routerRuns" cursor={data.cursors?.routerRuns} paging={paging} />
       </article>
 
       <article className="news-desk-doctrine-card" data-monitoring-section="queue">
@@ -418,6 +451,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
             {data.items.map((item) => <QueueItem key={`${item.monitorId ?? ""}-${item.sourceId}-${item.revision}`} item={item} ownId={data.scope.publicationId} demo={demo} />)}
           </ul>
         ) : <p>No items in the queue.</p>}
+        <LoadMore list="items" cursor={data.cursors?.items} paging={paging} />
         {data.hiddenNotRelevant > 0 ? (
           <p className="news-desk-delegation-note" data-monitoring-hidden>
             {data.hiddenNotRelevant} {data.hiddenNotRelevant === 1 ? "item" : "items"} judged not relevant to this publication {data.hiddenNotRelevant === 1 ? "is" : "are"} not listed.
@@ -448,7 +482,9 @@ export function MonitoringOverviewView({
   onResolveArticleLink,
   onImportCandidates,
   onDecide,
+  paging,
 }: {
+  paging?: MonitoringPaging;
   result: MonitoringResult | null;
   canViewAll: boolean;
   mode: MonitoringMode;
@@ -475,7 +511,7 @@ export function MonitoringOverviewView({
     body = <Message kind="empty" title="Nothing has been collected yet">No feed is configured and no run has been recorded. Items appear here after the collector&apos;s first run.</Message>;
   } else {
     body = <Ready data={result} demo={demo} emailDetail={emailDetail} onEmailOpen={onEmailOpen}
-      onResolveArticleLink={onResolveArticleLink} onImportCandidates={onImportCandidates} onDecide={onDecide} />;
+      onResolveArticleLink={onResolveArticleLink} onImportCandidates={onImportCandidates} onDecide={onDecide} paging={paging} />;
   }
   const scopeLine = result && "scope" in result
     ? (result.scope.mode === "all" ? "Showing the whole shared pipeline, every publication." : `Showing what is relevant to ${result.scope.publicationId ?? "this publication"}.`)

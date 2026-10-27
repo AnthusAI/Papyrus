@@ -217,3 +217,99 @@ def none_of_others(context, a, b):
 @then('the monitors "{a}" and "{b}" are named as not routed to this site')
 def named_not_routed(context, a, b):
     assert sorted(context.overview["otherMonitors"]) == sorted([a, b])
+
+
+# --- paging ---------------------------------------------------------------------------------------
+
+from papyrus_content import monitoring_view as mv  # noqa: E402
+
+
+def follow(context, name, **options):
+    """Load more of one list, as the page's button does, until the cursor ends. Returns the rows after the first page."""
+    cursor, rows = mv.encode_cursor({"hn": context.overview["cursors"][name]}), []
+    while cursor:
+        page = mv.monitoring_list_page({"hn": context.store}, list_name=name, cursor=cursor, groups=["editor"],
+                                       site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW, **options)
+        rows += page["rows"]
+        cursor = page["cursor"]
+    return rows
+
+
+@given('a monitoring table with {count:d} email receipts for "{publication}"')
+def many_receipts(context, count, publication):
+    context.store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(count))
+
+
+@given('a monitoring table with {count:d} email receipts for "{publication}" where the oldest is held for review')
+def many_receipts_oldest_held(context, count, publication):
+    context.store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(count, held={0}))
+
+
+@given("a monitoring table with {runs:d} more collector runs and {router:d} more router runs")
+def many_runs(context, runs, router):
+    table = fx.rows()
+    for n in range(runs):
+        stamp = f"2026-10-19T00:{n:02d}:00.000000Z"
+        table.append({"pk": fx.PK, "sk": f"RUN#{stamp}#x{n}", "runId": f"x{n}", "startedAt": stamp, "status": "complete"})
+    for n in range(router):
+        stamp = f"2026-10-19T00:{n:02d}:00.000000Z"
+        table.append({"pk": fx.PK, "sk": f"ROUTERUN#{stamp}#y{n}", "runId": f"y{n}", "startedAt": stamp, "status": "complete"})
+    context.store = fx.FakeViewStore(table)
+
+
+@then("the first page lists {count:d} email receipts, newest first, and offers more")
+def first_page_emails(context, count):
+    subjects = [e["subject"] for e in context.overview["emailSubmissions"]]
+    assert len(subjects) == count and subjects[0] == "Mail 44", subjects
+    assert context.overview["cursors"]["emailSubmissions"]
+    context.listed = subjects
+
+
+@when("the editor loads more email receipts until the list ends")
+def load_more_emails(context):
+    context.listed += [e["subject"] for e in follow(context, "emailSubmissions")]
+
+
+@then("all {count:d} email receipts have been listed exactly once")
+def all_emails_once(context, count):
+    assert sorted(context.listed) == sorted(f"Mail {n}" for n in range(count)), len(context.listed)
+
+
+@then("the oldest receipt is not on the first page")
+def oldest_not_first(context):
+    assert "Mail 0" not in [e["subject"] for e in context.overview["emailSubmissions"]]
+
+
+@when('the editor filters to "Held for review"')
+def filter_held(context):
+    page = mv.monitoring_list_page({"hn": context.store}, list_name="emailSubmissions", cursor=None, held_only=True,
+                                   groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    context.held = page["rows"]
+
+
+@then("the oldest receipt is listed as held for review")
+def oldest_held(context):
+    assert [e["subject"] for e in context.held] == ["Mail 0"]
+    assert context.held[0]["quarantine"]["state"] == "quarantined"
+
+
+@then("the held filter lists nothing that was not held")
+def only_held(context):
+    assert all(e["quarantine"] and e["quarantine"]["state"] == "quarantined" for e in context.held)
+
+
+@then("the first page of runs offers more")
+def runs_offer_more(context):
+    assert context.overview["cursors"]["runs"] and context.overview["cursors"]["routerRuns"]
+    context.listed_runs = [r["runId"] for r in context.overview["runs"]]
+
+
+@when("the editor loads more runs until the list ends")
+def load_more_runs(context):
+    context.listed_runs += [r["runId"] for r in follow(context, "runs")]
+
+
+@then("every collector run has been listed exactly once")
+def runs_once(context):
+    expected = {"r0", "r1", "r3"} | {f"x{n}" for n in range(40)}
+    assert sorted(context.listed_runs) == sorted(expected)
