@@ -104,6 +104,7 @@ def relevance_of(relations: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
         "confidence": _number(newest.get("confidence")),
         "classifier": metadata.get("classifier") or metadata.get("cyclotronId"),
         "decidedAt": metadata.get("decidedAt"),
+        "positiveLabel": metadata.get("positiveLabel"),
     }
 
 

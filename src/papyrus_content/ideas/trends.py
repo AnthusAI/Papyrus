@@ -79,7 +79,7 @@ Rules:
 - Skip a trend that recent or in-flight stories or earlier drafts already cover, but only when the same signals are covered. Return maximum_drafts drafts whenever the signals and items allow it, each about a different group of two or more releases (give every draft a different lead set; three drafts are expected when there are twelve items) and built from a different pairing or grouping of signals (the same release is not the lead of two drafts), and never fewer than one. Prefer a plain, well-grounded draft that meets the requirements over a clever one. Never use the word "desk".
 """
 
-_SENTENCE = {
+SENTENCE_SCHEMA = {
     "type": "object",
     "properties": {"text": {"type": "string"}, "cites": {"type": "array", "items": {"type": "string"}}},
     "required": ["text", "cites"],
@@ -97,12 +97,12 @@ SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "headline": _SENTENCE,
-                        "dek": _SENTENCE,
+                        "headline": SENTENCE_SCHEMA,
+                        "dek": SENTENCE_SCHEMA,
                         "section": {"type": "string"},
                         "paragraphs": {
                             "type": "array",
-                            "items": {"type": "object", "properties": {"sentences": {"type": "array", "items": _SENTENCE}}, "required": ["sentences"], "additionalProperties": False},
+                            "items": {"type": "object", "properties": {"sentences": {"type": "array", "items": SENTENCE_SCHEMA}}, "required": ["sentences"], "additionalProperties": False},
                         },
                         "figure_signals": {"type": "array", "items": {"type": "string"}},
                         "figure_title": {"type": "string"},
@@ -896,7 +896,7 @@ def draft_trends(
         for record in kept:
             if not dry_run:
                 if proposal_store:
-                    record["proposalId"] = proposal_store.file_trend_draft(record)
+                    record["proposalId"] = proposal_store.file_story_draft(record)
                 if json_store:
                     json_store.save_idea(record)
             run["drafts"].append(record)

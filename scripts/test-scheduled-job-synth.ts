@@ -126,6 +126,43 @@ assert.ok(
 );
 assert.ok(!everything.includes("sk-"), "no key anywhere in the template");
 
+// The optional monitor-stories step: absent unless the site opts in with knowledgeRun.monitorStories, then off by default, after trend-drafts, never failing the run.
+assert.equal(definition.States["monitor-stories"], undefined, "no monitorStories block: no step");
+assert.equal(definition.States["Run-monitor-stories"], undefined);
+assert.equal(trendParameters.MonitorStoriesEnabled, undefined, "no monitorStories block: the template has no extra parameter");
+assert.ok(!("MONITOR_STORIES_LIMIT" in Object.fromEntries(
+  (Object.values(template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+)));
+{
+  const withStories = knowledgeStack((site) => { site.knowledgeRun.monitorStories = { limit: 2 }; });
+  const storiesDefinition = definitionOf(withStories.template);
+  const storiesParameters = withStories.template.toJSON().Parameters;
+  assert.equal(storiesParameters.MonitorStoriesEnabled.Default, "false");
+  assert.deepEqual(storiesParameters.MonitorStoriesEnabled.AllowedValues, ["true", "false"]);
+  assert.equal(storiesDefinition.States["trend-drafts"].Next, "Run-monitor-stories", "the step comes after trend-drafts");
+  assert.deepEqual(storiesDefinition.States["trend-drafts"].Catch, [{ ErrorEquals: ["States.ALL"], Next: "Run-monitor-stories" }]);
+  assert.equal(storiesDefinition.States["Run-trend-drafts"].Default, "Run-monitor-stories", "trend drafts off: straight on to the next optional step");
+  const storiesGate = storiesDefinition.States["Run-monitor-stories"];
+  assert.equal(storiesGate.Type, "Choice");
+  assert.equal(storiesGate.Choices.length, 1);
+  assert.equal(storiesGate.Choices[0].Next, "monitor-stories");
+  assert.equal(storiesGate.Default, "Done", "disabled: the run ends as before");
+  assert.match(storiesGate.Choices[0].Condition, /^\{% '.*' = 'true' %\}$/);
+  const storiesState = storiesDefinition.States["monitor-stories"];
+  assert.deepEqual(storiesState.Arguments.Overrides.ContainerOverrides[0].Command, ["python", "/opt/papyrus-jobs/monitor_stories.py"]);
+  assert.equal(storiesState.Next, "Done");
+  assert.deepEqual(storiesState.Catch, [{ ErrorEquals: ["States.ALL"], Next: "Done" }], "a failure is swallowed, not a Fail state");
+  assert.equal(storiesState.Retry[0].MaxAttempts, 0);
+  assert.equal(storiesDefinition.States["Failed-monitor-stories"], undefined);
+  assert.ok(storiesState.Arguments.Overrides.ContainerOverrides[0].Environment.some((entry: any) => entry.Name === "MONITOR_STORIES_ENDPOINT"), "the endpoint reaches the step");
+  const storiesEnvironment = Object.fromEntries(
+    (Object.values(withStories.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+  );
+  assert.equal(storiesEnvironment.MONITOR_STORIES_LIMIT, "2");
+  assert.equal(storiesEnvironment.KNOWLEDGE_LEDGER_TABLE !== undefined, true, "the step finds the ledger table it writes its cost row to");
+  assert.equal(knowledgeStack((site) => { site.knowledgeRun.monitorStories = {}; }).config.monitorStories?.limit, 3, "the default is three a run");
+}
+
 // Execution input contract: JSONata expressions over the execution context, per stage.
 const environmentOverrides = Object.fromEntries(
   definition.States["snapshot"].Arguments.Overrides.ContainerOverrides[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
@@ -458,6 +495,10 @@ rejects((block) => { block.monitorSuggestions = 21; }, /knowledgeRun\.monitorSug
 rejects((block) => { block.trendWindowDays = 10; }, /knowledgeRun\.trendWindowDays must be one of 7, 14, 21, 28/);
 rejects((block) => { block.trendCooldownDays = -1; }, /knowledgeRun\.trendCooldownDays must be an integer from 0 to 365/);
 rejects((block) => { block.trendSnapshotMaxAgeDays = 8; }, /knowledgeRun\.trendSnapshotMaxAgeDays must be an integer from 0 to 7/);
+rejects((block) => { block.monitorStories = { limit: 0 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
+rejects((block) => { block.monitorStories = { limit: 21 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
+rejects((block) => { block.monitorStories = { sources: ["hn"] }; }, /knowledgeRun\.monitorStories\.sources is not a known field/);
+rejects((block) => { block.monitorStories = 3; }, /knowledgeRun\.monitorStories must be an object/);
 rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
 rejects((block) => { block.environment = { "1BAD": "x" }; }, /knowledgeRun\.environment\.1BAD is not a valid environment variable name/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);

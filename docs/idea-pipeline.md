@@ -5,7 +5,7 @@
 `papyrus ideas digest` and `papyrus ideas synthesize` turn a site's recent references into private story ideas. This is the first
 version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud CMS. `papyrus ideas trends` adds the trend-story path
 ([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,
-`features_backend/idea-trend-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`.
+`features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`.
 
 ## Running it
 
@@ -200,6 +200,67 @@ passing draft in full and each failing draft with its problems; it stores nothin
 Limits: the check proves that every sentence points at the snapshot and that its digits come from the signals it cites; it does not prove
 that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items and, for a site that counts them, monitor records.
 The weekly cloud knowledge run can run this command after it publishes the snapshot, off by default ([knowledge-cloud-run.md](knowledge-cloud-run.md#trend-drafts-optional-off-by-default)).
+
+## Monitor stories
+
+`papyrus ideas monitor-stories` writes about the items a site's **monitors** found ([monitoring in the cloud](monitoring-cloud.md)). A monitor
+delivers pending `Reference`s into the site's canonical knowledge corpus (`knowledge-corpus-<site>`), each with a provenance Message linked by an
+`ingestion_rationale` relation whose metadata names the monitor (`monitorId`: `hn`, `huggingface`, an email intake) and may carry the source's
+structured `details`. Most of what arrives is never written about. This command picks the few most worth a story and files one cited draft for each.
+It is the same for every monitor: no source is named in the code, so a new site with any monitoring source uses it by configuration alone.
+
+1. **Read.** References of the site that arrived in the window (`--since`, default 7d), pending or accepted (a rejected one is never read),
+   that a monitor delivered (a Reference with no `monitorId` provenance is not a monitored item), that no item carries yet (a promoted record,
+   [monitoring-cloud.md](monitoring-cloud.md#promoting-a-record-to-an-item)) and that no earlier draft cites. A Reference the relevance Cyclotron judged *not*
+   relevant is left out. The run record counts each kind left out.
+2. **Rank.** The source-agnostic signal is the Cyclotron's verdict, which the router records per delivered item as a `relevance_decision_is`
+   `SemanticRelation` from the Reference to the node `relevance.<label>` ([cyclotron-priming.md](cyclotron-priming.md), [monitoring-cloud.md](monitoring-cloud.md)): the label, and `score`, the probability of the positive label
+   (the decision's `metadata.positiveLabel`, `include` when it names none). The order is: judged relevant before not judged; a higher score
+   before a lower one; then, only to break a tie, the source's own numbers when the item has them (`likes`, then `downloads`, in `SECONDARY_SIGNALS`);
+   then the newest arrival; then the Reference id, so the same input always gives the same order. An item with no verdict (a site whose monitor runs
+   without the Cyclotron) ranks after the scored ones.
+3. **Fetch.** The linked page as plain text (a meta description and a few paragraphs, 4,000 characters at most) through the digest's reader, which
+   only reads public http(s) addresses. A page that cannot be read is not an error: the story then rests on the title and the details the monitor stored
+   (a `summary` or `description`, and the simple facts such as numbers and short text). An item with nothing but a title is skipped with the reason
+   `no_source_text` and no model call, because a story needs something to stand on.
+4. **Draft.** One call to the repository's default model (`gpt-6-luna`, `--model` overrides) per item, through the same transport as the trends path.
+   The model sees the site's mission and policy, its allowed sections, the source (handle `I1`: title, address, monitor, dates, summary, facts, page text)
+   and the recent and in-flight stories. It does not see the relevance score. It writes a headline, a dek and one or two short paragraphs, every
+   sentence its own entry with `cites: ["I1"]`.
+5. **Check.** The Cited Trends sentence check, `trends.check_sentence`, shared and not copied: a sentence with no handle or an unknown one, more than one sentence in an
+   entry, a handle written in the text, a banned word, or a number or ISO date that is not in the source it cites fails the whole draft. The draft also needs at
+   least two body sentences, at most three paragraphs and a section from the allowed list. Because the only handle is the source, every sentence cites the source.
+   A failing draft is not filed; the run record says which sentence failed and why, and the next ranked item takes its place (at most twice `--limit` attempts a run).
+6. **File.** The record has the shape of a trend draft and goes through the same `ProposalStore.file_story_draft` (formerly `file_trend_draft`) as a `story_draft` Proposal in state
+   `draft`, proposed by AI, with `request_human_review` raising one soft review request for the run ("N new monitor story drafts to review", 7 days). Under IAM the
+   operator path is the one trends use: `fileProposal` and the read-only `listStoryDrafts`.
+
+   | Field | Value |
+   |---|---|
+   | `title`, `summary` | the headline (200 characters) and the dek (300) |
+   | `body` | Markus: the dek, the paragraphs with `[1]` after each sentence, `## Source` with the title, the date and the address, and a closing line that names the monitor ("Drafted by AI from an item the hn monitor found") and the relevance verdict |
+   | `targets` | `[{"type": "entity", "id": "reference:<Reference lineage id>"}]` |
+   | `evidence` | `{signals: 1, source: "<monitor> monitor: <address>"}` |
+
+   The target is how a later run knows the Reference is drafted: the operator can read targets (not bodies) through `listStoryDrafts`, a declined draft keeps
+   its target, and the Proposal model has no target type for a Reference, so the `entity` type carries an id that no Knowledge Map entity has. It is
+   also how the JSON store (`ideas/<id>.json`, `referenceLineageId`) and the Proposals agree. A Reference is never drafted twice, whatever happened to its draft.
+
+```bash
+papyrus ideas monitor-stories --site <site> --dry-run
+papyrus ideas monitor-stories --site <site> --limit 3 --since 7d --store proposals --report monitor-stories.md
+```
+
+`--limit N` (default 3) is the number of stories wanted, `--since` the window (`7d`, `36h`), `--store json|proposals` (default `json`; the cloud step uses `proposals`),
+`--dry-run` calls the model and checks but stores, files and requests nothing and prints each passing draft, `--model`, `--dedupe-threshold` (near-duplicates of
+existing stories and earlier drafts are dropped, as for trends), `--max-cost-usd` (the run stops before a call that would pass it; `stoppedForCost` in the run record),
+`--story-days`, `--out`, `--report FILE`, `--json`. It needs `OPENAI_API_KEY` (or `openai.apiKey` in the Papyrus config) and a `papyrus login` session or
+`PAPYRUS_GRAPHQL_AUTH=iam`. The run record has the ranking (the first `2 x limit` candidates with their verdicts), the counts, the drafts, the failures with their
+problems, `modelCalls` (the usage of each call, for the ledger) and the cost. The weekly cloud knowledge run can run it after the trend drafts, off by default
+([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-stories-optional-off-by-default)).
+
+Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
+so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
 
 ## Friction for the run contract
 

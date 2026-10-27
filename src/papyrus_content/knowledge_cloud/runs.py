@@ -10,7 +10,7 @@ import json
 from typing import Any
 
 from ..options import normalize_string, parse_options
-from .config import STAGES
+from .config import POST_RUN_STEPS, STAGES
 from .cost import duration_seconds, run_total
 from .ledger import RUN_TOTAL_STAGE, query_rows
 
@@ -52,7 +52,7 @@ def render(runs: list[dict[str, Any]]) -> str:
                      f"(compute {dollars(cost['computeUsd'])}, model {dollars(cost['llm']['usd'])}, {cost['llm']['calls']} model calls){note}")
         lines.append(f"  {'stage':<18}{'status':<11}{'time':>8}{'compute':>11}{'model':>11}{'total':>11}")
         by_stage = {row["stage"]: row for row in run["rows"]}
-        for stage in STAGES:
+        for stage in (*STAGES, *POST_RUN_STEPS):
             row = by_stage.get(stage)
             if row is None:
                 continue

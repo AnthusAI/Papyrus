@@ -30,6 +30,8 @@ RUN pip install -c /tmp/constraints.txt "${PAPYRUS_SPEC:-papyrus-newsroom[markus
 
 # The optional trend-drafts step that runs after the knowledge run (docs/knowledge-cloud-run.md).
 COPY infra/knowledge-run/trend_drafts.py /opt/papyrus-jobs/trend_drafts.py
+# The optional monitor-stories step that runs after trend-drafts.
+COPY infra/knowledge-run/monitor_stories.py /opt/papyrus-jobs/monitor_stories.py
 
 ENV PAPYRUS_ALLOW_CROSS_ROOT=1 PAPYRUS_GRAPHQL_AUTH=iam HOME=/tmp
 WORKDIR /work
