@@ -11,18 +11,21 @@ const accountId = "publishing-account-1";
 const now = 1_798_000_000;
 const environment = { PAPYRUS_SITE_ORIGIN: "https://papyrus.example", NODE_ENV: "test" };
 
-function requestFor(method: string, personId: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+function requestFor(method: string, personId: string, path: string, body?: unknown, headers: Record<string, string> = {}, sessionOverrides: Record<string, unknown> = {}) {
   const expiresAt = now + 600;
   const session = sealProspectusCookie(secret, PROSPECTUS_SESSION_COOKIE, {
     personId,
+    newsroomSubject: personId,
     accessToken: `access-${personId}`,
     accessTokenExpiresAt: expiresAt,
     selectedAccountId: accountId,
+    ...sessionOverrides,
   }, expiresAt);
   return withNextRequestShape(new Request(`https://papyrus.example/api/newsroom/chat/${path}`, {
     method,
     headers: {
       cookie: `${PROSPECTUS_SESSION_COOKIE}=${session}`,
+      authorization: `Bearer ${personId}`,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       ...headers,
     },
@@ -39,13 +42,14 @@ function withNextRequestShape(request: Request) {
 }
 
 function prospectusRuntime() {
+  const revoked = new Set<string>();
   const authorizationCalls: Array<{ personId: string; accountId: string; operation: string }> = [];
   const accounts = {
     async accountDirectory(accessToken: string) {
       const personId = accessToken.replace("access-", "");
       return {
         person: { id: personId },
-        accounts: [{ id: accountId, name: "Newsroom", role: "member", products: [{ product: siteProduct, status: "active" }] }],
+        accounts: revoked.has(personId) ? [] : [{ id: accountId, name: "Newsroom", role: "member", products: [{ product: siteProduct, status: "active" }] }],
       };
     },
     async currentPerson(accessToken: string) { return { person: { id: accessToken.replace("access-", "") } }; },
@@ -58,6 +62,7 @@ function prospectusRuntime() {
   };
   return {
     authorizationCalls,
+    revoked,
     runtime: { sealingSecret: secret, accounts: accounts as never, cognitoClient: {} as never },
   };
 }
@@ -206,6 +211,7 @@ async function main() {
     environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: "editorial-assistant" },
     nowInSeconds: () => now,
     resolveRuntime: async () => auth.runtime,
+    resolveNewsroomIdentity: async (request: NextRequest) => { const subject = request.headers.get("authorization")?.replace("Bearer ", ""); return subject ? { subject } : null; },
     resolvePrivateDependencies: async () => core.dependencies,
   };
   const send = await handlePapyrusHostedChatRequest(
@@ -240,10 +246,32 @@ async function main() {
   const nonparticipantStream = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-b", "turns/private-turn-a/stream"), ["turns", "private-turn-a", "stream"], options);
   assert.equal(nonparticipantStream.status, 403);
 
+  for (const [overrides, expected] of [
+    [{ selectedAccountId: undefined }, "publishing_account_required"],
+    [{ newsroomSubject: "different-editor" }, "chat_identity_connection_required"],
+    [{ newsroomSubject: undefined }, "chat_identity_connection_required"],
+    [{ accessTokenExpiresAt: now - 1 }, "chat_identity_connection_required"],
+  ] as const) {
+    let storageLoads = 0;
+    const response = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`, undefined, {}, overrides), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => { storageLoads += 1; return core.dependencies; } });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error, expected);
+    assert.equal(storageLoads, 0, "incomplete or mismatched identity never accesses chat storage");
+  }
+  const newsroomOnly = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`, undefined, { cookie: "" }), ["channels", core.channelId, "messages"], options);
+  assert.equal(newsroomOnly.status, 409);
+  assert.equal((await newsroomOnly.json()).error, "chat_identity_connection_required");
   const noSession = await handlePapyrusHostedChatRequest(withNextRequestShape(new Request("https://papyrus.example/api/newsroom/chat/channels/private-channel-a/messages")), ["channels", core.channelId, "messages"], options);
   assert.equal(noSession.status, 401);
   const denied = await handlePapyrusHostedChatRequest(requestFor("GET", "denied-editor", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
   assert.equal(denied.status, 403);
+  auth.revoked.add("editor-a");
+  const revokedRead = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
+  assert.equal(revokedRead.status, 403, "an editor previously allowed is denied immediately after fresh Account membership revocation");
+  const revokedSend = await handlePapyrusHostedChatRequest(requestFor("POST", "editor-a", `channels/${core.channelId}/messages`, { body: "must not be stored" }, { origin: "https://papyrus.example", "idempotency-key": "revoked-send" }), ["channels", core.channelId, "messages"], options);
+  assert.equal(revokedSend.status, 403);
+  assert.equal(core.messages.length, 1, "revocation does not create a message or model run");
+  auth.revoked.delete("editor-a");
   const noStore = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => null });
   assert.equal(noStore.status, 503, "the endpoint fails closed until a private durable store runtime is configured");
   let disabledDependencyLoads = 0;

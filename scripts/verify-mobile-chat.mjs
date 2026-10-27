@@ -1,0 +1,130 @@
+import assert from "node:assert/strict";
+
+export async function verifyMobileChat(page, origin) {
+  const trigger = page.getByRole("button", { name: "Open private chat" });
+  const close = page.getByRole("button", { name: "Close console" });
+  const composer = page.getByRole("textbox", { name: "Message input" });
+  const fits = async (locator, width, height, top = 0) => {
+    await locator.waitFor({ state: "visible" });
+    const box = await locator.boundingBox();
+    assert.ok(box && box.width > 0 && box.height > 0 && box.x >= 0 && box.x + box.width <= width + 1 && box.y >= top && box.y + box.height <= top + height + 1, JSON.stringify(box));
+  };
+  for (const [width, height] of [[315, 683], [320, 568], [375, 667], [390, 844], [430, 932], [844, 390]]) {
+    console.log(`Checking mobile chat at ${width}x${height}`);
+    await page.setViewportSize({ width, height });
+    await fits(trigger, width, height);
+    if (width === 375 && process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-entry-375.png` });
+    assert.equal(await page.getByRole("button", { name: "Open console", exact: true }).isVisible(), false);
+    const target = await trigger.boundingBox();
+    assert.equal(await trigger.evaluate(el => {
+      const r = el.getBoundingClientRect(), nav = el.closest('nav')?.getBoundingClientRect();
+      return !!nav && r.top >= nav.top && r.bottom <= nav.bottom && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('button') === el;
+    }), true, "Chat is an unobstructed navigation item, not a content overlay");
+    assert.equal(await page.locator('.organizer-bottom-nav > ul > li').count(), 5);
+    await page.touchscreen.tap(target.x + target.width / 2, target.y + target.height / 2);
+    await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+    await composer.waitFor();
+    await fits(close, width, height);
+    await fits(composer, width, height);
+    if (width === 375 && process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-375.png` });
+    await close.focus();
+    await page.keyboard.press("Shift+Tab");
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]')), true);
+    await page.keyboard.press("Escape");
+    await trigger.waitFor();
+    await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Open private chat");
+  }
+  await trigger.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  const openHistoryLength = await page.evaluate(() => history.length);
+  await page.reload();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), openHistoryLength, "reload adopts the existing chat entry");
+  await page.goBack();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor({ state: "hidden" });
+  assert.equal(new URL(page.url()).pathname, "/");
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  assert.equal(await page.getByRole("navigation", { name: "All workspaces" }).getByRole("link", { name: "Messages", exact: true }).isVisible(), true);
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('.organizer-main a[href="#references"]').click();
+  await trigger.click();
+  await composer.waitFor();
+  await composer.fill("Synthetic mobile layout test draft");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForFunction(() => !document.querySelector('[aria-modal="true"]') && !document.querySelector('.papyrus-console-page[inert]'));
+  await fits(close, 1280, 800);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  await fits(composer, 390, 844);
+  assert.equal(await composer.inputValue(), "Synthetic mobile layout test draft");
+  await page.evaluate(() => {
+    const viewport = new EventTarget();
+    viewport.height = 310;
+    viewport.offsetTop = 20;
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+  });
+  await close.click();
+  await trigger.click();
+  await composer.waitFor();
+  await page.waitForFunction(() => document.querySelector(".papyrus-console").style.height === "310px");
+  await composer.fill("Synthetic keyboard viewport test draft");
+  await fits(composer, 390, 310, 20);
+  await fits(close, 390, 310, 20);
+  await page.evaluate(() => {
+    window.visualViewport.height = 400;
+    window.visualViewport.offsetTop = 10;
+    window.visualViewport.dispatchEvent(new Event("resize"));
+    window.visualViewport.dispatchEvent(new Event("scroll"));
+  });
+  await page.waitForFunction(() => document.querySelector(".papyrus-console").style.height === "400px" && document.querySelector(".papyrus-console").style.top === "10px");
+  await fits(composer, 390, 400, 10);
+  await fits(close, 390, 400, 10);
+  for (let retry = 0; retry < 3; retry++) {
+    await close.click();
+    await trigger.click();
+    await page.waitForFunction(() => !!document.activeElement?.closest('[role="dialog"]'));
+    await fits(close, 390, 400, 10);
+  }
+  if (process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-keyboard.png` });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+  assert.equal(await page.locator('.papyrus-console').evaluate(panel => {
+    const scrollable = [...panel.querySelectorAll('*')].find(element => /auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight);
+    if (!scrollable) return false;
+    scrollable.scrollTop = 0;
+    const before = scrollable.scrollTop;
+    scrollable.scrollTop = 50;
+    return scrollable.scrollTop > before;
+  }), true, "transcript remains scrollable in the keyboard viewport");
+  await close.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor({ state: "hidden" });
+  assert.equal(new URL(page.url()).hash, "#references");
+  await page.goBack();
+  await trigger.waitFor();
+  assert.equal(new URL(page.url()).hash, "");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  assert.equal(await trigger.isVisible(), false);
+  await page.getByRole("button", { name: "Open console", exact: true }).click();
+  await close.waitFor();
+  assert.equal(await page.locator('[aria-modal="true"]').count(), 0);
+  assert.equal(await page.locator('.papyrus-console-page[inert]').count(), 0);
+  await close.click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await trigger.click();
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  const beforePublic = await page.evaluate(() => history.length);
+  await page.goto(`${origin}/public`);
+  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), beforePublic + 1, "public navigation adds only its own entry");
+  assert.equal(await page.evaluate(() => localStorage.getItem("papyrus:console-open")), "true");
+  assert.equal(await trigger.count(), 0);
+  assert.equal(await page.locator('.papyrus-console').count(), 0);
+  const beforeUnavailable = await page.evaluate(() => history.length);
+  await page.goto(`${origin}/?unauthorized=1`);
+  await page.getByRole("heading", { name: "Notification Center" }).waitFor();
+  assert.equal(await page.evaluate(() => history.length), beforeUnavailable + 1, "unavailable chat adds no hidden history entry");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await trigger.count(), 0);
+  assert.equal(await page.locator('.papyrus-console').count(), 0);
+  console.log("PASS: mobile chat entry, phone/landscape geometry, keyboard viewport, focus, close/return navigation, desktop and unauthorized boundary");
+}
