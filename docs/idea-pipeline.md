@@ -62,7 +62,7 @@ Ideas are private by default.
 - **`--store json` (default).** One JSON file per digest, idea and run under `~/.papyrus/ideas/<publication>` (or `--out`,
   `PAPYRUS_IDEAS_DIR`). The directory is refused if it sits inside `_data`, `public` or `static-root`.
 - **`--store proposals`.** Each idea is filed as a `story_draft` Proposal in state `draft`, proposer AI, with the digest in the
-  evidence. This needs the reader-steering plugin's Proposal model on the site. It works with an editor or admin session
+  evidence. Every site's backend has the Proposal model (it is core, not part of the reader-steering plugin), so this needs only a backend on a release that includes it. It works with an editor or admin session
   (`papyrus login`) and with `PAPYRUS_GRAPHQL_AUTH=iam` as an operator role of the site's own AWS account, so an unattended run can
   file drafts ([reader-steering.md](reader-steering.md#operator-filing)). Under IAM the proposer is still AI and the history records
   `operator:<principal ARN>`; the role needs `appsync:GraphQL` on `Mutation/fields/fileProposal`. Only editors and admins can read

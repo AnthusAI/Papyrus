@@ -598,11 +598,18 @@ rendered as text and links only if they are `http` or `https`. The plugin manife
 ## Proposals
 
 A proposal is a change to the map written down where readers can see it: a story draft, a new concept, a rename, a merge, a
-split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides. It is part of the
-`reader-steering` plugin (a `Proposal` model, the `fileProposal` and `transitionProposal` mutations on `reader-actions`, and
-`papyrus proposals` on the CLI). The record and its rules are one stdlib module,
-`amplify/plugins/reader-steering/function/proposals.py`; the public files come from
-`src/papyrus_content/reader_steering/proposals.py`.
+split, a new column or an element symbol. AI files it, readers steer it with votes, an editor decides.
+
+**The queue is core; the plugin adds readers.** Every site's backend has the `Proposal` model, the `fileProposal`,
+`transitionProposal` and `editProposal` mutations, the operator query `listStoryDrafts`, the `proposal-actions` function behind
+them (`amplify/functions/proposal-actions/`) and the Proposals panel in Administration, with or without this plugin. A site
+that never enabled `reader-steering` therefore receives AI story drafts (monitor stories, Cited Trends, `papyrus ideas --store
+proposals`) and its editors decide them, by configuration alone. The plugin builds on that table: reader votes on `proposal`
+subjects, the snapshot that freezes the community result and the optional public `_data/proposals/` files
+(`proposals.publish`). The plugin defines none of the queue's schema and its `reader-actions` function no longer handles it. The
+record and its rules are one stdlib module, `amplify/functions/proposal-actions/proposals.py`; the public files come from
+`src/papyrus_content/reader_steering/proposals.py`. `SteeringProposal` (topic and category steering) is a different, older model
+and stays separate: it needs a corpus and a category set, has no body, no state machine and no operator path.
 
 **The record (`Proposal`, id `prop-` + 32 hex characters).** Staff-readable only, like the other reader models.
 
@@ -713,7 +720,7 @@ for an operator, whose reach stays exactly what [Operator filing](#operator-fili
   `needsLook` and cleared when none is left, so excluding a batch clears the surge. Editors read them with `listProposals`/`getProposal` or `papyrus proposals needs-a-look`;
   the thresholds are constants in `src/papyrus_content/reader_steering/proposal_votes.py`.
 
-The CMS console has no Proposals view yet, so the CLI and the API are the editor tier's interface for now; the Moderation panel already has limit and ban for readers.
+The CMS console has a Proposals panel under Administration on every site; it does not need this plugin. Editors list proposals by where they stand, read the draft, pin and unpin, hold and release, and decide: send a draft to steering (or, on a site without this plugin, straight to editor review, which is two `transitionProposal` calls from one click), decline it, and approve or decline one in review. Without the plugin the panel says nothing of steering, votes or readers. Excluding votes and overriding the community need readers and a reason, so they stay with the CLI and the API (`papyrus proposals`); the Moderation panel, which does need the plugin, has limit and ban for readers.
 
 **The CLI.** Signed in as an editor or admin (`papyrus login`); `create`, `transition` (draft to `in_steering` or `declined`) and `publish` also work with `PAPYRUS_GRAPHQL_AUTH=iam`; the editor-tier commands (`approve`, `decline`, `override`, `pin`, `unpin`, `hold`, `release`, `exclude-votes`, `undo-exclusion`, `needs-a-look`) need an editor session ([Operator filing](#operator-filing)):
 
@@ -765,8 +772,8 @@ and send a draft on its way. The rule is deliberately narrow.
   lets an unattended run dedupe against earlier drafts and cool down an entity that already anchored one
   ([idea pipeline](idea-pipeline.md#trend-stories)). Specs: `features_backend/proposals_operator.feature`; tests:
   `procedures/newsroom/tests/test_proposals.py` (`OperatorStoryDraftReadTests`).
-* **What a site must deploy.** The `reader-actions` function and one custom query (`listStoryDrafts`, a function resolver open to the `editor`
-  and `admin` groups like the mutations) come with a backend that includes this release; deploy it before the image that uses it. The
+* **What a site must deploy.** The `proposal-actions` function and the custom query `listStoryDrafts` (a function resolver open to the `editor`
+  and `admin` groups like the mutations) come with every backend that includes this release, plugin or not; deploy it before the image that uses it. The
   operator's IAM policy must allow `appsync:GraphQL` on `Mutation/fields/fileProposal` and `Mutation/fields/transitionProposal`, and on
   `Query/fields/listStoryDrafts` to dedupe, of the site's API. Reading proposals in full (`papyrus proposals list|show`, `listProposals`) is
   still editors and admins only.
