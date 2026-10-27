@@ -69,7 +69,7 @@ def submit_email(client, data=None, identity=None):
 
 class EmailReceiptStore:
     def __init__(self, receipt_id, links, *, destinations=("p-apyr-us",), endpoint=ENDPOINT,
-                 status="pending_review", trust_mode="data-only", corpus_id="knowledge-corpus-email-publication"):
+                 status="queued", trust_mode="data-only", corpus_id="knowledge-corpus-email-publication"):
         digest = receipt_id.removeprefix("EMAIL#")
         self.rows = {
             receipt_id: {"sk": receipt_id, "status": status, "emailTrustMode": trust_mode,

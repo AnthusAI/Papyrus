@@ -28,5 +28,18 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'email-handoff-'));
     assert.equal(calls.filter(x=>x.query.includes('MonitoringQueueEmailReference')).length,failQueue?1:21);
     assert.ok(calls.every(x=>!x.query.includes('monitoringOverview')));
   }
-  console.log('PASS: selected Reference handoff, 20-item batches, and recoverable queue failures');
+  // Accept and Reject are the editor's words; the wire carries release and discard with the optional reason.
+  const sent=[];
+  const decideModule={exports:{}};
+  vm.runInNewContext(fs.readFileSync(out,'utf8'), {module:decideModule,exports:decideModule.exports,process,queueMicrotask,setTimeout,clearTimeout,performance,require(){
+    return {generateClient({authMode}) { assert.equal(authMode,'userPool'); return {async graphql({query,variables}) {
+      assert.ok(query.includes('monitoringDecideEmailSubmission')); sent.push(variables);
+      return {data:{monitoringDecideEmailSubmission:JSON.stringify({ok:true,already:false,quarantine:{state:'release_requested',decision:null,failure:null}})}};
+    }}}};
+  }});
+  const accepted=await decideModule.exports.decideMonitoringEmailSubmission('EMAIL#synthetic','accept','Known sender');
+  await decideModule.exports.decideMonitoringEmailSubmission('EMAIL#synthetic','reject','');
+  assert.deepEqual(JSON.parse(JSON.stringify(sent)),[{receiptId:'EMAIL#synthetic',decision:'release',reason:'Known sender'},{receiptId:'EMAIL#synthetic',decision:'discard',reason:''}]);
+  assert.equal(accepted.ok,true);
+  console.log('PASS: selected Reference handoff, 20-item batches, recoverable queue failures, and Accept/Reject decisions');
 })().finally(()=>fs.rmSync(temp,{recursive:true,force:true}));

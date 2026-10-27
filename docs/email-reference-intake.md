@@ -50,8 +50,9 @@ and passing spam and virus verdicts. To/Cc, From, Authentication-Results and oth
 MIME headers cannot grant access or select a destination. SPF, DKIM and DMARC are
 recorded as untrusted provenance signals; failed or unavailable results do not
 block safe data-only intake. Instead, those messages and their extracted links are
-visible only to editors of the configured destination in `pending_review`; they do
-not create discoveries or reach the Cyclotron/router automatically. A sender address
+held in [quarantine](#quarantine-accept-or-reject) (`pending_review`), visible only to
+editors of the configured destination; they do not create discoveries or reach the
+Cyclotron/router until an editor accepts them. A sender address
 never grants an editor role or causes a privileged action. Destination publications
 come only from the exact recipient's private configuration, and the router checks
 that same scope before delivery.
@@ -85,9 +86,10 @@ own safe-fetch policy; this change does not authorize fetching private resources
 The raw MIME is retained in the private 30-day S3 prefix. Editors can read a safe
 text rendering, bounded SES verdicts and every extracted candidate link through the
 existing authenticated Monitoring page, scoped to their configured publication.
-Authentication-warning submissions show as `pending_review` and do not create
-router discoveries. The editor UI renders unresolved tracking URLs as non-clickable
-text and can explicitly register selected direct/resolved URLs as pending References.
+Authentication-warning submissions are quarantined as `pending_review` and do not create
+router discoveries; a held message is read-only until an editor accepts it. Once accepted, the
+editor UI renders unresolved tracking URLs as non-clickable text and can explicitly register
+selected direct/resolved URLs as pending References.
 HTML is converted to inert text: scripts, styles, remote images, markup and active
 content are never rendered. Email body text is not sent to the classifier; only
 normalized candidate URLs and bounded link titles enter discovery. These private
@@ -187,6 +189,71 @@ visible by safe error code. Initial transient failures also use bounded Lambda
 retries and then the DLQ. Rate limits count each SES delivery once per
 sender/hour. Raw MIME and intake receipts expire after 30 days; DLQ messages
 expire after 14 days.
+
+## Quarantine: Accept or Reject
+
+A message the receiver will not route on its own is held in private quarantine rather than
+lost or silently accepted. Two kinds of message are held:
+
+- Mail whose SPF, DKIM or DMARC signal did not pass (`pending_review`, with the inert text and
+  every extracted link stored for 30 days, as for any accepted message).
+- Receipts refused by the earlier authentication gate (`sender_authentication_failed` or
+  `sender_not_active_editor`). That gate refused before reading the MIME, so these have no stored
+  text, links or verdicts until the operator step below holds them.
+
+Mail that failed SES spam or virus checks, mail for the wrong recipient, and mail that is too
+large or cannot be parsed stays refused. It is not held for release and no editor can accept it.
+
+An editor or admin of a destination publication opens the held message on the Monitoring page (or
+`?receipt=` link) and sees the inert text, each SES verdict (or `UNAVAILABLE`) and the extracted
+links as plain text. Two buttons decide it, with an optional "Why?" textarea:
+
+| Button | Meaning | Result |
+| --- | --- | --- |
+| Accept | release | The receiver queues the message exactly as if it had been accepted: one discovery per link, router delivery, and the links become eligible to add as pending References. |
+| Reject | discard | The message is closed (`discarded`). Its private record stays until the 30-day expiry; nothing is routed. |
+
+How it works:
+
+1. The editor's click calls `monitoringDecideEmailSubmission`. The function validates the signed-in
+   editor or admin session (the same check as Reference import), that the site is a configured
+   publication, and that the receipt is routed to it. It then writes one `EMAILACTION#<hash>` row
+   with a conditional create, so the first decision wins: a double click or retry reports the
+   existing decision (`already: true`); the opposite decision is refused as `already_decided`.
+   The row records the actor (Cognito sub and, when present, the sign-in email), the time, the
+   reason (plain text, up to 500 characters) and a snapshot of the SES verdicts.
+2. The receiver's one-minute resume schedule applies pending decisions before it drains the
+   queue. It is the only writer of the receipt. Accept builds the manifest from the links the
+   editor reviewed and queues the receipt; the existing resume machinery then writes the
+   discoveries. Reject sets `discarded`. A busy lease or dependency failure leaves the decision
+   pending and retried; a changed destination binding or missing details marks the decision failed
+   with a safe code that the page shows (`decision_failed`).
+3. The Monitoring page shows the exact state: held, accepted and being queued, accepted, rejected,
+   expired, or decision could not be applied. Expired messages can no longer be accepted.
+
+Nothing about the message grants any of this. The envelope sender, the MIME `From`, an editor's
+address in the message, and SPF/DKIM/DMARC results never create a role, pick a publication, or
+decide a message; they are displayed as untrusted provenance only. Links in a held, rejected or
+expired message are inert text; resolving a redirect or adding References from them is refused.
+
+Accepting is a one-message override. It does not enroll the sender or change how future mail is
+treated. A decision cannot be changed once recorded.
+
+### Holding the two refused receipts (operator step)
+
+Receipts refused by the earlier gate are held by invoking the receiver once. This reads each
+receipt's private MIME through the normal bounded parser, stores its inert text and links, keeps
+every existing receipt field, records that the verdicts were never captured, and sets
+`pending_review`. It is idempotent and writes nothing for receipts that are not legacy refusals.
+
+```bash
+aws lambda invoke --function-name papyrus-email-<monitor-id> --cli-binary-format raw-in-base64-out \
+  --payload '{"task":"quarantine-legacy","monitorId":"<monitor-id>"}' /dev/stdout
+```
+
+Add `"receiptIds":["EMAIL#<hash>", ...]` to hold only specific receipts. The receiver needs the
+`dynamodb:Query` grants in `infra/email/papyrus-email-submissions.yaml` (the partition and the
+`EMAIL_ACTION#` index key), so deploy that stack update first.
 
 ## SES ownership and activation
 

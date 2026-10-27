@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { CheckIcon, XIcon } from "lucide-react";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import {
   confidenceText,
@@ -12,6 +13,10 @@ import {
   beginEmailSubmissionAction,
   endEmailSubmissionAction,
   isCurrentEmailSubmissionAction,
+  emailSubmissionAccepted,
+  QUARANTINE_LABELS,
+  type EmailDecisionResult,
+  type EmailQuarantine,
   type MonitoringItem,
   type MonitoringEmailDetails,
   type MonitoringEmailArticleResolution,
@@ -97,8 +102,9 @@ function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string 
   );
 }
 
-export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates }: {
+export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates, onDecide }: {
   items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen?: (receiptId: string) => void;
+  onDecide?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
@@ -108,8 +114,15 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
   const [busyImportByReceipt, setBusyImportByReceipt] = useState<Record<string, boolean>>({});
   const [noticeByReceipt, setNoticeByReceipt] = useState<Record<string, string>>({});
   const [importedByReceipt, setImportedByReceipt] = useState<Record<string, EmailReferenceImportOutcome["references"]>>({});
+  const [decidedByReceipt, setDecidedByReceipt] = useState<Record<string, EmailQuarantine>>({});
+  const [reasonByReceipt, setReasonByReceipt] = useState<Record<string, string>>({});
+  const [busyDecisionByReceipt, setBusyDecisionByReceipt] = useState<Record<string, boolean>>({});
   const receiptId = detail && "submission" in detail ? detail.submission.receiptId : null;
   const receiptKey = receiptId ?? "";
+  const quarantine = (detail && "submission" in detail ? decidedByReceipt[receiptKey] ?? detail.submission.quarantine : null);
+  const accepted = emailSubmissionAccepted(quarantine);
+  const reason = reasonByReceipt[receiptKey] ?? "";
+  const busyDecision = busyDecisionByReceipt[receiptKey] ?? false;
   const selected = selectedByReceipt[receiptKey] ?? {};
   const resolved = resolvedByReceipt[receiptKey] ?? {};
   const busyIndex = busyIndexByReceipt[receiptKey] ?? null;
@@ -155,6 +168,34 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
     } finally {
       endEmailSubmissionAction(inFlightActions.current, actionKey);
       setBusyIndexByReceipt((current) => ({ ...current, [requestReceiptId]: null }));
+    }
+  };
+
+  const decide = async (decision: "accept" | "reject") => {
+    if (!receiptId || !onDecide) return;
+    const requestReceiptId = receiptId;
+    const actionKey = `decide:${requestReceiptId}`;
+    if (!beginEmailSubmissionAction(inFlightActions.current, actionKey)) return;
+    setBusyDecisionByReceipt((current) => ({ ...current, [requestReceiptId]: true }));
+    setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "" }));
+    try {
+      const result = await onDecide(requestReceiptId, decision, reason.trim());
+      if ("ok" in result) {
+        setDecidedByReceipt((current) => ({ ...current, [requestReceiptId]: result.quarantine }));
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: decision === "accept"
+          ? "Accepted. The receiver queues it within a minute; the links can be added to References once it is queued."
+          : "Rejected. The message is closed and kept privately until it expires." }));
+      } else if ("error" in result && result.quarantine) {
+        setDecidedByReceipt((current) => ({ ...current, [requestReceiptId]: result.quarantine as EmailQuarantine }));
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "Another decision was already recorded for this message; it cannot be changed." }));
+      } else {
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The decision was not recorded. Check your editor access and try again." }));
+      }
+    } catch {
+      setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The decision was not recorded. It is safe to try again." }));
+    } finally {
+      endEmailSubmissionAction(inFlightActions.current, actionKey);
+      setBusyDecisionByReceipt((current) => ({ ...current, [requestReceiptId]: false }));
     }
   };
 
@@ -210,6 +251,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
           <span>SES signals — SPF {item.verdicts.spf}, DKIM {item.verdicts.dkim}, DMARC {item.verdicts.dmarc}; spam {item.verdicts.spam}, virus {item.verdicts.virus}</span>
           {item.warnings.length ? <span>Warnings: {item.warnings.join(", ")}</span> : null}
           {item.errorCode ? <span>State: {item.status} ({item.errorCode})</span> : <span>State: {item.status}</span>}
+          {item.quarantine ? <span data-email-quarantine-state={item.quarantine.state}>{QUARANTINE_LABELS[item.quarantine.state]}</span> : null}
           {onOpen ? <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button> : null}
         </li>)}
       </ul> : <p>No email submissions are available for this publication.</p>}
@@ -218,32 +260,60 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
           <h4>{detail.submission.subject || "Submitted email"}</h4>
           <p>Original content is shown as inert text. Sender and message content are untrusted; no instructions are executed.</p>
           <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{detail.safeBodyText}</pre>
+          {quarantine ? <section aria-label="Held for review" data-email-quarantine={quarantine.state}>
+            <h5>{QUARANTINE_LABELS[quarantine.state]}</h5>
+            {quarantine.state === "quarantined" ? <>
+              <p>This message was held privately and nothing was routed. Accept it to queue its links as if it had been accepted, or Reject it to close it. Sender identity and authentication signals never grant access; the decision is yours and is recorded.</p>
+              <label>Why? (optional)
+                <textarea value={reason} rows={3} maxLength={500} style={{ display: "block", width: "100%" }}
+                  onChange={(event) => setReasonByReceipt((current) => ({ ...current, [receiptKey]: event.target.value }))} />
+              </label>
+              <button type="button" data-email-decision="accept" disabled={busyDecision || !onDecide} onClick={() => void decide("accept")}>
+                <CheckIcon aria-hidden="true" size={16} /> Accept
+              </button>
+              <button type="button" data-email-decision="reject" disabled={busyDecision || !onDecide} onClick={() => void decide("reject")}>
+                <XIcon aria-hidden="true" size={16} /> Reject
+              </button>
+            </> : null}
+            {quarantine.decision ? <p data-email-decision-record>
+              {quarantine.decision.action === "accept" ? "Accepted" : "Rejected"}
+              {quarantine.decision.by ? ` by ${quarantine.decision.by}` : ""}{quarantine.decision.at ? ` on ${formatUtc(quarantine.decision.at)}` : ""}
+              {quarantine.decision.reason ? `. Why: ${quarantine.decision.reason}` : "."}
+            </p> : null}
+            {quarantine.failure ? <p role="alert">The decision could not be applied ({quarantine.failure}).</p> : null}
+            {quarantine.state === "expired" ? <p>This message expired and can no longer be accepted.</p> : null}
+            {notice && !accepted ? <p role="status" data-email-decision-result>{notice}</p> : null}
+          </section> : null}
           <h5>Candidate references ({detail.candidateLinks.length})</h5>
           <ul>{detail.candidateLinks.map((link, index) => <li key={`${link.url}-${index}`}>
-            {link.resolutionStatus === "unresolved" && !resolved[index]
+            {!accepted
+              ? <span>{link.title || "Source link"} <code>{link.url}</code></span>
+              : link.resolutionStatus === "unresolved" && !resolved[index]
               ? <span>{link.title || "Newsletter article link"} (tracking redirect not opened)</span>
               : <a href={(resolved[index]?.url ?? link.url)} target="_blank" rel="noreferrer noopener">{resolved[index]?.title ?? (link.title || "Source link")}</a>}
-            <label>
+            {accepted ? <label>
               <input type="checkbox" checked={selected[index] ?? false}
                 disabled={link.resolutionStatus === "unresolved" && !resolved[index]}
                 onChange={(event) => setSelectedByReceipt((current) => ({ ...current, [receiptKey]: { ...current[receiptKey], [index]: event.target.checked } }))} />
               Add as pending Reference
-            </label>
-            {link.resolutionStatus === "unresolved" && !resolved[index] ? (
+            </label> : null}
+            {accepted && link.resolutionStatus === "unresolved" && !resolved[index] ? (
               <button type="button" disabled={busyIndex !== null || !onResolveArticleLink} onClick={() => void resolveLink(index)}>
                 {busyIndex === index ? "Resolving…" : "Resolve article redirect (may register a click)"}
               </button>
             ) : null}
           </li>)}</ul>
-          <p>Adding links creates or reuses pending References. It does not approve, label, classify, or publish them.</p>
-          <button type="button" disabled={busyImport || !onImportCandidates || !detail.submission.corpusId}
-            onClick={() => void importSelected()}>
-            {busyImport ? "Adding References…" : "Add selected links to References"}
-          </button>
-          {notice ? <p role="status" data-email-import-result>{notice}</p> : null}
-          {importedReferences.length ? <ul>{importedReferences.map((reference, index) => (
-            <li key={`${reference.id}-${index}`}><Link href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.lineageId)}`, false)}>Review imported Reference {index + 1}</Link></li>
-          ))}</ul> : null}
+          {accepted ? <>
+            <p>Adding links creates or reuses pending References. It does not approve, label, classify, or publish them.</p>
+            <button type="button" disabled={busyImport || !onImportCandidates || !detail.submission.corpusId}
+              onClick={() => void importSelected()}>
+              {busyImport ? "Adding References…" : "Add selected links to References"}
+            </button>
+            {notice ? <p role="status" data-email-import-result>{notice}</p> : null}
+            {importedReferences.length ? <ul>{importedReferences.map((reference, index) => (
+              <li key={`${reference.id}-${index}`}><Link href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.lineageId)}`, false)}>Review imported Reference {index + 1}</Link></li>
+            ))}</ul> : null}
+          </> : <p>Links stay inert text, and nothing can be added to References, until this message is accepted.</p>}
         </section>
       ) : detail && "error" in detail ? <p role="alert">You cannot read this submission.</p>
         : detail && "state" in detail ? <p role="alert">Submission details are unavailable.</p> : null}
@@ -251,8 +321,9 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
   );
 }
 
-function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onImportCandidates }: {
+function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onImportCandidates, onDecide }: {
   data: MonitoringOverview; demo: boolean; emailDetail: MonitoringEmailDetails | null; onEmailOpen: (id: string) => void;
+  onDecide?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
@@ -265,7 +336,8 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
 
       <EmailSubmissions items={data.emailSubmissions ?? []} detail={emailDetail} onOpen={onEmailOpen}
         onResolveArticleLink={demo ? undefined : onResolveArticleLink}
-        onImportCandidates={demo ? undefined : onImportCandidates} />
+        onImportCandidates={demo ? undefined : onImportCandidates}
+        onDecide={demo ? undefined : onDecide} />
 
       <article className="news-desk-doctrine-card" data-monitoring-section="router">
         <div className="news-desk-doctrine-card__header"><div><h3>Router</h3><span>Sends collected items to the shared Cyclotron and delivers relevant ones to References</span></div></div>
@@ -373,6 +445,7 @@ export function MonitoringOverviewView({
   onEmailOpen = () => {},
   onResolveArticleLink,
   onImportCandidates,
+  onDecide,
 }: {
   result: MonitoringResult | null;
   canViewAll: boolean;
@@ -383,6 +456,7 @@ export function MonitoringOverviewView({
   onEmailOpen?: (receiptId: string) => void;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
+  onDecide?: (receiptId: string, decision: "accept" | "reject", reason: string) => Promise<EmailDecisionResult>;
 }) {
   let body: React.ReactNode;
   if (result === null) {
@@ -399,7 +473,7 @@ export function MonitoringOverviewView({
     body = <Message kind="empty" title="Nothing has been collected yet">No feed is configured and no run has been recorded. Items appear here after the collector&apos;s first run.</Message>;
   } else {
     body = <Ready data={result} demo={demo} emailDetail={emailDetail} onEmailOpen={onEmailOpen}
-      onResolveArticleLink={onResolveArticleLink} onImportCandidates={onImportCandidates} />;
+      onResolveArticleLink={onResolveArticleLink} onImportCandidates={onImportCandidates} onDecide={onDecide} />;
   }
   const scopeLine = result && "scope" in result
     ? (result.scope.mode === "all" ? "Showing the whole shared pipeline, every publication." : `Showing what is relevant to ${result.scope.publicationId ?? "this publication"}.`)

@@ -302,7 +302,7 @@ def test_email_article_redirect_resolution_is_an_explicit_scoped_editor_action()
     store = fx.FakeViewStore(fx.rows() + email_rows())
     receipt_id = "EMAIL#" + "a" * 64
     receipt = store.get(receipt_id)
-    receipt["status"] = "pending_review"
+    receipt["status"] = "queued"
     store.table[receipt_id] = receipt
     details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
     store.table[details_key]["json"] = (
@@ -334,7 +334,7 @@ def test_email_article_redirect_resolution_is_an_explicit_scoped_editor_action()
 def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts():
     store = fx.FakeViewStore(fx.rows() + email_rows())
     receipt_id = "EMAIL#" + "a" * 64
-    store.table[receipt_id]["status"] = "pending_review"
+    store.table[receipt_id]["status"] = "queued"
     store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
         '[{"url":"https://link.mail.beehiiv.com/ss/c/unsubscribe?unsubscribe=true",'
         '"title":"Unsubscribe","resolutionStatus":"unresolved"}]'
@@ -356,7 +356,7 @@ def test_email_redirect_resolver_never_follows_actions_or_out_of_scope_receipts(
 def test_email_redirect_and_persistence_failures_remain_fail_closed():
     store = fx.FakeViewStore(fx.rows() + email_rows())
     receipt_id = "EMAIL#" + "a" * 64
-    store.table[receipt_id]["status"] = "pending_review"
+    store.table[receipt_id]["status"] = "queued"
     store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = (
         '[{"url":"https://link.mail.beehiiv.com/ss/c/article-token",'
         '"title":"Story","resolutionStatus":"unresolved"}]'
@@ -543,7 +543,7 @@ def test_branded_tracking_legacy_receipt_is_unresolved_without_mutating_storage(
     import json
     store = fx.FakeViewStore(fx.rows() + email_rows())
     receipt_id = "EMAIL#" + "a" * 64
-    store.table[receipt_id]["status"] = "pending_review"
+    store.table[receipt_id]["status"] = "queued"
     details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
     link = {"url": "https://news.example.org/ss/c/u001.synthetic-Recipient.Route", "title": "Article"}
     original = json.dumps([link])

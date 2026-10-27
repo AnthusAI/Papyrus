@@ -99,7 +99,9 @@ async function main() {
     emailSubmissions: [{ receiptId: `EMAIL#${"a".repeat(64)}`, observedAt: "2026-10-21T02:30:00Z", status: "pending_review",
       subject: "Newsletter", envelopeSender: "sender@example.net", headerFrom: "forged@example.net",
       warnings: ["ses_authentication_unverified"], verdicts: { spf: "FAIL", dkim: "PASS", dmarc: "FAIL", spam: "PASS", virus: "PASS" },
-      linkCount: 2, processedCount: 0, unresolvedLinkCount: 1, reviewRequired: true, errorCode: null }],
+      linkCount: 2, processedCount: 0, unresolvedLinkCount: 1, reviewRequired: true, errorCode: null,
+      quarantine: { state: "released" as const, failure: null,
+        decision: { action: "accept" as const, by: "editor@example.test", at: "2026-10-21T03:00:00Z", reason: "Known sender" } } }],
   };
   const emailDetail = { submission: { ...withEmail.emailSubmissions[0], corpusId: "corpus-1" },
     safeBodyText: "Hello <script>never execute</script>\nhttps://example.org/story",
@@ -135,6 +137,43 @@ async function main() {
     onImportCandidates: async () => ({ imported: 1, references: [{ id: "ref-1", sourceUri: "https://example.org/story", title: "Story", curationStatus: "pending" }] }),
   });
   assert.match(importReadyHtml, /Add selected links to References/);
+
+  // A held message is read-only text until an editor accepts it; Accept and Reject are buttons with Lucide icons.
+  const held = { ...emailDetail.submission, status: "pending_review",
+    quarantine: { state: "quarantined" as const, decision: null, failure: null } };
+  const heldDetail = { ...emailDetail, submission: held,
+    candidateLinks: [{ url: "https://example.org/story", title: "Story" }, { url: "https://link.mail.beehiiv.com/ss/c/opaque", title: "Tracked", resolutionStatus: "unresolved" as const }] };
+  const decisions: unknown[][] = [];
+  const heldHtml = renderToStaticMarkup(createElement(EmailSubmissions, { items: [held], detail: heldDetail,
+    onDecide: async (...args: unknown[]) => { decisions.push(args); return { error: "bad_request" as const }; },
+    onImportCandidates: async () => ({ imported: 0, references: [] }), onResolveArticleLink: async () => ({ error: "resolution_failed" as const }) }));
+  const heldText = text(heldHtml);
+  for (const expected of ["Held for review", "Accept", "Reject", "Why? (optional)", "stay inert text"]) {
+    assert.ok(heldText.includes(expected), `held message shows: ${expected}`);
+  }
+  assert.match(heldHtml, /data-email-decision="accept"[^>]*>.*?lucide-check/s, "Accept carries a Lucide check icon");
+  assert.match(heldHtml, /data-email-decision="reject"[^>]*>.*?lucide-x/s, "Reject carries a Lucide x icon");
+  assert.match(heldHtml, /<textarea[^>]*maxLength="500"/, "the reason is a textarea");
+  assert.ok(!heldHtml.includes("<select") && !heldHtml.includes("✓") && !heldHtml.includes("✗"), "buttons and Lucide icons only");
+  assert.ok(!heldText.includes("Add selected links to References") && !heldHtml.includes("Resolve article redirect") &&
+    !heldHtml.includes('href="https://example.org/story"') && !heldHtml.includes('type="checkbox"'),
+    "nothing can be imported, resolved or opened from a held message");
+  assert.ok(!/disabled=""[^>]*data-email-decision/.test(heldHtml), "decision buttons are enabled for an editor session");
+  const noHandler = renderToStaticMarkup(createElement(EmailSubmissions, { items: [held], detail: heldDetail }));
+  assert.match(noHandler, /disabled=""[^>]*data-email-decision="accept"|data-email-decision="accept"[^>]*disabled=""/, "preview/demo cannot decide");
+  for (const [state, shown] of [["release_requested", "Accepted, being queued"], ["discard_requested", "Rejected, being closed"],
+    ["discarded", "Rejected"], ["expired", "can no longer be accepted"], ["decision_failed", "could not be applied"]] as const) {
+    const html = renderToStaticMarkup(createElement(EmailSubmissions, { items: [{ ...held, quarantine: { state, failure: state === "decision_failed" ? "email_retry_binding_changed" : null,
+      decision: { action: state.startsWith("release") ? "accept" as const : "reject" as const, by: "ed@example.test", at: "2026-10-21T03:00:00Z", reason: "Because" } } }],
+      detail: { ...heldDetail, submission: { ...held, quarantine: { state, failure: state === "decision_failed" ? "email_retry_binding_changed" : null,
+        decision: { action: state.startsWith("release") ? "accept" as const : "reject" as const, by: "ed@example.test", at: "2026-10-21T03:00:00Z", reason: "Because" } } } } }));
+    assert.ok(text(html).includes(shown), `${state} shows: ${shown}`);
+    assert.ok(!html.includes("data-email-decision=\"accept\""), `${state} offers no further decision`);
+    assert.ok(text(html).includes("by ed@example.test") || state === "expired", `${state} records who decided`);
+  }
+  const acceptedHtml = renderToStaticMarkup(createElement(EmailSubmissions, { items: [emailDetail.submission], detail: emailDetail,
+    onImportCandidates: async () => ({ imported: 0, references: [] }) }));
+  assert.ok(text(acceptedHtml).includes("Accepted by editor@example.test") && text(acceptedHtml).includes("Why: Known sender"));
 
   // Only admins are offered the whole-pipeline switch.
   assert.ok(text(render(FIXTURE_MONITORING_OVERVIEW)).includes("Whole shared pipeline"));
