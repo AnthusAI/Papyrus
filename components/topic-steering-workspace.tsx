@@ -3057,7 +3057,7 @@ function NewsDeskDashboard({
         headerActions={(
           <>
             {dashboard.isDemo ? (
-              <Badge variant="outline">Demo</Badge>
+              dashboard.realDataPreview ? null : <Badge variant="outline">Demo</Badge>
             ) : (
               <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
             )}

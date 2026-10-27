@@ -170,3 +170,22 @@ export function partitionReferenceFeed(
     || left.lineageId.localeCompare(right.lineageId));
   return { freshness, feed, rated, earlier };
 }
+
+export type FeedGroupKey = "top" | "more" | "least";
+
+/**
+ * The feed's sections, from the ranked list (already best first). No fixed counts: Top predictions are the Accepts at least half as
+ * strong as the strongest one, Least likely are the predicted Rejects, and More for you is everything between (weaker Accepts and
+ * items with no prediction). A group with no members is absent.
+ */
+export function groupFeedItems(items: FeedItem[]): Array<{ key: FeedGroupKey; items: FeedItem[] }> {
+  const strongest = items.reduce((best, item) => Math.max(best, item.score - UNDECIDED_PROBABILITY), 0);
+  const groups: Record<FeedGroupKey, FeedItem[]> = { top: [], more: [], least: [] };
+  for (const item of items) {
+    const strength = item.score - UNDECIDED_PROBABILITY;
+    if (strength < 0) groups.least.push(item);
+    else if (strength > 0 && strength >= strongest / 2) groups.top.push(item);
+    else groups.more.push(item);
+  }
+  return (["top", "more", "least"] as const).filter((key) => groups[key].length).map((key) => ({ key, items: groups[key] }));
+}

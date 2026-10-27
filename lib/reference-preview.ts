@@ -81,3 +81,24 @@ export function formatFeedAge(time: number | null, now: number): string | null {
   if (days < 60) return `${Math.round(days / 7)}w`;
   return `${Math.round(days / 30)}mo`;
 }
+
+function words(text: string): string[] {
+  return text.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}]+/gu, " ").split(" ").filter((word) => word.length > 1);
+}
+
+/**
+ * Whether the dek tells the reader something the headline and picture do not. A dek that repeats the headline, or that is mostly
+ * the headline's own words, is dropped; so is the description of a GitHub repository, whose social-card picture already prints it.
+ */
+export function dekAddsInformation(title: string, dek: string | null, imageUrl: string | null): boolean {
+  if (!dek) return false;
+  let imageHost = "";
+  try { imageHost = imageUrl ? new URL(imageUrl).hostname : ""; } catch { /* no host */ }
+  if (/(^|\.)opengraph\.githubassets\.com$/i.test(imageHost)) return false;
+  const titleWords = new Set(words(title));
+  const dekWords = words(dek);
+  if (!dekWords.length) return false;
+  const shared = dekWords.filter((word) => titleWords.has(word)).length;
+  const covered = titleWords.size ? [...titleWords].filter((word) => dekWords.includes(word)).length / titleWords.size : 0;
+  return shared / dekWords.length < 0.6 && covered < 0.8;
+}

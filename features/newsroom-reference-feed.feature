@@ -40,11 +40,19 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then they appear in an Earlier section after everything in the feed, and under the Earlier tab
     And an Earlier card can be rated and stays where it is
 
+  Scenario: The feed is flat, rounded and borderless, with large section headings
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens the feed at 375 and 1440 pixels
+    Then no card, tab, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone
+    And cards are rounded rectangles with a full-bleed picture across the top, and pills are fully rounded
+    And the feed has the sections Top predictions, More for you and Least likely in large type with no lines between them
+    And on a phone the first card's picture is on the first screen
+
   Scenario: A picture that cannot load becomes a tile with the source name
     Given References whose pictures load, fail, or were never found
     When the editor opens the feed at 375 and 1440 pixels
     Then the pictures are lazy, in a fixed frame and requested with no referrer
-    And a missing or failing picture shows a tile with the source name and a newspaper icon
+    And a missing or failing picture shows a soft gradient tile with the source's mark and name
 
   Scenario: The page shows its shell and card skeletons at once, never a checking screen
     Given the References are still loading

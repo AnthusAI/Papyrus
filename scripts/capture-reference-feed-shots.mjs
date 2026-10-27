@@ -11,6 +11,8 @@ import { chromium } from "playwright";
 const base = process.env.PAPYRUS_PREVIEW_URL?.trim() || "http://127.0.0.1:3002";
 const outputDirectory = path.resolve(process.env.PAPYRUS_FEED_SHOTS_DIR?.trim() || "feed-shots");
 const chrome = process.env.PAPYRUS_CHROMIUM_PATH?.trim() || ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].find(existsSync);
+const route = process.env.PAPYRUS_FEED_ROUTE?.trim() || "/references";
+const schemes = (process.env.PAPYRUS_FEED_SCHEMES?.trim() || "light,dark").split(",");
 const viewports = [
   { name: "1440", width: 1440, height: 1000, scale: 1 },
   { name: "390", width: 390, height: 844, scale: 2 },
@@ -20,18 +22,23 @@ mkdirSync(outputDirectory, { recursive: true });
 const browser = await chromium.launch({ executablePath: chrome });
 const failures = [];
 try {
-  for (const viewport of viewports) {
+  for (const scheme of schemes) for (const viewport of viewports) {
     const open = async (query = "") => {
-      const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: viewport.scale, colorScheme: "light" });
+      const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: viewport.scale, colorScheme: scheme });
       const page = await context.newPage();
+      await page.addInitScript(() => {
+        const style = document.createElement("style");
+        style.textContent = "nextjs-portal{display:none!important}";
+        document.addEventListener("DOMContentLoaded", () => document.head.appendChild(style));
+      });
       page.on("pageerror", (error) => failures.push(`${viewport.name}${query}: ${error.message}`));
-      await page.goto(new URL(`/newsroom/references${query}`, base).toString(), { waitUntil: "networkidle", timeout: 180_000 });
+      await page.goto(new URL(`${route}${query}`, base).toString(), { waitUntil: "networkidle", timeout: 180_000 });
       await page.locator("[data-reference-feed], [data-reference-feed-skeleton]").first().waitFor({ timeout: 60_000 });
       await page.waitForTimeout(2500);
       return { context, page };
     };
     const shoot = async (page, name, options = {}) => {
-      const file = path.join(outputDirectory, `feed-${name}-${viewport.name}.png`);
+      const file = path.join(outputDirectory, `feed-${name}-${viewport.name}-${scheme}.png`);
       await page.screenshot({ path: file, ...options });
       console.log(file);
     };

@@ -32,7 +32,7 @@ export function ReferencesPageLoading() {
   return (
     <div className="space-y-4" data-references-page-loading>
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold tracking-tight">References</h2>
+        <h2 className="text-2xl font-bold tracking-tight">References</h2>
         <p className="text-sm text-muted-foreground">A feed ranked by what you are most likely to accept.</p>
       </div>
       {note ? <p className="text-sm text-muted-foreground" role="status">{note}</p> : null}

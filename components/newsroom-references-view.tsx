@@ -4,7 +4,7 @@ import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
 import { ReferenceCurationControls, useReferenceImport } from "./reference-curation-controls";
 
-import { ExternalLinkIcon, LayoutGridIcon, ListIcon } from "lucide-react";
+import { ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,7 @@ import {
 import { normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
-import { ReferenceFeed, ReferenceFeedSkeleton } from "./reference-feed";
+import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
 import { partitionReferenceFeed, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
 import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
@@ -518,6 +518,7 @@ export function NewsroomReferencesView({
     return showingSavedCopy && !live.size ? new Map(savedCopy!.previews) : live;
   }, [referenceAttachments, savedCopy, showingSavedCopy]);
   const [view, setView] = useState<ReferenceView>("feed");
+  const [addOpen, setAddOpen] = useState(false);
   const [feedTab, setFeedTab] = useState<ReferenceFeedTabKey>("feed");
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(() => new Set());
   const [mountedAt] = useState(() => Date.now());
@@ -690,48 +691,64 @@ export function NewsroomReferencesView({
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:overflow-hidden">
-        <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight">References</h2>
+        <div className="flex shrink-0 items-center justify-between gap-3" {...FEED_SURFACE_PROPS}>
+          <div className="min-w-0 space-y-0.5">
+            <h2 className="text-2xl font-bold tracking-tight">References</h2>
             <p className="hidden text-sm text-muted-foreground sm:block">
               {view === "feed" ? "A feed ranked by what you are most likely to accept." : "Review source intake before it becomes accepted evidence."}
             </p>
           </div>
-          <div aria-label="Reference view" className="inline-flex rounded-xl bg-muted/60 p-1" role="group">
-            {([["feed", "Feed", LayoutGridIcon], ["list", "List", ListIcon]] as const).map(([key, label, Icon]) => (
-              <button
-                aria-pressed={view === key}
-                className={cn(
-                  "inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
-                  view === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                )}
-                data-reference-view={key}
-                key={key}
-                onClick={() => { setView(key); setCaughtUp(false); }}
-                type="button"
-              >
-                <Icon aria-hidden="true" className="size-4" />
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              aria-controls="reference-add-panel"
+              aria-expanded={addOpen}
+              aria-label="Add a reference and prediction activity"
+              className={cn("inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", addOpen ? "bg-[var(--feed-control)] text-foreground" : "bg-[var(--feed-card)] text-muted-foreground hover:text-foreground")}
+              data-reference-add-toggle
+              onClick={() => setAddOpen((open) => !open)}
+              title="Add a reference and prediction activity"
+              type="button"
+            >
+              <PlusIcon aria-hidden="true" className="size-4" />
+              <span className="hidden sm:inline">Add</span>
+            </button>
+            <div aria-label="Reference view" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
+              {([["feed", "Feed", LayoutGridIcon], ["list", "List", ListIcon]] as const).map(([key, label, Icon]) => (
+                <button
+                  aria-label={label}
+                  aria-pressed={view === key}
+                  className={cn(
+                    "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    view === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                  data-reference-view={key}
+                  key={key}
+                  onClick={() => { setView(key); setCaughtUp(false); }}
+                  title={label}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" className="size-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         {synthetic?.changed ? (
-          <p className="rounded-md border border-dashed p-2 text-sm" data-preview-synthetic role="status">
+          <p className="rounded-2xl bg-[var(--feed-card)] p-3 text-sm" data-preview-synthetic role="status" {...FEED_SURFACE_PROPS}>
             Preview only: {synthetic.changed} of these predictions are made up to show the Reject end of the feed. Real data has none yet.
           </p>
         ) : null}
         {predictionState === "loading" && view === "list" ? <p role="status">Loading predictions…</p> : null}
         {predictionState === "error" ? (
-          <div role="alert" className="space-y-2 rounded-md border p-3">
+          <div role="alert" className="space-y-2 rounded-2xl bg-[var(--feed-card)] p-4" {...FEED_SURFACE_PROPS}>
             <p>Predictions unavailable. {predictionError}</p>
             <p className="text-sm">You can still review references. Existing suggestions may be out of date.</p>
             {onRetryPredictions ? <Button onClick={onRetryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
           </div>
         ) : null}
-        <details className="shrink-0 overflow-y-auto rounded-md border p-3 text-sm" style={{ maxHeight: "35dvh" }}>
-          <summary className="cursor-pointer font-semibold">Add a reference and prediction activity</summary>
-          <div className="mt-3 space-y-4">
+        <div className="shrink-0 overflow-y-auto rounded-[20px] bg-[var(--feed-card)] p-4 text-sm" data-feed-surface="" hidden={!addOpen} id="reference-add-panel" style={{ ...FEED_SURFACE_STYLE, maxHeight: "45dvh" }}>
+          <div className="space-y-4">
         <ReferenceLiveAgreement agreement={shadowAgreement} />
         <ReferenceAddEntry
           importOptions={disabled ? null : priming ?? sessionImport?.panel}
@@ -748,7 +765,7 @@ export function NewsroomReferencesView({
           </div>
         ) : null}
           </div>
-        </details>
+        </div>
 
         {view === "feed" ? (
           <ScrollArea className="min-h-0 flex-1" data-reference-feed-scroll>
@@ -854,14 +871,15 @@ export function NewsroomReferencesView({
 
       <div
         className={cn(
-          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]",
+          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]",
           view === "feed" && !selectedReference && "md:hidden",
         )}
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
         data-detail-open={selectedReference ? "true" : "false"}
+        {...FEED_SURFACE_PROPS}
       >
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-1">
           <span className="text-sm font-medium text-foreground">Detail</span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>

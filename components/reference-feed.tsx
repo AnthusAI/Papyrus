@@ -7,27 +7,37 @@ import {
   InfoIcon,
   Loader2Icon,
   MinusIcon,
-  NewspaperIcon,
   XIcon,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import {
   referenceDisplayTime,
+  groupFeedItems,
   EARLIER_AFTER_TAUS,
   MINIMUM_FRESHNESS_EXAMPLES,
+  type FeedGroupKey,
   type FeedItem,
   type FeedFreshness,
   type ReferenceFeedPartition,
   type ReferenceFeedTabKey,
 } from "../lib/reference-feed-ranking";
-import { referenceDek, referenceSourceHost, formatFeedAge, type ReferencePreview } from "../lib/reference-preview";
+import { dekAddsInformation, referenceDek, referenceSourceHost, formatFeedAge, type ReferencePreview } from "../lib/reference-preview";
 import { referenceDisplayTitle } from "../lib/newsroom-references";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
+
+/**
+ * Flat surfaces, no borders: the page tone, a card tone one step away from it, a footer tone, and a control tone for chips and
+ * pills. The tones (`--feed-card`, `--feed-footer`, `--feed-control`) are mixed from the publication theme's own paper and ink in
+ * newsroom-organizer.css, per light or dark mode, so they follow the brand.
+ */
+export const FEED_SURFACE_STYLE = {} as CSSProperties;
+
+/** Spread on every feed surface: the tone variables, and the hook the newsroom stylesheet uses to allow round corners here. */
+export const FEED_SURFACE_PROPS = { "data-feed-surface": "", style: FEED_SURFACE_STYLE } as const;
 
 const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
   out_of_scope: "Out of scope",
@@ -40,6 +50,9 @@ const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
 };
 
 const TAB_LABELS: Record<ReferenceFeedTabKey, string> = { feed: "Feed", rated: "Rated", earlier: "Earlier" };
+const GROUP_HEADINGS: Record<FeedGroupKey, string> = { top: "Top predictions", more: "More for you", least: "Least likely" };
+
+const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
 
 export type ReferenceFeedProps = {
   /** Read-only reason shown in words when answering is not possible yet (for example while the session is confirmed). */
@@ -62,19 +75,24 @@ export type ReferenceFeedProps = {
   visitRated: ReadonlySet<string>;
 };
 
+const GRID = "grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+
 /** Pulsing placeholder cards: the page shell is on screen at once, with no "checking" screen in front of it. */
 export function ReferenceFeedSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div aria-busy="true" aria-label="Loading references" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-reference-feed-skeleton role="status">
+    <div aria-busy="true" aria-label="Loading references" className={GRID} data-reference-feed-skeleton role="status" {...FEED_SURFACE_PROPS}>
       {Array.from({ length: count }, (_, index) => (
-        <div className={cn("overflow-hidden rounded-2xl border bg-card", index === 0 && "sm:col-span-2")} key={index}>
-          <div className={cn("animate-pulse bg-muted", index === 0 ? "aspect-[2/1]" : "aspect-[16/9]")} />
-          <div className="space-y-3 p-4">
-            <div className="h-3 w-1/3 animate-pulse rounded bg-muted" />
-            <div className="h-5 w-11/12 animate-pulse rounded bg-muted" />
-            <div className="h-5 w-2/3 animate-pulse rounded bg-muted" />
-            <div className="h-3 w-5/6 animate-pulse rounded bg-muted" />
-            <div className="flex gap-2 pt-2"><div className="h-9 flex-1 animate-pulse rounded-md bg-muted" /><div className="h-9 flex-1 animate-pulse rounded-md bg-muted" /></div>
+        <div className={cn("overflow-hidden rounded-[20px] bg-[var(--feed-card)]", index === 0 && "sm:col-span-2")} key={index}>
+          <div className={cn("animate-pulse bg-[var(--feed-control)]", index === 0 ? "aspect-[2/1]" : "aspect-[16/10]")} />
+          <div className="space-y-3 p-5">
+            <div className="h-3 w-1/3 animate-pulse rounded-full bg-[var(--feed-control)]" />
+            <div className="h-5 w-11/12 animate-pulse rounded-full bg-[var(--feed-control)]" />
+            <div className="h-5 w-2/3 animate-pulse rounded-full bg-[var(--feed-control)]" />
+            <div className="h-3 w-1/4 animate-pulse rounded-full bg-[var(--feed-control)]" />
+          </div>
+          <div className="flex gap-2 bg-[var(--feed-footer)] p-3">
+            <div className="h-10 flex-1 animate-pulse rounded-full bg-[var(--feed-control)]" />
+            <div className="h-10 flex-1 animate-pulse rounded-full bg-[var(--feed-control)]" />
           </div>
         </div>
       ))}
@@ -82,18 +100,44 @@ export function ReferenceFeedSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
-/** A tile with the source name, for a Reference whose page has no usable preview image. */
-function FallbackTile({ host }: { host: string | null }) {
+function hueOf(name: string): number {
+  let hash = 5381;
+  for (const character of name) hash = ((hash << 5) + hash + character.charCodeAt(0)) | 0;
+  return Math.abs(hash) % 360;
+}
+
+/** A small mark for a source: its own favicon on a light tile when it loads, else its first letter. */
+function SourceMark({ host, size = "sm" }: { host: string | null; size?: "sm" | "lg" }) {
+  const [failed, setFailed] = useState(false);
+  const box = size === "lg" ? "size-16 rounded-2xl text-3xl" : "size-5 rounded-md text-[0.65rem]";
+  const letter = (host ?? "?")[0];
   return (
-    <div className="flex size-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted to-muted/40 p-4 text-muted-foreground" data-feed-image-fallback>
-      <NewspaperIcon aria-hidden="true" className="size-8" />
-      <span className="max-w-full truncate text-sm font-medium">{host ?? "Source"}</span>
+    <span aria-hidden="true" className={cn("inline-flex shrink-0 items-center justify-center overflow-hidden bg-white font-bold uppercase text-neutral-700", box)} data-feed-source-mark>
+      {host && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img alt="" className={size === "lg" ? "size-10 object-contain" : "size-3.5 object-contain"} loading="lazy" onError={() => setFailed(true)} referrerPolicy="no-referrer" src={`https://${host}/favicon.ico`} />
+      ) : letter}
+    </span>
+  );
+}
+
+/** For a page with no usable preview picture: a soft gradient from the source's name, its mark large and centred, its name beneath. */
+function FallbackTile({ host, name }: { host: string | null; name: string }) {
+  const hue = hueOf(host ?? name);
+  return (
+    <div
+      className="flex size-full flex-col items-center justify-center gap-3 p-4 text-white"
+      data-feed-image-fallback
+      style={{ background: `linear-gradient(135deg, oklch(0.6 0.1 ${hue}), oklch(0.42 0.11 ${(hue + 45) % 360}))` }}
+    >
+      <SourceMark host={host} size="lg" />
+      <span className="max-w-full truncate text-sm font-semibold tracking-wide opacity-90">{name}</span>
     </div>
   );
 }
 
-/** Lazy image in a fixed frame: a blurred skeleton until it loads, the fallback tile when it never does. */
-function FeedImage({ host, lead, src }: { host: string | null; lead: boolean; src: string | null }) {
+/** Full-bleed lazy image in a fixed frame: a soft pulse until it loads, the fallback tile when it never does. */
+function FeedImage({ host, lead, name, src }: { host: string | null; lead: boolean; name: string; src: string | null }) {
   const [state, setState] = useState<"loading" | "loaded" | "failed">(src ? "loading" : "failed");
   const ref = useRef<HTMLImageElement | null>(null);
   useEffect(() => { setState(src ? "loading" : "failed"); }, [src]);
@@ -103,8 +147,8 @@ function FeedImage({ host, lead, src }: { host: string | null; lead: boolean; sr
     if (element?.complete && element.naturalWidth > 0) setState("loaded");
   }, [src]);
   return (
-    <div className={cn("relative w-full overflow-hidden bg-muted", lead ? "aspect-[2/1] xl:aspect-[21/9]" : "aspect-[16/9]")} data-feed-image data-feed-image-state={state}>
-      {state === "loading" ? <div aria-hidden="true" className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted via-muted-foreground/10 to-muted blur-sm" data-feed-image-placeholder /> : null}
+    <div className={cn("relative w-full overflow-hidden bg-[var(--feed-control)]", lead ? "aspect-[16/10] sm:aspect-[2/1] xl:aspect-[21/9]" : "aspect-[16/10]")} data-feed-image data-feed-image-state={state}>
+      {state === "loading" ? <div aria-hidden="true" className="absolute inset-0 animate-pulse bg-[var(--feed-footer)] blur-sm" data-feed-image-placeholder /> : null}
       {src && state !== "failed" ? (
         // The source site chose this picture; an <img> keeps it out of our image optimizer and out of its referrer log.
         // eslint-disable-next-line @next/next/no-img-element
@@ -120,20 +164,8 @@ function FeedImage({ host, lead, src }: { host: string | null; lead: boolean; sr
           src={src}
         />
       ) : null}
-      {state === "failed" ? <FallbackTile host={host} /> : null}
+      {state === "failed" ? <FallbackTile host={host} name={name} /> : null}
     </div>
-  );
-}
-
-/** A mark for the source: its own favicon when it loads, else the first letter on a tile. */
-function SourceMark({ host }: { host: string | null }) {
-  const [failed, setFailed] = useState(false);
-  if (!host) return <span aria-hidden="true" className="inline-flex size-4 items-center justify-center rounded-sm bg-muted text-muted-foreground"><NewspaperIcon className="size-3" /></span>;
-  return failed ? (
-    <span aria-hidden="true" className="inline-flex size-4 items-center justify-center rounded-sm bg-muted text-[0.625rem] font-semibold uppercase text-muted-foreground" data-feed-source-mark>{host[0]}</span>
-  ) : (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img alt="" className="size-4 rounded-sm" data-feed-source-mark height={16} loading="lazy" onError={() => setFailed(true)} referrerPolicy="no-referrer" src={`https://${host}/favicon.ico`} width={16} />
   );
 }
 
@@ -141,11 +173,12 @@ function percent(confidence: number | null): string | null {
   return confidence === null ? null : `${Math.round(confidence * 100)}%`;
 }
 
-/** The Cyclotron's read-only answer: Accept or Reject with its confidence, then match or miss once a person has answered. */
+/** The Cyclotron's read-only answer as a soft pill: Accept or Reject with its confidence, then Match or Miss once a person has answered. */
 function PredictionChip({ answer, decision, loading }: { answer: ReviewChoice | null; decision: RelevanceDecisionView | undefined; loading: boolean }) {
+  const base = "inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium";
   if (!decision) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground" data-cyclotron-state={loading ? "loading" : "none"}>
+      <span className={cn(base, "bg-[var(--feed-control)] text-muted-foreground")} data-cyclotron-state={loading ? "loading" : "none"}>
         {loading ? <Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" /> : <MinusIcon aria-hidden="true" className="size-3.5" />}
         {loading ? "Predicting…" : "No prediction"}
       </span>
@@ -159,18 +192,18 @@ function PredictionChip({ answer, decision, loading }: { answer: ReviewChoice | 
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium",
-        verdict === null && "bg-muted/60",
-        verdict === "match" && "border-green-700 bg-green-100 text-green-950 dark:border-green-400 dark:bg-green-950 dark:text-green-100",
-        verdict === "miss" && "border-red-700 bg-red-100 text-red-950 dark:border-red-400 dark:bg-red-950 dark:text-red-100",
+        base,
+        verdict === null && "bg-[var(--feed-control)] text-foreground",
+        verdict === "match" && "bg-primary/15 text-primary",
+        verdict === "miss" && "bg-destructive/15 text-destructive",
       )}
       data-cyclotron-choice={prediction.choice}
       data-predicted
       data-verdict={verdict ?? undefined}
     >
-      <Icon aria-hidden="true" className="size-3.5" />
-      <span>Cyclotron: {prediction.choice === "accept" ? "Accept" : "Reject"}{percent(prediction.confidence) ? ` ${percent(prediction.confidence)}` : ""}</span>
-      {verdict ? <span data-verdict-word>{verdict === "match" ? "· Match" : "· Miss"}</span> : null}
+      <Icon aria-hidden="true" className="size-4" />
+      <span>Cyclotron · {prediction.choice === "accept" ? "Accept" : "Reject"}{percent(prediction.confidence) ? ` ${percent(prediction.confidence)}` : ""}</span>
+      {verdict ? <span data-verdict-word>· {verdict === "match" ? "Match" : "Miss"}</span> : null}
       {verdict ? <span className="sr-only">{verdict === "match" ? ", matches your answer" : ", differs from your answer"}</span> : null}
     </span>
   );
@@ -210,9 +243,12 @@ function FeedCard({
   const [rate, setRate] = useState<RateState>({ phase: "idle" });
   const inFlight = useRef(false);
   const host = referenceSourceHost(reference);
-  const site = preview?.siteName ?? host;
+  const site = preview?.siteName ?? host ?? "Unknown source";
+  const title = referenceDisplayTitle(reference);
   const dek = referenceDek(reference, preview);
-  const age = formatFeedAge(referenceDisplayTime(reference), now);
+  const showDek = dekAddsInformation(title, dek, preview?.imageUrl ?? null);
+  const time = referenceDisplayTime(reference);
+  const age = formatFeedAge(time, now);
 
   async function save(choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) {
     if (disabledReason || inFlight.current) return;
@@ -239,9 +275,9 @@ function FeedCard({
     <article
       aria-labelledby={titleId}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md",
+        "flex flex-col overflow-hidden rounded-[20px] text-card-foreground",
+        selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)]",
         lead && "sm:col-span-2",
-        selected && "ring-2 ring-foreground",
       )}
       data-feed-card={item.lineageId}
       data-feed-lead={lead || undefined}
@@ -250,27 +286,31 @@ function FeedCard({
       data-newsroom-card-id={item.lineageId}
     >
       <button
-        aria-label={`Open: ${referenceDisplayTitle(reference)}`}
-        className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Open: ${title}`}
+        className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         data-feed-open
         onClick={onOpen}
         type="button"
       >
-        <FeedImage host={host} lead={lead} src={preview?.imageUrl ?? null} />
-        <span className="flex flex-1 flex-col gap-2 p-4">
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground" data-feed-source>
+        <FeedImage host={host} lead={lead} name={site} src={preview?.imageUrl ?? null} />
+        <span className={cn("flex flex-1 flex-col gap-2.5", lead ? "p-5 sm:p-7" : "p-5")}>
+          <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground" data-feed-source>
             <SourceMark host={host} />
-            <span className="truncate font-medium text-foreground/80">{site ?? "Unknown source"}</span>
-            {age ? <><span aria-hidden="true">·</span><time dateTime={new Date(referenceDisplayTime(reference) ?? now).toISOString()} title={new Date(referenceDisplayTime(reference) ?? now).toLocaleString()}>{age}</time></> : null}
+            <span className="truncate">{site}</span>
           </span>
-          <span className={cn("font-semibold leading-snug tracking-tight text-foreground", lead ? "line-clamp-3 text-xl sm:text-2xl lg:text-3xl" : "line-clamp-3 text-base")} data-feed-title id={titleId}>
-            {referenceDisplayTitle(reference)}
+          <span className={cn("font-bold leading-[1.15] tracking-tight text-foreground", lead ? "line-clamp-3 text-2xl sm:text-3xl xl:text-4xl" : "line-clamp-3 text-xl")} data-feed-title id={titleId}>
+            {title}
           </span>
-          {dek ? <span className={cn("text-muted-foreground", lead ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")} data-feed-dek>{dek}</span> : null}
+          {showDek ? <span className={cn("text-muted-foreground", lead ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")} data-feed-dek>{dek}</span> : null}
+          <span className="mt-auto pt-1 text-xs text-muted-foreground">
+            {age ? <time dateTime={new Date(time ?? now).toISOString()} title={new Date(time ?? now).toLocaleString()}>{age}</time> : null}
+            {age && host ? <span aria-hidden="true"> · </span> : null}
+            {host}
+          </span>
         </span>
       </button>
 
-      <div className="space-y-2 border-t bg-muted/20 p-3" data-feed-actions>
+      <div className="space-y-2.5 bg-[var(--feed-footer)] p-3" data-feed-actions>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <PredictionChip answer={answer} decision={decision} loading={predictionLoading} />
           <span aria-live="polite" className="inline-flex min-h-5 items-center gap-1 text-xs text-muted-foreground" data-feed-saved role="status">
@@ -278,39 +318,37 @@ function FeedCard({
             {rate.phase === "saved" || (visitRated && rate.phase === "idle" && answer) ? <><CheckIcon aria-hidden="true" className="size-3.5" />Saved</> : null}
           </span>
         </div>
-        <div className="flex items-center gap-2" data-review-row="you">
-          <span className="w-9 shrink-0 text-xs font-semibold">You</span>
+        <div aria-label="Your answer" className="flex items-center gap-2" data-review-row="you" role="group">
+          <span className="sr-only">You</span>
           {(["accept", "reject"] as const).map((choice) => {
             const on = answer === choice;
             return (
-              <Button
+              <button
                 aria-disabled={disabledReason ? true : undefined}
                 aria-pressed={on}
-                className="min-h-9 flex-1"
+                className={cn(PILL, "min-h-10 flex-1", on ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "bg-[var(--feed-control)] text-foreground hover:bg-[var(--feed-control)]/70", disabledReason && "opacity-60")}
                 data-review-choice={choice}
                 key={choice}
                 onClick={() => choose(choice)}
-                size="sm"
                 type="button"
-                variant={on ? (choice === "accept" ? "default" : "destructive") : "outline"}
               >
-                {on ? <CheckIcon aria-hidden="true" className="size-4" /> : choice === "accept" ? <CheckIcon aria-hidden="true" className="size-4 opacity-50" /> : <XIcon aria-hidden="true" className="size-4 opacity-50" />}
+                {choice === "accept" ? <CheckIcon aria-hidden="true" className={cn("size-4", !on && "opacity-60")} /> : <XIcon aria-hidden="true" className={cn("size-4", !on && "opacity-60")} />}
                 {choice === "accept" ? "Accept" : "Reject"}
-              </Button>
+              </button>
             );
           })}
         </div>
         {disabledReason ? <p className="text-xs text-muted-foreground" data-review-disabled-reason>{disabledReason}</p> : null}
         {rate.phase === "reason" ? (
-          <div className="space-y-1.5" data-review-reasons>
+          <div className="space-y-2" data-review-reasons>
             <p className="text-xs font-medium">Reason for rejecting. Choose one to save your Reject.</p>
             <div className="flex flex-wrap gap-1.5">
               {REFERENCE_REJECTION_REASON_CODES.map((code) => (
-                <Button className="h-8 px-2.5 text-xs" data-review-reason={code} key={code} onClick={() => void save("reject", code)} size="sm" type="button" variant="outline">
+                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason={code} key={code} onClick={() => void save("reject", code)} type="button">
                   {REASON_LABELS[code]}
-                </Button>
+                </button>
               ))}
-              <Button className="h-8 px-2.5 text-xs" onClick={() => setRate({ phase: "idle" })} size="sm" type="button" variant="ghost">Cancel</Button>
+              <button className={cn(PILL, "min-h-8 px-3 text-xs text-muted-foreground")} onClick={() => setRate({ phase: "idle" })} type="button">Cancel</button>
             </div>
           </div>
         ) : null}
@@ -325,7 +363,7 @@ function plainDays(days: number): string {
   return `${days < 10 ? days.toFixed(1).replace(/\.0$/, "") : Math.round(days)} days`;
 }
 
-/** The plain-words recipe, with this site's own learned numbers in it. */
+/** The plain-words recipe, with this site's learned numbers in it. */
 function RankingPopover({ freshness }: { freshness: FeedFreshness }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -342,15 +380,29 @@ function RankingPopover({ freshness }: { freshness: FeedFreshness }) {
   }, [open]);
   return (
     <div className="relative" ref={root}>
-      <Button aria-controls={panelId} aria-expanded={open} aria-label="How this feed is ranked" className="min-h-9" data-feed-ranking-info onClick={() => setOpen((current) => !current)} size="sm" type="button" variant="ghost">
+      <button
+        aria-controls={panelId}
+        aria-expanded={open}
+        aria-label="How this feed is ranked"
+        className={cn(PILL, "text-muted-foreground hover:text-foreground", open && "bg-[var(--feed-card)] text-foreground")}
+        data-feed-ranking-info
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
         <InfoIcon aria-hidden="true" className="size-4" />
         <span className="hidden sm:inline">How this feed is ranked</span>
-        <span className="sm:hidden">Ranking</span>
-      </Button>
+        <span className="sr-only sm:hidden">Ranking</span>
+      </button>
       {open ? (
-        <div className="fixed inset-x-4 bottom-24 z-30 max-h-[70dvh] space-y-3 overflow-y-auto rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:w-[22rem]" data-feed-ranking-panel id={panelId} role="dialog" aria-label="How this feed is ranked">
-          <p className="font-semibold">A feed run by algorithms you control</p>
-          <ol className="list-decimal space-y-2 pl-5">
+        <div
+          aria-label="How this feed is ranked"
+          className="fixed inset-x-4 bottom-24 z-30 max-h-[70dvh] space-y-3 overflow-y-auto rounded-3xl bg-popover p-6 text-sm text-popover-foreground shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:w-[24rem]"
+          data-feed-ranking-panel
+          id={panelId}
+          role="dialog"
+        >
+          <p className="text-base font-bold">A feed run by algorithms you control</p>
+          <ol className="list-decimal space-y-2.5 pl-5">
             <li><strong>Best bets first.</strong> The Cyclotron predicts Accept or Reject and how sure it is. The items it expects you to Accept most surely come first. The ones it expects you to Reject most surely come last. Items with no prediction sit in the middle.</li>
             <li><strong>Confidence counts.</strong> An Accept at 90% ranks above an Accept at 60%.</li>
             <li><strong>Age fades a prediction toward &ldquo;not sure&rdquo;.</strong> Older items drift toward the middle, never to the bottom. {freshness.tauDays !== null && freshness.medianAgeDays !== null
@@ -367,8 +419,8 @@ function RankingPopover({ freshness }: { freshness: FeedFreshness }) {
   );
 }
 
-function CardGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" data-feed-grid>{children}</div>;
+function SectionHeading({ children, id }: { children: ReactNode; id: string }) {
+  return <h3 className="mb-5 mt-10 text-3xl font-bold tracking-tight text-primary first:mt-2 sm:mt-12 sm:text-4xl" id={id}>{children}</h3>;
 }
 
 export function ReferenceFeed({
@@ -407,20 +459,21 @@ export function ReferenceFeed({
   );
 
   const empty = (label: string) => (
-    <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground" data-feed-empty>{label}</div>
+    <div className="rounded-[20px] bg-[var(--feed-card)] p-10 text-center text-sm text-muted-foreground" data-feed-empty>{label}</div>
   );
 
+  const groups = groupFeedItems(partition.feed);
+  const headings = groups.length > 1;
+  const leadId = groups[0]?.key !== "least" ? groups[0]?.items[0]?.lineageId : undefined;
+
   return (
-    <div className="space-y-4" data-reference-feed data-feed-tab={tab}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div aria-label="Feed sections" className="inline-flex rounded-xl bg-muted/60 p-1" role="tablist">
+    <div className="space-y-5" data-reference-feed data-feed-tab={tab} {...FEED_SURFACE_PROPS}>
+      <div className="flex items-center justify-between gap-2">
+        <div aria-label="Feed sections" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="tablist">
           {(Object.keys(TAB_LABELS) as ReferenceFeedTabKey[]).map((key) => (
             <button
               aria-selected={tab === key}
-              className={cn(
-                "inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors",
-                tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-              )}
+              className={cn(PILL, "min-h-9 gap-1.5 px-3.5", tab === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
               data-feed-tab-button={key}
               key={key}
               onClick={() => onTabChange(key)}
@@ -428,42 +481,42 @@ export function ReferenceFeed({
               type="button"
             >
               {TAB_LABELS[key]}
-              <span className={cn("rounded-full px-1.5 text-xs tabular-nums", tab === key ? "bg-muted" : "bg-muted/70")} data-feed-tab-count>{counts[key]}</span>
+              <span className="text-xs tabular-nums opacity-70" data-feed-tab-count>{counts[key]}</span>
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
           {stale ? (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-feed-stale role="status">
+            <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:inline-flex" data-feed-stale role="status">
               <Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Showing your last view while it updates
             </span>
           ) : null}
           <RankingPopover freshness={partition.freshness} />
         </div>
       </div>
+      {stale ? <p className="text-xs text-muted-foreground sm:hidden" role="status"><Loader2Icon aria-hidden="true" className="mr-1 inline size-3.5 animate-spin" />Showing your last view while it updates</p> : null}
 
       {loading ? <ReferenceFeedSkeleton /> : (
         <div role="tabpanel">
           {tab === "feed" ? (
-            <div className="space-y-8">
-              {partition.feed.length ? (
-                <CardGrid>
-                  {partition.feed.map((item, index) => renderCard(item, index === 0))}
-                </CardGrid>
-              ) : empty(counts.rated || counts.earlier ? "You are all caught up. Check Earlier and Rated." : "No references yet.")}
+            <div>
+              {groups.length ? groups.map((group) => (
+                <section aria-labelledby={headings ? `feed-group-${group.key}` : undefined} data-feed-group={group.key} key={group.key}>
+                  {headings ? <SectionHeading id={`feed-group-${group.key}`}>{GROUP_HEADINGS[group.key]}</SectionHeading> : null}
+                  <div className={GRID} data-feed-grid>{group.items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+                </section>
+              )) : empty(counts.rated || counts.earlier ? "You are all caught up. Check Earlier and Rated." : "No references yet.")}
               {partition.earlier.length ? (
-                <section aria-labelledby="feed-earlier-heading" className="space-y-3" data-feed-earlier>
-                  <div className="flex items-baseline justify-between gap-2 border-t pt-6">
-                    <h3 className="text-lg font-semibold tracking-tight" id="feed-earlier-heading">Earlier</h3>
-                    <p className="text-xs text-muted-foreground">Unrated and past their freshness. Still yours to rate.</p>
-                  </div>
-                  <CardGrid>{partition.earlier.map((item) => renderCard(item, false))}</CardGrid>
+                <section aria-labelledby="feed-earlier-heading" data-feed-earlier>
+                  <SectionHeading id="feed-earlier-heading">Earlier</SectionHeading>
+                  <p className="-mt-3 mb-5 text-sm text-muted-foreground">Unrated and past their freshness. Still yours to rate.</p>
+                  <div className={GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div>
                 </section>
               ) : null}
             </div>
           ) : null}
-          {tab === "rated" ? (partition.rated.length ? <CardGrid>{partition.rated.map((item) => renderCard(item, false))}</CardGrid> : empty("Nothing rated yet. Your Accepts and Rejects collect here, newest first.")) : null}
-          {tab === "earlier" ? (partition.earlier.length ? <CardGrid>{partition.earlier.map((item) => renderCard(item, false))}</CardGrid> : empty("Nothing has aged out. Unrated items that fall past their freshness collect here."))  : null}
+          {tab === "rated" ? (partition.rated.length ? <div className={GRID} data-feed-grid>{partition.rated.map((item) => renderCard(item, false))}</div> : empty("Nothing rated yet. Your Accepts and Rejects collect here, newest first.")) : null}
+          {tab === "earlier" ? (partition.earlier.length ? <div className={GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div> : empty("Nothing has aged out. Unrated items that fall past their freshness collect here.")) : null}
         </div>
       )}
     </div>

@@ -38,5 +38,6 @@ export function withReferenceFeedFixture(dashboard: CategorySteeringDashboard): 
     referenceAttachments: fixture.referenceAttachments,
     semanticRelations: fixture.semanticRelations,
     messages: [],
+    realDataPreview: true,
   };
 }

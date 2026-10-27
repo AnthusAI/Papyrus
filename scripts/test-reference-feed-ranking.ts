@@ -6,10 +6,11 @@ import {
   EARLIER_AFTER_TAUS,
   MINIMUM_FRESHNESS_EXAMPLES,
   acceptProbability,
+  groupFeedItems,
   learnFreshness,
   partitionReferenceFeed,
 } from "../lib/reference-feed-ranking";
-import { formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
+import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
 import { clearSavedNewsroomDisplay, loadFeedSnapshot, loadSessionDisplay, saveFeedSnapshot, saveSessionDisplay, SESSION_DISPLAY_TTL_MS } from "../lib/reference-feed-cache";
 
 const DAY = 86_400_000;
@@ -162,4 +163,22 @@ test("The saved copy and the session display survive a return visit, expire, and
   } finally {
     delete (globalThis as unknown as { window?: unknown }).window;
   }
+});
+
+test("Sections: Top predictions are the Accepts at least half as strong as the best, Least likely the predicted Rejects", () => {
+  const ids3 = ["a", "b", "c", "d", "e", "f"];
+  const decisions = new Map<string, RelevanceDecisionView>([
+    ["a", decision("include", 0.95)], ["b", decision("include", 0.8)], ["c", decision("include", 0.65)], ["e", decision("exclude", 0.6)], ["f", decision("exclude", 0.9)],
+  ]);
+  const groups = groupFeedItems(partitionReferenceFeed(ids3.map((id) => reference(id)), decisions, { now: NOW }).feed);
+  assert.deepEqual(groups.map((group) => [group.key, ids(group.items)]), [["top", ["a", "b"]], ["more", ["c", "d"]], ["least", ["e", "f"]]]);
+  assert.deepEqual(groupFeedItems(partitionReferenceFeed([reference("x")], undefined, { now: NOW }).feed).map((group) => group.key), ["more"], "no prediction at all is one plain section");
+  assert.deepEqual(groupFeedItems([]), []);
+});
+
+test("A dek is dropped when it adds nothing to the headline or the picture", () => {
+  assert.equal(dekAddsInformation("Jukebox-OS: time-travel replay for AI agents", "Jukebox-OS: time-travel replay for AI agents - owner/jukebox-os", null), false, "repeats the headline");
+  assert.equal(dekAddsInformation("Jukebox-OS", "A deterministic flight recorder for multi-agent systems", "https://opengraph.githubassets.com/abc/owner/repo"), false, "a GitHub social card already prints it");
+  assert.equal(dekAddsInformation("Formal verification gets feasible", "Claude proved security properties in the compiled code of 123 open-source libraries.", "https://cdn.example.org/x.jpg"), true);
+  assert.equal(dekAddsInformation("Anything", null, null), false);
 });

@@ -144,11 +144,11 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await first.innerText()).includes("Title of strong-accept"), "the title");
       assert.ok((await first.innerText()).includes("A one line dek for strong-accept."), "the one-line dek");
       assert.ok((await first.locator("[data-feed-source]").innerText()).includes("strong accept"), "the source name");
-      assert.ok((await first.locator("[data-feed-source] time").innerText()).length > 0, "its age");
+      assert.ok((await first.locator("time").innerText()).length > 0, "its age");
       const chip = first.locator("[data-cyclotron-choice]");
-      assert.equal((await chip.innerText()).replace(/\s+/g, " ").trim(), "Cyclotron: Accept 96%");
+      assert.equal((await chip.innerText()).replace(/\s+/g, " ").trim(), "Cyclotron · Accept 96%");
       assert.equal(await chip.locator("svg").count(), 1, "a Lucide icon, never colour alone");
-      assert.equal((await card(page, "strong-reject").locator("[data-cyclotron-choice]").innerText()).trim(), "Cyclotron: Reject 94%");
+      assert.equal((await card(page, "strong-reject").locator("[data-cyclotron-choice]").innerText()).trim(), "Cyclotron · Reject 94%");
       assert.equal(await card(page, "no-prediction").locator("[data-cyclotron-state=none]").innerText(), "No prediction");
       for (const choice of ["accept", "reject"]) {
         const box = (await first.locator(`[data-review-choice=${choice}]`).boundingBox())!;
@@ -156,6 +156,39 @@ const scenarios: Record<string, () => Promise<void>> = {
       }
       assert.equal(await page.locator("select").count(), 0, "no drop-downs");
       assert.deepEqual(await page.locator('[role=tab]').evaluateAll((tabs) => tabs.map((tab) => tab.textContent!.replace(/\d+$/, "").trim())), ["Feed", "Rated", "Earlier"]);
+    });
+  },
+
+  /** Flat surfaces: no borders, outlines, rules or boxes anywhere in the feed; rounded cards and pills; sections with real headings. */
+  async design() {
+    await run("", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await page.locator("[data-feed-tab-button=feed]").hover();
+      const offenders = await page.locator("[data-reference-feed], [data-reference-feed] *").evaluateAll((elements) => elements.flatMap((element) => {
+        const style = getComputedStyle(element);
+        const edges = ["Top", "Right", "Bottom", "Left"].some((edge) => parseFloat(style.getPropertyValue(`border-${edge.toLowerCase()}-width`)) > 0 && style.getPropertyValue(`border-${edge.toLowerCase()}-style`) !== "none");
+        const outline = style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0;
+        return edges || outline || element.tagName === "HR" ? [element.tagName + "." + String(element.getAttribute("class")).slice(0, 60)] : [];
+      }));
+      assert.deepEqual(offenders, [], "no border, outline or rule");
+      const radius = (selector: string) => page.locator(selector).first().evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
+      assert.ok((await radius("[data-feed-card]")) >= 16, "cards are about 16 to 20px round");
+      assert.ok((await radius("[data-review-choice=accept]")) >= 12, "pills are round");
+      assert.ok((await radius("[data-cyclotron-choice]")) >= 12);
+      assert.ok((await radius("[data-feed-tab-button=feed]")) >= 12);
+      // The image is full-bleed across the top of the card: as wide as the card, starting at its top edge.
+      const box = (await card(page, "mid-accept").boundingBox())!;
+      const image = (await card(page, "mid-accept").locator("[data-feed-image]").boundingBox())!;
+      assert.ok(Math.abs(image.width - box.width) < 1 && Math.abs(image.y - box.y) < 1, "full-bleed top image");
+      // Three real sections with large type, no lines.
+      assert.deepEqual(await page.locator("[data-feed-group] h3").allInnerTexts(), ["Top predictions", "More for you", "Least likely"]);
+      const heading = page.locator("[data-feed-group=top] h3");
+      assert.ok(parseFloat(await heading.evaluate((element) => getComputedStyle(element).fontSize)) >= 28, "large section type");
+      assert.equal(await page.locator("[data-feed-group=least] [data-feed-card]").count(), 2);
+      // Phone: the first card is on the first screen.
+      if (width === 375) assert.ok((await card(page, "strong-accept").locator("[data-feed-image]").boundingBox())!.y < 500, "the first card's picture is on the first screen");
+      // A card that adds nothing to its headline drops its dek.
+      assert.equal(await card(page, "strong-accept").locator("[data-feed-dek]").count(), 1);
     });
   },
 
@@ -169,13 +202,15 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await image.getAttribute("referrerpolicy"), "no-referrer");
       await page.waitForFunction(() => document.querySelector('[data-feed-card="strong-accept"] [data-feed-image]')?.getAttribute("data-feed-image-state") === "loaded");
       const frame = (await card(page, "strong-accept").locator("[data-feed-image]").boundingBox())!;
-      assert.ok(Math.abs(frame.width / frame.height - 2) < 0.1 || Math.abs(frame.width / frame.height - 21 / 9) < 0.1, "the lead frame has a fixed ratio");
+      assert.ok([1.6, 2, 21 / 9].some((ratio) => Math.abs(frame.width / frame.height - ratio) < 0.1), "the lead frame has a fixed ratio");
       const other = (await card(page, "mid-accept").locator("[data-feed-image]").boundingBox())!;
-      assert.ok(Math.abs(other.width / other.height - 16 / 9) < 0.05, "other cards are 16:9");
+      assert.ok(Math.abs(other.width / other.height - 16 / 10) < 0.05, "other cards are 16:10");
       await page.waitForFunction(() => document.querySelector('[data-feed-card="broken-image"] [data-feed-image-fallback]'));
       const fallback = card(page, "broken-image").locator("[data-feed-image-fallback]");
-      assert.ok((await fallback.innerText()).includes("broken-image.example.org"), "the tile names the source");
-      assert.equal(await fallback.locator("svg").count(), 1, "with the newspaper icon");
+      assert.ok((await fallback.innerText()).includes("broken image"), "the tile names the source");
+      assert.equal(await fallback.locator("svg").count(), 0, "no outline icon");
+      assert.equal(await fallback.locator("[data-feed-source-mark]").count(), 1, "the source's mark, large and centred");
+      assert.ok(/gradient/.test(await fallback.evaluate((element) => getComputedStyle(element).backgroundImage)), "a soft gradient from the source name");
       const noPreview = card(page, "no-prediction").locator("[data-feed-image-fallback]");
       assert.equal(await noPreview.count(), 1, "a Reference with no preview shows the tile at once");
       assert.ok(requests.every((request) => request.referrer === undefined), "images are requested with no referrer");
