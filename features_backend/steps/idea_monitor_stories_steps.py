@@ -17,7 +17,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from ideas_fixtures import NOW, reference  # noqa: E402
+from ideas_fixtures import CORPUS, NOW, reference  # noqa: E402
 from papyrus_content.ideas import commands, monitor_stories  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
 from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, good_story, provenance  # noqa: E402
@@ -49,6 +49,11 @@ def step_site(context, site, first, second):
     held.rows, held.incoming, held.relations = [], {}, {}
 
 
+@given('the site keeps its References in the knowledge corpus "{key}"')
+def step_corpus(context, key):
+    state(context).corpus = f"knowledge-corpus-{key}"
+
+
 @given("the monitors of the site delivered these items:")
 def step_items(context):
     held = state(context)
@@ -56,7 +61,7 @@ def step_items(context):
         number = len(held.rows) + 1
         days = float(row["days ago"])
         status = (row.get("status") or "pending").strip() if "status" in row.headings else "pending"
-        item = reference(number, status=status, days_ago=days, title=row["title"])
+        item = reference(number, status=status, days_ago=days, title=row["title"], corpus=getattr(held, "corpus", CORPUS))
         details = {}
         if "likes" in row.headings and row["likes"].strip():
             details["likes"] = int(row["likes"])
@@ -146,6 +151,11 @@ def run_drafts(context, *, limit=monitor_stories.DEFAULT_LIMIT, dry_run=False, p
 @when("the operator drafts monitor stories with the default limit")
 def step_default(context):
     run_drafts(context)
+
+
+@when('the operator drafts monitor stories from the corpus "{key}"')
+def step_from_corpus(context, key):
+    run_drafts(context, corpus_key=key)
 
 
 @when("the operator drafts monitor stories with a limit of {limit:d}")

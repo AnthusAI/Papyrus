@@ -44,7 +44,7 @@ After `projection` the state machine can run one more task, `trend-drafts`: `pap
 
 ### Monitor stories (optional, off by default)
 
-After the trend drafts the state machine can run one more task, `monitor-stories`: `papyrus ideas monitor-stories --site <publication> --store proposals --limit N --json` ([idea pipeline](idea-pipeline.md#monitor-stories)). It writes a short cited story about each of the top N items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as private `story_draft` Proposals with one soft review request; nothing is published and a Reference is never drafted twice. It is `infra/knowledge-run/monitor_stories.py`, baked into the image, and like `trend-drafts` it is a gate in the state machine, not a stage of `papyrus knowledge cloud-run`.
+After the trend drafts the state machine can run one more task, `monitor-stories`: `papyrus ideas monitor-stories --site <publication> [--corpus-key <corpusKey>] --store proposals --limit N --json` ([idea pipeline](idea-pipeline.md#monitor-stories)). It writes a short cited story about each of the top N items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as private `story_draft` Proposals with one soft review request; nothing is published and a Reference is never drafted twice. It is `infra/knowledge-run/monitor_stories.py`, baked into the image, and like `trend-drafts` it is a gate in the state machine, not a stage of `papyrus knowledge cloud-run`.
 
 - **Opt in, per site.** Add a `monitorStories` block to the site's `knowledgeRun` settings in `infra/site.json`: `"monitorStories": {"limit": 3}` (`limit` is 1 to 20, default 3 when the block is `{}`). Without the block nothing changes: no state, no stack parameter, no `MONITOR_STORIES_LIMIT` in the task, and the template is what it was. There is no source setting: the step reads what every monitor of the site delivered.
 - **Switch.** A site with the block gets one more stack parameter, `MonitorStoriesEnabled` (`false`). While it is `false` the execution goes from the trend drafts (or from `projection` when those are off) to `Done`. The step takes its AppSync address from `TrendDraftsEndpoint`, which must be set. Turning it on is a change set: set the parameter to `true`, `cdk deploy`.
@@ -124,7 +124,7 @@ State is per publication in the stack's S3 bucket (versioned, private), under `p
 
 | Prefix | Holds |
 | --- | --- |
-| `config/` | What an operator maintains: `vocabulary.yml`, `stop-words.txt`, `review-guidance.md` (optional), `amplify_outputs.json` (endpoint only, no secrets) |
+| `config/` | What an operator maintains, all optional: `vocabulary.yml` (default: a generic vocabulary), `stop-words.txt`, `review-guidance.md`, `amplify_outputs.json` (endpoint only, no secrets; default: built from `appSyncApiId`). See [Adding a knowledge run to a new site](#adding-a-knowledge-run-to-a-new-site) |
 | `corpus/` | The long-lived Biblicus corpus, including `knowledge-run.json` (the previous run's identity state) |
 | `runs/<ISO week>/` | Scratch of a run: topics, trends, identity, registry, typed output, `ai-review.json`, `state.json` |
 
@@ -176,7 +176,7 @@ aws stepfunctions start-execution --state-machine-arn <StateMachineArn> \
 
 Inspect: the Step Functions console (one state per stage), the log group of the stack (`/aws/ecs/...`, one stream per task, each line prefixed by the command run), the ledger rows, and `runs/<week>/ai-review.json`. Change the schedule or pause it with `schedule` and `scheduleState` in `knowledgeRun`, then `cdk deploy`.
 
-Seeding state for a new publication: upload `vocabulary.yml`, `stop-words.txt` and `amplify_outputs.json` to `config/`, and, to carry cluster identity from an earlier workstation run, the whole workstation corpus to `corpus/` (its `knowledge-run.json` names the previous run, and that run's analysis must be in the corpus).
+Seeding state for a new publication is optional: the first stage writes the defaults (below) into `config/` for whatever is missing. To use your own, upload `vocabulary.yml`, `stop-words.txt` and `amplify_outputs.json` to `config/`, and, to carry cluster identity from an earlier workstation run, the whole workstation corpus to `corpus/` (its `knowledge-run.json` names the previous run, and that run's analysis must be in the corpus).
 
 ### Building and pushing the image
 
@@ -190,6 +190,39 @@ aws stepfunctions start-execution --state-machine-arn <arn> --name test-fail-$(d
 ```
 
 The stage `ai-review` fails on entry, the machine stops, the failure alarm publishes to SNS and the site is unchanged. A scheduled execution never carries `failStage`, and a name that does not start with `test-` ignores it.
+
+## Adding a knowledge run to a new site
+
+The run began as Shipped's, and it no longer assumes anything Shipped has. A new site needs its published items (and, if it wants monitor records, the References its monitors route to it) and a `knowledgeRun` block that says where the site deploys. Everything else has a default.
+
+The minimum block (`infra/site.json`, next to `aws.accountId` and `aws.region`; the IDs come from the site's CMS stack):
+
+```json
+"knowledgeRun": {
+  "siteBucket": "<S3 bucket the site is projected to>",
+  "edgeDistributionId": "<CloudFront distribution id of the site>",
+  "redirectsKvsArn": "<ARN of the site's redirects KeyValueStore>",
+  "appSyncApiId": "<AppSync API id of the CMS backend>",
+  "amplifyAppId": "<CMS Amplify app id>",
+  "contentActionsFunction": "<the content-actions Lambda's name>"
+}
+```
+
+Add `"plugins": [...]` if the site enables any (the run refuses to project when its list differs from the Lambda's), `"corpusKey"` if the site's References are not in `knowledge-corpus-<siteId>`, `"monitorSources": ["routed"]` and `"monitorStories": {"limit": 3}` to count and write about what its monitors deliver, and `"schedule"` to stagger the hour. Deploy the stack (`cdk deploy`, [Operating it](#operating-it)); no state needs seeding. The SSM parameters `/papyrus/<siteId>/openai-api-key` (a SecureString) and `/papyrus/<siteId>/knowledge-run/alarm-email` (a String) must exist before the deploy, or `openAiKeyParameter` and `alarmEmailParameter` must name ones that do.
+
+| What Shipped has | Setting | Default for a site that does not set it |
+| --- | --- | --- |
+| A corpus named like the site | `corpusKey` | The `siteId`. `corpusKey` is the `<key>` of `knowledge-corpus-<key>` and is used wherever the run names the corpus: `corpus export --corpus-key`, the monitor records, `publish-run --corpus-key`, and `papyrus ideas monitor-stories --corpus-key` (`KNOWLEDGE_CORPUS_KEY` in the task). The run's state prefix, ledger rows, alarm topic, SSM names and the actor name stay keyed by `siteId`. The Cited Trends step reads the published snapshot, which has no corpus, so it needs nothing. |
+| A hand-written vocabulary | `config/vocabulary.yml` in the run state | Generic kinds `organization`, `product`, `person`, `topic` and relation types `made_by`, `built_on`, `member_of`. The first stage that finds no file writes it to `config/` (and uses it), so an editor can then edit the seeded file; a file that exists is never replaced. |
+| A Knowledge Map and `scoring.json` in the site repository | `beatsConfig` | None: the snapshot has no beats. A `beatsConfig` that names a file the checkout does not have is logged and left out; it does not fail the stage. |
+| A list of concept kinds | `conceptKinds` | None: every kind is a candidate for the concept of the week. |
+| `config/amplify_outputs.json` in the state | `appSyncApiId` (required anyway) | The first stage writes `{"data": {"url": "https://<appSyncApiId>.appsync-api.<region>.amazonaws.com/graphql"}}` when the state has none (`KNOWLEDGE_APPSYNC_API_ID` in the task). |
+| `stop-words.txt`, `review-guidance.md` | The same files in `config/` | Not used. |
+| Its own OpenAI key and alarm mailbox | `openAiKeyParameter`, `alarmEmailParameter` | `/papyrus/<siteId>/openai-api-key` and `/papyrus/<siteId>/knowledge-run/alarm-email`. |
+
+**Sharing the key and the mailbox.** `openAiKeyParameter` and `alarmEmailParameter` name any existing SSM parameter in the site's account and region, and several sites may name the same one (`/papyrus/shared/openai-api-key`). The task role of each stack is allowed to read exactly the parameter its site names (no wildcard), and the alarm address is read when the stack is deployed. Each site still has its own stack and alarm topic, so each topic sends a subscription confirmation to the shared mailbox once, and the alarm says which publication failed. Create a shared parameter by infrastructure code, never by hand, and never commit the address.
+
+**A site with nothing in it yet.** `corpus-sync` counts the exported items and the monitor records. With none of either, the run does not fail: the later stages each succeed with `{"status": "nothing to do"}` as their ledger details (and the usual `details.cost` for the seconds they took), nothing is modelled, imported, snapshotted or projected, and the run total is still recorded. With records but no items (a new site whose monitors have already delivered), `topic-model`, `typed-extraction` and `ai-review` have nothing to do, because records are data and never documents; `publish-run` and `publish-relations` import the records without clusters or extracted entities, and the snapshot, archive, wiki and projection run as usual. The next run that finds an item runs the whole pipeline. Topic modelling a corpus of only a few documents can still be too small for BERTopic to find clusters; the snapshot then simply has none.
 
 ## First runs
 

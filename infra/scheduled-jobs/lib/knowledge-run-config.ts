@@ -45,6 +45,11 @@ export type KnowledgeRunSettings = {
   vCpu?: number;
   memoryMiB?: number;
   ephemeralStorageGiB?: number;
+  /**
+   * The key of the knowledge corpus (`knowledge-corpus-<key>`) the publication's References live in, when it is not the site's `siteId`
+   * (p-apyr-us keeps its References in `ai-ml-research`). Unset means the `siteId`. State, ledger, alarms and SSM names stay keyed by `siteId`.
+   */
+  corpusKey?: string;
   siteBucket: string;
   edgeDistributionId: string;
   redirectsKvsArn: string;
@@ -87,6 +92,8 @@ export type KnowledgeRunSettings = {
 /** `KnowledgeRunSettings` with every default applied, for one publication in one account. */
 export type KnowledgeRunConfig = {
   publication: string;
+  /** Set only when the site names a corpus of its own; the tasks then get `KNOWLEDGE_CORPUS_KEY`. */
+  corpusKey?: string;
   account: string;
   region: string;
   schedule: string;
@@ -133,6 +140,7 @@ const REPO_PATH_PATTERN = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*$/;
 const SSM_NAME_PATTERN = /^\/[A-Za-z0-9_.\-\/]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const CRON_PATTERN = /^(cron\(.+\)|rate\(.+\))$/;
+const CORPUS_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const KIND_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 function fail(field: string, problem: string): never {
@@ -193,7 +201,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("", "must be an object");
   const record = raw as Record<string, unknown>;
   rejectUnknownKeys(record, [
-    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
+    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
     "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
@@ -251,6 +259,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     vCpu,
     memoryMiB: optionalInteger(record.memoryMiB, "memoryMiB", 2048, 122880),
     ephemeralStorageGiB: optionalInteger(record.ephemeralStorageGiB, "ephemeralStorageGiB", 21, 200),
+    corpusKey: optionalString(record.corpusKey, "corpusKey", CORPUS_KEY_PATTERN, "lowercase letters, digits and hyphens, as in knowledge-corpus-<key>"),
     siteBucket: requireString(record.siteBucket, "siteBucket", SITE_BUCKET_PATTERN, "S3 bucket name"),
     edgeDistributionId: requireString(record.edgeDistributionId, "edgeDistributionId", DISTRIBUTION_ID_PATTERN, "CloudFront distribution id"),
     redirectsKvsArn: requireString(record.redirectsKvsArn, "redirectsKvsArn", KVS_ARN_PATTERN, "CloudFront KeyValueStore ARN"),
@@ -291,6 +300,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
   if (memoryMiB < vCpu * 2048) fail("memoryMiB", `must be at least 2048 MiB per vCPU (${vCpu * 2048}) for ${vCpu} vCPU`);
   return {
     publication,
+    ...(settings.corpusKey !== undefined ? { corpusKey: settings.corpusKey } : {}),
     account,
     region,
     schedule: settings.schedule ?? DEFAULT_SCHEDULE,

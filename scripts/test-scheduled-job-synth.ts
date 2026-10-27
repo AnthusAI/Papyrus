@@ -194,7 +194,7 @@ const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefin
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
   "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
-  "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_MONITOR_WEEKS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
+  "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_MONITOR_WEEKS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET", "TREND_DRAFTS_MAX_AGE_DAYS",
 ].sort());
@@ -506,8 +506,54 @@ rejects((block) => { block.monitorStories = { sources: ["hn"] }; }, /knowledgeRu
 rejects((block) => { block.monitorStories = 3; }, /knowledgeRun\.monitorStories must be an object/);
 rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
 rejects((block) => { block.environment = { "1BAD": "x" }; }, /knowledgeRun\.environment\.1BAD is not a valid environment variable name/);
+rejects((block) => { block.corpusKey = "Not A Key"; }, /knowledgeRun\.corpusKey is invalid/);
+rejects((block) => { block.corpusKey = ""; }, /knowledgeRun\.corpusKey must be a non-empty string/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.knowledgeRun; return raw; })())), /has no knowledgeRun block/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.aws; return raw; })())), /needs aws\.accountId and aws\.region/);
+
+// Any site: a corpus key of its own, shared SSM parameters, and Shipped unchanged by all of it.
+const environmentOf = (built: { template: Template }): Record<string, string> =>
+  Object.fromEntries((Object.values(built.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
+assert.ok(!("KNOWLEDGE_CORPUS_KEY" in staticEnvironment), "Shipped names no corpus key: the tasks find the corpus by the siteId, as before");
+assert.equal(config.corpusKey, undefined);
+assert.equal(staticEnvironment.KNOWLEDGE_APPSYNC_API_ID, "6sw6454pozbgvdgm233gqkxsxu", "the stage can seed config/amplify_outputs.json from the API id");
+const withCorpusKey = knowledgeStack((site) => { site.knowledgeRun.corpusKey = "ai-ml-research"; });
+const corpusEnvironment = environmentOf(withCorpusKey);
+assert.equal(withCorpusKey.config.corpusKey, "ai-ml-research");
+assert.equal(corpusEnvironment.KNOWLEDGE_CORPUS_KEY, "ai-ml-research");
+assert.equal(corpusEnvironment.KNOWLEDGE_PUBLICATION, "shipped", "state, ledger and alarms stay keyed by the siteId");
+assert.deepEqual(
+  Object.keys(corpusEnvironment).filter((name) => !(name in staticEnvironment)),
+  ["KNOWLEDGE_CORPUS_KEY"],
+  "a corpus key adds one variable and changes nothing else",
+);
+assert.equal(withCorpusKey.stack.stackName, stack.stackName);
+const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.corpusKey; }));
+assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environment is what it was");
+{
+  const base = knowledgeStack();
+  assert.deepEqual(base.template.toJSON(), knowledgeStack((site) => { site.knowledgeRun.corpusKey = undefined; }).template.toJSON(), "an absent corpus key leaves the template untouched");
+}
+
+// A site may name any existing SSM parameter for the OpenAI key and the alarm address, and several sites may share them.
+const sharedKey = "/papyrus/shared/openai-api-key";
+const sharedAlarm = "/papyrus/shared/knowledge-run/alarm-email";
+const sharedFor = (siteId: string) => knowledgeStack((site) => {
+  site.siteId = siteId;
+  site.knowledgeRun.openAiKeyParameter = sharedKey;
+  site.knowledgeRun.alarmEmailParameter = sharedAlarm;
+});
+for (const siteId of ["shipped", "p-apyr-us"]) {
+  const shared = sharedFor(siteId);
+  assert.equal(shared.config.openAiKeyParameter, sharedKey);
+  assert.equal(environmentOf(shared).KNOWLEDGE_OPENAI_KEY_PARAMETER, sharedKey);
+  const readParameters = shared.template.toJSON();
+  assert.match(JSON.stringify(readParameters), /parameter\/papyrus\/shared\/openai-api-key/, "the task role may read the shared key, and only that parameter");
+  assert.ok(!JSON.stringify(readParameters).includes(`/papyrus/${siteId}/openai-api-key`), "the per-site default name is not granted");
+  const alarmParameter = Object.values(shared.template.findParameters("*")).find((entry: any) => entry.Type === "AWS::SSM::Parameter::Value<String>") as any;
+  assert.equal(alarmParameter.Default, sharedAlarm);
+  assert.equal(shared.stack.stackName, knowledgeRunStackName(siteId), "each site still has a stack and an alarm topic of its own");
+}
 
 console.log("scheduled job synth: ok");

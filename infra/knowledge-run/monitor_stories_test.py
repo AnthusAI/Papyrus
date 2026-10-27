@@ -144,3 +144,12 @@ def test_main_never_fails_the_run(monkeypatch, capsys):
     monkeypatch.setattr(job, "run", lambda environment: (_ for _ in ()).throw(job.Skip("MONITOR_STORIES_ENDPOINT is not an AppSync GraphQL address")))
     assert job.main() == 0
     assert "monitor-stories: skipped:" in capsys.readouterr().out
+
+
+def test_a_corpus_key_of_its_own_is_passed_to_the_command_and_the_default_is_not():
+    calls = []
+    go({**BASE, "KNOWLEDGE_CORPUS_KEY": "ai-ml-research"}, execute=lambda args, env: calls.append(args) or answer()(args, env))
+    assert calls[0][calls[0].index("--corpus-key") + 1] == "ai-ml-research" and calls[0][calls[0].index("--site") + 1] == "shipped"
+    plain = []
+    go({**BASE, "KNOWLEDGE_CORPUS_KEY": "shipped"}, execute=lambda args, env: plain.append(args) or answer()(args, env))
+    assert "--corpus-key" not in plain[0], "a key equal to the publication is the default: the command line is what it was"
