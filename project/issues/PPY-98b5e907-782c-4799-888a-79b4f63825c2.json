@@ -43,10 +43,29 @@
         "model": "gpt-6.1-sol",
         "name": "newsletter-acceptance"
       }
+    },
+    {
+      "id": "7186d5b0-3bed-49cd-85d3-8cba2552017b",
+      "author": "home",
+      "text": "5.41.7 live artifact verified; exact two receipts now load. First19 candidates are branded SendGrid wrappers incorrectly considered direct; all deselected. Second41 Beehiiv candidates; distinct article indexes0 and2 failed safe resolution and were not retried. No imports/votes. Follow-up will recognize branded tracking wrappers with existing transport guards, normalize legacy receipt candidates at read time, and expose bounded URL-free failure codes.",
+      "created_at": "2026-10-27T13:16:42.878173Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "newsletter-acceptance"
+      }
+    },
+    {
+      "id": "c529ae4e-a3e8-4783-9953-d456e4eeba60",
+      "author": "home",
+      "text": "Follow-up tracking correction validated locally: branded SendGrid wrappers are unresolved/private for new and legacy exact receipts; resolver transport and editor guards preserved; URL-free failure categories exposed. 127 Python tests and 3 Gherkin scenarios pass; typecheck, Monitoring UI tests and focused ESLint pass. Live acceptance remains incomplete: no imports or model jobs; two Beehiiv attempts failed without recorded reason and have not been retried. Browser released to chat owner.",
+      "created_at": "2026-10-27T13:26:33.679880Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-26T11:13:57.463457Z",
-  "updated_at": "2026-10-27T12:13:51.089701Z",
+  "updated_at": "2026-10-27T13:26:33.680398Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

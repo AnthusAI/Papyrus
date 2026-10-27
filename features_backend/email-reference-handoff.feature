@@ -11,3 +11,8 @@ Feature: Imported newsletter articles receive cloud predictions
     Given the deployed AppSync Lambda resolver event shape
     When an editor opens one exact receipt or queues its selected Reference
     Then dispatch honors the named operation and malformed requests read no monitoring records
+
+  Scenario: Branded tracking wrappers stay private until an editor resolves an article
+    Given a stored newsletter with branded SendGrid article wrappers
+    When its exact receipt is opened and its tracking contracts are exercised
+    Then opaque tracking URLs are never offered as direct References and redirect protections remain enforced
