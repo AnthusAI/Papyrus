@@ -557,4 +557,37 @@ for (const siteId of ["shipped", "p-apyr-us"]) {
   assert.equal(shared.stack.stackName, knowledgeRunStackName(siteId), "each site still has a stack and an alarm topic of its own");
 }
 
+// Every site's example config carries a daily, staggered knowledge run that files routed records and monitor-story drafts.
+const SHIPPED_KEY = "/papyrus/shipped/openai-api-key";
+const SHIPPED_ALARM = "/papyrus/shipped/knowledge-run/alarm-email";
+const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string }> = {
+  shipped: { hour: 5, key: SHIPPED_KEY },
+  "anth-us": { hour: 6, key: SHIPPED_KEY },
+  "threat-intelligence": { hour: 7, key: "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY" },
+  distinctive: { hour: 8, key: "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY" },
+  "pilobol-us": { hour: 9, key: SHIPPED_KEY },
+  "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
+  dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
+};
+const exampleDirectory = path.dirname(examplePath);
+const seenHours = new Set<number>();
+for (const [siteId, expected] of Object.entries(siteExpectations)) {
+  const site = JSON.parse(fs.readFileSync(path.join(exampleDirectory, `${siteId}.site.json`), "utf8"));
+  const resolved = resolveKnowledgeRunConfig(parseSiteConfig(site));
+  assert.equal(resolved.publication, siteId);
+  assert.equal(resolved.schedule, `cron(0 ${expected.hour} * * ? *)`, `${siteId} runs daily at its own hour`);
+  assert.ok(!seenHours.has(expected.hour), `${siteId}: no two sites share an hour`);
+  seenHours.add(expected.hour);
+  assert.ok(resolved.monitorSources?.includes("routed"), `${siteId} counts routed monitor records`);
+  assert.equal(resolved.monitorWeeks, 52);
+  assert.deepEqual(resolved.monitorStories, { limit: 3 });
+  assert.equal(resolved.openAiKeyParameter, expected.key);
+  assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);
+  assert.equal(resolved.corpusKey, expected.corpusKey);
+  if (expected.distribution) assert.equal(resolved.edgeDistributionId, expected.distribution);
+  const built = new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolved, { env, imageTag: "test" });
+  assert.equal(built.stackName, knowledgeRunStackName(siteId));
+  assert.equal(Object.keys(Template.fromStack(built).toJSON().Resources).length, 41, `${siteId}: the same 41 resources as Shipped (42 with the CDK metadata a synth adds)`);
+}
+
 console.log("scheduled job synth: ok");

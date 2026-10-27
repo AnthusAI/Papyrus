@@ -8,7 +8,9 @@ never reaches it after a failure, and ``projection`` never passes ``--allow-dele
 from __future__ import annotations
 
 import datetime as dt
+import importlib.metadata
 import json
+import re
 import subprocess
 import sys
 import time
@@ -211,6 +213,21 @@ class Run:
                 f"the content-actions Lambda has {sorted(deployed) or 'none'}. Fix `plugins` in the knowledgeRun config."
             )
 
+    def fallback_release(self) -> str:
+        """The release to project with when the site has no requirements-publication.txt: its infra/site.json papyrusVersion, else the image's."""
+        site_json = self.site / "infra" / "site.json"
+        if site_json.exists():
+            try:
+                version = json.loads(site_json.read_text()).get("papyrusVersion")
+            except (ValueError, AttributeError) as error:
+                raise StageFailed(f"The site's infra/site.json is not a JSON object: {error}") from error
+            if isinstance(version, str) and version.strip():
+                return _pep440(version.strip())
+        try:
+            return importlib.metadata.version("papyrus-newsroom")
+        except importlib.metadata.PackageNotFoundError as error:
+            raise StageFailed("The site has no requirements-publication.txt or infra/site.json papyrusVersion, and the image has no papyrus-newsroom release to fall back on.") from error
+
     @property
     def pinned(self) -> Path:
         return self.work / "pinned"
@@ -243,16 +260,20 @@ class Run:
             raise StageFailed(f"The site checkout ({head[:8]}) is not the tip of {branch}; refusing to run from a stale checkout.")
 
     def install_pinned_papyrus(self) -> None:
-        """Project with the Papyrus release the site pins (requirements-publication.txt), the one its Lambda runs.
+        """Project with the Papyrus release the site pins, the one its Lambda runs.
 
-        It is installed over the image's own copy (PYTHONPATH), without its dependencies, which the image provides. The pin
-        must carry the projection lease, or the stage stops before it writes."""
+        The pin is requirements-publication.txt when the site has one; otherwise `papyrus-newsroom==<papyrusVersion>` from the site's
+        infra/site.json, or the image's own release when that file does not say. It is installed over the image's own copy (PYTHONPATH),
+        without its dependencies, which the image provides. The pin must carry the projection lease, or the stage stops before it writes."""
         requirements = self.site / "requirements-publication.txt"
-        if not requirements.exists():
-            raise StageFailed("The site has no requirements-publication.txt, so its Papyrus pin is unknown.")
-        pin = [line.strip() for line in requirements.read_text().splitlines() if line.strip().startswith("papyrus-newsroom")]
-        if len(pin) != 1 or "==" not in pin[0]:
-            raise StageFailed(f"requirements-publication.txt must pin papyrus-newsroom with ==, got {pin or 'nothing'}.")
+        if requirements.exists():
+            pin = [line.strip() for line in requirements.read_text().splitlines() if line.strip().startswith("papyrus-newsroom")]
+            if len(pin) != 1 or "==" not in pin[0]:
+                raise StageFailed(f"requirements-publication.txt must pin papyrus-newsroom with ==, got {pin or 'nothing'}.")
+        else:
+            pin = [f"papyrus-newsroom=={self.fallback_release()}"]
+            requirements = self.work / "requirements-pinned.txt"
+            requirements.write_text(pin[0] + "\n")
         self.pinned.mkdir(parents=True, exist_ok=True)
         env = {**self.command_env(), "PYTHONPATH": str(self.pinned)}
         self.shell(["pip", "install", "--quiet", "--no-deps", "--target", str(self.pinned), "-r", str(requirements)], cwd=self.work, env=env)
@@ -261,6 +282,14 @@ class Run:
         except StageFailed as error:
             raise StageFailed(f"The pinned {pin[0]} does not carry the projection lease; bump the pin to a release that does.") from error
         print(f"projecting with the site's pin: {pin[0]}", flush=True)
+
+
+def _pep440(version: str) -> str:
+    """The PyPI spelling of a site.json papyrusVersion: `1.0.0-next.41` is `1.0.0.dev41` (the same mapping the Amplify builds use)."""
+    match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:-[0-9A-Za-z-]+\.(\d+))?", version)
+    if not match:
+        raise StageFailed(f"The site's papyrusVersion {version!r} cannot be mapped to a PEP 440 release.")
+    return match.group(1) if match.group(2) is None else f"{match.group(1)}.dev{match.group(2)}"
 
 
 def _plugin_set(value: str | None) -> set[str]:

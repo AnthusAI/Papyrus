@@ -97,6 +97,19 @@ Feature: The scheduled cloud knowledge run
     Then the pinned release from requirements-publication.txt was installed before the project command
     And the project command ran with the pinned release first on the Python path
 
+  Scenario: A site without requirements-publication.txt projects with the Papyrus version of its site.json
+    Given the site has no requirements-publication.txt and its infra/site.json says papyrusVersion "5.42.1"
+    When the stage "projection" runs
+    Then the stage succeeded
+    And the pinned release "papyrus-newsroom==5.42.1" was installed before the project command
+
+  Scenario: A site with neither file projects with the release the image carries
+    Given the site has no requirements-publication.txt and no infra/site.json
+    And the image carries Papyrus "5.50.0"
+    When the stage "projection" runs
+    Then the stage succeeded
+    And the pinned release "papyrus-newsroom==5.50.0" was installed before the project command
+
   Scenario: A pin without the projection lease stops the projection before it writes
     Given the pinned release lacks the projection lease
     When the stage "projection" runs
