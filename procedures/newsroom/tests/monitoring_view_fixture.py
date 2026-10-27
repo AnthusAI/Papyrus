@@ -45,7 +45,7 @@ def rows():
               "cyclotron": {"endpoint": "https://o01d28uizl.execute-api.us-east-1.amazonaws.com", "accountId": "acct-1", "runId": "run-1",
                             "bindingRevision": "1", "roleArn": "arn:aws:iam::682849160744:role/cyclotron-machine-invoker", "pollSeconds": 45}}
     table = [
-        {"pk": PK, "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900, "limit": 30, "enabled": True},
+        {"pk": PK, "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900, "enabled": True},
         {"pk": PK, "sk": "STATE", "nextDueAt": 1_792_551_000, "lastRunId": "r3", "lastStatus": "complete", "lastFinishedAt": "2026-10-21T02:33:00Z"},
         router,
         {"pk": PK, "sk": "RUN#2026-10-21T02:18:00.000000Z#r1", "runId": "r1", "startedAt": "2026-10-21T02:18:00.000000Z", "finishedAt": "2026-10-21T02:18:03Z",
@@ -121,7 +121,7 @@ def ttab_rows(endpoint, monitor="ttab"):
     publication = ("distinctive", "distinctive") if endpoint not in (APP_PAPYRUS,) else ("p-apyr-us", "p.apyr.us")
     title = "Decision on a mark" if monitor == "ttab" else "Model release"
     return deepcopy([
-        {"pk": pk, "sk": "CONFIG", "sourceType": "x", "sourceUrl": f"https://{monitor}.example.org/feed", "intervalSeconds": 3600, "limit": 30, "enabled": True},
+        {"pk": pk, "sk": "CONFIG", "sourceType": "x", "sourceUrl": f"https://{monitor}.example.org/feed", "intervalSeconds": 3600, "enabled": True},
         {"pk": pk, "sk": "CONFIG#router", "mode": "live", "feedback": False, "enabled": True,
          "publications": [{"publicationId": publication[0], "site": publication[1], "appsyncEndpoint": endpoint}]},
         {"pk": pk, "sk": "RUN#2026-10-21T02:20:00.000000Z#t1", "runId": "t1", "startedAt": "2026-10-21T02:20:00.000000Z",

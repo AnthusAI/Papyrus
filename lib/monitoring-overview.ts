@@ -106,7 +106,6 @@ export type MonitoringFeed = {
   id: string;
   sourceUrl: string | null;
   intervalSeconds: number | null;
-  limit: number | null;
   enabled: boolean;
   lastStatus: string | null;
   lastFinishedAt: string | null;

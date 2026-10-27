@@ -70,7 +70,7 @@ def _export(directory, db, shown_records):
     return len(data['items'])
 
 
-def collect_queue(directory, *, interval_seconds=900, limit=30, fetch=fetch_hn_feed, now=None, shown_records=()):
+def collect_queue(directory, *, interval_seconds=900, fetch=fetch_hn_feed, now=None, shown_records=()):
     """One due public RSS fetch; atomically persist revisions and export review.
 
     Canonical URLs group sources, while separate HN IDs/revisions retain all
@@ -78,8 +78,6 @@ def collect_queue(directory, *, interval_seconds=900, limit=30, fetch=fetch_hn_f
     """
     if type(interval_seconds) is not int or interval_seconds < 60:
         raise ValueError('Queue interval must be at least 60 seconds')
-    if type(limit) is not int or not 1 <= limit <= 100:
-        raise ValueError('Queue limit must be between 1 and 100')
     shown_records = list(shown_records)
     for row in shown_records:
         if (not isinstance(row, dict) or set(row) != {'sourceId', 'canonicalUrl', 'sourceMessageId', 'shownAt'}
@@ -116,7 +114,7 @@ def collect_queue(directory, *, interval_seconds=900, limit=30, fetch=fetch_hn_f
                 return {**result, 'status': 'not_due', 'nextDueAt': _iso(float(due[0])),
                         'queuedSources': count, 'reviewPath': str(directory / 'review.md')}
             try:
-                items = parse_hn_feed(fetch())[:limit]
+                items = parse_hn_feed(fetch())
             except Exception as error:
                 # Exception text may include remote response URLs or headers.
                 result.update(status='failed', error=type(error).__name__)

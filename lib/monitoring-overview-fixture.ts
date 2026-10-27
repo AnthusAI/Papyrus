@@ -5,7 +5,7 @@ export const FIXTURE_MONITORING_OVERVIEW: MonitoringOverview = {
   state: "ready",
   asOf: "2026-10-21T02:40:00Z",
   scope: { mode: "publication", publicationId: "desk-a", site: "a.example.test", canViewAll: true },
-  feeds: [{ id: "hn", sourceUrl: "https://news.ycombinator.com/rss", intervalSeconds: 900, limit: 30, enabled: true,
+  feeds: [{ id: "hn", sourceUrl: "https://news.ycombinator.com/rss", intervalSeconds: 900, enabled: true,
     lastStatus: "complete", lastFinishedAt: "2026-10-21T02:33:00Z", nextDueAt: "2026-10-21T02:50:00Z" }],
   runs: [
     { runId: "r3", startedAt: "2026-10-21T02:33:00.000000Z", status: "complete", new: 2, revised: 1, unchanged: 27, itemCount: 30, errorCount: 0, errors: [] },

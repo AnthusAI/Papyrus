@@ -18,15 +18,20 @@ import uuid
 from typing import Callable
 from urllib.parse import urlsplit
 
-from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, merge_source_items,
-                         parse_hn_feed, parse_ttab_decisions, ttab_search_body)
-from .monitoring_huggingface import read_hf_models, validate_hf_config
+from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_decisions, parse_hn_feed,
+                         parse_ttab_page, ttab_search_body)
+from .monitoring_huggingface import Reading, hf_feeds, hf_window_start, validate_hf_config
+from .monitoring_paging import READ_BUDGET_SECONDS, Page, read_feed
 
-LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout; a crashed run's lease expires
+LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout (LAMBDA_TIMEOUT_SECONDS); a crashed run's lease expires
 DUE_SLACK_SECONDS = 60       # scheduler jitter must not skip a whole interval
 RECEIPT_TTL_SECONDS = 30 * 86400
 MAX_ERRORS_RECORDED = 10
 ROUTING_COLLECTED = "collected"
+TTAB_PAGE_SIZE = 100         # the Reading Room API's page size when the config names none; not a total
+#: Config fields that capped how much a pass read. The collector pages until it meets items it has collected or the
+#: source has no more, so a stored config that still has them loads and they are ignored (one log line).
+RETIRED_CONFIG_FIELDS = ("limit", "maxItems", "pagesPerQuery")
 
 
 class ConditionFailed(Exception):
@@ -130,17 +135,16 @@ def _validate_config(raw: dict) -> dict:
         raise ValueError(f"Config sourceType must be one of {', '.join(sorted(SOURCE_TYPES))}")
     host = SOURCE_TYPES[source_type]["host"]
     source = urlsplit(str(raw.get("sourceUrl") or ""))
-    interval, limit = raw.get("intervalSeconds"), raw.get("limit")
     if (source.scheme != "https" or source.hostname != host or source.username
             or source.password or source.query or source.fragment):
         raise ValueError(f"Config sourceUrl must be an https://{host} URL for a {source_type} monitor")
-    interval, limit = int(interval), int(limit)
-    maximum = 1000 if source_type == "huggingface-models" else 100
+    interval = int(raw.get("intervalSeconds"))
     if interval < 60:
         raise ValueError("Config intervalSeconds must be at least 60")
-    if not 1 <= limit <= maximum:
-        raise ValueError(f"Config limit must be between 1 and {maximum}")
-    config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval, "limit": limit,
+    retired = sorted(key for key in RETIRED_CONFIG_FIELDS if key in raw)
+    if retired:   # an old stored config still loads, so deploy and seed order do not matter
+        print(json.dumps({"monitor": "ignored_retired_config", "fields": retired}))
+    config = {"sourceType": source_type, "sourceUrl": raw["sourceUrl"], "intervalSeconds": interval,
               "enabled": raw.get("enabled", True) is not False}
     if source_type == "ttab-decisions":
         lookback = int(raw.get("lookbackDays", 30))
@@ -149,30 +153,57 @@ def _validate_config(raw: dict) -> dict:
         recheck = int(raw.get("precedentialLookbackDays", 0))
         if recheck and not lookback < recheck <= 365:
             raise ValueError("Config precedentialLookbackDays must be 0 (off) or longer than lookbackDays, up to 365")
+        page_size = int(raw.get("pageSize", TTAB_PAGE_SIZE))
+        if not 1 <= page_size <= 1000:
+            raise ValueError("Config pageSize must be between 1 and 1000")
         config.update(lookbackDays=lookback, finalDecisionsOnly=raw.get("finalDecisionsOnly", True) is not False,
-                      precedentialLookbackDays=recheck)
+                      precedentialLookbackDays=recheck, pageSize=page_size)
     if source_type == "huggingface-models":
         config.update(validate_hf_config(raw))
-    config["maxItems"] = limit * (2 if config.get("precedentialLookbackDays") else 1)
     return config
 
 
-def read_source(config: dict, now: float, fetch: Callable[..., bytes] | None = None, meta: dict | None = None) -> list:
-    """Fetch and parse one source. `fetch` replaces the network call in tests. `meta`, when given, receives
-    what a source reports about its read (a Hugging Face read: requests made, why it stopped early, failed queries)."""
+def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, reading: Reading) -> list[dict]:
+    """The feeds one source is read through (see `monitoring_paging.read_feed`). Each is a dict with a `key`,
+    `fetch_page(cursor) -> (rows, next_cursor)`, `items(rows) -> (SourceItem list, over)` and `stop_at_seen`
+    (true when the feed is newest first, so a page of collected items is its high-water mark).
+    `fetch` replaces the network call in tests."""
     if config["sourceType"] == "huggingface-models":
-        return read_hf_models(config, now, fetch, meta)
+        return hf_feeds(config, now, fetch, reading)
     if config["sourceType"] == "ttab-decisions":
         fetch = fetch or fetch_ttab_decisions
-        recent = parse_ttab_decisions(fetch(config["sourceUrl"], ttab_search_body(now, config["lookbackDays"], config["limit"])),
-                                      final_decisions_only=config["finalDecisionsOnly"])
-        if not config["precedentialLookbackDays"]:
-            return recent
+        feeds = [("recent", config["lookbackDays"], config["finalDecisionsOnly"], False)]
         # Precedential designations can come months after a decision issues. Every decision type
         # counts here: a precedential order on a motion matters as much as a final decision.
-        body = ttab_search_body(now, config["precedentialLookbackDays"], config["limit"], precedential_only=True)
-        return merge_source_items(recent, parse_ttab_decisions(fetch(config["sourceUrl"], body), final_decisions_only=False))
-    return parse_hn_feed((fetch or fetch_hn_feed)(config["sourceUrl"]))
+        if config["precedentialLookbackDays"]:
+            feeds.append(("precedential", config["precedentialLookbackDays"], False, True))
+        return [ttab_feed(config, now, fetch, *spec) for spec in feeds]
+
+    def fetch_page(cursor):
+        return parse_hn_feed((fetch or fetch_hn_feed)(config["sourceUrl"])), None   # an RSS feed is one page
+
+    return [{"key": "feed", "fetch_page": fetch_page, "items": lambda rows: (rows, True), "stop_at_seen": True}]
+
+
+def ttab_feed(config: dict, now: float, fetch: Callable, key: str, lookback_days: int, final_only: bool,
+              precedential_only: bool) -> dict:
+    """One Reading Room search, paged by result number until a page comes back empty (or repeats itself)."""
+    seen_here: set[str] = set()
+
+    def fetch_page(start):
+        start = start or 0
+        body = ttab_search_body(now, lookback_days, config["pageSize"], precedential_only=precedential_only, offset=start)
+        items, results = parse_ttab_page(fetch(config["sourceUrl"], body), final_decisions_only=final_only)
+        return (items, results), (start + results if results else None)
+
+    def items(rows):
+        page, results = rows
+        fresh = [item for item in page if item.source_id not in seen_here]
+        seen_here.update(item.source_id for item in page)
+        # An empty page is the end of the search. A page that adds nothing is a server ignoring the offset.
+        return page, results == 0 or (bool(page) and not fresh)
+
+    return {"key": key, "fetch_page": fetch_page, "items": items, "stop_at_seen": True}
 
 
 def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_id: str) -> str:
@@ -207,12 +238,61 @@ def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_i
     return "revised" if old else "new"
 
 
+def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, run_id: str, result: dict,
+                   reading: Reading, resume: dict) -> dict:
+    """Read every feed of the source, page by page, committing each page's items before asking for the next, so a
+    stop (time, rate limit, a crash) loses nothing. Returns the resume cursors per feed key (empty: all read)."""
+    feeds = source_feeds(config, now, fetch, reading)
+    changed_now: set[str] = set()      # committed by this pass (an item two feeds both list is not "already seen")
+    carry, failed = {}, 0
+    for feed in feeds:
+        def process(rows, feed=feed):
+            items, over = feed["items"](rows)
+            page = Page(end=over)
+            for item in items:
+                if not reading.may_write():
+                    page.retry = True      # the Lambda is out of time: this page is read again next pass
+                    break
+                result["itemCount"] += 1
+                try:
+                    outcome = commit_item(store, monitor_id, config, item, now=now, run_id=run_id)
+                except Exception as error:
+                    result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
+                    page.unseen += 1
+                    continue
+                result[outcome] += 1
+                if outcome == "unchanged" and item.source_id not in changed_now:
+                    page.seen += 1
+                else:
+                    changed_now.add(item.source_id)
+                    page.unseen += 1
+            return page
+
+        try:
+            left = read_feed(feed["fetch_page"], process, reading, resume.get(feed["key"]) or (),
+                             stop_at_seen=feed["stop_at_seen"])
+        except Exception as error:
+            failed += 1
+            left = resume.get(feed["key"]) or []      # an unreadable feed keeps its place for the next pass
+            reading.errors.append({"stage": "fetch", **({"query": feed["key"]} if feed.get("labelled") else {}),
+                                   "message": str(error)[:300]})
+        if left:
+            carry[feed["key"]] = left
+    if failed == len(feeds):
+        raise ValueError(reading.errors[0]["message"])
+    return carry
+
+
 def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes] | None = None,
                    now: float | None = None, force: bool = False, owner: str | None = None,
-                   run_id: str | None = None) -> dict:
+                   run_id: str | None = None, budget_seconds: float | None = READ_BUDGET_SECONDS,
+                   clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep) -> dict:
     """Run one collection when due. Mirrors `monitoring.collect` without an intake step.
 
-    Each item is committed on its own, so a later failure cannot erase earlier progress.
+    The source is paged until the pass reaches items it already collected or the source has no more. It is bound
+    only by the Lambda's time (`budget_seconds`, with the rest of the 120 s kept to finish) and the source's rate
+    limit. A pass that stops early records where it stopped (`resume` in STATE) and is due again at once, so the
+    next scheduled pass continues. Each item is committed on its own, so a later failure cannot erase earlier progress.
     """
     injected_clock, now = now is not None, time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
@@ -230,28 +310,31 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             return {"monitorId": monitor_id, "runId": run_id, "status": "not_due",
                     "nextDueAt": _iso(state["nextDueAt"])}
         result = {"monitorId": monitor_id, "runId": run_id, "startedAt": _iso(now), "status": "complete",
-                  "new": 0, "revised": 0, "unchanged": 0, "errors": []}
-        meta: dict = {}
+                  "new": 0, "revised": 0, "unchanged": 0, "errors": [], "itemCount": 0}
+        reading = Reading(budget_seconds, clock=clock, sleep=sleep)
+        resume = (state or {}).get("resume") or {}
+        carry = resume
         try:
-            items = read_source(config, now, fetch, meta)
+            carry = collect_source(store, monitor_id, config, fetch=fetch, now=now, run_id=run_id, result=result,
+                                   reading=reading, resume=resume)
         except Exception as error:
             result["status"] = "failed"
             result["errors"].append({"stage": "fetch", "message": str(error)[:300]})
-            items = []
-        result["itemCount"] = len(items)
-        for error in meta.get("errors", []):   # a source query that failed while others succeeded
-            result["errors"].append(error)
-        if meta:
-            result["read"] = {k: v for k, v in meta.items() if k != "errors"}
-        for item in items[:config["maxItems"]]:
-            try:
-                result[commit_item(store, monitor_id, config, item, now=now, run_id=run_id)] += 1
-            except Exception as error:
-                result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
+        for error in reading.errors:   # a feed that failed while others succeeded
+            if error["message"] not in {e["message"] for e in result["errors"]}:
+                result["errors"].append(error)
+        if reading.stopped_by and result["status"] != "failed":   # not read to its end; the receipt says so and the next pass continues
+            result["errors"].append({"stage": "fetch", "message": f"stopped early: {reading.stopped_by}"})
+        if config["sourceType"] == "huggingface-models" or reading.stopped_by:
+            result["read"] = {"requests": reading.requests, "stoppedBy": reading.stopped_by}
+            if config["sourceType"] == "huggingface-models":
+                result["read"]["window"] = _iso(hf_window_start(config, now).timestamp())
+                if reading.excluded:
+                    result["read"]["skipped"] = reading.skipped()
         if result["errors"] and result["status"] != "failed":
             result["status"] = "partial"
         finished = now if injected_clock else time.time()
-        next_due = now + config["intervalSeconds"]
+        next_due = now if carry and result["status"] != "failed" else now + config["intervalSeconds"]
         result.update(finishedAt=_iso(finished), nextDueAt=_iso(next_due), errorCount=len(result["errors"]))
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"RUN#{result['startedAt']}#{run_id}", "runId": run_id,
@@ -262,7 +345,7 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             "ttl": int(now + RECEIPT_TTL_SECONDS), **({"read": result["read"]} if "read" in result else {})})
         store.put_state(monitor_id, {"pk": pk(monitor_id), "sk": "STATE", "nextDueAt": int(next_due),
                                      "lastRunId": run_id, "lastStatus": result["status"],
-                                     "lastFinishedAt": result["finishedAt"]})
+                                     "lastFinishedAt": result["finishedAt"], **({"resume": carry} if carry else {})})
         return result
     finally:
         store.release_lock(monitor_id, owner)

@@ -17,9 +17,12 @@ from pathlib import Path
 import sqlite3
 import time
 from typing import Callable
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+
+from .monitoring_paging import RateLimited, retry_after_seconds
 
 HN_FEED = "https://news.ycombinator.com/rss"
 TTAB_DECISIONS_URL = "https://ttab-reading-room.uspto.gov/ttab-efoia-api/decision/search"
@@ -72,7 +75,6 @@ class Monitor:
     endpoint: str
     state: Path
     interval_seconds: int = 900
-    limit: int = 10
     source_ids: tuple[str, ...] = ()
     source_url: str = HN_FEED
     source_name: str = "Hacker News"
@@ -82,8 +84,6 @@ class Monitor:
         if (not self.id or not self.publication or not self.corpus_id or endpoint.scheme != "https"
                 or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
             raise ValueError("Monitor requires an explicit publication, corpus and HTTPS endpoint binding")
-        if type(self.limit) is not int or not 1 <= self.limit <= 100:
-            raise ValueError("Monitor limit must be between 1 and 100")
         if type(self.interval_seconds) is not int or self.interval_seconds < 60:
             raise ValueError("Monitor interval must be at least 60 seconds")
 
@@ -134,8 +134,10 @@ def fetch_hn_feed(url: str = HN_FEED) -> bytes:
     return body
 
 
-def ttab_search_body(now: float, lookback_days: int, limit: int, *, precedential_only: bool = False) -> bytes:
-    """The Reading Room search for decisions issued in the last `lookback_days`, newest first.
+def ttab_search_body(now: float, lookback_days: int, page_size: int, *, precedential_only: bool = False,
+                     offset: int = 0) -> bytes:
+    """One page of the Reading Room search for decisions issued in the last `lookback_days`, newest first:
+    `page_size` results from result number `offset` (the API's page size, not a total; the collector pages on).
 
     The date filter key is `decisionDate`, but sorting must use `issueDate`: sorting by
     `decisionDate` silently returns nothing. `precedential_only` asks for decisions the Board
@@ -145,15 +147,20 @@ def ttab_search_body(now: float, lookback_days: int, limit: int, *, precedential
     start = datetime.fromtimestamp(now - lookback_days * 86400, timezone.utc).date()
     return json.dumps({"dateRangeData": {"decisionDate": {"from": start.isoformat(), "to": end.isoformat()}},
                        "facetData": {}, "parameterData": {"precedentCitableIndicator": "Y"} if precedential_only else {},
-                       "recordTotalQuantity": limit, "searchText": "",
-                       "sortDataBag": [{"issueDate": "desc"}], "recordStartNumber": 0}).encode()
+                       "recordTotalQuantity": page_size, "searchText": "",
+                       "sortDataBag": [{"issueDate": "desc"}], "recordStartNumber": offset}).encode()
 
 
 def fetch_ttab_decisions(url: str, body: bytes) -> bytes:
     request = Request(url, data=body, method="POST",
                       headers={"User-Agent": USER_AGENT, "Content-Type": "application/json", "Accept": "application/json"})
-    with urlopen(request, timeout=25) as response:
-        payload = response.read(MAX_FEED_BYTES + 1)
+    try:
+        with urlopen(request, timeout=25) as response:
+            payload = response.read(MAX_FEED_BYTES + 1)
+    except HTTPError as error:
+        if error.code == 429:
+            raise RateLimited("TTAB Reading Room rate limit reached", retry_after_seconds(error.headers.get("Retry-After"))) from error
+        raise
     if len(payload) > MAX_FEED_BYTES:
         raise ValueError("TTAB decision search exceeds the response size bound")
     return payload
@@ -162,6 +169,12 @@ def fetch_ttab_decisions(url: str, body: bytes) -> bytes:
 def parse_ttab_decisions(body: bytes, *, final_decisions_only: bool = True) -> list[SourceItem]:
     """One item per decision document. A redesignation as precedential changes the title,
     so the decision is collected again as a new revision."""
+    return parse_ttab_page(body, final_decisions_only=final_decisions_only)[0]
+
+
+def parse_ttab_page(body: bytes, *, final_decisions_only: bool = True) -> tuple[list[SourceItem], int]:
+    """`parse_ttab_decisions` plus how many results the page held before the final-decision filter, which is
+    how far the next page starts (and an empty page is the end of the search)."""
     if len(body) > MAX_FEED_BYTES:
         raise ValueError("TTAB decision search response is oversized")
     try:
@@ -191,7 +204,7 @@ def parse_ttab_decisions(body: bytes, *, final_decisions_only: bool = True) -> l
         items.append(SourceItem(source_id, title, f"{TTAB_DOCUMENT_ROOT}{document}",
                                 f"https://ttabvue.uspto.gov/ttabvue/v?pno={proceeding}&pty={kind}", published,
                                 "application/pdf", ttab_document_aliases(document)))
-    return items
+    return items, len(payload["results"])
 
 
 def ttab_document_aliases(document: str) -> tuple[str, ...]:
@@ -204,15 +217,6 @@ def ttab_document_aliases(document: str) -> tuple[str, ...]:
         kind, entry = parts[3].removesuffix(".pdf").rsplit("_", 1)
         aliases.append(f"https://ttabvue.uspto.gov/ttabvue/ttabvue-{parts[1]}-{kind}-{entry}.pdf")
     return tuple(aliases)
-
-
-def merge_source_items(*groups: list[SourceItem]) -> list[SourceItem]:
-    """One item per source id across several result lists; a later list wins (its data is newer or more specific)."""
-    merged: dict[str, SourceItem] = {}
-    for group in groups:
-        for item in group:
-            merged[item.source_id] = item
-    return list(merged.values())
 
 
 #: Source types a monitor can read: the hosts its sourceUrl may name, its display name and how to read it.
@@ -270,7 +274,7 @@ def collect(monitor: Monitor, intake: Callable[[SourceItem, dict], dict], *,
                         result["errors"].append({"stage": "selection", "sourceId": source_id,
                                                  "message": "Selected HN item is no longer in the current feed"})
                 items = [item for item in items if item.source_id in monitor.source_ids]
-            for item in items[:monitor.limit]:
+            for item in items:
                 old = db.execute("SELECT fingerprint, revision FROM current WHERE source_id=?", (item.source_id,)).fetchone()
                 if old and old[0] == item.fingerprint:
                     result["unchanged"] += 1

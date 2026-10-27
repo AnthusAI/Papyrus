@@ -95,7 +95,7 @@ def reader_opens(context):
 @then('the feed "{feed}" is watched on a 15 minute schedule and is enabled')
 def feed_watched(context, feed):
     entry = next(f for f in context.overview["feeds"] if f["id"] == feed)
-    assert entry["intervalSeconds"] == 900 and entry["enabled"] is True and entry["limit"] == 30
+    assert entry["intervalSeconds"] == 900 and entry["enabled"] is True
 
 
 @then("the recent runs list the newest first with new, unchanged and error counts")
