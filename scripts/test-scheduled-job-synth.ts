@@ -519,7 +519,7 @@ const environmentOf = (built: { template: Template }): Record<string, string> =>
 assert.ok(!("KNOWLEDGE_CORPUS_KEY" in staticEnvironment), "Shipped names no corpus key: the tasks find the corpus by the siteId, as before");
 assert.equal(config.corpusKey, undefined);
 assert.equal(staticEnvironment.KNOWLEDGE_APPSYNC_API_ID, "6sw6454pozbgvdgm233gqkxsxu", "the stage can seed config/amplify_outputs.json from the API id");
-const withCorpusKey = knowledgeStack((site) => { site.knowledgeRun.corpusKey = "ai-ml-research"; });
+const withCorpusKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
 const corpusEnvironment = environmentOf(withCorpusKey);
 assert.equal(withCorpusKey.config.corpusKey, "ai-ml-research");
 assert.equal(corpusEnvironment.KNOWLEDGE_CORPUS_KEY, "ai-ml-research");
@@ -530,7 +530,7 @@ assert.deepEqual(
   "a corpus key adds one variable and changes nothing else",
 );
 assert.equal(withCorpusKey.stack.stackName, stack.stackName);
-const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.corpusKey; }));
+const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; }));
 assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environment is what it was");
 {
   const base = knowledgeStack();
