@@ -310,13 +310,17 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
     for item in details:
         if "#LINKS#" in item.get("sk", ""):
             links.extend(json.loads(item.get("json", "[]")))
+    # Stored receipts may predate branded-wrapper recognition. Normalize only
+    # this authorized detail response; never rewrite the receipt or follow links.
+    from .email_submission import normalize_email_candidate
+    links = [normalize_email_candidate(link) for link in links]
     return {"submission": {**_email_summary(row), "corpusId": publication.get("corpusId")}, "safeBodyText": body,
             "candidateLinks": links, "sourceMaterialIsUntrusted": True}
 
 
 def _resolve_beehiiv_article(url: str) -> str:
-    """Resolve only a selected Beehiiv article wrapper with bounded pinned-IP HEADs."""
-    from .email_submission import resolve_beehiiv_tracking_url
+    """Resolve only a selected supported article wrapper with bounded pinned-IP HEADs."""
+    from .email_submission import resolve_email_tracking_url
 
     def resolve_host(host, *, timeout):
         # getaddrinfo has no timeout parameter, so isolate it on a daemon thread
@@ -371,14 +375,14 @@ def _resolve_beehiiv_article(url: str) -> str:
         finally:
             connection.close()
 
-    return resolve_beehiiv_tracking_url(url, resolve_host=resolve_host, request=request)
+    return resolve_email_tracking_url(url, resolve_host=resolve_host, request=request)
 
 
 def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
     """Resolve exactly one selected, supported article wrapper from an authorized receipt."""
     from .email_submission import (
         RedirectResolutionError,
-        is_supported_beehiiv_tracking_url,
+        is_supported_email_tracking_url,
     )
 
     detail = monitoring_email_submission(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
@@ -387,7 +391,7 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     if type(candidate_index) is not int or not 0 <= candidate_index < len(detail["candidateLinks"]):
         return {"error": "bad_request"}
     link = detail["candidateLinks"][candidate_index]
-    if link.get("resolutionStatus") != "unresolved" or not is_supported_beehiiv_tracking_url(link.get("url", "")):
+    if link.get("resolutionStatus") != "unresolved" or not is_supported_email_tracking_url(link.get("url", "")):
         return {"error": "not_resolvable"}
     digest = receipt_id.removeprefix("EMAIL#")
     saved = store.get(f"EMAILRESOLVED#{digest}#{candidate_index:06d}")
@@ -400,6 +404,7 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     try:
         destination = (resolver or _resolve_beehiiv_article)(link["url"])
     except RedirectResolutionError as error:
+        LOG.warning("email article link resolution rejected: %s", error.code)
         return {"error": "resolution_failed", "reason": error.code}
     except (OSError, TimeoutError, http.client.HTTPException) as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
