@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { curationActorKind, referenceCurationMetadata } from "../amplify/functions/shared/reference-curation-metadata";
 import type { SemanticRelationRecord } from "../lib/category-repository";
-import { currentRelevanceDecisions } from "../lib/relevance-decisions";
+import { awaitsEditorReview, currentRelevanceDecisions } from "../lib/relevance-decisions";
 
 function relation(overrides: Partial<SemanticRelationRecord>): SemanticRelationRecord {
   return {
@@ -134,5 +134,15 @@ assert.equal(referenceCurationMetadata({
   action: "accept", curationStatus: "accepted", reasonCode: null,
   referenceId: "reference-a-v1", referenceLineageId: "reference-a", actorKind: "human",
 }).actorKind, "human");
+
+// Needs review: a pending reference with a current suggestion, flagged by the cyclotron or not.
+const suggested = currentRelevanceDecisions([relation({ reviewRecommended: false })]).get("reference-a");
+assert.ok(suggested);
+assert.equal(suggested.reviewRecommended, false);
+assert.equal(awaitsEditorReview("pending", suggested), true);
+assert.equal(awaitsEditorReview(undefined, suggested), true);
+assert.equal(awaitsEditorReview("accepted", suggested), false);
+assert.equal(awaitsEditorReview("rejected", suggested), false);
+assert.equal(awaitsEditorReview("pending", undefined), false);
 
 console.log("relevance decisions: ok");

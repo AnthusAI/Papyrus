@@ -31,6 +31,13 @@ Feature: Editors review the relevance cyclotron's decisions in the References ta
     And that reference row should be marked "Needs review"
 
   @brand-agnostic
+  Scenario: Every pending reference with a cyclotron suggestion is counted and listed under Needs review
+    Given I open the references newsroom at 1280 by 900
+    When I choose the "Needs review" references filter
+    Then the "Needs review" tab count should equal the references listed
+    And every listed reference should show a cyclotron suggestion
+
+  @brand-agnostic
   Scenario: A reference without a decision keeps the existing curation actions
     Given I open the references newsroom at 1280 by 900
     When I open reference "reference-knowledge-corpus-demo-source-history-001"

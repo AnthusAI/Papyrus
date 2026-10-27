@@ -1,4 +1,5 @@
 import type { SemanticRelationRecord } from "./category-repository";
+import { normalizeReferenceCurationStatus } from "./reference-policy";
 
 export const RELEVANCE_RELATION = "relevance_decision_is";
 
@@ -161,4 +162,12 @@ export function curationForRelevanceReview(decision: RelevanceDecisionView, revi
     decisionRelationId: decision.decisionRelationId,
     shareable: review.shareable,
   };
+}
+
+/**
+ * A pending reference with a current cyclotron suggestion is waiting for an editor's answer,
+ * whether or not the cyclotron flagged the decision itself for review.
+ */
+export function awaitsEditorReview(curationStatus: unknown, decision: RelevanceDecisionView | undefined): boolean {
+  return Boolean(decision) && normalizeReferenceCurationStatus(curationStatus) === "pending";
 }

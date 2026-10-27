@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const withBuild = process.argv.includes("--build");
 const tarballArgument = process.argv.slice(2).find((argument) => !argument.startsWith("--"));
@@ -89,6 +90,8 @@ const fixtureFiles = {
   "amplify/backend.ts":
     'import { defineSiteBackend } from "@anthusai/papyrus/backend";\nimport site from "../papyrus.config";\n\nexport default defineSiteBackend(site);\n',
   "amplify/data/resource.ts": 'export type { Schema } from "@anthusai/papyrus/amplify/data/resource";\n',
+  // Every site carries this file; without it Next passes the Tailwind sources through uncompiled.
+  "postcss.config.mjs": 'export default { plugins: { "@tailwindcss/postcss": {} } };\n',
   "publication/theme.css": "",
   "amplify_outputs.json": "{}\n",
 };
@@ -123,6 +126,8 @@ try {
     process.env.SITE_ENV = "staging";
     process.env.PAPYRUS_CONTENT_SOURCE = "drafts";
     runInFixture(fixture, "npx", ["next", "build"]);
+    // The shell's responsive utilities must not be overridden by a second Tailwind build.
+    execFileSync("node", [path.join(path.dirname(fileURLToPath(import.meta.url)), "test-single-tailwind-build.mjs"), path.join(fixture, ".next/static/css")], { stdio: "inherit" });
     console.log("ok: consumer site fixture builds against the packed package");
   }
 } finally {
