@@ -357,6 +357,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[20px]"] { border-radius: 20px !important; }
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-2xl"],
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-2xl"] { border-radius: 16px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[16px]"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[16px]"] { border-radius: 16px !important; }
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-3xl"],
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-3xl"] { border-radius: 24px !important; }
 
@@ -391,3 +393,5 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-cyclotron-choice] { border-radius: 9999px !important; }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-review-queue-bar] { background: var(--feed-footer) !important; }
+/* The rating grid keeps its own rounded rectangles in the borderless panes (not the pill shape the flat rules give other buttons). */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: 16px !important; }

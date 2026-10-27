@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  CheckIcon,
-  CircleCheckIcon,
-  CircleXIcon,
-  InfoIcon,
-  Loader2Icon,
-  MinusIcon,
-  XIcon,
-} from "lucide-react";
+import { InfoIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
@@ -28,6 +20,7 @@ import { referenceDisplayTitle } from "../lib/newsroom-references";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
+import { RatingGrid } from "./review-rating-grid";
 
 /**
  * Flat surfaces, no borders: the page tone, a card tone one step away from it, a footer tone, and a control tone for chips and
@@ -182,46 +175,6 @@ function FeedImage({ host, lead, name, src }: { host: string | null; lead: boole
   );
 }
 
-function percent(confidence: number | null): string | null {
-  return confidence === null ? null : `${Math.round(confidence * 100)}%`;
-}
-
-/** The Cyclotron's read-only answer as a soft pill: Accept or Reject with its confidence, then Match or Miss once a person has answered. */
-function PredictionChip({ answer, decision, loading }: { answer: ReviewChoice | null; decision: RelevanceDecisionView | undefined; loading: boolean }) {
-  const base = "inline-flex min-h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium";
-  if (!decision) {
-    return (
-      <span className={cn(base, "bg-[var(--feed-control)] text-muted-foreground")} data-cyclotron-state={loading ? "loading" : "none"}>
-        {loading ? <Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" /> : <MinusIcon aria-hidden="true" className="size-3.5" />}
-        {loading ? "Predicting…" : "No prediction"}
-      </span>
-    );
-  }
-  const prediction = predictionFromDecision(decision);
-  if (prediction.state !== "ready") return null;
-  const matched = answer ? prediction.choice === answer : null;
-  const verdict = matched === null ? null : matched ? "match" : "miss";
-  const Icon = verdict === "match" ? CircleCheckIcon : verdict === "miss" ? CircleXIcon : prediction.choice === "accept" ? CheckIcon : XIcon;
-  return (
-    <span
-      className={cn(
-        base,
-        verdict === null && "bg-[var(--feed-control)] text-foreground",
-        verdict === "match" && "bg-primary/15 text-primary",
-        verdict === "miss" && "bg-destructive/15 text-destructive",
-      )}
-      data-cyclotron-choice={prediction.choice}
-      data-predicted
-      data-verdict={verdict ?? undefined}
-    >
-      <Icon aria-hidden="true" className="size-4" />
-      <span>Cyclotron · {prediction.choice === "accept" ? "Accept" : "Reject"}{percent(prediction.confidence) ? ` ${percent(prediction.confidence)}` : ""}</span>
-      {verdict ? <span data-verdict-word>· {verdict === "match" ? "Match" : "Miss"}</span> : null}
-      {verdict ? <span className="sr-only">{verdict === "match" ? ", matches your answer" : ", differs from your answer"}</span> : null}
-    </span>
-  );
-}
-
 type RateState = { phase: "idle" | "saving" | "saved" | "error" | "reason"; message?: string };
 
 function FeedCard({
@@ -324,34 +277,14 @@ function FeedCard({
       </button>
 
       <div className="space-y-2.5 bg-[var(--feed-footer)] p-3" data-feed-actions>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <PredictionChip answer={answer} decision={decision} loading={predictionLoading} />
-          <span aria-live="polite" className="inline-flex min-h-5 items-center gap-1 text-xs text-muted-foreground" data-feed-saved role="status">
-            {rate.phase === "saving" ? <><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Saving…</> : null}
-            {rate.phase === "saved" || (visitRated && rate.phase === "idle" && answer) ? <><CheckIcon aria-hidden="true" className="size-3.5" />Saved</> : null}
-          </span>
-        </div>
-        <div aria-label="Your answer" className="flex items-center gap-2" data-review-row="you" role="group">
-          <span className="sr-only">You</span>
-          {(["accept", "reject"] as const).map((choice) => {
-            const on = answer === choice;
-            return (
-              <button
-                aria-disabled={disabledReason ? true : undefined}
-                aria-pressed={on}
-                className={cn(PILL, "min-h-10 flex-1", on ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "bg-[var(--feed-control)] text-foreground hover:bg-[var(--feed-control)]/70", disabledReason && "opacity-60")}
-                data-review-choice={choice}
-                key={choice}
-                onClick={() => choose(choice)}
-                type="button"
-              >
-                {choice === "accept" ? <CheckIcon aria-hidden="true" className={cn("size-4", !on && "opacity-60")} /> : <XIcon aria-hidden="true" className={cn("size-4", !on && "opacity-60")} />}
-                {choice === "accept" ? "Accept" : "Reject"}
-              </button>
-            );
-          })}
-        </div>
-        {disabledReason ? <p className="text-xs text-muted-foreground" data-review-disabled-reason>{disabledReason}</p> : null}
+        <RatingGrid
+          answer={answer}
+          disabled={Boolean(disabledReason)}
+          disabledReason={disabledReason}
+          feedback={rate.phase === "saving" ? { phase: "saving" } : rate.phase === "error" ? { phase: "error", message: rate.message } : rate.phase === "saved" || (visitRated && rate.phase === "idle" && answer) ? { phase: "saved" } : { phase: "idle" }}
+          onChoose={choose}
+          prediction={decision ? predictionFromDecision(decision) : predictionLoading ? { state: "loading" } : { state: "none" }}
+        />
         {rate.phase === "reason" ? (
           <div className="space-y-2" data-review-reasons>
             <p className="text-xs font-medium">Reason for rejecting. Choose one to save your Reject.</p>
@@ -365,7 +298,6 @@ function FeedCard({
             </div>
           </div>
         ) : null}
-        {rate.phase === "error" ? <p className="text-xs text-destructive" role="alert">{rate.message}</p> : null}
       </div>
     </article>
   );

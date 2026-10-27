@@ -419,6 +419,17 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.ok(rows.cyclotron < rows.you, "the Cyclotron row sits above the You row");
         assert.ok(rows.why >= rows.root - 2, "the Why textarea spans the card");
         assert.ok(rows.scrollX <= 0, "no horizontal page scroll");
+        // One grid: each You button sits exactly under its Cyclotron cell, and the confidence bar spans both columns.
+        const grid = await page.evaluate(`(() => {
+          const panel = [...document.querySelectorAll("[data-review-card]")].find((e) => e.offsetParent);
+          const box = (sel) => { const r = panel.querySelector(sel).getBoundingClientRect(); return { x: r.x, w: r.width, y: r.y }; };
+          return { ca: box('[data-review-row="cyclotron"] [data-cyclotron-choice="accept"]'), cr: box('[data-review-row="cyclotron"] [data-cyclotron-choice="reject"]'),
+            ya: box('[data-review-row="you"] [data-review-choice="accept"]'), yr: box('[data-review-row="you"] [data-review-choice="reject"]'), bar: box("[data-confidence-bar]") };
+        })()`) as Record<"ca" | "cr" | "ya" | "yr" | "bar", { x: number; w: number; y: number }>;
+        assert.ok(Math.abs(grid.ca.x - grid.ya.x) < 0.5 && Math.abs(grid.ca.w - grid.ya.w) < 0.5, "Accept sits exactly under Accept");
+        assert.ok(Math.abs(grid.cr.x - grid.yr.x) < 0.5 && Math.abs(grid.cr.w - grid.yr.w) < 0.5, "Reject sits exactly under Reject");
+        assert.ok(Math.abs(grid.bar.x - grid.ca.x) < 0.5 && Math.abs(grid.bar.x + grid.bar.w - (grid.cr.x + grid.cr.w)) < 0.5, "the bar spans both columns");
+        assert.ok(grid.ca.y < grid.bar.y && grid.bar.y < grid.ya.y, "Cyclotron cells, then the bar, then your buttons");
         for (const icon of await page.locator("[data-review-card] button svg, [data-review-queue-bar] svg").all()) assert.ok(await icon.evaluate((svg) => svg.classList.contains("lucide") || [...svg.classList].some((c) => c.startsWith("lucide"))), "icons are Lucide");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }

@@ -34,6 +34,21 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And Rejecting asks for a reason in words and changes nothing until one is chosen
     And the Rated tab lists the most recent answer first, and the next visit lists the answered cards there
 
+  Scenario: The rating area is one grid, with each of your buttons directly under the matching Cyclotron cell
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens the feed at 375 and 1440 pixels
+    Then the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels
+    And a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one
+    And the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction
+    And before a vote the predicted cell is neutral with a Check or X icon
+
+  Scenario: After a vote the prediction turns green with a CircleCheck for a match or red with a CircleX for a miss
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor votes with the Cyclotron's side and against it
+    Then the matching prediction cell is green with a CircleCheck and says Match, and the confidence bar is green
+    And the differing prediction cell is red with a CircleX and says Miss, and the confidence bar is red
+    And the chosen button is filled and the other is quiet, and tapping the chosen one does not unselect it
+
   Scenario: Unrated items past their freshness move to Earlier at the bottom and can still be rated
     Given References older than three times the learned freshness
     When the editor opens the feed at 375 and 1440 pixels

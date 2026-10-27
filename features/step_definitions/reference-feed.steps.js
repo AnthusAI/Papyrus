@@ -27,6 +27,17 @@ const outcomes = [
     "every card shows its title, dek, source, age, the Cyclotron's Accept or Reject with its confidence and icon, and large Accept and Reject buttons",
     "nothing scrolls sideways and there are no drop-downs",
   ]],
+  ["grid", [
+    "the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels",
+    "a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one",
+    "the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction",
+    "before a vote the predicted cell is neutral with a Check or X icon",
+  ]],
+  ["verdict", [
+    "the matching prediction cell is green with a CircleCheck and says Match, and the confidence bar is green",
+    "the differing prediction cell is red with a CircleX and says Miss, and the confidence bar is red",
+    "the chosen button is filled and the other is quiet, and tapping the chosen one does not unselect it",
+  ]],
   ["design", [
     "no card, tab, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone",
     "cards are rounded rectangles with a full-bleed picture across the top, and pills are fully rounded",
@@ -50,12 +61,15 @@ const outcomes = [
 ];
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
 When("the editor accepts a card, then rejects it with a reason, and rejects a card the Cyclotron expected to be rejected", function () { this.feedResult = ""; });
+When("the editor votes with the Cyclotron's side and against it", function () { this.feedResult = ""; });
 When("the editor opens how this feed is ranked", function () { this.feedResult = ""; });
 When("the editor opens the References page while the session is still being confirmed", function () { this.feedResult = ""; });
 for (const [name, texts] of outcomes) {
   for (const text of texts) {
     Then(text, { timeout: 240_000 }, async function () {
       assert.ok((await browser(name)).includes(`Reference feed scenario passed: ${name}`));
+      // The same grid in the detail review card is checked by the reference editor's card layout scenario.
+      if (text.includes("in the review card")) assert.ok((await run("scripts/test-reference-editor-review.ts", "card_layout")).includes("passed: card_layout"));
     });
   }
 }
