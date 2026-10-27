@@ -283,8 +283,7 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id:
     usage = {"day": today, "decisionsToday": sum(1 for t in times if str(t).startswith(today)),
              "decisionsTotal": len(times), "historyComplete": history_complete}
     out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state, monitor_id), "runs": runs, "routerRuns": router_runs,
-           "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False,
-                       "maxItemsPerRun": router.get("maxItemsPerRun")} if router else None),
+           "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False} if router else None),
            "usage": usage, "items": items, "emailSubmissions": submissions, "hiddenNotRelevant": hidden}
     if scope == "publication" and not own:
         out["notice"] = "publication_not_routed"

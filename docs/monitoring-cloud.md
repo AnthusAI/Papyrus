@@ -152,7 +152,7 @@ under the threshold, keeping only models created inside the window. Options: `--
 (default 50), `--max-requests` per run (default 300; the Hub allows 500 requests per 5 minutes). It **pauses** on either
 bound or on a 429 and keeps a `BACKFILL#<since>#<scope>` checkpoint (each query's cursor); running the same command again
 resumes there, and a finished backfill reads nothing. Backfilled discoveries are `collected` like any other, so the router
-delivers them at `maxItemsPerRun` (at most 25) per hourly run, oldest collection first.
+delivers them on its next runs, oldest collection first.
 
 ### Starting Shipped
 
@@ -212,7 +212,7 @@ open weights). Sampled from the live Hub on 2026-10-25: it receives about 3,600 
 Recommended `shipped-huggingface-router.json` (a watchlist name that does not exist on the Hub just returns nothing):
 
 ```json
-{"mode": "dry-run", "decisions": "direct", "maxItemsPerRun": 25, "feedback": false,
+{"mode": "dry-run", "decisions": "direct", "feedback": false,
  "rule": {"authors": ["Qwen", "meta-llama", "google", "microsoft", "mistralai", "deepseek-ai", "nvidia", "openai", "allenai",
                       "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
                       "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
@@ -327,7 +327,7 @@ were still running when the route run ended ([post first, then collect](#post-fi
 ## Dry-run and live
 
 `mode: dry-run` makes **no** Cyclotron call and writes nothing to any publication.
-For each of up to `maxItemsPerRun` discoveries (oldest first) it builds the exact
+For each collected discovery (oldest first) it builds the exact
 `decide` body for every configured publication, validates it structurally (contract
 version, operation, `requestId` 8 to 128 characters, payload shape, item values,
 32 KiB bound), reads each publication's editorial context hash through the existing
@@ -360,7 +360,7 @@ and delivery keep their shape. A story takes one Cyclotron job instead of one pe
 - **409 "publication criteria are pending"** (a pending output somewhere in the set; the answer does not say
   which) makes the router decide that story one publication at a time, which parks the waiting binding.
   A pending or refusal entry inside a completed receipt is handled per publication: pending parks it, the others
-  are decided; `source_refused` refuses the story; stop codes (`run_busy`, ceiling, key, capacity) stop the run.
+  are decided; `source_refused` refuses the story; stop codes the lab sends (`run_busy`, `request_ceiling_reached`, key, capacity) are still handled and stop the run; the router has none of its own.
   Other publications' receipts in the same answer are kept on the route.
 - `run_busy` and 503 defer exactly as for a single decide (non-consuming refusals bump `attempt`, giving a new request id).
 - A single remaining binding, and backfill of parked items, use the per-publication `decide`.
@@ -381,7 +381,8 @@ Both it and the combined id are identical in dry-run and live, so flipping to li
 | `error` | none | Final: invalid request or response, divergent decisions, or a job pending over 6 h |
 
 Live mode reads `decided` first, then `collected` and `dry-run-validated` merged oldest
-first, up to `maxItemsPerRun` items. Stop conditions (`provider_key_unavailable`,
+first, every one of them (paging through the whole partition). The router has no limit of its own on how much it does in
+a run: the only bound is the Lambda's time, and whatever is not posted before then is posted by the next run. Stop conditions (`provider_key_unavailable`,
 `request_ceiling_reached`, `standing_capacity_reached`, `run_busy`, any 401/403/404/429/503/507/409)
 end the sweep cleanly: the run receipt says
 `status: stopped` with `stoppedBy`, items stay where they were, and nothing is retried
@@ -403,7 +404,7 @@ carries on; a single story's 404 never stops the run. Every other refusal behave
 
 A cold lab job takes about 100 seconds, so a live sweep never waits on one story while others sit idle:
 
-1. **Post.** For each candidate (up to `maxItemsPerRun`, which also caps the new POSTs per run) the router sends
+1. **Post.** For each candidate (every one; the Lambda's time is the only bound) the router sends
    or resumes the story's job and checks it with a single GET. A job that is still running is not a stop
    condition: it stays recorded on the story (`combinedJob`, or `jobs.<pub>.jobId`) and the router goes on to
    the next story. A finished job goes straight to the unchanged fan-out and delivery. The per-publication
@@ -436,8 +437,8 @@ is final `parked`. Any other 409 still stops the sweep.
 Parking: one `PARK#<publicationId>` item per waiting publication holds `reason`, `since`, `nextProbeAt`,
 `backoffSeconds` and the newest 25 skipped items. No call is made until `nextProbeAt`; then the next item
 probes once, and a still-pending answer doubles the backoff (30 minutes up to 6 hours). When a probe
-succeeds the park becomes `ready`, and each run first decides the parked items (up to `maxItemsPerRun`,
-within the same per-run budget) and delivers positives, then removes the park. Items older than the
+succeeds the park becomes `ready`, and each run first decides the parked items (all of them,
+bounded only by the Lambda's time) and delivers positives, then removes the park. Items older than the
 newest 25 are not backfilled. The run receipt carries `waitingForClassifier` (publication ids) and the
 Monitoring page shows it on the router run.
 
@@ -468,7 +469,7 @@ aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk"
 `docs/monitoring-router-config.example.json`; seeded with `infra/monitoring/seed_router_config.py`.
 
 ```json
-{"mode": "dry-run|live", "maxItemsPerRun": 5, "feedback": false, "enabled": true,
+{"mode": "dry-run|live", "feedback": false, "enabled": true,
  "publications": [{"publicationId": "...", "site": "...", "appsyncEndpoint": "https://<id>.appsync-api.<region>.amazonaws.com/graphql",
                    "corpusId": "knowledge-corpus-<publicationId> (default)"}],
  "cyclotron": {"endpoint": "https://<id>.execute-api.<region>.amazonaws.com", "accountId": "...", "runId": "...",
@@ -510,7 +511,7 @@ the runner.
 ## Feedback
 
 Only when `mode` is `live` **and** `feedback` is `true`. For each `DELIV#` row still pending
-(25 per run, rotated) the router reads the Reference. `pending` is ignored. `accepted` maps to
+(all of them, rotated to the back as they are checked) the router reads the Reference. `pending` is ignored. `accepted` maps to
 `include` and `rejected` to `exclude` for that publication's output. The editor comes from
 `curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
 newsroom UI records), a Cognito username (`google_<digits>`) or a Cognito sub (UUID). A missing actor, the
@@ -639,7 +640,7 @@ authorization point and one least-privilege grant.
 
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
-- Old `ceilings` fields in `CONFIG#router` are ignored and are not returned to Monitoring.
+- Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. They can be deleted from the stored config; `infra/monitoring/seed_router_config.py --set` drops them on its next write.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
 
 ### Open one email receipt

@@ -180,6 +180,9 @@ def feedback_partition(monitor_id: str) -> str:
     return f"FEEDBACK#{monitor_id}#pending"
 
 
+RETIRED_ROUTER_FIELDS = ("ceilings", "maxItemsPerRun")   # limits the router no longer has; stored copies are ignored
+
+
 def validate_router_config(raw: dict) -> dict:
     account = raw.get("accountId")
     if account is not None and (not isinstance(account, str) or not account.strip() or len(account) > 128):
@@ -188,9 +191,9 @@ def validate_router_config(raw: dict) -> dict:
     mode = raw.get("mode")
     if mode not in ("dry-run", "live"):
         raise ValueError("router mode must be dry-run or live")
-    maximum = int(raw.get("maxItemsPerRun", 5))
-    if not 1 <= maximum <= 25:
-        raise ValueError("router maxItemsPerRun must be between 1 and 25")
+    retired = sorted(key for key in RETIRED_ROUTER_FIELDS if key in raw)
+    if retired:   # the router no longer limits its work; an old config still loads so deploy order does not matter
+        print(json.dumps({"router": "ignored_retired_config", "fields": retired}))
     decisions = str(raw.get("decisions") or "cyclotron")
     if decisions not in DECISIONS:
         raise ValueError("router decisions must be cyclotron or direct")
@@ -201,7 +204,7 @@ def validate_router_config(raw: dict) -> dict:
         if raw.get("feedback") is True:
             raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
         rule = validate_rule(raw["rule"], name="router rule") if raw.get("rule") is not None else None
-        return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
+        return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
                 "decisions": decisions, "feedback": False, "publications": publications,
                 "cyclotron": None, "rule": rule, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
@@ -221,7 +224,7 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
-    return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
+    return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
             "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
@@ -758,11 +761,16 @@ class RouterStore(DynamoStore):
     def delete_any(self, monitor_id, sk):
         self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk})
 
-    def query_partition(self, partition: str, limit: int) -> list[dict]:
-        """Oldest first from the sparse `routing` GSI."""
-        result = self.table.query(IndexName="routing", KeyConditionExpression="gsi1pk = :p",
-                                  ExpressionAttributeValues={":p": partition}, ScanIndexForward=True, Limit=limit)
-        return [self._clean(item) for item in result.get("Items", [])]
+    def query_partition(self, partition: str) -> list[dict]:
+        """Every row of the partition, oldest first, from the sparse `routing` GSI (all pages)."""
+        rows, start = [], {}
+        while True:
+            result = self.table.query(IndexName="routing", KeyConditionExpression="gsi1pk = :p",
+                                      ExpressionAttributeValues={":p": partition}, ScanIndexForward=True, **start)
+            rows.extend(self._clean(item) for item in result.get("Items", []))
+            if not result.get("LastEvaluatedKey"):
+                return rows
+            start = {"ExclusiveStartKey": result["LastEvaluatedKey"]}
 
 
 def gsi_partition(monitor_id: str, name: str) -> str:
@@ -938,17 +946,17 @@ class Router:
     # candidates -----------------------------------------------------------------------------------
 
     def candidates(self) -> list[dict]:
-        limit, mode = self.config["maxItemsPerRun"], self.config["mode"]
+        mode = self.config["mode"]
 
         def part(name):
-            return self.store.query_partition(gsi_partition(self.monitor_id, name), 50 if name == PARTITION_DECIDED else limit)
+            return self.store.query_partition(gsi_partition(self.monitor_id, name))
 
         if mode == "dry-run":
-            return part(PARTITION_COLLECTED)[:limit]
+            return part(PARTITION_COLLECTED)
         decided = [d for d in part(PARTITION_DECIDED)
                    if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now]
         fresh = sorted(part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN), key=lambda d: d["gsi1sk"])
-        return (decided + fresh)[:limit]
+        return decided + fresh
 
     def selected_references(self, source_ids=None) -> dict:
         """Only editor-imported References; never sweep receipt discoveries, feedback or procedures."""
@@ -1102,12 +1110,12 @@ class Router:
                       if (self.park(p["publicationId"]) or {}).get("ready") is False)
 
     def backfill(self) -> int:
-        """Decide parked items for bindings whose output became ready; bounded by the per-run item budget."""
-        done, budget = 0, self.config["maxItemsPerRun"]
+        """Decide parked items for bindings whose output became ready; bounded only by the invocation's time."""
+        done = 0
         for publication in (self.active_publications or self.config["publications"]):
             pub_id = publication["publicationId"]
             park = self.park(pub_id)
-            while park and park.get("ready") and park.get("items") and done < budget:
+            while park and park.get("ready") and park.get("items"):
                 if self.time_left() < MIN_REMAINING_SECONDS:
                     return done
                 entry, rest = park["items"][0], park["items"][1:]
@@ -1640,7 +1648,7 @@ class Router:
         candidates = self.candidates()
         if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron":
             try:
-                candidates = candidates[:max(0, self.config["maxItemsPerRun"] - self.backfill())]
+                self.backfill()
             except StopSweep as stop:
                 return {"status": "stopped", "stoppedBy": stop.code, "errors": [],
                         "waitingForClassifier": self.waiting_for_classifier()}
@@ -1707,7 +1715,7 @@ class Router:
         self.nowait, self.post_allowed = True, False
         errors: list = []
         pending = []
-        for disc in self.store.query_partition(gsi_partition(self.monitor_id, PARTITION_COLLECTED), 50):
+        for disc in self.store.query_partition(gsi_partition(self.monitor_id, PARTITION_COLLECTED)):
             route = self.store.get_any(self.monitor_id, route_key(disc)) or {}
             if (route.get("combinedJob") or {}).get("jobId") or any(
                     job.get("jobId") and not job.get("checked") for job in (route.get("jobs") or {}).values()):
@@ -1748,7 +1756,7 @@ class Router:
         result = {"status": "complete", "sent": 0, "pending": 0, "skipped": 0, "failed": 0, "stoppedBy": None}
         if self.config["mode"] != "live" or not self.config["feedback"]:
             return {**result, "status": "off"}
-        for row in self.store.query_partition(feedback_partition(self.monitor_id), 25):
+        for row in self.store.query_partition(feedback_partition(self.monitor_id)):
             if self.time_left() < MIN_REMAINING_SECONDS:
                 result.update(status="stopped", stoppedBy="time_budget")
                 break

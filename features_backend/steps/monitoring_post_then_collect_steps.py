@@ -1,3 +1,5 @@
+import contextlib
+import io
 from pathlib import Path
 import sys
 
@@ -27,7 +29,7 @@ def route_run(context, now=2000, task=None):
 def step_router(context):
     context.table_ = tr.FakeTable()
     context.table_.put_item(tr.COLLECTOR_CONFIG)
-    context.table_.put_item(tr.router_config(maxItemsPerRun=3))
+    context.table_.put_item(tr.router_config())
     context.store, context.cyclotron, context.delivery = RouterStore(context.table_), tr.FakeCyclotron(), tr.Delivery()
     context.cyclotron.combined_enabled = True
 
@@ -39,7 +41,7 @@ def step_collected(context):
 
 @given("the router may take only one story per run")
 def step_one_per_run(context):
-    context.table_.put_item(tr.router_config(maxItemsPerRun=1))
+    context.table_.put_item(tr.router_config())
 
 
 @given("Cyclotron does not have the combined endpoint")
@@ -151,9 +153,9 @@ def step_first_routed(context):
 
 @then("the other two stories were never sent to the lab")
 def step_others_unsent(context):
-    assert posted_items(context) == ["hn-101"]
+    assert len(context.cyclotron.combined_jobs) == 1
     assert tr.routing_of(context.table_)["DISC#102#000001"] == "collected"
-    assert ("MONITOR#hn", "ROUTE#102#000001") not in context.table_.items
+    assert "combinedJob" not in context.table_.items.get(("MONITOR#hn", "ROUTE#102#000001"), {})
 
 
 @then("the collector reports that the router is locked")
@@ -167,10 +169,10 @@ def step_no_requests(context):
     assert context.cyclotron.combined_calls == [] and context.cyclotron.calls == []
 
 
-@then("the lab received one request for each publication of the first story")
-@then("the lab still received only one request for each publication of the first story")
+@then("the lab received one request for each publication of every story")
+@then("the lab still received only one request for each publication of every story")
 def step_per_publication(context):
-    assert sorted(c[1].split("/")[3] for c in context.cyclotron.posts()) == sorted(tr.PUBS)
+    assert sorted(c[1].split("/")[3] for c in context.cyclotron.posts()) == sorted(tr.PUBS * len(STORIES))
 
 
 @then("the run ends stopped because Cyclotron is busy")
@@ -265,3 +267,24 @@ def step_one_routed(context):
 def step_refused_no_job(context):
     refused = [k for k, v in context.table_.items.items() if k[1].startswith("ROUTE#") and "combinedJob" not in v]
     assert len(refused) == 2 and context.result["counts"]["error"] == 0
+
+
+@given("the router config still carries ceilings and a per-run item limit of one")
+def step_retired_fields(context):
+    config = tr.router_config(ceilings={"decisionsTotal": 1, "decisionsPerDay": 1, "items": 1}, maxItemsPerRun=1)
+    context.table_.put_item(config)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        tr.validate_router_config(config)
+    context.log_lines = [line for line in out.getvalue().splitlines() if line]
+
+
+@then("no run stops for a limit of the router's own")
+def step_no_limit_stop(context):
+    assert context.result["stoppedBy"] in (None, "awaiting") and context.result["counts"]["error"] == 0
+    assert tr.routing_of(context.table_) and len(posts(context)) == 3
+
+
+@then("the retired fields were ignored with one log line")
+def step_log_line(context):
+    assert len(context.log_lines) == 1 and "ceilings" in context.log_lines[0] and "maxItemsPerRun" in context.log_lines[0]

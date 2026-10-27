@@ -34,7 +34,7 @@ Feature: The router posts every story's lab job first and collects the answers a
     And the collector did not examine feedback
 
   Scenario: The collector never posts a story that has no job
-    Given the router may take only one story per run
+    Given Cyclotron accepts one job and is then busy with another run
     And the lab takes longer than the run's collect window to answer
     And the route task has run once
     When the lab has answered and the collector runs
@@ -62,14 +62,13 @@ Feature: The router posts every story's lab job first and collects the answers a
 
   Scenario: A Cyclotron without the combined endpoint is also posted first and collected later
     Given Cyclotron does not have the combined endpoint
-    And the router may take only one story per run
     And the lab takes longer than the run's collect window to answer
     When the route task runs
-    Then the lab received one request for each publication of the first story
-    And the run ends with the status awaiting and counts one story awaiting
+    Then the lab received one request for each publication of every story
+    And the run ends with the status awaiting and counts three stories awaiting
     When the lab has answered and the collector runs
-    Then the first story is routed
-    And the lab still received only one request for each publication of the first story
+    Then all three stories are routed and delivered to every publication
+    And the lab still received only one request for each publication of every story
 
   Scenario: A refusal from Cyclotron still stops the run
     Given Cyclotron is busy with another run when the router posts
@@ -83,3 +82,10 @@ Feature: The router posts every story's lab job first and collects the answers a
     Then the run ends stopped because Cyclotron is busy
     And one story is routed and delivered
     And the other two stories were refused by the busy lab, hold no job and are not errors
+
+  Scenario: A router config that still has the retired limits loads and the limits do nothing
+    Given the router config still carries ceilings and a per-run item limit of one
+    When the route task runs
+    Then the lab received one decision request for each of the three stories
+    And no run stops for a limit of the router's own
+    And the retired fields were ignored with one log line

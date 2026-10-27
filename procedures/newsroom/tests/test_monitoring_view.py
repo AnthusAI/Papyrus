@@ -97,7 +97,7 @@ def test_router_runs_and_dry_run_modes_are_reported():
     result = overview()
     run = result["routerRuns"][0]
     assert run["status"] == "stopped" and run["counts"]["decided"] == 1 and run["feedback"]["sent"] == 1
-    assert result["router"] == {"mode": "live", "feedback": True, "enabled": True, "maxItemsPerRun": 5}
+    assert result["router"] == {"mode": "live", "feedback": True, "enabled": True}
 
 
 def test_response_is_json_and_leaks_nothing_private():
