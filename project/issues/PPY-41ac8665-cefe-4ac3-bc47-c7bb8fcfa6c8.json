@@ -10,9 +10,17 @@
   "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "e2ada158-72ec-479e-a90d-e665da5d6c2a",
+      "author": "home",
+      "text": "Resolved and live (2026-10-27). Ryan: pick something sensible. Chose option 1, dataparade.io's CookieYes on the articles, so one consent covers the whole site; the Papyrus banner (chrome.consent_mode) is not used. web/hooks.py head_extra emits Consent Mode v2 defaults (all denied, as on the landing), then CookieYes site 2f94f29f..., then Papyrus adds the GA4 G-SS1D0H8DDD loader; footer Legal has a Cookie settings button (cky-banner-element); the floating revisit button is hidden as on the landing. AnthusAI/DataParade-newsroom PR #18 into develop, release PR #22 to main (5406702c), Amplify job 13 SUCCEED. Live check on dataparade.io/posts/the-diagram-is-a-projection/: tag order defaults < CookieYes < gtag loader; fresh visit shows the banner with analytics_storage denied and no _ga cookie; Accept grants analytics and sets _ga; Cookie settings reopens the banner; Reject updates to denied (cookieyes-consent analytics:no). npm test 7 passing.",
+      "created_at": "2026-10-27T12:01:02.914551Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-23T13:24:54.938972Z",
-  "updated_at": "2026-10-23T13:25:02.417191Z",
+  "updated_at": "2026-10-27T12:01:02.915138Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",
