@@ -98,10 +98,22 @@
         "model": "GPT-6",
         "name": "Chat mobile correction"
       }
+    },
+    {
+      "id": "649aa685-0668-4309-a7d9-019a80933bb9",
+      "author": "home",
+      "text": "Correction PR https://github.com/AnthusAI/Papyrus/pull/748 at f4e26679. Replaces floating control with existing navigation slot, preserves Messages in More, adds mobile Back and accurate readable eligibility recovery. Typecheck, lint, production build and 21 shared-chat scenarios / 70 steps pass; responsive touch and dark render checks pass. Real iOS and real model reply remain unverified; product eligibility is a separate blocker. Maintenance 5.41.x only.",
+      "created_at": "2026-10-27T06:51:10.961075Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile correction"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-27T06:32:56.250661Z",
+  "updated_at": "2026-10-27T06:51:10.961436Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
