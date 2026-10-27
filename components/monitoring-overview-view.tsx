@@ -144,6 +144,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
   const receiptKey = receiptId ?? "";
   const quarantine = (detail && "submission" in detail ? decidedByReceipt[receiptKey] ?? detail.submission.quarantine : null);
   const accepted = emailSubmissionAccepted(quarantine);
+  const groupInfo = detail && "submission" in detail ? items.find((item) => item.receiptId === detail.submission.receiptId)?.group : undefined;
   const reason = reasonByReceipt[receiptKey] ?? "";
   const busyDecision = busyDecisionByReceipt[receiptKey] ?? false;
   const selected = selectedByReceipt[receiptKey] ?? {};
@@ -274,6 +275,14 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
       {items.length ? <ul className="news-desk-monitoring__list">
         {items.map((item) => <li key={item.receiptId} data-email-submission={item.receiptId}>
           <strong>{item.subject || "(no subject)"}</strong>
+          {item.group ? <details data-email-group={item.group.fingerprint}>
+            <summary>Received {item.group.count} times · latest {formatUtc(item.observedAt)}</summary>
+            <ol>
+              {item.group.copies.map((copy) => <li key={copy.receiptId} data-email-copy={copy.receiptId}>
+                {formatUtc(copy.observedAt)} · {copy.quarantine ? QUARANTINE_LABELS[copy.quarantine.state] : copy.status}
+              </li>)}
+            </ol>
+          </details> : null}
           <span>{formatUtc(item.observedAt)} · {item.linkCount} candidate links · {item.reviewRequired
             ? `${item.linkCount} await editor import` : `${item.processedCount} queued`}</span>
           {item.reviewRequired ? <span>Authentication warnings: private review required; nothing was routed automatically.</span> : null}
@@ -296,6 +305,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
             <h5>{QUARANTINE_LABELS[quarantine.state]}</h5>
             {quarantine.state === "quarantined" ? <>
               <p>This message was held privately and nothing was routed. Accept it to queue its links as if it had been accepted, or Reject it to close it. Sender identity and authentication signals never grant access; the decision is yours and is recorded.</p>
+              {groupInfo ? <p data-email-group-note>One decision applies to all {groupInfo.count} copies of this email.</p> : null}
               <label>Why? (optional)
                 <textarea value={reason} rows={3} maxLength={500} style={{ display: "block", width: "100%" }}
                   onChange={(event) => setReasonByReceipt((current) => ({ ...current, [receiptKey]: event.target.value }))} />
@@ -308,7 +318,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
               </button>
             </> : null}
             {quarantine.decision ? <p data-email-decision-record>
-              {quarantine.decision.action === "accept" ? "Accepted" : "Rejected"}
+              {quarantine.decision.action === "accept" ? "Accepted" : "Rejected"}{quarantine.decision.viaGroup ? " (one decision for every copy of this email)" : ""}
               {quarantine.decision.by ? ` by ${quarantine.decision.by}` : ""}{quarantine.decision.at ? ` on ${formatUtc(quarantine.decision.at)}` : ""}
               {quarantine.decision.reason ? `. Why: ${quarantine.decision.reason}` : "."}
             </p> : null}
