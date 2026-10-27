@@ -6,7 +6,7 @@
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set feedback=true
 `--file` is a JSON document of the shape in docs/monitoring-cloud.md (example:
 docs/monitoring-router-config.example.json). `--set` changes one top-level field of the stored
-item (mode, feedback, maxItemsPerRun, enabled). Every write is validated with the Lambda's own
+item (mode, feedback, enabled). Every write is validated with the Lambda's own
 validator, so a config the router would refuse is never stored. Asserts the AWS account.
 """
 import argparse
@@ -17,7 +17,7 @@ import sys
 import boto3
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from papyrus_content.monitoring_router import ROUTER_CONFIG_SK, validate_router_config  # noqa: E402
+from papyrus_content.monitoring_router import ROUTER_CONFIG_SK, RETIRED_ROUTER_FIELDS, validate_router_config  # noqa: E402
 
 ACCOUNT = "712236451410"
 
@@ -27,11 +27,9 @@ def coerce(key: str, value: str):
         if value not in ("true", "false"):
             raise ValueError(f"{key} must be true or false")
         return value == "true"
-    if key == "maxItemsPerRun":
-        return int(value)
     if key == "mode":
         return value
-    raise ValueError(f"--set supports mode, feedback, maxItemsPerRun and enabled, not {key}")
+    raise ValueError(f"--set supports mode, feedback and enabled, not {key}")
 
 
 def main() -> int:
@@ -51,7 +49,6 @@ def main() -> int:
     key = {"pk": f"MONITOR#{args.monitor_id}", "sk": ROUTER_CONFIG_SK}
     if args.file:
         item = {**json.loads(Path(args.file).read_text()), **key}
-        item.pop("ceilings", None)
         validate_router_config(item)
         kwargs = {} if args.replace else {"ConditionExpression": "attribute_not_exists(pk)"}
         try:
@@ -72,7 +69,8 @@ def main() -> int:
             stored.pop(name, None)
         else:
             stored[name] = coerced
-    stored.pop("ceilings", None)
+    for retired in RETIRED_ROUTER_FIELDS:   # the router has no limits any more; drop the old fields from the stored config
+        stored.pop(retired, None)
     validate_router_config(json.loads(json.dumps(stored, default=int)))
     table.put_item(Item=stored)
     print(f"Updated {key['pk']} {key['sk']}: " + ", ".join(args.set))

@@ -271,6 +271,7 @@ def _index_entity(entity: _Entity) -> dict:
         "itemCount": len(entity.item_keys),
         "weeksOfHistory": entity.history,
         "series8": entity.values8,
+        "series26": entity.values26,
         "change": entity.change.to_dict(),
         "isNew": entity.new,
     }

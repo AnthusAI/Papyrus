@@ -599,7 +599,7 @@ DIRECT_PUBLICATION = {"publicationId": "shipped", "site": "shipped.anth.us", "ap
 
 
 def router_config(mode="live", **overrides):
-    return {"pk": "MONITOR#huggingface", "sk": "CONFIG#router", "mode": mode, "decisions": "direct", "maxItemsPerRun": 25,
+    return {"pk": "MONITOR#huggingface", "sk": "CONFIG#router", "mode": mode, "decisions": "direct",
             "publications": [DIRECT_PUBLICATION], **overrides}
 
 

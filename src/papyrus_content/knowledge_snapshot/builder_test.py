@@ -409,7 +409,7 @@ def test_public_safe_output_has_no_email_or_private_text():
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
 BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8", "topEntities"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
 CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
 ACTOR_FIELDS = {"actor", "name", "on"}

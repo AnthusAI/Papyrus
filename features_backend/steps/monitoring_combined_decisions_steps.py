@@ -23,14 +23,14 @@ def run(context, now=2000):
 def step_router(context):
     context.table_ = tr.FakeTable()
     context.table_.put_item(tr.COLLECTOR_CONFIG)
-    context.table_.put_item(tr.router_config(maxItemsPerRun=1))
+    context.table_.put_item(tr.router_config())
     context.store, context.cyclotron, context.delivery = RouterStore(context.table_), tr.FakeCyclotron(), tr.Delivery()
     context.cyclotron.combined_enabled = True
 
 
 @given("the monitor has collected a story that every publication could use")
 def step_collected(context):
-    run_collection(DynamoStore(context.table_), "hn", fetch=lambda url: tr.FEED, now=1000)
+    run_collection(DynamoStore(context.table_), "hn", fetch=lambda url: tr.ONE_FEED, now=1000)
 
 
 @given("Cyclotron is busy with another run when the router first asks")
@@ -41,7 +41,7 @@ def step_busy(context):
 @given("Cyclotron does not have the combined endpoint yet")
 def step_old(context):
     context.cyclotron.combined_enabled = False
-    context.table_.put_item(tr.router_config(maxItemsPerRun=3))
+    context.table_.put_item(tr.router_config())
 
 
 @given("Cyclotron reports that a publication binding changed")
@@ -118,7 +118,7 @@ def step_asked_once(context):
 
 @then("each publication is decided with its own request")
 def step_each(context):
-    assert len(context.cyclotron.posts()) == 9
+    assert sorted(c[1].split("/")[3] for c in context.cyclotron.posts()) == sorted(tr.PUBS)
 
 
 @then("the story is delivered exactly as it would have been")
@@ -185,7 +185,7 @@ def step_gone_once(context):
 
 @given("the lab answers not found for every job of the first two stories")
 def step_gone_always(context):
-    context.table_.put_item(tr.router_config(maxItemsPerRun=2))
+    run_collection(DynamoStore(context.table_), "hn", fetch=lambda url: tr.FEED, now=1100)   # two more stories behind the first
     context.cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"}), (404, {"detail": "Not Found"})]
 
 

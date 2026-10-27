@@ -126,7 +126,6 @@ must agree. An example publication destination is:
   "enabled": false,
   "decisions": "direct",
   "feedback": false,
-  "maxItemsPerRun": 5,
   "publications": [{
     "publicationId": "publication",
     "site": "publication.example",

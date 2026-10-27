@@ -109,31 +109,52 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    `index.json`, or the `_data/knowledge/` directory or address (it reads `index.json`, `clusters.json`, `entities/<key>.json` and, for the
    cluster item counts of the last archived week before this one, `history/`). Paths and `http(s)` addresses both work.
 2. **Signals, no model.** Up to 6 named clusters (growing, new, cooling, then the rest) and entities chosen by `select_entities`, from the
-   index's eight-week series (the published `trending` order is not used, so the selection works on any snapshot, old or new). A signal carries what the snapshot holds: the weekly counts with their week dates, the
-   four-week change (`percent` is null on a small base and the model is told so), neighbours of an entity, the previous archived week's
+   index's weekly series (`series26`, the full 26 weeks; a snapshot that only has `series8` is scanned over those eight; the published `trending` order is not used, so the selection
+   works on any snapshot, old or new). A signal carries what the snapshot holds: the weekly counts with their week dates, for an entity the
+   window the scan chose and its counts (below), neighbours of an entity, the previous archived week's
    item count of a cluster. Signal ids are `cluster:<uid>` and `entity:<key>`; the model sees handles S1, S2, ....
 
    **Which entities (`select_entities`).** Raw counts mislead: a licence, a task or a platform has the biggest count every week and rises with
-   the corpus. Each entity with at least 3 mentions in the last four weeks is scored by Poisson surprise over its own prior four weeks, scaled by the growth of the
-   corpus's total weekly mentions (the same function as the snapshot's `trending`, [knowledge-snapshot.md](knowledge-snapshot.md)), times a weight by kind.
+   the corpus. So each entity is scanned for its most surprising recent window, with no fixed span:
+
+   - **Adaptive window (a scan statistic).** The most recent 1, 2, 4, 8, 16, ... weeks are each tried as the window, against everything before
+     it, as long as at least `minimum_baseline_weeks` (4) weeks of baseline remain (26 weeks of history give 1, 2, 4, 8 and 16). A spike is
+     found at 1 week, a slow build at 16.
+   - **Surprise of a window.** The exact conditional test for two Poisson counts: with `count` mentions in the window and `baseline` in the
+     weeks before, if the entity's rate had not changed each of the `count + baseline` mentions falls in the window with probability
+     `share`, the window's part of the corpus's total volume (the sum of every entity's weekly counts) in window and baseline together, so a
+     corpus that grows is not a trend. `count` is then Binomial and the p-value is its upper tail. Unlike comparing the count with a plug-in
+     expectation it allows for a baseline rate estimated from few weeks.
+   - **Correction for trying several windows: Bonferroni.** The smallest p-value of the windows tried is multiplied by their number and capped at one.
+     Taking the best of several windows would otherwise flag plain noise. Bonferroni is the simplest correction that is sound whatever the
+     dependence between the windows (nested windows are strongly dependent, so it is conservative, never liberal); it needs no random draws, so the
+     same snapshot gives the same signals (a permutation or Monte Carlo calibration would be tighter but needs a seed and a run time, for at most five windows);
+     and at five windows it costs little power. Over 500 simulated steady entities, at most one in a hundred passes the default level.
+   - **Score.** The z-score of the corrected p-value times a weight by kind (broad kinds are demoted). The entity needs at least `minimum_recent` (3) mentions in
+     its chosen window. It is a trend only when the corrected p-value is within `significance` (0.01).
+   - **Reported.** The chosen window is part of the signal (`windowWeeks`, `windowCount`, `baselineWeeks`, `baselineCount`). The model sees
+     `window_weeks`, `items_in_window`, `weeks_before_window` and `items_before_window` and the full weekly history, and is told to say the span as it is ("rising over the last 4 weeks"); the
+     cited signals list in the body says "32 items in the last 2 weeks against 12 in the 24 weeks before (about 4.07 expected; p=2.9e-23 after correcting for 5 windows tried)".
+     No percentage is offered. Because the chart needs the same length for every signal it still draws the last eight weeks.
    Then:
 
-   - **Anchors**: the best 8 whose kind may anchor (`maker`, `model_family`, `model`, `concept`, `technique`) and whose weighted score is at least 1.0. Licence, task and platform never anchor.
-   - **Notable makers only.** A maker anchors only if it is on the watchlist, or the site has an item about it in the window, or at least 2 of its models were recorded in the window with likes adding up to 100 or downloads to 10,000, and in either case at least 10 likes (downloads alone are not notability) (read from the records' summaries in the entity file, the newest 12 of them). One individual with a handful of small fine-tunes cannot anchor a draft, however sharp the jump looks.
+   - **Evidence, not days.** An entity that already anchored a draft (any state, declined included) anchors another only when its window now holds significantly more than that draft reported; see step 5.
+   - **Anchors**: the best 8 whose kind may anchor (`maker`, `model_family`, `model`, `concept`, `technique`) and whose weighted score is at least 1.0 and whose corrected p-value is within `significance`. Licence, task and platform never anchor.
+   - **Notable makers only.** A maker anchors only if it is on the watchlist, or the site has an item about it in its chosen window, or at least 2 of its models were recorded in the window with likes adding up to 100 or downloads to 10,000, and in either case at least 10 likes (downloads alone are not notability) (read from the records' summaries in the entity file, the newest 12 of them). One individual with a handful of small fine-tunes cannot anchor a draft, however sharp the jump looks.
    - **Context**: up to 2 broad-kind entities (licence, task, platform) that sit beside the anchors (their neighbours, most connected first). They carry `role: "context"` in the model's input, and the prompt says a context signal may be cited for where the releases sit but is never the subject of a headline or dek.
    - The run record keeps `selection` (anchors with their scores and why a maker is notable, entities passed over with the reason, the thresholds), so a person can see who was left out.
 
-   **Thresholds** are configuration with these defaults (`TrendConfig`): `minimum_recent` 3, `minimum_score` 1.0, `baseline_smoothing` 1.0, `broad_kind_weight` 0.2, `other_kind_weight` 0.7, `minimum_models` 2, `minimum_likes` 100, `minimum_downloads` 10000, `likes_floor` 10, `window_days` 28, `cooldown_days` 7, `watchlist` (entity keys or names, lower-cased; empty), `broad_kinds`, `preferred_kinds`, `anchor_kinds`. Override them with `--trend-config FILE`, a JSON object of those names (for example `{"watchlist": ["maker--nvidia"], "minimum_likes": 50}`); an unknown name is refused.
+   **Thresholds** are configuration with these defaults (`TrendConfig`): `minimum_recent` 3, `minimum_score` 1.0, `broad_kind_weight` 0.2, `other_kind_weight` 0.7, `minimum_models` 2, `minimum_likes` 100, `minimum_downloads` 10000, `likes_floor` 10, `minimum_baseline_weeks` 4, `significance` 0.01, `watchlist` (entity keys or names, lower-cased; empty), `broad_kinds`, `preferred_kinds`, `anchor_kinds`. Override them with `--trend-config FILE`, a JSON object of those names (for example `{"watchlist": ["maker--nvidia"], "minimum_likes": 50}`); an unknown name is refused.
 
    **Items, the releases behind a signal.** An entity signal also carries up to 5 **items**: the entity file's `relatedItems` published in
-   the four weeks to the end of the snapshot's week (newest first). Each has its title, date, site path and, when the snapshot is read from
+   its chosen window, the weeks to the end of the snapshot's week (newest first). Each has its title, date, site path and, when the snapshot is read from
    an `http(s)` address, its site URL and a one-line summary, which is the first block-quote line of the item's published Markdown
    (`<item url>.md`; a page that cannot be read is only a missing summary). Item ids are `item:<path>`; the model sees handles I1, I2, ...
    once per distinct item (at most 40 in total, so the input stays far under the 120,000-character limit) and the signals each item sits
    behind. The snapshot publishes no member list for a cluster, so a cluster signal has no items. A snapshot read from a local file has no
    site address, so its items carry titles and dates but no summaries or URLs.
 
-   **Monitor records as items.** When the site counts monitor records ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)), the entity file also has `relatedRecords`, and an entity signal's items include up to 3 of them in the same four weeks, after the site's own items. A record is a release recorded from a monitored source, not a story: its item has the model id as title, the release date, the source's own card as its address (never fetched), a one-line `summary` built from the structured fields (task, maker, licence, likes, downloads, base models), and `from` (`from the Hugging Face Hub`). The model sees `from` and is told to call it a release or a model and never something the publication published; the citation check treats its title, summary and date like any item's, so a number in a sentence citing it must be in that summary.
+   **Monitor records as items.** When the site counts monitor records ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)), the entity file also has `relatedRecords`, and an entity signal's items include up to 3 of them in the same window, after the site's own items. A record is a release recorded from a monitored source, not a story: its item has the model id as title, the release date, the source's own card as its address (never fetched), a one-line `summary` built from the structured fields (task, maker, licence, likes, downloads, base models), and `from` (`from the Hugging Face Hub`). The model sees `from` and is told to call it a release or a model and never something the publication published; the citation check treats its title, summary and date like any item's, so a number in a sentence citing it must be in that summary.
 3. **Draft.** One call to GPT-6 Luna (same model, transport, prices and `--max-cost-usd` cap as `synthesize`; 12,000 output tokens, because
    three cited drafts and the reasoning ran past the 6,000 of the other commands). The prompt asks for a story an informed reader would find
    new: what shipped, who made it, what is different about it and what the pattern across the releases suggests, in plain specific prose that
@@ -153,11 +174,24 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    keeps its `citationCheck` (`status: passed`, sentences, signals cited) and every sentence with its signal ids (`sentences[]`).
 5. **Dedupe.** Near-duplicates of recent and in-flight stories, earlier drafts and earlier kept ones, as for `synthesize`. Then **same
    targets**: a draft whose target set is identical to an earlier non-declined `story_draft` Proposal (an editor reads them in full, an IAM
-   operator through `listStoryDrafts`) or to a trend draft in the JSON store is dropped (`same_targets`). A declined one does not block.
-   Before the model is asked there is also a **cooldown** (step 2): an entity that anchored a non-declined draft in the last `cooldown_days`
-   (default 7, `--cooldown-days N`, 0 is off) cannot anchor another, so a daily run does not write about the same maker every day. The
-   run record's `cooldown` lists the entities cooling down with the date of the draft each anchored, and `selection.excluded` says
-   `cooldown: anchored a story draft filed <date>`. A broad kind is only ever context, so it never cools down.
+   operator through `listStoryDrafts`) or to a trend draft in the JSON store is dropped (`same_targets`), unless it rests on an entity whose evidence was renewed (below). A declined one does not block here;
+   an entity anchor is guarded by the evidence rule instead, so a declined trend is not proposed again without new evidence, and a draft that only cites clusters is guarded by this check.
+   Before the model is asked there is also the **repeat rule** (step 2), which uses evidence and not a count of days. An entity that already
+   anchored a draft, in any state (a declined one included), anchors another only when its evidence now materially exceeds what that
+   draft reported:
+
+   - What a draft reported is the window it chose: its length and its count. A trend draft keeps it in its evidence (`evidence.windows`, one
+     per cited entity: `signal`, `windowWeeks`, `count`, `baselineWeeks`, `baselineCount`, `expected`, `pValue`, `correctedPValue`, `tested`), in the JSON store. A Proposal carries only the
+     evidence keys the reader-actions function keeps (it drops unknown keys, and an IAM operator's `listStoryDrafts` returns no evidence at all), so a
+     draft without a stored window is rebuilt from the data: the same scan over the entity's series and the corpus volume cut off at the week the draft was made (its snapshot's
+     week, else its filing week). Scanning is deterministic, so that is the window the run chose then. A draft made before the history reaches back far enough to scan reports nothing.
+     When several drafts anchored on an entity, the one with the highest weekly rate is the one to beat.
+   - Materially more means the same test as the scan: the new window's `count` against the reported `count` (each mention of the two falls in
+     the new window with probability `L / (L + L_reported)`; Binomial upper tail), multiplied by the number of windows tried, within `significance`. The same
+     rate over a longer window is not new (6 in a week, then 12 in two weeks); a few more is not new (6 then 7); a surge several times larger is (6 then 40).
+   - The entity is passed over in `selection.excluded` with `no new evidence: the draft filed <date> (<state>) reported <n> in <L> week(s); now <n> in <L> (p=..., needs <= 0.01)`.
+     The run record's `priorDrafts` lists every anchor candidate that has an earlier draft: what it reported, what the data says now, the p-value and whether it was `renewed`. A renewed
+     anchor is not dropped by the same-targets check below. A broad kind is only ever context, so it never has a prior draft to beat. There is no day count and no `--cooldown-days`.
 6. **File.** A `story_draft` Proposal in state `draft`, proposer `ai` (shown as AI), with these fields:
 
    | Field | Value |
@@ -166,7 +200,7 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    | `summary` | the dek (300 characters) |
    | `body` | the dek and paragraphs with `[n]` markers after each sentence (signals are numbered first, then the cited items), a `## Figure` section (title, caption, the series values), `## Signals cited` (number, readable fact, link, signal id), `## Sources` (number, item title, date and URL; only when an item is cited) and the section |
    | `targets` | one per cited signal (never an item): `{type: "cluster", id: <uid>}` or `{type: "entity", id: <entity key>}` (at most 10) |
-   | `evidence` | `{signals: <n cited>, source: "knowledge snapshot <asOf> (<site>), papyrus ideas trends", figure: {...}}` |
+   | `evidence` | `{signals: <n cited>, source: "knowledge snapshot <asOf> (<site>), papyrus ideas trends", figure: {...}, windows: [...]}`; `windows` (the window each cited entity reported) is kept in the JSON store, and the Proposal keeps the keys its function allows |
 
    The figure spec is drawn by code from the cited signals' weekly counts, never from model output:
 
@@ -195,7 +229,7 @@ papyrus ideas trends --site <site> --snapshot ./history/2026-10-19.json --store 
 command reads the site's mission, policy, sections and stories through the CMS (a `papyrus login` session or `PAPYRUS_GRAPHQL_AUTH=iam`,
 as above) and needs `OPENAI_API_KEY`. **`--dry-run`** does everything but file: it calls the model, runs the citation check and prints each
 passing draft in full and each failing draft with its problems; it stores nothing, files nothing and requests no review. Other options:
-`--max N` (3), `--trend-config FILE`, `--cooldown-days N` (7; 0 is off), `--window-days N` (7, 14, 21 or 28; default 28, the last N days against the N before, counted in whole weeks of the snapshot's weekly series; a shorter window gives the signals `items_last_<n>_weeks` and `items_prior_<n>_weeks`, and the items behind them are those inside the window), `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
+`--max N` (3), `--trend-config FILE` (`--window-days` and `--cooldown-days` are retired and refused: the window comes from the data and a repeat needs new evidence), `--model`, `--dedupe-threshold`, `--max-cost-usd`, `--story-days`, `--out`, `--report FILE`, `--json`.
 
 Limits: the check proves that every sentence points at the snapshot and that its digits come from the signals it cites; it does not prove
 that the sentence reads the signal correctly, so an editor still reads every draft. Snapshot counts are the site's own published items and, for a site that counts them, monitor records.

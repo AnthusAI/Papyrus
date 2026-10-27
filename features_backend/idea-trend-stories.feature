@@ -21,7 +21,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
 
   Scenario: The signals are the clusters and the entities that gained share, chosen without a model
     When the operator reads the signals of the snapshot
-    Then the signals are the two clusters, then the two makers and the concept that gained share, then the one new concept
+    Then the signals are the two clusters, then the two makers, the new concept and the concept that built up slowly
     And each signal names its weekly counts for the 8 weeks ending 2026-10-19
 
   Scenario: A draft whose sentences all cite signals in the snapshot is filed as a draft story Proposal proposed by AI
@@ -36,7 +36,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
   Scenario: The Proposal carries a chart spec drawn from the cited signal's weekly counts
     When the model drafts a trend story citing Hugging Face and Zed
     And the operator drafts trend stories and files them as Proposals
-    Then the Proposal evidence holds a line chart of Hugging Face with the counts 1, 2, 3, 4, 7, 3, 3, 2
+    Then the Proposal evidence holds a line chart of Hugging Face with the counts 0, 1, 0, 1, 0, 1, 30, 2
     And the chart's weeks run from 2026-08-31 to 2026-10-19
     And the body lists the signals cited under the sentences that cite them
 
@@ -87,8 +87,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
 
   Scenario: A story draft Proposal with the same targets is not filed again
     Given an editor can read an earlier story draft Proposal with the same targets
-    And the anchor cooldown is off
-    When the model drafts a trend story citing Hugging Face and Zed
+    When the model drafts a trend story citing the two clusters
     And the operator drafts trend stories and files them as Proposals
     Then 0 trend drafts are filed
     And the run record says the draft has the same targets as the earlier Proposal
@@ -102,8 +101,7 @@ Feature: The idea pipeline drafts trend stories from the weekly knowledge snapsh
   Scenario: An operator role dedupes against earlier story drafts through the operator read
     Given the operator signs in with IAM and cannot read Proposals
     And an earlier story draft Proposal with the same targets exists
-    And the anchor cooldown is off
-    When the model drafts a trend story citing Hugging Face and Zed
+    When the model drafts a trend story citing the two clusters
     And the operator drafts trend stories and files them as Proposals
     Then 0 trend drafts are filed
     And the run record says the draft has the same targets as the earlier Proposal

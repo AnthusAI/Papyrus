@@ -36,7 +36,7 @@ DISTINCTIVE = {"publicationId": "distinctive", "site": "distinctive-mark.com", "
 
 
 def direct_router_config(mode="live", **overrides):
-    return {"pk": "MONITOR#ttab", "sk": "CONFIG#router", "mode": mode, "decisions": "direct", "maxItemsPerRun": 25,
+    return {"pk": "MONITOR#ttab", "sk": "CONFIG#router", "mode": mode, "decisions": "direct",
             "publications": [DISTINCTIVE], **overrides}
 
 

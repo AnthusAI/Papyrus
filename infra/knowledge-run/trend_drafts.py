@@ -15,9 +15,8 @@ snapshot of an earlier week is still skipped.
 
 Environment: KNOWLEDGE_PUBLICATION, KNOWLEDGE_EXECUTION_START (ISO time),
 KNOWLEDGE_OPENAI_KEY_PARAMETER, TREND_DRAFTS_ENDPOINT, TREND_DRAFTS_SNAPSHOT_URL, and optionally TREND_DRAFTS_MAX (2),
-TREND_DRAFTS_MAX_AGE_DAYS (1), TREND_DRAFTS_WINDOW_DAYS (unset: the command's 28), TREND_DRAFTS_COOLDOWN_DAYS (unset: the
-command's 7; 0 turns the anchor cooldown off), TREND_DRAFTS_FRESH_ATTEMPTS (3) and
-TREND_DRAFTS_FRESH_WAIT_SECONDS (60).
+TREND_DRAFTS_MAX_AGE_DAYS (1), TREND_DRAFTS_FRESH_ATTEMPTS (3) and TREND_DRAFTS_FRESH_WAIT_SECONDS (60). The trend window and the
+repeat rule are chosen by the command from the data, so TREND_DRAFTS_WINDOW_DAYS and TREND_DRAFTS_COOLDOWN_DAYS, if still set, are ignored.
 """
 
 from __future__ import annotations
@@ -102,10 +101,8 @@ def read_openai_key(parameter: str) -> str:
     return value
 
 
-def trends_command(publication: str, snapshot_url: str, maximum: int, window_days: int | None = None, cooldown_days: int | None = None) -> list[str]:
-    command = ["papyrus", "ideas", "trends", "--site", publication, "--snapshot", snapshot_url, "--store", "proposals", "--max", str(maximum)]
-    command += ["--window-days", str(window_days)] if window_days else []
-    return command + (["--cooldown-days", str(cooldown_days)] if cooldown_days is not None else [])
+def trends_command(publication: str, snapshot_url: str, maximum: int) -> list[str]:
+    return ["papyrus", "ideas", "trends", "--site", publication, "--snapshot", snapshot_url, "--store", "proposals", "--max", str(maximum)]
 
 
 def run(environment: Mapping[str, str], *, fetch: Callable[[str], str | None] = fetch_as_of, sleep: Callable[[float], None] = time.sleep,
@@ -131,9 +128,7 @@ def run(environment: Mapping[str, str], *, fetch: Callable[[str], str | None] = 
     )
     child_environment = dict(environment)
     child_environment.update(PAPYRUS_GRAPHQL_AUTH="iam", PAPYRUS_GRAPHQL_ENDPOINT=endpoint, OPENAI_API_KEY=read_key(key_parameter))
-    window = (environment.get("TREND_DRAFTS_WINDOW_DAYS") or "").strip()
-    cooldown = (environment.get("TREND_DRAFTS_COOLDOWN_DAYS") or "").strip()
-    command = trends_command(publication, snapshot_url, int(environment.get("TREND_DRAFTS_MAX") or 2), int(window) if window else None, int(cooldown) if cooldown else None)
+    command = trends_command(publication, snapshot_url, int(environment.get("TREND_DRAFTS_MAX") or 2))
     print("+ " + " ".join(command), flush=True)
     status = (execute or (lambda args, env: subprocess.run(args, env=env, check=False).returncode))(command, child_environment)
     if status != 0:
