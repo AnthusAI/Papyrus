@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-export function PapyrusConsoleFrame({ available, open, reserveSpace, onOpen, onClose, page, children }: {
+export function PapyrusConsoleFrame({ available, open, reserveSpace, onClose, page, children }: {
   available: boolean;
   open: boolean;
   reserveSpace: boolean;
-  onOpen: () => void;
   onClose: () => void;
   page: ReactNode;
   children: ReactNode;
@@ -45,14 +44,13 @@ export function PapyrusConsoleFrame({ available, open, reserveSpace, onOpen, onC
       cancelAnimationFrame(frame);
       requestAnimationFrame(() => {
         if (previous instanceof HTMLElement && previous !== document.body && previous.isConnected && !previous.closest("[inert]")) previous.focus();
-        else Array.from(document.querySelectorAll<HTMLElement>(".papyrus-console-mobile-trigger, .edition-progress__button--console, .papyrus-console__header button")).find(element => element.getClientRects().length > 0)?.focus();
+        else Array.from(document.querySelectorAll<HTMLElement>(".organizer-chat, .edition-progress__button--console, .papyrus-console__header button")).find(element => element.getClientRects().length > 0)?.focus();
       });
     };
   }, [modal]);
 
   return <>
     <div className={reserveSpace ? "papyrus-console-page papyrus-console-page--open" : "papyrus-console-page"} inert={modal || undefined}>{page}</div>
-    {available && !open ? <button className="papyrus-console-mobile-trigger" type="button" aria-label="Open private chat" aria-expanded={false} aria-controls="papyrus-console-panel" onClick={onOpen}>Chat</button> : null}
     {available ? <aside ref={panel} id="papyrus-console-panel" className={open ? "papyrus-console papyrus-console--open" : "papyrus-console"} aria-label="Papyrus console" role={modal ? "dialog" : undefined} aria-modal={modal || undefined}
       style={modal && viewport ? { top: viewport.top, height: viewport.height, bottom: "auto" } : undefined}
       onKeyDown={event => {
