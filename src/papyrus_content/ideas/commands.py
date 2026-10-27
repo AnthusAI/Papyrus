@@ -36,7 +36,7 @@ USAGE = (
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--window-days 28] [--cooldown-days 7] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
-    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
+    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
@@ -255,8 +255,9 @@ def monitor_stories_command(flags: list[str]) -> None:
         raise ValueError(f"--store must be {' or '.join(STORES)}.")
     dry_run = bool(options.get("dry-run"))
     limit = _integer(options, "limit", monitor_stories.DEFAULT_LIMIT)
-    since = normalize_string(options.get("since")) or monitor_stories.DEFAULT_SINCE
-    parse_window(since)
+    since = normalize_string(options.get("since")) or None
+    if since:
+        parse_window(since)
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
@@ -292,7 +293,9 @@ def monitor_stories_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\tmonitor-stories\t{run['runId']}\t{run['store']}")
-    print(f"items\tin window {inputs['inWindow']}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\tcandidates {inputs['candidates']}")
+    print(f"items\tread {inputs['inWindow']}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\tcandidates {inputs['candidates']}")
+    fresh = run["freshness"]
+    print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
     print(f"llm\t{run['model']}\tcalls {usage.get('calls', 0)}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     review = run["review"]
