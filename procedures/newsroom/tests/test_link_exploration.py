@@ -365,3 +365,43 @@ def test_tavily_without_a_key_or_with_an_unreadable_parameter_is_unavailable():
 def test_a_malformed_tavily_answer_is_a_search_error():
     with pytest.raises(SearchError):
         TavilySearch(environ={"TAVILY_API_KEY": "k"}, post=lambda payload, key: {"unexpected": 1}).search("a b c")
+
+
+# --- preview metadata (the References feed's image and dek) ------------------------------------------------------------------------
+
+
+def page_with(head: str) -> str:
+    return f"<html><head>{head}</head><body><p>{ARTICLE_TEXT}</p></body></html>"
+
+
+def test_the_destination_page_preview_image_description_and_site_name_come_back():
+    article = "https://www.publisher.example/news/licensing"
+    head = ('<title>Licensing scheme approved</title><meta property="og:image" content="/img/hero.jpg">'
+            '<meta property="og:description" content="Regulators  approved a   cross-border scheme."><meta property="og:site_name" content="Publisher">')
+    result = explore(article, transport=FakeHttp({article: html(page_with(head))}), use_search=False)
+    assert result.metadata == le.PageMetadata("https://www.publisher.example/img/hero.jpg", "Regulators approved a cross-border scheme.", "Publisher", "Licensing scheme approved")
+    assert result.as_record()["metadata"]["imageUrl"] == "https://www.publisher.example/img/hero.jpg"
+
+
+def test_twitter_image_is_the_fallback_and_og_image_wins_when_both_exist():
+    assert le.page_metadata(page_with('<meta name="twitter:image" content="https://cdn.example/t.png">'), "https://a.example/p").image_url == "https://cdn.example/t.png"
+    both = '<meta name="twitter:image" content="https://cdn.example/t.png"><meta property="og:image" content="https://cdn.example/o.png">'
+    assert le.page_metadata(page_with(both), "https://a.example/p").image_url == "https://cdn.example/o.png"
+
+
+def test_only_public_http_images_are_accepted():
+    for bad in ("data:image/png;base64,AAAA", "javascript:alert(1)", "http://127.0.0.1/x.png", "http://localhost/x.png", "https://user:pw@cdn.example/x.png"):
+        assert le.page_metadata(page_with(f'<meta property="og:image" content="{bad}">'), "https://a.example/p").image_url is None, bad
+
+
+def test_a_page_with_no_preview_metadata_gives_an_empty_result_and_a_long_description_is_cut():
+    assert le.page_metadata(page_with(""), "https://a.example/p") == le.PageMetadata()
+    long = "word " * 200
+    cut = le.page_metadata(page_with(f'<meta name="description" content="{long}">'), "https://a.example/p").description
+    assert cut is not None and len(cut) <= le.DESCRIPTION_LIMIT and cut.endswith("…")
+
+
+def test_a_blocked_page_still_reports_nothing_and_never_raises():
+    article = "https://www.publisher.example/news/licensing"
+    result = explore(article, transport=FakeHttp({article: html("no", 403)}), use_search=False)
+    assert not result.ok and result.metadata is None

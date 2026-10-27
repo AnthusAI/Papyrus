@@ -6,6 +6,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
 import type { CategorySteeringDashboard } from "../lib/category-repository";
 import { ensureDevSandboxEditorSession } from "./dev-sandbox-editor-sign-in";
+import { discardReferencesHeadStart, prefetchReferencesFeed } from "./references-prefetch";
+import { SITE_BRAND } from "../lib/site-brand";
+import { clearSavedNewsroomDisplay, loadSessionDisplay, saveSessionDisplay } from "../lib/reference-feed-cache";
 import {
   loadEditorAssignmentsData,
   loadEditorDoctrineRecordsData,
@@ -75,7 +78,12 @@ export function NewsDeskClientProvider({
       ));
       return;
     }
-    setShell((current) => beginAccessCheck(current));
+    // A recent confirmed session is shown (name, "loading" instead of "checking") while the real check runs again.
+    // Display only: the check below still decides access, and the backend authorizes every call.
+    const remembered = loadSessionDisplay(SITE_BRAND.id);
+    setShell((current) => (remembered && !current.dashboard
+      ? { ...beginAccessCheck(current), phase: "loadingDesk" as const, auth: { status: "signedIn" as const, label: remembered.label } }
+      : beginAccessCheck(current)));
 
     try {
       await ensureDevSandboxEditorSession(devSandboxEditorAuth);
@@ -88,6 +96,8 @@ export function NewsDeskClientProvider({
     if (bootstrapSequenceRef.current !== sequence) return;
 
     if (access.status === "signedOut") {
+      clearSavedNewsroomDisplay(SITE_BRAND.id);
+      discardReferencesHeadStart();
       setShell((current) => resolveSignedOut(current, access.auth));
       return;
     }
@@ -100,7 +110,10 @@ export function NewsDeskClientProvider({
       return;
     }
 
+    saveSessionDisplay(SITE_BRAND.id, { label: access.auth.label, isAdmin: access.isAdmin });
     setShell((current) => beginDeskLoad(current, access.auth));
+    // The References reads do not depend on the summary dashboard: start them now, side by side with it.
+    if (typeof window !== "undefined" && /\/newsroom\/references(\/|$)/.test(window.location.pathname)) prefetchReferencesFeed();
 
     try {
       const dashboard = await loadEditorNewsDeskDashboard({ isAdmin: access.isAdmin });
@@ -183,6 +196,8 @@ export function NewsDeskClientProvider({
     const unsubscribe = Hub.listen("auth", ({ payload }) => {
       if (payload.event === "signedOut") {
         bootstrapSequenceRef.current += 1;
+        clearSavedNewsroomDisplay(SITE_BRAND.id);
+        discardReferencesHeadStart();
         setShell((current) => resolveSignedOut(current, { status: "signedOut", label: "Signed out" }));
         return;
       }

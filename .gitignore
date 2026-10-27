@@ -59,3 +59,6 @@ playwright-report/
 test-results/
 amplify_outputs.json.stashed-by-local-preview
 preview-screenshots/
+
+# Local feed preview data (real exports; never committed)
+.local-preview/

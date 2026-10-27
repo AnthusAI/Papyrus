@@ -1,3 +1,4 @@
+import { withReferenceFeedFixture } from "../lib/local-preview-feed-fixture";
 import { resolveNewsDeskTab } from "../lib/newsroom-section-routing";
 import { NewsDeskWorkspace, type NewsDeskTab } from "./topic-steering-workspace";
 import {
@@ -67,7 +68,7 @@ export async function NewsDeskPage({ section: routeSection, selectionPath, searc
   const analysisProfiles = await loadAnalysisProfileSummaries(getBrandAnalysisProfilesPath(brand));
   const configuredCorpora = await loadConfiguredCorpusSummaries(getBrandSteeringConfigPath(brand));
   const dashboard = useDemoDashboard
-    ? createDemoCategorySteeringDashboard(brand.id, getBrandNewsroomSectionsConfigPath(brand))
+    ? withReferenceFeedFixture(createDemoCategorySteeringDashboard(brand.id, getBrandNewsroomSectionsConfigPath(brand)))
     : await loadCategorySteeringDashboard();
   return <NewsDeskWorkspace analysisProfiles={analysisProfiles} configuredCorpora={configuredCorpora} dashboard={dashboard} initialSelection={initialSelection} initialTab={initialTab} />;
 }

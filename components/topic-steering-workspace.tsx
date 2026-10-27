@@ -94,6 +94,9 @@ import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
+import { loadMessagesWithHeadStart, loadReferencesWithHeadStart, loadRelationsWithHeadStart } from "./references-prefetch";
+import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
+import { referencePreviewsByLineage } from "../lib/reference-preview";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
@@ -696,7 +699,7 @@ export function NewsDeskWorkspace({
   }
 
   if (dashboard?.isPublicSkeleton && session?.shell.phase !== "ready") {
-    return <NewsDeskAccessGate shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
+    return <NewsDeskAccessGate initialTab={initialTab} shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
   }
 
   if (dashboard) {
@@ -716,7 +719,7 @@ export function NewsDeskWorkspace({
     );
   }
 
-  return <NewsDeskAccessGate shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
+  return <NewsDeskAccessGate initialTab={initialTab} shell={session?.shell ?? null} showSectionTabs={showSectionTabs} />;
 }
 
 function NewsDeskDashboard({
@@ -777,9 +780,16 @@ function NewsDeskDashboard({
   const [referenceAttachments, setReferenceAttachments] = useState(dashboard.referenceAttachments);
   const [messages, setMessages] = useState(dashboard.messages);
   const [semanticRelations, setSemanticRelations] = useState(dashboard.semanticRelations);
+  const [savedFeedCopy, setSavedFeedCopy] = useState<Pick<FeedSnapshot, "references" | "previews" | "decisions"> | null>(null);
+  useEffect(() => {
+    // Display only: the last view this browser saved, shown until the live read arrives.
+    if (dashboard.isDemo) return;
+    const snapshot = loadFeedSnapshot(SITE_BRAND.id);
+    if (snapshot) setSavedFeedCopy(snapshot);
+  }, [dashboard.isDemo]);
   const cyclotronPreviewFixtures = useMemo(
-    () => (isLocalPreviewEnabled() ? createLocalPreviewCyclotronFixtures(references) : null),
-    [references],
+    () => (isLocalPreviewEnabled() && !semanticRelations.some((relation) => relation.predicate === "relevance_decision_is") ? createLocalPreviewCyclotronFixtures(references) : null),
+    [references, semanticRelations],
   );
   const relevanceDecisions = useMemo(
     () => currentRelevanceDecisions(cyclotronPreviewFixtures ? [...semanticRelations, ...cyclotronPreviewFixtures.relations] : semanticRelations),
@@ -1215,7 +1225,7 @@ function NewsDeskDashboard({
   useEffect(() => {
     if (!canLoadPrivateCorpus || hasHydratedReferences) return;
     let active = true;
-    void loadEditorReferencesData()
+    void loadReferencesWithHeadStart()
       .then(({ references: nextReferences, referenceAttachments }) => {
         if (!active) return;
         setReferences(nextReferences);
@@ -1326,8 +1336,8 @@ function NewsDeskDashboard({
   const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
   const referenceReviewData = useReferenceReviewData({
     enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
-    loadRelations: loadEditorSemanticRelationsData,
-    loadMessages: loadEditorMessagesData,
+    loadRelations: loadRelationsWithHeadStart,
+    loadMessages: loadMessagesWithHeadStart,
     onRelations: setSemanticRelations,
     onMessages: setMessages,
   });
@@ -1351,6 +1361,18 @@ function NewsDeskDashboard({
     ? selectedReviewRead.lineageId === selectedReviewLineageId ? selectedReviewRead.state : "loading"
     : referenceReviewData.state;
   const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : referenceReviewData.error;
+  useEffect(() => {
+    // Keep a display copy for the next visit once everything the feed shows has been read.
+    if (dashboard.isDemo || activeTab !== "references" || !hasHydratedReferences || predictionState !== "ready" || !references.length) return;
+    const timer = window.setTimeout(() => {
+      saveFeedSnapshot(SITE_BRAND.id, {
+        references: selectCanonicalReferenceRecords(references),
+        previews: referencePreviewsByLineage(referenceAttachments),
+        decisions: relevanceDecisions,
+      });
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, dashboard.isDemo, hasHydratedReferences, predictionState, referenceAttachments, references, relevanceDecisions]);
   const retryReferenceReviewData = () => { referenceReviewData.retry(); setSelectedReviewAttempt((current) => current + 1); };
 
   const applyReferenceRecord = useCallback((nextReference: ReferenceRecord) => {
@@ -3182,6 +3204,8 @@ function NewsDeskDashboard({
               options?.sectionId)}
             referenceAttachments={referenceAttachments}
             references={references}
+            loading={!dashboard.isDemo && !hasHydratedReferences}
+            savedCopy={savedFeedCopy}
           />
           </NewsroomCurationBootstrap>
         ) : null}
