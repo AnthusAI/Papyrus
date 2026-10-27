@@ -39,6 +39,13 @@ Feature: The router asks Cyclotron once per story for every publication
     When the binding is current and the router sweeps again
     Then the story is decided and delivered
 
+  Scenario: An unrecognised conflict skips only that story and is reported
+    Given Cyclotron answers the combined request with a conflict the router does not recognise
+    When the router sweeps the collected story
+    Then the run does not stop
+    And the story is recorded as an error
+    And the run receipt says what Cyclotron answered
+
   Scenario: A publication whose classifier is not ready is parked while the others carry on
     Given Cyclotron says one publication's criteria are pending inside the combined answer
     When the router sweeps the collected story
