@@ -56,7 +56,7 @@ function fakeDynamo() {
   };
 }
 
-function coreDependencies(scope = derivePapyrusChatScope(publicationNamespace, issuer, "editor-a")) {
+function coreDependencies(scope = derivePapyrusChatScope(publicationNamespace, issuer, "editor-a"), running = false) {
   const channelId = "private-channel-a";
   const messages: any[] = [];
   const completed = new Map<string, { message: any; turnId: string | null }>();
@@ -86,7 +86,7 @@ function coreDependencies(scope = derivePapyrusChatScope(publicationNamespace, i
   };
   const dynamo = fakeDynamo();
   const turn = {
-    turnId: "private-turn-a", tenantId: scope.tenantId, channelId, botId: "editorial-assistant", status: "completed",
+    turnId: "private-turn-a", tenantId: scope.tenantId, channelId, botId: "editorial-assistant", status: running ? "running" : "completed",
     promptMessageSeq: null, promptAuthorId: scope.editorId, attemptId: null, attempt: 0, claimedBy: null,
     leaseExpiresAt: null, deadlineAt: null, recoveryAttempts: 0, waitingFor: null, waitingSince: null,
     logicalEnqueueIds: [], pendingComputerTool: null, storageFence: null, nextEventSeq: 2, terminalReason: null, messageSeq: null,
@@ -128,7 +128,7 @@ function coreDependencies(scope = derivePapyrusChatScope(publicationNamespace, i
     turns: {
       store: {
         async getTurn(tenantId: string, turnId: string) { return tenantId === scope.tenantId && turnId === turn.turnId ? turn : null; },
-        async listEvents() { return [turnEvent]; },
+        async listEvents() { return running ? [] : [turnEvent]; },
       } as never,
       clock: { now: () => new Date(now * 1000) }, ids: { next: () => "event" },
     },
@@ -218,6 +218,25 @@ async function main() {
   const oldCore = coreDependencies({ tenantId: "papyrus-old-account-tenant", editorId: "papyrus-editor-old-person" });
   const oldHistory = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => oldCore.dependencies });
   assert.equal(oldHistory.status, 403, "new newsroom scope cannot adopt old Account history");
+  for (const endpoint of ["events", "stream"]) {
+    const path = ["turns", "private-turn-a", endpoint];
+    for (const boundary of [
+      { ...options, environment: { ...options.environment, PAPYRUS_CHAT_SESSION_BUCKET: "another-publication" } },
+      { ...options, resolvePrivateDependencies: async () => oldCore.dependencies },
+      { ...options, resolveNewsroomIdentity: async () => ({ subject: "editor-a", issuer, clientId: "another-publication-client", expiresAt: now + 600 }) },
+    ]) {
+      const refused = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", path.join("/")), path, boundary);
+      assert.ok([403, 404].includes(refused.status), `${endpoint} refuses foreign publication/client and old history`);
+    }
+  }
+  const activeCore = coreDependencies(undefined, true);
+  const gatewayStream = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", "turns/private-turn-a/stream"), ["turns", "private-turn-a", "stream"], {
+    ...options,
+    resolvePrivateDependencies: async () => activeCore.dependencies,
+    resolveNewsroomIdentity: async () => ({ subject: "editor-a", issuer, clientId: "newsroom-client", expiresAt: now + 0.02 }),
+  });
+  assert.equal(gatewayStream.status, 200);
+  assert.equal(await gatewayStream.text(), "", "gateway closes a live nonterminal stream at its verified token expiry");
   const unconfigured = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, environment: { ...options.environment, PAPYRUS_CHAT_SESSION_BUCKET: "" } });
   assert.equal(unconfigured.status, 503);
   assert.ok(expectedScope.tenantId.startsWith("papyrus-newsroom-v1-"));

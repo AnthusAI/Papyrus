@@ -15,7 +15,7 @@ const bundle = await build({
     builder.onResolve({ filter: /^aws-amplify\/utils$/ }, () => ({ path: "utils", namespace: "synthetic" }));
     builder.onLoad({ filter: /^utils$/, namespace: "synthetic" }, () => ({ contents: `export const Hub = { listen: (_, fn) => { window.testAuthEvent = event => fn({ payload: { event } }); return () => {}; } };`, loader: "js" }));
     builder.onResolve({ filter: /^aws-amplify\/auth$/ }, () => ({ path: "auth", namespace: "synthetic" }));
-    builder.onLoad({ filter: /.*/, namespace: "synthetic" }, () => ({ contents: `export async function fetchAuthSession() { return { tokens: { accessToken: { toString: () => "synthetic-newsroom-token" } } }; }`, loader: "js" }));
+    builder.onLoad({ filter: /.*/, namespace: "synthetic" }, () => ({ contents: `export async function fetchAuthSession() { return { tokens: { accessToken: { toString: () => sessionStorage.getItem("test-editor") || "synthetic-editor-a" } } }; }`, loader: "js" }));
   } }],
   bundle: true,
   write: false,
@@ -57,6 +57,12 @@ const server = createServer(async (request, response) => {
     response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
     response.end(JSON.stringify(payload));
   };
+  if (request.headers.authorization === "Bearer synthetic-editor-b") {
+    if (request.url === "/api/newsroom/chat/private-channel") respond({ channel_id: "editor-b-channel", participants: [{ kind: "human", actor_id: "editor-b" }] });
+    else if (request.url === "/api/newsroom/chat/channels/editor-b-channel/messages" && request.method === "GET") respond({ messages: [{ message_id: "editor-b-message", channel_id: "editor-b-channel", seq: 1, author_kind: "bot", body: "Second editor private history", created_at: "2026-10-24T00:00:03.000Z" }] });
+    else { response.writeHead(403, { "content-type": "application/json" }); response.end(JSON.stringify({ error: "chat_account_access_denied" })); }
+    return;
+  }
   if (request.url === "/api/newsroom/chat/private-channel" && request.method === "POST") {
     respond({ channel_id: "private-channel", participants: [{ kind: "human", actor_id: "server-editor" }, { kind: "bot", actor_id: "papyrus-assistant" }] });
     return;
@@ -160,7 +166,7 @@ try {
   if (mode === "send-expiry") assert.notEqual(sendRequests[0].headers["idempotency-key"], sendRequests[1].headers["idempotency-key"], "identity recovery discards the old retry scope");
   for (const request of [...channelRequests, ...sendRequests]) {
     assert.equal(request.headers.cookie, "papyrus-session=synthetic-session", "the same-origin session cookie reaches the host route");
-    assert.equal(request.headers.authorization, "Bearer synthetic-newsroom-token", "the client sends its existing newsroom identity for server verification");
+    assert.equal(request.headers.authorization, "Bearer synthetic-editor-a", "the client sends its existing newsroom identity for server verification");
     assert.equal(request.headers.origin, `http://127.0.0.1:${server.address().port}`);
   }
   for (const request of sendRequests) {
@@ -173,15 +179,18 @@ try {
     await page.getByRole("button", { name: "Retry", exact: true }).waitFor();
     assert.equal(await page.getByText("Private runtime reply", { exact: true }).count(), 0);
     assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0);
-    await page.evaluate(() => window.testAuthEvent("signedIn"));
+    await page.evaluate(() => { sessionStorage.setItem("test-editor", "synthetic-editor-b"); window.testAuthEvent("signedIn"); });
     await page.getByRole("button", { name: "Retry", exact: true }).click();
-    await page.getByText("Private runtime reply", { exact: true }).waitFor();
+    await page.getByText("Second editor private history", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Private runtime reply", { exact: true }).count(), 0);
     await page.reload();
-    await page.getByText("Private runtime reply", { exact: true }).waitFor();
+    await page.getByText("Second editor private history", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Private runtime reply", { exact: true }).count(), 0);
     const beforeRefresh = requests.filter(request => request.url.endsWith("/private-channel")).length;
     await page.evaluate(() => window.testAuthEvent("tokenRefresh"));
     await page.waitForTimeout(100);
-    await page.getByText("Private runtime reply", { exact: true }).waitFor();
+    await page.getByText("Second editor private history", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Private runtime reply", { exact: true }).count(), 0);
     assert.equal(requests.filter(request => request.url.endsWith("/private-channel")).length, beforeRefresh + 1);
     assert.equal(sendCount, 2, "sign-in retry, token refresh and reload do not replay sends");
   }
