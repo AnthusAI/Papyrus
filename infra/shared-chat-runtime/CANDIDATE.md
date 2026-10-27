@@ -1,5 +1,7 @@
 # Papyrus hosted chat runtime candidate
 
+> Superseded for provisioning by the per-site `chat` configuration ([docs/private-newsroom-chat-per-site.md](../../docs/private-newsroom-chat-per-site.md)): the runtime stack is now generated from a site's `chat` block by `infra/amplify-app-shell/lib/chat-stack.ts`, and p.apyr.us adopts it in place. This document and `synth.cjs` remain the record of the activated candidate and of the synthetic adapter test.
+
 **Status:** Deployed to account `712236451410`, region `us-east-1`; stack `PapyrusChatDataCandidate` reached `CREATE_COMPLETE` on 2026-10-26 at 04:19 UTC from change set `papyrus-chat-20261026`. The site flag is absent on `main`, and both queue mappings are declared disabled. The existing AppSync send path remains unchanged. The approved transcript policy is no automatic expiry; durable resources are retained and there is no editor deletion flow. This prepares resources only; hosted chat is not yet end-to-end testable.
 
 **Proposed acceptance target:** stack `PapyrusChatDataCandidate`, site `p-apyr-us`, account `712236451410`, region `us-east-1`. The app-shell stack is `amplify-app-shell-p-apyr-us-cms` and its `CmsComputeRoleArn` output is `arn:aws:iam::712236451410:role/amplify-app-shell-p-apyr--AmplifyComputeRoleD988057-tLvmjRYBBw3W`. The candidate stack is separate. The site has no separate staging role; staging is frontend-only and reads the production backend.

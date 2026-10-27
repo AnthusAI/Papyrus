@@ -9,6 +9,10 @@
   },
   "hostedZoneId": "Z02552332GG6AM25SFP73",
   "papyrusVersion": "5.42.1",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY"
+  },
   "cms": {
     "domainName": "anth.us",
     "domainPrefix": "threat-intelligence",

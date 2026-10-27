@@ -3,6 +3,7 @@
  * papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]
  * papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]
  * papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader
+ * papyrus-infra synth --site infra/site.json --part chat [--chat-lambdas DIR] [--out cdk.out]   (the private chat data stack)
  * papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]
  * Synthesizes the app-shell stack for a publication from its own site.json,
  * prints one of the generated Amplify build specs, or deploys the stack from
@@ -16,6 +17,7 @@ import { resolveCdkEnvironment } from "../src/cdk-environment.mjs";
 
 const USAGE = [
   "Usage: papyrus-infra synth --site infra/site.json [--out cdk.out] [--account A] [--region R]",
+  "       papyrus-infra synth --site infra/site.json --part chat [--chat-lambdas DIR] [--out cdk.out] [--account A] [--region R]",
   "       papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]",
   "       papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader",
   "       papyrus-infra deploy-edge --stack NAME --template FILE [--adoption-template FILE --adopt-resources FILE] [--parameter KEY=VALUE]... [--delete-function NAME] [--only-branch main] [--only-app-id ID] [--region R]",
@@ -186,8 +188,9 @@ if (command === "deploy") {
 }
 
 let AmplifyAppShellStack;
+let PapyrusChatStack;
 try {
-  ({ AmplifyAppShellStack } = await import("../infra/index.js"));
+  ({ AmplifyAppShellStack, PapyrusChatStack } = await import("../infra/index.js"));
 } catch (error) {
   console.error(`papyrus-infra: ${error instanceof Error ? error.message : error}`);
   process.exit(1);
@@ -195,6 +198,23 @@ try {
 
 const { App } = createRequire(path.join(process.cwd(), "noop.js"))("aws-cdk-lib");
 const app = new App({ outdir: path.resolve(opt("out", "cdk.out")) });
+if (opt("part", "shell") === "chat") {
+  // The site's private newsroom chat data stack (docs/private-newsroom-chat-per-site.md); deployed before the app shell enables chat.
+  if (!config.chat?.enabled) {
+    console.error(`papyrus-infra: site ${config.siteId} has no enabled chat block`);
+    process.exit(1);
+  }
+  const lambdaAssetDirectory = opt("chat-lambdas");
+  const chatStack = new PapyrusChatStack(app, {
+    config,
+    env: resolveEnvironmentOrExit(),
+    lambdaAssetDirectory: lambdaAssetDirectory ? path.resolve(lambdaAssetDirectory) : undefined,
+    description: `Private Papyrus newsroom chat data plane for ${config.siteId}.`,
+  });
+  app.synth();
+  console.log(`synthesized ${chatStack.stackName} -> ${path.resolve(opt("out", "cdk.out"))}`);
+  process.exit(0);
+}
 new AmplifyAppShellStack(app, `AmplifyAppShell-${config.siteId}`, config, {
   env: resolveEnvironmentOrExit(),
   stackName: resolveStackName(config),

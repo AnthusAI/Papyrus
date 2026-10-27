@@ -9,6 +9,10 @@
   },
   "hostedZoneId": "Z09961547QX1VHIXOBD7",
   "papyrusVersion": "5.42.1",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/papyrus/shipped/openai-api-key"
+  },
   "cms": {
     "domainName": "newsroom.pilobol.us",
     "stagingDomainName": "staging.pilobol.us",

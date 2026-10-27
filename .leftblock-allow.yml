@@ -291,3 +291,9 @@ allow:
     kind: "Bare UUID (potential session/agent identifier)"
     reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
     added: 2026-10-27
+  - id: "63d09d7ddf48fa2e"
+    rule: "generic-api-key"
+    file: "infra/amplify-app-shell/examples/p-apyr-us.site.json"
+    kind: "Detected a Generic API Key, potentially exposing access to various services and "
+    reason: "SHA-256 content hash naming an uploaded CDK asset object (worker code zip) in the p.apyr.us example config; an object key, not a credential"
+    added: 2026-10-27

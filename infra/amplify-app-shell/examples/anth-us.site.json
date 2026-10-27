@@ -9,6 +9,10 @@
     "region": "us-east-1"
   },
   "papyrusVersion": "1.0.0-next.41",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/papyrus/shipped/openai-api-key"
+  },
   "cms": {
     "staging": true,
     "cognitoDomainPrefix": "papyrus-anth-us-cms",

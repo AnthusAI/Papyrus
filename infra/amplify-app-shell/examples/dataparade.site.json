@@ -9,6 +9,10 @@
     "region": "us-east-1"
   },
   "papyrusVersion": "5.42.1",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY"
+  },
   "cms": {
     "staging": false,
     "cognitoDomainPrefix": "papyrus-dataparade-cms",

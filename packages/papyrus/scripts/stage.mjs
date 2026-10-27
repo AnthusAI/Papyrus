@@ -174,6 +174,7 @@ try {
   );
 }
 export const { AmplifyAppShellStack } = await import("./amplify-app-shell.js");
+export const { PapyrusChatStack } = await import("./chat-stack.js");
 export const { SecureStringParameter } = await import("./secure-string-parameter.js");
 export const { GithubOidcProviderStack } = await import("./github-oidc-provider.js");
 export { parseSiteConfig } from "./site-config.js";
