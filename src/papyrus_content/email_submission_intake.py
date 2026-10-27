@@ -309,6 +309,49 @@ def _manifest_batch(s3, bucket, key, cursor, size, digest):
     return lines
 
 
+LINK_EXPLORATION_SECONDS = 30  # one link's whole exploration, well inside the resume batch and the lock
+
+# Installed by handler(); None (no network) everywhere else, so extraction and tests never explore.
+link_explorer = None
+
+
+def explore_email_link(link, row):
+    """Follow one subscriber-specific wrapper to its article, or find the article by its headline (link_exploration).
+
+    Returns the exploration; its destination is only ever the canonical public address that passes the editorial-address check.
+    """
+    from .email_submission import safe_editorial_url
+    from .link_exploration import Context, explore
+
+    return explore(link["url"], Context(title=link.get("title") or "", sender=row.get("headerFrom") or ""),
+                   want_text=False, accept=safe_editorial_url, deadline_seconds=LINK_EXPLORATION_SECONDS)
+
+
+def install_link_explorer(environ=None):
+    """Turn exploration on for the deployed intake unless EMAIL_LINK_EXPLORATION=off."""
+    global link_explorer
+    link_explorer = None if (environ or os.environ).get("EMAIL_LINK_EXPLORATION", "on").strip().lower() == "off" else explore_email_link
+
+
+def _explored(link, row):
+    """The resolved link for an unresolved wrapper, or None. Records the typed reason when it cannot be resolved."""
+    if link_explorer is None:
+        return None
+    result = link_explorer(link, row)
+    if not result.ok:
+        reasons = row.setdefault("unresolvedReasons", {})
+        reasons[result.failure] = int(reasons.get(result.failure, 0)) + 1
+        return None
+    title = link.get("title") or ""
+    # Anchor-less links were titled with their own address: never carry the subscriber-specific wrapper into a title.
+    found = {"url": result.url, "title": result.url if not title or link["url"] in title or title.startswith(("http://", "https://")) else title}
+    if result.via == "search" and result.search:
+        # DynamoDB takes Decimal, not float.
+        found["linkExploration"] = json.loads(json.dumps({"foundVia": "search", **result.search.as_dict()}), parse_float=Decimal)
+    row["exploredLinkCount"] = int(row.get("exploredLinkCount", 0)) + 1
+    return found
+
+
 def _discovery(monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications):
     source_id = sha256(f"{message_id}\n{link['url']}".encode()).hexdigest()
     item = SourceItem(source_id, link["title"] or link["url"], link["url"], link["url"], None)
@@ -316,6 +359,8 @@ def _discovery(monitor_id, config, row, receipt_key, message_id, link, source_ur
                                            "s3Bucket", "s3Key", "mimeSha256", "accountId", "observedAt")}
     provenance.update(receiptId=receipt_key, destinationKind=config["kind"], inputTrust="untrusted-source-material",
                       trustMode="data-only", sesDiagnostics=row["sesDiagnostics"])
+    if link.get("linkExploration"):
+        provenance["linkExploration"] = link["linkExploration"]  # found via search: the query and match score, never a subscriber link
     return {"pk": pk(monitor_id), "sk": f"DISC#{source_id}#000001", "monitorId": monitor_id,
             "sourceType": "email", "sourceId": source_id, "title": item.title,
             "canonicalUrl": item.canonical_url, "sourceItemUrl": item.source_item_url,
@@ -342,7 +387,9 @@ def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
         for link, next_cursor in links:
             if time.monotonic() >= deadline:
                 break
-            if link.get("resolutionStatus") != "unresolved":
+            if link.get("resolutionStatus") == "unresolved":
+                link = _explored(link, row)
+            if link is not None:
                 store.put_discovery(monitor_id, _discovery(
                     monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications))
             cursor = next_cursor
@@ -601,6 +648,7 @@ def handler(event, context):
     if isinstance(event, dict) and event.get("task") == "resume":
         if event.get("monitorId") != monitor_id:
             raise ConfigurationError("email_resume_monitor_mismatch")
+        install_link_explorer()
         result = _resume_pending(EmailStore(table), monitor_id, os.environ["EMAIL_RAW_BUCKET"],
                                  s3, cognito)
         print(json.dumps(result))
@@ -608,6 +656,7 @@ def handler(event, context):
     records = event.get("Records") if isinstance(event, dict) else None
     if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
         raise SubmissionRejected("one_ses_record_required")
+    install_link_explorer()
     result = process_ses_record(records[0], EmailStore(table), monitor_id=monitor_id,
                                 bucket=os.environ["EMAIL_RAW_BUCKET"],
                                 prefix=os.environ.get("EMAIL_RAW_PREFIX", "email-submissions/"), s3=s3,
