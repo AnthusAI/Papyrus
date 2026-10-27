@@ -24,6 +24,30 @@ Feature: The router asks Cyclotron once per story for every publication
     When Cyclotron is free and the router sweeps again
     Then the story is decided by a request with the same identity as the first attempt
 
+  Scenario: A request identity is derived from the exact content sent
+    When the router builds the decision request for the story
+    Then building it again gives the same request identity
+    And a request with a different set of publication bindings has a different request identity
+
+  Scenario: A changed publication set does not collide with a job the lab already holds
+    Given the router has a pending job for the story under the current publication set
+    When the publication set changes and the router sweeps again
+    Then the stored job is discarded as stale
+    And the story is posted again under a different request identity
+    And the story is decided and delivered without a conflict
+
+  Scenario: A request conflict leads to exactly one re-post
+    Given Cyclotron answers the first request with a request conflict
+    When the router sweeps the collected story
+    Then the router posts the story a second time under a different request identity
+    And the story is decided and delivered
+
+  Scenario: A request conflict that persists is not re-posted a second time
+    Given Cyclotron answers every request with a request conflict
+    When the router sweeps the collected story
+    Then the router posts the story exactly twice
+    And the story is still waiting for the router
+
   Scenario: A Cyclotron without the combined endpoint is served one publication at a time
     Given Cyclotron does not have the combined endpoint yet
     When the router sweeps the collected story

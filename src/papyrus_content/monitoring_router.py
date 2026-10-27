@@ -109,6 +109,7 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 # The machine API (Cyclotron hosted_machine_publications.py) answers decide on a pending output with
 # HTTP 409 and a FastAPI body {"detail": "publication criteria are pending"}: no typed code.
 NOT_READY_DETAIL = "publication criteria are pending"
+REQUEST_CONFLICT_CODE = "request_conflict"   # 409: the requestId was already used for a job with different content
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 LOG = logging.getLogger(__name__)
 PARK_PREFIX = "PARK#"
@@ -191,6 +192,11 @@ class ItemInvalid(Exception):
 class ItemRetryLater(ItemInvalid):
     """The lab refused this story's request for a reason that is not explicitly permanent (an unknown 409, another
     4xx the contract does not name). Nothing ran at the lab, so the story backs off and is asked again on a later run."""
+
+
+class RequestConflict(ItemRetryLater):
+    """409 request_conflict: the lab holds this requestId for a job with different content. Nothing ran; the request
+    is re-posted once under a new id."""
 
 
 class ItemExcluded(Exception):
@@ -363,25 +369,27 @@ def lambda_procedure_starter(function_name: str | None) -> Callable[[dict], None
 
 # --- request building -------------------------------------------------------------------------------
 
-def request_id(account_id: str, run_id: str, publication_id: str, binding_revision: str, item_id: str,
-               fingerprint: str, attempt: int = 0) -> str:
-    """Deterministic: the same item revision against the same binding always has the same id.
+def canonical_json(value) -> str:
+    """Sorted keys, no whitespace: the same content always serialises to the same text."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def request_id(account_id: str, run_id: str, publication_id: str, payload: dict, attempt: int = 0) -> str:
+    """Content-addressed: the id is derived from the exact payload sent, so a retry of the same content reuses it
+    and any change of content (bindings, item values) gets a new id instead of a `request_conflict` at the lab.
 
     `attempt` is 0 until Cyclotron refuses a job without consuming any provider request (key missing,
     ceiling reached). Cyclotron keeps a refused job under its request id, so a later retry needs a new one.
     """
-    parts = [account_id, run_id, f"{publication_id}@{binding_revision}", item_id, fingerprint]
+    parts = [account_id, run_id, publication_id, canonical_json(payload)]
     if attempt:
         parts.append(f"attempt-{attempt}")
-    text = "\n".join(parts)
-    return sha256(text.encode()).hexdigest()
+    return sha256("\n".join(parts).encode()).hexdigest()
 
 
-def combined_request_id(account_id: str, run_id: str, bindings: dict, item_id: str, fingerprint: str,
-                        revision: int, attempt: int = 0) -> str:
-    """Deterministic for one story (item id, revision, fingerprint) and its sorted binding set, so a retry reuses it."""
-    parts = ["decisions", account_id, run_id, ",".join(f"{pub}@{rev}" for pub, rev in sorted(bindings.items())),
-             item_id, f"revision-{revision}", fingerprint]
+def combined_request_id(account_id: str, run_id: str, payload: dict, attempt: int = 0) -> str:
+    """Content-addressed over the whole POST /machine/decisions payload (sorted bindings map and item incl. values)."""
+    parts = ["decisions", account_id, run_id, canonical_json(payload)]
     if attempt:
         parts.append(f"attempt-{attempt}")
     return sha256("\n".join(parts).encode()).hexdigest()
@@ -405,10 +413,11 @@ def build_item(discovery: dict) -> dict:
 def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0) -> dict:
     validate_email_discovery_scope(discovery, config)
     cyclotron, item = config["cyclotron"], build_item(discovery)
+    payload = {"bindingRevision": cyclotron["bindingRevision"], "item": item}
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
-                                    cyclotron["bindingRevision"], item["id"], str(discovery["fingerprint"]), attempt),
-            "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}}
+                                    payload, attempt),
+            "payload": payload}
     validate_request(body)
     return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
 
@@ -420,10 +429,10 @@ def build_combined_request(config: dict, publications: list[dict], discovery: di
     bindings = {p["publicationId"]: cyclotron["bindingRevision"] for p in publications}
     if not bindings:
         raise ItemInvalid("no publication bindings to decide")
+    payload = {"bindings": dict(sorted(bindings.items())), "item": item}
     body = {"contractVersion": CONTRACT_VERSION,
-            "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], bindings, item["id"],
-                                             str(discovery["fingerprint"]), int(discovery["revision"]), attempt),
-            "payload": {"bindings": dict(sorted(bindings.items())), "item": item}}
+            "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], payload, attempt),
+            "payload": payload}
     validate_combined_request(body)
     return {"path": "/machine/decisions", "body": body}
 
@@ -595,6 +604,8 @@ class CyclotronClient:
             self.refusals.append({"sourceId": None, "message": f"cyclotron {excerpt}"})
         if code == "source_refused":
             return ItemRefused(code)
+        if status == 409 and code == REQUEST_CONFLICT_CODE:
+            return RequestConflict(body_excerpt(status, payload))
         if status == 409 and payload.get("detail") == BINDING_CHANGED_DETAIL:
             return StopSweep("binding_changed", "http 409")
         if status == 409 and (code == NOT_READY_CODE or payload.get("detail") == NOT_READY_DETAIL):
@@ -1420,8 +1431,10 @@ class Router:
     def job_is_stale(self, stored: dict, expected_request_id: str) -> bool:
         """A stored job posted under an earlier run or binding revision (after a Cyclotron cutover)."""
         current = self.posted_under()
-        if "runId" in stored or "bindingRevision" in stored:
-            return any(stored.get(key) != value for key, value in current.items())
+        if any(key in stored and stored[key] != value for key, value in current.items()):
+            return True
+        # ids are content-addressed: a stored id that differs from the one the current content produces was posted
+        # under other content, so the lab would answer request_conflict if it were reused
         return stored.get("requestId") != expected_request_id
 
     def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str, reposted: bool = False) -> list[dict]:
@@ -1456,6 +1469,14 @@ class Router:
                 job_id, response = self.cyclotron.post_combined(built["body"])
             except ItemUncertain:
                 raise
+            except RequestConflict:
+                del route["combinedJob"]   # the lab knows this id under other content: discard, re-post once under a new id
+                if reposted:
+                    self.save(route)
+                    raise
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+                return self.decide_combined(todo, disc, route, item_id, True)
             except (CombinedUnavailable, BindingNotReady) as reason:
                 del route["combinedJob"]   # nothing was started
                 self.save(route)
@@ -1552,6 +1573,14 @@ class Router:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
             except ItemUncertain:
                 raise
+            except RequestConflict:
+                del jobs[pub_id]   # the lab knows this id under other content: discard, re-post once under a new id
+                if reposted:
+                    self.save(route)
+                    raise
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+                return self.decide_binding(publication, disc, route, item_id, True)
             except Exception:
                 del jobs[pub_id]   # definitively refused: nothing was started, a later run may send it
                 self.save(route)
