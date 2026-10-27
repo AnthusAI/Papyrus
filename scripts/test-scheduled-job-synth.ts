@@ -41,7 +41,8 @@ function policyStatements(template: Template, roleLogicalIdPrefix: string): any[
     .flatMap(([, resource]) => resource.Properties.PolicyDocument.Statement);
 }
 
-const { stack, template, config } = knowledgeStack();
+// The example opts in to monitor stories; the base stack here is the template without that optional step (it is tested below and per example).
+const { stack, template, config } = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; });
 const everything = JSON.stringify(template.toJSON());
 const stages = [...KNOWLEDGE_STAGE_NAMES];
 
@@ -210,7 +211,7 @@ assert.equal(trendEnvironment.TREND_DRAFTS_COOLDOWN_DAYS, "0", "zero is a value:
 assert.ok(!("TREND_DRAFTS_COOLDOWN_DAYS" in staticEnvironment), "no cooldown configured: the command's own 7 days applies");
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
-assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
+assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface,routed");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
 const withoutMonitors = knowledgeStack((site) => { delete site.knowledgeRun.monitorSources; delete site.knowledgeRun.monitorWeeks; delete site.knowledgeRun.monitorSuggestions; });
 const plainEnvironment = Object.fromEntries(

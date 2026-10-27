@@ -57,9 +57,12 @@
       "model_family"
     ],
     "lockWaitSeconds": 1800,
-    "monitorSources": ["huggingface"],
+    "monitorSources": ["huggingface", "routed"],
     "monitorWeeks": 52,
-    "monitorSuggestions": 5
+    "monitorSuggestions": 5,
+    "monitorStories": {
+      "limit": 3
+    }
   },
   "email": {
     "mode": "existing",
