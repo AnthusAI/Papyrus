@@ -33,6 +33,13 @@ export async function verifyMobileChat(page, origin) {
   await trigger.click();
   await composer.waitFor();
   await composer.fill("Synthetic mobile layout test draft");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForFunction(() => !document.querySelector('[aria-modal="true"]') && !document.querySelector('.papyrus-console-page[inert]'));
+  await fits(close, 1280, 800);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("dialog", { name: "Papyrus console" }).waitFor();
+  await fits(composer, 390, 844);
+  assert.equal(await composer.inputValue(), "Synthetic mobile layout test draft");
   await page.evaluate(() => {
     const viewport = new EventTarget();
     viewport.height = 310;
@@ -46,6 +53,21 @@ export async function verifyMobileChat(page, origin) {
   await composer.fill("Synthetic keyboard viewport test draft");
   await fits(composer, 390, 310, 20);
   await fits(close, 390, 310, 20);
+  await page.evaluate(() => {
+    window.visualViewport.height = 400;
+    window.visualViewport.offsetTop = 10;
+    window.visualViewport.dispatchEvent(new Event("resize"));
+    window.visualViewport.dispatchEvent(new Event("scroll"));
+  });
+  await page.waitForFunction(() => document.querySelector(".papyrus-console").style.height === "400px" && document.querySelector(".papyrus-console").style.top === "10px");
+  await fits(composer, 390, 400, 10);
+  await fits(close, 390, 400, 10);
+  for (let retry = 0; retry < 3; retry++) {
+    await close.click();
+    await trigger.click();
+    await page.waitForFunction(() => !!document.activeElement?.closest('[role="dialog"]'));
+    await fits(close, 390, 400, 10);
+  }
   if (process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-keyboard.png` });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
   assert.equal(await page.locator('.papyrus-console').evaluate(panel => {

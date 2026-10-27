@@ -2,6 +2,9 @@ Feature: Reach private chat from a phone newsroom
   Editors can open chat without discovering a clipped desktop toolbar.
   The conversation remains usable when the keyboard reduces the viewport,
   and closing it returns them to their existing newsroom location.
+  Resizing or scrolling the visual viewport while open keeps controls reachable.
+  Crossing the mobile breakpoint preserves the draft and updates modal behavior;
+  repeated close and reopen returns focus to the active conversation.
 
   Scenario: Open and close chat across phone sizes and orientation
     Given an authorized editor is viewing the newsroom on a phone
