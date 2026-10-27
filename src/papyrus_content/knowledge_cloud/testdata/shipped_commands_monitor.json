@@ -47,8 +47,6 @@
   "<work>/site/web",
   "--monitor-sources",
   "huggingface",
-  "--monitor-weeks",
-  "52",
   "--corpus-key",
   "shipped",
   "--as-of",

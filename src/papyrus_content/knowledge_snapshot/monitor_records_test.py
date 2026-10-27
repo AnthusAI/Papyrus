@@ -92,22 +92,29 @@ def test_a_rejected_reference_a_foreign_corpus_and_other_sites_are_left_out_but_
     assert sorted(record.model_id for record in records) == ["org/accepted", "org/pending"]
 
 
-def test_the_window_is_the_source_date_so_a_backfill_has_history_and_old_models_do_not_count():
+def test_the_source_date_decides_so_all_history_counts_unless_weeks_is_given_and_the_future_never_does():
     rows = [reference("org/new", "2026-10-18T00:00:00Z"), reference("org/year", "2025-10-27T00:00:00Z"), reference("org/ancient", "2025-01-01T00:00:00Z"), reference("org/future", "2026-12-01T00:00:00Z")]
-    records, _ = load(FakeBackend(rows, [provenance(row, details(row["title"].split(":")[0])) for row in rows]))
-    assert [record.model_id for record in records] == ["org/new", "org/year"]
-    narrow, _ = load(FakeBackend(rows, [provenance(row, details(row["title"].split(":")[0])) for row in rows]), weeks=4)
+    relations = [provenance(row, details(row["title"].split(":")[0])) for row in rows]
+    records, _ = load(FakeBackend(rows, relations))
+    assert [record.model_id for record in records] == ["org/new", "org/year", "org/ancient"]
+    year, _ = load(FakeBackend(rows, relations), weeks=52)
+    assert [record.model_id for record in year] == ["org/new", "org/year"]
+    narrow, _ = load(FakeBackend(rows, relations), weeks=4)
     assert [record.model_id for record in narrow] == ["org/new"]
 
 
-def test_a_new_revision_of_a_model_replaces_the_older_details_and_the_newest_records_win_the_limit():
+def test_with_no_weeks_given_every_record_counts_however_old_and_however_many():
+    many = [reference(f"org/m{number}", f"{2000 + number // 500}-{number % 12 + 1:02d}-10T00:00:00Z") for number in range(6000)]
+    records, warnings = load(FakeBackend(many, []))
+    assert len(records) == 6000 and not [w for w in warnings if "newest" in w or "window" in w]
+    assert records[0].created_at > records[-1].created_at, "newest first"
+
+
+def test_a_new_revision_of_a_model_replaces_the_older_details():
     row = reference("org/tuned")
     backend = FakeBackend([row], [provenance(row, details("org/tuned", likes=5), "2026-10-15T00:00:00Z"), provenance(row, details("org/tuned", likes=50), "2026-10-17T00:00:00Z")])
     [one], _ = load(backend)
     assert one.details["likes"] == 50
-    many = [reference(f"org/m{number}", f"2026-10-{10 + number:02d}T00:00:00Z") for number in range(5)]
-    kept, warnings = load(FakeBackend(many, []), limit=2)
-    assert [record.model_id for record in kept] == ["org/m4", "org/m3"] and any("only the newest 2" in warning for warning in warnings)
 
 
 def test_a_reference_delivered_before_details_rode_on_the_relation_still_counts_with_its_title_date_and_author():

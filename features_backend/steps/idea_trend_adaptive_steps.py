@@ -25,8 +25,9 @@ FLAT = [10.0] * 26
 
 def snapshot_of(as_of: str, **series: list[int]) -> dict:
     """Concepts (which need no notability) beside a steady filler entity, so the corpus volume is flat."""
-    entities = {"concept--steady": [10] * 26, **{f"concept--{name}": values for name, values in series.items()}}
-    rows = [{"key": key, "kind": "concept", "name": key.split("--")[1], "series26": values, "series8": values[-8:], "itemCount": sum(values), "isNew": False} for key, values in entities.items()]
+    longest = max([26, *(len(values) for values in series.values())])
+    entities = {"concept--steady": [10] * longest, **{f"concept--{name}": values for name, values in series.items()}}
+    rows = [{"key": key, "kind": "concept", "name": key.split("--")[1], "series26": values[-26:], "seriesWeekly": values if len(values) > 26 else None, "series8": values[-8:], "itemCount": sum(values), "isNew": False} for key, values in entities.items()]
     return {"asOf": as_of, "siteBase": None, "clusters": [], "previous": None, "entityFile": lambda key: None, "index": {"entities": rows}}
 
 
@@ -63,6 +64,12 @@ def step_share(context):
     context.adaptive_volume = [10.0] * 22 + [20.0] * 4
 
 
+@given("a concept that was quiet for 70 weeks, then grew steadily for 50 weeks")
+def step_long_build(context):
+    context.adaptive_series = [0] * 70 + [1] * 10 + [2] * 10 + [3] * 10 + [4] * 10 + [5] * 10
+    context.adaptive_volume = [10.0] * 120
+
+
 @given("the snapshot publishes only eight weeks")
 def step_eight(context):
     context.adaptive_eight = True
@@ -79,6 +86,13 @@ def step_many(context, count):
         return drawn
 
     context.adaptive_many = [[poisson(2.0) for _ in range(26)] for _ in range(count)]
+
+
+@when("the trend windows are scanned over the last 26 weeks only")
+def step_scan_26(context):
+    series = context.adaptive_series[-26:]
+    context.adaptive_snapshot = snapshot_of("2026-10-26", subject=series)
+    context.adaptive_window = scan_window(series, [10.0] * 26)
 
 
 @when("the trend windows are scanned")
@@ -116,6 +130,19 @@ def step_record(context):
 def step_trend(context, weeks):
     anchor = trend_of(context)
     assert anchor and anchor["window"]["windowWeeks"] == weeks, anchor
+
+
+@then("the window is longer than 26 weeks")
+def step_longer_than_26(context):
+    anchor = trend_of(context)
+    assert anchor and anchor["window"]["windowWeeks"] > 26, anchor
+
+
+@then("the longest window it can try is 16 weeks, and the full history is more surprising")
+def step_at_most_16(context):
+    full = scan_window(context.adaptive_series, [10.0] * 120)
+    assert context.adaptive_window["windowWeeks"] <= 16, context.adaptive_window
+    assert full["surprise"] > context.adaptive_window["surprise"], (full, context.adaptive_window)
 
 
 @then("the concept is not a trend")

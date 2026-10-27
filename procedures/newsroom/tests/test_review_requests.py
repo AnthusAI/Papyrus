@@ -13,6 +13,8 @@ STORY = {"type": "story", "id": "story-1"}
 
 def raise_(client, mode="soft_review", **changes):
     arguments = dict(subject=STORY, mode=mode, reason="Check this", raised_by="procedure:ideas", now=T0)
+    if mode == "soft_review" and "deadline" not in changes and "deadline_days" not in changes:
+        arguments["deadline_days"] = 7  # the tests of the deadline ask for one; a soft review has none unless asked
     arguments.update(changes)
     return rr.raise_review(client, **arguments)
 
@@ -33,10 +35,31 @@ class Clock:
 # --- raising ---------------------------------------------------------------------------------------------------
 
 
-def test_a_soft_review_gets_the_default_seven_day_deadline_and_a_history_entry():
+def test_a_soft_review_asked_for_a_deadline_gets_it_and_a_history_entry():
     request = raise_(FakeAuthoringClient())
     assert request["state"] == "open" and request["deadline"] == "2026-10-30T12:00:00Z"
     assert request["history"][0]["event"] == "raised" and request["outcome"] == "waiting"
+
+
+def test_a_soft_review_has_no_deadline_by_default_and_is_never_timed_out():
+    client = FakeAuthoringClient()
+    request = rr.raise_review(client, subject=STORY, mode="soft_review", reason="Check this", raised_by="p", now=T0)
+    assert request["state"] == "open" and request["deadline"] is None
+    later = T0 + timedelta(days=3650)
+    assert rr.expire_due(client, now=later) == []
+    assert rr.get_review(client, request["id"], now=later)["state"] == "open"
+    assert [r["id"] for r in rr.list_reviews(client, state="open", now=later)] == [request["id"]]
+    assert "open until handled" in rr._line(rr.get_review(client, request["id"], now=later))
+    answered = rr.answer_review(client, request["id"], decision="approve", by="ed", roles=["editor"], now=later)
+    assert answered["state"] == "answered"
+
+
+def test_a_soft_review_without_a_deadline_waits_like_a_gate_until_answered():
+    client, clock = FakeAuthoringClient(), Clock()
+    request = rr.raise_review(client, subject=STORY, mode="soft_review", reason="Check this", raised_by="p", now=T0)
+    with pytest.raises(ReviewStillOpen) as stopped:
+        rr.wait_for_review(client, request["id"], poll_seconds=86_400, max_wait_seconds=365 * 86_400, sleep=clock.sleep, clock=clock)
+    assert stopped.value.request["state"] == "open"
 
 
 def test_a_flag_and_a_hard_gate_take_no_deadline_and_a_soft_review_needs_a_positive_one():
@@ -217,11 +240,11 @@ def test_a_rejection_counts_as_steering_and_an_open_request_cannot_be_applied():
 # --- the idea pipeline hook -------------------------------------------------------------------------------------------------------
 
 
-def test_one_soft_review_per_synthesis_run_with_the_count_in_the_reason_and_a_seven_day_deadline():
+def test_one_soft_review_per_synthesis_run_with_the_count_in_the_reason_and_no_deadline():
     client = FakeAuthoringClient()
     request = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", proposal_ids=["p1", "p2", "p3"], now=T0)
     assert request["reason"] == "3 new story ideas to review" and request["mode"] == "soft_review"
-    assert request["deadline"] == "2026-10-30T12:00:00Z" and request["subject"] == {"type": "batch", "id": "2026-W43"}
+    assert request["deadline"] is None and request["subject"] == {"type": "batch", "id": "2026-W43"}
     assert [link["id"] for link in request["links"]] == ["p1", "p2", "p3"]
     again = rr.raise_batch_review(client, raised_by="idea-pipeline", batch_id="2026-W43", proposal_ids=["p1", "p2", "p3"], now=T0)
     assert again["id"] == request["id"] and len(client.list_records("ReviewRequest")) == 1

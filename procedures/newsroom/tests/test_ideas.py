@@ -274,7 +274,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(read["subject"], {"type": "batch", "id": run["runId"]})
         self.assertEqual([link["id"] for link in read["links"]], [idea_["ideaId"] for idea_ in run["ideas"]])
         self.assertEqual((run["review"]["status"], run["review"]["requested"], run["review"]["linkedAs"], run["review"]["requestId"]), ("requested", True, "idea", request["id"]))
-        self.assertAlmostEqual((review_requests.parse_time(read["deadline"]) - review_requests.parse_time(read["raisedAt"])).days, 7, delta=0)
+        self.assertIsNone(read["deadline"])
+        self.assertEqual(review_requests.get_review(client, read["id"], now=review_requests.parse_time(read["raisedAt"]) + timedelta(days=3650))["state"], "open")
         request_human_review(client, run, run["ideas"])
         self.assertEqual(len(client.reviews), 1)
 

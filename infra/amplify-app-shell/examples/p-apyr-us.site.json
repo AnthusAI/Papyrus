@@ -49,7 +49,6 @@
     "monitorSources": [
       "routed"
     ],
-    "monitorWeeks": 52,
     "monitorStories": {
       "limit": 3
     },

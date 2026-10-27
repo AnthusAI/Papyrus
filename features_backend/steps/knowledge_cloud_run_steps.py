@@ -441,6 +441,12 @@ def step_ledger_details(context, stage, text):
     assert item["details"]["archive"] == text, item
 
 
+@given('the site sets the monitor sources "{sources}" for all history')
+def step_monitor_sources_all(context, sources):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources}
+    start(context, context.execution, context.extra)
+
+
 @given('the site sets the monitor sources "{sources}" for {weeks:d} weeks')
 def step_monitor_sources(context, sources, weeks):
     context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources, "KNOWLEDGE_MONITOR_WEEKS": str(weeks)}
