@@ -17,10 +17,24 @@
       "text": "Prepared a receipt-only Monitoring entry point using the existing user-pool query and candidate controls; no overview mount, polling, or fallback. Synthetic boundary checks and Gherkin pass; existing monitoring rendering and changed-file lint pass. Live acceptance remains blocked by the current browser session lacking editor/admin claims, and there is no verified native CLI binding for this publication. No receipt reads or imports, model execution, grants, or deployments performed. Release/site pin coordination remains pending; active chat release is untouched.",
       "created_at": "2026-10-26T11:18:27.061094Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d06c7deb-3665-4174-ac8f-6c92c0a9855c",
+      "author": "home",
+      "text": "User approved publication, narrow maintenance deployment and exact two-receipt acceptance on 2026-10-27. Rebased receipt-only candidate onto deployed v5.41.4 (cd6c99fa), branch fix/PPY-98b5e9-newsletter-acceptance. Investigating existing cloud classification handoff without new grants; no native CLI/Keychain dependency. No real receipt bodies or editorial votes accessed yet.",
+      "created_at": "2026-10-27T10:37:59.570385Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "962dca94-051e-4edf-b2b8-337d1c5d836c",
+      "author": "home",
+      "text": "Newsletter handoff implemented on 5.41.4 maintenance: exact editor receipt/candidate validation, idempotent selected Reference prediction jobs, positive and negative review decisions, no procedures/votes, separate selected-only scheduled task with existing role. 195 targeted Python tests pass; receipt UI/client harnesses, BDD, typecheck, schema parity and production build passed. Shared live router source verified as 21c01339; deploying only router/intake deltas atop its existing artifact, preserving newer behavior. Live acceptance remains pending.",
+      "created_at": "2026-10-27T10:52:44.447747Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-26T11:13:57.463457Z",
-  "updated_at": "2026-10-26T11:18:27.061123Z",
+  "updated_at": "2026-10-27T10:52:44.448345Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

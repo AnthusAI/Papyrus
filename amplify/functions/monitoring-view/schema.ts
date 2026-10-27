@@ -22,6 +22,12 @@ export const monitoringViewSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("monitoringView", monitoringView)),
+  monitoringQueueEmailReference: a
+    .mutation()
+    .arguments({ input: a.json().required() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("monitoringView", monitoringView)),
   monitoringResolveEmailArticleLink: a
     .mutation()
     .arguments({ receiptId: a.string().required(), candidateIndex: a.integer().required() })

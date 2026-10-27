@@ -548,3 +548,26 @@ and pending Reference intake apply unchanged.
 
 This UI change requires an engine release and a site pin update before the link
 is supported on a deployed site. It does not establish live email acceptance.
+
+
+### Predictions for editor-selected newsletter References
+
+Importing a receipt's selected candidates now registers normal pending References and then
+queues each successful Reference through `monitoringQueueEmailReference`. It requires the
+site's existing Cognito editor/admin identity, verifies the exact receipt and candidate
+(including a saved article redirect resolution), and writes a stable URL/corpus job identity.
+Retries reuse the Reference and prediction job; no human curation or vote is created.
+
+The existing router handles `task: "email-references"` using a separate routing partition.
+It checks the exact imported Reference before calling Cyclotron, attaches both positive and
+negative decisions, and starts no publishing procedures or feedback sweep. The optional
+`EmailReferenceMonitorId` stack parameter activates a five-minute schedule using the existing
+router scheduler role and dead-letter queue, with no additional IAM grants. For bounded
+acceptance, the same task accepts `sourceIds` (1–20 exact queued IDs) and reads those jobs only.
+A failed handoff leaves the import visible with an explicit retry notice. Receipt pages link
+to the exact References for normal prediction review.
+
+A maintenance deployment must preserve newer shared-router behavior: apply only this change's
+router/intake diff to the verified currently deployed router artifact, test that artifact,
+and update `RouterCodeKey` through a reviewed changeset. Do not replace the shared router with
+an older site maintenance baseline. Preserve all existing stack parameters and resources.

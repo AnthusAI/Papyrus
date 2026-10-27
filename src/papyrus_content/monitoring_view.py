@@ -483,6 +483,17 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
             return monitoring_email_submission(email_store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
+        if field_name == "monitoringQueueEmailReference":
+            from .email_reference_handoff import queue_email_reference
+            from .reference_intake_validation import IntakeError
+            try:
+                payload = args.get("input")
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                return queue_email_reference(email_store, payload, event.get("identity") or {},
+                                             endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
+            except IntakeError as error:
+                return {"error": "handoff_rejected", "message": str(error)}
         if field_name == "monitoringResolveEmailArticleLink":
             return monitoring_email_resolve_article_link(
                 email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),

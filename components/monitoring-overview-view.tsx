@@ -181,7 +181,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
       if (result.error) {
         setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} of ${candidates.length} selected candidates were registered or matched. ${result.error}` }));
       } else {
-        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} selected candidates are available as References. Import does not approve or publish them.` }));
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} selected candidates are available as References. Predictions are queued in the cloud; review them when ready. Import does not approve or publish them.` }));
       }
     } catch {
       if (isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) {
@@ -238,7 +238,9 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
             {busyImport ? "Adding References…" : "Add selected links to References"}
           </button>
           {notice ? <p role="status" data-email-import-result>{notice}</p> : null}
-          {importedReferences.length ? <p><Link href={getNewsroomNavHref("/newsroom/references", false)}>Review these References</Link></p> : null}
+          {importedReferences.length ? <ul>{importedReferences.map((reference, index) => (
+            <li key={`${reference.id}-${index}`}><Link href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.lineageId)}`, false)}>Review imported Reference {index + 1}</Link></li>
+          ))}</ul> : null}
         </section>
       ) : detail && "error" in detail ? <p role="alert">You cannot read this submission.</p>
         : detail && "state" in detail ? <p role="alert">Submission details are unavailable.</p> : null}

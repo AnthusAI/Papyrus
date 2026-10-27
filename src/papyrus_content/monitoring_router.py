@@ -205,8 +205,14 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
             allowed = discovery.get("emailDestinationPublicationIds")
             if discovery.get("emailProvenance", {}).get("inputTrust") != "untrusted-source-material":
                 raise ItemInvalid("Data-only email trust provenance is missing")
+            selection = discovery.get("editorSelectedReference")
+            if selection is not None and (not isinstance(selection, dict) or not selection.get("subject")
+                    or not selection.get("referenceId")
+                    or selection != discovery["emailProvenance"].get("editorSelection")
+                    or allowed != [selection.get("publicationId")]):
+                raise ItemInvalid("Invalid editor-selected Reference scope")
             diagnostics = discovery.get("emailProvenance", {}).get("sesDiagnostics") or {}
-            if diagnostics.get("warnings"):
+            if diagnostics.get("warnings") and not discovery.get("editorSelectedReference"):
                 raise ItemInvalid("Email authentication warnings require editor review before routing")
         else:
             # Compatibility for discoveries queued by the earlier editor-gated path.
@@ -629,7 +635,7 @@ def set_routing(store, monitor_id: str, disc: dict, routing: str, partition: str
     updated = {k: v for k, v in disc.items() if k not in ("gsi1pk",)}
     updated["routing"] = routing
     if partition:
-        updated["gsi1pk"] = gsi_partition(monitor_id, partition)
+        updated["gsi1pk"] = gsi_partition(monitor_id, "email-references" if disc.get("editorSelectedReference") else partition)
     else:
         updated.pop("gsi1sk", None)
     store.put_any(monitor_id, updated)
@@ -739,7 +745,8 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     intake = ReferenceIntake(client, monitor, auth_mode="iam")
     if config.get("decisions") == "direct":
         return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
-    return intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc))
+    return intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc),
+                  reference_id=(disc.get("editorSelectedReference") or {}).get("referenceId"))
 
 
 # --- the run ----------------------------------------------------------------------------------------
@@ -800,6 +807,29 @@ class Router:
                    if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now]
         fresh = sorted(part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN), key=lambda d: d["gsi1sk"])
         return (decided + fresh)[:limit]
+
+    def selected_references(self, source_ids=None) -> dict:
+        """Only editor-imported References; never sweep receipt discoveries, feedback or procedures."""
+        if source_ids is not None:
+            if (not isinstance(source_ids, list) or not 1 <= len(source_ids) <= 20
+                    or any(not isinstance(s, str) or not re.fullmatch(r"[a-f0-9]{64}", s) for s in source_ids)):
+                raise ValueError("Provide 1 to 20 exact selected source ids")
+            candidates = [self.store.get_any(self.monitor_id, f"DISC#{source}#000001") for source in dict.fromkeys(source_ids)]
+        else:
+            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"), self.config["maxItemsPerRun"])
+        for disc in candidates:
+            if (not disc or not disc.get("editorSelectedReference") or disc.get("sourceType") != "email"
+                    or disc.get("gsi1pk") != gsi_partition(self.monitor_id, "email-references")):
+                continue
+            if self.time_left() < MIN_REMAINING_SECONDS:
+                break
+            if (self.get_route(disc).get("nextAttemptAt") or 0) > self.now:
+                continue
+            try:
+                (self.live if self.config["mode"] == "live" else self.dry_run)(disc)
+            except StopSweep as error:
+                return {"status": "stopped", "stoppedBy": str(error)[:200]}
+        return {"status": "completed"}
 
     # dry-run ----------------------------------------------------------------------------------------
 
@@ -872,6 +902,18 @@ class Router:
     def authorized_email_publications(self, disc: dict) -> list[dict]:
         if disc.get("emailTrustMode") == "data-only":
             validate_email_discovery_scope(disc, self.config)
+            selection = disc.get("editorSelectedReference")
+            if selection:
+                if (selection != disc.get("emailProvenance", {}).get("editorSelection")
+                        or not selection.get("subject")
+                        or disc["emailDestinationPublicationIds"] != [selection.get("publicationId")]):
+                    raise ItemInvalid("Invalid editor-selected Reference scope")
+                publication = self.publications.get(selection["publicationId"])
+                ref = self.client(publication).get_record("Reference", selection.get("referenceId")) if publication else None
+                if (not ref or ref.get("corpusId") != publication["corpusId"]
+                        or ref.get("sourceUri") != disc["canonicalUrl"] or ref.get("versionState") != "current"):
+                    raise ItemInvalid("Imported Reference does not match the selected email candidate")
+
             allowed = set(disc["emailDestinationPublicationIds"])
             return [p for p in self.config["publications"] if p["publicationId"] in allowed]
         if self.cognito is None:
@@ -973,7 +1015,7 @@ class Router:
         route["decision"]["publications"][pub_id] = {k: checked[k] for k in
                                                      ("output", "label", "fingerprint", "version", "confidence") if k in checked}
         route.get("notReady", {}).pop(pub_id, None)
-        if checked["label"] == publication["positiveLabel"]:
+        if checked["label"] == publication["positiveLabel"] or disc.get("editorSelectedReference"):
             route.setdefault("publications", {})[pub_id] = {"label": checked["label"], "delivered": False, "attempts": 0}
         self.save(route)
         self.counts["backfilled"] += 1
@@ -1016,7 +1058,7 @@ class Router:
             "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version", "confidence") if k in c}
                              for pid, c in checked.items()}}
         route["publications"] = {pid: {"label": c["label"], "delivered": False, "attempts": 0}
-                                 for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"]}
+                                 for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"] or disc.get("editorSelectedReference")}
         route.pop("nextAttemptAt", None)
         self.save(route)
         self.counts["decided"] += 1
@@ -1112,7 +1154,8 @@ class Router:
                              provenanceMessageId=result.get("provenanceMessageId"), lastError=None)
                 self.record_delivery(publication, disc, route, result)
                 self.counts["delivered"] += 1
-                self.start_procedures(publication, disc, result)
+                if not disc.get("editorSelectedReference"):
+                    self.start_procedures(publication, disc, result)
             except Exception as error:
                 all_delivered = False
                 attempts = int(state.get("attempts", 0)) + 1
@@ -1409,7 +1452,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
-               start_procedure: Callable[[dict], None] | None = None, cognito=None) -> dict:
+               start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -1426,8 +1469,9 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito)
-        outcome = {"status": "skipped"} if task == "feedback" else router.sweep()
-        feedback = {"status": "skipped"} if task == "route" else router.feedback()
+        outcome = (router.selected_references(source_ids) if task == "email-references" else
+                   {"status": "skipped"} if task == "feedback" else router.sweep())
+        feedback = {"status": "skipped"} if task in {"route", "email-references"} else router.feedback()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
                   "feedback": feedback, "errors": outcome.get("errors", []),
@@ -1449,7 +1493,7 @@ def handler(event, context):
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
-    result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining,
+    result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
                         cognito=boto3.client("cognito-idp"),
                         start_procedure=lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION")))
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
