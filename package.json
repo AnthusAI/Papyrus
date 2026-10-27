@@ -115,6 +115,7 @@
     "synth:site-backend": "tsx scripts/synth-site-backend.mts",
     "test:sync-reader-base-path": "node scripts/test-sync-reader-base-path.mjs",
     "test:staging-gated-path": "tsx scripts/test-staging-gated-path.ts",
+    "test:staff-groups": "tsx scripts/test-staff-groups.ts",
     "test:content-source": "tsx scripts/test-content-source.ts",
     "test:staging-preview-keys": "tsx scripts/test-staging-preview-keys.ts",
     "test:content-column-parity": "tsx scripts/test-content-column-parity.ts",

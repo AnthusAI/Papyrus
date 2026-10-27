@@ -2,6 +2,7 @@ import { CognitoJwtVerifier } from "aws-jwt-verify";
 import type { JwksCache } from "aws-jwt-verify/jwk";
 import type { NextRequest } from "next/server";
 import { readAmplifyOutputsFile } from "./amplify-outputs-path";
+import { STAFF_GROUPS } from "./staff-groups";
 
 export type NewsroomChatIdentity = { subject: string; issuer: string; clientId: string; expiresAt: number };
 export type NewsroomChatIdentityResolver = (request: NextRequest) => Promise<NewsroomChatIdentity | null>;
@@ -14,7 +15,7 @@ export function newsroomChatIdentityResolver(
     userPoolId: auth.user_pool_id,
     clientId: auth.user_pool_client_id,
     tokenUse: "access",
-    groups: ["editor", "admin"],
+    groups: [...STAFF_GROUPS],
   }, jwksCache ? { jwksCache } : undefined);
   return async (request) => {
     const token = request.headers.get("authorization")?.match(/^Bearer ([^\s]+)$/i)?.[1];

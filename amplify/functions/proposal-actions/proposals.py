@@ -92,6 +92,25 @@ def is_appsync_event(event: dict[str, Any]) -> bool:
     return "arguments" in event and ("info" in event or event_field_name(event) is not None)
 PROPOSER_AI = "ai"
 STAFF_GROUPS = frozenset({"editor", "admin"})
+
+_GROUP_SEPARATORS = re.compile(r"[\s,]+")
+
+
+def claim_groups(value: Any) -> list[str]:
+    """Copy of ``papyrus_content.staff_groups.claim_groups`` (this function ships without that package; a test keeps them equal)."""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        raw = [item for item in value if isinstance(item, str)]
+    elif isinstance(value, str):
+        raw = _GROUP_SEPARATORS.split(value)
+    else:
+        return []
+    cleaned = (item.strip().strip("\"'[](){}").strip() for item in raw)
+    return [item for item in cleaned if item]
+
+
+def has_editor_rights(groups: Any) -> bool:
+    """``admin`` has every editor right: an admin who is not in the ``editor`` group is staff."""
+    return any(group.lower() in STAFF_GROUPS for group in claim_groups(groups))
 #: The only moves an operator's IAM role may make, as (from, to). Everything after the draft is an editor's decision.
 OPERATOR_TRANSITIONS = frozenset({(DRAFT, IN_STEERING), (DRAFT, DECLINED)})
 BY_STAFF, BY_OPERATOR = "staff", "operator"
@@ -140,10 +159,8 @@ def staff_subject(identity: dict[str, Any]) -> str | None:
     """The Cognito subject of an editor or admin, or ``None`` for anyone else."""
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []
-    if isinstance(groups, str):
-        groups = [group.strip() for group in groups.strip("[]").replace(",", " ").split()]
     subject = identity.get("sub")
-    if not isinstance(subject, str) or not subject or not STAFF_GROUPS.intersection(groups):
+    if not isinstance(subject, str) or not subject or not has_editor_rights(groups):
         return None
     return subject
 

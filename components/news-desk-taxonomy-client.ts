@@ -1,6 +1,7 @@
 "use client";
 
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
+import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
@@ -838,7 +839,7 @@ export async function loadEditorResolvedAccessState(): Promise<EditorAccessState
     if (!refreshed.hasSession || refreshed.auth.status === "signedOut") {
       return { status: "signedOut", isEditor: false, isAdmin: false, auth: refreshed.auth, error: null };
     }
-    const isEditor = refreshed.groups.some((group) => group === "editor" || group === "admin");
+    const isEditor = hasEditorRights(refreshed.groups);
     if (!isEditor) {
       return {
         status: "forbidden",
