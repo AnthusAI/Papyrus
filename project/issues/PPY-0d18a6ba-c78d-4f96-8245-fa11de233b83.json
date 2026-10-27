@@ -190,10 +190,22 @@
         "model": "gpt-6",
         "name": "chat-owner"
       }
+    },
+    {
+      "id": "51d34991-5517-4577-bb48-30bcf060b8d2",
+      "author": "home",
+      "text": "Approved exact-table ConditionCheckItem additions deployed through reviewed change set chat-condition-check-20261027; UPDATE_COMPLETE,24resources unchanged. Existing newsroom login produced real model reply at10:11AM EDT; reply survives reload. Old failed test retained. Adding source/template regression to preserve permissions. No other grants.",
+      "created_at": "2026-10-27T14:12:47.905474Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "chat-owner"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-27T11:34:53.154142Z",
+  "updated_at": "2026-10-27T14:12:47.906164Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

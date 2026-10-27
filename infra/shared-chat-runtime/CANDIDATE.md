@@ -67,3 +67,9 @@ The local adapter tests do not contact DynamoDB, S3, SQS, SSM, or Lambda. The op
 The candidate has no provisioned database capacity, load balancer, or always-on queue poller. DynamoDB on-demand requests/PITR, Lambda invocations and duration, SQS requests, S3 storage/requests, and model tokens vary with workload; there is no fixed monthly maximum in the current implementation. Pricing references: [DynamoDB](https://aws.amazon.com/dynamodb/pricing/), [SQS](https://aws.amazon.com/sqs/pricing/), [Lambda](https://aws.amazon.com/lambda/pricing/), [S3](https://aws.amazon.com/s3/pricing/).
 
 Before new writes, rollback can disable the Papyrus feature gate and leave the existing AppSync path in place. After private chat writes begin, freeze admissions and export/reconcile those transcripts before any reversal; do not dual-write or run both model engines for one prompt. Queue mappings are disabled in the candidate, so they require a separate deliberate enablement after the site-specific deployment review.
+
+## Approved transaction-check correction (2026-10-27)
+
+The runtime gateway requires `dynamodb:ConditionCheckItem` only on the messaging table to fence logical enqueue against its admission reservation. The run worker requires the same action only on the conversation table to check its storage-owner fence. Separate exact-table statements preserve the existing probe permissions and do not include indexes. The template validator and transaction-permission Gherkin scenario enforce these two pairs.
+
+The live correction used a change set based on the current deployed template, changing only these two policy statements. Do not deploy this review candidate wholesale over an activated stack: preserve its current queue mappings, parameters and verified worker code keys. Regenerating a Lambda asset during synthesis is not authorization to upload or deploy different worker bytes.

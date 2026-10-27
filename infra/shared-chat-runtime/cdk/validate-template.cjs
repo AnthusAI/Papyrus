@@ -93,7 +93,7 @@ assert.ok(functions.some((fn) => fn.Properties.Handler === "probe-worker.handler
 
 const gateway = policyByName("PapyrusChatGatewayRole");
 assertExactActions(statementsFor(gateway, "PrivateMessagingAEAE53CD"), [
-  "dynamodb:BatchGetItem", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:TransactWriteItems", "dynamodb:UpdateItem",
+  "dynamodb:BatchGetItem", "dynamodb:ConditionCheckItem", "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:TransactWriteItems", "dynamodb:UpdateItem",
 ], "gateway messaging table");
 assertExactActions(statementsFor(gateway, "PrivateConversationIndex81B3261A"), [
   "dynamodb:BatchGetItem", "dynamodb:GetItem", "dynamodb:Query",
@@ -112,6 +112,13 @@ assertExactActions(statementsFor(probe, "PrivateConversationIndex81B3261A"), [
 
 const runRoleId = roleIdByDescription("Private Papyrus computerless chat run worker.");
 const run = policyForRole(runRoleId);
+const ownershipChecks = policies.filter((statement) => actionList(statement).includes("dynamodb:ConditionCheckItem"));
+assert.deepEqual(ownershipChecks, [
+  { Action: "dynamodb:ConditionCheckItem", Resource: { "Fn::GetAtt": ["PrivateMessagingAEAE53CD", "Arn"] }, Effect: "Allow" },
+  { Action: "dynamodb:ConditionCheckItem", Resource: { "Fn::GetAtt": ["PrivateConversationIndex81B3261A", "Arn"] }, Effect: "Allow" },
+], "only the two runtime ownership checks are permitted, without indexes or wildcard resources");
+assert.ok(gateway.Properties.PolicyDocument.Statement.includes(ownershipChecks[0]));
+assert.ok(run.Properties.PolicyDocument.Statement.includes(ownershipChecks[1]));
 assertExactActions(statementsFor(run, modelKeyParameter.slice(1)), ["ssm:GetParameter"], "site-scoped run-worker model key");
 const modelKeyReaders = policies.filter((statement) => actionList(statement).includes("ssm:GetParameter"));
 assert.equal(modelKeyReaders.length, 1, "only one policy statement may read any model-key parameter");
