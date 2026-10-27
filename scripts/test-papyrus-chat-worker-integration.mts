@@ -4,30 +4,19 @@ import type { Storage } from "@earendil-works/pi-durable";
 import { consumeRunJob, Decimal, VendorPriceBook } from "chatticus/chat-worker";
 import type { NextRequest } from "next/server";
 import { derivePapyrusChatScope, handlePapyrusHostedChatRequest } from "../lib/papyrus-hosted-chat";
-import { PROSPECTUS_SESSION_COOKIE, sealProspectusCookie } from "../lib/prospectus-session";
 
-const siteProduct = "papyrus-demo";
-const accountId = "publishing-account-1";
+const publicationNamespace = JSON.stringify(["private-bucket", "private-table", "newsroom-client"]);
+const issuer = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Test";
 const editorId = "editor-a";
 const botId = "papyrus-editorial-assistant";
 const now = 1_798_000_000;
-const sealingSecret = "papyrus-hosted-chat-test-sealing-secret-32-bytes-minimum";
-const environment = { PAPYRUS_SITE_ORIGIN: "https://papyrus.example", NODE_ENV: "test" };
+const environment = { PAPYRUS_SITE_ORIGIN: "https://papyrus.example", NODE_ENV: "test", PAPYRUS_CHAT_SESSION_BUCKET: "private-bucket", PAPYRUS_CHAT_MESSAGING_TABLE: "private-table" };
 const answer = "The newsroom update is ready.";
 
 function requestFor(method: string, personId: string, path: string, body?: unknown, extraHeaders: Record<string, string> = {}) {
-	const expiresAt = now + 600;
-	const sealed = sealProspectusCookie(sealingSecret, PROSPECTUS_SESSION_COOKIE, {
-		personId,
-		newsroomSubject: personId,
-		accessToken: `access-${personId}`,
-		accessTokenExpiresAt: expiresAt,
-		selectedAccountId: accountId,
-	}, expiresAt);
 	const request = new Request(`https://papyrus.example/api/newsroom/chat/${path}`, {
 		method,
 		headers: {
-			cookie: `${PROSPECTUS_SESSION_COOKIE}=${sealed}`,
       authorization: `Bearer ${personId}`,
 			...(body === undefined ? {} : { "content-type": "application/json" }),
 			...extraHeaders,
@@ -44,30 +33,6 @@ function requestFor(method: string, personId: string, path: string, body?: unkno
 	return request as unknown as NextRequest;
 }
 
-function prospectusRuntime() {
-	const accounts = {
-		async accountDirectory(accessToken: string) {
-			const personId = accessToken.slice("access-".length);
-			return {
-				person: { id: personId },
-				accounts: [{ id: accountId, name: "Newsroom", role: "member", products: [{ product: siteProduct, status: "active" }] }],
-			};
-		},
-		async currentPerson(accessToken: string) { return { person: { id: accessToken.slice("access-".length) } }; },
-		async authorizeAccountOperation(accessToken: string, requestedAccountId: string, operation: string) {
-			return {
-				allowed: true,
-				personId: accessToken.slice("access-".length),
-				accountId: requestedAccountId,
-				operation,
-				product: siteProduct,
-				role: "member",
-				revision: 1,
-			};
-		},
-	};
-	return { sealingSecret, accounts: accounts as never, cognitoClient: {} as never };
-}
 
 function deterministicModel(
 	text: string,
@@ -138,7 +103,7 @@ function makeRuntimeDependencies(
 		MemoryStorage: new (...args: any[]) => Storage;
 	},
 ) {
-	const scope = derivePapyrusChatScope(siteProduct, accountId, editorId);
+	const scope = derivePapyrusChatScope(publicationNamespace, issuer, editorId);
 	const bot = { tenantId: scope.tenantId, botId, name: "Editorial assistant", memory: {} };
 	let channel: any = null;
 	const posts = new Map<string, any>();
@@ -366,7 +331,7 @@ async function main() {
 	const piAiModels = await import("@earendil-works/pi-ai/models");
 	const piAiEvents = await import("@earendil-works/pi-ai/utils/event-stream");
 	const piDurable = await import("@earendil-works/pi-durable");
-	const scope = derivePapyrusChatScope(siteProduct, accountId, editorId);
+	const scope = derivePapyrusChatScope(publicationNamespace, issuer, editorId);
 	const core = makeRuntimeDependencies(contextHelpers, piDurable);
 	const fakeStore = core.messaging.store as any;
 	const privateDependencies = {
@@ -381,11 +346,10 @@ async function main() {
 		},
 	};
 	const options = {
-		siteProduct,
-		environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: botId },
+		environment: { ...environment, PAPYRUS_CHAT_PRIVATE_BOT_ID: botId },
 		nowInSeconds: () => now,
-		resolveRuntime: async () => prospectusRuntime(),
-    resolveNewsroomIdentity: async (request: NextRequest) => { const subject = request.headers.get("authorization")?.replace("Bearer ", ""); return subject ? { subject } : null; },
+
+    resolveNewsroomIdentity: async (request: NextRequest) => { const subject = request.headers.get("authorization")?.replace("Bearer ", ""); return subject && subject !== "denied-editor" ? { subject, issuer, clientId: "newsroom-client", expiresAt: now + 600 } : null; },
 		resolvePrivateDependencies: async () => privateDependencies as never,
 		privateChatEnabled: true,
 	};

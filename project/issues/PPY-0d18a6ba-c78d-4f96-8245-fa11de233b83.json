@@ -167,10 +167,33 @@
         "model": "GPT-6",
         "name": "Chat mobile correction"
       }
+    },
+    {
+      "id": "b05dc4cd-5409-4f02-9245-27bf16145b3e",
+      "author": "home",
+      "text": "Approved newsroom-session contract: verified configured Cognito editor JWT; server publication namespace; new isolated issuer/sub private history; no Prospectus data/tools or grants. Implement with denial, persistence and mobile regression coverage, then narrow maintenance release and live acceptance.",
+      "created_at": "2026-10-27T11:26:51.957404Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6"
+      }
+    },
+    {
+      "id": "222b3d15-1df7-4272-ab26-c2f5b34c8aa9",
+      "author": "home",
+      "text": "Newsroom-only adapter implemented: configured pool/client JWT, isolated storage/client/issuer namespace and issuer/sub editor; no Prospectus lookup. Gateway and scripted shared-worker persistence tests pass; 19-scenario browser suite passed before additional auth-change case. Typecheck, lint and production build passed. Added expiry-capped streams and reviewed computerless tools. Final browser run underway; real model reply remains a live acceptance requirement.",
+      "created_at": "2026-10-27T11:34:53.153409Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "chat-owner"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-27T07:08:29.856693Z",
+  "updated_at": "2026-10-27T11:34:53.154142Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

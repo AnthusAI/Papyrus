@@ -29,12 +29,6 @@ Feature: Reach private chat from a phone newsroom
     Then desktop layout keeps its existing toolbar behavior
     And an unauthorized visitor has no chat entry point
 
-  Scenario: Explain unavailable publishing access without suggesting an owner can grant it
-    Given a signed-in editor has no eligible publishing Account
-    When the editor opens private chat from mobile navigation
-    Then the panel explains the setup blocker below its header
-    And checking again refreshes access without granting it or sending a message
-
   Scenario: Compile the navigation icon dependency in publication consumers
     Given mobile navigation uses the existing icon package
     When the publication transpilation configuration is checked
