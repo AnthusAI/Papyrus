@@ -23,7 +23,7 @@ import {
   type ReferenceFeedPartition,
   type ReferenceFeedTabKey,
 } from "../lib/reference-feed-ranking";
-import { dekAddsInformation, referenceDek, referenceSourceHost, formatFeedAge, type ReferencePreview } from "../lib/reference-preview";
+import { dekAddsInformation, isCardStyleImage, referenceDek, referenceSourceHost, formatFeedAge, type ReferencePreview } from "../lib/reference-preview";
 import { referenceDisplayTitle } from "../lib/newsroom-references";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { cn } from "@/lib/utils";
@@ -136,29 +136,42 @@ function FallbackTile({ host, name }: { host: string | null; name: string }) {
   );
 }
 
-/** Full-bleed lazy image in a fixed frame: a soft pulse until it loads, the fallback tile when it never does. */
+/**
+ * Full-bleed lazy image in a fixed frame: a soft pulse until it loads, the fallback tile when it never does.
+ * Photos fill the frame (cover). A text card (a repository social card, or a 2:1 picture) is shown whole instead: the frame takes
+ * the picture's own ratio and the picture is contained, so no words are cut off at the edges.
+ */
 function FeedImage({ host, lead, name, src }: { host: string | null; lead: boolean; name: string; src: string | null }) {
   const [state, setState] = useState<"loading" | "loaded" | "failed">(src ? "loading" : "failed");
+  const [ratio, setRatio] = useState<number | null>(null);
   const ref = useRef<HTMLImageElement | null>(null);
-  useEffect(() => { setState(src ? "loading" : "failed"); }, [src]);
+  const measure = (element: HTMLImageElement) => { if (element.naturalWidth > 0 && element.naturalHeight > 0) setRatio(element.naturalWidth / element.naturalHeight); };
+  useEffect(() => { setState(src ? "loading" : "failed"); setRatio(null); }, [src]);
   useEffect(() => {
     // A cached image can finish before React attaches onLoad.
     const element = ref.current;
-    if (element?.complete && element.naturalWidth > 0) setState("loaded");
+    if (element?.complete && element.naturalWidth > 0) { setState("loaded"); measure(element); }
   }, [src]);
+  const card = isCardStyleImage(src, ratio);
   return (
-    <div className={cn("relative w-full overflow-hidden bg-[var(--feed-control)]", lead ? "aspect-[16/10] sm:aspect-[2/1] xl:aspect-[21/9]" : "aspect-[16/10]")} data-feed-image data-feed-image-state={state}>
+    <div
+      className={cn("relative w-full overflow-hidden bg-[var(--feed-control)]", !card && (lead ? "aspect-[16/10] sm:aspect-[2/1] xl:aspect-[21/9]" : "aspect-[16/10]"))}
+      data-feed-image
+      data-feed-image-fit={card ? "contain" : "cover"}
+      data-feed-image-state={state}
+      style={card ? { aspectRatio: String(ratio ?? 2) } : undefined}
+    >
       {state === "loading" ? <div aria-hidden="true" className="absolute inset-0 animate-pulse bg-[var(--feed-footer)] blur-sm" data-feed-image-placeholder /> : null}
       {src && state !== "failed" ? (
         // The source site chose this picture; an <img> keeps it out of our image optimizer and out of its referrer log.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           alt=""
-          className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", state === "loaded" ? "opacity-100" : "opacity-0")}
+          className={cn("absolute inset-0 size-full transition-opacity duration-500", card ? "object-contain" : "object-cover", state === "loaded" ? "opacity-100" : "opacity-0")}
           decoding="async"
           loading="lazy"
           onError={() => setState("failed")}
-          onLoad={() => setState("loaded")}
+          onLoad={(event) => { setState("loaded"); measure(event.currentTarget); }}
           ref={ref}
           referrerPolicy="no-referrer"
           src={src}

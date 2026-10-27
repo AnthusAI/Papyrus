@@ -102,3 +102,11 @@ export function dekAddsInformation(title: string, dek: string | null, imageUrl: 
   const covered = titleWords.size ? [...titleWords].filter((word) => dekWords.includes(word)).length / titleWords.size : 0;
   return shared / dekWords.length < 0.6 && covered < 0.8;
 }
+
+/** Pictures that are a text card, not a photograph: a repository social card, or any picture whose ratio is almost exactly 2:1. Cropping cuts the words off. */
+export function isCardStyleImage(url: string | null, naturalRatio: number | null): boolean {
+  let host = "";
+  try { host = url ? new URL(url).hostname : ""; } catch { /* no host */ }
+  if (/(^|\.)(opengraph\.githubassets\.com|repository-images\.githubusercontent\.com|github\.com)$/i.test(host)) return true;
+  return naturalRatio !== null && Math.abs(naturalRatio - 2) < 0.04;
+}

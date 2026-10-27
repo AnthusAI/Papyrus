@@ -48,6 +48,8 @@ import { referencePreviewsByLineage, type ReferencePreview } from "../lib/refere
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
 import { cn } from "@/lib/utils";
+import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
+import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import {
   ReviewCard,
   predictionFromDecision,
@@ -478,6 +480,9 @@ export function NewsroomReferencesView({
   savedCopy = null,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
+  // The portaled mobile sheet sits outside the newsroom root, so it carries the theme attributes itself (same as useNewsroomThemeAttributes).
+  const themeMode = useResolvedPapyrusTheme();
+  const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
   const sessionImport = useReferenceImport(disabled);
   const [importedCount, setImportedCount] = useState(0);
   const isMobileDetail = useMediaQuery("(max-width: 767px)");
@@ -747,7 +752,7 @@ export function NewsroomReferencesView({
             {onRetryPredictions ? <Button onClick={onRetryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
           </div>
         ) : null}
-        <div className="shrink-0 overflow-y-auto rounded-[20px] bg-[var(--feed-card)] p-4 text-sm" data-feed-surface="" hidden={!addOpen} id="reference-add-panel" style={{ ...FEED_SURFACE_STYLE, maxHeight: "45dvh" }}>
+        <div className="shrink-0 overflow-y-auto rounded-[20px] bg-[var(--feed-card)] p-4 text-sm" data-feed-flat="" data-feed-surface="" hidden={!addOpen} id="reference-add-panel" style={{ ...FEED_SURFACE_STYLE, maxHeight: "45dvh" }}>
           <div className="space-y-4">
         <ReferenceLiveAgreement agreement={shadowAgreement} />
         <ReferenceAddEntry
@@ -877,6 +882,7 @@ export function NewsroomReferencesView({
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
         data-detail-open={selectedReference ? "true" : "false"}
+        data-feed-flat=""
         {...FEED_SURFACE_PROPS}
       >
         <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-1">
@@ -921,7 +927,7 @@ export function NewsroomReferencesView({
           }}
           open={(mobileDetailOpen && Boolean(selectedReference)) || caughtUp}
         >
-          <SheetContent className="gap-0 p-0" side="bottom">
+          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" side="bottom" {...themeAttributes}>
             <SheetHeader className="border-b border-border px-4 py-3">
               <SheetTitle className="text-left text-base">Reference</SheetTitle>
             </SheetHeader>

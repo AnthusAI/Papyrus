@@ -49,6 +49,7 @@ const DECISIONS = new Map([["strong-accept", decision("include", 0.96)], ["mid-a
   ["broken-image", decision("include", 0.8)], ["strong-reject", decision("exclude", 0.94)], ["aged-out", decision("include", 0.9)]]);
 const previews = new Map(FIXTURE.map((item) => [item.lineageId, { imageUrl: item.lineageId === "broken-image" ? "https://images.example.org/missing.png" : "https://images.example.org/ok.svg", description: "A one line dek for " + item.lineageId + ".", siteName: item.lineageId.replace(/-/g, " "), title: null }]));
 previews.delete("no-prediction");
+previews.set("mid-accept", { ...previews.get("mid-accept"), imageUrl: "https://opengraph.githubassets.com/abc/owner/repo" });
 window.calls = [];
 let tick = 0;
 
@@ -96,6 +97,9 @@ async function setup(options = "", width = 1440, beforeLoad?: (page: Page) => Pr
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
+    if (url.origin === "https://opengraph.githubassets.com") {
+      return route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640"><rect width="1280" height="640" fill="#fff"/></svg>' });
+    }
     if (url.origin === "https://images.example.org") {
       requests.push({ url: url.href, referrer: route.request().headers().referer });
       return url.pathname.endsWith("ok.svg") ? route.fulfill({ contentType: "image/svg+xml", body: SVG }) : route.fulfill({ status: 404, body: "" });
@@ -203,8 +207,16 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.waitForFunction(() => document.querySelector('[data-feed-card="strong-accept"] [data-feed-image]')?.getAttribute("data-feed-image-state") === "loaded");
       const frame = (await card(page, "strong-accept").locator("[data-feed-image]").boundingBox())!;
       assert.ok([1.6, 2, 21 / 9].some((ratio) => Math.abs(frame.width / frame.height - ratio) < 0.1), "the lead frame has a fixed ratio");
-      const other = (await card(page, "mid-accept").locator("[data-feed-image]").boundingBox())!;
+      const other = (await card(page, "weak-reject").locator("[data-feed-image]").boundingBox())!;
       assert.ok(Math.abs(other.width / other.height - 16 / 10) < 0.05, "other cards are 16:10");
+      // A text card (a GitHub social card) is shown whole: its own ratio, contained, never cropped at the edges. Photos stay cover.
+      const textCard = card(page, "mid-accept").locator("[data-feed-image]");
+      await page.waitForFunction(() => document.querySelector('[data-feed-card="mid-accept"] [data-feed-image]')?.getAttribute("data-feed-image-state") === "loaded");
+      assert.equal(await textCard.getAttribute("data-feed-image-fit"), "contain");
+      assert.equal(await textCard.locator("img").evaluate((element) => getComputedStyle(element).objectFit), "contain");
+      const cardBox = (await textCard.boundingBox())!;
+      assert.ok(Math.abs(cardBox.width / cardBox.height - 2) < 0.05, "the frame takes the card's own 2:1 ratio");
+      assert.equal(await card(page, "strong-accept").locator("[data-feed-image]").getAttribute("data-feed-image-fit"), "cover");
       await page.waitForFunction(() => document.querySelector('[data-feed-card="broken-image"] [data-feed-image-fallback]'));
       const fallback = card(page, "broken-image").locator("[data-feed-image-fallback]");
       assert.ok((await fallback.innerText()).includes("broken image"), "the tile names the source");
