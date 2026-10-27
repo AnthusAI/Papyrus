@@ -125,6 +125,11 @@ class CombinedUnavailable(Exception):
     """The Cyclotron deployment has no POST /machine/decisions (404): decide per publication instead."""
 
 
+class JobGone(Exception):
+    """Polling a stored job answered 404: the lab no longer knows it (for example after a run cutover).
+    The router discards the stored job and re-posts once; it is never a run-stopping event."""
+
+
 class AllBindingsNotReady(Exception):
     """Every binding for the item is waiting for a classifier: nothing to decide or deliver yet."""
 
@@ -540,6 +545,8 @@ class CyclotronClient:
                 status, payload = 0, {}
             if status == 200 and isinstance(payload.get("publications"), dict):
                 return payload
+            if status == 404:
+                raise JobGone()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -572,6 +579,8 @@ class CyclotronClient:
                 status, payload = 0, {}
             if status == 200 and payload.get("decision"):
                 return payload
+            if status == 404:
+                raise JobGone()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -1150,7 +1159,19 @@ class Router:
         self.counts["decided"] += 1
 
 
-    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str) -> list[dict]:
+    def posted_under(self) -> dict:
+        """The run and binding revision a job is being posted under, stored with it."""
+        cyclotron = self.config["cyclotron"]
+        return {"runId": cyclotron["runId"], "bindingRevision": cyclotron["bindingRevision"]}
+
+    def job_is_stale(self, stored: dict, expected_request_id: str) -> bool:
+        """A stored job posted under an earlier run or binding revision (after a Cyclotron cutover)."""
+        current = self.posted_under()
+        if "runId" in stored or "bindingRevision" in stored:
+            return any(stored.get(key) != value for key, value in current.items())
+        return stored.get("requestId") != expected_request_id
+
+    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str, reposted: bool = False) -> list[dict]:
         """One POST /machine/decisions for the story's unchecked bindings, one poll loop, then each publication's
         receipt is checked and stored under `jobs` exactly as a per-publication decide would. Returns the
         publications that still need the per-publication path (no combined endpoint, a pending output
@@ -1160,6 +1181,11 @@ class Router:
             return todo
         if not stored and (len(todo) < 2 or self.combined_unavailable):
             return todo
+        if stored and todo and self.job_is_stale(stored, build_combined_request(
+                self.config, todo, disc, int(route.get("attempt", 0)))["body"]["requestId"]):
+            del route["combinedJob"]   # posted under an earlier run: its id is unknown to the lab now, re-post
+            self.save(route)
+            return self.decide_combined(todo, disc, route, item_id, reposted)
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
         if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
@@ -1170,7 +1196,8 @@ class Router:
                 return todo   # the collector sends nothing; stored per-publication jobs are still polled
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
-                                             "publications": list(built["body"]["payload"]["bindings"])}
+                                             "publications": list(built["body"]["payload"]["bindings"]),
+                                             **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
@@ -1195,6 +1222,12 @@ class Router:
                 del route["combinedJob"]   # a pending output in the set: the per-publication path finds out which
                 self.save(route)
                 return todo
+            except JobGone:
+                del route["combinedJob"]
+                self.save(route)
+                if reposted:
+                    raise ItemInvalid("lab does not know the job posted for this story (404 after a re-post)")
+                return self.decide_combined(todo, disc, route, item_id, True)
             except StopSweep as stop:
                 if stop.code in NON_CONSUMING_REFUSALS:
                     del route["combinedJob"]
@@ -1217,7 +1250,7 @@ class Router:
                 if not isinstance(entry, dict) or not entry.get("decision"):
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
-                                "jobId": stored["jobId"],
+                                "jobId": stored["jobId"], **self.posted_under(),
                                 "checked": checked_decision(entry, publication, self.config, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
@@ -1232,7 +1265,7 @@ class Router:
             raise failure
         return remaining
 
-    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str) -> None:
+    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str, reposted: bool = False) -> None:
         validate_email_discovery_scope(disc, self.config)
         jobs = route.setdefault("jobs", {})
         pub_id = publication["publicationId"]
@@ -1240,6 +1273,10 @@ class Router:
         job = jobs.get(pub_id)
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
+        if job and self.job_is_stale(job, built["body"]["requestId"]):
+            del jobs[pub_id]   # posted under an earlier run or binding: re-post under the current one
+            self.save(route)
+            return self.decide_binding(publication, disc, route, item_id, reposted)
         if job and job.get("requestId") != built["body"]["requestId"]:
             raise ItemInvalid("stored job belongs to a different request")
         if job and job.get("jobId"):
@@ -1250,7 +1287,7 @@ class Router:
         else:
             if not self.post_allowed:
                 raise NotPosting()
-            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now)}
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
@@ -1273,6 +1310,12 @@ class Router:
             del jobs[pub_id]   # nothing ran at the provider; the park decides when to ask again
             self.save(route)
             raise
+        except JobGone:
+            del jobs[pub_id]
+            self.save(route)
+            if reposted:
+                raise ItemInvalid("lab does not know the job posted for this publication (404 after a re-post)")
+            return self.decide_binding(publication, disc, route, item_id, True)
         except StopSweep as stop:
             if stop.code in NON_CONSUMING_REFUSALS:
                 # Nothing ran at the provider. Drop the refused job and use a new request id next time.

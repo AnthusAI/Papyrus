@@ -50,3 +50,22 @@ Feature: The router asks Cyclotron once per story for every publication
     When the router sweeps the collected story
     Then the story is refused
     And the answers of the other publications are kept on the story's receipt
+
+  Scenario: A job left over from an earlier Cyclotron run is posted again under the current run
+    Given the story holds a combined job that was posted under an earlier Cyclotron run
+    When the router sweeps the collected story
+    Then the earlier run's job is never polled
+    And the story is decided and delivered under a new request
+
+  Scenario: A job the lab no longer knows is posted again once
+    Given the story holds a combined job under the current run that the lab answers with not found once
+    When the router sweeps the collected story
+    Then the story is posted again once
+    And the story is decided and delivered
+
+  Scenario: A job the lab keeps denying errors only that story and the run continues
+    Given the lab answers not found for every job of the first two stories
+    When the router sweeps the collected story
+    Then the first story is an error
+    And the run is complete rather than stopped
+
