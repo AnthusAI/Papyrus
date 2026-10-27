@@ -66,6 +66,16 @@ def papyrus_fetch_pdf_text(url: str, first_page: int = 1, last_page: int = 0) ->
     return {"url": url, "pageCount": page_count, "pages": pages}
 
 
+def papyrus_curate_reference(reference_id: str, force: bool = False) -> dict:
+    """Curate one Reference before an editor reviews it: capture its full text, store the completeness signals,
+    write a summary and, for a research paper, GROBID fields. Safe to run twice (a finished Reference is left alone).
+    Returns the outcome and the status of each stage."""
+
+    from papyrus_content.reference_curation import curate_reference_by_id
+
+    return curate_reference_by_id(reference_id, force=force)
+
+
 def papyrus_create_story(title: str, section: str, author_label: str, stage: str = "reporting", summary: str = "") -> dict:
     """Create a story (a new item lineage) in a section at the idea, assignment or reporting stage.
     Returns its lineage id and first version id."""

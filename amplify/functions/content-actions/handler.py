@@ -365,6 +365,14 @@ def handler(event, context):
                     client, arguments, event.get("identity") or {}, receipt_store=receipt_store)
             except IntakeError as error:
                 return {"ok": False, "errors": [{"code": "intake-rejected", "message": str(error)}]}
+        if field == "correctReferenceCapture":
+            from papyrus_content.reference_curation_store import CurationError, correct_reference_capture
+
+            client, _claims = create_authoring_client()
+            try:
+                return correct_reference_capture(client, arguments, event.get("identity") or {})
+            except CurationError as error:
+                return {"ok": False, "errors": [{"code": "correction-rejected", "message": str(error)}]}
         if field == "deriveMarkus":
             return derive_markus_action(arguments)
         if field == "saveItemDraft":
