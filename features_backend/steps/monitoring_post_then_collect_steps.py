@@ -191,7 +191,7 @@ def ring(context, event):
 
     context.rings = getattr(context, "rings", [])
     context.rings.append(mr.handle_decision_ready(
-        context.store, event, lambda monitor_id: tr.run_with(context.table_, context.store, context.cyclotron, now=2200, deliver=context.delivery, task="collect")))
+        context.store, event, lambda monitor_id, job_id=None: tr.run_with(context.table_, context.store, context.cyclotron, now=2200, deliver=context.delivery, task="collect")))
     context.outcome = context.rings[-1]
 
 

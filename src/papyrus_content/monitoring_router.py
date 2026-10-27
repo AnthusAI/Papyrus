@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import string
@@ -40,6 +41,7 @@ import urllib.error
 import urllib.request
 import uuid
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Callable
@@ -114,6 +116,17 @@ PARK_PREFIX = "PARK#"
 #: capped at REFUSAL_BACKOFF_MAX. This is a backoff between asks, not a limit: the router never gives up on the story.
 REFUSAL_BACKOFF_FIRST, REFUSAL_BACKOFF_MAX = 900, 24 * 3600
 PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
+#: The lab answered 429 or 503: the whole monitor stops calling it until `labBackoffUntil` (STATE#labBackoff). The wait is
+#: the lab's Retry-After when it sends one, otherwise LAB_BACKOFF_FIRST * 2**n seconds (n = consecutive refused runs),
+#: capped at LAB_BACKOFF_MAX. A Retry-After is honoured up to LAB_RETRY_AFTER_MAX so a bad header cannot park the monitor
+#: for good. This is a backoff between asks, not a limit: every job stays recorded and is asked about again afterwards.
+LAB_BACKOFF_SK = "STATE#labBackoff"
+LAB_BACKOFF_FIRST, LAB_BACKOFF_MAX, LAB_RETRY_AFTER_MAX = 60, 1800, 3600
+#: A job that is still running is not asked about again until its own `nextPollAt`: POLL_BACKOFF_FIRST * 2**n seconds
+#: after its n-th unanswered check, capped at the collector cadence times POLL_BACKOFF_CADENCES. Backoff, not a limit; the
+#: counter is cleared when the job completes, and a Decision Ready doorbell for the job bypasses the wait.
+COLLECT_CADENCE_SECONDS, POLL_BACKOFF_CADENCES, POLL_BACKOFF_FIRST = 120, 8, 30
+POLL_BACKOFF_MAX = COLLECT_CADENCE_SECONDS * POLL_BACKOFF_CADENCES
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
@@ -468,6 +481,23 @@ def validate_request(body: dict) -> None:
 
 # --- Cyclotron machine API ------------------------------------------------------------------------
 
+LAB_OVERLOAD_STATUSES = (429, 503)
+
+
+def parse_retry_after(value) -> int | None:
+    """Seconds from a Retry-After value (delta-seconds or an HTTP date); None when absent or unusable."""
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        try:
+            seconds = parsedate_to_datetime(str(value)).timestamp() - time.time()
+        except (TypeError, ValueError):
+            return None
+    return max(1, int(math.ceil(seconds))) if seconds > 0 else None
+
+
 def default_http(method: str, url: str, headers: dict, body: bytes | None, timeout: float):
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
@@ -475,11 +505,17 @@ def default_http(method: str, url: str, headers: dict, body: bytes | None, timeo
             raw, status = response.read(), response.status
     except urllib.error.HTTPError as error:
         raw, status = error.read(), error.code
+        retry_after = error.headers.get("Retry-After") if error.headers else None
+    else:
+        retry_after = None
     try:
         payload = json.loads(raw.decode("utf-8")) if raw else {}
     except ValueError:
         payload = {"unparsed": True}
-    return status, payload if isinstance(payload, dict) else {"unparsed": True}
+    payload = payload if isinstance(payload, dict) else {"unparsed": True}
+    if retry_after and status in LAB_OVERLOAD_STATUSES:
+        payload = {**payload, "_retryAfter": retry_after}   # the transport has no headers channel: carry the one we honour
+    return status, payload
 
 
 def assume_invoker(config: dict) -> Callable[[], dict]:
@@ -537,14 +573,22 @@ class CyclotronClient:
         self.config, self.sign, self.http, self.sleep, self.clock = config, sign, http, sleep, clock
         self.base = config["cyclotron"]["endpoint"]
         self.refusals: list[dict] = []   # every non-2xx the lab answered, for the run receipt's errors list
+        self.rate_limited: dict | None = None   # the first 429/503 this run: {"status", "retryAfter"}; the monitor backs off
+        self.answered = 0                        # calls the lab answered below 400 this run
 
     def _call(self, method: str, path: str, body: dict | None):
         data = json.dumps(body, separators=(",", ":")).encode() if body is not None else b""
         url = self.base + path
-        return self.http(method, url, self.sign(method, url, data), data or None, 30)
+        status, payload = self.http(method, url, self.sign(method, url, data), data or None, 30)
+        if status < 400:
+            self.answered += 1
+        return status, payload
 
     def classify(self, status: int, payload: dict) -> Exception:
         code = refusal_code(status, payload)
+        if status in LAB_OVERLOAD_STATUSES and self.rate_limited is None:
+            self.rate_limited = {"status": status,
+                                 "retryAfter": parse_retry_after(payload.get("_retryAfter") or payload.get("retryAfter"))}
         if not 200 <= status < 300:
             excerpt = body_excerpt(status, payload)
             LOG.warning("cyclotron refused: %s", excerpt)
@@ -945,8 +989,12 @@ class Router:
     def __init__(self, store, config: dict, *, monitor_id="hn", now: float, run_id: str,
                  cyclotron: CyclotronClient | None, appsync: Callable[[str], Any], deliver=deliver_reference,
                  context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
-                 start_procedure: Callable[[dict], None] | None = None, cognito=None):
+                 start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=()):
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
+        self.rung = {j for j in rung_job_ids if j}   # jobs a Decision Ready doorbell named: asked about despite their backoff
+        self._fresh: set = set()     # jobs posted by this run: checked at once, their backoff starts with the next run
+        self._grown: set = set()     # jobs whose backoff already grew this run: one growth per run
+        self._lab_state = None
         self.start_procedure = start_procedure
         self.cognito = cognito
         self.cyclotron, self.appsync_factory, self.deliver = cyclotron, appsync, deliver
@@ -964,6 +1012,66 @@ class Router:
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
         self._parks: dict = {}
         self._automation_rows: dict = {}
+
+    # lab backoff ------------------------------------------------------------------------------------
+
+    def lab_backoff_until(self) -> int:
+        if self._lab_state is None:
+            self._lab_state = self.store.get_any(self.monitor_id, LAB_BACKOFF_SK) or {}
+        return int(self._lab_state.get("until", 0))
+
+    def lab_paused(self) -> bool:
+        """True while the lab asked this monitor to wait (a 429/503 earlier): no run calls the lab until then."""
+        return (self.cyclotron is not None and self.config["mode"] == "live" and self.config["decisions"] == "cyclotron"
+                and self.lab_backoff_until() > self.now)
+
+    def paused_result(self) -> dict:
+        return {"status": "stopped", "stoppedBy": "lab_backoff", "errors": [],
+                "waitingForClassifier": []}
+
+    def settle_lab_backoff(self) -> int | None:
+        """After the run: a 429/503 sets `until` (Retry-After, else exponential on consecutive refused runs); a run the
+        lab answered cleanly clears it. Returns the pause's end when one is in force."""
+        client = self.cyclotron
+        if client is None:
+            return None
+        refused = getattr(client, "rate_limited", None)
+        if refused:
+            strikes = int((self.store.get_any(self.monitor_id, LAB_BACKOFF_SK) or {}).get("strikes", 0)) + 1
+            after = refused.get("retryAfter")
+            wait = min(after, LAB_RETRY_AFTER_MAX) if after else min(LAB_BACKOFF_FIRST * 2 ** min(strikes - 1, 32), LAB_BACKOFF_MAX)
+            until = int(self.now + wait)
+            self.store.put_any(self.monitor_id, {"pk": pk(self.monitor_id), "sk": LAB_BACKOFF_SK, "until": until,
+                                                 "strikes": strikes, "status": refused["status"],
+                                                 "retryAfter": after, "at": _iso(self.now)})
+            return until
+        if getattr(client, "answered", 0) and self.lab_backoff_until():
+            self.store.delete_any(self.monitor_id, LAB_BACKOFF_SK)
+            return None
+        return self.lab_backoff_until() if self.lab_backoff_until() > self.now else None
+
+    # per-job backoff --------------------------------------------------------------------------------
+
+    def job_due(self, job: dict) -> bool:
+        return (int(job.get("nextPollAt", 0)) <= self.now or job.get("jobId") in self.rung
+                or job.get("jobId") in self._fresh)
+
+    def note_still_running(self, job: dict, route: dict):
+        """The lab answered 'running': the job waits POLL_BACKOFF_FIRST * 2**n seconds before the next check."""
+        job_id = job.get("jobId")
+        self.rung.discard(job_id)   # a doorbell buys one check, not a standing bypass
+        if job_id in self._fresh or job_id in self._grown:
+            return
+        checks = int(job.get("pollBackoffs", 0))
+        job["nextPollAt"] = int(self.now + min(POLL_BACKOFF_FIRST * 2 ** min(checks, 32), POLL_BACKOFF_MAX))
+        job["pollBackoffs"] = checks + 1
+        self._grown.add(job_id)
+        self.save(route)
+
+    @staticmethod
+    def job_done(job: dict):
+        job.pop("nextPollAt", None)
+        job.pop("pollBackoffs", None)
 
     def client(self, publication: dict):
         endpoint = publication["appsyncEndpoint"]
@@ -1004,6 +1112,8 @@ class Router:
 
     def selected_references(self, source_ids=None) -> dict:
         """Only editor-imported References; never sweep receipt discoveries, feedback or procedures."""
+        if self.lab_paused():
+            return {"status": "stopped", "stoppedBy": "lab_backoff"}
         if source_ids is not None:
             if (not isinstance(source_ids, list) or not 1 <= len(source_ids) <= 20
                     or any(not isinstance(s, str) or not re.fullmatch(r"[a-f0-9]{64}", s) for s in source_ids)):
@@ -1357,10 +1467,16 @@ class Router:
                 raise
             if job_id:
                 stored["jobId"] = job_id
+                self._fresh.add(job_id)
                 self.save(route)
         if response is None:
+            if not self.job_due(stored):
+                raise JobRunning()   # still inside its own backoff: no call to the lab
             try:
                 response = self.cyclotron.poll_combined(stored["jobId"], wait=not self.nowait)
+            except JobRunning:
+                self.note_still_running(stored, route)
+                raise
             except BindingNotReady:
                 del route["combinedJob"]   # a pending output in the set: the per-publication path finds out which
                 self.save(route)
@@ -1442,13 +1558,19 @@ class Router:
                 raise
             if job_id:
                 jobs[pub_id]["jobId"] = job_id
+                self._fresh.add(job_id)
                 self.save(route)
             else:
                 jobs[pub_id]["checked"] = checked_decision(immediate, publication, self.config, item_id)
                 self.save(route)
                 return
+        if not self.job_due(jobs[pub_id]):
+            raise JobRunning()   # still inside its own backoff: no call to the lab
         try:
             response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
+        except JobRunning:
+            self.note_still_running(jobs[pub_id], route)
+            raise
         except BindingNotReady:
             del jobs[pub_id]   # nothing ran at the provider; the park decides when to ask again
             self.save(route)
@@ -1467,6 +1589,7 @@ class Router:
                 self.save(route)
             raise
         jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
+        self.job_done(jobs[pub_id])
         self.save(route)
 
     def check_rule(self, disc: dict) -> None:
@@ -1724,6 +1847,8 @@ class Router:
         """Post every candidate's job without waiting, then collect what finishes inside the collect window."""
         status, stopped = "complete", None
         errors: list = []
+        if self.lab_paused():
+            return self.paused_result()
         if self.config["mode"] == "live":
             self.retry_deferred()
         candidates = self.candidates()
@@ -1798,6 +1923,8 @@ class Router:
         """The collector task: poll the stored jobs, deliver the finished ones, post nothing."""
         if self.config["mode"] != "live" or self.config["decisions"] != "cyclotron":
             return {"status": "complete", "stoppedBy": None, "errors": [], "waitingForClassifier": []}
+        if self.lab_paused():
+            return self.paused_result()
         self.nowait, self.post_allowed = True, False
         errors: list = []
         pending = []
@@ -1805,7 +1932,8 @@ class Router:
             route = self.store.get_any(self.monitor_id, route_key(disc)) or {}
             if (route.get("combinedJob") or {}).get("jobId") or any(
                     job.get("jobId") and not job.get("checked") for job in (route.get("jobs") or {}).values()):
-                pending.append(disc)
+                pending.append((oldest_posted_at(route), disc))
+        pending = [disc for _, disc in sorted(pending, key=lambda pair: pair[0])]   # oldest job first; the first 429 ends the pass
         self.counts["examined"] = len(pending)
         status, stopped = "complete", None
         try:
@@ -1842,6 +1970,8 @@ class Router:
         result = {"status": "complete", "sent": 0, "pending": 0, "skipped": 0, "failed": 0, "stoppedBy": None}
         if self.config["mode"] != "live" or not self.config["feedback"]:
             return {**result, "status": "off"}
+        if self.lab_paused():
+            return {**result, "status": "stopped", "stoppedBy": "lab_backoff"}
         for row in self.store.query_partition(feedback_partition(self.monitor_id)):
             if self.time_left() < MIN_REMAINING_SECONDS:
                 result.update(status="stopped", stoppedBy="time_budget")
@@ -1916,12 +2046,19 @@ class Router:
         return "sent"
 
 
+def oldest_posted_at(route: dict) -> int:
+    posted = [int(job.get("postedAt", 0)) for job in [route.get("combinedJob") or {}, *(route.get("jobs") or {}).values()]
+              if job.get("jobId") and not job.get("checked")]
+    return min(posted) if posted else 0
+
+
 def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner: str | None = None,
                run_id: str | None = None, task: str | None = None, cyclotron: CyclotronClient | None = None,
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
-               start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None) -> dict:
+               start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
+               rung_job_ids=()) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -1937,10 +2074,11 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
-                        start_procedure=start_procedure, cognito=cognito)
+                        start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references") else router.feedback()
+        paused_until = router.settle_lab_backoff()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
                   "feedback": feedback, "errors": outcome.get("errors", []),
@@ -1949,7 +2087,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
             "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback,
-            "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "ttl": int(now + RECEIPT_TTL_SECONDS)})
+            "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"],
+            **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
     finally:
         store.release_router_lock(monitor_id, owner)
@@ -1978,7 +2117,7 @@ def parse_decision_event(event: dict) -> dict | None:
     return detail
 
 
-def handle_decision_ready(store, event, collect: Callable[[str], dict]) -> dict:
+def handle_decision_ready(store, event, collect: Callable[..., dict]) -> dict:
     """A doorbell: the event carries no decision. Run the collect task for every monitor whose router config is
     bound to the event's Account and run, then let `collect` fetch the answer with the signed GET as usual."""
     detail = parse_decision_event(event) if isinstance(event, dict) else None
@@ -1995,7 +2134,7 @@ def handle_decision_ready(store, event, collect: Callable[[str], dict]) -> dict:
             ignored += 1
             continue
         try:
-            collected[monitor_id] = collect(monitor_id).get("status")
+            collected[monitor_id] = collect(monitor_id, detail["jobId"]).get("status")
         except Exception as error:   # one monitor's failure must not stop the others or cause an EventBridge retry storm
             collected[monitor_id] = "error"
             print(json.dumps({"doorbell": "collect_failed", "monitorId": monitor_id, "error": short(error)}))
@@ -2014,8 +2153,9 @@ def handler(event, context):
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
     cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
     if is_decision_event(event):
-        return handle_decision_ready(store, event, lambda monitor_id: run_router(
-            store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter))
+        return handle_decision_ready(store, event, lambda monitor_id, job_id=None: run_router(
+            store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter,
+            rung_job_ids=[job_id]))
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
                         cognito=cognito, start_procedure=starter)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))

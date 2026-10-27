@@ -1695,7 +1695,7 @@ def decision_event(**detail):
 
 def ring(table, event, collected=None):
     calls = []
-    outcome = mr.handle_decision_ready(mr.RouterStore(table), event, lambda m: calls.append(m) or {"status": "complete"})
+    outcome = mr.handle_decision_ready(mr.RouterStore(table), event, lambda m, job=None: calls.append(m) or {"status": "complete"})
     return outcome, calls
 
 
@@ -1728,7 +1728,7 @@ def test_doorbell_drops_a_malformed_event_without_raising(table, event):
 
 def test_doorbell_survives_a_failing_collect(table):
     table.put_item(router_config())
-    def boom(m):
+    def boom(m, job=None):
         raise RuntimeError("down")
     assert mr.handle_decision_ready(mr.RouterStore(table), decision_event(), boom)["collected"] == {"hn": "error"}
 
@@ -1738,7 +1738,7 @@ def test_doorbell_duplicate_and_locked_monitor_are_harmless(table):
     cyclotron.polls_needed = 10_000
     run_with(table, store, cyclotron)
     cyclotron.polls_needed = 0
-    collect = lambda m: run_with(table, store, cyclotron, task="collect")
+    collect = lambda m, job=None: run_with(table, store, cyclotron, task="collect")
     first = mr.handle_decision_ready(store, decision_event(), collect)
     second = mr.handle_decision_ready(store, decision_event(), collect)
     assert first["collected"] == {"hn": "complete"} and second["collected"] == {"hn": "complete"}
@@ -1835,3 +1835,140 @@ def test_no_run_stops_for_a_ceiling_of_its_own(table3):
     table3.put_item(router_config(ceilings={"decisionsTotal": 1, "decisionsPerDay": 1, "items": 1}))
     result = go(table3, store, cyclotron)
     assert result["stoppedBy"] is None and result["counts"]["routed"] == 3
+
+
+# --- backing off from the lab ------------------------------------------------------------------------------
+
+BACKOFF_KEY = ("MONITOR#hn", "STATE#labBackoff")
+
+
+def lab_gets(cyclotron):
+    return [c for c in cyclotron.combined_calls if c[0] == "GET"]
+
+
+def waiting_jobs(table3, polls=10_000):
+    """Three stories posted and still running at the lab; returns the store and the fake lab."""
+    store, cyclotron = combined_setup(table3)
+    cyclotron.polls_needed = polls
+    run_with(table3, store, cyclotron, now=2000)
+    return store, cyclotron
+
+
+def test_parse_retry_after_reads_seconds_and_http_dates_and_ignores_junk():
+    assert mr.parse_retry_after("90") == 90 and mr.parse_retry_after(7) == 7
+    assert mr.parse_retry_after(None) is None and mr.parse_retry_after("soon") is None and mr.parse_retry_after("0") is None
+    assert 3500 < mr.parse_retry_after("Fri, 01 Jan 2100 00:00:00 GMT") and mr.parse_retry_after(True) is None
+
+
+def test_a_429_with_retry_after_pauses_every_lab_call_until_then(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (429, {"retryAfter": 90})
+    result = run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert result["stoppedBy"] == "http_429"
+    assert table3.items[BACKOFF_KEY]["until"] == 3090 and table3.items[BACKOFF_KEY]["retryAfter"] == 90
+    calls = len(cyclotron.combined_calls) + len(cyclotron.calls)
+    for task in ("collect", "route"):
+        paused = run_with(table3, store, cyclotron, now=3060, task=task)
+        assert paused["status"] == "stopped" and paused["stoppedBy"] == "lab_backoff"
+    assert len(cyclotron.combined_calls) + len(cyclotron.calls) == calls      # not one call while paused
+    cyclotron.combined_poll_override = None
+    cyclotron.polls_needed = 0
+    done = run_with(table3, store, cyclotron, now=3091, task="collect")
+    assert done["status"] == "complete" and BACKOFF_KEY not in table3.items   # the lab answered: the pause is cleared
+
+
+def test_a_429_without_retry_after_backs_off_exponentially_and_a_clean_run_resets_it(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (503, {})
+    run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert table3.items[BACKOFF_KEY]["until"] == 3060 and table3.items[BACKOFF_KEY]["strikes"] == 1
+    run_with(table3, store, cyclotron, now=3061, task="collect")
+    assert table3.items[BACKOFF_KEY]["until"] == 3061 + 120 and table3.items[BACKOFF_KEY]["strikes"] == 2
+    run_with(table3, store, cyclotron, now=3200, task="collect")
+    assert table3.items[BACKOFF_KEY]["until"] == 3200 + 240
+    cyclotron.combined_poll_override = None
+    run_with(table3, store, cyclotron, now=3500, task="collect")
+    assert BACKOFF_KEY not in table3.items
+    cyclotron.combined_poll_override = (429, {})
+    run_with(table3, store, cyclotron, now=4000, task="collect")
+    assert table3.items[BACKOFF_KEY]["until"] == 4060     # back to the first step
+
+
+def test_the_pause_is_capped_so_it_never_grows_without_bound(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (429, {})
+    now, waits = 3000, []
+    for _ in range(12):
+        run_with(table3, store, cyclotron, now=now, task="collect")
+        waits.append(int(table3.items[BACKOFF_KEY]["until"]) - now)
+        now = int(table3.items[BACKOFF_KEY]["until"]) + 1
+    assert waits[:6] == [60, 120, 240, 480, 960, 1800] and set(waits[5:]) == {mr.LAB_BACKOFF_MAX}
+
+
+def test_the_collector_stops_at_the_first_429_having_asked_about_the_oldest_job_first(table3):
+    store, cyclotron = waiting_jobs(table3)
+    cyclotron.combined_poll_override = (429, {})
+    seen = len(lab_gets(cyclotron))
+    result = run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert result["status"] == "stopped" and len(lab_gets(cyclotron)) == seen + 1     # one question, then the pass stops
+    jobs = [table3.items[("MONITOR#hn", f"ROUTE#{n}#000001")]["combinedJob"] for n in (101, 102, 103)]
+    assert lab_gets(cyclotron)[-1][1].endswith(min(jobs, key=lambda job: (job["postedAt"], job["jobId"]))["jobId"])
+    assert all("combinedJob" in table3.items[("MONITOR#hn", f"ROUTE#{n}#000001")] for n in (101, 102, 103))   # no job dropped
+
+
+def test_a_job_that_is_still_running_waits_longer_each_time_and_is_not_asked_inside_its_wait(table3):
+    store, cyclotron = waiting_jobs(table3)
+    route = lambda: table3.items[("MONITOR#hn", "ROUTE#101#000001")]["combinedJob"]
+    before = len(lab_gets(cyclotron))
+    run_with(table3, store, cyclotron, now=3000, task="collect")
+    assert route()["nextPollAt"] == 3030 and route()["pollBackoffs"] == 1
+    assert len(lab_gets(cyclotron)) == before + 3                      # each job asked once in the pass, not once per window round
+    run_with(table3, store, cyclotron, now=3010, task="collect")
+    assert len(lab_gets(cyclotron)) == before + 3                      # inside its wait: no calls at all
+    run_with(table3, store, cyclotron, now=3031, task="collect")
+    assert route()["nextPollAt"] == 3031 + 60 and route()["pollBackoffs"] == 2
+    for now in (3200, 3400, 3700, 4200, 5000, 6000):
+        run_with(table3, store, cyclotron, now=now, task="collect")
+    assert route()["nextPollAt"] - 6000 == mr.POLL_BACKOFF_MAX          # grows to the cap, never past it
+    assert mr.POLL_BACKOFF_MAX == mr.COLLECT_CADENCE_SECONDS * mr.POLL_BACKOFF_CADENCES
+
+
+def test_a_completed_job_is_delivered_and_its_backoff_is_cleared(table3):
+    store, cyclotron = waiting_jobs(table3)
+    run_with(table3, store, cyclotron, now=3000, task="collect")
+    cyclotron.polls_needed = 0
+    run_with(table3, store, cyclotron, now=3100, task="collect")
+    assert set(routing_of(table3).values()) == {"routed"}
+    for n in (101, 102, 103):
+        row = table3.items[("MONITOR#hn", f"ROUTE#{n}#000001")]
+        assert "combinedJob" not in row
+        assert all("nextPollAt" not in job and "pollBackoffs" not in job for job in row["jobs"].values())
+
+
+def test_a_decision_ready_doorbell_bypasses_the_wait_of_the_job_it_names(table3):
+    store, cyclotron = waiting_jobs(table3)
+    run_with(table3, store, cyclotron, now=3000, task="collect")
+    job = table3.items[("MONITOR#hn", "ROUTE#101#000001")]["combinedJob"]["jobId"]
+    seen = len(lab_gets(cyclotron))
+    run_with(table3, store, cyclotron, now=3005, task="collect", rung_job_ids=[job])
+    assert [c[1].rsplit("/", 1)[1] for c in lab_gets(cyclotron)[seen:]] == [job]
+
+
+def test_the_per_publication_path_backs_off_the_same_way(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.pending_polls = 10_000
+    go(table, store, cyclotron, now=2000)
+    run_with(table, store, cyclotron, now=3000, task="collect")
+    job = table.items[("MONITOR#hn", "ROUTE#101#000001")]["jobs"]["anth-us"]
+    assert job["nextPollAt"] == 3030
+    seen = len(cyclotron.calls)
+    run_with(table, store, cyclotron, now=3010, task="collect")
+    assert len(cyclotron.calls) == seen
+
+
+def test_feedback_posts_wait_for_the_pause_too(table):
+    store, cyclotron = setup_router(table, feedback=True)
+    table.put_item({"pk": "MONITOR#hn", "sk": "STATE#labBackoff", "until": 6000, "strikes": 1})
+    result = feedback_run(table, store, cyclotron, {}, now=5000)
+    assert result["feedback"]["status"] == "stopped" and result["feedback"]["stoppedBy"] == "lab_backoff"
+    assert cyclotron.calls == []
