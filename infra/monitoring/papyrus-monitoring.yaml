@@ -80,7 +80,14 @@ Parameters:
     Default: ""
     Description: Exact Cognito pools for configured publications where email sender membership is rechecked.
 
+  EmailReferenceMonitorId:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: Optional existing email partition whose editor-selected References need cloud predictions.
+
 Conditions:
+  HasEmailReferenceMonitor: !Not [!Equals [!Ref EmailReferenceMonitorId, ""]]
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
@@ -564,6 +571,25 @@ Resources:
             Condition:
               ArnEquals:
                 aws:SourceArn: !GetAtt DecisionReadyRule.Arn
+
+  EmailReferenceSchedule:
+    Condition: HasEmailReferenceMonitor
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-email-references
+      Description: Classify only References explicitly imported by editors from email receipts.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: !Sub '{"monitorId":"${EmailReferenceMonitorId}","task":"email-references"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
 
   RouterDataParadeIntakePolicy:
     Type: AWS::IAM::ManagedPolicy

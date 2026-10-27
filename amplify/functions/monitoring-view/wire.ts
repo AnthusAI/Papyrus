@@ -28,6 +28,7 @@ export function monitoringViewParameterArn(region: string, account: string): str
 export function wireMonitoringView(backend: any, emailMonitorId = "hn"): void {
   const lambda = backend.monitoringView.resources.lambda as LambdaFunction;
   const stack = Stack.of(lambda);
+  lambda.addEnvironment("PAPYRUS_USER_POOL_ISSUER", `https://cognito-idp.${stack.region}.amazonaws.com/${backend.auth.resources.userPool.userPoolId}`);
   lambda.addEnvironment("PAPYRUS_GRAPHQL_ENDPOINT", backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string);
   lambda.addEnvironment("PAPYRUS_MONITORING_TABLE_PARAMETER", MONITORING_TABLE_PARAMETER);
   lambda.addEnvironment("PAPYRUS_EMAIL_MONITOR_ID", emailMonitorId);

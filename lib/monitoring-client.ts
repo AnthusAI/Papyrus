@@ -10,7 +10,7 @@ import type {
   MonitoringResult,
 } from "./monitoring-overview";
 
-type QueryField = "monitoringOverview" | "monitoringEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences";
+type QueryField = "monitoringOverview" | "monitoringEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences" | "monitoringQueueEmailReference";
 type GraphQLResult = { data?: Partial<Record<QueryField, unknown>>; errors?: { message?: string; errorType?: string }[] };
 
 async function query<T>(field: QueryField, queryText: string, variables: Record<string, string | number>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
@@ -74,10 +74,19 @@ export async function importMonitoringEmailCandidates(
     } catch {
       return { imported: references.length, references, error: "The import response could not be read. Completed links are safe to retry." };
     }
-    if (!response?.ok || !Array.isArray(response.references)) {
+    if (!response?.ok || !Array.isArray(response.references) || response.references.length !== batch.length) {
       return { imported: references.length, references, error: "The import was not accepted. Check your editor access and retry." };
     }
     references.push(...response.references);
+    for (const [index, reference] of response.references.entries()) {
+      const queued = await query<{ queued: boolean }>("monitoringQueueEmailReference",
+        `mutation MonitoringQueueEmailReference($input: AWSJSON!) { monitoringQueueEmailReference(input: $input) }`,
+        { input: JSON.stringify({ receiptId, ...batch[index], referenceId: reference.id }) });
+      if (!("queued" in queued) || !queued.queued) {
+        return { imported: references.length, references,
+          error: "References were registered, but predictions could not be queued. Retry these selected links safely." };
+      }
+    }
   }
   return { imported: references.length, references };
 }
