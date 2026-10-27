@@ -1,7 +1,8 @@
 """Native Google/Cognito user sessions; IAM remains the explicit operator lane.
 
-Only the OS credential store holds renewable secrets. Public selection metadata
-lets child CLI/Tactus processes choose the same publication without token argv/env.
+Only the OS credential store holds renewable secrets. A registry of public site
+metadata lets child CLI/Tactus processes pick the signed-in site that owns a GraphQL
+endpoint without token argv/env. Many sites can be signed in at once.
 """
 from __future__ import annotations
 
@@ -29,11 +30,12 @@ class AuthError(ValueError):
 
 
 class OAuthError(AuthError):
-    def __init__(self, code: str, *, transient: bool = False):
+    def __init__(self, code: str, *, transient: bool = False, site: str | None = None):
         self.code = code
         self.transient = transient
+        login = 'papyrus login' + (f' {site}' if site else '')
         super().__init__("Sign-in provider temporarily unavailable; retry later." if transient else
-                         "Newsroom session expired or was revoked; run `papyrus login`.")
+                         f"Newsroom session expired or was revoked; run `{login}`.")
 
 
 def _https(value: str, label: str, *, origin: bool = False) -> None:
@@ -96,7 +98,25 @@ def state_dir() -> Path:
 
 
 def selection_path() -> Path:
+    # Historic file name: it held one selected publication; it now holds the registry of signed-in sites.
     return state_dir()/'user-session.json'
+
+
+def site_host(config: AuthConfig) -> str:
+    return urllib.parse.urlsplit(config.publication).netloc
+
+
+def normalize_site(value: str) -> str:
+    """A site given as `shipped.anth.us` or `https://shipped.anth.us/` becomes its HTTPS origin."""
+    text = (value or '').strip()
+    if '://' not in text:
+        text = 'https://'+text
+    try:
+        _https(text, 'site', origin=True)
+    except AuthError:
+        raise AuthError('Site must be a host name such as shipped.anth.us or an https origin with no path, query or credentials.') from None
+    parts = urllib.parse.urlsplit(text)
+    return 'https://'+parts.netloc.lower()
 
 
 def load_config(path: str | Path) -> AuthConfig:
@@ -104,30 +124,151 @@ def load_config(path: str | Path) -> AuthConfig:
         data = json.loads(Path(path).read_text())
         return AuthConfig(**data)
     except (OSError, TypeError, json.JSONDecodeError):
-        raise AuthError('No valid native OAuth configuration. Ask the publication owner to configure a native client; use `papyrus login --config <public-config.json>`.') from None
+        raise AuthError('No valid native OAuth configuration. Ask the publication owner to configure a native client; use `papyrus login <site>` or `papyrus login --config <public-config.json>`.') from None
 
 
-def save_selection(config: AuthConfig) -> None:
+@contextmanager
+def _registry_lock():
+    try:
+        import fcntl
+    except ImportError:
+        raise AuthError('Process-safe user-session locking is currently supported on macOS and Linux.') from None
+    try:
+        fd = os.open(state_dir()/'registry.lock', os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+    except OSError:
+        raise AuthError('Unable to open the private CLI session lock; check directory permissions.') from None
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    except OSError:
+        raise AuthError('Unable to lock the CLI session registry safely; retry after checking directory permissions.') from None
+    finally:
+        os.close(fd)
+
+
+def load_registry() -> list[AuthConfig]:
+    """Public metadata of every site the CLI has been signed in to (signed-out sites stay listed)."""
+    path = selection_path()
+    if path.is_symlink():
+        raise AuthError('CLI session registry must not be a symlink.')
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text())
+        # A pre-registry file held one config at the top level; read it as a one-site registry.
+        entries = data['sites'] if isinstance(data, dict) and 'sites' in data else [data]
+        configs = [AuthConfig(**entry) for entry in entries]
+    except (OSError, TypeError, KeyError, ValueError):
+        raise AuthError('CLI session registry is unreadable; sign in again with `papyrus login <site>`.') from None
+    return configs
+
+
+def _write_registry(configs: list[AuthConfig]) -> None:
     path = selection_path()
     temporary = path.with_name('selection-'+secrets.token_hex(8))
     try:
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as handle:
-            json.dump(asdict(config), handle)
+            json.dump({'version': 2, 'sites': [asdict(config) for config in configs]}, handle)
         os.replace(temporary, path)
     except OSError:
-        raise AuthError('Unable to save public CLI session selection; check directory permissions.') from None
+        raise AuthError('Unable to save public CLI session registry; check directory permissions.') from None
     finally:
         temporary.unlink(missing_ok=True)
 
 
+def save_selection(config: AuthConfig) -> None:
+    """Add or update a site in the registry. Public metadata only; also migrates a pre-registry file."""
+    with _registry_lock():
+        sites = load_registry()
+        for other in sites:
+            if other.publication != config.publication and other.graphql_endpoint == config.graphql_endpoint:
+                raise AuthError(f'GraphQL endpoint is already registered for {site_host(other)}; refusing to register it for {site_host(config)}. '
+                                f'Run `papyrus logout {site_host(other)}` first if that site really moved.')
+        _write_registry([other for other in sites if other.publication != config.publication]+[config])
+
+
+def registered_site(site: str) -> AuthConfig:
+    origin = normalize_site(site)
+    for config in load_registry():
+        if config.publication == origin:
+            return config
+    raise AuthError(f'Not signed in to {origin[len("https://"):]}; run `papyrus login {origin[len("https://"):]}`.')
+
+
+DISCOVERY_PATH = '/.well-known/papyrus-cli.json'
+DISCOVERY_MAX_BYTES = 16*1024
+_PUBLIC_FIELDS = {'publication', 'issuer', 'client_id', 'oauth_domain', 'graphql_endpoint', 'callback_uri'}
+_OPTIONAL_FIELDS = {'refresh_lifetime_seconds'}
+
+
+def discover(site: str, *, opener=None) -> AuthConfig:
+    """Fetch a site's public login values: HTTPS only, no redirects, size-capped, strict schema."""
+    origin = normalize_site(site)
+    host = origin[len('https://'):]
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    opener = opener or urllib.request.build_opener(NoRedirect())
+    request = urllib.request.Request(origin+DISCOVERY_PATH, headers={'Accept':'application/json'})
+    try:
+        with opener.open(request, timeout=15) as response:
+            raw = response.read(DISCOVERY_MAX_BYTES+1)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            raise AuthError(f'{host} does not publish CLI login (no native CLI client is configured for it). '
+                            'Ask the site owner to enable it, or use `papyrus login --config <public-config.json>`.') from None
+        raise AuthError(f'{host} did not serve its CLI login metadata (HTTP {error.code}); redirects are refused.') from None
+    except (OSError, urllib.error.URLError, ValueError):
+        raise AuthError(f'Could not reach {host} to read its CLI login metadata; check the name and your connection.') from None
+    invalid = AuthError(f'{host} published invalid CLI login metadata; nothing was saved.')
+    if len(raw) > DISCOVERY_MAX_BYTES:
+        raise invalid
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise invalid from None
+    if not isinstance(data, dict) or not _PUBLIC_FIELDS <= set(data) or set(data) - _PUBLIC_FIELDS - _OPTIONAL_FIELDS:
+        raise invalid
+    try:
+        config = AuthConfig(**data)
+    except (AuthError, TypeError):
+        raise invalid from None
+    if config.publication != origin:
+        raise AuthError(f'{host} published login metadata for a different publication; nothing was saved.')
+    return config
+
+
 def resolve_config(path: str | Path | None = None, publication: str | None = None) -> AuthConfig:
+    """One config from an explicit file, the environment, the registry (when unambiguous) or ./.papyrus."""
     configured = path or os.environ.get('PAPYRUS_CLI_AUTH_CONFIG')
-    selected = selection_path()
-    config = load_config(configured or (selected if selected.exists() else Path.cwd()/'.papyrus'/'cli-auth.json'))
+    if configured:
+        config = load_config(configured)
+    else:
+        sites = load_registry()
+        if publication:
+            sites = [site for site in sites if site.publication == publication.rstrip('/')] or sites
+        if len(sites) > 1:
+            raise AuthError('Several sites are signed in ('+', '.join(site_host(site) for site in sites)+'); name one, e.g. `papyrus whoami '+site_host(sites[0])+'`.')
+        config = sites[0] if sites else load_config(Path.cwd()/'.papyrus'/'cli-auth.json')
     if publication and publication.rstrip('/') != config.publication.rstrip('/'):
         raise AuthError('Selected publication does not match native OAuth configuration; use its own --config file.')
     return config
+
+
+def config_for_endpoint(endpoint: str) -> AuthConfig:
+    """The signed-in site whose GraphQL endpoint this is; never a site for a different endpoint."""
+    if os.environ.get('PAPYRUS_CLI_AUTH_CONFIG'):
+        return resolve_config()
+    sites = load_registry()
+    if not sites:
+        return resolve_config()
+    matches = [site for site in sites if site.graphql_endpoint == endpoint]
+    if not matches:
+        raise AuthError(f'No signed-in Papyrus site uses GraphQL endpoint {endpoint}. Signed in: '+', '.join(site_host(site) for site in sites)
+                        +'. Run `papyrus login <site>` for the site that owns this endpoint, '
+                        'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for it instead.')
+    return matches[0]
 
 
 def user_auth_requested() -> bool:
@@ -289,7 +430,7 @@ class Session:
     def _record(self):
         raw = self.store.get(self.config.key)
         if raw is None:
-            raise AuthError('No newsroom session for this publication; run `papyrus login`.')
+            raise AuthError(f'No newsroom session for {site_host(self.config)}; run `papyrus login {site_host(self.config)}`.')
         try:
             record = json.loads(raw)
             if (not isinstance(record.get('refresh_token'), str) or not record['refresh_token']
@@ -301,7 +442,7 @@ class Session:
                 raise ValueError()
             return record
         except (KeyError, ValueError, AttributeError, TypeError):
-            raise AuthError('Stored newsroom session is invalid; run `papyrus login` to replace it.') from None
+            raise AuthError(f'Stored newsroom session is invalid; run `papyrus login {site_host(self.config)}` to replace it.') from None
 
     def _consume(self, response, old=None):
         try:
@@ -344,7 +485,7 @@ class Session:
 
     def headers(self, endpoint):
         if endpoint != self.config.graphql_endpoint:
-            raise AuthError('GraphQL endpoint does not match the signed-in publication; select its own login configuration, '
+            raise AuthError('GraphQL endpoint does not match the signed-in publication; log in to the site that owns it, '
                             'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for this endpoint instead.')
         with session_lock(self.config):
             record = self._record()  # Check even with a cached access token: local logout must win.
@@ -358,7 +499,7 @@ class Session:
                     if error.code == 'invalid_grant':
                         self.store.delete(self.config.key)
                         self._token = None
-                    raise
+                    raise OAuthError(error.code, transient=error.transient, site=site_host(self.config)) from None
                 self._consume(response, record)
             return {'content-type':'application/json', 'Authorization':self._token}
 
@@ -408,7 +549,42 @@ def session_for(config):
 def selected_headers(endpoint):
     if not user_auth_requested():
         return None
-    return session_for(resolve_config()).headers(endpoint)
+    return session_for(config_for_endpoint(endpoint)).headers(endpoint)
+
+
+def _login_targets(args) -> list[AuthConfig]:
+    targets: list[AuthConfig] = []
+    if args.config or args.publication or not (args.sites or args.all):
+        targets.append(resolve_config(args.config, args.publication))
+    targets += [discover(site) for site in args.sites]
+    if args.all:
+        targets += load_registry()
+    return list({config.publication: config for config in targets}.values())
+
+
+def _existing_targets(args, *, all_by_default: bool) -> list[AuthConfig]:
+    if args.config or args.publication:
+        return [resolve_config(args.config, args.publication)]
+    if args.sites:
+        return [registered_site(site) for site in args.sites]
+    sites = load_registry()
+    if sites and (args.all or all_by_default):
+        return sites
+    return [resolve_config()]  # One signed-in site, or an actionable "name a site" error.
+
+
+def _run_each(targets, action) -> int:
+    failed = False
+    for config in targets:
+        try:
+            result = action(config)
+        except AuthError as error:
+            if len(targets) == 1:
+                raise
+            failed = True
+            result = {'publication': config.publication, 'error': str(error)}
+        print(json.dumps(result, sort_keys=True))
+    return 1 if failed else 0
 
 
 def command(arguments: list[str]) -> int:
@@ -416,24 +592,29 @@ def command(arguments: list[str]) -> int:
     commands = parser.add_subparsers(dest='action', required=True)
     for name in ('login', 'logout', 'whoami'):
         sub = commands.add_parser(name)
+        sub.add_argument('sites', nargs='*', metavar='site', help='host such as shipped.anth.us, or an https origin')
+        sub.add_argument('--all', action='store_true', help='every site in the registry')
         sub.add_argument('--config')
         sub.add_argument('--publication')
     auth = commands.add_parser('auth')
     auth.add_argument('operation', choices=['status'])
+    auth.add_argument('sites', nargs='*', metavar='site')
+    auth.add_argument('--all', action='store_true')
     auth.add_argument('--config')
     auth.add_argument('--publication')
     args = parser.parse_args(arguments)
-    config = resolve_config(args.config, args.publication)
-    session = session_for(config)
     if args.action == 'login':
-        result = session.login()
-        save_selection(config)
-    elif args.action == 'logout':
-        result = session.logout()
-    elif args.action == 'whoami':
-        session.headers(config.graphql_endpoint)  # Renew normally, without AWS SSO.
-        result = session.status()
-    else:
-        result = session.status()
-    print(json.dumps(result, sort_keys=True))
-    return 0
+        def log_in(config):
+            result = session_for(config).login()
+            save_selection(config)
+            return result
+        return _run_each(_login_targets(args), log_in)
+    targets = _existing_targets(args, all_by_default=args.action != 'logout')
+    if args.action == 'logout':
+        return _run_each(targets, lambda config: session_for(config).logout() | {'publication': config.publication})
+    def whoami(config):
+        session = session_for(config)
+        if args.action == 'whoami':
+            session.headers(config.graphql_endpoint)  # Renew normally, without AWS SSO.
+        return session.status()
+    return _run_each(targets, whoami)

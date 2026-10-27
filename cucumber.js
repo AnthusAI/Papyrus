@@ -23,6 +23,11 @@ module.exports = {
     require: ["features/step_definitions/reference-editor.steps.js"],
     format: ["summary"],
   },
+  cliLoginDiscovery: {
+    paths: ["features/cli-login-discovery.feature"],
+    require: ["features/step_definitions/cli-login-discovery.steps.js"],
+    format: ["summary"],
+  },
   referenceEditorLayout: {
     paths: ["features/newsroom-reference-editor-layout.feature"],
     require: ["features/step_definitions/reference-editor.steps.js"],

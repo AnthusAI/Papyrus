@@ -26,6 +26,7 @@ import {
 } from "./revalidate-invalidation-settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
+import { addCliNativeClient, cliLoginRefreshLifetimeSeconds } from "./auth/cli-native-client";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient } from "./auth/prospectus-google-client";
 import { defineSiteData } from "./data/resource";
 import { editorialChecks } from "./functions/editorial-checks/resource";
@@ -162,6 +163,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const prospectusGoogleOnlyClient = authConfig.disableGoogleOAuth === true
     ? undefined
     : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig));
+
+  const cliNativeClient = authConfig.disableGoogleOAuth === true || authConfig.cliLogin === undefined
+    ? undefined
+    : addCliNativeClient(backend.auth.stack, backend.auth.resources.userPool, authConfig.cliLogin);
 
   const amplifyBackendDir = dirname(fileURLToPath(import.meta.url));
   // Repo root in a Papyrus checkout; package root when installed from npm.
@@ -742,6 +747,13 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
           : null,
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
+        : null,
+      cliLogin: cliNativeClient && authConfig.cliLogin
+        ? {
+            clientId: cliNativeClient.ref,
+            callbackUri: authConfig.cliLogin.callbackUri,
+            refreshLifetimeSeconds: cliLoginRefreshLifetimeSeconds(authConfig.cliLogin),
+          }
         : null,
       inboundEmail: enableInboundEmail
         ? {
