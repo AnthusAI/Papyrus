@@ -32,3 +32,8 @@ Feature: Reach private chat from a phone newsroom
     When the editor opens private chat from mobile navigation
     Then the panel explains the setup blocker below its header
     And checking again refreshes access without granting it or sending a message
+
+  Scenario: Compile the navigation icon dependency in publication consumers
+    Given mobile navigation uses the existing icon package
+    When the publication transpilation configuration is checked
+    Then icon source exports are transpiled alongside the shared chat packages

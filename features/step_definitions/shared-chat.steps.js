@@ -2,6 +2,14 @@ const assert = require("node:assert/strict");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
 const { Given, When, Then } = require("@cucumber/cucumber");
+Given("mobile navigation uses the existing icon package", function () {});
+When("the publication transpilation configuration is checked", async function () {
+  const result = await promisify(execFile)(process.execPath, ["scripts/test-with-papyrus-transpile.mjs"]);
+  this.transpilationResult = result.stdout;
+});
+Then("icon source exports are transpiled alongside the shared chat packages", function () {
+  assert.ok(this.transpilationResult.includes("with-papyrus transpile tests passed"));
+});
 Given("Papyrus supplies an editorial conversation to the shared chat", function () {});
 for (const [action, mode] of [
   ["the editor sends a new console message", "send"],
