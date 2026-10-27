@@ -13,6 +13,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -40,6 +41,15 @@ def decision(row, score=0.9, label="include"):
             "subjectLineageId": row["lineageId"], "score": score, "confidence": score, "createdAt": "2026-10-22T00:00:00Z",
             "metadata": json.dumps({"label": label, "positiveLabel": "include", "cyclotronId": "example-site-relevance", "decidedAt": "2026-10-22T00:00:00Z"})}
 
+
+
+
+class FixedClock(datetime):
+    """The CLI reads the wall clock; the fixtures are dated, so the CLI tests run at NOW."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return NOW if tz is None else NOW.astimezone(tz)
 
 class MonitorClient(FakeClient):
     """A backend with monitored References. ``incoming`` maps a Reference lineage to its provenance relations, ``relations`` to its own (the verdict)."""
@@ -421,6 +431,7 @@ class CommandTests(unittest.TestCase):
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
              mock.patch.object(commands.monitor_stories, "fetch_html", side_effect=lambda url: PAGE), \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", **(environment or {})}), \
+             mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
              redirect_stdout(out), redirect_stderr(err):
             code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", *argv])
         return code, out.getvalue() + err.getvalue()
