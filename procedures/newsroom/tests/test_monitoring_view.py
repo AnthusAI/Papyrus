@@ -537,3 +537,40 @@ def test_appsync_dispatch_missing_unknown_or_conflicting_field_reads_nothing(dis
     with patch.object(mv, "default_store_factory", side_effect=AssertionError("must not open storage")), \
          patch.object(mv, "monitoring_overview", side_effect=AssertionError("must not read overview")):
         assert mv.handle(request, env={}) == {"error": "bad_request"}
+
+
+def test_branded_tracking_legacy_receipt_is_unresolved_without_mutating_storage():
+    import json
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "pending_review"
+    details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
+    link = {"url": "https://news.example.org/ss/c/u001.synthetic-Recipient.Route", "title": "Article"}
+    original = json.dumps([link])
+    store.table[details_key]["json"] = original
+    result = mv.monitoring_email_submission(store, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                                           receipt_id=receipt_id)
+    assert result["candidateLinks"] == [{**link, "resolutionStatus": "unresolved"}]
+    assert store.table[details_key]["json"] == original
+    calls = []
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/article")
+    assert calls == [link["url"]]
+    assert result["url"] == "https://news.example.org/article"
+
+
+def test_tracking_failure_logs_only_safe_reason_without_recipient_url(caplog):
+    from papyrus_content.email_submission import RedirectResolutionError
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = json.dumps([
+        {"url": "https://link.mail.beehiiv.com/ss/c/private-recipient", "title": "Article"}])
+    def reject(_url):
+        raise RedirectResolutionError("redirect_target_unsafe")
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=reject)
+    assert result == {"error": "resolution_failed", "reason": "redirect_target_unsafe"}
+    assert "redirect_target_unsafe" in caplog.text
+    assert "private-recipient" not in caplog.text and "https://" not in caplog.text

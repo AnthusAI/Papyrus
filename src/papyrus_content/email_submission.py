@@ -99,7 +99,7 @@ def safe_editorial_url(raw: str) -> str | None:
                 or labels[-1] in {"local", "localhost", "internal", "test", "invalid", "onion"}
                 or any(label in {"click", "clicks", "track", "tracking", "pixel"} for label in labels[:-1])):
             return None
-        if host == "link.mail.beehiiv.com" and parts.path.startswith("/ss/c/"):
+        if parts.path.startswith("/ss/c/"):
             return None
         try:
             ipaddress.ip_address(host)
@@ -146,14 +146,15 @@ class RedirectResolutionError(ValueError):
         super().__init__(code)
 
 
-def is_supported_beehiiv_tracking_url(raw: str) -> bool:
-    """Recognize only the known HTTPS Beehiiv click wrapper; do not fetch it."""
+def is_supported_email_tracking_url(raw: str) -> bool:
+    """Recognize HTTPS Beehiiv or branded SendGrid wrappers without fetching them."""
     if not isinstance(raw, str) or len(raw) > MAX_URL_LENGTH or _CONTROL.search(raw) or "\\" in raw:
         return False
     try:
         parts = urlsplit(unescape(raw.strip()))
         host = (parts.hostname or "").rstrip(".").encode("idna").decode("ascii").lower()
-        if (parts.scheme.lower() != "https" or host != "link.mail.beehiiv.com"
+        if (parts.scheme.lower() != "https" or safe_editorial_url("https://" + host + "/") is None
+                or not (host == "link.mail.beehiiv.com" or re.fullmatch(r"/ss/c/u001\.[A-Za-z0-9_.-]+", parts.path))
                 or parts.username or parts.password or parts.port not in {None, 443}
                 or not parts.path.startswith("/ss/c/")):
             return False
@@ -169,6 +170,17 @@ def is_supported_beehiiv_tracking_url(raw: str) -> bool:
         return True
     except (ValueError, UnicodeError):
         return False
+
+
+def normalize_email_candidate(link: dict) -> dict:
+    """Keep legacy wrappers private without changing candidate order or storage."""
+    return ({**link, "resolutionStatus": "unresolved"}
+            if is_supported_email_tracking_url(link.get("url", "")) else dict(link))
+
+
+def is_supported_beehiiv_tracking_url(raw: str) -> bool:
+    """Compatibility predicate restricted to the original Beehiiv host."""
+    return is_supported_email_tracking_url(raw) and urlsplit(raw).hostname == "link.mail.beehiiv.com"
 
 
 def _public_dns_addresses(host: str, resolve_host, timeout: float) -> tuple[str, ...]:
@@ -199,7 +211,7 @@ def _response_header(headers, name: str):
                  if isinstance(key, str) and key.lower() == name.lower()), None)
 
 
-def resolve_beehiiv_tracking_url(raw: str, *, resolve_host, request, clock=None) -> str:
+def resolve_email_tracking_url(raw: str, *, resolve_host, request, clock=None) -> str:
     """Resolve one supported wrapper using an explicitly supplied, pinned transport.
 
     This function has no default DNS resolver or HTTP client and is not used by the
@@ -209,7 +221,7 @@ def resolve_beehiiv_tracking_url(raw: str, *, resolve_host, request, clock=None)
     verification/SNI, avoid ambient proxies/cookies, disable redirects, use HEAD,
     and read no response body. Every hop is re-resolved and validated before use.
     """
-    if not is_supported_beehiiv_tracking_url(raw):
+    if not is_supported_email_tracking_url(raw):
         raise RedirectResolutionError("redirect_source_not_supported")
     clock = clock or time.monotonic
     started = clock()
@@ -267,6 +279,13 @@ def resolve_beehiiv_tracking_url(raw: str, *, resolve_host, request, clock=None)
         if redirects == 0:
             raise RedirectResolutionError("redirect_destination_missing")
         return final_url
+
+
+def resolve_beehiiv_tracking_url(raw: str, *, resolve_host, request, clock=None) -> str:
+    """Compatibility entry point restricted to the original supported provider."""
+    if not is_supported_beehiiv_tracking_url(raw):
+        raise RedirectResolutionError("redirect_source_not_supported")
+    return resolve_email_tracking_url(raw, resolve_host=resolve_host, request=request, clock=clock)
 
 
 class _Links(HTMLParser):
@@ -448,7 +467,7 @@ def extract_submission(raw: bytes, *, tracking_resolver=None) -> dict:
             warnings.add("excluded_links")
             excluded_count += 1
             continue
-        if is_supported_beehiiv_tracking_url(raw_url):
+        if is_supported_email_tracking_url(raw_url):
             if tracking_resolver is None:
                 # Preserve the publisher's original click wrapper as private,
                 # unresolved source material. Never dereference subscriber URLs
