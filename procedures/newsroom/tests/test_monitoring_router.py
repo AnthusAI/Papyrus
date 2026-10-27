@@ -124,6 +124,7 @@ class FakeCyclotron:
         self.combined_post_override = None    # (status, body) for POST /machine/decisions
         self.combined_poll_override = None    # (status, body) for GET /machine/decisions/{job}
         self.combined_entry_override = {}     # pub -> entry replacing that publication's receipt
+        self.combined_poll_queue = []         # one-shot (status, body) answers to GET /machine/decisions/{job}, first in first out
 
     def combined(self, method, path, data):
         if not self.combined_enabled:
@@ -135,6 +136,8 @@ class FakeCyclotron:
             self.combined_jobs[job] = (sorted(data["payload"]["bindings"]), data["payload"]["item"]["id"])
             return 202, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": job,
                          "status": "accepted", "bindings": data["payload"]["bindings"]}
+        if self.combined_poll_queue:
+            return self.combined_poll_queue.pop(0)
         if self.combined_poll_override:
             return self.combined_poll_override
         if self.pending_polls:
@@ -1209,6 +1212,96 @@ def test_combined_run_busy_defers_without_repeating_the_post(table, where):
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
+def post_ids(cyclotron, item="hn-101"):
+    return [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST" and c[2]["payload"]["item"]["id"] == item]
+
+
+def test_combined_job_records_the_run_and_binding_it_was_posted_under(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.pending_polls = 1
+    assert go(table, store, cyclotron)["status"] in ("awaiting", "complete")
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    holder = route.get("combinedJob") or next(iter(route["jobs"].values()))
+    assert (holder["runId"], holder["bindingRevision"]) == ("run-1", "1")
+
+
+def leave_job_pending(table, store, cyclotron):
+    """Run once against a lab that never finishes, so the story keeps its recorded job."""
+    cyclotron.pending_polls = 10_000
+    state = {"t": 0}
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    ticking = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http,
+                              sleep=lambda s: state.__setitem__("t", state["t"] + s), clock=lambda: state["t"])
+    result = run_router(store, "hn", now=2000, cyclotron=ticking, appsync=lambda e: object(), deliver=Delivery(),
+                        context_receipt=lambda c, p: {})
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+    return result
+
+
+def stale_combined_job(table, store, cyclotron, **marker):
+    """Leave the story holding a real combined job, then rewrite it as posted under another run / binding."""
+    leave_job_pending(table, store, cyclotron)
+    job = table.items[("MONITOR#hn", "ROUTE#101#000001")]["combinedJob"]
+    for key in ("runId", "bindingRevision"):
+        job.pop(key, None)
+    job.update(marker)
+    if not marker:
+        job["requestId"] = "stale-request-id-0"
+    cyclotron.pending_polls, cyclotron.combined_calls = 0, []
+    return job["jobId"]
+
+
+@pytest.mark.parametrize("marker", [{"runId": "run-0", "bindingRevision": "0"}, {"runId": "run-1", "bindingRevision": "0"}, {}])
+def test_a_combined_job_from_an_earlier_run_is_reposted_without_polling_it(table, marker):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    old = stale_combined_job(table, store, cyclotron, **marker)
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert not any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
+    assert len(post_ids(cyclotron)) == 1
+
+
+def test_a_404_on_a_stored_combined_job_reposts_once_in_the_same_run(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    stale_combined_job(table, store, cyclotron, runId="run-1", bindingRevision="1")
+    cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"})]
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(post_ids(cyclotron)) == 1
+
+
+def test_a_repeated_404_errors_only_that_story_and_the_run_continues(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=2)
+    cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"}), (404, {"detail": "Not Found"})]
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and not result.get("stoppedBy")
+    assert len(post_ids(cyclotron)) + len(post_ids(cyclotron, "hn-102")) == 3   # first story twice, the next story once
+    states = routing_of(table)
+    assert sorted(states.values()).count("error") == 1 and "routed" in states.values()
+
+
+def test_a_404_on_a_stored_single_publication_job_reposts_once_and_a_repeat_errors_the_story(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    cyclotron.poll_override["p-apyr-us"] = (404, {"detail": "Not Found"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and not result.get("stoppedBy")
+    assert routing_of(table)["DISC#101#000001"] == "error"
+    assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "p-apyr-us"]) == 2   # posted, then re-posted once
+
+
+def test_a_single_publication_job_from_an_earlier_run_is_reposted(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    leave_job_pending(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    old = route["jobs"]["anth-us"]["jobId"]
+    route["jobs"]["anth-us"].update(runId="run-0", bindingRevision="0")
+    cyclotron.pending_polls, cyclotron.calls = 0, []
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert not any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.calls)
+    assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "anth-us"]) == 1
+
+
 def test_combined_503_provider_key_unavailable_retries_under_a_new_request_id(table):
     store, cyclotron = combined_setup(table)
     cyclotron.combined_poll_override = (503, {"code": "provider_key_unavailable"})
@@ -1432,3 +1525,91 @@ def test_the_template_schedules_the_collector_on_the_router_function_without_new
     assert schedule["Target"]["Arn"] == resources["RouteSchedule"]["Properties"]["Target"]["Arn"]
     assert schedule["Target"]["RoleArn"] == resources["RouteSchedule"]["Properties"]["Target"]["RoleArn"]
     assert json.loads(schedule["Target"]["Input"]) == {"monitorId": "hn", "task": "collect"}
+
+
+# --- decision-ready doorbell --------------------------------------------------------------------
+
+def decision_event(**detail):
+    base = {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": "job-1",
+            "requestId": "req-1", "itemId": "hn-101", "publications": [], "status": "complete"}
+    return {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": base | detail}
+
+
+def ring(table, event, collected=None):
+    calls = []
+    outcome = mr.handle_decision_ready(mr.RouterStore(table), event, lambda m: calls.append(m) or {"status": "complete"})
+    return outcome, calls
+
+
+def test_doorbell_collects_every_configured_monitor_for_the_run(table):
+    table.put_item(router_config())
+    table.put_item(router_config() | {"pk": "MONITOR#ttab"})
+    outcome, calls = ring(table, decision_event())
+    assert calls == ["hn", "ttab"] and outcome["status"] == "collected"
+
+
+def test_doorbell_ignores_an_old_run_or_other_account(table):
+    table.put_item(router_config())
+    assert ring(table, decision_event(runId="run-0"))[1] == []
+    outcome, calls = ring(table, decision_event(accountId="acct-2"))
+    assert calls == [] and outcome["status"] == "ignored" and outcome["ignoredMonitors"] == 1
+
+
+@pytest.mark.parametrize("event", [
+    None, {}, {"source": "other", "detail-type": "Decision Ready", "detail": {}},
+    {"source": "cyclotron.lab", "detail-type": "Other", "detail": {}},
+    {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": "x"},
+    decision_event(runId=""), decision_event(jobId=5), decision_event(status="weird"),
+    decision_event(contractVersion="v0"), decision_event(publications="x"),
+    {k: v for k, v in decision_event().items() if k != "detail"}])
+def test_doorbell_drops_a_malformed_event_without_raising(table, event):
+    table.put_item(router_config())
+    outcome, calls = ring(table, event)
+    assert outcome["status"] == "malformed" and calls == []
+
+
+def test_doorbell_survives_a_failing_collect(table):
+    table.put_item(router_config())
+    def boom(m):
+        raise RuntimeError("down")
+    assert mr.handle_decision_ready(mr.RouterStore(table), decision_event(), boom)["collected"] == {"hn": "error"}
+
+
+def test_doorbell_duplicate_and_locked_monitor_are_harmless(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.polls_needed = 10_000
+    run_with(table, store, cyclotron)
+    cyclotron.polls_needed = 0
+    collect = lambda m: run_with(table, store, cyclotron, task="collect")
+    first = mr.handle_decision_ready(store, decision_event(), collect)
+    second = mr.handle_decision_ready(store, decision_event(), collect)
+    assert first["collected"] == {"hn": "complete"} and second["collected"] == {"hn": "complete"}
+    assert set(routing_of(table).values()) == {"routed"}
+    assert store.acquire_router_lock("hn", "route-run", 2100)
+    assert mr.handle_decision_ready(store, decision_event(), collect)["collected"] == {"hn": "locked"}
+
+
+def test_scheduled_events_are_not_decision_events():
+    assert not mr.is_decision_event({"monitorId": "hn", "task": "collect"}) and not mr.is_decision_event({})
+    assert mr.is_decision_event(decision_event())
+
+
+def test_template_bus_policy_names_only_the_cyclotron_worker_and_source():
+    template, parameters = _template()["Resources"], _template()["Parameters"]
+    policy = template["CyclotronDecisionsBusPolicy"]["Properties"]["Statement"]
+    assert policy["Principal"] == {"AWS": ("Ref", "CyclotronWorkerRoleArn")}
+    assert policy["Action"] == "events:PutEvents" and policy["Effect"] == "Allow"
+    assert policy["Condition"] == {"StringEquals": {"events:source": "cyclotron.lab"}}
+    assert parameters["CyclotronWorkerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime"
+    assert template["CyclotronDecisionsBus"]["Properties"]["Name"] == "papyrus-cyclotron-decisions"
+
+
+def test_template_rule_targets_the_router_with_a_permission_scoped_to_it():
+    template, parameters = _template()["Resources"], _template()["Parameters"]
+    rule = template["DecisionReadyRule"]["Properties"]
+    assert rule["EventPattern"] == {"source": ["cyclotron.lab"], "detail-type": ["Decision Ready"]}
+    target = rule["Targets"][0]
+    assert target["Arn"] == ("GetAtt", "RouterFunction.Arn") and "Input" not in target and "InputTransformer" not in target
+    assert target["DeadLetterConfig"]["Arn"] == ("GetAtt", "RouterDeadLetterQueue.Arn") and target["RetryPolicy"]
+    permission = template["DecisionReadyInvokePermission"]["Properties"]
+    assert permission["Principal"] == "events.amazonaws.com" and permission["SourceArn"] == ("GetAtt", "DecisionReadyRule.Arn")

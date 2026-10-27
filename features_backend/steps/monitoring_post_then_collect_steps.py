@@ -176,3 +176,76 @@ def step_per_publication(context):
 @then("the run ends stopped because Cyclotron is busy")
 def step_stopped(context):
     assert context.result["status"] == "stopped" and context.result["stoppedBy"] == "run_busy"
+
+
+# --- decision-ready doorbell ---------------------------------------------------------------------
+
+def decision_event(**detail):
+    return tr.decision_event(**detail)
+
+
+def ring(context, event):
+    from papyrus_content import monitoring_router as mr
+
+    context.rings = getattr(context, "rings", [])
+    context.rings.append(mr.handle_decision_ready(
+        context.store, event, lambda monitor_id: tr.run_with(context.table_, context.store, context.cyclotron, now=2200, deliver=context.delivery, task="collect")))
+    context.outcome = context.rings[-1]
+
+
+@given("the lab has answered every job")
+def step_answered(context):
+    context.cyclotron.polls_needed = 0
+
+
+@when("a decision-ready event arrives for the router's Account and run")
+@when("the same decision-ready event arrives again")
+def step_ring(context):
+    ring(context, decision_event())
+
+
+@when("a decision-ready event arrives for an old run")
+def step_ring_old(context):
+    ring(context, decision_event(runId="run-0"))
+
+
+@when("a malformed decision-ready event arrives")
+def step_ring_bad(context):
+    ring(context, {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": {"runId": 5}})
+
+
+@when("a scheduled collect event arrives")
+def step_scheduled(context):
+    from papyrus_content import monitoring_router as mr
+
+    context.is_decision = mr.is_decision_event({"monitorId": "hn", "task": "collect"})
+
+
+@then("the doorbell collected the monitor")
+def step_collected_monitor(context):
+    assert context.outcome["status"] == "collected" and context.outcome["collected"]["hn"] == "complete"
+
+
+@then("the doorbell ignored the event")
+def step_ignored(context):
+    assert context.outcome["status"] == "ignored" and context.outcome["collected"] == {}
+
+
+@then("the doorbell dropped the event as malformed")
+def step_malformed(context):
+    assert context.outcome["status"] == "malformed"
+
+
+@then("the doorbell found the monitor locked")
+def step_doorbell_locked(context):
+    assert context.outcome["collected"] == {"hn": "locked"}
+
+
+@then("each story was delivered to each publication only once")
+def step_once(context):
+    assert len(context.delivery.calls) == 9
+
+
+@then("it is not treated as a decision-ready event")
+def step_not_decision(context):
+    assert context.is_decision is False

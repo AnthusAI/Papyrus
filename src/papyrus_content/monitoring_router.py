@@ -125,6 +125,11 @@ class CombinedUnavailable(Exception):
     """The Cyclotron deployment has no POST /machine/decisions (404): decide per publication instead."""
 
 
+class JobGone(Exception):
+    """Polling a stored job answered 404: the lab no longer knows it (for example after a run cutover).
+    The router discards the stored job and re-posts once; it is never a run-stopping event."""
+
+
 class AllBindingsNotReady(Exception):
     """Every binding for the item is waiting for a classifier: nothing to decide or deliver yet."""
 
@@ -540,6 +545,8 @@ class CyclotronClient:
                 status, payload = 0, {}
             if status == 200 and isinstance(payload.get("publications"), dict):
                 return payload
+            if status == 404:
+                raise JobGone()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -572,6 +579,8 @@ class CyclotronClient:
                 status, payload = 0, {}
             if status == 200 and payload.get("decision"):
                 return payload
+            if status == 404:
+                raise JobGone()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -1150,7 +1159,19 @@ class Router:
         self.counts["decided"] += 1
 
 
-    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str) -> list[dict]:
+    def posted_under(self) -> dict:
+        """The run and binding revision a job is being posted under, stored with it."""
+        cyclotron = self.config["cyclotron"]
+        return {"runId": cyclotron["runId"], "bindingRevision": cyclotron["bindingRevision"]}
+
+    def job_is_stale(self, stored: dict, expected_request_id: str) -> bool:
+        """A stored job posted under an earlier run or binding revision (after a Cyclotron cutover)."""
+        current = self.posted_under()
+        if "runId" in stored or "bindingRevision" in stored:
+            return any(stored.get(key) != value for key, value in current.items())
+        return stored.get("requestId") != expected_request_id
+
+    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str, reposted: bool = False) -> list[dict]:
         """One POST /machine/decisions for the story's unchecked bindings, one poll loop, then each publication's
         receipt is checked and stored under `jobs` exactly as a per-publication decide would. Returns the
         publications that still need the per-publication path (no combined endpoint, a pending output
@@ -1160,6 +1181,11 @@ class Router:
             return todo
         if not stored and (len(todo) < 2 or self.combined_unavailable):
             return todo
+        if stored and todo and self.job_is_stale(stored, build_combined_request(
+                self.config, todo, disc, int(route.get("attempt", 0)))["body"]["requestId"]):
+            del route["combinedJob"]   # posted under an earlier run: its id is unknown to the lab now, re-post
+            self.save(route)
+            return self.decide_combined(todo, disc, route, item_id, reposted)
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
         if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
@@ -1170,7 +1196,8 @@ class Router:
                 return todo   # the collector sends nothing; stored per-publication jobs are still polled
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
-                                             "publications": list(built["body"]["payload"]["bindings"])}
+                                             "publications": list(built["body"]["payload"]["bindings"]),
+                                             **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
@@ -1195,6 +1222,12 @@ class Router:
                 del route["combinedJob"]   # a pending output in the set: the per-publication path finds out which
                 self.save(route)
                 return todo
+            except JobGone:
+                del route["combinedJob"]
+                self.save(route)
+                if reposted:
+                    raise ItemInvalid("lab does not know the job posted for this story (404 after a re-post)")
+                return self.decide_combined(todo, disc, route, item_id, True)
             except StopSweep as stop:
                 if stop.code in NON_CONSUMING_REFUSALS:
                     del route["combinedJob"]
@@ -1217,7 +1250,7 @@ class Router:
                 if not isinstance(entry, dict) or not entry.get("decision"):
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
-                                "jobId": stored["jobId"],
+                                "jobId": stored["jobId"], **self.posted_under(),
                                 "checked": checked_decision(entry, publication, self.config, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
@@ -1232,7 +1265,7 @@ class Router:
             raise failure
         return remaining
 
-    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str) -> None:
+    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str, reposted: bool = False) -> None:
         validate_email_discovery_scope(disc, self.config)
         jobs = route.setdefault("jobs", {})
         pub_id = publication["publicationId"]
@@ -1240,6 +1273,10 @@ class Router:
         job = jobs.get(pub_id)
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
+        if job and self.job_is_stale(job, built["body"]["requestId"]):
+            del jobs[pub_id]   # posted under an earlier run or binding: re-post under the current one
+            self.save(route)
+            return self.decide_binding(publication, disc, route, item_id, reposted)
         if job and job.get("requestId") != built["body"]["requestId"]:
             raise ItemInvalid("stored job belongs to a different request")
         if job and job.get("jobId"):
@@ -1250,7 +1287,7 @@ class Router:
         else:
             if not self.post_allowed:
                 raise NotPosting()
-            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now)}
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
@@ -1273,6 +1310,12 @@ class Router:
             del jobs[pub_id]   # nothing ran at the provider; the park decides when to ask again
             self.save(route)
             raise
+        except JobGone:
+            del jobs[pub_id]
+            self.save(route)
+            if reposted:
+                raise ItemInvalid("lab does not know the job posted for this publication (404 after a re-post)")
+            return self.decide_binding(publication, disc, route, item_id, True)
         except StopSweep as stop:
             if stop.code in NON_CONSUMING_REFUSALS:
                 # Nothing ran at the provider. Drop the refused job and use a new request id next time.
@@ -1740,6 +1783,56 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         store.release_router_lock(monitor_id, owner)
 
 
+DOORBELL_MONITORS = ("hn", "huggingface", "ttab")   # monitors that may carry a CONFIG#router item
+DECISION_SOURCE, DECISION_DETAIL_TYPE = "cyclotron.lab", "Decision Ready"
+DECISION_FIELDS = ("accountId", "runId", "jobId", "requestId", "itemId")
+
+
+def is_decision_event(event) -> bool:
+    return isinstance(event, dict) and ("detail-type" in event or "source" in event) and "monitorId" not in event
+
+
+def parse_decision_event(event: dict) -> dict | None:
+    """The validated detail of a Decision Ready event, or None. Never raises: a bad event is dropped, not retried."""
+    detail = event.get("detail")
+    if event.get("source") != DECISION_SOURCE or event.get("detail-type") != DECISION_DETAIL_TYPE or not isinstance(detail, dict):
+        return None
+    if detail.get("contractVersion") != CONTRACT_VERSION or detail.get("status") not in ("complete", "failed"):
+        return None
+    if any(not isinstance(detail.get(key), str) or not detail[key].strip() for key in DECISION_FIELDS):
+        return None
+    if not isinstance(detail.get("publications"), list):
+        return None
+    return detail
+
+
+def handle_decision_ready(store, event, collect: Callable[[str], dict]) -> dict:
+    """A doorbell: the event carries no decision. Run the collect task for every monitor whose router config is
+    bound to the event's Account and run, then let `collect` fetch the answer with the signed GET as usual."""
+    detail = parse_decision_event(event) if isinstance(event, dict) else None
+    if detail is None:
+        print(json.dumps({"doorbell": "malformed"}))
+        return {"status": "malformed", "collected": {}}
+    collected, ignored = {}, 0
+    for monitor_id in DOORBELL_MONITORS:
+        raw = store.get_router_config(monitor_id)
+        cyclotron = (raw or {}).get("cyclotron") if isinstance((raw or {}).get("cyclotron"), dict) else None
+        if cyclotron is None:
+            continue
+        if cyclotron.get("accountId") != detail["accountId"] or cyclotron.get("runId") != detail["runId"]:
+            ignored += 1
+            continue
+        try:
+            collected[monitor_id] = collect(monitor_id).get("status")
+        except Exception as error:   # one monitor's failure must not stop the others or cause an EventBridge retry storm
+            collected[monitor_id] = "error"
+            print(json.dumps({"doorbell": "collect_failed", "monitorId": monitor_id, "error": short(error)}))
+    status = "collected" if collected else "ignored"
+    print(json.dumps({"doorbell": status, "jobId": detail["jobId"], "requestId": detail["requestId"],
+                      "collected": collected, "ignoredMonitors": ignored}))
+    return {"status": status, "collected": collected, "ignoredMonitors": ignored}
+
+
 def handler(event, context):
     """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"}` limits the pass (operator debugging)."""
     import boto3  # provided by the Lambda runtime
@@ -1747,8 +1840,11 @@ def handler(event, context):
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
+    cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
+    if is_decision_event(event):
+        return handle_decision_ready(store, event, lambda monitor_id: run_router(
+            store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter))
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining,
-                        cognito=boto3.client("cognito-idp"),
-                        start_procedure=lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION")))
+                        cognito=cognito, start_procedure=starter)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}
