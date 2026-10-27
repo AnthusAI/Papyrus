@@ -177,7 +177,7 @@
     "release:dry-run": "semantic-release --dry-run --no-ci",
     "test:verify-packages": "node scripts/test-verify-packages.mjs",
     "check:consumer-site-typecheck": "node scripts/check-consumer-site-typecheck.mjs",
-    "test:newsroom-organizer": "node --import tsx scripts/test-newsroom-organizer-nav.ts && node --import tsx scripts/test-newsroom-section-routing.ts && node --import tsx scripts/test-newsroom-board.ts && node --import tsx scripts/test-editor-override.ts",
+    "test:newsroom-organizer": "node --import tsx scripts/test-newsroom-organizer-nav.ts && node --import tsx scripts/test-newsroom-masthead-logo.ts && node --import tsx scripts/test-newsroom-section-routing.ts && node --import tsx scripts/test-newsroom-board.ts && node --import tsx scripts/test-editor-override.ts",
     "test:shared-chat": "node node_modules/@cucumber/cucumber/bin/cucumber.js --config cucumber-shared-chat.cjs",
     "test:shared-chat-admission": "node --experimental-strip-types scripts/test-shared-chat-admission.ts",
     "test:papyrus-chat-admission": "node scripts/run-papyrus-chat-admission-test.mjs",

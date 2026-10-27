@@ -5,10 +5,15 @@
    carries the brand mark. Override a token here, scoped like
    `:root[data-site-brand="anth-us"] [data-kanbus-theme] { --kb-theme-accent: ... }`, to retune the theme.
    Light and dark both follow the editor's mode setting; the theme's dark palette is complete. */
-:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand {
+:root[data-site-brand="anth-us"] .newsroom-organizer :is(.organizer-brand, .organizer-masthead) {
   --logo-tile: #f9c9e1;
   --logo-glyph: #1b1426;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand {
   display: block;
+}
+:root[data-site-brand="anth-us"] .newsroom-organizer .organizer-masthead-logo {
+  height: 30px;
 }
 :root[data-site-brand="anth-us"] .newsroom-organizer .organizer-brand-logo {
   display: block;
