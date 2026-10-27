@@ -1,8 +1,7 @@
 "use client";
 
+import { Hub } from "aws-amplify/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { connectNewsroomChat } from "../lib/newsroom-chat-client";
-import { loadProspectusAccountState, selectProspectusAccount, type ProspectusAccountState } from "../lib/prospectus-account-client";
 import { PapyrusConsoleConversation, type ConsoleConversationMessage } from "./papyrus-console-conversation";
 import {
   listPapyrusPrivateChatMessages,
@@ -30,9 +29,6 @@ function failureMessage(error: unknown): string {
 export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   const [channel, setChannel] = useState<PapyrusPrivateChatChannel | null>(null);
   const [messages, setMessages] = useState<PapyrusPrivateChatMessage[]>([]);
-  const [accountState, setAccountState] = useState<ProspectusAccountState | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [connectionNotice, setConnectionNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,18 +51,13 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   const handleFailure = useCallback(async (nextError: unknown) => {
     const failure = failureMessage(nextError);
     setError(failure);
-    if (["sign_in_required", "chat_identity_connection_required", "publishing_account_required", "chat_account_access_denied"].includes(failure)) {
-      const generation = ++identityGeneration.current;
+    if (["sign_in_required", "chat_account_access_denied"].includes(failure)) {
+      ++identityGeneration.current;
       setChannel(null);
       setMessages([]);
-      setAccountState(null);
       retryAttempt.current = null;
       setSending(false);
       setLoading(false);
-      if (failure === "publishing_account_required") {
-        const state = await loadProspectusAccountState(window.location.pathname);
-        if (generation === identityGeneration.current) setAccountState(state);
-      }
     }
   }, []);
 
@@ -94,13 +85,15 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   }, [handleFailure, refreshMessages]);
 
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("sign_in_error");
-    if (code) setConnectionNotice(code === "newsroom_identity_mismatch"
-      ? "The selected Google account did not match your newsroom session. Connect again with the same account."
-      : "The publishing-account connection did not complete. You can safely try again.");
     void openConversation();
     return () => { identityGeneration.current += 1; };
   }, [openConversation]);
+
+  useEffect(() => Hub.listen("auth", ({ payload }) => {
+    if (["signedOut", "signedIn", "tokenRefresh_failure"].includes(payload.event)) {
+      void handleFailure(new Error("sign_in_required"));
+    }
+  }), [handleFailure]);
 
   useEffect(() => {
     if (!channel || !isWaitingForReply) return;
@@ -146,54 +139,16 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     }
   }, [channel, handleFailure, sending]);
 
-  const connect = async () => {
-    setConnecting(true);
-    try {
-      const returnUrl = new URL(window.location.href);
-      returnUrl.searchParams.delete("sign_in_error");
-      const target = await connectNewsroomChat(`${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`);
-      window.location.assign(target);
-    } catch (nextError) {
-      setError(failureMessage(nextError));
-      setConnecting(false);
-    }
-  };
-  const chooseAccount = async (accountId: string) => {
-    setConnecting(true);
-    try {
-      const result = await selectProspectusAccount(accountId);
-      if ("error" in result) { setError(result.error); return; }
-      setAccountState(null);
-      await openConversation();
-    } catch (nextError) { setError(failureMessage(nextError)); }
-    finally { setConnecting(false); }
-  };
-
   return <div className="papyrus-console__panel">
     <header className="papyrus-console__header">
       <p className="papyrus-console__header-label">Private chat</p>
       <button className="papyrus-console__close" onClick={onClose} type="button" aria-label="Close console">×</button>
     </header>
-    {channel ? <p className="papyrus-console__empty" role="status">Private conversation for your selected Account.</p> : null}
+    {channel ? <p className="papyrus-console__empty" role="status">Private conversation for this newsroom.</p> : null}
     {!channel && !loading ? <div className="papyrus-console__access" role="alert">
-      {error === "chat_identity_connection_required" ? <>
-        <strong>Connect your publishing account</strong>
-        {connectionNotice ? <span>{connectionNotice}</span> : null}
-        <span>Continue with the same Google account you use in the newsroom, then choose the Account for this private conversation.</span>
-        <button className="papyrus-console__new-session" disabled={connecting} onClick={() => void connect()} type="button">{connecting ? "Connecting…" : "Connect publishing account"}</button>
-      </> : accountState?.status === "signedIn" ? <>
-        <strong>{accountState.publishingAccounts.length === 0 ? "Chat access is unavailable" : "Choose your publishing Account"}</strong>
-        {accountState.publishingAccounts.length === 0 ? <>
-          <span>None of your Accounts is enabled for this publication. Publication setup must be resolved before you can chat.</span>
-          <span>You can return to the newsroom while this is resolved. Check again after access has been corrected.</span>
-          <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Check again</button>
-        </> : accountState.publishingAccounts.map(account => <button className="papyrus-console__new-session" disabled={connecting} key={account.accountId} onClick={() => void chooseAccount(account.accountId)} type="button">{account.name ?? account.accountId}</button>)}
-        {error !== "publishing_account_required" ? <span>{error}</span> : null}
-      </> : <>
-        <strong>Private chat could not be opened.</strong>
-        <span>{error === "sign_in_required" ? "Your newsroom session has expired. Return to the newsroom and sign in from the account menu, then retry." : error === "chat_account_access_denied" ? "Your access to this conversation has changed. Retry to check your current access." : error === "publishing_account_required" ? "Publishing Account access could not be checked. Retry when your connection is available." : error}</span>
-        <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Retry</button>
-      </>}
+      <strong>Private chat could not be opened.</strong>
+      <span>{error === "sign_in_required" ? "Your newsroom session has expired. Return to the newsroom and sign in from the account menu, then retry." : error === "chat_account_access_denied" ? "Your access to this conversation has changed. Retry to check your current access." : error}</span>
+      <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Retry</button>
       <button className="papyrus-console__new-session" onClick={onClose} type="button">Back to newsroom</button>
     </div> : <PapyrusConsoleConversation
       messages={conversationMessages}
@@ -202,7 +157,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
       onSendMessage={sendMessage}
       error={error}
       emptyState={loading ? <p className="papyrus-console__empty">Opening private conversation…</p> : (
-        <p className="papyrus-console__empty">This conversation is private to your selected Account and editor session.</p>
+        <p className="papyrus-console__empty">This conversation is private to you in this newsroom.</p>
       )}
     />}
   </div>;

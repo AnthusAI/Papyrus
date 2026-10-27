@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { SignJWT, exportJWK, generateKeyPair } from "jose";
 import { SimpleJwksCache } from "aws-jwt-verify/jwk";
 import { NextRequest } from "next/server";
+import { handlePapyrusHostedChatRequest } from "../lib/papyrus-hosted-chat";
 import { newsroomChatIdentityResolver } from "../lib/newsroom-chat-identity";
 import { createNewsroomChatFetch } from "../lib/newsroom-chat-client";
 import { handleProspectusSignInStart, handleProspectusSignInCallback } from "../lib/prospectus-sign-in-routes";
@@ -19,12 +20,21 @@ async function main() {
   const resolve = newsroomChatIdentityResolver({ user_pool_id: pool, user_pool_client_id: "newsroom-client" }, cache);
   const request = (token: string) => new NextRequest("https://publication.example/api/auth/prospectus/sign-in?newsroomChat=true&returnTo=%2Fnewsroom%2Fnotifications", { method: "POST", headers: { authorization: `Bearer ${token}`, origin: "https://publication.example" } });
   const token = await sign();
-  assert.deepEqual(await resolve(request(token)), { subject: "editor-a" });
+  assert.equal((await resolve(request(token)))?.subject, "editor-a");
+  assert.equal((await resolve(request(token)))?.issuer, issuer);
   for (const claims of [{ client_id: "other-client" }, { token_use: "id" }, { "cognito:groups": ["reader"] }, { "cognito:groups": [] }]) assert.equal(await resolve(request(await sign(claims))), null);
   assert.equal(await resolve(request(await sign({}, "https://untrusted.example"))), null);
   const expired = await new SignJWT({ sub: "editor-a", token_use: "access", client_id: "newsroom-client", "cognito:groups": ["editor"] }).setProtectedHeader({ alg: "RS256", kid: "fixture" }).setIssuer(issuer).setExpirationTime(1).sign(privateKey);
   assert.equal(await resolve(request(expired)), null);
   assert.equal(await resolve(request(`${token.slice(0, -20)}aaaaaaaaaaaaaaaaaaaa`)), null);
+
+  let privateLoads = 0;
+  const gatewayOptions = { privateChatEnabled: true, environment: { PAPYRUS_CHAT_SESSION_BUCKET: "signed-fixture-bucket", PAPYRUS_CHAT_MESSAGING_TABLE: "signed-fixture-table" }, resolveNewsroomIdentity: resolve, resolvePrivateDependencies: async () => { privateLoads += 1; return null; } };
+  const gateway = (jwt: string) => handlePapyrusHostedChatRequest(new NextRequest("https://publication.example/api/newsroom/chat/channels/example/messages", { headers: { authorization: `Bearer ${jwt}` } }), ["channels", "example", "messages"], gatewayOptions);
+  assert.equal((await gateway(token)).status, 503, "a real verified newsroom JWT reaches storage without any Prospectus session");
+  assert.equal(privateLoads, 1);
+  for (const invalid of [expired, await sign({ client_id: "other-client" }), await sign({ "cognito:groups": ["reader"] }), await sign({}, "https://untrusted.example")]) assert.equal((await gateway(invalid)).status, 401);
+  assert.equal(privateLoads, 1, "invalid JWTs never access private storage");
 
   const secret = "synthetic-newsroom-session-secret-at-least-32-bytes";
   let resolutions = 0;

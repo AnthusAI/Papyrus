@@ -12,6 +12,8 @@ const fixtureColors = process.env.PAPYRUS_CHAT_TEST_THEME === "dark" ? "--paper-
 const bundle = await build({
   entryPoints: [fileURLToPath(new URL(mobile ? "./fixtures/mobile-chat-frame.tsx" : "./fixtures/private-chat-panel.tsx", import.meta.url))],
   plugins: [{ name: "synthetic-newsroom-session", setup(builder) {
+    builder.onResolve({ filter: /^aws-amplify\/utils$/ }, () => ({ path: "utils", namespace: "synthetic" }));
+    builder.onLoad({ filter: /^utils$/, namespace: "synthetic" }, () => ({ contents: `export const Hub = { listen: (_, fn) => { window.testAuthEvent = event => fn({ payload: { event } }); return () => {}; } };`, loader: "js" }));
     builder.onResolve({ filter: /^aws-amplify\/auth$/ }, () => ({ path: "auth", namespace: "synthetic" }));
     builder.onLoad({ filter: /.*/, namespace: "synthetic" }, () => ({ contents: `export async function fetchAuthSession() { return { tokens: { accessToken: { toString: () => "synthetic-newsroom-token" } } }; }`, loader: "js" }));
   } }],
@@ -22,13 +24,10 @@ const bundle = await build({
   jsx: "automatic",
   define: { "process.env.NODE_ENV": '"development"', "process.env": "{}" },
 });
-let selected = false;
 let expired = false;
 const requests = [];
 const messages = mode === "mobile" ? Array.from({ length: 35 }, (_, index) => ({ message_id: `fixture-${index}`, channel_id: "private-channel", seq: index + 1, author_kind: "bot", body: `Synthetic scroll test message ${index + 1}. This is local fixture content.`, created_at: "2026-10-24T00:00:00.000Z" })) : [];
 let sendCount = 0;
-let accountChecks = 0;
-let selectionCount = 0;
 const server = createServer(async (request, response) => {
   if (request.url === "/app.js") {
     response.setHeader("Content-Type", "text/javascript");
@@ -45,31 +44,7 @@ const server = createServer(async (request, response) => {
     response.end(`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column;${fixtureColors};--kb-theme-ui-font:Arial,sans-serif;--kb-theme-title-font:Georgia,serif;background:rgb(var(--paper-rgb))}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>`);
     return;
   }
-  if (request.url === "/api/auth/prospectus/session") {
-    accountChecks += 1;
-    response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ signedIn: true, publishingAccounts: mode === "no-account" && accountChecks === 1 ? [] : [{ accountId: "account-1", name: "Test publication", role: "editor" }], selectedAccountId: null }));
-    return;
-  }
-  if (request.url === "/api/auth/prospectus/selection" && request.method === "POST") {
-    selectionCount += 1;
-    let body = "";
-    for await (const chunk of request) body += chunk;
-    assert.deepEqual(JSON.parse(body), { accountId: "account-1" });
-    selected = true;
-    response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ selectedAccountId: "account-1", role: "editor" }));
-    return;
-  }
-  if (request.url?.startsWith("/api/auth/prospectus/sign-in?")) {
-    assert.equal(new URL(request.url, "https://fixture.example").searchParams.get("returnTo"), "/");
-    assert.equal(request.method, "POST");
-    assert.equal(request.headers.authorization, "Bearer synthetic-newsroom-token");
-    response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ authorizationUrl: "/connected" }));
-    return;
-  }
-  if (request.url === "/connected") { response.end("Identity connection started"); return; }
+  if (request.url?.startsWith("/api/auth/prospectus/")) throw new Error("Private chat must not request Prospectus connection or account access");
   if (!request.url?.startsWith("/api/newsroom/chat/")) {
     response.writeHead(404).end();
     return;
@@ -83,18 +58,13 @@ const server = createServer(async (request, response) => {
     response.end(JSON.stringify(payload));
   };
   if (request.url === "/api/newsroom/chat/private-channel" && request.method === "POST") {
-    if (mode === "connection" || mode === "no-account" || (mode === "selection" && !selected)) {
-      response.writeHead(409, { "content-type": "application/json" });
-      response.end(JSON.stringify({ error: mode === "connection" ? "chat_identity_connection_required" : "publishing_account_required" }));
-      return;
-    }
     respond({ channel_id: "private-channel", participants: [{ kind: "human", actor_id: "server-editor" }, { kind: "bot", actor_id: "papyrus-assistant" }] });
     return;
   }
   if (request.url === "/api/newsroom/chat/channels/private-channel/messages" && request.method === "GET") {
     if (mode === "poll-expiry" && messages.length > 0) {
-      response.writeHead(409, { "content-type": "application/json" });
-      response.end(JSON.stringify({ error: "chat_identity_connection_required" }));
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "sign_in_required" }));
       return;
     }
     respond({ messages });
@@ -103,8 +73,8 @@ const server = createServer(async (request, response) => {
   if (request.url === "/api/newsroom/chat/channels/private-channel/messages" && request.method === "POST") {
     if (mode === "send-expiry" && !expired) {
       expired = true;
-      response.writeHead(409, { "content-type": "application/json" });
-      response.end(JSON.stringify({ error: "publishing_account_required" }));
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: "sign_in_required" }));
       return;
     }
     sendCount += 1;
@@ -150,48 +120,23 @@ try {
     const { verifyMobileChat } = await import("./verify-mobile-chat.mjs");
     await verifyMobileChat(page, `http://127.0.0.1:${server.address().port}`);
     assert.deepEqual(errors, []);
-  } else if (mode === "no-account") {
-    await page.getByText("Chat access is unavailable", { exact: true }).waitFor();
-    assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0);
-    assert.equal(await page.getByRole("alert").filter({ hasText: "Chat access is unavailable" }).evaluate(el => {
-      const r = el.getBoundingClientRect();
-      return r.y < 120 && getComputedStyle(el).textAlign !== "center" && !el.textContent.includes("Ask the Account owner");
-    }), true);
-    if (process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR) await page.screenshot({ path: `${process.env.PAPYRUS_CHAT_TEST_ARTIFACT_DIR}/mobile-chat-access.png` });
-    await page.getByRole("button", { name: "Check again", exact: true }).click();
-    await page.getByRole("button", { name: "Test publication", exact: true }).waitFor();
-    assert.equal(accountChecks, 2);
-    assert.equal(selectionCount, 0);
-    assert.equal(sendCount, 0);
-    await page.getByRole("button", { name: "Back to newsroom", exact: true }).click();
-    await page.getByRole("dialog").waitFor({ state: "hidden" });
-    assert.deepEqual(errors, []);
-    console.log("PASS: unavailable Account state is readable, retry refreshes access without granting or sending, and return navigation works");
-  } else if (mode === "connection") {
-    await page.getByText("The selected Google account did not match your newsroom session. Connect again with the same account.").waitFor();
-    await page.getByRole("button", { name: "Connect publishing account" }).click();
-    await page.getByText("Identity connection started").waitFor();
-    assert.equal(sendCount, 0);
-    assert.deepEqual(errors, []);
-    console.log("PASS: newsroom identity connection is actionable without creating a message");
   } else {
-  if (mode === "selection") await page.getByRole("button", { name: "Test publication" }).click();
-  await page.getByText("Private conversation for your selected Account.").waitFor();
+  await page.getByText("Private conversation for this newsroom.").waitFor();
   const input = page.getByRole("textbox", { name: "Message input" });
   await input.fill("First private message");
   await input.press("Enter");
   if (mode === "send-expiry") {
-    await page.getByRole("button", { name: "Test publication" }).waitFor();
+    await page.getByRole("button", { name: "Retry", exact: true }).waitFor();
     assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0, "expired conversation is unmounted");
     assert.equal(await page.getByText("First private message", { exact: true }).count(), 0);
-    await page.getByRole("button", { name: "Test publication" }).click();
-    await page.getByText("Private conversation for your selected Account.").waitFor();
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await page.getByText("Private conversation for this newsroom.").waitFor();
     await page.getByRole("textbox", { name: "Message input" }).fill("First private message");
     await page.getByRole("textbox", { name: "Message input" }).press("Enter");
   }
   await page.getByText("First private message", { exact: true }).waitFor();
   if (mode === "poll-expiry") {
-    await page.getByRole("button", { name: "Connect publishing account" }).waitFor();
+    await page.getByRole("button", { name: "Retry", exact: true }).waitFor();
     assert.equal(await page.getByText("First private message", { exact: true }).count(), 0, "a failed reauthorization removes the old transcript");
     assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0);
     assert.deepEqual(errors, []);
@@ -210,7 +155,7 @@ try {
   assert.equal(sendCount, 2, "each deliberate send reaches the private adapter exactly once");
   const channelRequests = requests.filter((request) => request.url.endsWith("/private-channel"));
   const sendRequests = requests.filter((request) => request.method === "POST" && request.url.endsWith("/messages"));
-  assert.equal(channelRequests.length, ["selection", "send-expiry"].includes(mode) ? 2 : 1);
+  assert.equal(channelRequests.length, mode === "send-expiry" ? 2 : 1);
   assert.equal(sendRequests.length, mode === "send-expiry" ? 3 : 2);
   if (mode === "send-expiry") assert.notEqual(sendRequests[0].headers["idempotency-key"], sendRequests[1].headers["idempotency-key"], "identity recovery discards the old retry scope");
   for (const request of [...channelRequests, ...sendRequests]) {
@@ -222,6 +167,18 @@ try {
     const payload = JSON.parse(request.body);
     assert.deepEqual(Object.keys(payload), ["body"], "the browser sends no tenant, editor or bot identity");
     assert.ok(request.headers["idempotency-key"]);
+  }
+  if (mode === "identity-change") {
+    await page.evaluate(() => window.testAuthEvent("signedOut"));
+    await page.getByRole("button", { name: "Retry", exact: true }).waitFor();
+    assert.equal(await page.getByText("Private runtime reply", { exact: true }).count(), 0);
+    assert.equal(await page.getByRole("textbox", { name: "Message input" }).count(), 0);
+    await page.evaluate(() => window.testAuthEvent("signedIn"));
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await page.getByText("Private runtime reply", { exact: true }).waitFor();
+    await page.reload();
+    await page.getByText("Private runtime reply", { exact: true }).waitFor();
+    assert.equal(sendCount, 2, "sign-in retry and reload do not replay sends");
   }
   assert.deepEqual(errors, []);
   console.log("PASS: shared UI sends through the private host route once, preserves pending-reply sends, and renders the reply");
