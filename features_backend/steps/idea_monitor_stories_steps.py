@@ -21,6 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 from ideas_fixtures import CORPUS, NOW, reference  # noqa: E402
 from papyrus_content.ideas import commands, monitor_stories  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
+from pdf_fixtures import make_pdf  # noqa: E402
 from test_monitor_stories import PAGE, MonitorClient, StoryModel, context as site_context, decision, good_story, provenance  # noqa: E402
 
 SITE = "example-site"
@@ -29,7 +30,7 @@ SITE = "example-site"
 def state(context):
     if not hasattr(context, "ms"):
         context.ms = type("State", (), {})()
-        context.ms.rows, context.ms.numbers, context.ms.unreadable, context.ms.overrides = [], {}, set(), {}
+        context.ms.rows, context.ms.numbers, context.ms.unreadable, context.ms.overrides, context.ms.sources = [], {}, set(), {}, {}
         context.ms.model = None
         context.ms.runs, context.ms.items, context.ms.error = [], [], None
         context.ms.directory = tempfile.TemporaryDirectory()
@@ -93,6 +94,29 @@ def step_pages(context):
     state(context).unreadable = set()
 
 
+PDF_LINES = [["The tool, released on 2026-10-20, reads a draft, finds each claim and links it to the source page it came from.", "It is written in Rust and has 42 contributors."]]
+
+
+@given('the linked address of "{title}" is a PDF document')
+def step_pdf(context, title):
+    held = state(context)
+    held.sources[held.numbers[title]] = make_pdf(PDF_LINES)
+
+
+@given('the linked page of "{title}" is a short page that links to its PDF')
+def step_wrapper(context, title):
+    held = state(context)
+    number = held.numbers[title]
+    held.sources[number] = "<html><body><h1>Decision</h1><a href='/decision.pdf'>Download the PDF</a></body></html>"
+    held.sources[f"{number}/pdf"] = make_pdf(PDF_LINES)
+
+
+@given('the linked address of "{title}" is a PDF that cannot be read')
+def step_broken_pdf(context, title):
+    held = state(context)
+    held.sources[held.numbers[title]] = b"%PDF-1.4 truncated"
+
+
 @given('the linked page of "{title}" cannot be read')
 def step_unreadable(context, title):
     held = state(context)
@@ -131,7 +155,9 @@ def fetch_for(context):
 
     def fetch(url):
         number = int(url.split("example")[1].split(".org")[0])
-        return None if number in held.unreadable else PAGE
+        if url.endswith(".pdf"):
+            return held.sources.get(f"{number}/pdf")
+        return None if number in held.unreadable else held.sources.get(number, PAGE)
 
     return fetch
 
@@ -282,6 +308,12 @@ def step_asked(context, count):
 @then("the model was asked exactly {count:d} times in all")
 def step_asked_all(context, count):
     assert len(state(context).model.requests) == count
+
+
+@then("the model was shown the text of the PDF as the source")
+def step_shown_pdf(context):
+    source = json.loads(state(context).model.requests[0]["input"])["source"]
+    assert "reads a draft" in source["page_text"] and "<" not in source["page_text"], source
 
 
 @then("the model was shown the text of the linked page as the source")
