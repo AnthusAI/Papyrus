@@ -443,6 +443,16 @@
        }
       },
       {
+       "Action": "dynamodb:ConditionCheckItem",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "PrivateMessagingAEAE53CD",
+         "Arn"
+        ]
+       }
+      },
+      {
        "Action": [
         "dynamodb:GetItem",
         "dynamodb:Query",
@@ -619,6 +629,16 @@
          ]
         }
        ]
+      },
+      {
+       "Action": "dynamodb:ConditionCheckItem",
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "PrivateConversationIndex81B3261A",
+         "Arn"
+        ]
+       }
       },
       {
        "Action": "ssm:GetParameter",

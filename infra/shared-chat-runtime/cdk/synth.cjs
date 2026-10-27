@@ -140,6 +140,10 @@ class PapyrusChatDataCandidate extends cdk.Stack {
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:TransactWriteItems", "dynamodb:Query", "dynamodb:BatchGetItem"],
       resources: [messaging.tableArn],
     }));
+    if (!syntheticMode) gateway.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:ConditionCheckItem"],
+      resources: [messaging.tableArn],
+    }));
     gateway.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:BatchGetItem"],
       resources: [conversations.tableArn, `${conversations.tableArn}/index/*`],
@@ -186,6 +190,10 @@ class PapyrusChatDataCandidate extends cdk.Stack {
     runWorker.addToPolicy(new iam.PolicyStatement({
       actions: ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchGetItem", "dynamodb:TransactWriteItems"],
       resources: [messaging.tableArn, conversations.tableArn, `${conversations.tableArn}/index/*`],
+    }));
+    runWorker.addToPolicy(new iam.PolicyStatement({
+      actions: ["dynamodb:ConditionCheckItem"],
+      resources: [conversations.tableArn],
     }));
     runWorker.addToPolicy(new iam.PolicyStatement({
       actions: ["ssm:GetParameter"],
