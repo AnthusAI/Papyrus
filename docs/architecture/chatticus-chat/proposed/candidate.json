@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Proposal: one Chatticus core, Papyrus adapters",
+    "output": "docs/architecture/chatticus-chat/proposed/proposed.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "pane",
+      "type": "frontend",
+      "label": "Papyrus pane + shared UI",
+      "sublabel": "Composer, transcript, tool activity",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "api",
+      "type": "security",
+      "label": "Papyrus auth adapter + API",
+      "sublabel": "Verified editor / Account / site",
+      "pos": [
+        440,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "runner",
+      "type": "backend",
+      "label": "Chatticus durable core",
+      "sublabel": "Pi Durable; computer capability omitted",
+      "pos": [
+        840,
+        150
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "Private chat persistence",
+      "sublabel": "Editor + site; events + transcript",
+      "pos": [
+        440,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "tools",
+      "type": "security",
+      "label": "Papyrus tool adapter",
+      "sublabel": "Reauthorize; gate consequential work",
+      "pos": [
+        840,
+        430
+      ],
+      "size": [
+        230,
+        76
+      ]
+    },
+    {
+      "id": "backend",
+      "type": "backend",
+      "label": "Papyrus backend jobs",
+      "sublabel": "Procedures, checks, content actions",
+      "pos": [
+        840,
+        680
+      ],
+      "size": [
+        230,
+        76
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "pane-api",
+      "from": "pane",
+      "to": "api",
+      "label": "POST / turn SSE"
+    },
+    {
+      "id": "api-runner",
+      "from": "api",
+      "to": "runner",
+      "label": "authorized turn"
+    },
+    {
+      "id": "api-state",
+      "from": "api",
+      "to": "state",
+      "label": "replay / reload"
+    },
+    {
+      "id": "runner-tools",
+      "from": "runner",
+      "to": "tools",
+      "label": "typed tool call"
+    },
+    {
+      "id": "tools-backend",
+      "from": "tools",
+      "to": "backend",
+      "label": "approved job"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Proposed shared ownership",
+      "items": [
+        "Chatticus owns protocol, replay reducer, durable runner and chat UI.",
+        "Papyrus owns context, permissions, pane placement and background jobs.",
+        "No roster, computer, browser or workspace capability in this embed."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Proposed durability contract",
+      "items": [
+        "Runner commits events and answers to the same private chat store.",
+        "SSE only observes persisted events; closing the pane does not cancel work.",
+        "Jobs outlive a turn; completion resumes authorized work or appears on reload."
+      ]
+    }
+  ]
+}

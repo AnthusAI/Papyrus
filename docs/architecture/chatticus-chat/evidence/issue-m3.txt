@@ -1,0 +1,11 @@
+ID: PPY-7962e3
+Title: M3 Pop-out chat pane in the newsroom for signed-in editors
+Type: epic
+Status: open
+Priority: 1
+Assignee: -
+Parent: PPY-de11ec53-e594-4e18-a016-95c436aacfcb
+Labels: -
+Right now: (no right-now summary)
+Description:
+A chat pane any signed-in editor can open from anywhere in the newsroom, docked or popped out, using the Chatticus client components. Auth bridges the newsroom's Cognito session to the chat turn API so the agent acts as that editor. Transcripts are kept per editor and site.

@@ -13,6 +13,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Register a procedure or an automation**: [procedure-runner.md](procedure-runner.md), [automations.md](automations.md).
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
 - **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
+- **Implement shared newsroom chat**: [chatticus-chat-integration-plan.md](chatticus-chat-integration-plan.md), [Mac handoff](architecture/chatticus-chat/handoff.md). Planning only; includes five checked Archify illustrations, package boundaries and phased acceptance gates.
 
 - **Shared chat UI implementation**: [shared-chat-ui.md](shared-chat-ui.md), the first Chatticus presentation dependency increment; backend migration remains planned.
 

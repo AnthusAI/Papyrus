@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "41e4555a-1ad5-4ded-a137-df9728a9f6cd",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "/Users/home/Documents/Codex/2026-10-23/task-4/papyrus-implementation/docs/architecture/chatticus-chat/editor-roundtrip/candidate.json",
+  "output": "/Users/home/Documents/Codex/2026-10-23/task-4/papyrus-implementation/docs/architecture/chatticus-chat/editor-roundtrip/editor-roundtrip.html",
+  "specification": {
+    "sha256": "59f7371d2d9f0261b5d1f8e5edf1c86a856da41ba0288cb3c92f91c133c7bf29",
+    "bytes": 3518
+  },
+  "artifact": {
+    "sha256": "c018836c2367f0a359dcd102ae1a7bf55250f8b68bec21c46b944368b918c29f",
+    "bytes": 756132
+  }
+}
