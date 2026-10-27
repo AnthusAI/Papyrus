@@ -34,6 +34,7 @@ import json
 import logging
 import math
 import os
+import random
 import re
 import string
 import time
@@ -121,7 +122,15 @@ PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
 #: the lab's Retry-After when it sends one, otherwise LAB_BACKOFF_FIRST * 2**n seconds (n = consecutive refused runs),
 #: capped at LAB_BACKOFF_MAX. A Retry-After is honoured up to LAB_RETRY_AFTER_MAX so a bad header cannot park the monitor
 #: for good. This is a backoff between asks, not a limit: every job stays recorded and is asked about again afterwards.
+#: A 429 WITHOUT a Retry-After is not the lab asking for a pause: it is the API Gateway stage throttle on the lab's HTTP API
+#: ("Too Many Requests", 5 requests/second sustained, burst 10) saying "too fast this second". The client therefore paces
+#: itself (below), waits LAB_THROTTLE_WAIT seconds (jittered) and repeats the same call up to LAB_THROTTLE_RETRIES times,
+#: and never sets the monitor-level pause for it. Only a 503, or a 429 that carries a Retry-After, does.
 LAB_BACKOFF_SK = "STATE#labBackoff"
+#: Client-side pacing: at most cyclotron.maxRequestsPerSecond lab calls per second per invocation. The default is 4, just under
+#: the API Gateway stage limit of 5 requests/second, which is a real constraint of the lab's endpoint (not an arbitrary cap).
+LAB_REQUESTS_PER_SECOND = 4
+LAB_THROTTLE_WAIT, LAB_THROTTLE_RETRIES, LAB_THROTTLE_SLOWEST_INTERVAL = (1.0, 2.0), 3, 2.0
 LAB_BACKOFF_FIRST, LAB_BACKOFF_MAX, LAB_RETRY_AFTER_MAX = 60, 1800, 3600
 #: A job that is still running is not asked about again until its own `nextPollAt`: POLL_BACKOFF_FIRST * 2**n seconds
 #: after its n-th unanswered check, capped at the collector cadence times POLL_BACKOFF_CADENCES. Backoff, not a limit; the
@@ -258,11 +267,15 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
+    rate = cyclotron.get("maxRequestsPerSecond", LAB_REQUESTS_PER_SECOND)
+    if isinstance(rate, bool) or not isinstance(rate, (int, float, Decimal)) or not rate > 0:
+        raise ValueError("router cyclotron.maxRequestsPerSecond must be a positive number")
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
             "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
-                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll}, **account_scope}
+                          "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll,
+                          "maxRequestsPerSecond": float(rate)}, **account_scope}
 
 
 def email_routing_fingerprint(config: dict) -> str:
@@ -583,24 +596,52 @@ def refusal_code(status: int, payload: dict) -> str:
 
 class CyclotronClient:
     def __init__(self, config: dict, *, sign: Callable[[str, str, bytes], dict], http=default_http,
-                 sleep=time.sleep, clock=time.monotonic):
-        self.config, self.sign, self.http, self.sleep, self.clock = config, sign, http, sleep, clock
+                 sleep=time.sleep, clock=time.monotonic, jitter=random.uniform):
+        self.config, self.sign, self.http, self.sleep, self.clock, self.jitter = config, sign, http, sleep, clock, jitter
+        rate = float(config["cyclotron"].get("maxRequestsPerSecond") or LAB_REQUESTS_PER_SECOND)
+        self.interval = 1.0 / rate          # seconds between lab calls: the pacing, shared by every POST and GET
+        self._next_slot = 0.0               # the earliest time the next call may leave
+        self.throttled = 0                  # bare 429s (API Gateway "Too Many Requests") answered this run
         self.base = config["cyclotron"]["endpoint"]
         self.refusals: list[dict] = []   # every non-2xx the lab answered, for the run receipt's errors list
         self.rate_limited: dict | None = None   # the first 429/503 this run: {"status", "retryAfter"}; the monitor backs off
         self.answered = 0                        # calls the lab answered below 400 this run
 
+    def _pace(self):
+        """Waits for this call's slot: one call per `interval`, however the calls are spread over POST/GET/feedback."""
+        now = self.clock()
+        start = max(now, self._next_slot)
+        self._next_slot = start + self.interval
+        if start > now:
+            self.sleep(start - now)
+
+    @staticmethod
+    def bare_throttle(status: int, payload: dict) -> bool:
+        """API Gateway's stage throttle: a 429 with no Retry-After. The lab itself only refuses with 503 + Retry-After."""
+        return (status == 429 and parse_retry_after(payload.get("_retryAfter") or payload.get("retryAfter")) is None
+                and not (payload.get("code") or payload.get("error")))   # a coded 429 is the lab's own refusal
+
     def _call(self, method: str, path: str, body: dict | None):
         data = json.dumps(body, separators=(",", ":")).encode() if body is not None else b""
         url = self.base + path
-        status, payload = self.http(method, url, self.sign(method, url, data), data or None, 30)
+        for attempt in range(LAB_THROTTLE_RETRIES + 1):
+            self._pace()
+            status, payload = self.http(method, url, self.sign(method, url, data), data or None, 30)
+            if not self.bare_throttle(status, payload):
+                break
+            # too fast this second; the gateway refused before the lab saw the call, so repeating it is safe
+            self.throttled += 1
+            if self.throttled > 1:   # it keeps happening: slow the pacing for the rest of the run
+                self.interval = min(self.interval * 1.5, LAB_THROTTLE_SLOWEST_INTERVAL)
+            if attempt < LAB_THROTTLE_RETRIES:
+                self.sleep(self.jitter(*LAB_THROTTLE_WAIT))
         if status < 400:
             self.answered += 1
         return status, payload
 
     def classify(self, status: int, payload: dict) -> Exception:
         code = refusal_code(status, payload)
-        if status in LAB_OVERLOAD_STATUSES and self.rate_limited is None:
+        if status in LAB_OVERLOAD_STATUSES and not self.bare_throttle(status, payload) and self.rate_limited is None:
             self.rate_limited = {"status": status,
                                  "retryAfter": parse_retry_after(payload.get("_retryAfter") or payload.get("retryAfter"))}
         if not 200 <= status < 300:
@@ -1038,6 +1079,10 @@ class Router:
     def lab_backoff_until(self) -> int:
         if self._lab_state is None:
             self._lab_state = self.store.get_any(self.monitor_id, LAB_BACKOFF_SK) or {}
+            if self._lab_state.get("status") == 429 and not self._lab_state.get("retryAfter"):
+                # an old pause caused by the API Gateway throttle, which is not the lab asking for one: clear it
+                self.store.delete_any(self.monitor_id, LAB_BACKOFF_SK)
+                self._lab_state = {}
         return int(self._lab_state.get("until", 0))
 
     def lab_paused(self) -> bool:
