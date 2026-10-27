@@ -31,10 +31,22 @@
       "text": "Newsletter handoff implemented on 5.41.4 maintenance: exact editor receipt/candidate validation, idempotent selected Reference prediction jobs, positive and negative review decisions, no procedures/votes, separate selected-only scheduled task with existing role. 195 targeted Python tests pass; receipt UI/client harnesses, BDD, typecheck, schema parity and production build passed. Shared live router source verified as 21c01339; deploying only router/intake deltas atop its existing artifact, preserving newer behavior. Live acceptance remains pending.",
       "created_at": "2026-10-27T10:52:44.447747Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e00f9649-407f-40c1-9183-a901c3ee109e",
+      "author": "home",
+      "text": "Live acceptance after 5.41.5/PR87 deployment found Amplify Lambda payload uses top-level fieldName; monitoring handler only read info.fieldName and incorrectly defaulted to overview. Exact receipt requests paused. Follow-up will validate actual resolver dispatch and fail closed before storage for missing, conflicting or unknown names, with real-shape synthetic regression tests. No newsletter imports or votes yet.",
+      "created_at": "2026-10-27T12:13:51.088928Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6.1-sol",
+        "name": "newsletter-acceptance"
+      }
     }
   ],
   "created_at": "2026-10-26T11:13:57.463457Z",
-  "updated_at": "2026-10-27T10:52:44.448345Z",
+  "updated_at": "2026-10-27T12:13:51.089701Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

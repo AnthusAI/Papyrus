@@ -460,7 +460,14 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     env = os.environ if env is None else env
     groups = (event.get("identity") or {}).get("groups")
     groups = [g for g in groups if isinstance(g, str)] if isinstance(groups, list) else []
-    field_name = (event.get("info") or {}).get("fieldName", "monitoringOverview")
+    field_name = event.get("fieldName")
+    info = event.get("info")
+    nested_field = info.get("fieldName") if isinstance(info, dict) else None
+    if field_name is not None and nested_field is not None and field_name != nested_field:
+        return {"error": "bad_request"}
+    field_name = field_name if field_name is not None else nested_field
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"}:
+        return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
     if (not set(groups) & EDITOR_GROUPS

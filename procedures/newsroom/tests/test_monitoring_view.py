@@ -155,7 +155,7 @@ def test_bounded_decision_history_marks_truncated_counts_as_lower_bounds():
 
 
 def event(groups, scope="publication", field="monitoringOverview", **arguments):
-    return {"info": {"fieldName": field}, "arguments": {"scope": scope, **arguments},
+    return {"fieldName": field, "arguments": {"scope": scope, **arguments},
             "identity": {"groups": groups, "sub": "u1"}}
 
 
@@ -439,3 +439,34 @@ def test_production_beehiiv_resolver_pins_public_addresses_and_sends_head_withou
     assert len(requests) == 2 and all(request.startswith("HEAD ") for request in requests)
     assert all("Cookie:" not in request and "Authorization:" not in request for request in requests)
     assert all(stream.position_before_close == stream.body_start for stream in files)
+
+
+@pytest.mark.parametrize("field", ["monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"])
+def test_appsync_dispatch_uses_deployed_top_level_field_without_overview(field):
+    shared, email = object(), object()
+    env = {"PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email", "PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}
+    args = {"receiptId": "EMAIL#" + "a" * 64, "candidateIndex": 0, "input": "{}"}
+    identity = {"groups": ["editor"], "sub": "editor-1"}
+    request = {"typeName": "Query" if field == "monitoringEmailSubmission" else "Mutation",
+               "fieldName": field, "arguments": args, "identity": identity,
+               "source": None, "request": {"headers": {}}, "prev": None}
+    with patch.object(mv, "monitoring_overview", side_effect=AssertionError("overview must not run")), \
+         patch.object(mv, "monitoring_email_submission", return_value={"exact": "receipt"}) as detail, \
+         patch.object(mv, "monitoring_email_resolve_article_link", return_value={"exact": "redirect"}) as redirect, \
+         patch("papyrus_content.email_reference_handoff.queue_email_reference", return_value={"exact": "queue"}) as queue:
+        result = mv.handle(request, env=env, store_factory=lambda: shared, email_store_factory=lambda: email)
+    expected = {"monitoringEmailSubmission": "receipt", "monitoringResolveEmailArticleLink": "redirect", "monitoringQueueEmailReference": "queue"}[field]
+    assert result == {"exact": expected}
+    called = {"receipt": detail, "redirect": redirect, "queue": queue}[expected]
+    assert called.call_count == 1 and called.call_args.args[0] is email
+    assert sum(mock.call_count for mock in (detail, redirect, queue)) == 1
+
+
+@pytest.mark.parametrize("dispatch", [{}, {"fieldName": "unknown"}, {"fieldName": ""}, {"fieldName": []},
+    {"info": {"fieldName": "unknown"}},
+    {"fieldName": "monitoringEmailSubmission", "info": {"fieldName": "monitoringOverview"}}])
+def test_appsync_dispatch_missing_unknown_or_conflicting_field_reads_nothing(dispatch):
+    request = {"identity": {"groups": ["editor"]}, **dispatch}
+    with patch.object(mv, "default_store_factory", side_effect=AssertionError("must not open storage")), \
+         patch.object(mv, "monitoring_overview", side_effect=AssertionError("must not read overview")):
+        assert mv.handle(request, env={}) == {"error": "bad_request"}
