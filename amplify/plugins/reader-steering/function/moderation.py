@@ -37,6 +37,25 @@ READER_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f
 ACTION_ID = re.compile(r"mod-[0-9a-f]{32}")
 MAXIMUM_REASON = 500
 STAFF_GROUPS = frozenset({"editor", "admin"})
+
+_GROUP_SEPARATORS = re.compile(r"[\s,]+")
+
+
+def claim_groups(value: Any) -> list[str]:
+    """Copy of ``papyrus_content.staff_groups.claim_groups`` (this function ships without that package; a test keeps them equal)."""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        raw = [item for item in value if isinstance(item, str)]
+    elif isinstance(value, str):
+        raw = _GROUP_SEPARATORS.split(value)
+    else:
+        return []
+    cleaned = (item.strip().strip("\"'[](){}").strip() for item in raw)
+    return [item for item in cleaned if item]
+
+
+def has_editor_rights(groups: Any) -> bool:
+    """``admin`` has every editor right: an admin who is not in the ``editor`` group is staff."""
+    return any(group.lower() in STAFF_GROUPS for group in claim_groups(groups))
 ITEM_ID_PREFIX = "item-"
 
 

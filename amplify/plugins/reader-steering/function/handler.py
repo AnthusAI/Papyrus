@@ -1468,10 +1468,8 @@ def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSet
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []
-    if isinstance(groups, str):
-        groups = [group.strip() for group in groups.strip("[]").replace(",", " ").split()]
     subject = identity.get("sub")
-    if not isinstance(subject, str) or not subject or not moderation_rules.STAFF_GROUPS.intersection(groups):
+    if not isinstance(subject, str) or not subject or not moderation_rules.has_editor_rights(groups):
         return moderation_rules.refused("not_staff", "Only editors and admins can moderate.").to_dict()
     arguments = event.get("arguments") or {}
     outcome = moderation_rules.apply_action(

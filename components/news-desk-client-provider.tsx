@@ -113,7 +113,8 @@ export function NewsDeskClientProvider({
         return;
       }
       if (isAuthorizationError(error)) {
-        setShell((current) => resolveForbidden(current, access.auth));
+        // The session already has editor rights, so the backend refusing a read is not a missing role. Say what was refused.
+        setShell((current) => resolveDashboardFailure(current, access.auth, refusedReadMessage(error)));
         return;
       }
       setShell((current) => resolveDashboardFailure(
@@ -215,9 +216,14 @@ function isAuthorizationError(error: unknown): boolean {
   return /not authorized|unauthorized|access denied|forbidden/i.test(message);
 }
 
+function refusedReadMessage(error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error ?? "");
+  return `The Newsroom backend refused a read for this signed-in account (${detail}). The account has editor or admin rights, so this is a backend authorization rule, not a missing role.`;
+}
+
 function resolvePrivateReadFailure(state: NewsDeskShellState, auth: NewsDeskShellState["auth"], error: unknown, fallback: string): NewsDeskShellState {
   if (isUnauthenticatedError(error)) return resolveSignedOut(state, { status: "signedOut", label: "Signed out" });
-  if (isAuthorizationError(error)) return resolveForbidden(state, auth);
+  if (isAuthorizationError(error)) return resolveDashboardFailure(state, auth, refusedReadMessage(error));
   return resolveDashboardFailure(state, auth, error instanceof Error ? error.message : fallback);
 }
 

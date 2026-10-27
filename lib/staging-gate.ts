@@ -1,10 +1,10 @@
 import type { NextRequest, NextResponse } from "next/server";
 import { fetchAuthSession } from "aws-amplify/auth/server";
 import { getAmplifyServerRuntime } from "./amplify-server-runtime";
+import { hasEditorRights } from "./staff-groups";
 
 export type StagingAccess = "anonymous" | "forbidden" | "ok";
 
-const STAGING_ALLOWED_GROUPS = ["editor", "admin"];
 
 export function groupsFromIdTokenPayload(payload: Record<string, unknown> | undefined): string[] {
   const raw = payload?.["cognito:groups"];
@@ -15,7 +15,7 @@ export function groupsFromIdTokenPayload(payload: Record<string, unknown> | unde
 
 export function accessForGroups(groups: string[] | null): StagingAccess {
   if (groups === null) return "anonymous";
-  return groups.some((group) => STAGING_ALLOWED_GROUPS.includes(group)) ? "ok" : "forbidden";
+  return hasEditorRights(groups) ? "ok" : "forbidden";
 }
 
 export async function getStagingAccess(request: NextRequest, response: NextResponse): Promise<StagingAccess> {

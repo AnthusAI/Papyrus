@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { CheckIcon, UserIcon } from "lucide-react";
 import { Md5 } from "@smithy/md5-js";
+import { hasEditorRights } from "../lib/staff-groups";
 import {
   createConsoleMessage,
   createConsoleThread,
@@ -154,7 +155,7 @@ export function PapyrusConsoleShell({ children, privateChatEnabled = false }: Pa
   const [openingReferenceChat, setOpeningReferenceChat] = useState(false);
   const internalPathname = browserPathToInternalNewsroomPath(pathname);
   const isNewsroomPath = internalPathname === "/newsroom" || internalPathname.startsWith("/newsroom/");
-  const canUseConsole = Boolean(session?.hasSession && session.groups.some((group) => group === "editor" || group === "admin"));
+  const canUseConsole = Boolean(session?.hasSession && hasEditorRights(session.groups));
   const shouldOfferConsole = isNewsroomPath && canUseConsole;
   const { open, openConsole, closeConsole, toggleOpen } = useConsoleVisibility({ available: shouldOfferConsole });
 

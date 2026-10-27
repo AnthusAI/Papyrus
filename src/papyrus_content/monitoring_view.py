@@ -29,6 +29,8 @@ import ssl
 import threading
 from urllib.parse import urlsplit, urlunsplit
 
+from .staff_groups import STAFF_GROUPS
+
 LOG = logging.getLogger(__name__)
 MONITOR_ID = "hn"
 # The table has no registry of monitors and the view may not Scan, so the monitors it can look at are
@@ -36,7 +38,7 @@ MONITOR_ID = "hn"
 MONITOR_IDS = ("hn", "ttab", "huggingface", "p-apyr-us-email")
 EMAIL_MONITOR_ID_ENV = "PAPYRUS_EMAIL_MONITOR_ID"
 MONITOR_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
-EDITOR_GROUPS = frozenset({"editor", "admin"})
+EDITOR_GROUPS = STAFF_GROUPS
 SCOPES = ("publication", "all")
 TABLE_PARAMETER = "/papyrus/monitoring/table-name"
 MAX_ITEMS = 60
