@@ -85,6 +85,13 @@ class FakeTable:
                 raise Conditional()
         self.items[key] = self._dec(deepcopy(Item))
 
+    def update_item(self, Key, UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues):
+        item = self.items.get((Key["pk"], Key["sk"]))
+        assert UpdateExpression == "REMOVE #f" and ConditionExpression == "#f.#r = :r"
+        if not item or (item.get("final") or {}).get("reason") != ExpressionAttributeValues[":r"]:
+            raise Conditional()
+        del item["final"]
+
     def delete_item(self, Key, ConditionExpression=None, ExpressionAttributeNames=None, ExpressionAttributeValues=None):
         existing = self.items.get((Key["pk"], Key["sk"]))
         if ConditionExpression is None:
@@ -511,6 +518,48 @@ def test_pending_job_is_resumed_by_polling_only(table):
     go(table, store, cyclotron, now=2600)
     assert len(cyclotron.posts()) == 3          # one per publication in total: no POST was repeated
     assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_a_long_pending_job_is_never_finalized_and_is_collected_when_the_lab_completes(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.pending_polls = 10_000
+    go(table, store, cyclotron, now=2000)
+    assert not hasattr(mr, "MAX_PENDING_JOB_SECONDS")
+    go(table, store, cyclotron, now=2000 + 30 * 86400, task="collect")   # a month later, still pending
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+    assert "final" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    cyclotron.pending_polls = 0
+    go(table, store, cyclotron, now=2000 + 31 * 86400, task="collect")
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(cyclotron.posts()) == 3
+
+
+def test_reopen_stale_finals_restores_only_the_age_limit_finals_and_the_collector_delivers_them(table3):
+    store, cyclotron = setup_router(table3)
+    cyclotron.pending_polls = 10_000
+    go(table3, store, cyclotron, now=2000)
+    route_sk, disc_sk = ("MONITOR#hn", "ROUTE#101#000001"), ("MONITOR#hn", "DISC#101#000001")
+    # what the old limit did: final error, out of the routing partition, jobs kept
+    route = table3.items[route_sk]
+    route["final"] = {"routing": "error", "reason": mr.STALE_FINAL_REASON, "at": "x"}
+    original = dict(table3.items[disc_sk])
+    mr.set_routing(store, "hn", table3.items[disc_sk], "error", None)
+    other = table3.items[("MONITOR#hn", "ROUTE#102#000001")]
+    other["final"] = {"routing": "error", "reason": "lab does not know the job", "at": "x"}
+    mr.set_routing(store, "hn", table3.items[("MONITOR#hn", "DISC#102#000001")], "error", None)
+    assert "gsi1pk" not in table3.items[disc_sk]
+    jobs_before = deepcopy({k: route.get(k) for k in ("jobs", "combinedJob")})
+    result = go(table3, store, cyclotron, now=3000, task="reopen-stale-finals")
+    assert result["reopened"] == 1 and result["status"] == "complete"
+    assert "final" not in table3.items[route_sk] and {k: table3.items[route_sk].get(k) for k in jobs_before} == jobs_before
+    assert table3.items[disc_sk]["routing"] == "collected" and table3.items[disc_sk]["gsi1pk"] == "ROUTING#hn#collected"
+    assert table3.items[disc_sk]["gsi1sk"] == original["gsi1sk"]
+    assert table3.items[("MONITOR#hn", "ROUTE#102#000001")]["final"]["reason"] == "lab does not know the job"
+    assert routing_of(table3)["DISC#102#000001"] == "error"
+    assert go(table3, store, cyclotron, now=3001, task="reopen-stale-finals")["reopened"] == 0
+    cyclotron.pending_polls = 0
+    go(table3, store, cyclotron, now=4000, task="collect")
+    assert routing_of(table3)["DISC#101#000001"] == "routed" and routing_of(table3)["DISC#102#000001"] == "error"
 
 
 def test_divergent_decisions_are_an_error_not_a_delivery(table):
