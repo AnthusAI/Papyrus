@@ -1740,6 +1740,56 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         store.release_router_lock(monitor_id, owner)
 
 
+DOORBELL_MONITORS = ("hn", "huggingface", "ttab")   # monitors that may carry a CONFIG#router item
+DECISION_SOURCE, DECISION_DETAIL_TYPE = "cyclotron.lab", "Decision Ready"
+DECISION_FIELDS = ("accountId", "runId", "jobId", "requestId", "itemId")
+
+
+def is_decision_event(event) -> bool:
+    return isinstance(event, dict) and ("detail-type" in event or "source" in event) and "monitorId" not in event
+
+
+def parse_decision_event(event: dict) -> dict | None:
+    """The validated detail of a Decision Ready event, or None. Never raises: a bad event is dropped, not retried."""
+    detail = event.get("detail")
+    if event.get("source") != DECISION_SOURCE or event.get("detail-type") != DECISION_DETAIL_TYPE or not isinstance(detail, dict):
+        return None
+    if detail.get("contractVersion") != CONTRACT_VERSION or detail.get("status") not in ("complete", "failed"):
+        return None
+    if any(not isinstance(detail.get(key), str) or not detail[key].strip() for key in DECISION_FIELDS):
+        return None
+    if not isinstance(detail.get("publications"), list):
+        return None
+    return detail
+
+
+def handle_decision_ready(store, event, collect: Callable[[str], dict]) -> dict:
+    """A doorbell: the event carries no decision. Run the collect task for every monitor whose router config is
+    bound to the event's Account and run, then let `collect` fetch the answer with the signed GET as usual."""
+    detail = parse_decision_event(event) if isinstance(event, dict) else None
+    if detail is None:
+        print(json.dumps({"doorbell": "malformed"}))
+        return {"status": "malformed", "collected": {}}
+    collected, ignored = {}, 0
+    for monitor_id in DOORBELL_MONITORS:
+        raw = store.get_router_config(monitor_id)
+        cyclotron = (raw or {}).get("cyclotron") if isinstance((raw or {}).get("cyclotron"), dict) else None
+        if cyclotron is None:
+            continue
+        if cyclotron.get("accountId") != detail["accountId"] or cyclotron.get("runId") != detail["runId"]:
+            ignored += 1
+            continue
+        try:
+            collected[monitor_id] = collect(monitor_id).get("status")
+        except Exception as error:   # one monitor's failure must not stop the others or cause an EventBridge retry storm
+            collected[monitor_id] = "error"
+            print(json.dumps({"doorbell": "collect_failed", "monitorId": monitor_id, "error": short(error)}))
+    status = "collected" if collected else "ignored"
+    print(json.dumps({"doorbell": status, "jobId": detail["jobId"], "requestId": detail["requestId"],
+                      "collected": collected, "ignoredMonitors": ignored}))
+    return {"status": status, "collected": collected, "ignoredMonitors": ignored}
+
+
 def handler(event, context):
     """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"}` limits the pass (operator debugging)."""
     import boto3  # provided by the Lambda runtime
@@ -1747,8 +1797,11 @@ def handler(event, context):
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
+    cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
+    if is_decision_event(event):
+        return handle_decision_ready(store, event, lambda monitor_id: run_router(
+            store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter))
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining,
-                        cognito=boto3.client("cognito-idp"),
-                        start_procedure=lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION")))
+                        cognito=cognito, start_procedure=starter)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}
