@@ -14,7 +14,7 @@ export const FIXTURE_MONITORING_OVERVIEW: MonitoringOverview = {
   ],
   routerRuns: [{ runId: "q2", startedAt: "2026-10-21T02:37:00.000000Z", mode: "live", status: "stopped", stoppedBy: "request_ceiling_reached",
     counts: { examined: 3, decided: 1, delivered: 1, deliveryFailed: 1, routed: 1 }, errorCount: 0 }],
-  router: { mode: "live", feedback: true, enabled: true, maxItemsPerRun: 5 },
+  router: { mode: "live", feedback: true, enabled: true },
   usage: { day: "2026-10-21", decisionsToday: 2, decisionsTotal: 3, historyComplete: true },
   hiddenNotRelevant: 1,
   items: [

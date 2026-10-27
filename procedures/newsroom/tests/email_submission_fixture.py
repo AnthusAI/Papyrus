@@ -79,7 +79,7 @@ def email_fixture():
               "addresses": ["submissions@publication.example"],
               "publicationIds": ["publication"], "maxMessagesPerSenderHour": 5}
     router = {"pk": config["pk"], "sk": "CONFIG#router", "accountId": config["accountId"],
-              "mode": "live", "decisions": "direct", "maxItemsPerRun": 5,
+              "mode": "live", "decisions": "direct", 
               "publications": [{"publicationId": "publication", "site": "publication.example",
                                 "userPoolId": "us-east-1_fixture",
                                 "appsyncEndpoint": "https://fixture.appsync-api.us-east-1.amazonaws.com/graphql"}]}

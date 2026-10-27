@@ -1,6 +1,5 @@
 {
   "mode": "dry-run",
-  "maxItemsPerRun": 5,
   "feedback": false,
   "publications": [
     {"publicationId": "anth-us", "site": "anth.us",
