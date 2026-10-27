@@ -45,6 +45,84 @@ function percent(confidence: number | null): string | null {
 }
 
 /**
+ * The Cyclotron's read-only row: its Accept or Reject highlighted with its confidence, and a check or cross once a person has answered.
+ * Shared by the review card and by every list that shows a suggestion before a decision.
+ */
+export function CyclotronRow({ decided = null, prediction }: { decided?: ReviewChoice | null; prediction: CardPrediction }) {
+  const matched = decided && prediction.state === "ready" ? prediction.choice === decided : null;
+  return (
+    <div className="space-y-2" data-review-row="cyclotron">
+      <div className="flex items-center gap-3">
+        <span className="w-20 shrink-0 text-sm font-semibold">Cyclotron</span>
+        {prediction.state === "ready" ? (
+          <div className="flex flex-1 gap-2">
+            {(["accept", "reject"] as const).map((choice) => {
+              const predicted = prediction.state === "ready" && prediction.choice === choice;
+              const verdict = predicted && matched !== null ? (matched ? "match" : "miss") : null;
+              return (
+                <span
+                  className={cn(
+                    "inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm",
+                    predicted ? "border-foreground bg-muted font-semibold" : "border-dashed text-muted-foreground",
+                    verdict === "match" && "border-green-700 bg-green-100 text-green-950",
+                    verdict === "miss" && "border-red-700 bg-red-100 text-red-950",
+                  )}
+                  data-cyclotron-choice={choice}
+                  data-predicted={predicted || undefined}
+                  data-verdict={verdict ?? undefined}
+                  key={choice}
+                >
+                  {verdict === "match" ? <CircleCheckIcon aria-hidden="true" className="size-4" /> : null}
+                  {verdict === "miss" ? <CircleXIcon aria-hidden="true" className="size-4" /> : null}
+                  {CHOICE_LABEL[choice]}
+                  {predicted && percent(prediction.confidence) ? <small className="text-xs font-normal">{percent(prediction.confidence)}</small> : null}
+                  {verdict ? <span className="sr-only">{verdict === "match" ? ", matches your answer" : ", differs from your answer"}</span> : null}
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground" data-cyclotron-state={prediction.state}>
+            {prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The two answers, large enough to tap: Accept and Reject, the chosen one filled and checked (never colour alone). */
+export function ChoiceButtons({ chosen, disabled = false, onChoose }: { chosen: ReviewChoice | null; disabled?: boolean; onChoose: (choice: ReviewChoice) => void }) {
+  return (
+    <div className="flex flex-1 gap-2">
+      {(["accept", "reject"] as const).map((choice) => {
+        const on = chosen === choice;
+        return (
+          <Button
+            aria-disabled={disabled ? true : undefined}
+            aria-pressed={on}
+            className="min-h-14 flex-1 text-base"
+            data-review-choice={choice}
+            key={choice}
+            onClick={() => onChoose(choice)}
+            type="button"
+            variant={on ? (choice === "accept" ? "default" : "destructive") : "outline"}
+          >
+            {on ? <CheckIcon aria-hidden="true" className="size-5" /> : null}
+            {CHOICE_LABEL[choice]}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A reference's relevance decision in the card's own vocabulary. */
+export function predictionFromDecision(decision: { label: string; positiveLabel: string | null; confidence: number | null }): CardPrediction {
+  return { state: "ready", choice: decision.label === (decision.positiveLabel ?? "include") ? "accept" : "reject", confidence: decision.confidence };
+}
+
+/**
  * One reusable card for answering a single question: Accept or Reject. The Cyclotron's row is
  * read-only; the human row is the real control and its answer is final. Saves on tap.
  * Written so that story review can reuse it later: it knows nothing about references.
@@ -156,12 +234,6 @@ export function ReviewCard({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const predictedMarker = (choice: ReviewChoice) => {
-    if (prediction.state !== "ready" || prediction.choice !== choice) return null;
-    return prediction.choice;
-  };
-  const matched = decided && prediction.state === "ready" ? prediction.choice === decided : null;
-
   return (
     <section aria-label="Review" className="space-y-4" data-review-card={itemId}>
       <header className="space-y-1">
@@ -175,67 +247,12 @@ export function ReviewCard({
         {summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
       </header>
 
-      <div className="space-y-2" data-review-row="cyclotron">
-        <div className="flex items-center gap-3">
-          <span className="w-20 shrink-0 text-sm font-semibold">Cyclotron</span>
-          {prediction.state === "ready" ? (
-            <div className="flex flex-1 gap-2">
-              {(["accept", "reject"] as const).map((choice) => {
-                const predicted = predictedMarker(choice) !== null;
-                const verdict = predicted && matched !== null ? (matched ? "match" : "miss") : null;
-                return (
-                  <span
-                    className={cn(
-                      "inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm",
-                      predicted ? "border-foreground bg-muted font-semibold" : "border-dashed text-muted-foreground",
-                      verdict === "match" && "border-green-700 bg-green-100 text-green-950",
-                      verdict === "miss" && "border-red-700 bg-red-100 text-red-950",
-                    )}
-                    data-cyclotron-choice={choice}
-                    data-predicted={predicted || undefined}
-                    data-verdict={verdict ?? undefined}
-                    key={choice}
-                  >
-                    {verdict === "match" ? <CircleCheckIcon aria-hidden="true" className="size-4" /> : null}
-                    {verdict === "miss" ? <CircleXIcon aria-hidden="true" className="size-4" /> : null}
-                    {CHOICE_LABEL[choice]}
-                    {predicted && percent(prediction.confidence) ? <small className="text-xs font-normal">{percent(prediction.confidence)}</small> : null}
-                    {verdict ? <span className="sr-only">{verdict === "match" ? ", matches your answer" : ", differs from your answer"}</span> : null}
-                  </span>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground" data-cyclotron-state={prediction.state}>
-              {prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
-            </p>
-          )}
-        </div>
-      </div>
+      <CyclotronRow decided={decided} prediction={prediction} />
 
       <div className="space-y-2" data-review-row="you">
         <div className="flex items-center gap-3">
           <span className="w-20 shrink-0 text-sm font-semibold">You</span>
-          <div className="flex flex-1 gap-2">
-            {(["accept", "reject"] as const).map((choice) => {
-              const on = chosen === choice;
-              return (
-                <Button
-                  aria-disabled={disabledReason ? true : undefined}
-                  aria-pressed={on}
-                  className="min-h-14 flex-1 text-base"
-                  data-review-choice={choice}
-                  key={choice}
-                  onClick={() => choose(choice)}
-                  type="button"
-                  variant={on ? (choice === "accept" ? "default" : "destructive") : "outline"}
-                >
-                  {on ? <CheckIcon aria-hidden="true" className="size-5" /> : null}
-                  {CHOICE_LABEL[choice]}
-                </Button>
-              );
-            })}
-          </div>
+          <ChoiceButtons chosen={chosen} disabled={Boolean(disabledReason)} onChoose={choose} />
         </div>
         <div className="min-h-5 pl-[5.75rem] text-sm" role="status">
           {saving ? "Saving…" : saved ? (
