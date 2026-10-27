@@ -285,12 +285,16 @@ def test_config_validation_accepts_the_shape_and_rejects_unsafe_values():
     assert validate_router_config(router_config("dry-run", cyclotron={**router_config()["cyclotron"], "roleArn": ""}))["mode"] == "dry-run"
 
 
-def test_request_ids_are_deterministic_and_bound_to_every_input():
-    base = request_id("a", "r", "p", "1", "hn-1", "fp")
-    assert base == request_id("a", "r", "p", "1", "hn-1", "fp") and len(base) == 64
-    assert len({base, request_id("b", "r", "p", "1", "hn-1", "fp"), request_id("a", "s", "p", "1", "hn-1", "fp"),
-                request_id("a", "r", "q", "1", "hn-1", "fp"), request_id("a", "r", "p", "2", "hn-1", "fp"),
-                request_id("a", "r", "p", "1", "hn-2", "fp"), request_id("a", "r", "p", "1", "hn-1", "fx")}) == 7
+def test_request_ids_are_content_addressed_and_bound_to_every_input():
+    payload = {"bindingRevision": "1", "item": {"id": "hn-1", "values": {"title": "T"}}}
+    base = request_id("a", "r", "p", payload)
+    assert base == request_id("a", "r", "p", payload) and len(base) == 64
+    assert base == request_id("a", "r", "p", {"item": {"values": {"title": "T"}, "id": "hn-1"}, "bindingRevision": "1"})
+    changed_value = {**payload, "item": {"id": "hn-1", "values": {"title": "U"}}}
+    assert len({base, request_id("b", "r", "p", payload), request_id("a", "s", "p", payload),
+                request_id("a", "r", "q", payload), request_id("a", "r", "p", payload, 1),
+                request_id("a", "r", "p", {**payload, "bindingRevision": "2"}),
+                request_id("a", "r", "p", changed_value)}) == 7
 
 
 def test_decide_request_has_the_exact_contract_shape(table):
@@ -300,7 +304,7 @@ def test_decide_request_has_the_exact_contract_shape(table):
     body = built["body"]
     assert built["path"] == "/machine/publications/anth-us/operations"
     assert body["contractVersion"] == "cyclotron-publication/v1" and body["operation"] == "decide"
-    assert body["requestId"] == request_id("acct-1", "run-1", "anth-us", "1", "hn-101", disc["fingerprint"])
+    assert body["requestId"] == request_id("acct-1", "run-1", "anth-us", body["payload"])
     assert body["payload"] == {"bindingRevision": "1", "item": {"id": "hn-101", "values": {
         "title": "Alpha source", "url": "https://example.org/alpha", "source": "hacker-news",
         "sourceItemUrl": "https://news.ycombinator.com/item?id=101", "text": "Alpha source\nhttps://example.org/alpha"}}}
@@ -1279,7 +1283,8 @@ def test_combined_request_has_the_exact_contract_shape_and_a_stable_id(table):
     assert body["requestId"] == mr.build_combined_request(config, config["publications"][::-1], disc)["body"]["requestId"]
     assert body["requestId"] != mr.build_combined_request(config, config["publications"][:2], disc)["body"]["requestId"]
     assert body["requestId"] != mr.build_combined_request(config, config["publications"], disc, 1)["body"]["requestId"]
-    assert body["requestId"] != mr.build_combined_request(config, config["publications"], {**disc, "revision": 2})["body"]["requestId"]
+    assert body["requestId"] == mr.build_combined_request(config, config["publications"], {**disc, "revision": 2})["body"]["requestId"]
+    assert body["requestId"] != mr.build_combined_request(config, config["publications"], {**disc, "title": "Changed"})["body"]["requestId"]
 
 
 def test_combined_success_is_one_post_one_poll_and_the_receipt_matches_the_per_publication_shape(table):
@@ -1972,3 +1977,78 @@ def test_feedback_posts_wait_for_the_pause_too(table):
     result = feedback_run(table, store, cyclotron, {}, now=5000)
     assert result["feedback"]["status"] == "stopped" and result["feedback"]["stoppedBy"] == "lab_backoff"
     assert cyclotron.calls == []
+
+
+def combined_ids(cyclotron):
+    return [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST"]
+
+
+def test_same_content_gets_the_same_combined_id_across_runs(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"code": "run_busy"})
+    go(table, store, cyclotron)
+    cyclotron.combined_post_override = None
+    go(table, store, cyclotron, now=3000)
+    ids = combined_ids(cyclotron)
+    assert len(ids) == 2 and ids[0] == ids[1]
+
+
+def test_changed_bindings_get_a_new_id_and_a_stored_job_under_the_old_id_is_reposted(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (202, {"jobId": "old-job"})
+    cyclotron.combined_poll_override = (202, {"status": "running"})
+    go(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    old_id = route["combinedJob"]["requestId"]
+    assert route["combinedJob"]["jobId"] == "old-job"
+    cyclotron.combined_post_override = cyclotron.combined_poll_override = None
+    table.put_item({**table.items[("MONITOR#hn", "CONFIG#router")], "publications": [
+        p for p in table.items[("MONITOR#hn", "CONFIG#router")]["publications"] if p["publicationId"] != "p-apyr-us"]})
+    go(table, store, cyclotron, now=3000)
+    ids = combined_ids(cyclotron)
+    assert len(ids) == 2 and ids[0] == old_id and ids[1] != old_id
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def test_a_stored_job_with_a_different_request_id_is_stale_even_under_the_current_run():
+    run = mr.Router.__new__(mr.Router)
+    run.config = {"cyclotron": {"runId": "r", "bindingRevision": "1"}}
+    posted = run.posted_under()
+    assert run.job_is_stale({**posted, "requestId": "old"}, "new") is True
+    assert run.job_is_stale({**posted, "requestId": "same"}, "same") is False
+
+
+def test_a_request_conflict_discards_the_job_and_reposts_once_under_a_new_id(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_queue = [(409, {"code": "request_conflict", "detail": "command identity has different content"})]
+    result = go(table, store, cyclotron)
+    ids = combined_ids(cyclotron)
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "routed" and result["stoppedBy"] is None
+
+
+def test_a_second_request_conflict_is_not_reposted_again(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"code": "request_conflict"})
+    go(table, store, cyclotron)
+    assert len(combined_ids(cyclotron)) == 2
+    assert "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+
+
+def test_a_per_publication_request_conflict_reposts_once_under_a_new_id(table):
+    store, cyclotron = setup_router(table)
+    real = cyclotron.http
+    seen = {"n": 0}
+
+    def http(method, url, headers, body, timeout):
+        if method == "POST" and "/anth-us/operations" in url and seen["n"] == 0:
+            seen["n"] += 1
+            cyclotron.calls.append((method, url.split("amazonaws.com", 1)[1], json.loads(body)))
+            return 409, {"code": "request_conflict"}
+        return real(method, url, headers, body, timeout)
+    cyclotron.http = http
+    go(table, store, cyclotron)
+    ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/anth-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "routed"
