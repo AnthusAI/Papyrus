@@ -96,3 +96,55 @@ def test_selected_negative_prediction_is_delivered_once_without_procedures(initi
     assert not started
     run(2000010010)
     assert len(delivered) == 1 and len(model.posts()) == (2 if initially_not_ready else 1)
+
+
+def test_legacy_branded_tracking_receipt_resolves_imports_and_queues_only_clean_article():
+    import json
+    from papyrus_content.monitoring_view import monitoring_email_submission, monitoring_email_resolve_article_link
+    from papyrus_content.reference_intake import intake_email_submission_references
+    from procedures.newsroom.tests.test_reference_intake import IntakeClient
+    f, store, request, endpoint = fixture()
+    receipt = store.get(request['receiptId'])
+    receipt['ttl'] = 4_000_000_000
+    f.table.put_item(Item=receipt)
+    tracker = 'https://news.example.org/ss/c/u001.synthetic-Recipient.Route'
+    details = f.table.by_prefix('EMAILDETAIL#')
+    link_row = next(row for row in details if '#LINKS#' in row['sk'])
+    links = json.loads(link_row['json'])
+    links[0] = {'url': tracker, 'title': 'Article'}  # Legacy receipt: no resolutionStatus.
+    link_row['json'] = json.dumps(links)
+    f.table.put_item(Item=link_row)
+    original = deepcopy(f.table.by_prefix('EMAILDETAIL#'))
+    client = IntakeClient()
+    corpus_id = 'knowledge-corpus-publication'
+    f.router['publications'][0]['corpusId'] = corpus_id
+    f.table.put_item(Item=f.router)
+    client.tables['KnowledgeCorpus'][corpus_id] = {'id': corpus_id}
+    env = {**ENV, 'PAPYRUS_GRAPHQL_ENDPOINT': endpoint}
+    def import_url(url):
+        with patch.dict('os.environ', env), patch('papyrus_content.reference_intake.upload_attachment_body', client.upload):
+            return intake_email_submission_references(client, {
+                'receiptId': request['receiptId'], 'items': [{'candidateIndex': 0, 'source_uri': url}]
+            }, IDENTITY, env=env, receipt_store=store)
+    detail = monitoring_email_submission(store, groups=['editor'], site_endpoint=endpoint, receipt_id=request['receiptId'])
+    assert detail['candidateLinks'][0]['resolutionStatus'] == 'unresolved'
+    with pytest.raises(IntakeError):
+        import_url(tracker)
+    assert client.tables['Reference'] == {}
+    resolved = monitoring_email_resolve_article_link(store, groups=['editor'], site_endpoint=endpoint,
+        receipt_id=request['receiptId'], candidate_index=0, resolver=lambda _url: request['source_uri'])
+    imported = import_url(resolved['url'])
+    reference_id = imported['references'][0]['id']
+    ref = client.tables['Reference'][reference_id]
+    assert ref['sourceUri'] == request['source_uri'] and ref['curationStatus'] == 'pending'
+    assert import_url(resolved['url'])['references'][0]['id'] == reference_id
+    with pytest.raises(IntakeError):
+        import_url(tracker)
+    queued = queue(store, {**request, 'referenceId': reference_id}, endpoint)
+    assert queue(store, {**request, 'referenceId': reference_id}, endpoint) == queued
+    disc = f.table.by_prefix('DISC#')[0]
+    assert disc['canonicalUrl'] == request['source_uri']
+    assert disc['editorSelectedReference']['referenceId'] == reference_id
+    assert len(client.tables['Reference']) == 1
+    assert f.table.by_prefix('EMAILDETAIL#') == original
+    assert tracker not in repr(client.uploads)
