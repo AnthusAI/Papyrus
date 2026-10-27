@@ -159,3 +159,14 @@ def test_the_corpus_document_carries_the_source_date_and_the_structured_line_nev
     assert counts == {"items": 0, "removed": 0, "undated": 0, "records": 1}
     assert write_export([], out, []) == {"items": 0, "removed": 1, "undated": 0}  # a record no longer delivered leaves the corpus
     assert not list(out.glob("*.md"))
+
+
+def test_routed_is_a_source_of_its_own_and_a_hub_only_site_loads_no_routed_record():
+    assert parse_sources("huggingface, routed") == ("huggingface", "routed")
+    story = {**reference("x"), "id": "reference-story", "lineageId": "lineage-story", "sourceUri": "https://example.org/story", "title": "A story"}
+    relation = {**provenance(story, None), "metadata": json.dumps({"monitorId": "hn", "sourceId": "1"})}
+    backend = FakeBackend([story], [relation])
+    assert load(backend)[0] == [] and backend.queries == []
+    [record], _ = load_monitor_records(backend, corpus_id=CORPUS, sources=("routed",), as_of=AS_OF)
+    assert (record.source, record.title, record.provenance, record.routed) == ("hn", "A story", "routed from the hn monitor", True)
+    assert record_entities(record) == [] and "A story" in record_summary(record)

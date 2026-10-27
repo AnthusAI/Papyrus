@@ -25,7 +25,7 @@ export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
 /** The trend window is whole weeks, one to four: the snapshot counts weekly and keeps eight weeks. */
 export const TREND_WINDOW_DAYS = [7, 14, 21, 28] as const;
 /** The sources `papyrus knowledge corpus export --monitor-sources` understands. */
-export const MONITOR_SOURCES = ["huggingface"] as const;
+export const MONITOR_SOURCES = ["huggingface", "routed"] as const;
 
 const VALID_VCPU = [1, 2, 4, 8, 16];
 

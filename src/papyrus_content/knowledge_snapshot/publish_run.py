@@ -67,6 +67,8 @@ class PublishPlan:
     #: Monitor records imported by this plan (reference id) and the base models of each that the map could not place; the command saves them
     #: in the monitor ledger once the plan is applied (``monitor_ledger.py``).
     monitor_imported: dict[str, list[str]] = field(default_factory=dict)
+    #: Reference id to the accepted entities a routed record's text names (``monitor_match.py``); the ledger hashes them.
+    record_matches: dict[str, list[dict]] = field(default_factory=dict)
 
     def count(self, name: str, amount: int = 1) -> None:
         self.counts[name] = self.counts.get(name, 0) + amount
@@ -91,6 +93,14 @@ class NodeIndex:
             normal = normalize_name(name or "")
             if normal:
                 self._by_name.setdefault((kind, normal), []).append(row)
+
+    def rows(self) -> list[dict]:
+        """The distinct current rows, existing and planned."""
+        return list({id(row): row for rows in self._by_name.values() for row in rows}.values())
+
+    def rows(self) -> list[dict]:
+        """The distinct current rows, existing and planned."""
+        return list({id(row): row for rows in self._by_name.values() for row in rows}.values())
 
     def by_key(self, key: str) -> dict | None:
         return self._by_key.get(key)
@@ -407,12 +417,14 @@ def plan_publish_run(
         confirmed = plan_front_matter(items, index, mention_rows, plan, corpus_id=corpus_id, now=now, accepted_by=agent)
     if records:
         from .monitor_import import monitor_placement, plan_monitor_records  # noqa: PLC0415 - monitor_import imports this module
+        from .monitor_match import match_records  # noqa: PLC0415
 
-        todo = ledger.changed(records, monitor_placement(records, index)) if ledger is not None else records
+        plan.record_matches = match_records(records, index.rows())
+        todo = ledger.changed(records, monitor_placement(records, index), plan.record_matches) if ledger is not None else records
         plan.count("recordsUnchanged", len(records) - len(todo))
         plan.count("recordsImported", len(todo))
         rows = record_rows_for(todo) if record_rows_for is not None and todo else (record_rows or [])
-        plan_monitor_records(todo, index, rows, plan, corpus_id=corpus_id, now=now)
+        plan_monitor_records(todo, index, rows, plan, corpus_id=corpus_id, now=now, matched=plan.record_matches)
     if run is not None:
         plan.warnings.extend(run.warnings)
         if run.entities:

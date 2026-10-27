@@ -200,6 +200,12 @@ Feature: The scheduled cloud knowledge run
     And the commands include "--as-of 2026-10-26"
     And the state in S3 holds "runs/2026-W44/monitor-records.json"
 
+  Scenario: A site can ask for the stories its monitors routed to it as monitor records
+    Given the site sets the monitor sources "routed" for 26 weeks
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources routed --monitor-weeks 26"
+
   Scenario: The import, the snapshot, the archive and the wiki read the same records file
     Given the site sets the monitor sources "huggingface" for 26 weeks
     And the stages "corpus-sync", "topic-model", "typed-extraction" have run

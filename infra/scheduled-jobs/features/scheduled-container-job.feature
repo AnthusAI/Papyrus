@@ -110,6 +110,7 @@ Feature: Scheduled container jobs
   Scenario: monitor records are opt-in and reach the container only when the site names a source
     Then the container has no KNOWLEDGE_MONITOR_SOURCES for the example config
     And a knowledgeRun block with monitorSources "huggingface" and monitorWeeks 26 sets KNOWLEDGE_MONITOR_SOURCES and KNOWLEDGE_MONITOR_WEEKS
+    And a knowledgeRun block with monitorSources "routed" sets KNOWLEDGE_MONITOR_SOURCES to "routed"
     And an empty, unknown or non-whole-week monitor setting is rejected naming "knowledgeRun.monitorSources" or "knowledgeRun.monitorWeeks"
 
   Scenario: the stages check out the commit the site runs

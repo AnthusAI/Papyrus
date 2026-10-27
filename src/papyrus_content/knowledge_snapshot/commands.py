@@ -311,7 +311,7 @@ def knowledge_publish_run(flags: list[str]) -> None:
     if apply:
         apply_changes(client, changes, workers=workers, client_factory=worker_clients(client))
         if ledger_path and records:  # only after everything was written: a failed run leaves the ledger as it was
-            (ledger or MonitorLedger()).after_import(records, plan.monitor_imported).write(ledger_path)
+            (ledger or MonitorLedger()).after_import(records, plan.monitor_imported, plan.record_matches).write(ledger_path)
         if not options.get("json"):
             print(f"knowledge\tpublish-run\tapplied\t{sum(1 for change in changes if change['action'] != 'noop')}")
 

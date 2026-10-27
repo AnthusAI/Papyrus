@@ -1423,3 +1423,117 @@ def test_parallel_workers_give_the_same_import(client, hub, tmp_path, capsys):
     assert count_of(output, "recordsImported") == 3
     with pytest.raises(ValueError, match="--parallel"):
         import_records(hub, ledger, "--parallel", "0")
+
+
+# -- routed monitor records (docs/knowledge-cloud-run.md, "Routed records"): any monitor's References, linked to entities already on the map --
+
+def routed_story(client, slug: str, title: str, created: str, *, monitor: str = "hn", status: str = "pending", **details) -> None:
+    """A Reference the shared router delivered (Hacker News by default): a pending Reference at the story's address and the provenance relation naming the monitor."""
+    from papyrus_content.categories_steering import semantic_relation_record
+
+    reference = {
+        "id": f"reference-{slug}", "lineageId": f"lineage-{slug}", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": status,
+        "sourceUri": f"https://example.org/{slug}", "title": title, "sourcePublishedAt": created,
+    }
+    metadata = {"monitorId": monitor, "sourceId": slug, **({"details": details} if details else {})}
+    relation = semantic_relation_record(
+        {
+            "predicate": "ingestion_rationale", "subjectKind": "message", "subjectId": f"message-{slug}", "subjectLineageId": f"message-{slug}",
+            "subjectVersionNumber": 1, "objectKind": "reference", "objectId": reference["id"], "objectLineageId": reference["lineageId"],
+            "objectVersionNumber": 1, "importedAt": created, "metadata": metadata,
+        }
+    )["expected"]
+    client.rows.setdefault("Reference", {})[reference["id"]] = reference
+    client.rows.setdefault("SemanticRelation", {})[relation["id"]] = relation
+
+
+def routed_export(tmp_path, *sources: str) -> Path:
+    records = tmp_path / "run" / "monitor-records.json"
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", ",".join(sources), "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(records))
+    return records
+
+
+@pytest.fixture
+def stories(client):
+    with_published_rows(client)
+    routed_story(client, "cloning", "Show HN: Voice cloning in 3 seconds, from Some Lab", "2026-10-14T09:00:00Z")
+    routed_story(client, "unrelated", "Why my sourdough failed", "2026-10-15T09:00:00Z")
+    routed_story(client, "refused", "Voice cloning scams", "2026-10-15T09:00:00Z", status="rejected")
+    routed_story(client, "novel", "Quantum Gardening is trending", "2026-10-16T09:00:00Z")
+    return client
+
+
+def test_routed_records_come_from_any_monitor_and_not_from_a_rejected_or_unrouted_reference(stories, tmp_path):
+    stories.rows["Reference"]["reference-bare"] = {
+        "id": "reference-bare", "lineageId": "lineage-bare", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": "accepted",
+        "sourceUri": "https://example.org/bare", "title": "Voice cloning, imported by hand", "sourcePublishedAt": "2026-10-14T09:00:00Z",
+    }
+    routed_story(stories, "feed", "Voice cloning on arXiv", "2026-10-13T09:00:00Z", monitor="arxiv")
+    records = json.loads(routed_export(tmp_path, "routed").read_text())
+    assert sorted((entry["referenceId"], entry["source"]) for entry in records["records"]) == [
+        ("reference-cloning", "hn"), ("reference-feed", "arxiv"), ("reference-novel", "hn"), ("reference-unrelated", "hn"),
+    ]
+    assert sorted(path.name for path in (tmp_path / "raw").iterdir()) == ["item-alpha.md", "item-beta.md"]  # data only
+
+
+def test_a_routed_story_links_only_to_entities_already_accepted_and_creates_none(stories, tmp_path, capsys):
+    run(commands.knowledge_publish_run, "--apply")
+    nodes_before = set(stories.rows["SemanticNode"])
+    run(commands.knowledge_publish_run, "--monitor-records", str(routed_export(tmp_path, "routed")), "--apply")
+    assert set(stories.rows["SemanticNode"]) == nodes_before  # "Quantum Gardening" is on no map: no entity is made for it
+    mentions = [row for row in stories.rows["SemanticRelation"].values() if json.loads(row["metadata"] or "{}").get("kind") == "knowledge.record_mention"]
+    assert sorted((row["subjectLineageId"], row["objectLineageId"]) for row in mentions) == [
+        ("lineage-cloning", "semantic-node-maker--some-lab"), ("lineage-cloning", "semantic-node-task--voice-cloning"),
+    ]
+    metadata = json.loads(mentions[0]["metadata"])
+    assert (metadata["confirmed"], metadata["linkSource"], metadata["provenance"]) == (True, "monitor", "routed from the hn monitor")
+    before = len(stories.writes)
+    run(commands.knowledge_publish_run, "--monitor-records", str(routed_export(tmp_path, "routed")), "--apply")
+    assert len(stories.writes) == before
+
+
+def test_routed_records_count_in_entities_as_data_with_no_page(stories, tmp_path):
+    run(commands.knowledge_publish_run, "--apply")
+    records = routed_export(tmp_path, "routed")
+    run(commands.knowledge_publish_run, "--monitor-records", str(records), "--apply")
+    out = tmp_path / "site"
+    run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--monitor-records", str(records))
+    by_key = {row["key"]: row for row in json.loads((out / INDEX_FILE).read_text())["entities"]}
+    assert by_key["task--voice-cloning"]["recordCount"] == 1 and by_key["task--voice-cloning"]["itemCount"] == 3  # two items and the story
+    assert by_key["task--voice-cloning"]["series8"][-3:] == [1, 2, 0] and by_key["task--voice-cloning"]["href"] is not None  # its own items still give it a page
+    assert "quantum" not in " ".join(by_key)
+    detail = json.loads((out / "_data" / "knowledge" / "entities" / "task--voice-cloning.json").read_text())
+    [story] = detail["relatedRecords"]
+    assert (story["url"], story["source"], story["provenance"]) == ("https://example.org/cloning", "hn", "routed from the hn monitor")
+    assert [row["title"] for row in detail["relatedRecords"]] == ["Show HN: Voice cloning in 3 seconds, from Some Lab"]
+
+
+def test_a_new_entity_on_the_map_links_the_stories_that_name_it_even_with_the_ledger(stories, tmp_path):
+    run(commands.knowledge_publish_run, "--apply")
+    records, ledger = routed_export(tmp_path, "routed"), tmp_path / "ledger.json"
+    import_records(records, ledger)
+    import_records(records, ledger)  # unchanged: nothing is imported
+    before = len(stories.writes)
+    import_records(records, ledger)
+    assert len(stories.writes) == before
+    stories.rows["SemanticNode"]["semantic-node-concept--quantum-gardening-v1"] = {
+        **next(iter(stories.rows["SemanticNode"].values())), "id": "semantic-node-concept--quantum-gardening-v1", "lineageId": "semantic-node-concept--quantum-gardening",
+        "nodeKey": "concept--quantum-gardening", "nodeKind": "concept", "displayName": "Quantum Gardening", "aliases": [], "status": "accepted",
+    }
+    import_records(records, ledger)
+    mentions = [row for row in stories.rows["SemanticRelation"].values() if row["subjectLineageId"] == "lineage-novel"]
+    assert [row["objectLineageId"] for row in mentions] == ["semantic-node-concept--quantum-gardening"]
+
+
+def test_a_site_without_the_routed_source_has_a_byte_identical_snapshot(client, hub, tmp_path):
+    def snapshot(name: str) -> dict[str, bytes]:
+        run(commands.knowledge_publish_run, "--monitor-records", str(hub), "--apply")
+        out = tmp_path / name
+        run(commands.knowledge_snapshot, "--out", str(out), "--as-of", "2026-10-19", "--entity-href", "/wiki/{slug}/", "--monitor-records", str(hub))
+        return {str(path.relative_to(out)): path.read_bytes() for path in sorted(out.rglob("*")) if path.is_file()}
+
+    first, records = snapshot("before"), hub.read_bytes()
+    routed_story(client, "cloning", "Show HN: Voice cloning in 3 seconds, from Some Lab", "2026-10-14T09:00:00Z")
+    run(commands.knowledge_corpus_export, "--out", str(tmp_path / "raw"), "--monitor-sources", "huggingface", "--corpus-key", "shipped", "--as-of", "2026-10-19", "--monitor-records-out", str(hub))
+    assert hub.read_bytes() == records
+    assert snapshot("after") == first

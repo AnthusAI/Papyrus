@@ -14,6 +14,8 @@ the dating, the counts and the entities of one run agree and no later stage scan
 * The Hub's structured fields ride in the ``details`` of the relation that links the provenance Message to the Reference
   (``monitoring_intake.py``), so reading a record is one indexed query, not a download.
 * Entities and relations of a record come from its structured fields, deterministically (``monitor_import.py``).
+* A **routed** record (source ``routed``) is any other Reference a monitor delivered to the site (its provenance relation names the
+  ``monitorId``, e.g. ``hn``). It has no structured fields: its title is matched against the entities already accepted on the map.
 """
 
 from __future__ import annotations
@@ -34,7 +36,8 @@ from .parallel import map_with_clients
 from .weeks import iso_timestamp, parse_day
 
 SOURCE_HUGGINGFACE = "huggingface"
-SOURCES = (SOURCE_HUGGINGFACE,)
+SOURCE_ROUTED = "routed"  # the source name in ``monitorSources`` for any monitor's routed References (Hacker News, later RSS, arXiv); a record's own ``source`` is its monitor id
+SOURCES = (SOURCE_HUGGINGFACE, SOURCE_ROUTED)
 HUB_HOST = "huggingface.co"
 PROVENANCE = {SOURCE_HUGGINGFACE: "from the Hugging Face Hub"}
 RATIONALE_PREDICATE = "ingestion_rationale"
@@ -64,7 +67,17 @@ class MonitorRecord:
 
     @property
     def provenance(self) -> str:
-        return PROVENANCE.get(self.source, "from a monitored source")
+        return provenance_of(self.source)
+
+    @property
+    def routed(self) -> bool:
+        """A record some monitor routed to the site (``routed`` source), as opposed to a Hub model with structured fields."""
+        return self.source != SOURCE_HUGGINGFACE
+
+    @property
+    def text(self) -> str:
+        """The free text of a routed record that entities are matched in: its title and, when the source stored one, its summary or excerpt."""
+        return " ".join(part for part in (self.title, str(self.details.get("summary") or ""), str(self.details.get("excerpt") or "")) if part)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -78,6 +91,11 @@ class MonitorRecord:
             reference_id=str(raw["referenceId"]), lineage_id=str(raw["lineageId"]), source=str(raw["source"]), url=str(raw["url"]),
             title=str(raw["title"]), created_at=str(raw["createdAt"]), details=dict(raw.get("details") or {}), state=str(raw.get("state") or "pending"),
         )
+
+
+def provenance_of(source: str) -> str:
+    """Where a record is from, in words: the Hub, or the monitor that routed it (``from the hn monitor``)."""
+    return PROVENANCE.get(source) or f"routed from the {source} monitor"
 
 
 def parse_sources(value: Any) -> tuple[str, ...]:
@@ -94,9 +112,28 @@ def biblicus_record_id(reference_id: str) -> str:
     return deterministic_uuid(f"papyrus-record:{reference_id}")
 
 
-def _source_of(row: Mapping[str, Any]) -> str | None:
+def _source_of(row: Mapping[str, Any], sources: tuple[str, ...] = (SOURCE_HUGGINGFACE,)) -> str | None:
     host = (urlparse(str(row.get("sourceUri") or "")).hostname or "").lower()
-    return SOURCE_HUGGINGFACE if host == HUB_HOST else None
+    if host == HUB_HOST and SOURCE_HUGGINGFACE in sources:
+        return SOURCE_HUGGINGFACE
+    return SOURCE_ROUTED if SOURCE_ROUTED in sources else None
+
+
+def _monitor_id(rows: Iterable[Mapping[str, Any]]) -> str:
+    """The ``monitorId`` of the newest provenance relation that names one: which monitor routed the Reference ('' when none did)."""
+    found: list[tuple[str, str]] = []
+    for row in rows:
+        if row.get("predicate") != RATIONALE_PREDICATE or row.get("relationState", "current") != "current":
+            continue
+        metadata = row.get("metadata")
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except ValueError:
+                continue
+        if isinstance(metadata, dict) and metadata.get("monitorId"):
+            found.append((str(row.get("importedAt") or row.get("createdAt") or ""), str(metadata["monitorId"])))
+    return max(found)[1] if found else ""
 
 
 def _details_from_relations(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
@@ -133,7 +170,7 @@ def load_monitor_records(
     warnings: list[str] = []
     chosen: list[tuple[date, Mapping[str, Any], str]] = []
     for row in client.list_records("Reference"):
-        source = _source_of(row)
+        source = _source_of(row, sources)
         if source not in sources or row.get("corpusId") != corpus_id or row.get("versionState") not in (None, "current"):
             continue
         if normalize_policy_token(row.get("curationStatus")) in EXCLUDED_STATES:
@@ -151,20 +188,36 @@ def load_monitor_records(
     records = []
     read = map_with_clients(chosen, lambda reader, entry: record_of(reader, entry[1], entry[2]), client=client, client_factory=client_factory, workers=workers)
     for (_created, row, _source), (record, missing) in zip(chosen, read):
+        if record is None:  # a routed candidate no monitor delivered (no provenance relation names one): not a monitor record
+            continue
         if missing:
             warnings.append(f"{row['id']}: no Hub details on its provenance relation; only its title, date and author are used")
         records.append(record)
     return records, warnings
 
 
-def record_of(client: Any, row: Mapping[str, Any], source: str | None = None) -> tuple[MonitorRecord, bool]:
-    """The record a delivered Reference is, and whether its provenance relation lacked the Hub details."""
+def record_of(client: Any, row: Mapping[str, Any], source: str | None = None) -> tuple[MonitorRecord | None, bool]:
+    """The record a delivered Reference is, and whether its provenance relation lacked the Hub details. A routed candidate that no monitor
+    delivered (its provenance names no ``monitorId``, or names the Hub monitor, which the ``huggingface`` source owns) is ``None``."""
     source = source or _source_of(row)
     if source is None:
         raise ValueError(f"Reference {row.get('id')} is not a monitor record: its address is not on a supported source.")
     lineage = str(row.get("lineageId") or row["id"])
     url = str(row["sourceUri"])
-    details = _details_from_relations(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
+    relations = client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage))
+    if source == SOURCE_ROUTED:
+        monitor = _monitor_id(relations)
+        if not monitor or monitor == SOURCE_HUGGINGFACE:
+            return None, False
+        return (
+            MonitorRecord(
+                reference_id=str(row["id"]), lineage_id=lineage, source=monitor, url=url, title=str(row.get("title") or url),
+                created_at=iso_timestamp(str(row["sourcePublishedAt"])), details=_details_from_relations(relations),
+                state=normalize_policy_token(row.get("curationStatus")) or "pending",
+            ),
+            False,
+        )
+    details = _details_from_relations(relations)
     missing = not details
     if missing:
         details = _fallback_details(row, url)
@@ -197,6 +250,8 @@ def read_records(path: Path | str) -> list[MonitorRecord]:
 # -- what a record says about itself ---------------------------------------------------------------------------------
 def record_summary(record: MonitorRecord) -> str:
     """One line of the record's structured facts: the only text a Cited Trends story may rest on for a record."""
+    if record.routed:  # no structured facts: what the monitor delivered is the title (and the summary, when it stored one)
+        return f"{record.title} ({record.provenance}, {record.created_at[:10]}).{' ' + str(record.details['summary']) if record.details.get('summary') else ''}"[:SUMMARY_LIMIT]
     details = record.details
     kind = f"{details['pipelineTag']} model" if details.get("pipelineTag") else "model"
     author = f" by {details['author']}" if details.get("author") else ""
@@ -213,7 +268,10 @@ def record_summary(record: MonitorRecord) -> str:
 
 
 def record_entities(record: MonitorRecord) -> list[tuple[str, str]]:
-    """``(kind, name)`` pairs from the structured fields: the model, its maker, its licence and its task."""
+    """``(kind, name)`` pairs from the structured fields: the model, its maker, its licence and its task. A routed record has none:
+    its entities are the ones its text mentions (``monitor_match.py``)."""
+    if record.routed:
+        return []
     details = record.details
     licence = str(details.get("license") or "").strip()
     pairs = [
