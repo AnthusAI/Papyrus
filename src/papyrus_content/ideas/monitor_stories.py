@@ -33,10 +33,12 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
+from .. import link_exploration
 from ..categories_steering import semantic_state_key
+from ..link_exploration import Context, Exploration
 from ..knowledge_snapshot.monitor_records import RATIONALE_PREDICATE, _details_from_relations
 from ..monitor_promotion import promoted_reference_ids
 from . import dedupe, synthesis, trends
@@ -314,6 +316,17 @@ def read_source_text(url: str, fetch: SourceFetcher = fetch_source) -> str | Non
     return source_text.read_source_text(url, fetch, TEXT_LIMIT)
 
 
+Explorer = Callable[[MonitoredItem], Exploration]
+
+
+def explore_item(item: MonitoredItem) -> Exploration:
+    """Follow the item's address through trackers and read it; when that fails, search the web for its title and read the best match.
+
+    The context is the stored title and summary only. Nothing here raises.
+    """
+    return link_exploration.explore(item.url, Context(title=item.title, summary=stored_summary(item.details) or ""), want_text=True, text_limit=TEXT_LIMIT)
+
+
 def source_view(item: MonitoredItem, page_text: str | None) -> dict[str, Any]:
     """What the model sees of the source, and the only numbers and dates a sentence citing it may use."""
     view = {
@@ -427,8 +440,9 @@ def run_id_for(site: str, now: datetime) -> str:
     return f"monitor-stories-run-{now.strftime('%Y%m%dT%H%M%SZ')}-{hashlib.sha256((site + iso(now)).encode()).hexdigest()[:6]}"
 
 
-def draft_record(draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any], *, run: dict[str, Any], now: datetime) -> dict[str, Any]:
-    return {
+def draft_record(draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any], *, run: dict[str, Any], now: datetime, exploration: Exploration | None = None) -> dict[str, Any]:
+    found_by_search = exploration is not None and exploration.via == "search"
+    record = {
         "ideaId": "idea-" + hashlib.sha256(f"{run['runId']}|{item.lineage_id}".encode()).hexdigest()[:10],
         "kind": "story_draft", "origin": "monitor", "state": "draft", "proposer": "ai", "proposedBy": "AI", "private": True,
         "publication": run["publication"], "runId": run["runId"], "createdAt": iso(now),
@@ -437,12 +451,16 @@ def draft_record(draft: dict[str, Any], item: MonitoredItem, view: dict[str, Any
         "targets": [target_for(item)],
         "evidence": {"signals": 1, "source": f"{item.monitor_id} monitor: {item.url}"[:200]},
         "monitorId": item.monitor_id, "referenceId": item.reference_id, "referenceLineageId": item.lineage_id, "relevance": item.verdict,
-        "sourceText": "page" if "page_text" in view else "stored details",
+        "sourceText": ("page found by search" if found_by_search else "page") if "page_text" in view else "stored details",
         "citedItems": [{"id": f"item:{item.url}", "title": item.title, "date": (item.published_at or "")[:10] or None, "url": item.url}],
         "citationCheck": draft["citationCheck"],
         "sentences": [{"role": role, **sentence} for role, sentence in [("headline", draft["headline"]), ("dek", draft["dek"])]]
         + [{"role": "body", **sentence} for paragraph in draft["paragraphs"] for sentence in paragraph],
     }
+    if found_by_search:
+        # The original address could not be read, so the text came from a different page: say so, with the query and the match score.
+        record["sourceExploration"] = exploration.as_record()
+    return record
 
 
 # --- the run -------------------------------------------------------------------------------------------------------------------
@@ -467,6 +485,7 @@ def draft_monitor_stories(
     fetch: SourceFetcher = fetch_source,
     corpus_key: str | None = None,
     excluded_hosts: Iterable[str] = (),
+    explorer: Explorer | None = None,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -502,10 +521,14 @@ def draft_monitor_stories(
     for item in candidates:
         if len(kept) >= limit or run["attempted"] >= limit * ATTEMPT_FACTOR:
             break
-        page_text = read_source_text(item.url, fetch)
+        exploration = explorer(item) if explorer else None
+        page_text = exploration.text if exploration else read_source_text(item.url, fetch)
         view = source_view(item, page_text)
         if not has_material(view):
-            run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "no_source_text"})
+            skipped = {"referenceId": item.reference_id, "title": item.title, "reason": "no_source_text"}
+            if exploration:
+                skipped.update(readFailure=exploration.failure or "unreadable", directFailure=exploration.direct_failure, searchFailure=exploration.search_failure)
+            run["skipped"].append({key: value for key, value in skipped.items() if value})
             continue
         model_input = build_input(item, view, context)
         size = len(SYSTEM_PROMPT) + len(str(model_input))
@@ -529,7 +552,7 @@ def draft_monitor_stories(
             title = str(((raw.get("headline") or {}).get("text")) if isinstance(raw, dict) and isinstance(raw.get("headline"), dict) else "")[:200]
             run["invalid"].append({"referenceId": item.reference_id, "title": title or item.title, "reason": "citation_check_failed", "citationCheck": record, "draft": raw})
             continue
-        built = draft_record(draft, item, view, run=run, now=moment)
+        built = draft_record(draft, item, view, run=run, now=moment, exploration=exploration)
         similar, dropped = dedupe.split_duplicates([built], [*documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
         kept += similar
@@ -579,7 +602,7 @@ def render_report(run: dict[str, Any]) -> str:
         lines += [f"## {number}. {draft['title']}", "", f"From the {draft['monitorId']} monitor, {draft['citedItems'][0]['url']} (source text: {draft['sourceText']}). Citation check: passed ({draft['citationCheck']['sentences']} sentences).", "", draft["body"].rstrip(), ""]
     for heading, rows, describe in (
         ("Failed the citation check or were invalid", run["invalid"], lambda r: f"{r['title'] or '(untitled)'}: {r['reason']}" + "".join(f"\n  - {p['where']}: {p['reason']}" + (f" ({p['text']})" if p["text"] else "") for p in (r.get("citationCheck") or {}).get("problems", []))),
-        ("Skipped", run["skipped"], lambda r: f"{r['title']}: {r['reason']}"),
+        ("Skipped", run["skipped"], lambda r: f"{r['title']}: {r['reason']}" + (f" ({r['readFailure']})" if r.get("readFailure") else "")),
         ("Dropped as duplicates", run["duplicates"], lambda r: f"{r['title']}: {r['reason']}"),
     ):
         if rows:

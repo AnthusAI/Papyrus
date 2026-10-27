@@ -23,10 +23,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ideas_fixtures import CORPUS, NOW, FakeClient, FakeModel, operator_view, reference  # noqa: E402
 from papyrus import cli as papyrus_cli  # noqa: E402
 from papyrus_content import proposals_commands  # noqa: E402
+from papyrus_content.link_exploration import Exploration  # noqa: E402
 from papyrus_content.ideas import commands, monitor_stories as stories  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
 
 SITE = "example-site"
+PAGE_TEXT = "The tool, released on 2026-10-20, reads a draft, finds each claim and links it to the source page it came from. It is written in Rust and has 42 contributors."
 PAGE = "<html><head><meta name='description' content='Foo is an open tool that checks claims against their sources.'></head><body><p>The tool, released on 2026-10-20, reads a draft, finds each claim and links it to the source page it came from. It is written in Rust and has 42 contributors.</p></body></html>"
 
 
@@ -335,6 +337,32 @@ class DraftingTests(unittest.TestCase):
         self.assertEqual([entry["reason"] for entry in run["skipped"]], ["no_source_text"])
         self.assertEqual(len(run["drafts"]), 1)
 
+    def test_an_explorer_supplies_the_source_text_and_a_page_found_by_search_is_marked(self) -> None:
+        from papyrus_content.link_exploration import Exploration, SearchMatch
+
+        _, client = world(1)
+
+        def explorer(item):
+            return Exploration(True, "https://mirror.example/copy", PAGE_TEXT, "search", search=SearchMatch(item.title, 0.8, "fake"), readable=True, text_source="page")
+
+        model = StoryModel()
+        run = draft(client, model, explorer=explorer, fetch=lambda url: self.fail("the explorer replaces the plain fetch"))
+        self.assertEqual(json.loads(model.requests[0]["input"])["source"]["page_text"], PAGE_TEXT)
+        self.assertEqual(run["drafts"][0]["sourceText"], "page found by search")
+        self.assertEqual(run["drafts"][0]["sourceExploration"]["search"]["matchScore"], 0.8)
+        self.assertNotIn("sourceExploration", draft(world(1)[1], StoryModel(), explorer=lambda item: Exploration(True, item.url, PAGE_TEXT, "direct", readable=True))["drafts"][0])
+
+    def test_an_item_the_explorer_cannot_read_is_skipped_with_the_typed_reason(self) -> None:
+        from papyrus_content.link_exploration import Exploration
+
+        _, client = world(2)
+        model = StoryModel()
+        run = draft(client, model, explorer=lambda item: Exploration(False, failure="search_unavailable", direct_failure="http_4xx", search_failure="search_unavailable"))
+        self.assertEqual(model.requests, [])
+        self.assertEqual(run["skipped"][0]["reason"], "no_source_text")
+        self.assertEqual((run["skipped"][0]["readFailure"], run["skipped"][0]["directFailure"], run["skipped"][0]["searchFailure"]), ("search_unavailable", "http_4xx", "search_unavailable"))
+        self.assertIn("(search_unavailable)", stories.render_report(run))
+
     def test_a_draft_that_fails_the_check_is_replaced_by_the_next_item_and_never_filed(self) -> None:
         rows, client = world(3, verdicts={1: 0.9, 2: 0.8, 3: 0.7})
         bad = good_story("", cites=())
@@ -500,6 +528,8 @@ class CommandTests(unittest.TestCase):
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
              mock.patch.object(commands.monitor_stories, "fetch_source", side_effect=lambda url: PAGE), \
+             mock.patch.object(commands.monitor_stories, "explore_item", side_effect=lambda item: Exploration(
+                 True, item.url, stories.read_source_text(item.url, lambda url: PAGE), "direct", readable=True)), \
              mock.patch.object(commands, "datetime", wraps=commands.datetime) as clock, \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", **(environment or {})}), \
              mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
