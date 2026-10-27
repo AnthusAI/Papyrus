@@ -288,7 +288,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         maximum_cost_usd=_number(options, "max-cost-usd", DEFAULT_MAXIMUM_COST_USD),
         dry_run=dry_run,
         now=now,
-        fetch=monitor_stories.fetch_html,
+        fetch=monitor_stories.fetch_source,
         corpus_key=normalize_string(options.get("corpus-key")),
         excluded_hosts=_excluded_hosts(flags),
     )

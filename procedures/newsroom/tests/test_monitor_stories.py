@@ -499,7 +499,7 @@ class CommandTests(unittest.TestCase):
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
-             mock.patch.object(commands.monitor_stories, "fetch_html", side_effect=lambda url: PAGE), \
+             mock.patch.object(commands.monitor_stories, "fetch_source", side_effect=lambda url: PAGE), \
              mock.patch.object(commands, "datetime", wraps=commands.datetime) as clock, \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", **(environment or {})}), \
              mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \

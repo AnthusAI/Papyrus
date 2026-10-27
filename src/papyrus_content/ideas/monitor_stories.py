@@ -42,7 +42,8 @@ from ..monitor_promotion import promoted_reference_ids
 from . import dedupe, synthesis, trends
 from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excluded_hosts import is_excluded, normalize_hosts
-from .excerpt import Fetcher, excerpt_from_html, fetch_html
+from . import source_text
+from .source_text import SourceFetcher, fetch_source
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, comparison_documents
 from .review import request_human_review
 from .store import JsonStore, ProposalStore
@@ -308,13 +309,9 @@ def stored_summary(details: dict[str, Any]) -> str | None:
     return None
 
 
-def read_source_text(url: str, fetch: Fetcher = fetch_html) -> str | None:
-    """The plain text of the linked page (a few paragraphs), or None when it cannot be read. Never raises."""
-    try:
-        html = fetch(url)
-    except Exception:  # noqa: BLE001 - an unreadable page only means no text
-        return None
-    return excerpt_from_html(html, TEXT_LIMIT) if html else None
+def read_source_text(url: str, fetch: SourceFetcher = fetch_source) -> str | None:
+    """The plain text of the linked page or PDF (a few paragraphs, TEXT_LIMIT characters at most), or None when it cannot be read. Never raises."""
+    return source_text.read_source_text(url, fetch, TEXT_LIMIT)
 
 
 def source_view(item: MonitoredItem, page_text: str | None) -> dict[str, Any]:
@@ -467,7 +464,7 @@ def draft_monitor_stories(
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
     now: datetime | None = None,
-    fetch: Fetcher = fetch_html,
+    fetch: SourceFetcher = fetch_source,
     corpus_key: str | None = None,
     excluded_hosts: Iterable[str] = (),
 ) -> dict[str, Any]:

@@ -253,8 +253,12 @@ It is the same for every monitor: no source is named in the code, so a new site 
    before a lower one, where the score is multiplied by a **freshness weight** `exp(-age / tau)` (age in days at the run) and `tau` is learned per site from its editors' own decisions: the median age at curation (`curationStatusUpdatedAt` minus arrival) of the monitored References they accepted, divided by ln 2 (for an exponential the median is `tau * ln 2`). With fewer than 10 such examples there is no weight at all (the score alone ranks, newest arrival breaking ties); no constant is guessed. An old, highly relevant item is therefore never excluded, only ranked lower when this site's editors tend to act fast. The run record's `freshness` holds `tauDays`, `medianAgeDays` and `examples` (or `tauDays: null` and a note); then, only to break a tie, the source's own numbers when the item has them (`likes`, then `downloads`, in `SECONDARY_SIGNALS`);
    then the newest arrival; then the Reference id, so the same input always gives the same order. An item with no verdict (a site whose monitor runs
    without the Cyclotron) ranks after the scored ones.
-3. **Fetch.** The linked page as plain text (a meta description and a few paragraphs, 4,000 characters at most) through the digest's reader, which
-   only reads public http(s) addresses. A page that cannot be read is not an error: the story then rests on the title and the details the monitor stored
+3. **Fetch.** The linked source as plain text, 4,000 characters at most (the model's input budget, not a limit on the source), through `ideas/source_text.py`, which
+   only reads public http(s) addresses (redirects are re-checked, a PDF is capped at 8 MB). An HTML page gives its meta description and a few paragraphs. A
+   PDF (by content type or a `.pdf` address) gives the text of its first four pages, which for a decision or a paper carries the caption, the holding and the
+   summary of grounds, extracted by the shared `papyrus_content/pdf_text.py` (pypdf; the same helper is the `papyrus_fetch_pdf_text` Tactus tool, and it
+   knows that a TTAB Reading Room document downloads at its double-slash address). An HTML page with little text of its own whose first PDF link is on the
+   same host is read through that PDF. Details the monitor stored on the provenance relation (`details`) are facts for the model as before. A page that cannot be read is not an error: the story then rests on the title and the details the monitor stored
    (a `summary` or `description`, and the simple facts such as numbers and short text). An item with nothing but a title is skipped with the reason
    `no_source_text` and no model call, because a story needs something to stand on.
 4. **Draft.** One call to the repository's default model (`gpt-6-luna`, `--model` overrides) per item, through the same transport as the trends path.
