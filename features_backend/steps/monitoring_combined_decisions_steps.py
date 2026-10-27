@@ -214,3 +214,23 @@ def step_first_error(context):
 @then("the run is complete rather than stopped")
 def step_complete(context):
     assert context.result["status"] == "complete" and not context.result.get("stoppedBy")
+
+
+@given("Cyclotron answers the combined request with a conflict the router does not recognise")
+def step_unknown_conflict(context):
+    context.cyclotron.combined_post_override = (409, {"detail": "something unexpected"})
+
+
+@then("the run does not stop")
+def step_not_stopped(context):
+    assert context.result["stoppedBy"] is None
+
+
+@then("the story is recorded as an error")
+def step_error(context):
+    assert tr.routing_of(context.table_)["DISC#101#000001"] == "error"
+
+
+@then("the run receipt says what Cyclotron answered")
+def step_receipt(context):
+    assert any("http 409" in e["message"] and "something unexpected" in e["message"] for e in context.result["errors"])

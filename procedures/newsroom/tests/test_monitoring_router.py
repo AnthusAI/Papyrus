@@ -944,12 +944,38 @@ def test_a_park_row_written_with_its_items_inside_is_split_into_rows_when_read_a
     assert [row["sourceId"] for row in parked(table, "threat-intelligence")] == ["1000", "1001", "1002"]
 
 
-def test_other_409_and_ceiling_refusals_still_stop_the_sweep(table):
+def test_unknown_409_skips_only_that_story_and_is_logged(table, caplog):
     store, cyclotron = setup_router(table)
-    cyclotron.post_override["anth-us"] = (409, {"error": {"code": "something_else"}})
-    result = go(table, store, cyclotron)
-    assert result["status"] == "stopped" and result["stoppedBy"] == "something_else"
+    cyclotron.post_override["anth-us"] = (409, {"error": {"code": "something_else"}, "token": "SECRET"})
+    with caplog.at_level("WARNING", logger="papyrus_content.monitoring_router"):
+        result = go(table, store, cyclotron)
+    assert result["status"] != "stopped" and result["stoppedBy"] is None
+    assert result["counts"]["error"] >= 1 and "error" in set(routing_of(table).values())
+    assert any("http 409" in e["message"] and "something_else" in e["message"] for e in result["errors"])
+    assert "http 409" in caplog.text and "something_else" in caplog.text
+    assert "SECRET" not in caplog.text and "SECRET" not in json.dumps(result["errors"])
     assert ("MONITOR#hn", "PARK#anth-us") not in table.items
+
+
+def test_unknown_409_detail_is_truncated_to_300_characters():
+    assert len(mr.body_excerpt(409, {"detail": "x" * 1000})) == 300
+    assert mr.body_excerpt(502, {"detail": ["a", "b"]}) == 'http 502: detail=["a","b"]'
+    assert mr.body_excerpt(500, "html") == "http 500: no detail"
+
+
+def test_unknown_combined_409_continues_to_the_next_story(table):
+    store, cyclotron = combined_setup(table)
+    cyclotron.combined_post_override = (409, {"detail": "something odd"})
+    result = go(table, store, cyclotron)
+    assert result["stoppedBy"] is None and routing_of(table)["DISC#101#000001"] == "error"
+    assert any("something odd" in e["message"] for e in result["errors"])
+
+
+def test_ceiling_refusals_still_stop_the_sweep(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.post_override["anth-us"] = (507, {"code": "standing_capacity_reached"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "stopped" and result["stoppedBy"] == "standing_capacity_reached"
 
 
 def test_typed_criteria_pending_code_is_also_not_ready(table):
