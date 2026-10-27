@@ -94,6 +94,7 @@ import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import type { ReaderAuthSnapshot } from "./reader-auth-state";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
+import { correctReferenceCapture } from "../lib/content-actions-client";
 import { loadMessagesWithHeadStart, loadReferencesWithHeadStart, loadRelationsWithHeadStart } from "./references-prefetch";
 import { loadFeedSnapshot, saveFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
 import { referencePreviewsByLineage } from "../lib/reference-preview";
@@ -3213,6 +3214,7 @@ function NewsDeskDashboard({
             referenceAttachments={referenceAttachments}
             references={references}
             loading={!dashboard.isDemo && !hasHydratedReferences}
+            onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             savedCopy={savedFeedCopy}
           />
           </NewsroomCurationBootstrap>

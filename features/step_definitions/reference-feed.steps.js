@@ -7,9 +7,13 @@ const { Given, When, Then } = require("@cucumber/cucumber");
 const root = path.resolve(__dirname, "../..");
 const run = async (script, name) => (await promisify(execFile)(process.execPath, ["--import", "tsx", script, ...(name ? [name] : [])], { cwd: root, maxBuffer: 8 * 1024 * 1024 })).stdout;
 const browser = (name) => run("scripts/test-reference-feed.ts", name);
+const sync = (name) => run("scripts/test-reference-sync.ts", name);
 const ranking = async () => (await promisify(execFile)(process.execPath, ["--import", "tsx", "--test", "scripts/test-reference-feed-ranking.ts"], { cwd: root, maxBuffer: 8 * 1024 * 1024 })).stdout;
 
 for (const given of [
+  "References with a ready curation card, a failed one, a failed one beside older extracted text, a degraded one that may be paywalled, and one still running",
+  "a Reference with no captured text",
+  "References where one has full stored text, one only a teaser, and one nothing but its link",
   "a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction",
   "References whose accepted examples show how quickly the editor acts",
   "References older than three times the learned freshness",
@@ -60,6 +64,49 @@ const outcomes = [
   ]],
 ];
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
+for (const action of [
+  "the editor opens each of them",
+  "the editor chooses Paste or correct the text, pastes the article and marks the capture complete",
+  "the editor accepts on the grid card and then types a reason in the detail pane",
+  "the editor types a reason in the detail pane before voting, then votes",
+  "the editor rejects on the card and chooses the reason in the detail pane",
+  "the editor opens a card and steps through the queue with Next and Previous",
+  "the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item",
+]) When(action, function () { this.feedResult = ""; });
+const syncOutcomes = [
+  ["curation_card", [
+    "the record shows the card's status, word count, summary, GROBID fields and the curation text, and the card badge follows the curation status",
+    '"No text captured" shows only when neither a card with text nor extracted text exists, with the card\'s typed reason in words',
+    "a paywall phrase at the end of a long capture says it may be cut off, and a degraded card says a stage is unfinished",
+  ]],
+  ["correct_capture", [
+    "correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run",
+    "a verdict alone is saved as just a label, and nothing can be saved without a verdict",
+  ]],
+  ["capture_status", [
+    'the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction',
+    'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',
+    "each state has its own Lucide icon as well as its words, and the record sits above the source preview",
+    "every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened",
+  ]],
+  ["vote_then_reason", ["the pane shows the vote, the green match state, and the reason is saved onto the same decision after a pause or on blur, with a Saved tick in both places"]],
+  ["reason_then_vote", ["the vote carries the reason, a Reject waits for its reason code, and a failed save keeps what was typed"]],
+  ["card_and_detail_agree", ["both show the Reject, the card shows the reason and the red or green match state with its icon"]],
+  ["grid_stays_put", [
+    "every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels",
+    "the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet",
+    'the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it',
+  ]],
+  ["previous_next_selects", [
+    "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline",
+    "opening a card from the grid selects it too",
+  ]],
+];
+for (const [name, texts] of syncOutcomes) {
+  for (const text of texts) {
+    Then(text, { timeout: 300_000 }, async function () { assert.ok((await sync(name)).includes(`Reference sync scenario passed: ${name}`)); });
+  }
+}
 When("the editor accepts a card, then rejects it with a reason, and rejects a card the Cyclotron expected to be rejected", function () { this.feedResult = ""; });
 When("the editor votes with the Cyclotron's side and against it", function () { this.feedResult = ""; });
 When("the editor opens how this feed is ranked", function () { this.feedResult = ""; });

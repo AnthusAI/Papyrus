@@ -6,11 +6,14 @@ import {
   EARLIER_AFTER_TAUS,
   MINIMUM_FRESHNESS_EXAMPLES,
   acceptProbability,
+  applyFeedOrderSnapshot,
   groupFeedItems,
   learnFreshness,
+  takeFeedOrderSnapshot,
   partitionReferenceFeed,
 } from "../lib/reference-feed-ranking";
 import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
+import { captureLine, captureStatus, curationCardOf, completenessFlags, captureStatusesByLineage, countWords, structuredRows, teaserWords, DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
 import { clearSavedNewsroomDisplay, loadFeedSnapshot, loadSessionDisplay, saveFeedSnapshot, saveSessionDisplay, SESSION_DISPLAY_TTL_MS } from "../lib/reference-feed-cache";
 
 const DAY = 86_400_000;
@@ -181,4 +184,86 @@ test("A dek is dropped when it adds nothing to the headline or the picture", () 
   assert.equal(dekAddsInformation("Jukebox-OS", "A deterministic flight recorder for multi-agent systems", "https://opengraph.githubassets.com/abc/owner/repo"), false, "a GitHub social card already prints it");
   assert.equal(dekAddsInformation("Formal verification gets feasible", "Claude proved security properties in the compiled code of 123 open-source libraries.", "https://cdn.example.org/x.jpg"), true);
   assert.equal(dekAddsInformation("Anything", null, null), false);
+});
+
+const attach = (lineage: string, role: string, extra: Record<string, unknown> = {}) => ({ id: `${lineage}-${role}`, referenceId: `${lineage}-v1`, referenceLineageId: lineage, referenceVersionKey: `reference#${lineage}-v1`, role, sortKey: role, ...extra }) as ReferenceAttachmentRecord;
+
+test("Capture status: none without extracted text, thin under the teaser line, full above it, with plain words", () => {
+  const source = attach("a", "source", { sourceUri: "https://a.example.org" });
+  assert.deepEqual({ ...captureStatus([source]) }, { state: "none", words: null, estimated: false, source: "none", curation: null, reason: null, flags: [], assessment: null, summaryStale: false }, "a monitored Reference has only its address");
+  const text = (characters: number) => attach("a", "extracted_text", { storagePath: "s3://x", metadata: JSON.stringify({ textLength: characters }) });
+  assert.equal(captureStatus([source, text(600)]).state, "thin", "100 words is a teaser");
+  assert.equal(captureStatus([source, text(6000)]).state, "full");
+  assert.equal(captureStatus([source, text(6000)], DEFAULT_TEASER_WORDS, 40).state, "thin", "the loaded text's own count wins over the estimate");
+  assert.equal(captureLine(captureStatus([source])).label, "No text captured");
+  assert.equal(captureLine(captureStatus([source, text(6000)])).label, "Full text captured");
+  assert.equal(captureLine(captureStatus([source, text(600)], DEFAULT_TEASER_WORDS, 87)).label, "Only 87 words — may be a teaser or paywalled");
+  assert.equal(countWords("  one two\nthree "), 3);
+});
+
+test("The teaser line is learned from the corpus once there are ten captured texts, never guessed before", () => {
+  assert.equal(teaserWords([1000, 2000]), DEFAULT_TEASER_WORDS);
+  assert.equal(teaserWords(Array.from({ length: 10 }, () => 2000)), 500, "a quarter of the median");
+  const statuses = captureStatusesByLineage(
+    [attach("a", "extracted_text", { storagePath: "p", byteSize: 6000 }), attach("b", "source")],
+    ["a", "b", "c"],
+  );
+  assert.equal(statuses.statuses.get("a")!.state, "full");
+  assert.equal(statuses.statuses.get("b")!.state, "none");
+  assert.equal(statuses.statuses.get("c")!.state, "none", "a Reference with no attachments at all has no capture");
+});
+
+test("Structured extraction (GROBID fields) becomes plain label and value rows", () => {
+  const rows = structuredRows([attach("a", "extracted_text_raw", { storagePath: "p", metadata: JSON.stringify({ grobid: { title: "A Paper", authors: ["X. One", "Y. Two"], doi: "10.1/abc", citations: [1, 2, 3] } }) })]);
+  assert.deepEqual(rows, [{ label: "Title", value: "A Paper" }, { label: "Authors", value: "X. One, Y. Two" }, { label: "DOI", value: "10.1/abc" }, { label: "Citations", value: "3 cited works" }]);
+  assert.deepEqual(structuredRows([attach("a", "source")]), []);
+});
+
+test("The feed order is taken once and kept: new predictions re-rank nothing, new items are counted, not shuffled in", () => {
+  const references = ["a", "b", "c", "d"].map((id, index) => reference(id, { createdAt: ago(0.1 + index * 0.1) }));
+  const first = new Map<string, RelevanceDecisionView>([["a", decision("include", 0.95)], ["b", decision("include", 0.8)], ["c", decision("exclude", 0.9)]]);
+  const snapshot = takeFeedOrderSnapshot(partitionReferenceFeed(references, first, { now: NOW }));
+  assert.deepEqual(snapshot.feed, ["a", "b", "d", "c"]);
+  // The predictions change completely, a card is rated, and a new item arrives.
+  const later = new Map<string, RelevanceDecisionView>([["a", decision("exclude", 0.99)], ["b", decision("exclude", 0.9)], ["d", decision("include", 0.99)]]);
+  const rated = [...references.map((item) => (item.lineageId === "b" ? { ...item, curationStatus: "accepted", curationStatusUpdatedAt: ago(0) } : item)), reference("e")];
+  const live = partitionReferenceFeed(rated, later, { now: NOW, visitRated: new Set(["b"]) });
+  assert.notDeepEqual(ids(live.feed), snapshot.feed, "a live re-rank would have reshuffled the feed");
+  const stable = applyFeedOrderSnapshot(snapshot, live);
+  assert.deepEqual(ids(stable.partition.feed), ["a", "b", "d", "c"], "the order is the snapshot's: nothing moved, the rated card stayed");
+  assert.deepEqual(stable.groups.flatMap((group) => ids(group.items)), ["a", "b", "d", "c"], "so are the sections");
+  assert.equal(stable.newCount, 1, "the new item is counted for the pill");
+  assert.ok(!ids(stable.partition.feed).includes("e"), "and not shuffled in");
+  const refreshed = applyFeedOrderSnapshot(takeFeedOrderSnapshot(live), live);
+  assert.ok(ids(refreshed.partition.feed).includes("e") && refreshed.newCount === 0, "showing the new items takes a fresh snapshot");
+});
+
+const curation = (body: Record<string, unknown>) => attach("a", "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", ...body }) });
+
+test("The curation card is read first; extracted_text is the fallback; No text only when neither exists", () => {
+  const source = attach("a", "source");
+  const ready = curation({ status: "ready", capture: { status: "completed", wordCount: 912, textSortKey: "curation-text" }, signals: { wordCount: 912, endingPattern: "sentence_end" } });
+  const status = captureStatus([source, ready]);
+  assert.deepEqual([status.state, status.words, status.estimated, status.source, status.curation], ["full", 912, false, "curation", "ready"]);
+  const failed = curation({ status: "capture_failed", capture: { status: "failed", reason: "blocked" }, signals: {} });
+  const none = captureStatus([source, failed]);
+  assert.deepEqual([none.state, none.source, none.curation, none.reason], ["none", "none", "capture_failed", "blocked"]);
+  assert.match(captureLine(none).detail, /refused our request/);
+  const extracted = attach("a", "extracted_text", { storagePath: "p", metadata: JSON.stringify({ textLength: 6000 }) });
+  assert.deepEqual([captureStatus([source, failed, extracted]).state, captureStatus([source, failed, extracted]).source], ["full", "extracted"], "a failed card does not hide older extracted text");
+  assert.equal(captureStatus([source, curation({ status: "running", capture: { status: "not_run" }, signals: {} })]).state, "running");
+  assert.equal(curationCardOf([source]), null);
+  assert.equal(curationCardOf([attach("a", "curation", { metadata: JSON.stringify({ status: "nonsense" }) })]), null, "an unknown status is not a card");
+});
+
+test("Completeness signals become plain facts, and a paywall phrase in the tail makes a long capture doubtful", () => {
+  assert.deepEqual(completenessFlags({ paywallMarkers: [{ id: "subscribe_to_continue", inTail: true }], endingPattern: "ellipsis", bodyNotLongerThanDescription: true }),
+    ["The text ends with a subscribe or sign-in phrase.", "The text stops with an ellipsis or a cut-off marker.", "The text is no longer than the page's own description."]);
+  assert.deepEqual(completenessFlags({ endingPattern: "sentence_end" }), []);
+  const tail = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] } });
+  assert.equal(captureStatus([attach("a", "source"), tail]).thinBy, "signals");
+  const vouched = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] }, labels: [{ kind: "capture_completeness", assessment: "complete" }] });
+  assert.equal(captureStatus([attach("a", "source"), vouched]).state, "full", "an editor's Complete is not second-guessed");
+  const edited = curation({ status: "ready", capture: { status: "completed", wordCount: 5 }, signals: { wordCount: 5 }, editedSignals: { wordCount: 1500 }, current: { textSortKey: "curation-edit-0001-text" } });
+  assert.equal(captureStatus([attach("a", "source"), edited]).words, 1500, "the edited text's own word count");
 });

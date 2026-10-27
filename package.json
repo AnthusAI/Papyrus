@@ -68,7 +68,7 @@
     "test:oauth-redirect-urls": "tsx scripts/test-oauth-redirect-urls.ts",
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:prospectus-site-identity": "tsx scripts/test-prospectus-site-identity.ts",
-    "test:reference-feed": "tsx scripts/test-reference-feed-ranking.ts && tsx scripts/test-reference-feed.ts && cucumber-js --profile referenceFeed",
+    "test:reference-feed": "tsx scripts/test-reference-feed-ranking.ts && tsx scripts/test-reference-feed.ts && tsx scripts/test-reference-sync.ts && cucumber-js --profile referenceFeed",
     "export:reference-feed-fixture": "python3 scripts/export-reference-feed-fixture.py",
     "capture:reference-feed": "node scripts/capture-reference-feed-shots.mjs",
     "test:cli-login-discovery": "tsx scripts/test-cli-login-discovery.ts && cucumber-js --profile cliLoginDiscovery",

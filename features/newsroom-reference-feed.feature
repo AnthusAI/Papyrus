@@ -86,3 +86,52 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor opens how this feed is ranked
     Then it explains best bets first, confidence, fading toward not sure, Earlier and why a rated card stays put
     And it says how many accepted examples have been learned from, or how many more are needed
+
+  Scenario: The detail pane shows our captured record above the source preview, so the editor can see whether the item was really captured
+    Given References where one has full stored text, one only a teaser, and one nothing but its link
+    When the editor opens each of them
+    Then the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction
+    And the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing
+    And each state has its own Lucide icon as well as its words, and the record sits above the source preview
+    And every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened
+
+  Scenario: A vote, then a reason, ends up as one decision, and both the card and the detail pane show it
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor accepts on the grid card and then types a reason in the detail pane
+    Then the pane shows the vote, the green match state, and the reason is saved onto the same decision after a pause or on blur, with a Saved tick in both places
+
+  Scenario: A reason, then a vote, ends up as one decision that carries the reason, and a typed reason is never lost
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor types a reason in the detail pane before voting, then votes
+    Then the vote carries the reason, a Reject waits for its reason code, and a failed save keeps what was typed
+
+  Scenario: A reason chosen in the pane shows on the card, and a Reject waiting for its reason is waiting in both
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor rejects on the card and chooses the reason in the detail pane
+    Then both show the Reject, the card shows the reason and the red or green match state with its icon
+
+  Scenario: Previous and Next scroll the grid to the same item and select it
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens a card and steps through the queue with Next and Previous
+    Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline
+    And opening a card from the grid selects it too
+
+  Scenario: The grid stays put while the editor selects, rates and the data refreshes
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item
+    Then every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels
+    And the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet
+    And the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it
+
+  Scenario: The captured record reads the curation card first, with extracted text as a fallback
+    Given References with a ready curation card, a failed one, a failed one beside older extracted text, a degraded one that may be paywalled, and one still running
+    When the editor opens each of them
+    Then the record shows the card's status, word count, summary, GROBID fields and the curation text, and the card badge follows the curation status
+    And "No text captured" shows only when neither a card with text nor extracted text exists, with the card's typed reason in words
+    And a paywall phrase at the end of a long capture says it may be cut off, and a degraded card says a stage is unfinished
+
+  Scenario: An editor pastes or corrects the text and says whether the capture was complete
+    Given a Reference with no captured text
+    When the editor chooses Paste or correct the text, pastes the article and marks the capture complete
+    Then correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run
+    And a verdict alone is saved as just a label, and nothing can be saved without a verdict
