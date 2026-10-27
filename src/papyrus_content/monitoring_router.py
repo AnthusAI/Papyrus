@@ -71,7 +71,7 @@ ROUTER_LOCK_SK = "LOCK#router"
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 RECEIPT_TTL_SECONDS = 30 * 86400
 MAX_REQUEST_BYTES = 32_768
-MAX_PENDING_JOB_SECONDS = 6 * 3600
+STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
@@ -897,6 +897,18 @@ class RouterStore(DynamoStore):
                                ExpressionAttributeNames=names,
                                ExpressionAttributeValues={f":v{n}": decimalize(value) for n, value in enumerate(fields.values())})
 
+    def reopen_final(self, monitor_id, sk, reason) -> bool:
+        """Remove `final` from a ROUTE row, only while its reason is still exactly `reason`; nothing else changes."""
+        try:
+            self.table.update_item(Key={"pk": pk(monitor_id), "sk": sk}, UpdateExpression="REMOVE #f",
+                                   ConditionExpression="#f.#r = :r", ExpressionAttributeNames={"#f": "final", "#r": "reason"},
+                                   ExpressionAttributeValues={":r": reason})
+            return True
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return False
+            raise
+
     def delete_any(self, monitor_id, sk):
         self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk})
 
@@ -1496,8 +1508,6 @@ class Router:
         # request_conflict, a failed job or a 404 (below) discards it
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
-        if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
-            raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
         response = None
         if not stored:
             if not self.post_allowed:
@@ -1603,12 +1613,9 @@ class Router:
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
         # a stored job is polled by its jobId whatever request id or run it was posted under
-        if job and job.get("jobId"):
-            if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
-                raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
-        elif job:
+        if job and not job.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
-        else:
+        elif not job:
             if not self.post_allowed:
                 raise NotPosting()
             jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
@@ -2132,6 +2139,26 @@ def oldest_posted_at(route: dict) -> int:
     return min(posted) if posted else 0
 
 
+def reopen_stale_finals(store, monitor_id: str) -> int:
+    """One-off recovery for stories an old pending-age limit finalized as errors while the lab still held their jobs.
+    Their stored jobs are kept; `final` is removed and the discovery returns to the collected partition, where the
+    collector polls the jobs again. Returns how many routes were reopened."""
+    reopened = 0
+    for route in store.query_prefix(monitor_id, "ROUTE#"):
+        if (route.get("final") or {}).get("reason") != STALE_FINAL_REASON:
+            continue
+        has_job = (route.get("combinedJob") or {}).get("jobId") or any(
+            job.get("jobId") for job in (route.get("jobs") or {}).values())
+        disc = store.get_any(monitor_id, f"DISC#{route['sourceId']}#{int(route['revision']):06d}")
+        if not has_job or not disc or not store.reopen_final(monitor_id, route["sk"], STALE_FINAL_REASON):
+            continue
+        disc = {k: v for k, v in disc.items() if k != "gsi1sk"} | {
+            "gsi1sk": f"{disc['observedAt']}#{disc['sourceId']}#{int(disc['revision']):06d}"}
+        set_routing(store, monitor_id, disc, PARTITION_COLLECTED, PARTITION_COLLECTED)
+        reopened += 1
+    return reopened
+
+
 def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner: str | None = None,
                run_id: str | None = None, task: str | None = None, cyclotron: CyclotronClient | None = None,
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
@@ -2150,6 +2177,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
     if not store.acquire_router_lock(monitor_id, owner, now):
         return {"monitorId": monitor_id, "runId": run_id, "status": "locked"}
     try:
+        if task == "reopen-stale-finals":
+            return {"monitorId": monitor_id, "runId": run_id, "status": "complete", "reopened": reopen_stale_finals(store, monitor_id)}
         if cyclotron is None and config["mode"] == "live" and config["decisions"] == "cyclotron":
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
@@ -2239,4 +2268,4 @@ def handler(event, context):
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
                         cognito=cognito, start_procedure=starter)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}

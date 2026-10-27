@@ -457,6 +457,12 @@ follows the same `ScheduleState` switch as the other schedules. Request ids stay
 recorded before the POST, so no job is ever sent twice. The specs are in
 `features_backend/monitoring-post-then-collect.feature`.
 
+A stored job is polled until the lab completes it, reports it failed, or answers 404; its age never ends it. A story
+an earlier age limit finalized with the reason `job pending longer than the allowed time; reconcile manually` is
+put back by the one-off task `{"monitorId":"hn","task":"reopen-stale-finals"}`: it removes `final` (only while that
+reason still matches), keeps the stored jobs, returns the discovery to the `collected` partition and reports
+`reopened`. The specs are in `features_backend/monitoring-no-pending-timeout.feature`.
+
 ### Outputs that are not ready (waiting for classifier)
 
 A binding whose Cyclotron output has no runnable classifier yet (`pending_criteria`) answers `decide`
