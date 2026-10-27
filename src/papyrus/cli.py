@@ -271,6 +271,10 @@ def _run_with_arguments(argv: list[str] | None) -> int:
         print(__version__)
         return 0
 
+    if args[0] == "doctor":
+        from papyrus_content.cli_doctor import run as doctor_run
+        return doctor_run(args[1:])
+
     if args[0] in {"login", "logout", "whoami", "auth"}:
         from papyrus_content.cli_user_auth import command as auth_command
         return auth_command(args)

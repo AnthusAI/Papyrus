@@ -11,6 +11,107 @@ The existing Prospectus server client has 60-minute access/ID/refresh validity
 and discards refresh tokens. Do not silently reuse it for an unattended CLI
 session or extend browser sessions as part of setup.
 
+## Install the CLI so `papyrus` is on your PATH
+
+Install the published package as a tool, not into a project virtualenv. A tool install
+puts the `papyrus` command on your PATH in every shell:
+
+```sh
+pipx install papyrus-newsroom        # or: uv tool install papyrus-newsroom
+pipx upgrade papyrus-newsroom        # or: uv tool upgrade papyrus-newsroom
+```
+
+The package declares the `papyrus` console script (`[project.scripts]` in
+`pyproject.toml`). Inside a Poetry checkout `papyrus` exists only while that
+virtualenv is active (or as `poetry run papyrus`), which is why a bare `papyrus login`
+fails elsewhere. `papyrus doctor` reports which kind of install you are running:
+
+```text
+version   0.1.0   (newer release 0.2.0 available; upgrade with `pipx upgrade papyrus-newsroom` ...)
+install   pipx tool install
+on-path   ~/.local/bin/papyrus
+site      shipped.anth.us   signed in, session valid
+site      p.apyr.us         expired or revoked; run `papyrus login p.apyr.us`
+```
+
+It compares against the latest PyPI release (a lookup that is skipped with `--offline`
+and simply reported as unknown when PyPI is unreachable), says whether you are in a
+tool install, a virtualenv or system Python, and checks each signed-in site. It exits
+non-zero when a site needs a new login. It prints no tokens and no account identity.
+
+## Sign in by site name
+
+```sh
+papyrus login shipped.anth.us          # host name, or an https origin
+papyrus login shipped.anth.us p.apyr.us pilobol.us
+```
+
+The CLI reads the site's public sign-in values from
+`https://<site>/.well-known/papyrus-cli.json`. It reads that file only over HTTPS,
+refuses every redirect, caps it at 16 KiB, rejects any field it does not know, requires
+every field it does, and requires `publication` to equal the origin you asked for.
+The same validation as for a hand-written config then applies (HTTPS endpoints, a
+registered loopback callback, and so on). Nothing is saved if any check fails.
+
+If a site's frontend does not serve the file, the CLI says:
+`<site> does not publish CLI login (its sign-in client does not register the CLI callback)`.
+Deploy a frontend that includes the route (see
+[How a site publishes the file](#how-a-site-publishes-the-file)). `--config` keeps
+working for a site you configure by hand.
+
+Sign-in uses the fixed callback `http://localhost:3001/`. If something else already
+listens on that port (a dev server, another login), the CLI stops before opening a
+browser and says `Sign-in needs local port 3001 ... already in use`; stop that program
+and run the login again. Signing in to several sites at once is sequential, so one
+login never competes with another for the port.
+
+## Many sites at once
+
+Signed-in sites are kept in a registry of **public** metadata (the same
+`user-session.json` in the state directory, mode 0600, atomic writes under a lock, and
+the same symlink refusals). Renewable secrets stay in the OS credential store under the
+same per-site keys as before, so existing sessions survive the upgrade. A single-site
+`user-session.json` written by an earlier CLI is read as a one-site registry and is
+rewritten in the new shape the next time a site is saved.
+
+| Command | Effect |
+| --- | --- |
+| `papyrus login <site> [<site> ...]` | sign in to each, adding it to the registry |
+| `papyrus login --all` | sign in again to every site in the registry (a failure is reported and the rest continue; exit status is non-zero) |
+| `papyrus login` | sign in again to the only registered site (otherwise it asks you to name one) |
+| `papyrus whoami [<site>]` | renew and show every signed-in site, or one |
+| `papyrus auth status [<site>]` | local status for every site, without renewing |
+| `papyrus logout <site>` / `--all` | remove the stored session (and revoke it where reachable) |
+
+`papyrus logout` with no name is refused when several sites are signed in. A signed-out
+site stays in the registry so a later command cannot silently fall back to IAM.
+
+### How a request picks its session
+
+Every GraphQL request carries its endpoint. The CLI uses the registered site whose
+`graphql_endpoint` equals it exactly, and a token is only ever sent to that endpoint.
+If no signed-in site owns the endpoint, the request fails and the message lists the
+signed-in sites and tells you to run `papyrus login <site>` (or to choose
+`PAPYRUS_GRAPHQL_AUTH=iam` deliberately); it never uses another site's session or your
+AWS credentials. A site whose file names an endpoint already registered for a different
+site is refused, so one site cannot capture another's requests. `--config` and
+`PAPYRUS_CLI_AUTH_CONFIG` still select exactly one hand-written config.
+
+## How a site publishes the file
+
+No infrastructure or backend change is needed. The app shell serves
+`/.well-known/papyrus-cli.json` from the site's own `amplify_outputs.json`, so deploying
+a frontend that includes the route is the whole setup. The file reuses the site's
+**existing public web app client** (`auth.user_pool_client_id`: no secret, authorization
+code flow, Google, 30-day refresh), the user pool id and region (the issuer), the
+hosted-UI domain, and the GraphQL URL (`data.url`). The callback is always
+`http://localhost:3001/`, which every app-shell site already registers
+(`infra/amplify-app-shell/lib/site-config.ts`). The route emits the file only if that
+exact URI is in the outputs' `auth.oauth.redirect_sign_in_uri`; otherwise it answers
+404. The `publication` value comes from `PAPYRUS_SITE_ORIGIN`, never the request's Host
+header. Every field is public. The publication API still decides what a signed-in
+person may do under the normal user/group permissions.
+
 ## Required configuration and approval
 
 Before a **real** login, the identity/publication owner must review and configure:
@@ -45,8 +146,10 @@ change live client settings or grant permissions merely to make a test pass.
 This corrects the earlier assumption that every live test needs a new client.
 The separate short-lived Prospectus server client remains unsuitable.
 
-Save reviewed **public metadata** as `.papyrus/cli-auth.json` in the selected
-publication, or point `PAPYRUS_CLI_AUTH_CONFIG` at it:
+Without site discovery you can still save reviewed **public metadata** as
+`.papyrus/cli-auth.json` in the selected publication, or point
+`PAPYRUS_CLI_AUTH_CONFIG` at it (this is also exactly what a site's
+`/.well-known/papyrus-cli.json` contains):
 
 ```json
 {
@@ -65,14 +168,15 @@ not a TTL the CLI can impose on Cognito or a remaining-lifetime guarantee. The
 172800 value above is illustrative, not a policy applied to a live client.
 Published metadata must agree with reviewed provider settings and the current
 publication's `PAPYRUS_GRAPHQL_ENDPOINT`/Amplify outputs. The CLI rejects endpoint
-mismatches before sending any token. It does not infer a native client from a
-web client or guess a tenant when data is absent.
+mismatches before sending any token. It never guesses a client or tenant: it uses only a
+site's own published file or the config you pass.
 
 ## Commands
 
 From the configured publication checkout:
 
 ```sh
+papyrus login newsroom.example.test
 papyrus login --publication https://newsroom.example.test --config .papyrus/cli-auth.json
 papyrus auth status
 papyrus whoami
@@ -94,13 +198,13 @@ If another application occupies the registered port, login fails safely; do not
 stop a user's server or bind a public interface. Check port availability before
 an approved interactive test.
 
-The active public selection is stored in a private metadata directory
+The registry of signed-in sites is stored in a private metadata directory
 (`~/.config/papyrus` by default, override `PAPYRUS_CLI_STATE_DIR`). Renewable
 secrets and subject/label records live in macOS Keychain, scoped by the complete
 issuer/client/publication/endpoint/callback binding. Short-lived ID tokens are
 in process memory only. There are no token argv, environment variables, repo
 files or plaintext fallback. Child CLI/Tactus processes use the same public
-selection and read their own renewable secret from the OS store.
+registry and read their own renewable secret from the OS store.
 
 macOS support uses Apple's Security/CoreFoundation framework through Python's
 standard-library FFI, without new dependency installation. Locked/unavailable
@@ -118,10 +222,10 @@ User-authenticated API requests are not replayed after uncertain delivery.
 `logout` always attempts local deletion, attempts provider refresh-session
 revocation and reports whether remote revocation was confirmed. It does not
 claim global signout or immediate invalidation of every previously issued JWT.
-If local secure-store deletion fails, logout returns an error. Public selection
+If local secure-store deletion fails, logout returns an error. Public registry
 metadata remains as a signed-out binding so a subsequent command cannot
-silently fall back to a broader IAM identity. A different publication requires
-its own explicit `login --config ...`; no credential is reused across bindings.
+silently fall back to a broader IAM identity. Each site needs its own
+`papyrus login <site>`; no credential is reused across bindings.
 
 For deliberate operator work, `PAPYRUS_GRAPHQL_AUTH=iam` keeps the existing AWS
 credential chain. Managed Lambdas continue using IAM. A failed user session
