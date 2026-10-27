@@ -50,10 +50,34 @@
         "model": "GPT-6",
         "name": "chat-runtime-continuation"
       }
+    },
+    {
+      "id": "9fd942dd-2713-43f6-8653-310a1cd987c7",
+      "author": "home",
+      "text": "Investigating mobile private chat entry visibility on released 5.41.2; isolated maintenance-base worktree. Entitlement administration remains untouched.",
+      "created_at": "2026-10-27T05:17:16.356186Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile continuation"
+      }
+    },
+    {
+      "id": "5847aa2a-96ed-487e-9e7f-285566b63d53",
+      "author": "home",
+      "text": "Mobile fix on fix/PPY-0d18a6-mobile-chat, based on exact 5.41.2 maintenance commit 8943e364. Root cause: chat toggle is last in a horizontally clipped header action row. Added visible mobile Chat entry and viewport-aware accessible panel without changing authorization. Production build, typecheck, lint and shared-chat BDD passed (20 scenarios, 65 steps), including phone connection/Account-selection fixtures. Tested 320–430px portrait and 844px landscape, focus/close/return, transcript scrolling and simulated keyboard visual viewport. Real iOS keyboard and live reply remain unverified. Preparing PR against 5.41.x only; no entitlement, IAM, credential or backend changes.",
+      "created_at": "2026-10-27T05:27:16.463610Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "GPT-6",
+        "name": "Chat mobile continuation"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-26T13:15:13.868407Z",
+  "updated_at": "2026-10-27T05:27:16.464111Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

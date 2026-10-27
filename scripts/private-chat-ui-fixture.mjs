@@ -1,11 +1,15 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 
+const fixtureMode = process.argv[2] ?? "conversation";
+const mobile = fixtureMode.startsWith("mobile");
+const mode = fixtureMode.startsWith("mobile-") ? fixtureMode.slice(7) : fixtureMode;
 const bundle = await build({
-  entryPoints: [fileURLToPath(new URL("./fixtures/private-chat-panel.tsx", import.meta.url))],
+  entryPoints: [fileURLToPath(new URL(mobile ? "./fixtures/mobile-chat-frame.tsx" : "./fixtures/private-chat-panel.tsx", import.meta.url))],
   plugins: [{ name: "synthetic-newsroom-session", setup(builder) {
     builder.onResolve({ filter: /^aws-amplify\/auth$/ }, () => ({ path: "auth", namespace: "synthetic" }));
     builder.onLoad({ filter: /.*/, namespace: "synthetic" }, () => ({ contents: `export async function fetchAuthSession() { return { tokens: { accessToken: { toString: () => "synthetic-newsroom-token" } } }; }`, loader: "js" }));
@@ -17,11 +21,10 @@ const bundle = await build({
   jsx: "automatic",
   define: { "process.env.NODE_ENV": '"development"' },
 });
-const mode = process.argv[2] ?? "conversation";
 let selected = false;
 let expired = false;
 const requests = [];
-const messages = [];
+const messages = mode === "mobile" ? Array.from({ length: 35 }, (_, index) => ({ message_id: `fixture-${index}`, channel_id: "private-channel", seq: index + 1, author_kind: "bot", body: `Synthetic scroll test message ${index + 1}. This is local fixture content.`, created_at: "2026-10-24T00:00:00.000Z" })) : [];
 let sendCount = 0;
 const server = createServer(async (request, response) => {
   if (request.url === "/app.js") {
@@ -31,12 +34,12 @@ const server = createServer(async (request, response) => {
   }
   if (request.url === "/app.css") {
     response.setHeader("Content-Type", "text/css");
-    response.end(bundle.outputFiles.find((file) => file.path.endsWith(".css")).contents);
+    response.end(Buffer.concat([bundle.outputFiles.find((file) => file.path.endsWith(".css")).contents, Buffer.from(mobile ? readFileSync(new URL("../app/globals.css", import.meta.url), "utf8").replace(/^@import[^;]+;/gm, "") + readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8") : "")]));
     return;
   }
-  if (request.url === "/" || request.url?.startsWith("/?sign_in_error=")) {
+  if (request.url === "/" || request.url?.startsWith("/?")) {
     response.setHeader("Set-Cookie", "papyrus-session=synthetic-session; HttpOnly; SameSite=Lax; Path=/");
-    response.end('<!doctype html><html><head><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
+    response.end('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/app.css"><style>html,body,#root{height:100%;margin:0;display:flex;flex-direction:column;--paper-rgb:255 255 255;--ink:#111;--org-ink:#111;--org-paper:white}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>');
     return;
   }
   if (request.url === "/api/auth/prospectus/session") {
@@ -134,7 +137,15 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/${mode === "connection" ? "?sign_in_error=newsroom_identity_mismatch" : ""}`);
-  if (mode === "connection") {
+  if (mobile && mode !== "mobile") {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.getByRole("button", { name: "Open private chat" }).click();
+  }
+  if (mode === "mobile") {
+    const { verifyMobileChat } = await import("./verify-mobile-chat.mjs");
+    await verifyMobileChat(page, `http://127.0.0.1:${server.address().port}`);
+    assert.deepEqual(errors, []);
+  } else if (mode === "connection") {
     await page.getByText("The selected Google account did not match your newsroom session. Connect again with the same account.").waitFor();
     await page.getByRole("button", { name: "Connect publishing account" }).click();
     await page.getByText("Identity connection started").waitFor();

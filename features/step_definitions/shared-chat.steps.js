@@ -104,3 +104,16 @@ When("the publishing Account membership is revoked", { timeout: 120_000 }, async
   this.revokedMembershipDenied = true;
 });
 Then("subsequent transcript reads and sends are denied without creating a message", function () { assert.equal(this.revokedMembershipDenied, true); });
+
+Given("an authorized editor is viewing the newsroom on a phone", function () {});
+Given("the newsroom changes between mobile and desktop widths", function () {});
+for (const action of ["the editor opens chat from the visible mobile control", "the keyboard reduces the available conversation height", "the chat shell updates its responsive controls"]) {
+  When(action, { timeout: 120_000 }, async function () {
+    const result = await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "mobile"], { maxBuffer: 4 * 1024 * 1024 });
+    this.mobileChatResult = result.stdout;
+    for (const mode of ["mobile-connection", "mobile-selection"]) await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
+  });
+}
+for (const result of ["the conversation and close control fit the viewport", "keyboard focus stays within the mobile conversation", "closing chat returns focus and preserves the newsroom location", "the message composer and close control remain reachable", "the transcript scrolls without horizontal page overflow", "desktop layout keeps its existing toolbar behavior", "an unauthorized visitor has no chat entry point"]) {
+  Then(result, function () { assert.match(this.mobileChatResult, /PASS: mobile chat entry/); });
+}
