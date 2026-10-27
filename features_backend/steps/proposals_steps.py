@@ -197,15 +197,15 @@ def override_declining(context, reason: str) -> None:
 
 @when('a second editor moves it to "{state}" from the old view')
 def second_editor_stale(context, state: str) -> None:
-    from reader_fixtures import reader_handler
+    from reader_fixtures import proposal_handler
 
     backend = backend_of(context)
-    row = backend.store.get_proposal(context.proposal_id)
+    row = backend.proposal_store.get_proposal(context.proposal_id)
     # The second editor loaded the proposal while it was still a draft, so their move expects that state.
     row = {**row, "state": "draft"}
-    plan = reader_handler.proposal_rules.transition_plan(row, state, "Not now.", actor_sub="staff-sub-2", now_iso="2026-10-22T00:00:00Z")
-    assert not isinstance(plan, reader_handler.proposal_rules.Outcome), plan
-    accepted = backend.store.change_proposal(context.proposal_id, plan, "draft", "2026-10-22T00:00:00Z")
+    plan = proposal_handler.proposal_rules.transition_plan(row, state, "Not now.", actor_sub="staff-sub-2", now_iso="2026-10-22T00:00:00Z")
+    assert not isinstance(plan, proposal_handler.proposal_rules.Outcome), plan
+    accepted = backend.proposal_store.change_proposal(context.proposal_id, plan, "draft", "2026-10-22T00:00:00Z")
     context.proposal_answer = {"status": "ok" if accepted else "refused", "error": None if accepted else "target_changed"}
 
 

@@ -1,28 +1,18 @@
 import assert from "node:assert/strict";
 import { GetItemCommand, PutItemCommand, QueryCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import type { NextRequest } from "next/server";
-import { derivePapyrusChatScope, handlePapyrusHostedChatRequest } from "../lib/papyrus-hosted-chat";
-import { PROSPECTUS_SESSION_COOKIE, sealProspectusCookie } from "../lib/prospectus-session";
-import { ProspectusAccountsError } from "../lib/prospectus-site-identity";
+import { expireChatStream, derivePapyrusChatScope, handlePapyrusHostedChatRequest } from "../lib/papyrus-hosted-chat";
 
-const secret = "papyrus-hosted-chat-test-sealing-secret-32-bytes-minimum";
-const siteProduct = "papyrus-demo";
-const accountId = "publishing-account-1";
+const publicationNamespace = JSON.stringify(["private-bucket", "private-table", "newsroom-client"]);
+const issuer = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Test";
 const now = 1_798_000_000;
-const environment = { PAPYRUS_SITE_ORIGIN: "https://papyrus.example", NODE_ENV: "test" };
+const environment = { PAPYRUS_SITE_ORIGIN: "https://papyrus.example", NODE_ENV: "test", PAPYRUS_CHAT_SESSION_BUCKET: "private-bucket", PAPYRUS_CHAT_MESSAGING_TABLE: "private-table" };
 
 function requestFor(method: string, personId: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
-  const expiresAt = now + 600;
-  const session = sealProspectusCookie(secret, PROSPECTUS_SESSION_COOKIE, {
-    personId,
-    accessToken: `access-${personId}`,
-    accessTokenExpiresAt: expiresAt,
-    selectedAccountId: accountId,
-  }, expiresAt);
   return withNextRequestShape(new Request(`https://papyrus.example/api/newsroom/chat/${path}`, {
     method,
     headers: {
-      cookie: `${PROSPECTUS_SESSION_COOKIE}=${session}`,
+      authorization: `Bearer ${personId}`,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
       ...headers,
     },
@@ -38,29 +28,6 @@ function withNextRequestShape(request: Request) {
   return request as unknown as NextRequest;
 }
 
-function prospectusRuntime() {
-  const authorizationCalls: Array<{ personId: string; accountId: string; operation: string }> = [];
-  const accounts = {
-    async accountDirectory(accessToken: string) {
-      const personId = accessToken.replace("access-", "");
-      return {
-        person: { id: personId },
-        accounts: [{ id: accountId, name: "Newsroom", role: "member", products: [{ product: siteProduct, status: "active" }] }],
-      };
-    },
-    async currentPerson(accessToken: string) { return { person: { id: accessToken.replace("access-", "") } }; },
-    async authorizeAccountOperation(accessToken: string, requestedAccountId: string, operation: string) {
-      const personId = accessToken.replace("access-", "");
-      authorizationCalls.push({ personId, accountId: requestedAccountId, operation });
-      if (personId === "denied-editor") throw new ProspectusAccountsError(403, "not_authorized", "not authorized");
-      return { allowed: true, personId, accountId: requestedAccountId, operation, product: siteProduct, role: "member", revision: 1 };
-    },
-  };
-  return {
-    authorizationCalls,
-    runtime: { sealingSecret: secret, accounts: accounts as never, cognitoClient: {} as never },
-  };
-}
 
 function fakeDynamo() {
   const items = new Map<string, Record<string, { S?: string; N?: string }>>();
@@ -89,12 +56,12 @@ function fakeDynamo() {
   };
 }
 
-function coreDependencies() {
-  const scope = derivePapyrusChatScope(siteProduct, accountId, "editor-a");
+function coreDependencies(scope = derivePapyrusChatScope(publicationNamespace, issuer, "editor-a"), running = false) {
   const channelId = "private-channel-a";
   const messages: any[] = [];
   const completed = new Map<string, { message: any; turnId: string | null }>();
   const store = {
+    async resolveChannelTenant() { return scope.tenantId; },
     async getChannel(tenantId: string, requestedChannelId: string) {
       if (tenantId !== scope.tenantId || requestedChannelId !== channelId) return null;
       return {
@@ -119,7 +86,7 @@ function coreDependencies() {
   };
   const dynamo = fakeDynamo();
   const turn = {
-    turnId: "private-turn-a", tenantId: scope.tenantId, channelId, botId: "editorial-assistant", status: "completed",
+    turnId: "private-turn-a", tenantId: scope.tenantId, channelId, botId: "editorial-assistant", status: running ? "running" : "completed",
     promptMessageSeq: null, promptAuthorId: scope.editorId, attemptId: null, attempt: 0, claimedBy: null,
     leaseExpiresAt: null, deadlineAt: null, recoveryAttempts: 0, waitingFor: null, waitingSince: null,
     logicalEnqueueIds: [], pendingComputerTool: null, storageFence: null, nextEventSeq: 2, terminalReason: null, messageSeq: null,
@@ -161,7 +128,7 @@ function coreDependencies() {
     turns: {
       store: {
         async getTurn(tenantId: string, turnId: string) { return tenantId === scope.tenantId && turnId === turn.turnId ? turn : null; },
-        async listEvents() { return [turnEvent]; },
+        async listEvents() { return running ? [] : [turnEvent]; },
       } as never,
       clock: { now: () => new Date(now * 1000) }, ids: { next: () => "event" },
     },
@@ -170,6 +137,11 @@ function coreDependencies() {
 }
 
 async function main() {
+  let cancelled = false;
+  const streamAtExpiry = expireChatStream(new Response(new ReadableStream({ cancel() { cancelled = true; } })), 5);
+  assert.equal(await streamAtExpiry.text(), "");
+  assert.equal(cancelled, true, "JWT expiry closes and cancels the underlying event stream");
+
   const sharedRuntime = await import("chatticus/chat-runtime");
   const runtimeEnvironment = {
     PAPYRUS_CHAT_MESSAGING_TABLE: "PapyrusPrivateMessages",
@@ -198,14 +170,13 @@ async function main() {
   await sharedRuntime.createSiteHostedProbeHandler(runtimeEnvironment, clients)({ Records: [] });
   assert.equal(awsRequests, 0, "adapter construction and empty Lambda batches make no AWS requests");
 
-  const auth = prospectusRuntime();
   const core = coreDependencies();
   const options = {
     privateChatEnabled: true,
-    siteProduct,
-    environment: { ...environment, PAPYRUS_PROSPECTUS_SITE_PRODUCT: siteProduct, PAPYRUS_CHAT_PRIVATE_BOT_ID: "editorial-assistant" },
+    environment: { ...environment, PAPYRUS_CHAT_PRIVATE_BOT_ID: "editorial-assistant" },
     nowInSeconds: () => now,
-    resolveRuntime: async () => auth.runtime,
+
+    resolveNewsroomIdentity: async (request: NextRequest) => { const subject = request.headers.get("authorization")?.replace("Bearer ", ""); return subject && subject !== "denied-editor" ? { subject, issuer, clientId: "newsroom-client", expiresAt: now + 600 } : null; },
     resolvePrivateDependencies: async () => core.dependencies,
   };
   const send = await handlePapyrusHostedChatRequest(
@@ -216,10 +187,10 @@ async function main() {
   );
   assert.equal(send.status, 200);
   const sendBody = await send.json() as { message: { author_kind: string; author_id: string; tenant_id: string; body: string; addressed_to_bot_id: string | null } };
-  const expectedScope = derivePapyrusChatScope(siteProduct, accountId, "editor-a");
+  const expectedScope = derivePapyrusChatScope(publicationNamespace, issuer, "editor-a");
   assert.equal(sendBody.message.author_id, expectedScope.editorId, "the endpoint replaces client identity with server-derived editor id");
   assert.equal(sendBody.message.author_kind, "human", "the endpoint replaces client actor kind with the authenticated editor");
-  assert.equal(sendBody.message.tenant_id, expectedScope.tenantId, "tenant scope includes the configured site and selected Account");
+  assert.equal(sendBody.message.tenant_id, expectedScope.tenantId, "tenant scope includes the configured publication and issuer");
   assert.equal(sendBody.message.body, "A private newsroom message");
   assert.equal(sendBody.message.addressed_to_bot_id, "editorial-assistant", "the endpoint chooses the private assistant from server configuration");
 
@@ -228,7 +199,7 @@ async function main() {
   const readBody = await read.json() as { messages: Array<{ author_id: string; body: string }> };
   assert.equal(readBody.messages[0]?.author_id, expectedScope.editorId, JSON.stringify(readBody.messages));
   const nonparticipantRead = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-b", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
-  assert.equal(nonparticipantRead.status, 403, "same-Account nonparticipants cannot read another private transcript");
+  assert.equal(nonparticipantRead.status, 403, "nonparticipants cannot read another private transcript");
 
   const events = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", "turns/private-turn-a/events"), ["turns", "private-turn-a", "events"], options);
   assert.equal(events.status, 200);
@@ -240,10 +211,46 @@ async function main() {
   const nonparticipantStream = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-b", "turns/private-turn-a/stream"), ["turns", "private-turn-a", "stream"], options);
   assert.equal(nonparticipantStream.status, 403);
 
+  const newsroomOnly = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`, undefined, { cookie: "" }), ["channels", core.channelId, "messages"], options);
+  assert.equal(newsroomOnly.status, 200, "existing newsroom session suffices without a Prospectus cookie");
+  const foreignSite = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, environment: { ...options.environment, PAPYRUS_CHAT_SESSION_BUCKET: "another-publication" } });
+  assert.ok([403, 404].includes(foreignSite.status), "a different configured publication cannot read this channel");
+  const oldCore = coreDependencies({ tenantId: "papyrus-old-account-tenant", editorId: "papyrus-editor-old-person" });
+  const oldHistory = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => oldCore.dependencies });
+  assert.equal(oldHistory.status, 403, "new newsroom scope cannot adopt old Account history");
+  for (const endpoint of ["events", "stream"]) {
+    const path = ["turns", "private-turn-a", endpoint];
+    for (const boundary of [
+      { ...options, environment: { ...options.environment, PAPYRUS_CHAT_SESSION_BUCKET: "another-publication" } },
+      { ...options, resolvePrivateDependencies: async () => oldCore.dependencies },
+      { ...options, resolveNewsroomIdentity: async () => ({ subject: "editor-a", issuer, clientId: "another-publication-client", expiresAt: now + 600 }) },
+    ]) {
+      const refused = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", path.join("/")), path, boundary);
+      assert.ok([403, 404].includes(refused.status), `${endpoint} refuses foreign publication/client and old history`);
+    }
+  }
+  const activeCore = coreDependencies(undefined, true);
+  const gatewayStream = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", "turns/private-turn-a/stream"), ["turns", "private-turn-a", "stream"], {
+    ...options,
+    resolvePrivateDependencies: async () => activeCore.dependencies,
+    resolveNewsroomIdentity: async () => ({ subject: "editor-a", issuer, clientId: "newsroom-client", expiresAt: now + 0.02 }),
+  });
+  assert.equal(gatewayStream.status, 200);
+  assert.equal(await gatewayStream.text(), "", "gateway closes a live nonterminal stream at its verified token expiry");
+  const unconfigured = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, environment: { ...options.environment, PAPYRUS_CHAT_SESSION_BUCKET: "" } });
+  assert.equal(unconfigured.status, 503);
+  assert.ok(expectedScope.tenantId.startsWith("papyrus-newsroom-v1-"));
+  assert.notEqual(derivePapyrusChatScope(publicationNamespace, "another-issuer", "editor-a").editorId, expectedScope.editorId);
   const noSession = await handlePapyrusHostedChatRequest(withNextRequestShape(new Request("https://papyrus.example/api/newsroom/chat/channels/private-channel-a/messages")), ["channels", core.channelId, "messages"], options);
   assert.equal(noSession.status, 401);
   const denied = await handlePapyrusHostedChatRequest(requestFor("GET", "denied-editor", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], options);
-  assert.equal(denied.status, 403);
+  assert.equal(denied.status, 401);
+  const expiredOptions = { ...options, resolveNewsroomIdentity: async () => ({ subject: "editor-a", issuer, clientId: "newsroom-client", expiresAt: now - 1 }) };
+  const expiredRead = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], expiredOptions);
+  assert.equal(expiredRead.status, 401);
+  const expiredSend = await handlePapyrusHostedChatRequest(requestFor("POST", "editor-a", `channels/${core.channelId}/messages`, { body: "must not be stored" }, { origin: "https://papyrus.example", "idempotency-key": "expired" }), ["channels", core.channelId, "messages"], expiredOptions);
+  assert.equal(expiredSend.status, 401);
+  assert.equal(core.messages.length, 1);
   const noStore = await handlePapyrusHostedChatRequest(requestFor("GET", "editor-a", `channels/${core.channelId}/messages`), ["channels", core.channelId, "messages"], { ...options, resolvePrivateDependencies: async () => null });
   assert.equal(noStore.status, 503, "the endpoint fails closed until a private durable store runtime is configured");
   let disabledDependencyLoads = 0;
@@ -254,10 +261,8 @@ async function main() {
   );
   assert.equal(disabled.status, 404);
   assert.equal(disabledDependencyLoads, 0);
-  assert.ok(auth.authorizationCalls.some((call) => call.personId === "editor-a" && call.operation === "console:write"));
-  assert.ok(auth.authorizationCalls.some((call) => call.personId === "editor-a" && call.operation === "console:read"));
   assert.ok(core.messages.length === 1);
-  console.log("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core; private route remains default-off");
+  console.log("PASS: Papyrus gateway uses verified newsroom identity and Chatticus private chat core; private route remains default-off");
 }
 
 main().catch((error) => {

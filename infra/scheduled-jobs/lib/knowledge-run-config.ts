@@ -20,14 +20,21 @@ export const DEFAULT_MEMORY_MIB = 16384;
 export const DEFAULT_EPHEMERAL_STORAGE_GIB = 40;
 export const DEFAULT_STAGE_TIMEOUT_SECONDS = 7200;
 export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
-export const DEFAULT_MONITOR_WEEKS = 52;
 export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
+/** How many monitored items the optional monitor-stories step writes up per execution when `monitorStories` does not say. */
+export const DEFAULT_MONITOR_STORIES_LIMIT = 3;
+export const MAX_MONITOR_STORIES_LIMIT = 20;
 /** The trend window is whole weeks, one to four: the snapshot counts weekly and keeps eight weeks. */
-export const TREND_WINDOW_DAYS = [7, 14, 21, 28] as const;
 /** The sources `papyrus knowledge corpus export --monitor-sources` understands. */
-export const MONITOR_SOURCES = ["huggingface"] as const;
+export const MONITOR_SOURCES = ["huggingface", "routed"] as const;
 
 const VALID_VCPU = [1, 2, 4, 8, 16];
+
+/** The `monitorStories` block of the `knowledgeRun` block, as written. */
+export type MonitorStoriesSettings = {
+  /** Stories drafted per execution, 1 to 20; default 3. */
+  limit?: number;
+};
 
 /** The `knowledgeRun` block of a publication's infra/site.json, as written. */
 export type KnowledgeRunSettings = {
@@ -36,6 +43,11 @@ export type KnowledgeRunSettings = {
   vCpu?: number;
   memoryMiB?: number;
   ephemeralStorageGiB?: number;
+  /**
+   * The key of the knowledge corpus (`knowledge-corpus-<key>`) the publication's References live in, when it is not the site's `siteId`
+   * (p-apyr-us keeps its References in `ai-ml-research`). Unset means the `siteId`. State, ledger, alarms and SSM names stay keyed by `siteId`.
+   */
+  corpusKey?: string;
   siteBucket: string;
   edgeDistributionId: string;
   redirectsKvsArn: string;
@@ -53,16 +65,17 @@ export type KnowledgeRunSettings = {
   conceptKinds?: string[];
   /** Monitor sources whose delivered References count in the Knowledge Map as data, never as pages (docs/knowledge-cloud-run.md). */
   monitorSources?: string[];
-  /** How many weeks back a monitor record counts (its source date decides); default 52. */
+  /** Optional override: how many weeks back a monitor record counts (its source date decides). Without it every record counts, all history. */
   monitorWeeks?: number;
   /** How many monitor records the AI review stage suggests promoting in one soft review request each week; default 0 (none). */
   monitorSuggestions?: number;
-  /** The Cited Trends window in days (7, 14, 21 or 28): the last N days against the N before. Unset means the command's own 28. */
-  trendWindowDays?: number;
   /** How many days older than the execution's start the published snapshot's asOf may be for the trend-drafts step to use it; default 1. */
   trendSnapshotMaxAgeDays?: number;
-  /** Days an entity that anchored a story draft rests before it can anchor another (0 turns it off). Unset means the command's own 7. */
-  trendCooldownDays?: number;
+  /**
+   * Opt in to the monitor-stories step (docs/knowledge-cloud-run.md): after trend-drafts it writes a cited story draft for each of the top `limit`
+   * items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as draft Proposals. Absent means no step.
+   */
+  monitorStories?: MonitorStoriesSettings;
   openAiKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
@@ -73,6 +86,8 @@ export type KnowledgeRunSettings = {
 /** `KnowledgeRunSettings` with every default applied, for one publication in one account. */
 export type KnowledgeRunConfig = {
   publication: string;
+  /** Set only when the site names a corpus of its own; the tasks then get `KNOWLEDGE_CORPUS_KEY`. */
+  corpusKey?: string;
   account: string;
   region: string;
   schedule: string;
@@ -93,11 +108,10 @@ export type KnowledgeRunConfig = {
   beatsConfig?: string;
   conceptKinds?: string[];
   monitorSources?: string[];
-  monitorWeeks: number;
+  monitorWeeks?: number;
   monitorSuggestions: number;
-  trendWindowDays?: number;
+  monitorStories?: { limit: number };
   trendSnapshotMaxAgeDays: number;
-  trendCooldownDays?: number;
   openAiKeyParameter: string;
   alarmEmailParameter: string;
   lockWaitSeconds: number;
@@ -118,6 +132,7 @@ const REPO_PATH_PATTERN = /^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+)*$/;
 const SSM_NAME_PATTERN = /^\/[A-Za-z0-9_.\-\/]+$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const CRON_PATTERN = /^(cron\(.+\)|rate\(.+\))$/;
+const CORPUS_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const KIND_PATTERN = /^[a-z][a-z0-9_]*$/;
 
 function fail(field: string, problem: string): never {
@@ -142,12 +157,14 @@ function optionalInteger(value: unknown, field: string, min: number, max: number
   return value as number;
 }
 
-function optionalTrendWindowDays(value: unknown): number | undefined {
+function optionalMonitorStories(value: unknown): MonitorStoriesSettings | undefined {
   if (value === undefined) return undefined;
-  if (typeof value !== "number" || !(TREND_WINDOW_DAYS as readonly number[]).includes(value)) {
-    fail("trendWindowDays", `must be one of ${TREND_WINDOW_DAYS.join(", ")} (the snapshot counts whole weeks), got ${JSON.stringify(value)}`);
+  if (typeof value !== "object" || value === null || Array.isArray(value)) fail("monitorStories", "must be an object such as {\"limit\": 3}");
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key !== "limit") fail(`monitorStories.${key}`, "is not a known field (known: limit)");
   }
-  return value as number;
+  return { limit: optionalInteger(record.limit, "monitorStories.limit", 1, MAX_MONITOR_STORIES_LIMIT) };
 }
 
 function optionalPlugins(value: unknown): string[] | undefined {
@@ -167,10 +184,11 @@ function rejectUnknownKeys(record: Record<string, unknown>, allowed: string[]): 
 export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) fail("", "must be an object");
   const record = raw as Record<string, unknown>;
+  // trendWindowDays and trendCooldownDays are retired (the command chooses the window and the repeat rule from the data): still accepted, ignored.
   rejectUnknownKeys(record, [
-    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
+    "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -226,6 +244,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     vCpu,
     memoryMiB: optionalInteger(record.memoryMiB, "memoryMiB", 2048, 122880),
     ephemeralStorageGiB: optionalInteger(record.ephemeralStorageGiB, "ephemeralStorageGiB", 21, 200),
+    corpusKey: optionalString(record.corpusKey, "corpusKey", CORPUS_KEY_PATTERN, "lowercase letters, digits and hyphens, as in knowledge-corpus-<key>"),
     siteBucket: requireString(record.siteBucket, "siteBucket", SITE_BUCKET_PATTERN, "S3 bucket name"),
     edgeDistributionId: requireString(record.edgeDistributionId, "edgeDistributionId", DISTRIBUTION_ID_PATTERN, "CloudFront distribution id"),
     redirectsKvsArn: requireString(record.redirectsKvsArn, "redirectsKvsArn", KVS_ARN_PATTERN, "CloudFront KeyValueStore ARN"),
@@ -241,9 +260,8 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorSources,
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
-    trendWindowDays: optionalTrendWindowDays(record.trendWindowDays),
+    monitorStories: optionalMonitorStories(record.monitorStories),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
-    trendCooldownDays: optionalInteger(record.trendCooldownDays, "trendCooldownDays", 0, 365),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     lockWaitSeconds: optionalInteger(record.lockWaitSeconds, "lockWaitSeconds", 0, 86400),
@@ -265,6 +283,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
   if (memoryMiB < vCpu * 2048) fail("memoryMiB", `must be at least 2048 MiB per vCPU (${vCpu * 2048}) for ${vCpu} vCPU`);
   return {
     publication,
+    ...(settings.corpusKey !== undefined ? { corpusKey: settings.corpusKey } : {}),
     account,
     region,
     schedule: settings.schedule ?? DEFAULT_SCHEDULE,
@@ -285,11 +304,10 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     beatsConfig: settings.beatsConfig,
     conceptKinds: settings.conceptKinds,
     monitorSources: settings.monitorSources,
-    monitorWeeks: settings.monitorWeeks ?? DEFAULT_MONITOR_WEEKS,
+    monitorWeeks: settings.monitorWeeks,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
-    trendWindowDays: settings.trendWindowDays,
+    monitorStories: settings.monitorStories ? { limit: settings.monitorStories.limit ?? DEFAULT_MONITOR_STORIES_LIMIT } : undefined,
     trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
-    trendCooldownDays: settings.trendCooldownDays,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,
     lockWaitSeconds: settings.lockWaitSeconds ?? DEFAULT_LOCK_WAIT_SECONDS,

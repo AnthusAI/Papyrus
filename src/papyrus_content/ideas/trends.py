@@ -4,8 +4,8 @@ The flow is snapshot, signals, one model call, a deterministic citation check, t
 
 * A **signal** is one fact-bearing row of the snapshot: a rising (or cooling) cluster or entity, with its weekly counts. Signals
   are built without a model, so the same snapshot gives the same signals.
-* **Which entities are signals** is a deterministic ranking (``select_entities``): surprise over the entity's own prior four weeks and the whole
-  corpus's growth, not raw counts; broad kinds (licence, task, platform) never anchor a draft and are only offered as context; a maker anchors
+* **Which entities are signals** is a deterministic ranking (``select_entities``): the most surprising recent window (1, 2, 4, 8, ... weeks, chosen per
+  entity and corrected for having tried several) against the entity's own earlier history and the whole corpus's growth, not raw counts; broad kinds (licence, task, platform) never anchor a draft and are only offered as context; a maker anchors
   a draft only when it is notable (watchlisted, or several models with real likes or downloads). Thresholds are ``TrendConfig``.
 * An **item** is a release or story behind an entity signal in the snapshot window (its title, one-line summary, date and site URL, at
   most five most recent per signal). The model is shown them so the story is about what shipped, not only the counts.
@@ -31,7 +31,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
 
-from ..knowledge_snapshot.trends import TrendConfig, corpus_volume, percent_change, trend_score
+from ..knowledge_snapshot.trends import SERIES_SHORT, TrendConfig, corpus_volume, exceeds_report, scan_window
 from . import dedupe, synthesis
 from .digest import iso
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
@@ -51,7 +51,6 @@ FETCH_LIMIT_BYTES = 8_000_000
 MAXIMUM_ITEMS_PER_SIGNAL = 5
 MAXIMUM_RECORDS_PER_SIGNAL = 3  # monitor records (a Hub model) beside the site's own items; they are cited as releases, not as stories
 MAXIMUM_ITEMS = 40  # distinct items in one model input; each is a title, a summary and a date
-WINDOW_WEEKS = 4  # the "last four weeks" the entity change counts cover
 SUMMARY_LIMIT = 300
 ITEM_FETCH_LIMIT_BYTES = 200_000
 MAXIMUM_OUTPUT_TOKENS = 12_000  # reasoning plus up to three cited drafts; the shared 6,000 ran out when the model wrote three
@@ -70,7 +69,7 @@ Rules:
 - One sentence per entry. Do not put handles in the text; refer to a signal or an item by its name. Write dates as ISO dates (2026-10-19), exactly as they appear in the signals and items.
 - Use only what the signal and item fields say. Do not invent facts, causes, quotes, dates or names, and do not explain why something grew or why a maker did something. A reading of the pattern is allowed only if it is framed with "suggests" (or "points to") and rests on the cited items. Do not do arithmetic: write a number only if it appears in the fields of a signal or item that sentence cites (write digits, not number words). A sentence that mentions two signals or items cites both.
 - A signal with "role": "context" is a broad category (a licence, a task or a platform) offered only so a sentence can say where the releases sit. Cite it for context, but never make it the subject of the headline or the dek, and never build a story around it. The anchors are the signals without that role.
-- Where "percent" is null the base is small or the history short: describe the counts, never a percentage. Where "is_new" is true, say the entity is new to the map.
+- An entity signal says over which window it is rising: "window_weeks" weeks, with "items_in_window" items in it against "items_before_window" in the "weeks_before_window" weeks before. Say the span as it is ("over the last 4 weeks"), describe the counts and never work out a percentage. Where "is_new" is true, say the entity is new to the map.
 - Items are the publication's own published items, except an item with a "from" field: that is a release recorded from a monitored source (for example a model on the Hugging Face Hub). It has no page on the site, so call it a release or a model, say where it is from, never that the publication published or reported it, and use only the facts in its title and summary. Counts are items and recorded releases per week. The stories are proposals for an editor, not finished reporting.
 - Make no present-tense statement about the publisher's own production systems or results.
 - Choose the section from the allowed list, exactly as written.
@@ -79,7 +78,7 @@ Rules:
 - Skip a trend that recent or in-flight stories or earlier drafts already cover, but only when the same signals are covered. Return maximum_drafts drafts whenever the signals and items allow it, each about a different group of two or more releases (give every draft a different lead set; three drafts are expected when there are twelve items) and built from a different pairing or grouping of signals (the same release is not the lead of two drafts), and never fewer than one. Prefer a plain, well-grounded draft that meets the requirements over a clever one. Never use the word "desk".
 """
 
-_SENTENCE = {
+SENTENCE_SCHEMA = {
     "type": "object",
     "properties": {"text": {"type": "string"}, "cites": {"type": "array", "items": {"type": "string"}}},
     "required": ["text", "cites"],
@@ -97,12 +96,12 @@ SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "headline": _SENTENCE,
-                        "dek": _SENTENCE,
+                        "headline": SENTENCE_SCHEMA,
+                        "dek": SENTENCE_SCHEMA,
                         "section": {"type": "string"},
                         "paragraphs": {
                             "type": "array",
-                            "items": {"type": "object", "properties": {"sentences": {"type": "array", "items": _SENTENCE}}, "required": ["sentences"], "additionalProperties": False},
+                            "items": {"type": "object", "properties": {"sentences": {"type": "array", "items": SENTENCE_SCHEMA}}, "required": ["sentences"], "additionalProperties": False},
                         },
                         "figure_signals": {"type": "array", "items": {"type": "string"}},
                         "figure_title": {"type": "string"},
@@ -227,13 +226,13 @@ def _series(values: Any) -> list[int | float]:
     return [value for value in values or [] if isinstance(value, (int, float)) and not isinstance(value, bool)]
 
 
-def window_start(as_of: str, weeks: int = WINDOW_WEEKS) -> date:
+def window_start(as_of: str, weeks: int) -> date:
     """The Monday that starts the window: the week of ``as_of`` and the ``weeks - 1`` before it."""
     end = date.fromisoformat(as_of)
     return (end - timedelta(days=end.weekday())) - timedelta(weeks=weeks - 1)
 
 
-def window_records(related: Any, as_of: str, weeks: int = WINDOW_WEEKS) -> list[dict[str, Any]]:
+def window_records(related: Any, as_of: str, weeks: int) -> list[dict[str, Any]]:
     """The newest ``relatedRecords`` of an entity file in the snapshot window: releases recorded from a monitored source, each with its
     title, date, address (the source's own card), the one-line summary of its structured facts and where it is from. At most
     ``MAXIMUM_RECORDS_PER_SIGNAL``, newest first. They carry their summary, so no page is fetched for them."""
@@ -261,8 +260,8 @@ def window_records(related: Any, as_of: str, weeks: int = WINDOW_WEEKS) -> list[
     return sorted(records.values(), key=lambda item: (item["date"], item["id"]), reverse=True)[:MAXIMUM_RECORDS_PER_SIGNAL]
 
 
-def window_items(related: Any, as_of: str, site_base: str | None, weeks: int = WINDOW_WEEKS) -> list[dict[str, Any]]:
-    """The most recent items of an entity file's ``relatedItems`` that fall in the snapshot window (the four weeks to the end of the
+def window_items(related: Any, as_of: str, site_base: str | None, weeks: int) -> list[dict[str, Any]]:
+    """The most recent items of an entity file's ``relatedItems`` that fall in the snapshot window (the ``weeks`` to the end of the
     snapshot's week, plus anything published since), newest first, at most ``MAXIMUM_ITEMS_PER_SIGNAL``. Each is its title, date, path and site URL."""
     start = window_start(as_of, weeks)
     items: dict[str, dict[str, Any]] = {}
@@ -308,7 +307,7 @@ def attach_summaries(signals: list[dict[str, Any]], fetch_text: FetchText | None
             item["summary"] = summary
 
 
-def window_engagement(related: Any, as_of: str, weeks: int = WINDOW_WEEKS) -> dict[str, int]:
+def window_engagement(related: Any, as_of: str, weeks: int) -> dict[str, int]:
     """How much the Hub's own numbers say about the releases in the window: distinct models and the likes and downloads their summaries state.
     It reads every record the entity file lists (the newest ``related_limit`` of them), not only the few the model is shown."""
     start = window_start(as_of, weeks)
@@ -327,18 +326,18 @@ def window_engagement(related: Any, as_of: str, weeks: int = WINDOW_WEEKS) -> di
     return {"models": len(models), "likes": sum(m[0] for m in models.values()), "downloads": sum(m[1] for m in models.values())}
 
 
-def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_of: str, config: TrendConfig) -> tuple[bool, str]:
-    """(notable, why). A maker is notable when it is on the watchlist, when the site has its own item about it in the window, or when at least
-    ``minimum_models`` of its models were recorded in the window with likes adding up to ``minimum_likes`` or downloads to ``minimum_downloads`` (and in
-    either case at least ``likes_floor`` likes: downloads alone are not notability).
+def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_of: str, weeks: int, config: TrendConfig) -> tuple[bool, str]:
+    """(notable, why), over the last ``weeks`` weeks (the entity's own trend window). A maker is notable when it is on the watchlist, when the site has
+    its own item about it in the window, or when at least ``minimum_models`` of its models were recorded in the window with likes adding up to
+    ``minimum_likes`` or downloads to ``minimum_downloads`` (and in either case at least ``likes_floor`` likes: downloads alone are not notability).
     A single account with a handful of likes is below the bar and cannot anchor a draft."""
     names = {str(entity.get("key") or "").lower(), str(entity.get("name") or "").lower()}
     if names & config.watchlist:
         return True, "watchlisted"
     detail = detail or {}
-    if window_items(detail.get("relatedItems"), as_of, None, config.window_weeks):
+    if window_items(detail.get("relatedItems"), as_of, None, weeks):
         return True, "the site has its own item about it in the window"
-    engagement = window_engagement(detail.get("relatedRecords"), as_of, config.window_weeks)
+    engagement = window_engagement(detail.get("relatedRecords"), as_of, weeks)
     summary = f"{engagement['models']} model(s), {engagement['likes']} likes, {engagement['downloads']} downloads in the window"
     reached = engagement["likes"] >= config.minimum_likes or engagement["downloads"] >= config.minimum_downloads
     if engagement["models"] >= config.minimum_models and engagement["likes"] >= config.likes_floor and reached:
@@ -346,53 +345,102 @@ def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_o
     return False, summary
 
 
-def cooldown_anchors(rows: list[dict[str, Any]], now: datetime, config: TrendConfig) -> dict[str, str]:
-    """Entity key to the date of the newest story draft in the last ``config.cooldown_days`` days that rests on it, for the drafts that were not
-    declined (``rows``: Proposals or stored trend drafts, each with ``createdAt``, ``state`` and ``targets``). A draft also cites broad-kind
-    entities as context; those never anchor, so they never cool down."""
-    if config.cooldown_days <= 0:
-        return {}
-    since = now - timedelta(days=config.cooldown_days)
-    cooling: dict[str, str] = {}
-    for row in rows:
-        if row.get("state") == "declined":
-            continue
+def history_of(entity: dict[str, Any]) -> list[int | float]:
+    """The weekly counts an entity is scanned over: its full history (``seriesWeekly``, from its first week) when the snapshot has it, else the
+    26 weeks (``series26``), else the 8 (``series8``). The windows tried (1, 2, 4, 8, ... weeks) grow with the history, up to the longest one that
+    still leaves ``minimum_baseline_weeks`` of baseline."""
+    return _series(entity.get("seriesWeekly")) or _series(entity.get("series26")) or _series(entity.get("series8"))
+
+
+def _filed_date(row: dict[str, Any]) -> date | None:
+    try:
+        return datetime.fromisoformat(str(row.get("createdAt")).replace("Z", "+00:00")).date()
+    except ValueError:
+        return None
+
+
+def _stored_window(row: dict[str, Any], key: str) -> dict[str, Any] | None:
+    """The window a stored trend draft reported for an entity (``evidence.windows``), when the row carries it."""
+    evidence = row.get("evidence")
+    if isinstance(evidence, str):
         try:
-            filed = datetime.fromisoformat(str(row.get("createdAt")).replace("Z", "+00:00"))
+            evidence = json.loads(evidence)
         except ValueError:
+            return None
+    for window in (evidence.get("windows") if isinstance(evidence, dict) else None) or []:
+        if isinstance(window, dict) and window.get("signal") == f"entity:{key}" and window.get("windowWeeks") and window.get("count") is not None:
+            return window
+    return None
+
+
+def _rate(report: dict[str, Any], config: TrendConfig) -> float:
+    return (report["count"] + config.baseline_smoothing) / report["windowWeeks"]
+
+
+def previous_report(key: str, rows: list[dict[str, Any]], history: list[int | float], volume: list[float], as_of: str, config: TrendConfig) -> dict[str, Any] | None:
+    """What the earlier story drafts (``rows``: Proposals or stored trend drafts, in any state, declined included) that anchored on entity ``key``
+    reported for it, as ``{filed, state, windowWeeks, count}``; the strongest report (highest weekly rate) when several drafts anchored on it.
+
+    A draft reports the window the scan chose at the time. A stored draft carries it (``evidence.windows``); otherwise it is found again from the
+    data, by scanning the entity's series and the corpus volume cut off at the week the draft was made (its snapshot's week, else its filing week),
+    which is the same deterministic scan that run made. A draft made before the history reaches back far enough to scan has no report and counts
+    for nothing. A broad kind never anchors, so a draft that only cites one as context says nothing about it."""
+    if key.split("--", 1)[0] in config.broad_kinds:
+        return None
+    current = date.fromisoformat(as_of)
+    current -= timedelta(days=current.weekday())
+    best: dict[str, Any] | None = None
+    for row in rows:
+        if ("entity", key) not in target_key(row.get("targets")):
             continue
-        filed = filed if filed.tzinfo else filed.replace(tzinfo=timezone.utc)
-        if filed < since:
+        filed = _filed_date(row)
+        if filed is None:
             continue
-        for kind, key in target_key(row.get("targets")):
-            if kind == "entity" and key.split("--", 1)[0] not in config.broad_kinds:
-                cooling[key] = max(cooling.get(key, ""), filed.date().isoformat())
-    return cooling
+        report = _stored_window(row, key)
+        if report is None:
+            made = (row.get("snapshot") or {}).get("asOf") if isinstance(row.get("snapshot"), dict) else None
+            try:
+                week = date.fromisoformat(str(made)) if made else filed
+            except ValueError:
+                week = filed
+            week -= timedelta(days=week.weekday())
+            cut = max(0, (current - week).days // 7)
+            report = scan_window(history[: len(history) - cut], volume[: len(volume) - cut], config) if cut < len(volume) else None
+        if report is None:
+            continue
+        report = {"filed": filed.isoformat(), "state": row.get("state"), "windowWeeks": report["windowWeeks"], "count": report["count"]}
+        if best is None or _rate(report, config) > _rate(best, config):
+            best = report
+    return best
 
 
-def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None, cooldown: dict[str, str] | None = None) -> dict[str, Any]:
-    """Which entities become signals, deterministically, from the index's eight-week series (the published ``trending`` order is not used).
+def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None, earlier: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Which entities become signals, deterministically, from the index's weekly series (the published ``trending`` order is not used).
 
-    * **Ranked**: every entity with at least ``minimum_recent`` mentions in the last four weeks, scored by Poisson surprise over its own prior four
-      weeks scaled by the corpus's growth, times a weight by kind (broad kinds are demoted).
-    * **Anchors**: the best ``MAXIMUM_ENTITY_SIGNALS`` of the ranked entities whose kind may anchor a draft (``anchor_kinds``) and whose score reaches
-      ``minimum_score``; a maker must also be notable. Entities passed over are listed with the reason.
-    * **Cooldown**: an entity in ``cooldown`` (see ``cooldown_anchors``) is passed over with the date of the draft it anchored.
+    * **Ranked**: each entity's most surprising recent window (``scan_window``: 1, 2, 4, 8, ... weeks against everything before, Bonferroni-corrected for the
+      number of windows tried), scored by the z-score of that corrected p-value, times a weight by kind (broad kinds are demoted). The entity needs
+      at least ``minimum_recent`` mentions in its chosen window.
+    * **Anchors**: the best ``MAXIMUM_ENTITY_SIGNALS`` of the ranked entities whose kind may anchor a draft (``anchor_kinds``), whose corrected p-value is
+      within ``significance`` and whose score reaches ``minimum_score``; a maker must also be notable. Entities passed over are listed with the reason.
+    * **Evidence, not days**: an entity that already anchored a draft in ``earlier`` (any state, declined included) anchors another only when its window
+      now holds significantly more than that draft reported (``exceeds_report``); otherwise it is passed over, whatever the time since.
     * **Context**: up to ``MAXIMUM_CONTEXT_SIGNALS`` broad-kind entities that sit beside the anchors (their neighbours), most connected first. They
       carry ``role: "context"``; the prompt forbids a story about them.
     """
     config = config or TrendConfig()
     as_of = snapshot["asOf"]
     entities = [entity for entity in snapshot["index"]["entities"] if entity.get("key")]
-    volume = corpus_volume(_series(entity.get("series8")) for entity in entities)
+    histories = {entity["key"]: history_of(entity) for entity in entities}
+    volume = corpus_volume(histories.values(), max([SERIES_SHORT, *(len(values) for values in histories.values())]))
     scored = []
     for entity in entities:
-        result = trend_score(entity.get("kind"), _series(entity.get("series8")), volume, config)
-        if result["last4"] >= config.minimum_recent:
-            scored.append({"key": entity["key"], "name": entity.get("name"), "kind": entity.get("kind"), "isNew": bool(entity.get("isNew")), **result})
-    scored.sort(key=lambda row: (-row["score"], -row["last4"], row["key"]))
+        window = scan_window(histories[entity["key"]], volume, config)
+        if window and window["count"] >= config.minimum_recent:
+            score = round(window["surprise"] * config.kind_weight(entity.get("kind")), 3)
+            scored.append({"key": entity["key"], "name": entity.get("name"), "kind": entity.get("kind"), "isNew": bool(entity.get("isNew")), "score": score, "window": window})
+    scored.sort(key=lambda row: (-row["score"], -row["window"]["count"], row["key"]))
     by_key = {entity["key"]: entity for entity in entities}
-    anchors, excluded, details = [], [], {}
+    anchors, excluded, prior, details = [], [], [], {}
 
     def detail_of(key: str) -> dict[str, Any]:
         if key not in details:
@@ -400,18 +448,31 @@ def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None,
         return details[key]
 
     for row in scored:
-        if row["score"] < config.minimum_score:
+        window = row["window"]
+        if row["score"] < config.minimum_score or window["correctedPValue"] > config.significance:
             continue
         if row["kind"] not in config.anchor_kinds:
             excluded.append({"key": row["key"], "reason": f"{row['kind']} cannot anchor a draft", "score": row["score"]})
             continue
-        if row["key"] in (cooldown or {}):
-            excluded.append({"key": row["key"], "reason": f"cooldown: anchored a story draft filed {cooldown[row['key']]}", "score": row["score"]})
-            continue
+        report = previous_report(row["key"], earlier or [], histories[row["key"]], volume, as_of, config)
+        if report:
+            more, p_value = exceeds_report(window, report, config)
+            prior.append({
+                "key": row["key"], "filed": report["filed"], "state": report["state"], "reported": {"windowWeeks": report["windowWeeks"], "count": report["count"]},
+                "now": {"windowWeeks": window["windowWeeks"], "count": window["count"]}, "pValue": p_value, "renewed": more,
+            })
+            if not more:
+                excluded.append({
+                    "key": row["key"], "score": row["score"],
+                    "reason": f"no new evidence: the draft filed {report['filed']} ({report['state']}) reported {report['count']} in {report['windowWeeks']} week(s); "
+                    f"now {window['count']} in {window['windowWeeks']} (p={p_value}, needs <= {config.significance})",
+                })
+                continue
+            row = {**row, "renewal": prior[-1]}
         if len(anchors) >= MAXIMUM_ENTITY_SIGNALS:
             continue
         if row["kind"] == "maker":
-            notable, why = maker_notability(by_key[row["key"]], detail_of(row["key"]), as_of, config)
+            notable, why = maker_notability(by_key[row["key"]], detail_of(row["key"]), as_of, window["windowWeeks"], config)
             if not notable:
                 excluded.append({"key": row["key"], "reason": f"maker below the notability bar: {why}", "score": row["score"]})
                 continue
@@ -424,13 +485,13 @@ def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None,
         for neighbour in detail_of(row["key"]).get("neighbours") or []:
             if neighbour.get("key") in broad:
                 connection[neighbour["key"]] = connection.get(neighbour["key"], 0) + int(neighbour.get("weight") or 0)
-    context = sorted(connection, key=lambda key: (-connection[key], -broad[key]["surprise"], key))[:MAXIMUM_CONTEXT_SIGNALS]
+    context = sorted(connection, key=lambda key: (-connection[key], -broad[key]["window"]["surprise"], key))[:MAXIMUM_CONTEXT_SIGNALS]
     return {
-        "anchors": anchors, "context": [broad[key] for key in context], "excluded": excluded[:EXCLUDED_REPORT_LIMIT],
+        "anchors": anchors, "context": [broad[key] for key in context], "excluded": excluded[:EXCLUDED_REPORT_LIMIT], "priorDrafts": prior,
         "candidatesRanked": len(scored), "thresholds": {
             "minimumRecent": config.minimum_recent, "minimumScore": config.minimum_score, "minimumModels": config.minimum_models,
             "minimumLikes": config.minimum_likes, "minimumDownloads": config.minimum_downloads, "watchlist": sorted(config.watchlist),
-            "windowDays": config.window_days, "cooldownDays": config.cooldown_days,
+            "significance": config.significance, "minimumBaselineWeeks": config.minimum_baseline_weeks,
         },
     }
 
@@ -440,7 +501,6 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None,
     Entity signals carry ``items``: the releases behind them in the window, with a one-line summary where ``fetch_text`` can read the item page.
     The snapshot publishes no member list for a cluster, so a cluster signal has no items."""
     config = config or TrendConfig()
-    weeks_in_window = config.window_weeks
     as_of, signals = snapshot["asOf"], []
     previous = snapshot.get("previous") or {}
     clusters = [cluster for cluster in snapshot["clusters"] if cluster.get("name") and cluster.get("uid") and cluster.get("itemCount")]
@@ -458,23 +518,25 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None,
         signals.append(signal)
     by_key = {entity["key"]: entity for entity in snapshot["index"]["entities"] if entity.get("key")}
     selection = selection or select_entities(snapshot, config)
-    chosen = [(row["key"], "anchor") for row in selection["anchors"]] + [(row["key"], "context") for row in selection["context"]]
-    for key, role in chosen:
-        entity, change = by_key[key], by_key[key].get("change") or {}
-        series = _series(entity.get("series8"))
+    chosen = [(row, "anchor") for row in selection["anchors"]] + [(row, "context") for row in selection["context"]]
+    for row, role in chosen:
+        key = row["key"]
+        entity = by_key[key]
+        history = history_of(entity)
+        series = _series(entity.get("series8")) or history[-SERIES_SHORT:]  # the chart shows the last eight weeks, as every signal's does
+        window = row["window"]
         signal = {
             "id": f"entity:{key}", "asOf": as_of, "kind": "entity", "name": entity["name"], "entityKind": entity.get("kind"), "targetType": "entity", "targetId": key,
             "itemCount": entity.get("itemCount"), "weeksOfHistory": entity.get("weeksOfHistory"), "isNew": bool(entity.get("isNew")),
-            "last4": change.get("last4"), "prior4": change.get("prior4"), "percent": change.get("percent"),
+            "windowWeeks": window["windowWeeks"], "windowCount": window["count"], "baselineWeeks": window["baselineWeeks"], "baselineCount": window["baselineCount"],
+            "window": window, "history": history, "historyWeeks": week_labels(as_of, len(history)),
             "series": series, "weeks": week_labels(as_of, len(series)), "href": entity.get("href"), "role": role,
         }
-        if weeks_in_window != WINDOW_WEEKS:  # the snapshot's own change is four weeks; a shorter window is counted from the weekly series
-            recent, prior = int(sum(series[-weeks_in_window:])), int(sum(series[-2 * weeks_in_window : -weeks_in_window]))
-            signal.update(last4=recent, prior4=prior, percent=percent_change(recent, prior), windowWeeks=weeks_in_window)
         detail = snapshot["entityFile"](key) or {}
         if detail.get("neighbours"):
             signal["neighbours"] = [{k: n.get(k) for k in ("name", "relation", "weight")} for n in detail["neighbours"][:3]]
-        items = [*window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase"), weeks_in_window), *window_records(detail.get("relatedRecords"), as_of, weeks_in_window)]
+        weeks = window["windowWeeks"]
+        items = [*window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase"), weeks), *window_records(detail.get("relatedRecords"), as_of, weeks)]
         if items:
             signal["items"] = items
         signals.append(signal)
@@ -514,19 +576,18 @@ def signal_view(handle: str, signal: dict[str, Any], as_of: str, item_handles: d
         if "itemCountInPreviousArchive" in signal:
             view.update(items_in_cluster_in_previous_archive=signal["itemCountInPreviousArchive"], previous_archive_week=signal["previousArchiveWeek"])
     else:
-        weeks = int(signal.get("windowWeeks") or WINDOW_WEEKS)
-        unit = "week" if weeks == 1 else "weeks"
         view.update(
             entity_kind=signal.get("entityKind"), items_total=signal.get("itemCount"), weeks_of_history=signal.get("weeksOfHistory"), is_new=signal.get("isNew"),
             neighbours=signal.get("neighbours"), role="context" if signal.get("role") == "context" else None,
         )
-        view[f"items_last_{weeks}_{unit}"] = signal.get("last4")
-        view[f"items_prior_{weeks}_{unit}"] = signal.get("prior4")
-        view["percent"] = signal.get("percent")
+        view.update(
+            window_weeks=signal.get("windowWeeks"), items_in_window=signal.get("windowCount"),
+            weeks_before_window=signal.get("baselineWeeks"), items_before_window=signal.get("baselineCount"),
+        )
     if item_handles:
         view["items"] = [item_handles[item["id"]] for item in signal.get("items", []) if item["id"] in item_handles]
-    view["items_per_week"] = dict(zip(signal["weeks"], signal["series"]))
-    return {key: value for key, value in view.items() if key == "percent" or value not in (None, [], {})}  # a null percent is information
+    view["items_per_week"] = dict(zip(signal.get("historyWeeks") or signal["weeks"], signal.get("history") or signal["series"]))
+    return {key: value for key, value in view.items() if value not in (None, [], {})}
 
 
 def build_input(snapshot: dict[str, Any], signals: list[dict[str, Any]], context: dict[str, Any], maximum: int) -> dict[str, Any]:
@@ -742,10 +803,14 @@ def describe_signal(signal: dict[str, Any]) -> str:
     if signal["kind"] == "cluster":
         parts = [f"cluster, {signal.get('state') or 'steady'}, {signal['itemCount']} items"]
     else:
-        span = {1: "week", 2: "two weeks", 3: "three weeks", 4: "four weeks"}[int(signal.get("windowWeeks") or WINDOW_WEEKS)]
-        change = f"{signal['last4']} items in the last {span} against {signal['prior4']} before" if signal.get("last4") is not None else f"{signal.get('itemCount')} items"
-        percent = f" ({signal['percent']:+d}%)" if isinstance(signal.get("percent"), int) else ""
-        parts = [f"{signal.get('entityKind') or 'entity'}, {change}{percent}" + (", new to the map" if signal.get("isNew") else "")]
+        weeks = signal["windowWeeks"]
+        span = "week" if weeks == 1 else f"{weeks} weeks"
+        window = signal["window"]
+        change = (
+            f"{signal['windowCount']} items in the last {span} against {signal['baselineCount']} in the {signal['baselineWeeks']} weeks before "
+            f"(about {window['expected']:g} expected; p={window['correctedPValue']:g} after correcting for {window['tested']} windows tried)"
+        )
+        parts = [f"{signal.get('entityKind') or 'entity'}, {change}" + (", new to the map" if signal.get("isNew") else "")]
     return f"{signal['name']}: " + "; ".join(parts)
 
 
@@ -791,7 +856,10 @@ def draft_record(draft: dict[str, Any], *, run: dict[str, Any], signals: dict[st
         "title": draft["headline"]["text"][:200], "angle": draft["dek"]["text"][:300], "section": draft["section"],
         "body": draft_body(draft, signals, figure),
         "targets": [{"type": signal["targetType"], "id": signal["targetId"]} for signal in cited],
-        "evidence": {"signals": len(cited), "source": f"knowledge snapshot {snapshot['asOf']} ({run['publication']}), papyrus ideas trends"[:200], "figure": figure},
+        "evidence": {
+            "signals": len(cited), "source": f"knowledge snapshot {snapshot['asOf']} ({run['publication']}), papyrus ideas trends"[:200], "figure": figure,
+            "windows": [{"signal": signal["id"], **signal["window"]} for signal in cited if signal["kind"] == "entity"],
+        },
         "citedSignalIds": draft["citedSignalIds"], "citedItemIds": draft.get("citedItemIds", []),
         "citedItems": [{key: item.get(key) for key in ("id", "title", "date", "url")} for item in (collect_items(list(signals.values()))[i] for i in draft.get("citedItemIds", []))],
         "citationCheck": draft["citationCheck"],
@@ -809,12 +877,15 @@ def target_key(targets: Any) -> frozenset[tuple[str, str]]:
     return frozenset((str(t.get("type")), str(t.get("id"))) for t in targets or [] if isinstance(t, dict))
 
 
-def split_same_targets(drafts: list[dict[str, Any]], existing: list[tuple[str, str, frozenset[tuple[str, str]]]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Drops a draft whose cited targets are exactly those of an earlier non-declined story draft (``existing``: kind, id, targets)."""
+def split_same_targets(
+    drafts: list[dict[str, Any]], existing: list[tuple[str, str, frozenset[tuple[str, str]]]], renewed: frozenset[str] = frozenset()
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Drops a draft whose cited targets are exactly those of an earlier non-declined story draft (``existing``: kind, id, targets), unless it rests on
+    an entity in ``renewed``: one the evidence test (``select_entities``) found materially stronger than its earlier draft reported."""
     kept, dropped, known = [], [], list(existing)
     for draft in drafts:
         wanted = target_key(draft["targets"])
-        match = next((entry for entry in known if entry[2] == wanted), None)
+        match = None if any(("entity", key) in wanted for key in renewed) else next((entry for entry in known if entry[2] == wanted), None)
         if match:
             dropped.append({"title": draft["title"], "reason": "same_targets", "sameTargetsAs": {"kind": match[0], "id": match[1]}})
             continue
@@ -863,10 +934,9 @@ def draft_trends(
     documents = comparison_documents(context, stored, proposals, [])
     config = config or TrendConfig()
     earlier = [*proposals, *(idea for idea in stored if idea.get("origin") == "trend")]
-    cooldown = cooldown_anchors(earlier, moment, config)
-    selection = select_entities(snapshot, config, cooldown)
+    selection = select_entities(snapshot, config, earlier)
     run["selection"] = selection
-    run["cooldown"] = {"days": config.cooldown_days, "entities": cooldown}
+    run["priorDrafts"] = selection["priorDrafts"]
     signals_list = build_signals(snapshot, fetch_text, config, selection)
     signals = {signal["id"]: signal for signal in signals_list}
     handles = handles_for(signals_list)
@@ -891,12 +961,12 @@ def draft_trends(
         similar, run["duplicates"] = dedupe.split_duplicates(records, documents, threshold)
         existing = [("proposal", row["id"], target_key(row.get("targets"))) for row in proposals if row.get("state") != "declined"]
         existing += [("draft", idea["ideaId"], target_key(idea.get("targets"))) for idea in stored if idea.get("origin") == "trend" and idea.get("state") != "declined"]
-        kept, same = split_same_targets(similar, [entry for entry in existing if entry[2]])
+        kept, same = split_same_targets(similar, [entry for entry in existing if entry[2]], frozenset(row["key"] for row in selection["anchors"] if row.get("renewal")))
         run["duplicates"] += same
         for record in kept:
             if not dry_run:
                 if proposal_store:
-                    record["proposalId"] = proposal_store.file_trend_draft(record)
+                    record["proposalId"] = proposal_store.file_story_draft(record)
                 if json_store:
                     json_store.save_idea(record)
             run["drafts"].append(record)

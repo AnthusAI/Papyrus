@@ -41,7 +41,8 @@ function policyStatements(template: Template, roleLogicalIdPrefix: string): any[
     .flatMap(([, resource]) => resource.Properties.PolicyDocument.Statement);
 }
 
-const { stack, template, config } = knowledgeStack();
+// The example opts in to monitor stories; the base stack here is the template without that optional step (it is tested below and per example).
+const { stack, template, config } = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; });
 const everything = JSON.stringify(template.toJSON());
 const stages = [...KNOWLEDGE_STAGE_NAMES];
 
@@ -126,6 +127,43 @@ assert.ok(
 );
 assert.ok(!everything.includes("sk-"), "no key anywhere in the template");
 
+// The optional monitor-stories step: absent unless the site opts in with knowledgeRun.monitorStories, then off by default, after trend-drafts, never failing the run.
+assert.equal(definition.States["monitor-stories"], undefined, "no monitorStories block: no step");
+assert.equal(definition.States["Run-monitor-stories"], undefined);
+assert.equal(trendParameters.MonitorStoriesEnabled, undefined, "no monitorStories block: the template has no extra parameter");
+assert.ok(!("MONITOR_STORIES_LIMIT" in Object.fromEntries(
+  (Object.values(template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+)));
+{
+  const withStories = knowledgeStack((site) => { site.knowledgeRun.monitorStories = { limit: 2 }; });
+  const storiesDefinition = definitionOf(withStories.template);
+  const storiesParameters = withStories.template.toJSON().Parameters;
+  assert.equal(storiesParameters.MonitorStoriesEnabled.Default, "false");
+  assert.deepEqual(storiesParameters.MonitorStoriesEnabled.AllowedValues, ["true", "false"]);
+  assert.equal(storiesDefinition.States["trend-drafts"].Next, "Run-monitor-stories", "the step comes after trend-drafts");
+  assert.deepEqual(storiesDefinition.States["trend-drafts"].Catch, [{ ErrorEquals: ["States.ALL"], Next: "Run-monitor-stories" }]);
+  assert.equal(storiesDefinition.States["Run-trend-drafts"].Default, "Run-monitor-stories", "trend drafts off: straight on to the next optional step");
+  const storiesGate = storiesDefinition.States["Run-monitor-stories"];
+  assert.equal(storiesGate.Type, "Choice");
+  assert.equal(storiesGate.Choices.length, 1);
+  assert.equal(storiesGate.Choices[0].Next, "monitor-stories");
+  assert.equal(storiesGate.Default, "Done", "disabled: the run ends as before");
+  assert.match(storiesGate.Choices[0].Condition, /^\{% '.*' = 'true' %\}$/);
+  const storiesState = storiesDefinition.States["monitor-stories"];
+  assert.deepEqual(storiesState.Arguments.Overrides.ContainerOverrides[0].Command, ["python", "/opt/papyrus-jobs/monitor_stories.py"]);
+  assert.equal(storiesState.Next, "Done");
+  assert.deepEqual(storiesState.Catch, [{ ErrorEquals: ["States.ALL"], Next: "Done" }], "a failure is swallowed, not a Fail state");
+  assert.equal(storiesState.Retry[0].MaxAttempts, 0);
+  assert.equal(storiesDefinition.States["Failed-monitor-stories"], undefined);
+  assert.ok(storiesState.Arguments.Overrides.ContainerOverrides[0].Environment.some((entry: any) => entry.Name === "MONITOR_STORIES_ENDPOINT"), "the endpoint reaches the step");
+  const storiesEnvironment = Object.fromEntries(
+    (Object.values(withStories.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+  );
+  assert.equal(storiesEnvironment.MONITOR_STORIES_LIMIT, "2");
+  assert.equal(storiesEnvironment.KNOWLEDGE_LEDGER_TABLE !== undefined, true, "the step finds the ledger table it writes its cost row to");
+  assert.equal(knowledgeStack((site) => { site.knowledgeRun.monitorStories = {}; }).config.monitorStories?.limit, 3, "the default is three a run");
+}
+
 // Execution input contract: JSONata expressions over the execution context, per stage.
 const environmentOverrides = Object.fromEntries(
   definition.States["snapshot"].Arguments.Overrides.ContainerOverrides[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
@@ -157,29 +195,28 @@ const taskDefinition = Object.values(template.findResources("AWS::ECS::TaskDefin
 const staticEnvironment = Object.fromEntries(taskDefinition.Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
 assert.deepEqual(Object.keys(staticEnvironment).sort(), [
   "AWS_REGION", "HF_HOME", "HF_HUB_OFFLINE", "KNOWLEDGE_ALLOW_TEST_FAILURE", "KNOWLEDGE_BEATS_CONFIG", "KNOWLEDGE_CONTENT_ACTIONS_FUNCTION", "KNOWLEDGE_AMPLIFY_APP_ID", "PAPYRUS_PLUGINS",
-  "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_MONITOR_WEEKS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
+  "KNOWLEDGE_APPSYNC_API_ID", "KNOWLEDGE_CONCEPT_KINDS", "KNOWLEDGE_LEDGER_TABLE", "KNOWLEDGE_MONITOR_SOURCES", "KNOWLEDGE_MONITOR_SUGGESTIONS", "KNOWLEDGE_OPENAI_KEY_PARAMETER", "KNOWLEDGE_PUBLICATION", "KNOWLEDGE_SITE_BRANCH",
   "KNOWLEDGE_SITE_REPO", "KNOWLEDGE_STATE_BUCKET", "KNOWLEDGE_STATIC_SUBDIR", "PAPYRUS_EDGE_DISTRIBUTION_ID", "PAPYRUS_PROJECTION_LOCK_TABLE",
   "PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS", "PAPYRUS_PUBLICATION_KIND", "PAPYRUS_REDIRECTS_KVS_ARN", "PAPYRUS_SITE_BUCKET", "TREND_DRAFTS_MAX_AGE_DAYS",
 ].sort());
 assert.equal(staticEnvironment.TREND_DRAFTS_MAX_AGE_DAYS, "1", "the trend-drafts step accepts a snapshot one day older than the execution by default");
-assert.ok(!("TREND_DRAFTS_WINDOW_DAYS" in staticEnvironment), "no trend window configured: the command's own 28 days applies");
 const withTrendKnobs = knowledgeStack((site) => { site.knowledgeRun.trendWindowDays = 14; site.knowledgeRun.trendSnapshotMaxAgeDays = 3; site.knowledgeRun.trendCooldownDays = 0; });
 const trendEnvironment = Object.fromEntries(
   (Object.values(withTrendKnobs.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
 );
-assert.equal(trendEnvironment.TREND_DRAFTS_WINDOW_DAYS, "14");
+assert.ok(!("TREND_DRAFTS_WINDOW_DAYS" in trendEnvironment), "trendWindowDays is retired: accepted, no variable");
 assert.equal(trendEnvironment.TREND_DRAFTS_MAX_AGE_DAYS, "3");
-assert.equal(trendEnvironment.TREND_DRAFTS_COOLDOWN_DAYS, "0", "zero is a value: it turns the anchor cooldown off");
-assert.ok(!("TREND_DRAFTS_COOLDOWN_DAYS" in staticEnvironment), "no cooldown configured: the command's own 7 days applies");
+assert.ok(!("TREND_DRAFTS_COOLDOWN_DAYS" in trendEnvironment), "trendCooldownDays is retired: accepted, no variable");
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
-assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
+assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface,routed");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
 const withoutMonitors = knowledgeStack((site) => { delete site.knowledgeRun.monitorSources; delete site.knowledgeRun.monitorWeeks; delete site.knowledgeRun.monitorSuggestions; });
 const plainEnvironment = Object.fromEntries(
   (Object.values(withoutMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
 );
 assert.ok(!("KNOWLEDGE_MONITOR_SOURCES" in plainEnvironment), "monitor records are opt-in: no source set, no variable");
+assert.ok(!("KNOWLEDGE_MONITOR_WEEKS" in staticEnvironment), "no monitorWeeks in the example config: no variable, so every record counts (all history)");
 const withMonitors = knowledgeStack((site) => { site.knowledgeRun.monitorSources = ["huggingface"]; site.knowledgeRun.monitorWeeks = 26; site.knowledgeRun.monitorSuggestions = 5; });
 const monitorEnvironment = Object.fromEntries(
   (Object.values(withMonitors.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
@@ -187,6 +224,11 @@ const monitorEnvironment = Object.fromEntries(
 assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
 assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_WEEKS, "26");
 assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SUGGESTIONS, "5");
+const withRouted = knowledgeStack((site) => { site.knowledgeRun.monitorSources = ["routed"]; });
+const routedEnvironment = Object.fromEntries(
+  (Object.values(withRouted.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.equal(routedEnvironment.KNOWLEDGE_MONITOR_SOURCES, "routed", "routed References are a monitor source of their own");
 assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
 assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
@@ -455,13 +497,94 @@ rejects((block) => { block.conceptKinds = []; }, /knowledgeRun\.conceptKinds mus
 rejects((block) => { block.monitorSources = []; }, /knowledgeRun\.monitorSources must be a non-empty array/);
 rejects((block) => { block.monitorSources = ["rss"]; }, /knowledgeRun\.monitorSources names an unsupported source "rss"/);
 rejects((block) => { block.monitorSuggestions = 21; }, /knowledgeRun\.monitorSuggestions must be an integer from 0 to 20/);
-rejects((block) => { block.trendWindowDays = 10; }, /knowledgeRun\.trendWindowDays must be one of 7, 14, 21, 28/);
-rejects((block) => { block.trendCooldownDays = -1; }, /knowledgeRun\.trendCooldownDays must be an integer from 0 to 365/);
 rejects((block) => { block.trendSnapshotMaxAgeDays = 8; }, /knowledgeRun\.trendSnapshotMaxAgeDays must be an integer from 0 to 7/);
+rejects((block) => { block.monitorStories = { limit: 0 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
+rejects((block) => { block.monitorStories = { limit: 21 }; }, /knowledgeRun\.monitorStories\.limit must be an integer from 1 to 20/);
+rejects((block) => { block.monitorStories = { sources: ["hn"] }; }, /knowledgeRun\.monitorStories\.sources is not a known field/);
+rejects((block) => { block.monitorStories = 3; }, /knowledgeRun\.monitorStories must be an object/);
 rejects((block) => { block.monitorWeeks = 0; }, /knowledgeRun\.monitorWeeks must be an integer from 1 to 260/);
 rejects((block) => { block.environment = { "1BAD": "x" }; }, /knowledgeRun\.environment\.1BAD is not a valid environment variable name/);
+rejects((block) => { block.corpusKey = "Not A Key"; }, /knowledgeRun\.corpusKey is invalid/);
+rejects((block) => { block.corpusKey = ""; }, /knowledgeRun\.corpusKey must be a non-empty string/);
 rejects((block) => { block.openAiKeyParameter = "no-slash"; }, /knowledgeRun\.openAiKeyParameter is invalid/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.knowledgeRun; return raw; })())), /has no knowledgeRun block/);
 assert.throws(() => resolveKnowledgeRunConfig(parseSiteConfig((() => { const raw = readExample(); delete raw.aws; return raw; })())), /needs aws\.accountId and aws\.region/);
+
+// Any site: a corpus key of its own, shared SSM parameters, and Shipped unchanged by all of it.
+const environmentOf = (built: { template: Template }): Record<string, string> =>
+  Object.fromEntries((Object.values(built.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]));
+assert.ok(!("KNOWLEDGE_CORPUS_KEY" in staticEnvironment), "Shipped names no corpus key: the tasks find the corpus by the siteId, as before");
+assert.equal(config.corpusKey, undefined);
+assert.equal(staticEnvironment.KNOWLEDGE_APPSYNC_API_ID, "6sw6454pozbgvdgm233gqkxsxu", "the stage can seed config/amplify_outputs.json from the API id");
+const withCorpusKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
+const corpusEnvironment = environmentOf(withCorpusKey);
+assert.equal(withCorpusKey.config.corpusKey, "ai-ml-research");
+assert.equal(corpusEnvironment.KNOWLEDGE_CORPUS_KEY, "ai-ml-research");
+assert.equal(corpusEnvironment.KNOWLEDGE_PUBLICATION, "shipped", "state, ledger and alarms stay keyed by the siteId");
+assert.deepEqual(
+  Object.keys(corpusEnvironment).filter((name) => !(name in staticEnvironment)),
+  ["KNOWLEDGE_CORPUS_KEY"],
+  "a corpus key adds one variable and changes nothing else",
+);
+assert.equal(withCorpusKey.stack.stackName, stack.stackName);
+const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; }));
+assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environment is what it was");
+{
+  const base = knowledgeStack();
+  assert.deepEqual(base.template.toJSON(), knowledgeStack((site) => { site.knowledgeRun.corpusKey = undefined; }).template.toJSON(), "an absent corpus key leaves the template untouched");
+}
+
+// A site may name any existing SSM parameter for the OpenAI key and the alarm address, and several sites may share them.
+const sharedKey = "/papyrus/shared/openai-api-key";
+const sharedAlarm = "/papyrus/shared/knowledge-run/alarm-email";
+const sharedFor = (siteId: string) => knowledgeStack((site) => {
+  site.siteId = siteId;
+  site.knowledgeRun.openAiKeyParameter = sharedKey;
+  site.knowledgeRun.alarmEmailParameter = sharedAlarm;
+});
+for (const siteId of ["shipped", "p-apyr-us"]) {
+  const shared = sharedFor(siteId);
+  assert.equal(shared.config.openAiKeyParameter, sharedKey);
+  assert.equal(environmentOf(shared).KNOWLEDGE_OPENAI_KEY_PARAMETER, sharedKey);
+  const readParameters = shared.template.toJSON();
+  assert.match(JSON.stringify(readParameters), /parameter\/papyrus\/shared\/openai-api-key/, "the task role may read the shared key, and only that parameter");
+  assert.ok(!JSON.stringify(readParameters).includes(`/papyrus/${siteId}/openai-api-key`), "the per-site default name is not granted");
+  const alarmParameter = Object.values(shared.template.findParameters("*")).find((entry: any) => entry.Type === "AWS::SSM::Parameter::Value<String>") as any;
+  assert.equal(alarmParameter.Default, sharedAlarm);
+  assert.equal(shared.stack.stackName, knowledgeRunStackName(siteId), "each site still has a stack and an alarm topic of its own");
+}
+
+// Every site's example config carries a daily, staggered knowledge run that files routed records and monitor-story drafts.
+const SHIPPED_KEY = "/papyrus/shipped/openai-api-key";
+const SHIPPED_ALARM = "/papyrus/shipped/knowledge-run/alarm-email";
+const siteExpectations: Record<string, { hour: number; key: string; corpusKey?: string; distribution?: string }> = {
+  shipped: { hour: 5, key: SHIPPED_KEY },
+  "anth-us": { hour: 6, key: SHIPPED_KEY },
+  "threat-intelligence": { hour: 7, key: "/amplify/shared/d12wnrx15qbcc2/OPENAI_API_KEY" },
+  distinctive: { hour: 8, key: "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY" },
+  "pilobol-us": { hour: 9, key: SHIPPED_KEY },
+  "p-apyr-us": { hour: 10, key: "/papyrus/p-apyr-us/openai-api-key", corpusKey: "ai-ml-research", distribution: "E2EM0JLBC2W9WW" },
+  dataparade: { hour: 11, key: "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY", corpusKey: "data-parade" },
+};
+const exampleDirectory = path.dirname(examplePath);
+const seenHours = new Set<number>();
+for (const [siteId, expected] of Object.entries(siteExpectations)) {
+  const site = JSON.parse(fs.readFileSync(path.join(exampleDirectory, `${siteId}.site.json`), "utf8"));
+  const resolved = resolveKnowledgeRunConfig(parseSiteConfig(site));
+  assert.equal(resolved.publication, siteId);
+  assert.equal(resolved.schedule, `cron(0 ${expected.hour} * * ? *)`, `${siteId} runs daily at its own hour`);
+  assert.ok(!seenHours.has(expected.hour), `${siteId}: no two sites share an hour`);
+  seenHours.add(expected.hour);
+  assert.ok(resolved.monitorSources?.includes("routed"), `${siteId} counts routed monitor records`);
+  assert.equal(resolved.monitorWeeks, undefined, `${siteId} sets no monitorWeeks: all history counts`);
+  assert.deepEqual(resolved.monitorStories, { limit: 3 });
+  assert.equal(resolved.openAiKeyParameter, expected.key);
+  assert.equal(resolved.alarmEmailParameter, SHIPPED_ALARM);
+  assert.equal(resolved.corpusKey, expected.corpusKey);
+  if (expected.distribution) assert.equal(resolved.edgeDistributionId, expected.distribution);
+  const built = new KnowledgeRunStack(new App(), `KnowledgeRun-${siteId}`, resolved, { env, imageTag: "test" });
+  assert.equal(built.stackName, knowledgeRunStackName(siteId));
+  assert.equal(Object.keys(Template.fromStack(built).toJSON().Resources).length, 41, `${siteId}: the same 41 resources as Shipped (42 with the CDK metadata a synth adds)`);
+}
 
 console.log("scheduled job synth: ok");

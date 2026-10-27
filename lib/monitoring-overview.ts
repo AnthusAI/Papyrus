@@ -106,7 +106,6 @@ export type MonitoringFeed = {
   id: string;
   sourceUrl: string | null;
   intervalSeconds: number | null;
-  limit: number | null;
   enabled: boolean;
   lastStatus: string | null;
   lastFinishedAt: string | null;
@@ -121,7 +120,7 @@ export type MonitoringOverview = {
   feeds: MonitoringFeed[];
   runs: MonitoringRun[];
   routerRuns: MonitoringRouterRun[];
-  router: { mode: string; feedback: boolean; enabled: boolean; maxItemsPerRun: number | null } | null;
+  router: { mode: string; feedback: boolean; enabled: boolean } | null;
   usage: {
     day: string;
     decisionsToday: number;

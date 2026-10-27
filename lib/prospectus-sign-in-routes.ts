@@ -1,3 +1,4 @@
+import { resolveNewsroomChatIdentity, type NewsroomChatIdentityResolver } from "./newsroom-chat-identity";
 import { NextResponse, type NextRequest } from "next/server";
 import {
   CYCLOTRON_LAB_PRODUCT,
@@ -36,6 +37,7 @@ import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfigured
  * unregistered deployment never half-signs anyone in.
  */
 export interface ProspectusSignInRouteOptions {
+  resolveNewsroomIdentity?: NewsroomChatIdentityResolver;
   resolveRuntime?: (siteOrigin: string) => Promise<ProspectusSignInRuntime | null>;
   siteProduct?: string | null;
   completionOverrides?: Pick<CompleteProspectusGoogleSignInInput, "verifyCognitoTokens" | "fetcher">;
@@ -137,12 +139,25 @@ export function handleProspectusSignInStart(request: NextRequest, options: Prosp
 async function handleProspectusSignInStartRoute(request: NextRequest, options: ProspectusSignInRouteOptions): Promise<NextResponse> {
   const runtime = await signInRuntimeFor(request, options);
   if (!runtime) return signInUnavailableResponse();
+  const newsroomConnection = request.nextUrl.searchParams.get("newsroomChat") === "true";
+  let newsroomSubject: string | undefined;
+  if (newsroomConnection) {
+    if (request.method !== "POST" || request.headers.get("origin") !== siteOriginFor(request, options)) {
+      return signInFailedResponse(403, "same_origin_required", "Connect chat from this newsroom.");
+    }
+    const identity = await (options.resolveNewsroomIdentity ?? resolveNewsroomChatIdentity)(request).catch(() => null);
+    if (!identity) return signInFailedResponse(401, "sign_in_required", "An authenticated newsroom editor is required.");
+    newsroomSubject = identity.subject;
+  }
   const { authorizationUrl, pendingSignIn } = await beginProspectusGoogleSignIn(runtime.accounts, runtime.cognitoClient);
   const pendingSignInCookie: PendingProspectusSignInCookie = {
     ...pendingSignIn,
-    returnPath: sameSiteReturnPath(await requestedReturnPath(request)),
+    ...(newsroomSubject ? { newsroomSubject } : {}),
+    returnPath: sameSiteReturnPath(newsroomConnection ? request.nextUrl.searchParams.get("returnTo") : await requestedReturnPath(request)),
   };
-  const response = NextResponse.redirect(authorizationUrl, { status: 303, headers: NO_STORE_HEADERS });
+  const response = newsroomConnection
+    ? NextResponse.json({ authorizationUrl }, { headers: NO_STORE_HEADERS })
+    : NextResponse.redirect(authorizationUrl, { status: 303, headers: NO_STORE_HEADERS });
   response.cookies.set(
     PROSPECTUS_PENDING_SIGN_IN_COOKIE,
     sealProspectusCookie(runtime.sealingSecret, PROSPECTUS_PENDING_SIGN_IN_COOKIE, pendingSignInCookie, pendingSignIn.expiresAt),
@@ -194,11 +209,13 @@ async function completeCallback(
       pendingSignIn,
       returnedState,
       authorizationCode,
+      expectedNewsroomSubject: pendingSignIn.newsroomSubject,
       nowInSeconds,
       ...options.completionOverrides,
     });
     const session: ProspectusSignedInSession = {
       personId: signedIn.person.id,
+      ...(pendingSignIn.newsroomSubject ? { newsroomSubject: pendingSignIn.newsroomSubject } : {}),
       accessToken: signedIn.accessToken,
       accessTokenExpiresAt: signedIn.accessTokenExpiresAt,
       ...(signedIn.person.siteSubject ? { siteSubject: signedIn.person.siteSubject } : {}),

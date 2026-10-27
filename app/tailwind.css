@@ -24,6 +24,8 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-foreground-subtle: var(--foreground-subtle);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
   --color-surface: var(--surface);

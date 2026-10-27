@@ -49,3 +49,18 @@ def test_an_empty_ledger_says_so(tmp_path):
 
 def test_durations_read_as_minutes():
     assert (clock(None), clock(42), clock(754)) == ("-", "42s", "12m34s")
+
+
+def test_the_monitor_stories_step_shows_with_its_cost_but_is_not_in_the_run_total(tmp_path):
+    run, _shell = make_run(tmp_path)
+    run_all(run)
+    before: list[str] = []
+    knowledge_runs(["--site", "shipped", "--json"], table=run.ledger.table, out=before.append)
+    run.ledger.begin("monitor-stories")
+    run.ledger.finish("monitor-stories", {"cost": {"computeSeconds": 60, "computeUsd": 0.01, "llm": {"calls": 3, "usd": 0.002}, "totalUsd": 0.012}})
+    lines: list[str] = []
+    knowledge_runs(["--site", "shipped"], table=run.ledger.table, out=lines.append)
+    assert "monitor-stories" in lines[-1] and "$0.0120" in lines[-1]
+    after: list[str] = []
+    knowledge_runs(["--site", "shipped", "--json"], table=run.ledger.table, out=after.append)
+    assert json.loads(after[0]) == json.loads(before[0])

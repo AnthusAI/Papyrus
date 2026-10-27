@@ -33,6 +33,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-account-popup{min-width:250px;max-width:calc(100vw - 32px);border:1px solid var(--org-line);padding:6px;border-radius:4px}
 .organizer-account-popup [role=menuitem]{min-height:40px;font-size:12px}.organizer-account-popup .reader-auth{display:contents}.organizer-account-popup .reader-auth__error{display:block;white-space:normal;font-size:11px;padding:8px}
 .organizer-bottom-nav{display:none}
+.organizer-bottom-nav button{appearance:none;border:0;background:transparent;color:inherit}
 .organizer-main:has(.organizer-native-board){display:flex;overflow:hidden}
 .organizer-native-board{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;gap:8px}
 .organizer-board-view-toggle{display:flex;gap:4px;flex-shrink:0}

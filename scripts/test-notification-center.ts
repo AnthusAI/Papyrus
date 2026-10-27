@@ -34,6 +34,12 @@ async function main() {
   assert.deepEqual(sections.flags.map((r) => r.id), ["rr-flag-1"]);
   assert.deepEqual(sections.decided.map((r) => r.id), ["rr-done-2", "rr-done-1", "rr-late-1"]);
 
+  // A soft review with no deadline stays open until handled: listed after the ones with deadlines, never due, and its text says so.
+  const openEnded = { ...FIXTURE_REVIEW_REQUESTS[1], id: "rr-soft-open", deadline: null, raisedAt: "2026-10-01T00:00:00Z" };
+  assert.deepEqual(sectionReviews([...FIXTURE_REVIEW_REQUESTS, openEnded]).softReviews.map((r) => r.id), ["rr-soft-1", "rr-soft-2", "rr-soft-open"]);
+  assert.equal(isDue(openEnded, new Date("2036-01-01T00:00:00Z")), false);
+  assert.match(nextText(openEnded), /^Stays open until someone handles it/);
+
   // Cyclotron: low-confidence pending items are held (least confident first); confident ones are the read-only stream.
   const references = [reference("a"), reference("b"), reference("c"), reference("d", "accepted"), reference("e")];
   const decisions = new Map<string, RelevanceDecisionView>([

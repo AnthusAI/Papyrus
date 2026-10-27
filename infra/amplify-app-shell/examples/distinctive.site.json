@@ -1,0 +1,55 @@
+{
+  "siteId": "distinctive",
+  "repository": "https://github.com/AnthusAI/Distinctive-web",
+  "brand": "distinctive",
+  "frontend": "markus-static",
+  "aws": {
+    "profile": "papyrus-production",
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
+  "papyrusVersion": "3.2.0",
+  "cms": {
+    "staging": true,
+    "cognitoDomainPrefix": "papyrus-distinctive-cms",
+    "applyCognitoDomainPrefix": true,
+    "environment": {
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/"
+    }
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "Distinctive-web",
+    "branches": [
+      "main"
+    ]
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 8 * * ? *)",
+    "siteBucket": "amplify-d2xke8ygmrzqpp-main-bra-sitebucket397a1860-dbdg2ccpq0bc",
+    "edgeDistributionId": "EHJUVNTK7AFXH",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/81c593f0-0b73-442c-8c18-60de9adbfbf4",
+    "appSyncApiId": "xcobakwl4jagvhdq54qc55flii",
+    "amplifyAppId": "d2xke8ygmrzqpp",
+    "contentActionsFunction": "amplify-d2xke8ygmrzqpp-ma-papyruscontentactionsE8B-8zprEcWtpmPK",
+    "plugins": [
+      "newsletter"
+    ],
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY"
+  },
+  "email": {
+    "mode": "existing",
+    "sendingDomain": "mail.example.test",
+    "configurationSet": "existing-site-email",
+    "eventTopicName": "existing-site-email-events"
+  }
+}

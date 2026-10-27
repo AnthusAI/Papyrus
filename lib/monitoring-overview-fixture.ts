@@ -5,7 +5,7 @@ export const FIXTURE_MONITORING_OVERVIEW: MonitoringOverview = {
   state: "ready",
   asOf: "2026-10-21T02:40:00Z",
   scope: { mode: "publication", publicationId: "desk-a", site: "a.example.test", canViewAll: true },
-  feeds: [{ id: "hn", sourceUrl: "https://news.ycombinator.com/rss", intervalSeconds: 900, limit: 30, enabled: true,
+  feeds: [{ id: "hn", sourceUrl: "https://news.ycombinator.com/rss", intervalSeconds: 900, enabled: true,
     lastStatus: "complete", lastFinishedAt: "2026-10-21T02:33:00Z", nextDueAt: "2026-10-21T02:50:00Z" }],
   runs: [
     { runId: "r3", startedAt: "2026-10-21T02:33:00.000000Z", status: "complete", new: 2, revised: 1, unchanged: 27, itemCount: 30, errorCount: 0, errors: [] },
@@ -14,7 +14,7 @@ export const FIXTURE_MONITORING_OVERVIEW: MonitoringOverview = {
   ],
   routerRuns: [{ runId: "q2", startedAt: "2026-10-21T02:37:00.000000Z", mode: "live", status: "stopped", stoppedBy: "request_ceiling_reached",
     counts: { examined: 3, decided: 1, delivered: 1, deliveryFailed: 1, routed: 1 }, errorCount: 0 }],
-  router: { mode: "live", feedback: true, enabled: true, maxItemsPerRun: 5 },
+  router: { mode: "live", feedback: true, enabled: true },
   usage: { day: "2026-10-21", decisionsToday: 2, decisionsTotal: 3, historyComplete: true },
   hiddenNotRelevant: 1,
   items: [

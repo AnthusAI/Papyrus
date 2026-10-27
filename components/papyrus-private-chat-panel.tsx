@@ -1,5 +1,6 @@
 "use client";
 
+import { Hub } from "aws-amplify/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PapyrusConsoleConversation, type ConsoleConversationMessage } from "./papyrus-console-conversation";
 import {
@@ -31,6 +32,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const identityGeneration = useRef(0);
   const retryAttempt = useRef<{ text: string; key: string } | null>(null);
   const isWaitingForReply = messages.length > 0 && messages[messages.length - 1].author_kind === "human" &&
     messages[messages.length - 1].addressed_to_bot_id !== null;
@@ -46,38 +48,67 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     }];
   }, [isWaitingForReply, messages]);
 
-  const refreshMessages = useCallback(async (channelId: string) => {
+  const handleFailure = useCallback(async (nextError: unknown) => {
+    const failure = failureMessage(nextError);
+    setError(failure);
+    if (["sign_in_required", "chat_account_access_denied"].includes(failure)) {
+      ++identityGeneration.current;
+      setChannel(null);
+      setMessages([]);
+      retryAttempt.current = null;
+      setSending(false);
+      setLoading(false);
+    }
+  }, []);
+
+  const refreshMessages = useCallback(async (channelId: string, generation: number) => {
     const next = await listPapyrusPrivateChatMessages(channelId);
-    setMessages(next);
+    if (generation === identityGeneration.current) setMessages(next);
   }, []);
 
   const openConversation = useCallback(async () => {
+    const generation = ++identityGeneration.current;
     setLoading(true);
     setError(null);
+    setChannel(null);
+    setMessages([]);
+    retryAttempt.current = null;
+    setSending(false);
     try {
       const nextChannel = await openPapyrusPrivateChat();
+      if (generation !== identityGeneration.current) return;
       setChannel(nextChannel);
-      await refreshMessages(nextChannel.channel_id);
+      await refreshMessages(nextChannel.channel_id, generation);
     } catch (nextError) {
-      setError(failureMessage(nextError));
+      if (generation === identityGeneration.current) await handleFailure(nextError);
     } finally {
-      setLoading(false);
+      if (generation === identityGeneration.current) setLoading(false);
     }
-  }, [refreshMessages]);
+  }, [handleFailure, refreshMessages]);
 
   useEffect(() => {
     void openConversation();
+    return () => { identityGeneration.current += 1; };
   }, [openConversation]);
+
+  useEffect(() => Hub.listen("auth", ({ payload }) => {
+    if (payload.event === "tokenRefresh") {
+      void openConversation();
+    } else if (["signedOut", "signedIn", "tokenRefresh_failure"].includes(payload.event)) {
+      void handleFailure(new Error("sign_in_required"));
+    }
+  }), [handleFailure, openConversation]);
 
   useEffect(() => {
     if (!channel || !isWaitingForReply) return;
     let active = true;
+    const generation = identityGeneration.current;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const poll = async () => {
       try {
-        await refreshMessages(channel.channel_id);
+        await refreshMessages(channel.channel_id, generation);
       } catch (nextError) {
-        if (active) setError(failureMessage(nextError));
+        if (active && generation === identityGeneration.current) await handleFailure(nextError);
         return;
       }
       if (active) timer = setTimeout(poll, REFRESH_MS);
@@ -87,10 +118,11 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [channel, isWaitingForReply, refreshMessages]);
+  }, [channel, handleFailure, isWaitingForReply, refreshMessages]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!channel || !text.trim() || sending) return;
+    const generation = identityGeneration.current;
     const attempt = retryAttempt.current?.text === text
       ? retryAttempt.current
       : { text, key: globalThis.crypto.randomUUID() };
@@ -99,27 +131,29 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     setError(null);
     try {
       const result = await sendPapyrusPrivateChatMessage(channel.channel_id, text, attempt.key);
+      if (generation !== identityGeneration.current) return;
       setMessages((current) => current.some((message) => message.message_id === result.message.message_id)
         ? current
         : [...current, result.message]);
       retryAttempt.current = null;
     } catch (nextError) {
-      setError(failureMessage(nextError));
+      if (generation === identityGeneration.current) await handleFailure(nextError);
     } finally {
-      setSending(false);
+      if (generation === identityGeneration.current) setSending(false);
     }
-  }, [channel, sending]);
+  }, [channel, handleFailure, sending]);
 
   return <div className="papyrus-console__panel">
     <header className="papyrus-console__header">
       <p className="papyrus-console__header-label">Private chat</p>
       <button className="papyrus-console__close" onClick={onClose} type="button" aria-label="Close console">×</button>
     </header>
-    {channel ? <p className="papyrus-console__empty" role="status">Private conversation for your selected Account.</p> : null}
-    {!channel && !loading ? <div className="papyrus-console__empty" role="alert">
+    {channel ? <p className="papyrus-console__empty" role="status">Private conversation for this newsroom.</p> : null}
+    {!channel && !loading ? <div className="papyrus-console__access" role="alert">
       <strong>Private chat could not be opened.</strong>
-      <span>{error}</span>
+      <span>{error === "sign_in_required" ? "Your newsroom session has expired. Return to the newsroom and sign in from the account menu, then retry." : error === "chat_account_access_denied" ? "Your access to this conversation has changed. Retry to check your current access." : error}</span>
       <button className="papyrus-console__new-session" onClick={() => void openConversation()} type="button">Retry</button>
+      <button className="papyrus-console__new-session" onClick={onClose} type="button">Back to newsroom</button>
     </div> : <PapyrusConsoleConversation
       messages={conversationMessages}
       isSending={sending || loading || !channel}
@@ -127,7 +161,7 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
       onSendMessage={sendMessage}
       error={error}
       emptyState={loading ? <p className="papyrus-console__empty">Opening private conversation…</p> : (
-        <p className="papyrus-console__empty">This conversation is private to your selected Account and editor session.</p>
+        <p className="papyrus-console__empty">This conversation is private to you in this newsroom.</p>
       )}
     />}
   </div>;

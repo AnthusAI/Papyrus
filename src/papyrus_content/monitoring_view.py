@@ -145,7 +145,7 @@ def _feed(config: dict | None, state: dict | None, monitor_id: str = MONITOR_ID)
         return []
     state = state or {}
     return [{"id": monitor_id, "sourceUrl": config.get("sourceUrl"), "intervalSeconds": config.get("intervalSeconds"),
-             "limit": config.get("limit"), "enabled": config.get("enabled", True) is not False,
+             "enabled": config.get("enabled", True) is not False,
              "lastStatus": state.get("lastStatus"), "lastFinishedAt": state.get("lastFinishedAt"),
              "nextDueAt": _iso(state.get("nextDueAt"))}]
 
@@ -283,8 +283,7 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id:
     usage = {"day": today, "decisionsToday": sum(1 for t in times if str(t).startswith(today)),
              "decisionsTotal": len(times), "historyComplete": history_complete}
     out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state, monitor_id), "runs": runs, "routerRuns": router_runs,
-           "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False,
-                       "maxItemsPerRun": router.get("maxItemsPerRun")} if router else None),
+           "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False} if router else None),
            "usage": usage, "items": items, "emailSubmissions": submissions, "hiddenNotRelevant": hidden}
     if scope == "publication" and not own:
         out["notice"] = "publication_not_routed"
@@ -363,13 +362,17 @@ def monitoring_email_submission(store, *, groups, site_endpoint, receipt_id) -> 
     for item in details:
         if "#LINKS#" in item.get("sk", ""):
             links.extend(json.loads(item.get("json", "[]")))
+    # Stored receipts may predate branded-wrapper recognition. Normalize only
+    # this authorized detail response; never rewrite the receipt or follow links.
+    from .email_submission import normalize_email_candidate
+    links = [normalize_email_candidate(link) for link in links]
     return {"submission": {**_email_summary(row), "corpusId": publication.get("corpusId")}, "safeBodyText": body,
             "candidateLinks": links, "sourceMaterialIsUntrusted": True}
 
 
 def _resolve_beehiiv_article(url: str) -> str:
-    """Resolve only a selected Beehiiv article wrapper with bounded pinned-IP HEADs."""
-    from .email_submission import resolve_beehiiv_tracking_url
+    """Resolve only a selected supported article wrapper with bounded pinned-IP HEADs."""
+    from .email_submission import resolve_email_tracking_url
 
     def resolve_host(host, *, timeout):
         # getaddrinfo has no timeout parameter, so isolate it on a daemon thread
@@ -424,14 +427,14 @@ def _resolve_beehiiv_article(url: str) -> str:
         finally:
             connection.close()
 
-    return resolve_beehiiv_tracking_url(url, resolve_host=resolve_host, request=request)
+    return resolve_email_tracking_url(url, resolve_host=resolve_host, request=request)
 
 
 def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
     """Resolve exactly one selected, supported article wrapper from an authorized receipt."""
     from .email_submission import (
         RedirectResolutionError,
-        is_supported_beehiiv_tracking_url,
+        is_supported_email_tracking_url,
     )
 
     detail = monitoring_email_submission(store, groups=groups, site_endpoint=site_endpoint, receipt_id=receipt_id)
@@ -440,7 +443,7 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     if type(candidate_index) is not int or not 0 <= candidate_index < len(detail["candidateLinks"]):
         return {"error": "bad_request"}
     link = detail["candidateLinks"][candidate_index]
-    if link.get("resolutionStatus") != "unresolved" or not is_supported_beehiiv_tracking_url(link.get("url", "")):
+    if link.get("resolutionStatus") != "unresolved" or not is_supported_email_tracking_url(link.get("url", "")):
         return {"error": "not_resolvable"}
     digest = receipt_id.removeprefix("EMAIL#")
     saved = store.get(f"EMAILRESOLVED#{digest}#{candidate_index:06d}")
@@ -453,6 +456,7 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
     try:
         destination = (resolver or _resolve_beehiiv_article)(link["url"])
     except RedirectResolutionError as error:
+        LOG.warning("email article link resolution rejected: %s", error.code)
         return {"error": "resolution_failed", "reason": error.code}
     except (OSError, TimeoutError, http.client.HTTPException) as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
@@ -520,7 +524,14 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     env = os.environ if env is None else env
     groups = (event.get("identity") or {}).get("groups")
     groups = [g for g in groups if isinstance(g, str)] if isinstance(groups, list) else []
-    field_name = (event.get("info") or {}).get("fieldName", "monitoringOverview")
+    field_name = event.get("fieldName")
+    info = event.get("info")
+    nested_field = info.get("fieldName") if isinstance(info, dict) else None
+    if field_name is not None and nested_field is not None and field_name != nested_field:
+        return {"error": "bad_request"}
+    field_name = field_name if field_name is not None else nested_field
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"}:
+        return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
     if (not set(groups) & EDITOR_GROUPS
@@ -530,7 +541,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
-        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink"):
+        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"):
             email_monitor_id = configured_email_monitor_id(env)
             if email_monitor_id == MONITOR_ID and email_store_factory is None:
                 email_store = make_store(MONITOR_ID)
@@ -542,6 +553,17 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
             return monitoring_email_submission(email_store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
+        if field_name == "monitoringQueueEmailReference":
+            from .email_reference_handoff import queue_email_reference
+            from .reference_intake_validation import IntakeError
+            try:
+                payload = args.get("input")
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                return queue_email_reference(email_store, payload, event.get("identity") or {},
+                                             endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
+            except IntakeError as error:
+                return {"error": "handoff_rejected", "message": str(error)}
         if field_name == "monitoringResolveEmailArticleLink":
             return monitoring_email_resolve_article_link(
                 email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),

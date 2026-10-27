@@ -68,8 +68,33 @@ LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 RECEIPT_TTL_SECONDS = 30 * 86400
 MAX_REQUEST_BYTES = 32_768
 MAX_PENDING_JOB_SECONDS = 6 * 3600
+AWAITING = "awaiting"
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
+# A human curator is recorded as `user:<x>` (CLI), the editor's sign-in email, a Cognito username
+# (`google_<digits>`) or a Cognito sub (UUID). Everything else (worker, `ai`, `system:*`, `worker:*`,
+# `papyrus*`, `behave-*`, `*-import`, the "Papyrus newsroom" fallback label) is a machine or unknown actor.
+_EMAIL_ACTOR = re.compile(r"^[^@\s:]+@[^@\s:]+\.[^@\s:]+$")
+_COGNITO_ACTOR = re.compile(r"^(?:[A-Za-z][A-Za-z0-9-]*_[0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
+
+
+def human_actor(actor: str) -> bool:
+    actor = actor.strip()
+    if not actor or actor == WORKER_ACTOR:
+        return False
+    if actor.startswith("user:"):
+        return bool(actor[5:].strip())
+    return bool(_EMAIL_ACTOR.match(actor) or _COGNITO_ACTOR.match(actor))
+
+
+def editor_subject(site: str, actor: str) -> str:
+    """The stable, non-PII editor subject sent to Cyclotron. Never an email address."""
+    actor = actor.strip()
+    if actor.startswith("user:") and "@" not in actor:
+        return actor[:200]
+    if _COGNITO_ACTOR.match(actor) and "_" not in actor:
+        return f"cognito:{actor}"
+    return "editor:" + sha256(f"{site}:{actor.lower()}".encode()).hexdigest()[:32]
 PARTITION_COLLECTED = "collected"
 PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
@@ -83,7 +108,7 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 NOT_READY_DETAIL = "publication criteria are pending"
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 PARK_PREFIX = "PARK#"
-PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX, PARK_KEEP_ITEMS = 1800, 6 * 3600, 25
+PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
@@ -108,12 +133,25 @@ class StopSweep(Exception):
         self.code, self.detail = code, detail
 
 
+class JobRunning(Exception):
+    """A posted job has not finished. Not a run-stopping event: the story keeps its recorded job and is collected later."""
+
+
+class NotPosting(Exception):
+    """The collector never posts. The story needs a new POST, so it is left for the route run."""
+
+
 class BindingNotReady(Exception):
     """One binding's output has no classifier yet: skip that binding for the item, never the sweep."""
 
 
 class CombinedUnavailable(Exception):
     """The Cyclotron deployment has no POST /machine/decisions (404): decide per publication instead."""
+
+
+class JobGone(Exception):
+    """Polling a stored job answered 404: the lab no longer knows it (for example after a run cutover).
+    The router discards the stored job and re-posts once; it is never a run-stopping event."""
 
 
 class AllBindingsNotReady(Exception):
@@ -142,6 +180,9 @@ def feedback_partition(monitor_id: str) -> str:
     return f"FEEDBACK#{monitor_id}#pending"
 
 
+RETIRED_ROUTER_FIELDS = ("ceilings", "maxItemsPerRun")   # limits the router no longer has; stored copies are ignored
+
+
 def validate_router_config(raw: dict) -> dict:
     account = raw.get("accountId")
     if account is not None and (not isinstance(account, str) or not account.strip() or len(account) > 128):
@@ -150,9 +191,9 @@ def validate_router_config(raw: dict) -> dict:
     mode = raw.get("mode")
     if mode not in ("dry-run", "live"):
         raise ValueError("router mode must be dry-run or live")
-    maximum = int(raw.get("maxItemsPerRun", 5))
-    if not 1 <= maximum <= 25:
-        raise ValueError("router maxItemsPerRun must be between 1 and 25")
+    retired = sorted(key for key in RETIRED_ROUTER_FIELDS if key in raw)
+    if retired:   # the router no longer limits its work; an old config still loads so deploy order does not matter
+        print(json.dumps({"router": "ignored_retired_config", "fields": retired}))
     decisions = str(raw.get("decisions") or "cyclotron")
     if decisions not in DECISIONS:
         raise ValueError("router decisions must be cyclotron or direct")
@@ -163,7 +204,7 @@ def validate_router_config(raw: dict) -> dict:
         if raw.get("feedback") is True:
             raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
         rule = validate_rule(raw["rule"], name="router rule") if raw.get("rule") is not None else None
-        return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
+        return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
                 "decisions": decisions, "feedback": False, "publications": publications,
                 "cyclotron": None, "rule": rule, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
@@ -183,7 +224,7 @@ def validate_router_config(raw: dict) -> dict:
     poll = int(cyclotron.get("pollSeconds", 45))
     if not 5 <= poll <= 240:
         raise ValueError("router cyclotron.pollSeconds must be between 5 and 240")
-    return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "maxItemsPerRun": maximum,
+    return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
             "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
@@ -210,8 +251,14 @@ def validate_email_discovery_scope(discovery: dict, config: dict) -> None:
             allowed = discovery.get("emailDestinationPublicationIds")
             if discovery.get("emailProvenance", {}).get("inputTrust") != "untrusted-source-material":
                 raise ItemInvalid("Data-only email trust provenance is missing")
+            selection = discovery.get("editorSelectedReference")
+            if selection is not None and (not isinstance(selection, dict) or not selection.get("subject")
+                    or not selection.get("referenceId")
+                    or selection != discovery["emailProvenance"].get("editorSelection")
+                    or allowed != [selection.get("publicationId")]):
+                raise ItemInvalid("Invalid editor-selected Reference scope")
             diagnostics = discovery.get("emailProvenance", {}).get("sesDiagnostics") or {}
-            if diagnostics.get("warnings"):
+            if diagnostics.get("warnings") and not discovery.get("editorSelectedReference"):
                 raise ItemInvalid("Email authentication warnings require editor review before routing")
         else:
             # Compatibility for discoveries queued by the earlier editor-gated path.
@@ -519,8 +566,9 @@ class CyclotronClient:
             raise CombinedUnavailable()
         raise self.classify(status, payload)
 
-    def poll_combined(self, job_id: str) -> dict:
-        """Polls GET /machine/decisions/{jobId}; the 200 body maps each publication to its single receipt."""
+    def poll_combined(self, job_id: str, wait: bool = True) -> dict:
+        """Polls GET /machine/decisions/{jobId}; the 200 body maps each publication to its single receipt.
+        wait=False is one GET: a job that is still running raises JobRunning."""
         deadline = self.clock() + self.config["cyclotron"]["pollSeconds"]
         delay = 1.0
         while True:
@@ -530,8 +578,12 @@ class CyclotronClient:
                 status, payload = 0, {}
             if status == 200 and isinstance(payload.get("publications"), dict):
                 return payload
+            if status == 404:
+                raise JobGone()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
+            if not wait:
+                raise JobRunning()
             if self.clock() + delay > deadline:
                 raise StopSweep("pending", "job still running")
             self.sleep(delay)
@@ -548,8 +600,9 @@ class CyclotronClient:
             return BindingNotReady(NOT_READY_CODE)
         return self.classify(status, entry)
 
-    def poll(self, publication_id: str, job_id: str) -> dict:
-        """Polls only. Returns the completed response; raises StopSweep('pending') when still running."""
+    def poll(self, publication_id: str, job_id: str, wait: bool = True) -> dict:
+        """Polls only. Returns the completed response; raises StopSweep('pending') when still running,
+        or JobRunning after a single GET when wait=False."""
         deadline = self.clock() + self.config["cyclotron"]["pollSeconds"]
         delay = 1.0
         while True:
@@ -559,8 +612,12 @@ class CyclotronClient:
                 status, payload = 0, {}
             if status == 200 and payload.get("decision"):
                 return payload
+            if status == 404:
+                raise JobGone()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
+            if not wait:
+                raise JobRunning()
             if self.clock() + delay > deadline:
                 raise StopSweep("pending", "job still running")
             self.sleep(delay)
@@ -704,11 +761,25 @@ class RouterStore(DynamoStore):
     def delete_any(self, monitor_id, sk):
         self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk})
 
-    def query_partition(self, partition: str, limit: int) -> list[dict]:
-        """Oldest first from the sparse `routing` GSI."""
-        result = self.table.query(IndexName="routing", KeyConditionExpression="gsi1pk = :p",
-                                  ExpressionAttributeValues={":p": partition}, ScanIndexForward=True, Limit=limit)
-        return [self._clean(item) for item in result.get("Items", [])]
+    def query_partition(self, partition: str) -> list[dict]:
+        """Every row of the partition, oldest first, from the sparse `routing` GSI (all pages)."""
+        rows, start = [], {}
+        while True:
+            result = self.table.query(IndexName="routing", KeyConditionExpression="gsi1pk = :p",
+                                      ExpressionAttributeValues={":p": partition}, ScanIndexForward=True, **start)
+            rows.extend(self._clean(item) for item in result.get("Items", []))
+            if not result.get("LastEvaluatedKey"):
+                return rows
+            start = {"ExclusiveStartKey": result["LastEvaluatedKey"]}
+
+
+def park_item_prefix(pub_id: str) -> str:
+    return f"{PARK_PREFIX}{pub_id}#"
+
+
+def park_item_sk(pub_id: str, source_id: str, revision: int) -> str:
+    """One row per parked item: PARK#<pub>#<sourceId>#<rev>."""
+    return f"{park_item_prefix(pub_id)}{source_id}#{revision:06d}"
 
 
 def gsi_partition(monitor_id: str, name: str) -> str:
@@ -720,7 +791,7 @@ def set_routing(store, monitor_id: str, disc: dict, routing: str, partition: str
     updated = {k: v for k, v in disc.items() if k not in ("gsi1pk",)}
     updated["routing"] = routing
     if partition:
-        updated["gsi1pk"] = gsi_partition(monitor_id, partition)
+        updated["gsi1pk"] = gsi_partition(monitor_id, "email-references" if disc.get("editorSelectedReference") else partition)
     else:
         updated.pop("gsi1sk", None)
     store.put_any(monitor_id, updated)
@@ -830,7 +901,8 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     intake = ReferenceIntake(client, monitor, auth_mode="iam")
     if config.get("decisions") == "direct":
         return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
-    return intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc))
+    return intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc),
+                  reference_id=(disc.get("editorSelectedReference") or {}).get("referenceId"))
 
 
 # --- the run ----------------------------------------------------------------------------------------
@@ -849,9 +921,11 @@ class Router:
         self._contexts: dict = {}
         self.publications = {p["publicationId"]: p for p in config["publications"]}
         self.active_publications = None
+        self.nowait = False        # live Cyclotron sweeps post and check once; the collect window does the waiting
+        self.post_allowed = True   # the collector sets this False: it never sends a new POST
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
-                       "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
+                       "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
         self._parks: dict = {}
@@ -881,17 +955,40 @@ class Router:
     # candidates -----------------------------------------------------------------------------------
 
     def candidates(self) -> list[dict]:
-        limit, mode = self.config["maxItemsPerRun"], self.config["mode"]
+        mode = self.config["mode"]
 
         def part(name):
-            return self.store.query_partition(gsi_partition(self.monitor_id, name), 50 if name == PARTITION_DECIDED else limit)
+            return self.store.query_partition(gsi_partition(self.monitor_id, name))
 
         if mode == "dry-run":
-            return part(PARTITION_COLLECTED)[:limit]
+            return part(PARTITION_COLLECTED)
         decided = [d for d in part(PARTITION_DECIDED)
                    if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now]
         fresh = sorted(part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN), key=lambda d: d["gsi1sk"])
-        return (decided + fresh)[:limit]
+        return decided + fresh
+
+    def selected_references(self, source_ids=None) -> dict:
+        """Only editor-imported References; never sweep receipt discoveries, feedback or procedures."""
+        if source_ids is not None:
+            if (not isinstance(source_ids, list) or not 1 <= len(source_ids) <= 20
+                    or any(not isinstance(s, str) or not re.fullmatch(r"[a-f0-9]{64}", s) for s in source_ids)):
+                raise ValueError("Provide 1 to 20 exact selected source ids")
+            candidates = [self.store.get_any(self.monitor_id, f"DISC#{source}#000001") for source in dict.fromkeys(source_ids)]
+        else:
+            candidates = self.store.query_partition(gsi_partition(self.monitor_id, "email-references"))
+        for disc in candidates:
+            if (not disc or not disc.get("editorSelectedReference") or disc.get("sourceType") != "email"
+                    or disc.get("gsi1pk") != gsi_partition(self.monitor_id, "email-references")):
+                continue
+            if self.time_left() < MIN_REMAINING_SECONDS:
+                break
+            if (self.get_route(disc).get("nextAttemptAt") or 0) > self.now:
+                continue
+            try:
+                (self.live if self.config["mode"] == "live" else self.dry_run)(disc)
+            except StopSweep as error:
+                return {"status": "stopped", "stoppedBy": str(error)[:200]}
+        return {"status": "completed"}
 
     # dry-run ----------------------------------------------------------------------------------------
 
@@ -950,11 +1047,37 @@ class Router:
     # not-ready bindings and parking ---------------------------------------------------------------
 
     def park(self, pub_id: str) -> dict | None:
+        """The binding's park header (`PARK#<pub>`: reason, backoff, probes, ready). Its parked items are rows of
+        their own (`park_item_sk`), so nothing is dropped and no item can outgrow a DynamoDB row."""
         if pub_id not in self._parks:
-            self._parks[pub_id] = self.store.get_any(self.monitor_id, PARK_PREFIX + pub_id)
+            park = self.store.get_any(self.monitor_id, PARK_PREFIX + pub_id)
+            if park and "items" in park:
+                park = self.migrate_park(pub_id, park)
+            self._parks[pub_id] = park
         return self._parks[pub_id]
 
+    def migrate_park(self, pub_id: str, park: dict) -> dict:
+        """A header written before items had rows of their own carried them in one list (kept to the last 25).
+        Keep every one of them as a row, then rewrite the header without the list; a crash between the two is
+        repaired by the next read."""
+        for entry in park["items"]:
+            self.put_park_item(pub_id, entry["sourceId"], int(entry["revision"]), park.get("since"))
+        park = {k: v for k, v in park.items() if k != "items"}
+        self.store.put_any(self.monitor_id, park)
+        return park
+
+    def put_park_item(self, pub_id: str, source_id: str, revision: int, parked_at: str | None = None):
+        self.store.put_any(self.monitor_id, {"pk": pk(self.monitor_id), "sk": park_item_sk(pub_id, source_id, revision),
+                                             "publicationId": pub_id, "sourceId": source_id, "revision": revision,
+                                             "parkedAt": parked_at or _iso(self.now)})
+
+    def parked_items(self, pub_id: str) -> list[dict]:
+        """Every item parked for the binding (all pages of the partition's PARK#<pub># rows), oldest first."""
+        return sorted(self.store.query_prefix(self.monitor_id, park_item_prefix(pub_id)),
+                      key=lambda row: (str(row.get("parkedAt")), row["sk"]))
+
     def save_park(self, pub_id: str, park: dict):
+        park = {k: v for k, v in park.items() if k != "items"}
         self._parks[pub_id] = park
         self.store.put_any(self.monitor_id, park)
 
@@ -973,6 +1096,18 @@ class Router:
     def authorized_email_publications(self, disc: dict) -> list[dict]:
         if disc.get("emailTrustMode") == "data-only":
             validate_email_discovery_scope(disc, self.config)
+            selection = disc.get("editorSelectedReference")
+            if selection:
+                if (selection != disc.get("emailProvenance", {}).get("editorSelection")
+                        or not selection.get("subject")
+                        or disc["emailDestinationPublicationIds"] != [selection.get("publicationId")]):
+                    raise ItemInvalid("Invalid editor-selected Reference scope")
+                publication = self.publications.get(selection["publicationId"])
+                ref = self.client(publication).get_record("Reference", selection.get("referenceId")) if publication else None
+                if (not ref or ref.get("corpusId") != publication["corpusId"]
+                        or ref.get("sourceUri") != disc["canonicalUrl"] or ref.get("versionState") != "current"):
+                    raise ItemInvalid("Imported Reference does not match the selected email candidate")
+
             allowed = set(disc["emailDestinationPublicationIds"])
             return [p for p in self.config["publications"] if p["publicationId"] in allowed]
         if self.cognito is None:
@@ -989,9 +1124,9 @@ class Router:
         park = self.park(pub_id) or {"pk": pk(self.monitor_id), "sk": PARK_PREFIX + pub_id, "publicationId": pub_id,
                                       "since": _iso(self.now), "backoffSeconds": PARK_BACKOFF_FIRST,
                                       "nextProbeAt": int(self.now + PARK_BACKOFF_FIRST), "probes": 0}
-        entry = {"sourceId": disc["sourceId"], "revision": int(disc["revision"])}
-        items = [i for i in park.get("items", []) if i != entry] + [entry]
-        self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False, "items": items[-PARK_KEEP_ITEMS:]})
+        if not disc.get("editorSelectedReference"):
+            self.put_park_item(pub_id, disc["sourceId"], int(disc["revision"]))
+        self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False})
         route.setdefault("notReady", {})[pub_id] = {"reason": reason[:200], "at": _iso(self.now)}
         self.counts["skippedNotReady"] += 1
 
@@ -999,7 +1134,7 @@ class Router:
         park = self.park(pub_id)
         if not park or park.get("ready"):
             return
-        if park.get("items"):
+        if self.parked_items(pub_id):
             self.save_park(pub_id, {**park, "ready": True})   # parked items are decided by backfill()
         else:
             self.store.delete_any(self.monitor_id, PARK_PREFIX + pub_id)
@@ -1010,23 +1145,22 @@ class Router:
                       if (self.park(p["publicationId"]) or {}).get("ready") is False)
 
     def backfill(self) -> int:
-        """Decide parked items for bindings whose output became ready; bounded by the per-run item budget."""
-        done, budget = 0, self.config["maxItemsPerRun"]
+        """Decide parked items for bindings whose output became ready; bounded only by the invocation's time."""
+        done = 0
         for publication in (self.active_publications or self.config["publications"]):
             pub_id = publication["publicationId"]
             park = self.park(pub_id)
-            while park and park.get("ready") and park.get("items") and done < budget:
+            for row in (self.parked_items(pub_id) if park and park.get("ready") else ()):
                 if self.time_left() < MIN_REMAINING_SECONDS:
                     return done
-                entry, rest = park["items"][0], park["items"][1:]
-                park = {**park, "items": rest}
-                self.save_park(pub_id, park)
+                entry = row
+                self.store.delete_any(self.monitor_id, row["sk"])
                 disc = self.store.get_any(self.monitor_id, f"DISC#{entry['sourceId']}#{int(entry['revision']):06d}")
                 route = self.store.get_any(self.monitor_id, f"ROUTE#{entry['sourceId']}#{int(entry['revision']):06d}")
                 if disc and route and route.get("decision"):
                     done += 1
                     self.backfill_one(publication, disc, route)
-            if park and park.get("ready") and not park.get("items"):
+            if park and park.get("ready") and not self.store.query_prefix(self.monitor_id, park_item_prefix(pub_id)):
                 self.store.delete_any(self.monitor_id, PARK_PREFIX + pub_id)
                 self._parks[pub_id] = None
         return done
@@ -1074,7 +1208,7 @@ class Router:
         route["decision"]["publications"][pub_id] = {k: checked[k] for k in
                                                      ("output", "label", "fingerprint", "version", "confidence") if k in checked}
         route.get("notReady", {}).pop(pub_id, None)
-        if checked["label"] == publication["positiveLabel"]:
+        if checked["label"] == publication["positiveLabel"] or disc.get("editorSelectedReference"):
             route.setdefault("publications", {})[pub_id] = {"label": checked["label"], "delivered": False, "attempts": 0}
         self.save(route)
         self.counts["backfilled"] += 1
@@ -1096,6 +1230,7 @@ class Router:
                     self.note_not_ready(pub_id, disc, route, (self.park(pub_id) or {}).get("reason", NOT_READY_CODE))
                     continue
                 todo.append(publication)
+        running = False
         for publication in self.decide_combined(todo, disc, route, item_id):
             pub_id = publication["publicationId"]
             try:
@@ -1103,7 +1238,12 @@ class Router:
             except BindingNotReady as error:
                 self.note_not_ready(pub_id, disc, route, str(error))
                 continue
+            except JobRunning:
+                running = True   # post the story's other bindings now; all of them are collected together
+                continue
             self.note_ready(pub_id)
+        if running:
+            raise JobRunning()
         active = self.active_publications or self.config["publications"]
         if not any(jobs.get(p["publicationId"], {}).get("checked") for p in active):
             raise AllBindingsNotReady()
@@ -1121,13 +1261,25 @@ class Router:
             "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version", "confidence") if k in c}
                              for pid, c in checked.items()}}
         route["publications"] = {pid: {"label": c["label"], "delivered": False, "attempts": 0}
-                                 for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"]}
+                                 for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"] or disc.get("editorSelectedReference")}
         route.pop("nextAttemptAt", None)
         self.save(route)
         self.counts["decided"] += 1
 
 
-    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str) -> list[dict]:
+    def posted_under(self) -> dict:
+        """The run and binding revision a job is being posted under, stored with it."""
+        cyclotron = self.config["cyclotron"]
+        return {"runId": cyclotron["runId"], "bindingRevision": cyclotron["bindingRevision"]}
+
+    def job_is_stale(self, stored: dict, expected_request_id: str) -> bool:
+        """A stored job posted under an earlier run or binding revision (after a Cyclotron cutover)."""
+        current = self.posted_under()
+        if "runId" in stored or "bindingRevision" in stored:
+            return any(stored.get(key) != value for key, value in current.items())
+        return stored.get("requestId") != expected_request_id
+
+    def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str, reposted: bool = False) -> list[dict]:
         """One POST /machine/decisions for the story's unchecked bindings, one poll loop, then each publication's
         receipt is checked and stored under `jobs` exactly as a per-publication decide would. Returns the
         publications that still need the per-publication path (no combined endpoint, a pending output
@@ -1137,15 +1289,23 @@ class Router:
             return todo
         if not stored and (len(todo) < 2 or self.combined_unavailable):
             return todo
+        if stored and todo and self.job_is_stale(stored, build_combined_request(
+                self.config, todo, disc, int(route.get("attempt", 0)))["body"]["requestId"]):
+            del route["combinedJob"]   # posted under an earlier run: its id is unknown to the lab now, re-post
+            self.save(route)
+            return self.decide_combined(todo, disc, route, item_id, reposted)
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
         if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
             raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
         response = None
         if not stored:
+            if not self.post_allowed:
+                return todo   # the collector sends nothing; stored per-publication jobs are still polled
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
-                                             "publications": list(built["body"]["payload"]["bindings"])}
+                                             "publications": list(built["body"]["payload"]["bindings"]),
+                                             **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
@@ -1165,11 +1325,17 @@ class Router:
                 self.save(route)
         if response is None:
             try:
-                response = self.cyclotron.poll_combined(stored["jobId"])
+                response = self.cyclotron.poll_combined(stored["jobId"], wait=not self.nowait)
             except BindingNotReady:
                 del route["combinedJob"]   # a pending output in the set: the per-publication path finds out which
                 self.save(route)
                 return todo
+            except JobGone:
+                del route["combinedJob"]
+                self.save(route)
+                if reposted:
+                    raise ItemInvalid("lab does not know the job posted for this story (404 after a re-post)")
+                return self.decide_combined(todo, disc, route, item_id, True)
             except StopSweep as stop:
                 if stop.code in NON_CONSUMING_REFUSALS:
                     del route["combinedJob"]
@@ -1192,7 +1358,7 @@ class Router:
                 if not isinstance(entry, dict) or not entry.get("decision"):
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
-                                "jobId": stored["jobId"],
+                                "jobId": stored["jobId"], **self.posted_under(),
                                 "checked": checked_decision(entry, publication, self.config, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
@@ -1207,7 +1373,7 @@ class Router:
             raise failure
         return remaining
 
-    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str) -> None:
+    def decide_binding(self, publication: dict, disc: dict, route: dict, item_id: str, reposted: bool = False) -> None:
         validate_email_discovery_scope(disc, self.config)
         jobs = route.setdefault("jobs", {})
         pub_id = publication["publicationId"]
@@ -1215,6 +1381,10 @@ class Router:
         job = jobs.get(pub_id)
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
+        if job and self.job_is_stale(job, built["body"]["requestId"]):
+            del jobs[pub_id]   # posted under an earlier run or binding: re-post under the current one
+            self.save(route)
+            return self.decide_binding(publication, disc, route, item_id, reposted)
         if job and job.get("requestId") != built["body"]["requestId"]:
             raise ItemInvalid("stored job belongs to a different request")
         if job and job.get("jobId"):
@@ -1223,7 +1393,9 @@ class Router:
         elif job:
             raise ItemUncertain("an earlier POST had no recorded answer")
         else:
-            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now)}
+            if not self.post_allowed:
+                raise NotPosting()
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
@@ -1241,11 +1413,17 @@ class Router:
                 self.save(route)
                 return
         try:
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
         except BindingNotReady:
             del jobs[pub_id]   # nothing ran at the provider; the park decides when to ask again
             self.save(route)
             raise
+        except JobGone:
+            del jobs[pub_id]
+            self.save(route)
+            if reposted:
+                raise ItemInvalid("lab does not know the job posted for this publication (404 after a re-post)")
+            return self.decide_binding(publication, disc, route, item_id, True)
         except StopSweep as stop:
             if stop.code in NON_CONSUMING_REFUSALS:
                 # Nothing ran at the provider. Drop the refused job and use a new request id next time.
@@ -1297,7 +1475,8 @@ class Router:
                              provenanceMessageId=result.get("provenanceMessageId"), lastError=None)
                 self.record_delivery(publication, disc, route, result)
                 self.counts["delivered"] += 1
-                self.start_procedures(publication, disc, result)
+                if not disc.get("editorSelectedReference"):
+                    self.start_procedures(publication, disc, result)
             except Exception as error:
                 all_delivered = False
                 attempts = int(state.get("attempts", 0)) + 1
@@ -1434,6 +1613,7 @@ class Router:
                     continue
 
     def live(self, disc: dict):
+        """Returns AWAITING when the story's job is still running (its job stays recorded for the collector)."""
         route = self.get_route(disc)
         original_active_publications = self.active_publications
         try:
@@ -1459,6 +1639,10 @@ class Router:
             self.save(route)
             set_routing(self.store, self.monitor_id, disc, "routed", None)
             self.counts["routed"] += 1
+        except JobRunning:
+            return AWAITING
+        except NotPosting:
+            return None
         except AllBindingsNotReady:
             self.finish(disc, route, "parked", "every binding is waiting for a classifier")
         except ItemExcluded as error:
@@ -1474,13 +1658,23 @@ class Router:
 
     def finish(self, disc: dict, route: dict, routing: str, reason: str):
         route["final"] = {"routing": routing, "reason": reason[:300], "at": _iso(self.now)}
+        partition = None
+        if disc.get("editorSelectedReference") and routing == "parked":
+            # Criteria can become ready later. Keep this exact job in its own lane;
+            # ordinary backfill must never be needed to recover a selected Reference.
+            publication_id = disc["editorSelectedReference"]["publicationId"]
+            retry_at = max(int(self.now + 300), int((self.park(publication_id) or {}).get("nextProbeAt", 0)))
+            route["nextAttemptAt"] = retry_at
+            disc = {**disc, "gsi1sk": f"{_iso(retry_at)}#{disc['sourceId']}#{int(disc['revision']):06d}"}
+            partition = "email-references"
         self.save(route)
-        set_routing(self.store, self.monitor_id, disc, routing, None)
+        set_routing(self.store, self.monitor_id, disc, routing, partition)
         self.counts[routing] += 1
 
     # sweep ----------------------------------------------------------------------------------------
 
     def sweep(self) -> dict:
+        """Post every candidate's job without waiting, then collect what finishes inside the collect window."""
         status, stopped = "complete", None
         errors: list = []
         if self.config["mode"] == "live":
@@ -1488,27 +1682,107 @@ class Router:
         candidates = self.candidates()
         if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron":
             try:
-                candidates = candidates[:max(0, self.config["maxItemsPerRun"] - self.backfill())]
+                self.backfill()
             except StopSweep as stop:
                 return {"status": "stopped", "stoppedBy": stop.code, "errors": [],
                         "waitingForClassifier": self.waiting_for_classifier()}
+            self.nowait = True
+        awaiting: list[dict] = []
         for disc in candidates:
             if self.time_left() < MIN_REMAINING_SECONDS:
                 status, stopped = "stopped", "time_budget"
                 break
             self.counts["examined"] += 1
             try:
-                (self.dry_run if self.config["mode"] == "dry-run" else self.live)(disc)
+                if (self.dry_run if self.config["mode"] == "dry-run" else self.live)(disc) == AWAITING:
+                    awaiting.append(disc)
             except StopSweep as stop:
                 status, stopped = "stopped", stop.code
                 break
             except Exception as error:   # one bad item must not hide the rest
                 errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
                 self.counts["error"] += 1
+        if awaiting and stopped in (None, "time_budget", "run_busy"):   # a busy lab stops new posts, not the collecting
+            try:
+                awaiting = self.collect_jobs(awaiting, errors)
+            except StopSweep as stop:
+                status, stopped = "stopped", stop.code
+        self.counts["awaiting"] = len(awaiting)
         if errors and status == "complete":
             status = "partial"
+        if awaiting and stopped is None:
+            status, stopped = AWAITING, AWAITING   # jobs are still running at the lab; the collector delivers them
         return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
                 "waitingForClassifier": self.waiting_for_classifier() if self.config["decisions"] == "cyclotron" else []}
+
+    def collect_jobs(self, awaiting: list[dict], errors: list) -> list[dict]:
+        """Polls the outstanding jobs round-robin with backoff for at most cyclotron.pollSeconds (and never into the
+        last MIN_REMAINING_SECONDS of the invocation), delivering each story as its job completes. Returns the stories
+        whose jobs are still running. Nothing is posted here that was not already recorded."""
+        client = self.cyclotron
+        window = self.config["cyclotron"]["pollSeconds"]
+        deadline, waited, delay = client.clock() + window, 0.0, 2.0
+        while awaiting:
+            if (client.clock() + delay > deadline or waited + delay > window
+                    or self.time_left() - delay < MIN_REMAINING_SECONDS):
+                break
+            client.sleep(delay)
+            waited += delay
+            delay = min(delay * 1.5, 8.0)
+            still = []
+            for disc in awaiting:
+                try:
+                    if self.live(disc) == AWAITING:
+                        still.append(disc)
+                except StopSweep:
+                    raise
+                except Exception as error:
+                    errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
+                    self.counts["error"] += 1
+            awaiting = still
+        return awaiting
+
+    def collect(self) -> dict:
+        """The collector task: poll the stored jobs, deliver the finished ones, post nothing."""
+        if self.config["mode"] != "live" or self.config["decisions"] != "cyclotron":
+            return {"status": "complete", "stoppedBy": None, "errors": [], "waitingForClassifier": []}
+        self.nowait, self.post_allowed = True, False
+        errors: list = []
+        pending = []
+        for disc in self.store.query_partition(gsi_partition(self.monitor_id, PARTITION_COLLECTED)):
+            route = self.store.get_any(self.monitor_id, route_key(disc)) or {}
+            if (route.get("combinedJob") or {}).get("jobId") or any(
+                    job.get("jobId") and not job.get("checked") for job in (route.get("jobs") or {}).values()):
+                pending.append(disc)
+        self.counts["examined"] = len(pending)
+        status, stopped = "complete", None
+        try:
+            # one pass first, so jobs that finished while nobody was looking are delivered without waiting
+            still = []
+            for index, disc in enumerate(pending):
+                if self.time_left() < MIN_REMAINING_SECONDS:
+                    status, stopped = "stopped", "time_budget"
+                    still += pending[index:]
+                    break
+                try:
+                    if self.live(disc) == AWAITING:
+                        still.append(disc)
+                except StopSweep:
+                    raise
+                except Exception as error:
+                    errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
+                    self.counts["error"] += 1
+            if still and stopped is None:
+                still = self.collect_jobs(still, errors)
+        except StopSweep as stop:
+            return {"status": "stopped", "stoppedBy": stop.code, "errors": errors[:10], "waitingForClassifier": []}
+        self.counts["awaiting"] = len(still)
+        if errors and status == "complete":
+            status = "partial"
+        if still and stopped is None:
+            status, stopped = AWAITING, AWAITING
+        return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
+                "waitingForClassifier": self.waiting_for_classifier()}
 
     # feedback ---------------------------------------------------------------------------------------
 
@@ -1516,7 +1790,7 @@ class Router:
         result = {"status": "complete", "sent": 0, "pending": 0, "skipped": 0, "failed": 0, "stoppedBy": None}
         if self.config["mode"] != "live" or not self.config["feedback"]:
             return {**result, "status": "off"}
-        for row in self.store.query_partition(feedback_partition(self.monitor_id), 25):
+        for row in self.store.query_partition(feedback_partition(self.monitor_id)):
             if self.time_left() < MIN_REMAINING_SECONDS:
                 result.update(status="stopped", stoppedBy="time_budget")
                 break
@@ -1550,7 +1824,7 @@ class Router:
             self.rotate(row, f"curation {status or 'missing'}")
             return "pending"
         actor = str(reference.get("curationStatusUpdatedBy") or "")
-        if not actor.startswith("user:") or not actor[5:].strip() or actor == WORKER_ACTOR:
+        if not human_actor(actor):
             self.rotate(row, "curation actor is missing or not a human user")
             return "skipped"
         updated_at = str(reference.get("curationStatusUpdatedAt") or reference.get("updatedAt") or "")
@@ -1559,7 +1833,8 @@ class Router:
                 "requestId": sha256("\n".join([row["referenceId"], status, updated_at]).encode()).hexdigest(),
                 "payload": {"bindingRevision": row["bindingRevision"], "itemId": row["itemId"],
                             "itemRevision": (row.get("source") or {}).get("revision"), "output": row["output"],
-                            "label": label, "editor": {"site": publication["site"], "subject": actor}}}
+                            "label": label, "editor": {"site": publication["site"],
+                                       "subject": editor_subject(publication["publicationId"], actor)}}}
         if body["payload"]["itemRevision"] is None:
             self.rotate(row, "decision receipt has no item revision")
             return "skipped"
@@ -1594,7 +1869,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
-               start_procedure: Callable[[dict], None] | None = None, cognito=None) -> dict:
+               start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -1611,8 +1886,9 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito)
-        outcome = {"status": "skipped"} if task == "feedback" else router.sweep()
-        feedback = {"status": "skipped"} if task == "route" else router.feedback()
+        outcome = (router.selected_references(source_ids) if task == "email-references" else
+                   {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep())
+        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references") else router.feedback()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
                   "feedback": feedback, "errors": outcome.get("errors", []),
@@ -1627,15 +1903,68 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         store.release_router_lock(monitor_id, owner)
 
 
+DOORBELL_MONITORS = ("hn", "huggingface", "ttab")   # monitors that may carry a CONFIG#router item
+DECISION_SOURCE, DECISION_DETAIL_TYPE = "cyclotron.lab", "Decision Ready"
+DECISION_FIELDS = ("accountId", "runId", "jobId", "requestId", "itemId")
+
+
+def is_decision_event(event) -> bool:
+    return isinstance(event, dict) and ("detail-type" in event or "source" in event) and "monitorId" not in event
+
+
+def parse_decision_event(event: dict) -> dict | None:
+    """The validated detail of a Decision Ready event, or None. Never raises: a bad event is dropped, not retried."""
+    detail = event.get("detail")
+    if event.get("source") != DECISION_SOURCE or event.get("detail-type") != DECISION_DETAIL_TYPE or not isinstance(detail, dict):
+        return None
+    if detail.get("contractVersion") != CONTRACT_VERSION or detail.get("status") not in ("complete", "failed"):
+        return None
+    if any(not isinstance(detail.get(key), str) or not detail[key].strip() for key in DECISION_FIELDS):
+        return None
+    if not isinstance(detail.get("publications"), list):
+        return None
+    return detail
+
+
+def handle_decision_ready(store, event, collect: Callable[[str], dict]) -> dict:
+    """A doorbell: the event carries no decision. Run the collect task for every monitor whose router config is
+    bound to the event's Account and run, then let `collect` fetch the answer with the signed GET as usual."""
+    detail = parse_decision_event(event) if isinstance(event, dict) else None
+    if detail is None:
+        print(json.dumps({"doorbell": "malformed"}))
+        return {"status": "malformed", "collected": {}}
+    collected, ignored = {}, 0
+    for monitor_id in DOORBELL_MONITORS:
+        raw = store.get_router_config(monitor_id)
+        cyclotron = (raw or {}).get("cyclotron") if isinstance((raw or {}).get("cyclotron"), dict) else None
+        if cyclotron is None:
+            continue
+        if cyclotron.get("accountId") != detail["accountId"] or cyclotron.get("runId") != detail["runId"]:
+            ignored += 1
+            continue
+        try:
+            collected[monitor_id] = collect(monitor_id).get("status")
+        except Exception as error:   # one monitor's failure must not stop the others or cause an EventBridge retry storm
+            collected[monitor_id] = "error"
+            print(json.dumps({"doorbell": "collect_failed", "monitorId": monitor_id, "error": short(error)}))
+    status = "collected" if collected else "ignored"
+    print(json.dumps({"doorbell": status, "jobId": detail["jobId"], "requestId": detail["requestId"],
+                      "collected": collected, "ignoredMonitors": ignored}))
+    return {"status": status, "collected": collected, "ignoredMonitors": ignored}
+
+
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"feedback"}` limits the pass (operator debugging)."""
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"}` limits the pass (operator debugging)."""
     import boto3  # provided by the Lambda runtime
 
     event = event if isinstance(event, dict) else {}
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
-    result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining,
-                        cognito=boto3.client("cognito-idp"),
-                        start_procedure=lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION")))
+    cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
+    if is_decision_event(event):
+        return handle_decision_ready(store, event, lambda monitor_id: run_router(
+            store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter))
+    result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
+                        cognito=cognito, start_procedure=starter)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}

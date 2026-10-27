@@ -12,10 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from reader_fixtures import ReaderBackend, reader_handler  # noqa: E402
+from reader_fixtures import ReaderBackend, proposal_handler, reader_handler  # noqa: E402
 from test_reader_moderation import ALICE, ready, submit  # noqa: E402
 
-rules = reader_handler.proposal_rules
+rules = proposal_handler.proposal_rules
 SUBMISSION = "submission"
 ARGUMENTS = {"kind": "story_draft", "title": "Agents are eating the board", "body": "Why this matters.\n"}
 
@@ -29,11 +29,11 @@ class FieldNameTests(unittest.TestCase):
         self.assertIsNone(rules.event_field_name({"siteSubject": "s", "action": "vote", "payload": {}}))
 
     def test_only_appsync_events_are_staff_events(self) -> None:
-        self.assertTrue(rules.is_appsync_event({"arguments": {}, "fieldName": "fileProposal"}))
-        self.assertTrue(rules.is_appsync_event({"arguments": {}, "info": {"fieldName": "fileProposal"}}))
-        self.assertTrue(rules.is_appsync_event({"arguments": {}, "info": {}}))
-        self.assertFalse(rules.is_appsync_event({"siteSubject": "ss1_x", "action": "vote", "payload": {}, "isStaff": False}))
-        self.assertFalse(rules.is_appsync_event({"fieldName": "fileProposal"}))
+        self.assertTrue(reader_handler.is_appsync_event({"arguments": {}, "fieldName": "fileProposal"}))
+        self.assertTrue(reader_handler.is_appsync_event({"arguments": {}, "info": {"fieldName": "fileProposal"}}))
+        self.assertTrue(reader_handler.is_appsync_event({"arguments": {}, "info": {}}))
+        self.assertFalse(reader_handler.is_appsync_event({"siteSubject": "ss1_x", "action": "vote", "payload": {}, "isStaff": False}))
+        self.assertFalse(reader_handler.is_appsync_event({"fieldName": "fileProposal"}))
 
 
 class DeployedEventShapeTests(unittest.TestCase):

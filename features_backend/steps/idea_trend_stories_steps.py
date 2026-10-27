@@ -15,11 +15,10 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
         sys.path.insert(0, str(entry))
 sys.path.insert(0, str(REPO_ROOT / "procedures" / "newsroom" / "tests"))
 
-from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, history_entry, operator_view, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
+from ideas_fixtures import AS_OF, NOW, SITE_BASE, FakeClient, FakeTrendModel, cluster_draft, history_entry, operator_view, read_item_page, release_draft, sentence, snapshot_files, trend_draft  # noqa: E402
 from papyrus_content import review_requests  # noqa: E402
 from papyrus_content.ideas import trends  # noqa: E402
 from papyrus_content.ideas.store import JsonStore, ProposalStore  # noqa: E402
-from papyrus_content.knowledge_snapshot.trends import TrendConfig  # noqa: E402
 
 
 class ListingClient(FakeClient):
@@ -88,7 +87,7 @@ def step_release_pages(context):
 @given("an earlier story draft Proposal with the same targets exists")
 @given("an editor can read an earlier story draft Proposal with the same targets")
 def step_earlier_proposal(context):
-    targets = [{"type": "entity", "id": "maker--hugging-face"}, {"type": "entity", "id": "maker--zed"}]
+    targets = [{"type": "cluster", "id": "cl-aaaa00000001"}, {"type": "cluster", "id": "cl-fb1252e1da52"}]
     context.trend_client.listed = [{"id": "prop-" + "b" * 32, "kind": "story_draft", "title": "Another angle", "summary": "x", "state": "draft", "targets": json.dumps(targets), "createdAt": "2026-10-20T00:00:00Z"}]
 
 
@@ -110,6 +109,11 @@ def step_good_draft(context):
     context.trend_drafts.append(trend_draft())
 
 
+@when("the model drafts a trend story citing the two clusters")
+def step_cluster_draft(context):
+    context.trend_drafts.append(cluster_draft())
+
+
 @when("the model drafts a trend story with a body sentence that cites nothing")
 def step_uncited(context):
     draft = trend_draft("Unsupported headline")
@@ -119,7 +123,7 @@ def step_uncited(context):
 
 @when("the model drafts a trend story with two body sentences that cite one signal")
 def step_thin(context):
-    context.trend_drafts.append(trend_draft("Thin headline", cites=("S3", "S3"), body=[{"sentences": [sentence("The signal records 15 items.", "S3")]}, {"sentences": [sentence("The weekly count peaked at 7.", "S3")]}]))
+    context.trend_drafts.append(trend_draft("Thin headline", cites=("S3", "S3"), body=[{"sentences": [sentence("The signal records 32 items.", "S3")]}, {"sentences": [sentence("The weekly count peaked at 30.", "S3")]}]))
 
 
 @then("the failed draft in the run record keeps its headline, dek, body and citations")
@@ -158,7 +162,7 @@ def step_release_wrong_date(context):
 def step_releases_one_signal(context):
     draft = release_draft()
     draft["dek"] = sentence("Zed's release on 2026-10-17 is the news.", "I1")
-    draft["paragraphs"] = [{"sentences": [sentence("Zed released Zed-7B under Apache-2.0.", "I1"), sentence("The card lists its evaluation limits.", "I2"), sentence("Hugging Face appeared in 15 items.", "S3")]}]
+    draft["paragraphs"] = [{"sentences": [sentence("Zed released Zed-7B under Apache-2.0.", "I1"), sentence("The card lists its evaluation limits.", "I2"), sentence("Hugging Face appeared in 32 items.", "S3")]}]
     context.trend_drafts.append(draft)
 
 
@@ -170,11 +174,6 @@ def run_trends(context, *, dry_run=False, reviews=False):
         snapshot=context.trend_snapshot, site="example-site", context={"sections": [{"title": "Analysis"}, {"title": "News"}], "stories": [], "mission": "Explain.", "policy": "Be careful."},
         json_store=JsonStore(context.trend_root), transport=context.trend_model, proposal_store=ProposalStore(client), review_client=client if reviews else None, dry_run=dry_run, now=NOW,
         fetch_text=getattr(context, "trend_fetch_text", None), config=getattr(context, "trend_config", None))
-
-
-@given("the anchor cooldown is off")
-def step_cooldown_off(context):
-    context.trend_config = TrendConfig(cooldown_days=0)
 
 
 @when("the operator drafts trend stories and files them as Proposals")
@@ -192,10 +191,10 @@ def step_dry_run(context):
     run_trends(context, dry_run=True, reviews=True)
 
 
-@then("the signals are the two clusters, then the two makers and the concept that gained share, then the one new concept")
+@then("the signals are the two clusters, then the two makers, the new concept and the concept that built up slowly")
 def step_signal_order(context):
     assert [s["id"] for s in context.trend_signals] == [
-        "cluster:cl-fb1252e1da52", "cluster:cl-aaaa00000001", "entity:maker--hugging-face", "entity:maker--zed", "entity:concept--routing", "entity:concept--typed-decisions"]
+        "cluster:cl-fb1252e1da52", "cluster:cl-aaaa00000001", "entity:maker--hugging-face", "entity:maker--zed", "entity:concept--typed-decisions", "entity:concept--routing"]
 
 
 @then("each signal names its weekly counts for the {weeks:d} weeks ending {end}")
@@ -352,30 +351,3 @@ def step_sources(context):
     body = filed(context)[0]["body"]
     assert "## Sources" in body
     assert "3. Zed releases Zed-7B, a small coding model under Apache-2.0 (2026-10-17) https://site.example/posts/zed-7b/" in body, body
-
-
-@given('an earlier story draft Proposal anchored on "{key}" was filed on {filed}')
-def step_cooling_proposal(context, key, filed):
-    context.trend_client.listed = [_earlier_draft(key, filed, "draft")]
-
-
-@given('an earlier declined story draft Proposal anchored on "{key}" was filed on {filed}')
-def step_declined_proposal(context, key, filed):
-    context.trend_client.listed = [_earlier_draft(key, filed, "declined")]
-
-
-def _earlier_draft(key, filed, state):
-    return {"id": "prop-" + "c" * 32, "kind": "story_draft", "title": "Earlier", "summary": "x", "state": state, "createdAt": f"{filed}T00:00:00Z",
-            "targets": json.dumps([{"type": "entity", "id": key}])}
-
-
-@then('the run did not select "{key}" as an anchor and its record says it is cooling down since {filed}')
-def step_cooling(context, key, filed):
-    assert key not in {row["key"] for row in context.trend_run["selection"]["anchors"]}
-    assert context.trend_run["cooldown"]["entities"][key] == filed, context.trend_run["cooldown"]
-    assert any(row["key"] == key and row["reason"].startswith("cooldown") for row in context.trend_run["selection"]["excluded"])
-
-
-@then('the run selected "{key}" as an anchor')
-def step_anchor(context, key):
-    assert key in {row["key"] for row in context.trend_run["selection"]["anchors"]}, context.trend_run["selection"]

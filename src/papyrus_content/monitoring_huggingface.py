@@ -1,8 +1,9 @@
 """Hugging Face Hub model source for monitors (`sourceType: huggingface-models`).
 
 Reads the public model list (https://huggingface.co/api/models, no key). The Hub cannot filter on date or
-on likes, so a monitor's config describes a few *queries* and the reader pages each one until it has gone
-past the window or the page bound:
+on likes, so a monitor's config describes a few *queries* and the reader pages each one until it reaches models
+it already collected, goes past the window or the metric's minimum, or the Hub has no more. It has no page or
+item limit of its own: it is bound by the collector's time and the Hub's rate limit (monitoring_paging.py):
 
 * one query per watchlisted `authors` entry, newest first;
 * one per `search` term, newest first;
@@ -33,6 +34,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from .monitoring import SourceItem, USER_AGENT, _iso
+from .monitoring_paging import RateLimited, Reading as BaseReading, retry_after_seconds
 
 HF_MODELS_URL = "https://huggingface.co/api/models"
 HF_HOST = "huggingface.co"
@@ -52,11 +54,6 @@ MAX_TAGS, MAX_BASE_MODELS = 80, 10
 EXCLUDE_RELATIONS = BASE_RELATIONS + ("declared",)
 EXCLUDE_REASONS = ("tag", "baseRelation", "idPattern")
 MAX_ID_PATTERNS, MAX_PATTERN_LENGTH = 50, 100
-DEFAULT_TIME_BUDGET_SECONDS = 70.0   # the collector Lambda times out at 120 s
-
-
-class RateLimited(Exception):
-    """The Hub answered 429; stop asking and let a later run continue."""
 
 
 def _parse_time(value) -> datetime | None:
@@ -116,7 +113,8 @@ def validate_rule(raw: dict, *, name: str = "Config") -> dict:
 
 
 def validate_hf_config(raw: dict) -> dict:
-    """The huggingface-models part of a monitor CONFIG (the common fields are validated by the caller)."""
+    """The huggingface-models part of a monitor CONFIG (the common fields are validated by the caller).
+    `pageSize` is the Hub API's page size, not a total: the reader pages until it has everything."""
     source = urlsplit(str(raw.get("sourceUrl") or ""))
     if source.path != "/api/models":
         raise ValueError(f"Config sourceUrl must be {HF_MODELS_URL} for a huggingface-models monitor")
@@ -127,15 +125,12 @@ def validate_hf_config(raw: dict) -> dict:
     sort = str(raw.get("sort") or "createdAt")
     if sort not in HF_SORTS:
         raise ValueError(f"Config sort must be one of {', '.join(HF_SORTS)}")
-    lookback, page_size, pages = (int(raw.get("lookbackDays", 7)), int(raw.get("pageSize", 200)),
-                                  int(raw.get("pagesPerQuery", 10)))
+    lookback, page_size = int(raw.get("lookbackDays", 7)), int(raw.get("pageSize", 200))
     if not 1 <= lookback <= 366:
         raise ValueError("Config lookbackDays must be between 1 and 366")
     if not 1 <= page_size <= MAX_PAGE_SIZE:
         raise ValueError(f"Config pageSize must be between 1 and {MAX_PAGE_SIZE}")
-    if not 1 <= pages <= 100:
-        raise ValueError("Config pagesPerQuery must be between 1 and 100")
-    return {**rule, "search": search, "sort": sort, "lookbackDays": lookback, "pageSize": page_size, "pagesPerQuery": pages}
+    return {**rule, "search": search, "sort": sort, "lookbackDays": lookback, "pageSize": page_size}
 
 
 def hf_exclusion(details: dict, rule: dict) -> str | None:
@@ -261,7 +256,8 @@ def check_hub_url(url: str) -> str:
 
 
 def fetch_hf_page(url: str) -> tuple[bytes, str | None]:
-    """One list page and the `next` URL from its Link header (a cursor). Paced; a 429 raises RateLimited."""
+    """One list page and the `next` URL from its Link header (a cursor). Paced; a 429 raises RateLimited
+    carrying the Hub's `Retry-After`."""
     check_hub_url(url)
     time.sleep(0.15)
     request = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
@@ -270,7 +266,7 @@ def fetch_hf_page(url: str) -> tuple[bytes, str | None]:
             body, link = response.read(MAX_PAGE_BYTES + 1), response.headers.get("Link", "")
     except HTTPError as error:
         if error.code == 429:
-            raise RateLimited("Hugging Face rate limit reached") from error
+            raise RateLimited("Hugging Face rate limit reached", retry_after_seconds(error.headers.get("Retry-After"))) from error
         raise
     if len(body) > MAX_PAGE_BYTES:
         raise ValueError("Hugging Face model list exceeds the response size bound")
@@ -294,12 +290,11 @@ def plan_queries(config: dict, *, sorts: tuple[str, ...] | None = None) -> list[
     return queries
 
 
-class Reading:
-    """Running totals across the queries of one read (and the clock they share)."""
+class Reading(BaseReading):
+    """The paging totals of one read, plus the models its rule excluded."""
 
-    def __init__(self, budget_seconds: float | None, max_requests: int | None = None):
-        self.deadline = time.monotonic() + budget_seconds if budget_seconds else None
-        self.max_requests, self.requests, self.stopped_by, self.errors = max_requests, 0, None, []
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.excluded: dict[str, str] = {}   # model id -> reason; a model seen by several queries counts once
 
     def skipped(self) -> dict[str, int]:
@@ -307,73 +302,87 @@ class Reading:
         counts = {reason: sum(1 for r in self.excluded.values() if r == reason) for reason in EXCLUDE_REASONS}
         return {reason: n for reason, n in counts.items() if n}
 
-    def may_request(self) -> bool:
-        if self.stopped_by:
-            return False
-        if self.deadline is not None and time.monotonic() > self.deadline:
-            self.stopped_by = "time_budget"
-        elif self.max_requests is not None and self.requests >= self.max_requests:
-            self.stopped_by = "request_ceiling"
-        return not self.stopped_by
+
+def metric_floor(config: dict, sort: str) -> int | None:
+    """Where a query sorted by a metric ends: under the configured minimum (at least 1, so the Hub's long tail of
+    models nobody has liked, downloaded or trended is not paged through). None for a newest-first query."""
+    if sort == "createdAt":
+        return None
+    minimum = {"likes": config.get("minLikes"), "downloads": config.get("minDownloads")}.get(sort)
+    return max(int(minimum or 0), 1)
 
 
-def read_query(config: dict, query: dict, since: datetime, fetch: Callable, reading: Reading, *,
-               start_url: str | None = None, max_pages: int | None = None, stop_below: dict | None = None) -> dict:
-    """Page one query. Returns `items` (details dicts, accepted, inside the window), `next` (the cursor URL to
-    continue from, None at the end) and `done`. `stop_below` ends a likes- or downloads-sorted query once its
-    metric is under the minimum, since everything after is smaller."""
-    url = start_url or list_url(config["sourceUrl"], query, config["pageSize"])
-    items, pages, done = [], 0, False
-    while url and pages < (max_pages or config["pagesPerQuery"]):
-        if not reading.may_request():
-            break
-        try:
-            body, next_url = fetch(url)
-        except RateLimited:
-            reading.stopped_by = "rate_limited"
-            break
-        reading.requests += 1
-        pages += 1
-        rows = parse_hf_models(body)
+def page_reader(config: dict, query: dict, since: datetime, fetch: Callable, reading: Reading):
+    """The two halves of reading one query page by page: `fetch_page(cursor)` (cursor None starts the query)
+    and `screen(rows)`, which returns the accepted models inside the window and whether the query is over
+    (a newest-first query once it passes the window, a metric-sorted one once the metric is under its floor)."""
+    first = list_url(config["sourceUrl"], query, config["pageSize"])
+
+    def fetch_page(cursor):
+        body, following = fetch(cursor or first)
+        return parse_hf_models(body), following
+
+    def screen(rows):
+        accepted = []
         for d in rows:
             if _parse_time(d["createdAt"]) >= since and hf_includes(d, config):
                 reason = hf_exclusion(d, config)
                 if reason:
                     reading.excluded.setdefault(d["modelId"], reason)
                 else:
-                    items.append(d)
-        url = next_url
-        last = rows[-1] if rows else None
-        floor = (stop_below or {}).get(query["sort"])
-        if last is None or (query["sort"] == "createdAt" and _parse_time(last["createdAt"]) < since) or (
-                floor is not None and query["sort"] in ("likes", "downloads")
-                and _count(last.get(query["sort"])) < floor):
-            url, done = None, True
-    return {"items": items, "next": url, "done": done or url is None, "pages": pages}
+                    accepted.append(d)
+        last, floor = (rows[-1] if rows else None), metric_floor(config, query["sort"])
+        over = last is None or (_parse_time(last["createdAt"]) < since if floor is None else _count(last.get(query["sort"])) < floor)
+        return accepted, over
+
+    return fetch_page, screen
 
 
-def read_hf_models(config: dict, now: float, fetch: Callable | None = None, meta: dict | None = None,
-                   budget_seconds: float | None = DEFAULT_TIME_BUDGET_SECONDS) -> list[SourceItem]:
-    """The live read: every query over the lookback window, newest model first, capped at `maxItems`.
-    A failing query is recorded in `meta["errors"]` and does not stop the others; if all fail, the read fails."""
-    fetch = fetch or fetch_hf_page
-    since = datetime.fromtimestamp(now - config["lookbackDays"] * 86400, timezone.utc)
-    reading, found, queries = Reading(budget_seconds), {}, plan_queries(config)
-    for query in queries:
+def read_query(config: dict, query: dict, since: datetime, fetch: Callable, reading: Reading, *,
+               start_url: str | None = None, max_pages: int | None = None) -> dict:
+    """Page one query from `start_url` (None: the start), at most `max_pages` pages when given (a checkpoint
+    grain for the backfill, not a total). Returns `items` (details dicts, accepted, inside the window), `next`
+    (the cursor URL to continue from, None at the end) and `done`. A 429 is waited out (`Reading.rate_limited`)."""
+    fetch_page, screen = page_reader(config, query, since, fetch, reading)
+    cursor, items, pages, done = start_url, [], 0, False
+    while (cursor is not None or pages == 0) and (max_pages is None or pages < max_pages):
+        if not reading.may_request():
+            break
         try:
-            result = read_query(config, query, since, fetch, reading)
-        except Exception as error:
-            reading.errors.append({"stage": "fetch", "query": query["key"], "message": str(error)[:300]})
-            continue
-        for details in result["items"]:
-            found.setdefault(details["modelId"], details)
-    if reading.errors and len(reading.errors) == len(queries):
-        raise ValueError(reading.errors[0]["message"])
-    if reading.stopped_by:   # the window was not fully read; the receipt says so and a later run continues
-        reading.errors.append({"stage": "fetch", "message": f"stopped early: {reading.stopped_by}"})
-    if meta is not None:
-        meta.update(requests=reading.requests, stoppedBy=reading.stopped_by, errors=reading.errors, window=_iso(since.timestamp()))
-        if reading.excluded:
-            meta["skipped"] = reading.skipped()
-    ordered = sorted(found.values(), key=lambda d: _parse_time(d["createdAt"]), reverse=True)
-    return [hf_item(d) for d in ordered[:config["maxItems"]]]
+            rows, following = fetch_page(cursor)
+        except RateLimited as error:
+            if reading.rate_limited(error):
+                continue
+            break
+        reading.succeeded()
+        reading.requests += 1
+        pages += 1
+        accepted, over = screen(rows)
+        items.extend(accepted)
+        cursor = None if over else following
+        done = over or following is None
+        if done:
+            break
+    return {"items": items, "next": cursor, "done": done, "pages": pages}
+
+
+def hf_window_start(config: dict, now: float) -> datetime:
+    return datetime.fromtimestamp(now - config["lookbackDays"] * 86400, timezone.utc)
+
+
+def hf_feeds(config: dict, now: float, fetch: Callable | None, reading: Reading) -> list[dict]:
+    """The live read as feeds for `monitoring_paging.read_feed`: one per query over the lookback window.
+    Each has a `key`, `fetch_page(cursor)`, `items(rows) -> (SourceItem list, over)` and `stop_at_seen`
+    (true for a newest-first query; a metric-sorted one has no high-water mark and reads to its floor)."""
+    fetch, since = fetch or fetch_hf_page, hf_window_start(config, now)
+    feeds = []
+    for query in plan_queries(config):
+        fetch_page, screen = page_reader(config, query, since, fetch, reading)
+
+        def items(rows, screen=screen):
+            accepted, over = screen(rows)
+            return [hf_item(d) for d in accepted], over
+
+        feeds.append({"key": query["key"], "fetch_page": fetch_page, "items": items,
+                      "stop_at_seen": query["sort"] == "createdAt", "labelled": True})
+    return feeds

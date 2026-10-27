@@ -301,6 +301,51 @@ def test_a_site_without_a_pin_cannot_be_projected(tmp_path):
     assert not commands(shell, ["papyrus", "ops", "content", "project"])
 
 
+def pinned_requirement(shell) -> str:
+    install = commands(shell, ["pip", "install"])[0]
+    return Path(install[install.index("-r") + 1]).read_text().strip()
+
+
+def test_a_site_without_a_pin_file_projects_with_the_papyrus_version_of_its_site_json(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.pin_file = False
+    shell.site_json = json.dumps({"siteId": "shipped", "papyrusVersion": "5.42.1"})
+    assert run_stage("projection", run) == 0
+    assert pinned_requirement(shell) == "papyrus-newsroom==5.42.1"
+    assert commands(shell, ["papyrus", "ops", "content", "project"])
+
+
+def test_a_prerelease_papyrus_version_is_spelled_the_way_pypi_does(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.pin_file = False
+    shell.site_json = json.dumps({"papyrusVersion": "1.0.0-next.41"})
+    assert run_stage("projection", run) == 0
+    assert pinned_requirement(shell) == "papyrus-newsroom==1.0.0.dev41"
+
+
+def test_a_site_with_neither_file_projects_with_the_release_of_the_image(tmp_path, monkeypatch):
+    run, shell = make_run(tmp_path)
+    shell.pin_file = False
+    monkeypatch.setattr("importlib.metadata.version", lambda name: "5.50.0")
+    assert run_stage("projection", run) == 0
+    assert pinned_requirement(shell) == "papyrus-newsroom==5.50.0"
+
+
+def test_a_pin_file_wins_over_the_site_json(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.site_json = json.dumps({"papyrusVersion": "5.42.1"})
+    assert run_stage("projection", run) == 0
+    assert "requirements-publication.txt" in commands(shell, ["pip", "install"])[0][-1]
+
+
+def test_a_papyrus_version_that_is_not_a_release_stops_the_projection_before_it_writes(tmp_path):
+    run, shell = make_run(tmp_path)
+    shell.pin_file = False
+    shell.site_json = json.dumps({"papyrusVersion": "latest"})
+    assert run_stage("projection", run) == 1
+    assert not commands(shell, ["papyrus", "ops", "content", "project"])
+
+
 ENTRY = "_data/knowledge/history/2026-10-26.json"
 
 
@@ -373,6 +418,14 @@ def test_corpus_sync_exports_the_monitor_records_dated_for_the_week_and_keeps_th
     assert export[export.index("--corpus-key") + 1] == "shipped"
     assert export[export.index("--as-of") + 1] == "2026-10-26"
     assert json.loads(run.state.read_text("runs/2026-W44/monitor-records.json"))["sources"] == ["huggingface"]
+
+
+def test_a_site_that_sets_no_monitor_weeks_exports_all_history(tmp_path):
+    run, shell = make_run(tmp_path, {"KNOWLEDGE_MONITOR_SOURCES": "huggingface"})
+    assert run.config.monitor_weeks is None
+    assert run_stage("corpus-sync", run) == 0
+    [export] = commands(shell, ["papyrus", "knowledge", "corpus", "export"])
+    assert "--monitor-sources" in export and "--monitor-weeks" not in export
 
 
 def test_every_later_stage_counts_the_records_from_the_runs_file_even_in_a_fresh_container(tmp_path):
@@ -460,6 +513,7 @@ def test_the_week_gets_one_soft_review_request_listing_the_records_most_worth_a_
     assert request["id"] == "rr-monitor-records-shipped-2026-w44" and request["mode"] == "soft_review"
     assert "2 monitor records worth a look this week" in request["reason"] and "papyrus references promote" in request["ask"]
     assert "org/big (reference-big)" in json.dumps(request["links"])
+    assert request.get("deadline") is None  # no expiry: it stays open until someone handles it
     assert suggest_promotions(run, backend)["status"] == "requested" and len(backend.created) == 1  # a second run in the week raises no second request
 
 

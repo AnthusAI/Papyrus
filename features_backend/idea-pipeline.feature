@@ -82,7 +82,7 @@ Feature: The idea pipeline turns a site's recent references into private story i
   Scenario: A run that creates ideas raises one soft review for the batch
     When the model proposes the idea "Agents and keys" citing the first two references
     And the operator synthesizes ideas from the digest with review requests
-    Then one soft review "1 new story idea to review" is open with a 7-day deadline
+    Then one soft review "1 new story idea to review" is open with no deadline
     And the review is about this run's batch and links the idea
     And asking again for the same run raises no second review
 

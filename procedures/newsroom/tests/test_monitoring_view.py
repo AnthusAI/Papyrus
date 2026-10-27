@@ -97,7 +97,7 @@ def test_router_runs_and_dry_run_modes_are_reported():
     result = overview()
     run = result["routerRuns"][0]
     assert run["status"] == "stopped" and run["counts"]["decided"] == 1 and run["feedback"]["sent"] == 1
-    assert result["router"] == {"mode": "live", "feedback": True, "enabled": True, "maxItemsPerRun": 5}
+    assert result["router"] == {"mode": "live", "feedback": True, "enabled": True}
 
 
 def test_response_is_json_and_leaks_nothing_private():
@@ -155,7 +155,7 @@ def test_bounded_decision_history_marks_truncated_counts_as_lower_bounds():
 
 
 def event(groups, scope="publication", field="monitoringOverview", **arguments):
-    return {"info": {"fieldName": field}, "arguments": {"scope": scope, **arguments},
+    return {"fieldName": field, "arguments": {"scope": scope, **arguments},
             "identity": {"groups": groups, "sub": "u1"}}
 
 
@@ -506,3 +506,71 @@ def test_handler_reads_each_listed_monitor_through_the_same_read_only_store():
     mv.handle(event(["editor"]), env={"PAPYRUS_GRAPHQL_ENDPOINT": APP_DISTINCTIVE, "PAPYRUS_MONITORING_MONITOR_IDS": "ttab, hn"},
               store_factory=factory)
     assert asked == ["ttab", "hn"]
+
+
+@pytest.mark.parametrize("field", ["monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"])
+def test_appsync_dispatch_uses_deployed_top_level_field_without_overview(field):
+    shared, email = object(), object()
+    env = {"PAPYRUS_EMAIL_MONITOR_ID": "p-apyr-us-email", "PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_PAPYRUS}
+    args = {"receiptId": "EMAIL#" + "a" * 64, "candidateIndex": 0, "input": "{}"}
+    identity = {"groups": ["editor"], "sub": "editor-1"}
+    request = {"typeName": "Query" if field == "monitoringEmailSubmission" else "Mutation",
+               "fieldName": field, "arguments": args, "identity": identity,
+               "source": None, "request": {"headers": {}}, "prev": None}
+    with patch.object(mv, "monitoring_overview", side_effect=AssertionError("overview must not run")), \
+         patch.object(mv, "monitoring_email_submission", return_value={"exact": "receipt"}) as detail, \
+         patch.object(mv, "monitoring_email_resolve_article_link", return_value={"exact": "redirect"}) as redirect, \
+         patch("papyrus_content.email_reference_handoff.queue_email_reference", return_value={"exact": "queue"}) as queue:
+        result = mv.handle(request, env=env, store_factory=lambda: shared, email_store_factory=lambda: email)
+    expected = {"monitoringEmailSubmission": "receipt", "monitoringResolveEmailArticleLink": "redirect", "monitoringQueueEmailReference": "queue"}[field]
+    assert result == {"exact": expected}
+    called = {"receipt": detail, "redirect": redirect, "queue": queue}[expected]
+    assert called.call_count == 1 and called.call_args.args[0] is email
+    assert sum(mock.call_count for mock in (detail, redirect, queue)) == 1
+
+
+@pytest.mark.parametrize("dispatch", [{}, {"fieldName": "unknown"}, {"fieldName": ""}, {"fieldName": []},
+    {"info": {"fieldName": "unknown"}},
+    {"fieldName": "monitoringEmailSubmission", "info": {"fieldName": "monitoringOverview"}}])
+def test_appsync_dispatch_missing_unknown_or_conflicting_field_reads_nothing(dispatch):
+    request = {"identity": {"groups": ["editor"]}, **dispatch}
+    with patch.object(mv, "default_store_factory", side_effect=AssertionError("must not open storage")), \
+         patch.object(mv, "monitoring_overview", side_effect=AssertionError("must not read overview")):
+        assert mv.handle(request, env={}) == {"error": "bad_request"}
+
+
+def test_branded_tracking_legacy_receipt_is_unresolved_without_mutating_storage():
+    import json
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table[receipt_id]["status"] = "pending_review"
+    details_key = "EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"
+    link = {"url": "https://news.example.org/ss/c/u001.synthetic-Recipient.Route", "title": "Article"}
+    original = json.dumps([link])
+    store.table[details_key]["json"] = original
+    result = mv.monitoring_email_submission(store, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                                           receipt_id=receipt_id)
+    assert result["candidateLinks"] == [{**link, "resolutionStatus": "unresolved"}]
+    assert store.table[details_key]["json"] == original
+    calls = []
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=lambda url: calls.append(url) or "https://news.example.org/article")
+    assert calls == [link["url"]]
+    assert result["url"] == "https://news.example.org/article"
+
+
+def test_tracking_failure_logs_only_safe_reason_without_recipient_url(caplog):
+    from papyrus_content.email_submission import RedirectResolutionError
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = json.dumps([
+        {"url": "https://link.mail.beehiiv.com/ss/c/private-recipient", "title": "Article"}])
+    def reject(_url):
+        raise RedirectResolutionError("redirect_target_unsafe")
+    result = mv.monitoring_email_resolve_article_link(
+        store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id,
+        candidate_index=0, resolver=reject)
+    assert result == {"error": "resolution_failed", "reason": "redirect_target_unsafe"}
+    assert "redirect_target_unsafe" in caplog.text
+    assert "private-recipient" not in caplog.text and "https://" not in caplog.text

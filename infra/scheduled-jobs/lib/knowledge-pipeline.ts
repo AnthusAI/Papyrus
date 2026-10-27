@@ -11,8 +11,14 @@ export const TREND_DRAFTS_STAGE = "trend-drafts";
 /** The job script baked into the image (infra/knowledge-run/trend_drafts.py). It never exits non-zero. */
 export const TREND_DRAFTS_COMMAND = ["python", "/opt/papyrus-jobs/trend_drafts.py"];
 
+export const MONITOR_STORIES_STAGE = "monitor-stories";
+/** The job script baked into the image (infra/knowledge-run/monitor_stories.py). It never exits non-zero and writes its own ledger row. */
+export const MONITOR_STORIES_COMMAND = ["python", "/opt/papyrus-jobs/monitor_stories.py"];
+
 /** CloudFormation parameter values (tokens) that switch on and aim the optional trend-drafts step. */
 export type TrendDraftsOptions = { enabled: string; endpoint: string; snapshotUrl: string };
+/** CloudFormation parameter values (tokens) that switch on and aim the optional monitor-stories step. */
+export type MonitorStoriesOptions = { enabled: string; endpoint: string };
 
 export function knowledgeRunStackName(publication: string): string {
   return `papyrus-scheduled-job-${KNOWLEDGE_JOB_ID}-${publication}`;
@@ -23,7 +29,7 @@ export function knowledgeRunStackName(publication: string): string {
  * `papyrus knowledge cloud-run --stage <name>`, with the execution input read as
  * `{"publication": "<id>", "failStage": "<stage>"}` (both optional).
  */
-export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: TrendDraftsOptions): PipelineDefinition {
+export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: TrendDraftsOptions, monitorStories?: MonitorStoriesOptions): PipelineDefinition {
   const input = "$states.context.Execution.Input";
   return {
     stages: [
@@ -42,6 +48,16 @@ export function knowledgePipeline(config: KnowledgeRunConfig, trendDrafts?: Tren
         runIf: `'${trendDrafts.enabled}' = 'true'`,
         environment: { TREND_DRAFTS_ENDPOINT: trendDrafts.endpoint, TREND_DRAFTS_SNAPSHOT_URL: trendDrafts.snapshotUrl },
       }] : []),
+      // Optional, after trend-drafts, and only for a site that opted in with `knowledgeRun.monitorStories`. A failure here never fails the run.
+      ...(monitorStories && config.monitorStories ? [{
+        name: MONITOR_STORIES_STAGE,
+        command: MONITOR_STORIES_COMMAND,
+        timeoutSeconds: 1800,
+        retry: { maxAttempts: 0 },
+        bestEffort: true,
+        runIf: `'${monitorStories.enabled}' = 'true'`,
+        environment: { MONITOR_STORIES_ENDPOINT: monitorStories.endpoint },
+      }] : []),
     ],
     executionEnvironment: {
       KNOWLEDGE_PUBLICATION: `$exists(${input}.publication) ? ${input}.publication : '${config.publication}'`,
@@ -59,14 +75,18 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     PAPYRUS_PROJECTION_LOCK_TABLE: PROJECTION_LOCK_TABLE_NAME,
     PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS: String(config.lockWaitSeconds),
     KNOWLEDGE_PUBLICATION: config.publication,
+    // Only a site whose corpus key is not its siteId sets it; every other task finds the corpus by the siteId, as before.
+    ...(config.corpusKey ? { KNOWLEDGE_CORPUS_KEY: config.corpusKey } : {}),
+    // Lets the first stage write config/amplify_outputs.json into a state bucket that has none (the run only reads the endpoint from it).
+    KNOWLEDGE_APPSYNC_API_ID: config.appSyncApiId,
     KNOWLEDGE_SITE_REPO: config.siteRepo,
     KNOWLEDGE_SITE_BRANCH: config.siteBranch,
     KNOWLEDGE_STATIC_SUBDIR: config.staticSubdir,
     KNOWLEDGE_OPENAI_KEY_PARAMETER: config.openAiKeyParameter,
     // Read by the optional trend-drafts step only (infra/knowledge-run/trend_drafts.py).
     TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
-    ...(config.trendWindowDays ? { TREND_DRAFTS_WINDOW_DAYS: String(config.trendWindowDays) } : {}),
-    ...(config.trendCooldownDays !== undefined ? { TREND_DRAFTS_COOLDOWN_DAYS: String(config.trendCooldownDays) } : {}),
+    // Read by the optional monitor-stories step only (infra/knowledge-run/monitor_stories.py); set only when the site opted in.
+    ...(config.monitorStories ? { MONITOR_STORIES_LIMIT: String(config.monitorStories.limit) } : {}),
     PAPYRUS_SITE_BUCKET: config.siteBucket,
     PAPYRUS_EDGE_DISTRIBUTION_ID: config.edgeDistributionId,
     PAPYRUS_REDIRECTS_KVS_ARN: config.redirectsKvsArn,
@@ -85,7 +105,7 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     ...(config.monitorSources
       ? {
           KNOWLEDGE_MONITOR_SOURCES: config.monitorSources.join(","),
-          KNOWLEDGE_MONITOR_WEEKS: String(config.monitorWeeks),
+          ...(config.monitorWeeks !== undefined ? { KNOWLEDGE_MONITOR_WEEKS: String(config.monitorWeeks) } : {}),
           ...(config.monitorSuggestions ? { KNOWLEDGE_MONITOR_SUGGESTIONS: String(config.monitorSuggestions) } : {}),
         }
       : {}),
@@ -182,10 +202,21 @@ export class KnowledgeRunStack extends Stack {
         description: "The published snapshot index, such as https://shipped.anth.us/_data/knowledge/index.json.",
       }).valueAsString,
     };
+    // Only a site that opted in with `knowledgeRun.monitorStories` gets the step and its parameter (any other stack's template is unchanged); the
+    // step is still off until the parameter says true. It reads the same AppSync endpoint as trend-drafts, so it has no endpoint parameter of its own.
+    const monitorStories = config.monitorStories
+      ? {
+          enabled: new CfnParameter(this, "MonitorStoriesEnabled", {
+            type: "String", default: "false", allowedValues: ["true", "false"],
+            description: "true: after trend-drafts, write a cited story draft for each of the top monitored items (private Proposals, nothing published). Needs TrendDraftsEndpoint.",
+          }).valueAsString,
+          endpoint: trendDrafts.endpoint,
+        }
+      : undefined;
     this.job = new ScheduledContainerJob(this, "Job", {
       jobId: KNOWLEDGE_JOB_ID,
       publication: config.publication,
-      pipeline: knowledgePipeline(config, trendDrafts),
+      pipeline: knowledgePipeline(config, trendDrafts, monitorStories),
       imageTag,
       defaultSize: { vCpu: config.vCpu, memoryMiB: config.memoryMiB, ephemeralStorageGiB: config.ephemeralStorageGiB },
       defaultStageTimeoutSeconds: DEFAULT_STAGE_TIMEOUT_SECONDS,

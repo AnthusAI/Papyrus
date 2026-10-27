@@ -405,6 +405,7 @@ PORTED_COMMANDS = frozenset(
         "ideas:digest",
         "ideas:synthesize",
         "ideas:trends",
+        "ideas:monitor-stories",
         "proposals:create",
         "proposals:list",
         "proposals:show",

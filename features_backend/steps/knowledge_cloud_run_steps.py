@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib.metadata
 import json
 import sys
 import tempfile
@@ -103,6 +104,33 @@ def step_previous(context, previous):
 @given("the checkout comes out at a different commit")
 def step_stale(context):
     context.shell.head = "b" * 40
+
+
+@given('the site has no requirements-publication.txt and its infra/site.json says papyrusVersion "{version}"')
+def step_site_json_pin(context, version):
+    context.shell.pin_file = False
+    context.shell.site_json = json.dumps({"papyrusVersion": version})
+
+
+@given("the site has no requirements-publication.txt and no infra/site.json")
+def step_no_pin_files(context):
+    context.shell.pin_file = False
+
+
+@given('the image carries Papyrus "{version}"')
+def step_image_release(context, version):
+    context.image_release = version
+    original = importlib.metadata.version
+    importlib.metadata.version = lambda name: version
+    context.add_cleanup(setattr, importlib.metadata, "version", original)
+
+
+@then('the pinned release "{requirement}" was installed before the project command')
+def step_pinned_requirement(context, requirement):
+    install = [call for call in context.shell.calls if call[:2] == ["pip", "install"]][0]
+    assert Path(install[install.index("-r") + 1]).read_text().strip() == requirement
+    names = [" ".join(call[:2]) for call in context.shell.calls]
+    assert names.index("pip install") < names.index("papyrus ops")
 
 
 @given("the pinned release lacks the projection lease")
@@ -411,6 +439,12 @@ def step_other_week_entry(context, day):
 def step_ledger_details(context, stage, text):
     item = context.run_.ledger.table.get_item(Key={"publication": "shipped", "runKey": f"2026-W44#{context.run_.config.execution_name}#{stage}"})["Item"]
     assert item["details"]["archive"] == text, item
+
+
+@given('the site sets the monitor sources "{sources}" for all history')
+def step_monitor_sources_all(context, sources):
+    context.extra = {"KNOWLEDGE_MONITOR_SOURCES": sources}
+    start(context, context.execution, context.extra)
 
 
 @given('the site sets the monitor sources "{sources}" for {weeks:d} weeks')

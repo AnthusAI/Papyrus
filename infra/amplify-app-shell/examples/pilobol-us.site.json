@@ -8,7 +8,7 @@
     "region": "us-east-1"
   },
   "hostedZoneId": "Z09961547QX1VHIXOBD7",
-  "papyrusVersion": "1.0.0",
+  "papyrusVersion": "5.42.1",
   "cms": {
     "domainName": "newsroom.pilobol.us",
     "stagingDomainName": "staging.pilobol.us",
@@ -35,6 +35,25 @@
       "main",
       "staging"
     ]
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 9 * * ? *)",
+    "siteBucket": "amplify-d1eiwl0gedkmnj-main-bra-sitebucket397a1860-j6tjklhirzk3",
+    "edgeDistributionId": "E2GKJ877IAH2I8",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/63811e87-4d2d-433d-86ed-2b233baa800c",
+    "appSyncApiId": "2tvll2u5ejafbmawb3v2sdonvi",
+    "amplifyAppId": "d1eiwl0gedkmnj",
+    "contentActionsFunction": "amplify-d1eiwl0gedkmnj-ma-papyruscontentactionsE8B-npf9ha5PkkSG",
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/papyrus/shipped/openai-api-key"
   },
   "email": {
     "mode": "existing",

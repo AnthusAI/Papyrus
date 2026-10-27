@@ -255,3 +255,39 @@ allow:
     kind: "Bare UUID (potential session/agent identifier)"
     reason: "CloudFront KeyValueStore ARN in an example site config; resource identifier, not a session id or secret"
     added: 2026-10-22
+  - id: "09e0db5099b8f726"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/pilobol-us.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-10-27
+  - id: "44ccb23b12c65259"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/p-apyr-us.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-10-27
+  - id: "06306ac26cc0df00"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/distinctive.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-10-27
+  - id: "11fba0b0a1f0ef25"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/dataparade.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-10-27
+  - id: "832b4d380f8608b9"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/threat-intelligence.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-10-27
+  - id: "1894531eab2801f4"
+    rule: "leftblock-session-uuid"
+    file: "infra/amplify-app-shell/examples/anth-us.site.json"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "False positive: the UUID is the id inside a CloudFront KeyValueStore ARN (the site's redirects store), a public infrastructure identifier, not a session or agent id."
+    added: 2026-10-27

@@ -121,7 +121,7 @@ export function modeMark(mode: ReviewMode): string {
 export function nextText(request: ReviewRequest): string {
   if (request.state === "open") {
     if (request.mode === "hard_gate") return "Waiting for you. Nothing continues until you approve or reject.";
-    if (request.mode === "soft_review") return `Proceeds automatically on ${formatWhen(request.deadline)} unless you steer it.`;
+    if (request.mode === "soft_review") return request.deadline ? `Proceeds automatically on ${formatWhen(request.deadline)} unless you steer it.` : "Stays open until someone handles it. It never proceeds or expires on its own.";
     return "Nothing is waiting on this. It stays here until you acknowledge it.";
   }
   if (request.state === "timed_out") return `Proceeded without review on ${formatWhen(request.updatedAt)}.`;
@@ -219,9 +219,11 @@ export type NotificationSections = {
 export function sectionReviews(requests: ReviewRequest[]): NotificationSections {
   const open = requests.filter((request) => request.state === "open");
   const byRaised = (a: ReviewRequest, b: ReviewRequest) => a.raisedAt.localeCompare(b.raisedAt);
+  // Requests with a deadline first, soonest first; requests with no deadline after them, oldest first.
+  const bySoonestDeadline = (a: ReviewRequest, b: ReviewRequest) => (a.deadline && b.deadline ? a.deadline.localeCompare(b.deadline) : a.deadline ? -1 : b.deadline ? 1 : byRaised(a, b));
   return {
     hardGates: open.filter((request) => request.mode === "hard_gate").sort(byRaised),
-    softReviews: open.filter((request) => request.mode === "soft_review").sort((a, b) => (a.deadline ?? "").localeCompare(b.deadline ?? "")),
+    softReviews: open.filter((request) => request.mode === "soft_review").sort(bySoonestDeadline),
     flags: open.filter((request) => request.mode === "flag").sort((a, b) => b.raisedAt.localeCompare(a.raisedAt)),
     decided: requests.filter((request) => request.state !== "open").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
   };

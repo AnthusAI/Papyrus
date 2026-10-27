@@ -20,8 +20,10 @@ STAGES = (
     "projection",
 )
 PROJECTION_STAGE = STAGES[-1]
+#: Steps that run after the projection as their own tasks (infra/knowledge-run/*.py), not as `papyrus knowledge cloud-run --stage`. They write
+#: a ledger row with their cost, which `papyrus knowledge runs` shows; the run total does not include them.
+POST_RUN_STEPS = ("monitor-stories",)
 TEST_EXECUTION_PREFIX = "test-"
-DEFAULT_MONITOR_WEEKS = 52
 
 
 class ConfigError(ValueError):
@@ -64,6 +66,8 @@ def _required(environment: Mapping[str, str], name: str) -> str:
 @dataclass(frozen=True)
 class CloudRunConfig:
     publication: str
+    corpus_key: str
+    appsync_api_id: str | None
     state_bucket: str
     ledger_table: str
     execution_name: str
@@ -77,7 +81,7 @@ class CloudRunConfig:
     beats_config: str | None
     concept_kinds: str | None
     monitor_sources: tuple[str, ...]
-    monitor_weeks: int
+    monitor_weeks: int | None  # None: all history
     monitor_suggestions: int
     monitor_full: bool
     openai_parameter: str
@@ -113,6 +117,9 @@ class CloudRunConfig:
         publication = _required(environment, "KNOWLEDGE_PUBLICATION")
         return cls(
             publication=publication,
+            # The knowledge corpus the publication's References live in (`knowledge-corpus-<key>`); the publication's own id unless the site says otherwise.
+            corpus_key=(environment.get("KNOWLEDGE_CORPUS_KEY") or "").strip() or publication,
+            appsync_api_id=(environment.get("KNOWLEDGE_APPSYNC_API_ID") or "").strip() or None,
             state_bucket=_required(environment, "KNOWLEDGE_STATE_BUCKET"),
             ledger_table=_required(environment, "KNOWLEDGE_LEDGER_TABLE"),
             execution_name=(environment.get("KNOWLEDGE_EXECUTION_NAME") or "manual").strip(),
@@ -126,7 +133,7 @@ class CloudRunConfig:
             beats_config=(environment.get("KNOWLEDGE_BEATS_CONFIG") or "").strip() or None,
             concept_kinds=(environment.get("KNOWLEDGE_CONCEPT_KINDS") or "").strip() or None,
             monitor_sources=_monitor_sources(environment.get("KNOWLEDGE_MONITOR_SOURCES")),
-            monitor_weeks=int((environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip() or DEFAULT_MONITOR_WEEKS),
+            monitor_weeks=int(text) if (text := (environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip()) else None,
             monitor_suggestions=int((environment.get("KNOWLEDGE_MONITOR_SUGGESTIONS") or "").strip() or 0),
             monitor_full=(environment.get("KNOWLEDGE_MONITOR_FULL") or "").strip().lower() == "true",
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),

@@ -99,6 +99,20 @@ def step_export(context, key, source, day):
     )
 
 
+@when('the corpus is exported limited to {weeks:d} weeks for "{key}" with the monitor source "{source}" as of {day}')
+def step_export_weeks(context, key, source, day, weeks):
+    command(
+        context, commands.knowledge_corpus_export, "--out", str(context.out), "--monitor-sources", source, "--corpus-key", key, "--as-of", day,
+        "--monitor-weeks", str(weeks), "--monitor-records-out", str(context.records_file),
+    )
+
+
+@given("the Hugging Face monitor delivered {count:d} more models released on {day:Day}")
+def step_delivered_many(context, count, day):
+    for number in range(count):
+        hub_model(context.client, f"org/bulk{number}", f"{day}T08:00:00Z")
+
+
 @when('the corpus is exported with the records in the topic model for "{key}" from the monitor source "{source}" as of {day}')
 def step_export_with_documents(context, key, source, day):
     command(
@@ -255,7 +269,7 @@ def step_signals(context):
     fetched = []
     context.fetched = fetched
     snapshot = trends.load_snapshot(str(context.site / "_data" / "knowledge"))
-    chosen = {"anchors": [{"key": "maker--org"}], "context": []}  # whether the maker is notable enough to anchor a draft is idea-trend-quality.feature's business
+    chosen = {"anchors": [{"key": "maker--org", "window": {"windowWeeks": 4, "count": 0, "baselineWeeks": 4, "baselineCount": 0}}], "context": []}  # whether the maker is notable enough to anchor a draft is idea-trend-quality.feature's business
     context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: fetched.append(url) or "# Page\n\nSummary.\n", selection=chosen)}
 
 

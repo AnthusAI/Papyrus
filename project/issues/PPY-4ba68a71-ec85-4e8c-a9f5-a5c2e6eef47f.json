@@ -1,0 +1,31 @@
+{
+  "id": "PPY-4ba68a71-ec85-4e8c-a9f5-a5c2e6eef47f",
+  "title": "Router: post all lab jobs first, then collect (and a short collector task)",
+  "description": "Step 1 of route each story as soon as the lab answers. Cyclotron epic decision-flywheel-c8c8cac6-fc12-422b-9d2b-b6210675b81c. Router.sweep posts every candidate job without waiting, collects during the remaining run time, and a collect task on a short schedule delivers finished jobs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "ad458bb9-d162-440e-95b1-d40450bb9e27",
+      "author": "home",
+      "text": "PR https://github.com/AnthusAI/Papyrus/pull/746 (branch feat/decision-ready-doorbell, not merged, not deployed). Verified: 298 monitoring pytest pass, 35 monitoring behave scenarios pass.",
+      "created_at": "2026-10-27T06:24:42.622805Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-27T06:00:45.867542Z",
+  "updated_at": "2026-10-27T06:24:42.623300Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
+  }
+}

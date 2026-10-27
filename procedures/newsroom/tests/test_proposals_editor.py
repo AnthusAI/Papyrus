@@ -12,9 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering import proposal_votes  # noqa: E402
-from reader_fixtures import ReaderBackend, operator_identity, reader_handler, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import ReaderBackend, operator_identity, proposal_handler, run_snapshot, subject_for  # noqa: E402
 
-rules = reader_handler.proposal_rules
+rules = proposal_handler.proposal_rules
 BODY = "# Name the agents cluster\n\nThe cluster mixes tool use with planning.\n"
 TYPES = ("item", "proposal")
 
@@ -198,8 +198,8 @@ class EditorActionTests(unittest.TestCase):
             seen = row_of(backend, identifier)
             first = rules.edit_plan(seen, "pin", actor_sub="a", now_iso="2026-10-22T10:00:00Z")
             second = rules.edit_plan(seen, "hold", actor_sub="b", now_iso="2026-10-22T10:00:01Z")
-            self.assertTrue(backend.store.change_proposal(identifier, first, "draft", "2026-10-22T10:00:00Z", expected_updated_at=seen["updatedAt"]))
-            self.assertFalse(backend.store.change_proposal(identifier, second, "draft", "2026-10-22T10:00:01Z", expected_updated_at=seen["updatedAt"]))
+            self.assertTrue(backend.proposal_store.change_proposal(identifier, first, "draft", "2026-10-22T10:00:00Z", expected_updated_at=seen["updatedAt"]))
+            self.assertFalse(backend.proposal_store.change_proposal(identifier, second, "draft", "2026-10-22T10:00:01Z", expected_updated_at=seen["updatedAt"]))
             row = row_of(backend, identifier)
             self.assertEqual((row["pinned"], row.get("held")), (True, None))
 

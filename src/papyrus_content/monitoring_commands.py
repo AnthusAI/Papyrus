@@ -21,14 +21,16 @@ def load_monitor(path: str) -> Monitor:
     config_path = Path(path).resolve()
     raw = json.loads(config_path.read_text())
     allowed = {"schemaVersion", "monitorId", "publication", "corpusId", "endpoint", "state",
-               "intervalSeconds", "limit", "sourceIds", "appId"}
+               "intervalSeconds", "limit", "sourceIds", "appId"}   # `limit` is retired: accepted, ignored
     if not isinstance(raw, dict) or raw.get("schemaVersion") != 1 or set(raw) - allowed:
         raise ValueError("Monitor config requires schemaVersion 1 and supported explicit binding fields")
+    if "limit" in raw:   # the monitor reads the whole feed now; an old config still loads
+        print(json.dumps({"monitor": "ignored_retired_config", "fields": ["limit"]}))
     state = Path(raw["state"])
     if not state.is_absolute():
         state = config_path.parent / state
     return Monitor(raw["monitorId"], raw["publication"], raw["corpusId"], raw["endpoint"], state,
-                   raw.get("intervalSeconds", 900), raw.get("limit", 10), tuple(raw.get("sourceIds") or ()))
+                   raw.get("intervalSeconds", 900), tuple(raw.get("sourceIds") or ()))
 
 
 def status(monitor: Monitor) -> dict:
@@ -79,7 +81,6 @@ def command(argv: list[str]) -> int:
     local = sub.add_parser("collect-local", help="Collect public HN RSS into private review files; no app authentication or classification")
     local.add_argument("--directory", required=True, help="Private local queue directory outside publication content")
     local.add_argument("--interval-seconds", type=int, default=900)
-    local.add_argument("--limit", type=int, default=30)
     local.add_argument("--shown-records", help="Private JSON array of source/message presentation receipts; no labels")
     backfill = sub.add_parser("backfill-decision-relations",
                               help="Write the missing relevance_decision_is relations for References the router delivered before #517 (dry-run unless --apply)")
@@ -89,12 +90,10 @@ def command(argv: list[str]) -> int:
     backfill.add_argument("--apply", action="store_true", help="Write the relations; without it nothing is written")
     backfill.add_argument("--dry-run", action="store_true", help="The default; accepted for clarity")
     window = sub.add_parser("backfill",
-                            help="Load a Hugging Face monitor's history for its configured filters, bounded and resumable (dry-run unless --apply)")
+                            help="Load a Hugging Face monitor's history for its configured filters: pages the whole window, waits out rate limits, Ctrl-C safe and resumable (dry-run unless --apply)")
     window.add_argument("--monitor", required=True)
     window.add_argument("--since", required=True, help="Models created at or after this ISO timestamp (with timezone)")
     window.add_argument("--until", help="Only models created before this ISO timestamp (with timezone)")
-    window.add_argument("--max-pages", type=int, default=50, help="Pages per query before pausing (default 50)")
-    window.add_argument("--max-requests", type=int, default=300, help="Hub requests per run before pausing (default 300)")
     window.add_argument("--apply", action="store_true", help="Write discoveries and the checkpoint; without it nothing is written")
     args = parser.parse_args(argv)
     if args.command == "backfill":
@@ -108,7 +107,7 @@ def command(argv: list[str]) -> int:
     if args.command == "collect-local":
         from .monitoring_queue import collect_queue
         shown = json.loads(Path(args.shown_records).read_text()) if args.shown_records else ()
-        result = collect_queue(args.directory, interval_seconds=args.interval_seconds, limit=args.limit, shown_records=shown)
+        result = collect_queue(args.directory, interval_seconds=args.interval_seconds, shown_records=shown)
         print(json.dumps(result, sort_keys=True))
         return 1 if result["status"] == "failed" else 0
     monitor = load_monitor(args.config)

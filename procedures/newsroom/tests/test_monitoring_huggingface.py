@@ -29,8 +29,22 @@ def fixture(name):
 
 TTS, NVIDIA, LIKED = fixture("text-to-speech-newest.json"), fixture("nvidia-newest.json"), fixture("text-generation-most-liked.json")
 CONFIG = {"pk": "MONITOR#huggingface", "sk": "CONFIG", "sourceType": "huggingface-models", "sourceUrl": BASE,
-          "intervalSeconds": DAY, "limit": 300, "enabled": True, "pipelineTags": ["text-to-speech"],
-          "authors": ["hexgrad"], "minLikes": 1, "lookbackDays": 7, "pageSize": 6, "pagesPerQuery": 4}
+          "intervalSeconds": DAY, "enabled": True, "pipelineTags": ["text-to-speech"],
+          "authors": ["hexgrad"], "minLikes": 1, "lookbackDays": 7, "pageSize": 6}
+
+
+class Clock:
+    """A clock the tests move: `sleep` advances it and remembers each wait."""
+
+    def __init__(self):
+        self.now, self.slept = 1000.0, []
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.slept.append(seconds)
+        self.now += seconds
 
 
 class Hub:
@@ -236,19 +250,26 @@ def test_the_router_rule_excludes_repackaged_models_too():
     ({"minLikes": "5"}, "minLikes"),
     ({"sort": "random"}, "sort"),
     ({"lookbackDays": 0}, "lookbackDays"),
-    ({"pageSize": 5000}, "pageSize"),
-    ({"limit": 5000}, "limit")])
+    ({"pageSize": 5000}, "pageSize")])
 def test_config_is_validated_for_its_own_source(change, message):
     with pytest.raises(ValueError, match=message):
         _validate_config({**CONFIG, **change})
 
 
 def test_a_valid_config_fills_in_the_defaults():
-    config = _validate_config({"sourceType": "huggingface-models", "sourceUrl": BASE, "intervalSeconds": DAY, "limit": 300,
+    config = _validate_config({"sourceType": "huggingface-models", "sourceUrl": BASE, "intervalSeconds": DAY,
                                "authors": ["Qwen"]})
 
     assert config["sort"] == "createdAt" and config["lookbackDays"] == 7 and config["pageSize"] == 200
-    assert config["pagesPerQuery"] == 10 and config["search"] == [] and config["maxItems"] == 300
+    assert config["search"] == [] and not {"limit", "maxItems", "pagesPerQuery"} & set(config)
+
+
+def test_the_retired_caps_in_a_stored_config_are_ignored_with_one_log_line(capsys):
+    config = _validate_config({**CONFIG, "limit": 5, "maxItems": 7, "pagesPerQuery": 2})
+
+    assert not {"limit", "maxItems", "pagesPerQuery"} & set(config)
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert lines == [{"monitor": "ignored_retired_config", "fields": ["limit", "maxItems", "pagesPerQuery"]}]
 
 
 # --- the Hub requests --------------------------------------------------------------------------------
@@ -384,7 +405,7 @@ def test_the_window_drops_models_created_before_it():
 
 def test_newest_first_queries_stop_paging_once_past_the_window():
     table = configured()
-    table.put_item({**CONFIG, "authors": [], "minLikes": 0, "pageSize": 2, "pagesPerQuery": 50, "lookbackDays": 1})
+    table.put_item({**CONFIG, "authors": [], "minLikes": 0, "pageSize": 2, "lookbackDays": 1})
     hub = tts_hub()
 
     # the window starts at 2026-10-25T10:00Z: the third page of two ends before it, so a fourth is never asked for
@@ -417,27 +438,27 @@ def test_all_queries_failing_fails_the_run():
     assert result["status"] == "failed" and "hub down" in result["errors"][0]["message"]
 
 
-def test_a_rate_limit_stops_the_read_and_the_receipt_says_so():
+def test_a_rate_limit_that_outlasts_the_time_stops_the_read_and_the_receipt_says_so():
     table = configured()
+    clock = Clock()
 
     def fetch(url):
-        raise hf.RateLimited("slow down")
+        raise hf.RateLimited("slow down", retry_after=600)       # longer than the pass has left
 
-    result = run_collection(DynamoStore(table), "huggingface", fetch=fetch, now=NOW)
+    result = run_collection(DynamoStore(table), "huggingface", fetch=fetch, now=NOW, clock=clock, sleep=clock.sleep)
 
-    assert result["read"]["stoppedBy"] == "rate_limited" and result["itemCount"] == 0
+    assert result["read"]["stoppedBy"] == "rate_limited" and result["itemCount"] == 0 and clock.slept == []
     assert table.by_prefix("RUN#")[0]["read"]["stoppedBy"] == "rate_limited"
     assert any("stopped early" in e["message"] for e in result["errors"])
 
 
-def test_the_item_cap_keeps_the_newest_models():
+def test_there_is_no_item_cap_every_model_that_passes_the_rule_is_collected():
     table = configured()
-    table.put_item({**CONFIG, "minLikes": 0, "limit": 3})
+    table.put_item({**CONFIG, "minLikes": 0, "limit": 3, "maxItems": 3})      # the retired caps do nothing
 
     result = run(table, tts_hub())
 
-    assert result["itemCount"] == 3
-    assert [r["details"]["modelId"] for r in table.by_prefix("DISC#")] and max(r["sourcePublishedAt"] for r in table.by_prefix("DISC#")) == TTS[0]["createdAt"]
+    assert result["itemCount"] == len(TTS) == 12 and len(table.by_prefix("DISC#")) == 12
 
 
 def test_other_sources_discoveries_are_unchanged():
@@ -527,19 +548,34 @@ def test_a_dry_run_counts_and_writes_nothing():
     assert any("DRY RUN" in line for line in lines)
 
 
-def test_backfill_pauses_at_its_request_bound_and_resumes_from_the_checkpoint():
-    table = backfill_config()
-
-    first, lines = backfill(table, liked_hub(), apply=True, max_requests=1)
-
-    assert first["status"] == "paused" and first["stoppedBy"] == "request_ceiling" and first["requests"] == 1
-    assert any("run the same command again" in line for line in lines)
-    checkpoint = table.by_prefix("BACKFILL#")[0]
-    assert checkpoint["queries"]["tag:text-generation:likes"]["next"] and not checkpoint["queries"]["tag:text-generation:likes"]["done"]
-    assert "LOCK" not in {k[1] for k in table.items}
-
+def test_backfill_has_no_request_or_page_budget_it_pages_the_whole_window():
+    table = backfill_config(pageSize=1)               # one row a page: as many requests as the window needs
     hub = liked_hub()
-    second, _ = backfill(table, hub, apply=True, max_requests=10, fetch=None) if False else (None, None)
+
+    result, _ = backfill(table, hub, apply=True)
+
+    assert result["status"] == "complete" and result["requests"] == len(hub.requests) >= 2
+    assert not hasattr(result, "stoppedBy") and "stoppedBy" not in result
+
+
+def test_ctrl_c_is_safe_and_the_same_command_resumes_from_the_checkpoint(monkeypatch):
+    from papyrus_content import monitoring_backfill
+    monkeypatch.setattr(monitoring_backfill, "CHUNK_PAGES", 1)       # checkpoint after every page
+    table, calls = backfill_config(), []
+
+    def fetch(url):
+        calls.append(url)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return liked_hub()(url)
+
+    first, lines = backfill(table, fetch, apply=True)
+
+    assert first["status"] == "interrupted" and any("interrupted" in line for line in lines)
+    assert any("run the same command again" in line for line in lines) and "LOCK" not in {k[1] for k in table.items}
+    checkpoint = table.by_prefix("BACKFILL#")[0]["queries"]["tag:text-generation:likes"]
+    assert checkpoint["next"] and not checkpoint["done"]
+
     hub = liked_hub()
     second, _ = backfill(table, hub, apply=True)
     assert second["status"] == "complete"
@@ -547,20 +583,34 @@ def test_backfill_pauses_at_its_request_bound_and_resumes_from_the_checkpoint():
     assert len(table.by_prefix("DISC#")) == 2
 
 
-def test_backfill_pauses_on_a_rate_limit_and_keeps_what_it_loaded():
-    table = backfill_config()
-    calls = []
+def test_backfill_waits_out_a_rate_limit_for_as_long_as_retry_after_says_and_reports_progress():
+    table, clock, calls = backfill_config(), Clock(), []
 
     def fetch(url):
         calls.append(url)
         if len(calls) == 2:
+            raise hf.RateLimited("slow down", retry_after=45)
+        return liked_hub()(url)
+
+    result, lines = backfill(table, fetch, apply=True, sleep=clock.sleep)
+
+    assert result["status"] == "complete" and clock.slept == [45] and result["waitedSeconds"] == 45
+    assert any("rate limited: waiting 45s (Retry-After)" in line for line in lines)
+    assert len(table.by_prefix("DISC#")) == 2
+
+
+def test_without_a_retry_after_the_wait_doubles_while_the_limit_lasts_then_starts_over():
+    table, clock, calls = backfill_config(), Clock(), []
+
+    def fetch(url):
+        calls.append(url)
+        if len(calls) <= 3:
             raise hf.RateLimited("slow down")
         return liked_hub()(url)
 
-    result, _ = backfill(table, fetch, apply=True)
+    result, _ = backfill(table, fetch, apply=True, sleep=clock.sleep)
 
-    assert result["status"] == "paused" and result["stoppedBy"] == "rate_limited"
-    assert len(table.by_prefix("DISC#")) == 2 and table.by_prefix("BACKFILL#")      # the first page was kept
+    assert result["status"] == "complete" and clock.slept == [5, 10, 20]
 
 
 def test_backfill_by_creation_date_for_authors_and_search():
@@ -576,7 +626,7 @@ def test_backfill_by_creation_date_for_authors_and_search():
 
 def test_backfill_refuses_other_sources_and_naive_times():
     table = FakeTable()
-    table.put_item({"pk": "MONITOR#hn", "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900, "limit": 30})
+    table.put_item({"pk": "MONITOR#hn", "sk": "CONFIG", "sourceUrl": "https://news.ycombinator.com/rss", "intervalSeconds": 900})
     with pytest.raises(ValueError, match="huggingface-models"):
         backfill_collection(DynamoStore(table), "hn", datetime(2026, 1, 1, tzinfo=timezone.utc))
     with pytest.raises(ValueError, match="timezone"):
@@ -588,9 +638,12 @@ def test_the_cli_exposes_backfill(monkeypatch):
     seen = {}
     monkeypatch.setattr(monitoring_backfill, "collection_command", lambda args: seen.update(vars(args)) or 0)
 
-    code = monitoring_commands.command(["backfill", "--monitor", "huggingface", "--since", "2025-10-25T00:00:00Z", "--max-pages", "7"])
+    code = monitoring_commands.command(["backfill", "--monitor", "huggingface", "--since", "2025-10-25T00:00:00Z"])
 
-    assert code == 0 and seen["monitor"] == "huggingface" and seen["max_pages"] == 7 and seen["apply"] is False
+    assert code == 0 and seen["monitor"] == "huggingface" and seen["apply"] is False
+    assert "max_pages" not in seen and "max_requests" not in seen
+    with pytest.raises(SystemExit):
+        monitoring_commands.command(["backfill", "--monitor", "huggingface", "--since", "2025-10-25T00:00:00Z", "--max-requests", "5"])
 
 
 # --- routing -----------------------------------------------------------------------------------------
@@ -599,7 +652,7 @@ DIRECT_PUBLICATION = {"publicationId": "shipped", "site": "shipped.anth.us", "ap
 
 
 def router_config(mode="live", **overrides):
-    return {"pk": "MONITOR#huggingface", "sk": "CONFIG#router", "mode": mode, "decisions": "direct", "maxItemsPerRun": 25,
+    return {"pk": "MONITOR#huggingface", "sk": "CONFIG#router", "mode": mode, "decisions": "direct",
             "publications": [DIRECT_PUBLICATION], **overrides}
 
 

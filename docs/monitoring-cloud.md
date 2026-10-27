@@ -20,8 +20,38 @@ any of them rather than creating a second one for the same decision. Each source
 accepts a `sourceUrl` on its own host. `CONFIG#router.decisions` is `cyclotron` (the default: ask the shared
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
-`seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400 --limit 100` and
+`seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
 `seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`.
+
+### Reading a source: no item, page or request limits
+
+A monitor does not read "the latest N". Each pass pages its source, newest first, until it reaches items it already
+collected (the high-water mark: a page that holds a collected item ends that feed) or the source has no more. The
+first pass over a new monitor therefore reads the whole window; a steady pass usually reads one page. Nothing in the
+config caps it: `limit`, `maxItems` and `pagesPerQuery` are retired, and a stored config that still has them loads,
+ignores them and logs one `{"monitor": "ignored_retired_config", "fields": [...]}` line. They can be deleted from the
+table; `seed_config.py` no longer writes them. `pageSize` (Hugging Face and TTAB) is the source API's page size, not a
+total.
+
+Only real constraints bound a pass:
+
+- **Lambda time.** The collector Lambda times out at 120 s. A pass reads for at most 80 s (`READ_BUDGET_SECONDS`), then
+  finishes the page it is on and writes its receipt; a page's items are committed before the next page is asked for, so
+  a stop loses nothing. When it stops early the receipt says `read.stoppedBy: time_budget` and `STATE.resume` holds a
+  cursor per feed; `nextDueAt` is then "now", so the monitor's next scheduled tick continues (15 minutes for `hn`, 6 hours
+  for `ttab` and `huggingface`; for a large first load of history use the backfill command, which has no such pause). The next pass
+  first re-reads the top of each feed (new items first, up to the high-water mark) and then continues at each cursor,
+  so nothing between the two is skipped. Only when every feed is read to its end is `resume` cleared and the next pass
+  due an `intervalSeconds` later.
+- **The source's rate limit.** A 429 is waited out for as long as `Retry-After` says (seconds or an HTTP date); with no
+  header the wait starts at 5 s and doubles to at most 300 s while the limit lasts. If the wait would not fit in the
+  pass's time, the pass stops there (`read.stoppedBy: rate_limited`) and resumes at the same page next pass.
+- **DynamoDB's item size.** Nothing the monitor stores grows with the backlog (see parking below).
+
+A feed that is not ordered by time (a Hugging Face query sorted by `likes`, `downloads` or `trendingScore`) has no
+high-water mark. It is read until the metric falls under its minimum (`minLikes` / `minDownloads`, and at least 1, so
+the long tail of models nobody has liked, downloaded or trended is not paged through), resuming from its cursor if time
+runs out.
 
 | Monitor | Source | Collect | Route | Decisions | Publications |
 | --- | --- | --- | --- | --- | --- |
@@ -62,7 +92,8 @@ recreated, and nothing is ever superseded, so a re-run writes nothing. Options: 
 
 Feeds Shipped's knowledge map. It reads the public model list (`https://huggingface.co/api/models`, no key). The
 Hub cannot filter by date or by likes, so the monitor's `CONFIG` describes a few **queries** and the reader pages each
-one (cursor from the `Link` header; `pageSize` rows a page, at most `pagesPerQuery` pages) until it passes the window:
+one (cursor from the `Link` header; `pageSize` is the Hub's page size, not a total) until it reaches models already collected,
+passes the window, or the Hub has no more ([reading a source](#reading-a-source-no-item-page-or-request-limits)):
 
 - one query per `authors` entry (a watchlist of organisations), newest first;
 - one per `search` term, newest first;
@@ -73,8 +104,8 @@ either from a watchlisted author, or has at least `minLikes` likes, or at least 
 With neither threshold set, every match is kept. Each day's run re-reads the whole window, so a model that reaches a
 threshold within `lookbackDays` of its release is picked up then; one that gets there later is not. Only
 `https://huggingface.co/api/models` is ever requested (the source URL, and every cursor, are checked), with a
-descriptive `User-Agent` and a pause between requests. A 429 ends the read and the receipt says `stoppedBy:
-rate_limited`; a query that fails does not stop the others; reads stop after 70 s (`stoppedBy: time_budget`).
+descriptive `User-Agent` and a pause between requests. A 429 is waited out (`Retry-After`) or, if that does not fit in
+the pass, ends it with `stoppedBy: rate_limited` to continue next pass; a query that fails does not stop the others.
 
 | `CONFIG` field | Meaning |
 | --- | --- |
@@ -87,8 +118,8 @@ rate_limited`; a query that fails does not stop the others; reads stop after 70 
 | `excludeTags` | Hub tags that mark a repackaged copy (`gguf`, `mlx`, `exl2`, `awq`, `4-bit`, ...); a model carrying any is not collected. Case-insensitive; default none |
 | `excludeBaseRelations` | skip a model whose `baseModels` has one of these relations (`finetune`, `quantized`, `adapter`, `merge`, `declared`). Default none; `finetune` and `adapter` are real work, so list only `quantized` and `merge` unless you want them gone too |
 | `excludeIdPatterns` | up to 50 case-insensitive regular expressions searched in the model id (`org/name`), for repackagers that do not tag (`-(q|iq)[0-9]`, `abliterat`, `bpw`) |
-| `lookbackDays` (7), `pageSize` (200, up to 1000), `pagesPerQuery` (10) | window and bounds per query |
-| `intervalSeconds`, `limit` | as for every monitor; `limit` is the most models stored per run, up to 1000 here (100 elsewhere) |
+| `lookbackDays` (7), `pageSize` (200, up to 1000) | the window, and the Hub's page size (not a total) |
+| `intervalSeconds` | as for every monitor |
 
 **Repackaged models.** A week of Shipped's models was mostly copies of existing ones (89 of 127): quantisations, "abliterated" or
 uncensored variants, wrappers. The three `exclude*` fields drop them at collection, so they are never stored as
@@ -137,6 +168,10 @@ papyrus references promote <reference-id> --section <section>        # --dry-run
 
 It saves a **draft** article `item-<section>-<org>-<name>` (type `article`, status draft) whose front matter has the title (the model id), the deck (the record's structured line), `entities` (the model, maker, licence and task), `sources` (the Hub card and "from the Hugging Face Hub") and `monitorRecord` (reference id, release date, licence, pipeline tag, likes, downloads, base models). There is no `date`: publishing stamps it. The body is a stub with the card link and a note that an editor writes the story. Nothing is published, the Reference's curation state is not changed, and promoting twice leaves the draft, and whatever the editor wrote in it, alone. The reference may be given by id, lineage id or external item id (as the first argument or `--reference`); `--actor-label` names who promoted it (default `papyrus-cli`). Only Hub models can be promoted.
 
+### Drafting stories about delivered items
+
+Promotion is a person's choice. For any monitor's items (not only Hub models) `papyrus ideas monitor-stories --site <site>` picks the few most worth a story, ranked by the relevance Cyclotron's `relevance_decision_is` verdict on each Reference, and files one cited `story_draft` Proposal for each, naming the monitor in its provenance. A Reference that was drafted or promoted is never drafted again. The weekly cloud run can run it with one `knowledgeRun.monitorStories` setting. See [idea pipeline: monitor stories](idea-pipeline.md#monitor-stories) and [cloud run: monitor stories](knowledge-cloud-run.md#monitor-stories-optional-off-by-default).
+
 ### Backfill: loading history
 
 `papyrus monitors backfill --monitor huggingface --since 2025-10-25T00:00:00Z` loads the models created since then that
@@ -144,11 +179,12 @@ the monitor's `CONFIG` would accept, through the same `ITEM#` dedupe as the live
 run beside the schedule). It is a **dry run** (reads the Hub, counts what it would add, writes nothing) unless `--apply`.
 Because the Hub cannot filter by date, it pages each author and search query newest first until `--since`, and each
 `pipelineTags` query in `likes` order (and again in `downloads` order when `minDownloads` is set) until the metric falls
-under the threshold, keeping only models created inside the window. Options: `--until`, `--max-pages` per query
-(default 50), `--max-requests` per run (default 300; the Hub allows 500 requests per 5 minutes). It **pauses** on either
-bound or on a 429 and keeps a `BACKFILL#<since>#<scope>` checkpoint (each query's cursor); running the same command again
-resumes there, and a finished backfill reads nothing. Backfilled discoveries are `collected` like any other, so the router
-delivers them at `maxItemsPerRun` (at most 25) per hourly run, oldest collection first.
+under the threshold, keeping only models created inside the window. It has no page or request budget: it reads the whole
+window. Option: `--until`. The Hub allows 500 requests per 5 minutes, so on a 429 it waits for `Retry-After` (else 5 s,
+doubling to 300 s), printing `rate limited: waiting Ns`, and carries on; it prints a progress line after every chunk of
+pages. After every chunk it saves a `BACKFILL#<since>#<scope>` checkpoint (each query's cursor), so Ctrl-C is safe (it
+reports `interrupted` and exits 130) and running the same command again resumes there; a finished backfill reads nothing. Backfilled discoveries are `collected` like any other, so the router
+delivers them on its next runs, oldest collection first.
 
 ### Starting Shipped
 
@@ -202,13 +238,13 @@ open weights). Sampled from the live Hub on 2026-10-25: it receives about 3,600 
  "excludeTags": ["gguf", "mlx", "exl2", "exl3", "awq", "gptq", "bitsandbytes", "4-bit", "8-bit"],
  "excludeBaseRelations": ["quantized", "merge"],
  "excludeIdPatterns": ["gguf", "-(q|iq)[0-9]", "exl[23]", "mlx", "awq", "gptq", "abliterat", "uncensored", "bpw", "dflash", "comfyui"],
- "lookbackDays": 7, "pageSize": 500, "pagesPerQuery": 10, "intervalSeconds": 86400, "limit": 500}
+ "lookbackDays": 7, "pageSize": 500, "intervalSeconds": 86400}
 ```
 
 Recommended `shipped-huggingface-router.json` (a watchlist name that does not exist on the Hub just returns nothing):
 
 ```json
-{"mode": "dry-run", "decisions": "direct", "maxItemsPerRun": 25, "feedback": false,
+{"mode": "dry-run", "decisions": "direct", "feedback": false,
  "rule": {"authors": ["Qwen", "meta-llama", "google", "microsoft", "mistralai", "deepseek-ai", "nvidia", "openai", "allenai",
                       "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
                       "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
@@ -257,8 +293,8 @@ Keys are `pk` and `sk`; every item of the HN monitor has `pk = MONITOR#hn`.
 
 | `sk` | Meaning |
 | --- | --- |
-| `CONFIG` | Config as data: `sourceUrl` (an https news.ycombinator.com feed), `intervalSeconds` (>= 60), `limit` (1 to 100), `enabled`. Seeded by `infra/monitoring/seed_config.py`, edited in the table, never in Lambda environment |
-| `STATE` | Checkpoint: `nextDueAt` (epoch seconds), `lastRunId`, `lastStatus` |
+| `CONFIG` | Config as data: `sourceUrl` (an https news.ycombinator.com feed), `intervalSeconds` (>= 60), `enabled` (no item limit: the collector pages until it meets items it already has). Seeded by `infra/monitoring/seed_config.py`, edited in the table, never in Lambda environment |
+| `STATE` | Checkpoint: `nextDueAt` (epoch seconds), `lastRunId`, `lastStatus`, and `resume` (cursors per feed, only while a pass stopped early on time or a rate limit) |
 | `LOCK` | Lease: `owner`, `expiresAt`. Taken by conditional write when absent or expired, released only by its owner. Lease is 150 s, longer than the timeout, so a crashed run cannot block longer than that |
 | `ITEM#<sourceId>` | Current `fingerprint` and `revision` for an HN item (the dedupe record) |
 | `DISC#<sourceId>#<revision, 6 digits>` | One discovery per revision: title, canonical and HN item URLs, source time, fingerprint, `eventId`, `observedAt`, `runId`, `routing` |
@@ -316,13 +352,14 @@ publication. It runs on its own schedule `cron(7/15 * * * ? *)` (minutes 7, 22, 
 failure domains apart (a Cyclotron outage never touches collection, and collector
 code is not redeployed with the router); the cost is up to 15 minutes of latency.
 Feedback runs in the same invocation after routing (one lock, one schedule); a
-failed feedback pass never fails routing, and `{"task":"route"}` or `{"task":"feedback"}`
-limits an operator-invoked run.
+failed feedback pass never fails routing, and `{"task":"route"}`, `{"task":"collect"}` or `{"task":"feedback"}`
+limits an operator-invoked run. A second schedule runs `{"task":"collect"}` every 2 minutes to deliver jobs that
+were still running when the route run ended ([post first, then collect](#post-first-then-collect)).
 
 ## Dry-run and live
 
 `mode: dry-run` makes **no** Cyclotron call and writes nothing to any publication.
-For each of up to `maxItemsPerRun` discoveries (oldest first) it builds the exact
+For each collected discovery (oldest first) it builds the exact
 `decide` body for every configured publication, validates it structurally (contract
 version, operation, `requestId` 8 to 128 characters, payload shape, item values,
 32 KiB bound), reads each publication's editorial context hash through the existing
@@ -338,8 +375,8 @@ decision receipt and delivers (see below). The dry-run receipt also records that
 For each story the router sends `POST /machine/decisions` (SigV4, same principals, `X-Cyclotron-Account`)
 with `{"contractVersion", "requestId", "payload": {"bindings": {"<publication>": "<bindingRevision>", ...}, "item"}}`.
 The bindings are every active publication that has no decision yet and is not parked (a publication
-waiting for a classifier is left out, as the per-publication logic always did). It then polls
-`GET /machine/decisions/{jobId}` (202 while running). The 200 body's `publications` maps each publication to
+waiting for a classifier is left out, as the per-publication logic always did). It then checks
+`GET /machine/decisions/{jobId}` (202 while running; see [post first, then collect](#post-first-then-collect)). The 200 body's `publications` maps each publication to
 exactly what `GET /machine/publications/{pub}/commands/{job}` returns, and each is checked and stored as
 `ROUTE.jobs[pub].checked` by the same code as before, so the `decide_binding` receipts, `route.decision`
 and delivery keep their shape. A story takes one Cyclotron job instead of one per publication.
@@ -355,7 +392,7 @@ and delivery keep their shape. A story takes one Cyclotron job instead of one pe
 - **409 "publication criteria are pending"** (a pending output somewhere in the set; the answer does not say
   which) makes the router decide that story one publication at a time, which parks the waiting binding.
   A pending or refusal entry inside a completed receipt is handled per publication: pending parks it, the others
-  are decided; `source_refused` refuses the story; stop codes (`run_busy`, ceiling, key, capacity) stop the run.
+  are decided; `source_refused` refuses the story; stop codes the lab sends (`run_busy`, `request_ceiling_reached`, key, capacity) are still handled and stop the run; the router has none of its own.
   Other publications' receipts in the same answer are kept on the route.
 - `run_busy` and 503 defer exactly as for a single decide (non-consuming refusals bump `attempt`, giving a new request id).
 - A single remaining binding, and backfill of parked items, use the per-publication `decide`.
@@ -376,12 +413,49 @@ Both it and the combined id are identical in dry-run and live, so flipping to li
 | `error` | none | Final: invalid request or response, divergent decisions, or a job pending over 6 h |
 
 Live mode reads `decided` first, then `collected` and `dry-run-validated` merged oldest
-first, up to `maxItemsPerRun` items. Stop conditions (`provider_key_unavailable`,
-`request_ceiling_reached`, `standing_capacity_reached`, `run_busy`, any 401/403/404/429/503/507/409,
-and a job still running after `pollSeconds`) end the sweep cleanly: the run receipt says
+first, every one of them (paging through the whole partition). The router has no limit of its own on how much it does in
+a run: the only bound is the Lambda's time, and whatever is not posted before then is posted by the next run. Stop conditions (`provider_key_unavailable`,
+`request_ceiling_reached`, `standing_capacity_reached`, `run_busy`, any 401/403/404/429/503/507/409)
+end the sweep cleanly: the run receipt says
 `status: stopped` with `stoppedBy`, items stay where they were, and nothing is retried
 until the next schedule. A refused POST leaves no job marker, so it may be sent later; an
 accepted job keeps its `jobId` under `ROUTE#...`.`jobs` and is only polled.
+
+### Jobs left over from an earlier Cyclotron run
+
+A stored job (`combinedJob`, `jobs.<pub>`) also records the `runId` and `bindingRevision` it was posted under.
+After a Cyclotron run cutover the lab no longer answers for the old run's jobs (`GET /machine/decisions/{jobId}`
+returns 404). Before polling, the router compares the stored markers with `CONFIG#router`.`cyclotron`; a job
+with different markers (or, for a job stored before the markers existed, a `requestId` that does not match the
+request the current config would build) is discarded and the story is posted again under the current binding,
+as a new idempotent request. A 404 on a stored job is handled the same way, once: the job is discarded and
+re-posted in the same run. If the re-post's poll also answers 404 that one story ends as `error` and the sweep
+carries on; a single story's 404 never stops the run. Every other refusal behaves as before.
+
+### Post first, then collect
+
+A cold lab job takes about 100 seconds, so a live sweep never waits on one story while others sit idle:
+
+1. **Post.** For each candidate (every one; the Lambda's time is the only bound) the router sends
+   or resumes the story's job and checks it with a single GET. A job that is still running is not a stop
+   condition: it stays recorded on the story (`combinedJob`, or `jobs.<pub>.jobId`) and the router goes on to
+   the next story. A finished job goes straight to the unchanged fan-out and delivery. The per-publication
+   path posts all of a story's bindings before it waits for any of them.
+2. **Collect.** The router then polls every outstanding job of this run round-robin with a backoff (2 s, growing
+   to 8 s) for at most `cyclotron.pollSeconds`, and never into the last `MIN_REMAINING_SECONDS` (120 s) of the
+   invocation, delivering each story the moment its job completes.
+3. **End.** Jobs still running leave the run with `status: awaiting`, `stoppedBy: awaiting` and
+   `counts.awaiting` set. That is normal, not a failure. A real stop condition from Cyclotron still ends the run
+   as `stopped`.
+
+The collector is the same function invoked with `{"monitorId":"hn","task":"collect"}`. It looks at the stories in
+`collected` that already hold a recorded job, polls them (one pass, then the same bounded collect window) and
+delivers the finished ones. It never posts a story that has no job and does not run feedback. It takes the
+per-monitor router lock exactly as a route run does, so the two cannot overlap: whichever comes second returns
+`status: locked` without calling Cyclotron. The schedule `RouterCollectSchedule` runs it `rate(2 minutes)`; it
+follows the same `ScheduleState` switch as the other schedules. Request ids stay deterministic and the job is
+recorded before the POST, so no job is ever sent twice. The specs are in
+`features_backend/monitoring-post-then-collect.feature`.
 
 ### Outputs that are not ready (waiting for classifier)
 
@@ -392,12 +466,14 @@ delivers the other bindings, and the sweep continues. It makes no Cyclotron call
 binding beyond one probe, so it uses no retries and no ceiling. If every binding is waiting, the item
 is final `parked`. Any other 409 still stops the sweep.
 
-Parking: one `PARK#<publicationId>` item per waiting publication holds `reason`, `since`, `nextProbeAt`,
-`backoffSeconds` and the newest 25 skipped items. No call is made until `nextProbeAt`; then the next item
+Parking: one `PARK#<publicationId>` header item per waiting publication holds `reason`, `since`, `nextProbeAt` and
+`backoffSeconds`; each skipped item is a row of its own, `PARK#<publicationId>#<sourceId>#<revision>`, so nothing is
+dropped and no row grows with the backlog. No call is made until `nextProbeAt`; then the next item
 probes once, and a still-pending answer doubles the backoff (30 minutes up to 6 hours). When a probe
-succeeds the park becomes `ready`, and each run first decides the parked items (up to `maxItemsPerRun`,
-within the same per-run budget) and delivers positives, then removes the park. Items older than the
-newest 25 are not backfilled. The run receipt carries `waitingForClassifier` (publication ids) and the
+succeeds the park becomes `ready`, and each run first decides the parked items (all of them, paging through the
+partition, bounded only by the Lambda's time) and delivers positives, then removes the park. A header written by an
+earlier version, which carried the newest 25 items in a list, is split into rows the first time it is read, keeping
+every item it had. The run receipt carries `waitingForClassifier` (publication ids) and the
 Monitoring page shows it on the router run.
 
 ## Router items
@@ -427,7 +503,7 @@ aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk"
 `docs/monitoring-router-config.example.json`; seeded with `infra/monitoring/seed_router_config.py`.
 
 ```json
-{"mode": "dry-run|live", "maxItemsPerRun": 5, "feedback": false, "enabled": true,
+{"mode": "dry-run|live", "feedback": false, "enabled": true,
  "publications": [{"publicationId": "...", "site": "...", "appsyncEndpoint": "https://<id>.appsync-api.<region>.amazonaws.com/graphql",
                    "corpusId": "knowledge-corpus-<publicationId> (default)"}],
  "cyclotron": {"endpoint": "https://<id>.execute-api.<region>.amazonaws.com", "accountId": "...", "runId": "...",
@@ -469,10 +545,15 @@ the runner.
 ## Feedback
 
 Only when `mode` is `live` **and** `feedback` is `true`. For each `DELIV#` row still pending
-(25 per run, rotated) the router reads the Reference. `pending` is ignored. `accepted` maps to
+(all of them, rotated to the back as they are checked) the router reads the Reference. `pending` is ignored. `accepted` maps to
 `include` and `rejected` to `exclude` for that publication's output. The editor comes from
-`curationStatusUpdatedBy` (`user:<sub>`, sent as the subject with the configured `site`); a missing
-actor, the worker's own actor or anything not `user:` is skipped and the reason recorded on the row.
+`curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
+newsroom UI records), a Cognito username (`google_<digits>`) or a Cognito sub (UUID). A missing actor, the
+worker's own actor and every other machine actor (`ai`, `system:*`, `worker:*`, `papyrus*`, `*-import`, the
+"Papyrus newsroom" fallback) are skipped and the reason recorded on the row. Cyclotron's `editor.subject` is
+free text and must never be an email address, so the subject sent with the configured `site` is:
+`user:<x>` as is (when `<x>` is not an email); `cognito:<sub>` for a bare Cognito sub; otherwise
+`editor:` + the first 32 hex characters of `sha256(publicationId + ":" + lowercased actor)`.
 `requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt)`, so repeats are
 idempotent; the item revision and output come from the stored decision receipt.
 
@@ -504,6 +585,32 @@ account quota cannot reserve any; the table lease serializes runs anyway). Alarm
 router, the two YAML data files the shared Reference factories read, and pure-Python PyYAML (the
 runtime has boto3/botocore only). `PAPYRUS_ROOT=/var/task` lets the factories find `corpora/`. A test
 imports the extracted zip with a stdlib-only interpreter. The collector zip and its hash are unchanged.
+
+## Decision-ready events
+
+When a `/machine/decisions` job finishes, the Cyclotron lab can ring a doorbell so the router collects
+the answer in seconds instead of waiting for the 2-minute collector. The event is **only a doorbell**:
+it never carries a decision and nothing in it is delivered. The router still fetches each answer with
+its signed GET.
+
+- **Bus**: `papyrus-cyclotron-decisions` (output `CyclotronDecisionsBusArn`). Its resource policy allows
+  `events:PutEvents` only for the role in parameter `CyclotronWorkerRoleArn` (default
+  `arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime`) and only when `events:source` is
+  `cyclotron.lab`.
+- **Event**: source `cyclotron.lab`, detail-type `Decision Ready`, detail `{contractVersion:
+  "cyclotron-publication/v1", accountId, runId, jobId, requestId, itemId, publications, status:
+  "complete"|"failed"}`. Delivery is at least once; resends are harmless.
+- **Rule** `papyrus-monitoring-decision-ready` (state follows `ScheduleState`) invokes the router
+  Lambda with the event unchanged, with a small retry policy and the router dead-letter queue.
+- **Handler**: a strictly validated event is accepted; anything malformed is dropped with a log line
+  (it never raises, so EventBridge never retries it). Monitors are not derived from `itemId`. The
+  handler looks at every monitor that can hold a router config (`DOORBELL_MONITORS`: `hn`,
+  `huggingface`, `ttab`; add a new monitor there), skips any whose `CONFIG#router` `cyclotron.accountId`
+  or `cyclotron.runId` differs from the event's (counted in the log), and runs `collect` for the rest.
+  Each collect takes that monitor's own router lock; a locked monitor is skipped and its job is picked up
+  by the 2-minute collector or the next route run. A collect that finds nothing new changes nothing, so a
+  duplicate event is harmless.
+- Scheduled events (`{"monitorId", "task"}`) are unchanged.
 
 ## Operating the router
 
@@ -567,5 +674,42 @@ authorization point and one least-privilege grant.
 
 - `confidence` per publication is kept in the router's decision receipt (`ROUTE#...`.`decision`.`publications`)
   when the Cyclotron reports it between 0 and 1.
-- Old `ceilings` fields in `CONFIG#router` are ignored and are not returned to Monitoring.
+- Old `limit`, `maxItems` and `pagesPerQuery` fields in a collector `CONFIG` are ignored the same way (the collector logs one `ignored_retired_config` line).
+- Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. They can be deleted from the stored config; `infra/monitoring/seed_router_config.py --set` drops them on its next write.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
+
+### Open one email receipt
+
+Editors can open `/newsroom/administration/monitoring?receipt=EMAIL%23<receipt-hash>`
+to inspect one known email. Encode the receipt with `encodeURIComponent` when
+constructing the link: an unescaped `#` becomes a URL fragment. This mode calls
+only the authenticated single-receipt query and never mounts or refreshes the
+monitoring overview. Empty, unavailable, and refused receipts do not fall back
+to listing submissions. Existing editor/admin authorization, redirect consent,
+and pending Reference intake apply unchanged.
+
+This UI change requires an engine release and a site pin update before the link
+is supported on a deployed site. It does not establish live email acceptance.
+
+
+### Predictions for editor-selected newsletter References
+
+Importing a receipt's selected candidates now registers normal pending References and then
+queues each successful Reference through `monitoringQueueEmailReference`. It requires the
+site's existing Cognito editor/admin identity, verifies the exact receipt and candidate
+(including a saved article redirect resolution), and writes a stable URL/corpus job identity.
+Retries reuse the Reference and prediction job; no human curation or vote is created.
+
+The existing router handles `task: "email-references"` using a separate routing partition.
+It checks the exact imported Reference before calling Cyclotron, attaches both positive and
+negative decisions, and starts no publishing procedures or feedback sweep. The optional
+`EmailReferenceMonitorId` stack parameter activates a five-minute schedule using the existing
+router scheduler role and dead-letter queue, with no additional IAM grants. For bounded
+acceptance, the same task accepts `sourceIds` (1–20 exact queued IDs) and reads those jobs only.
+A failed handoff leaves the import visible with an explicit retry notice. Receipt pages link
+to the exact References for normal prediction review.
+
+A maintenance deployment must preserve newer shared-router behavior: apply only this change's
+router/intake diff to the verified currently deployed router artifact, test that artifact,
+and update `RouterCodeKey` through a reviewed changeset. Do not replace the shared router with
+an older site maintenance baseline. Preserve all existing stack parameters and resources.

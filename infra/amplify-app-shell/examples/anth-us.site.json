@@ -1,0 +1,53 @@
+{
+  "siteId": "anth-us",
+  "repository": "https://github.com/AnthusAI/Anth.us-web",
+  "brand": "anth-us",
+  "frontend": "markus-static",
+  "aws": {
+    "profile": "papyrus-production",
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
+  "papyrusVersion": "1.0.0-next.41",
+  "cms": {
+    "staging": true,
+    "cognitoDomainPrefix": "papyrus-anth-us-cms",
+    "applyCognitoDomainPrefix": true,
+    "environment": {
+      "PAPYRUS_EDITION_SLUG": "current",
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/"
+    }
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "Anth.us-web",
+    "branches": [
+      "main"
+    ]
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 6 * * ? *)",
+    "siteBucket": "amplify-d7s858igkyct5-main-bran-sitebucket397a1860-9qdsd4orbwi7",
+    "edgeDistributionId": "E3UMOOJRMY7FK7",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/363702bd-98ef-4fc8-af12-2a516b6c5404",
+    "appSyncApiId": "4qiunzl7drcedaz22rl4xu56ga",
+    "amplifyAppId": "d7s858igkyct5",
+    "contentActionsFunction": "amplify-d7s858igkyct5-mai-papyruscontentactionsE8B-RwNHN0KC1Zoi",
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/papyrus/shipped/openai-api-key"
+  },
+  "email": {
+    "mode": "existing",
+    "sendingDomain": "mail.example.test",
+    "configurationSet": "existing-site-email",
+    "eventTopicName": "existing-site-email-events"
+  }
+}

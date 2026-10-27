@@ -97,8 +97,8 @@ function QueueItem({ item, ownId, demo }: { item: MonitoringItem; ownId: string 
   );
 }
 
-function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates }: {
-  items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen: (receiptId: string) => void;
+export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImportCandidates }: {
+  items: MonitoringEmailSummary[]; detail: MonitoringEmailDetails | null; onOpen?: (receiptId: string) => void;
   onResolveArticleLink?: (receiptId: string, candidateIndex: number) => Promise<MonitoringEmailArticleResolution>;
   onImportCandidates?: (receiptId: string, items: EmailReferenceImportItem[]) => Promise<EmailReferenceImportOutcome>;
 }) {
@@ -138,7 +138,10 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
       const result = await onResolveArticleLink(requestReceiptId, index);
       if (!isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) return;
       if (!("url" in result)) {
-        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The article destination could not be resolved safely. The original link remains private and unchanged." }));
+        const reason = "reason" in result && typeof result.reason === "string"
+          && /^(?:redirect_[a-z_]+|resolution_record_invalid|resolution_not_recorded)$/.test(result.reason)
+          ? ` (${result.reason})` : "";
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `The article destination could not be resolved safely${reason}. The original link remains private and unchanged.` }));
         return;
       }
       const candidate = detail && "submission" in detail ? detail.candidateLinks[index] : null;
@@ -181,7 +184,7 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
       if (result.error) {
         setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} of ${candidates.length} selected candidates were registered or matched. ${result.error}` }));
       } else {
-        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} selected candidates are available as References. Import does not approve or publish them.` }));
+        setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `${result.imported} selected candidates are available as References. Predictions are queued in the cloud; review them when ready. Import does not approve or publish them.` }));
       }
     } catch {
       if (isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) {
@@ -207,7 +210,7 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
           <span>SES signals — SPF {item.verdicts.spf}, DKIM {item.verdicts.dkim}, DMARC {item.verdicts.dmarc}; spam {item.verdicts.spam}, virus {item.verdicts.virus}</span>
           {item.warnings.length ? <span>Warnings: {item.warnings.join(", ")}</span> : null}
           {item.errorCode ? <span>State: {item.status} ({item.errorCode})</span> : <span>State: {item.status}</span>}
-          <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button>
+          {onOpen ? <button type="button" onClick={() => onOpen(item.receiptId)}>Read email and review candidate links</button> : null}
         </li>)}
       </ul> : <p>No email submissions are available for this publication.</p>}
       {detail && "submission" in detail ? (
@@ -238,7 +241,9 @@ function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, onImpor
             {busyImport ? "Adding References…" : "Add selected links to References"}
           </button>
           {notice ? <p role="status" data-email-import-result>{notice}</p> : null}
-          {importedReferences.length ? <p><Link href={getNewsroomNavHref("/newsroom/references", false)}>Review these References</Link></p> : null}
+          {importedReferences.length ? <ul>{importedReferences.map((reference, index) => (
+            <li key={`${reference.id}-${index}`}><Link href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.lineageId)}`, false)}>Review imported Reference {index + 1}</Link></li>
+          ))}</ul> : null}
         </section>
       ) : detail && "error" in detail ? <p role="alert">You cannot read this submission.</p>
         : detail && "state" in detail ? <p role="alert">Submission details are unavailable.</p> : null}
@@ -297,7 +302,7 @@ function Ready({ data, demo, emailDetail, onEmailOpen, onResolveArticleLink, onI
                   <strong>{feed.id}</strong>
                   <span>{feedHost(feed.sourceUrl)}</span>
                 </div>
-                <span>{feed.enabled ? "Enabled" : "Disabled"} &middot; {everyText(feed.intervalSeconds)}{feed.limit ? ` · up to ${feed.limit} items` : ""}</span>
+                <span>{feed.enabled ? "Enabled" : "Disabled"} &middot; {everyText(feed.intervalSeconds)}</span>
                 <span>Last run {formatUtc(feed.lastFinishedAt)}{feed.lastStatus ? ` (${status(feed.lastStatus)})` : ""} &middot; next {formatUtc(feed.nextDueAt)}</span>
               </li>
             ))}

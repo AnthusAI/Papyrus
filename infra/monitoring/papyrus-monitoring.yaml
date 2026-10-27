@@ -33,6 +33,10 @@ Parameters:
     Type: String
     Default: arn:aws:iam::682849160744:role/cyclotron-machine-invoker
     Description: The one role in the shared Cyclotron account that the router may assume to call its machine API.
+  CyclotronWorkerRoleArn:
+    Type: String
+    Default: arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime
+    Description: The one role in the shared Cyclotron account that may put Decision Ready events on the doorbell bus (and only with source cyclotron.lab).
   AnthUsApiId:
     Type: String
     Default: 4qiunzl7drcedaz22rl4xu56ga
@@ -76,7 +80,14 @@ Parameters:
     Default: ""
     Description: Exact Cognito pools for configured publications where email sender membership is rechecked.
 
+  EmailReferenceMonitorId:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
+    Description: Optional existing email partition whose editor-selected References need cloud predictions.
+
 Conditions:
+  HasEmailReferenceMonitor: !Not [!Equals [!Ref EmailReferenceMonitorId, ""]]
   ReserveConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
@@ -159,7 +170,7 @@ Resources:
       Architectures: [arm64]
       Handler: papyrus_content.monitoring_cloud.handler
       MemorySize: 256
-      Timeout: 120
+      Timeout: 120   # the real bound on a pass: keep in step with LAMBDA_TIMEOUT_SECONDS in monitoring_paging.py
       ReservedConcurrentExecutions: !If [ReserveConcurrency, !Ref ReservedConcurrency, !Ref AWS::NoValue]
       Role: !GetAtt CollectorRole.Arn
       Code:
@@ -481,6 +492,105 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
+  RouterCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-router-collect
+      Description: Collect the HN router's posted lab jobs every 2 minutes and deliver the finished ones. It posts nothing new and takes the same per-monitor router lock as the route run, so it never races it.
+      ScheduleExpression: rate(2 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"hn","task":"collect"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 120
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  CyclotronDecisionsBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: papyrus-cyclotron-decisions
+
+  CyclotronDecisionsBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      EventBusName: !Ref CyclotronDecisionsBus
+      StatementId: CyclotronWorkerPutDecisionReady
+      Statement:
+        Effect: Allow
+        Principal:
+          AWS: !Ref CyclotronWorkerRoleArn
+        Action: events:PutEvents
+        Resource: !GetAtt CyclotronDecisionsBus.Arn
+        Condition:
+          StringEquals:
+            events:source: cyclotron.lab
+
+  DecisionReadyRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: papyrus-monitoring-decision-ready
+      Description: Doorbell. A Decision Ready event from the Cyclotron lab runs the router's collect task; the event carries no decision.
+      EventBusName: !Ref CyclotronDecisionsBus
+      State: !Ref ScheduleState
+      EventPattern:
+        source: [cyclotron.lab]
+        detail-type: [Decision Ready]
+      Targets:
+        - Id: router-collect
+          Arn: !GetAtt RouterFunction.Arn
+          RetryPolicy:
+            MaximumEventAgeInSeconds: 300
+            MaximumRetryAttempts: 2
+          DeadLetterConfig:
+            Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  DecisionReadyInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RouterFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DecisionReadyRule.Arn
+
+  DecisionReadyDeadLetterPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref RouterDeadLetterQueue]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt RouterDeadLetterQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !GetAtt DecisionReadyRule.Arn
+
+  EmailReferenceSchedule:
+    Condition: HasEmailReferenceMonitor
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-email-references
+      Description: Classify only References explicitly imported by editors from email receipts.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: !Sub '{"monitorId":"${EmailReferenceMonitorId}","task":"email-references"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   RouterDataParadeIntakePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
@@ -752,3 +862,5 @@ Outputs:
     Value: !Ref RouteSchedule
   RouterDeadLetterQueueUrl:
     Value: !Ref RouterDeadLetterQueue
+  CyclotronDecisionsBusArn:
+    Value: !GetAtt CyclotronDecisionsBus.Arn

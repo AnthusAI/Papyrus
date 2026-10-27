@@ -8,7 +8,7 @@ import { cn } from "../lib/utils";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, ClipboardList, House, Menu, Search, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
+import { Menu, Search, PanelLeftClose, PanelLeftOpen, Settings, UserRound, LogIn, LogOut } from "lucide-react";
 import { ORGANIZER_NAV_GROUPS, ORGANIZER_PRIMARY_NAV, ORGANIZER_SETTINGS_DESTINATION } from "../lib/newsroom-organizer-nav";
 import { browserPathToInternalNewsroomPath } from "../lib/newsroom-base-path";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -20,6 +20,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetTr
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel, DropdownMenuItem, DropdownMenuSeparator } from "./ui/dropdown-menu";
 import "./newsroom-organizer.css";
 import { NewsroomThemeFonts, useNewsroomThemeAttributes } from "./newsroom-theme";
+import { NewsroomMobileNavigation } from "./newsroom-mobile-navigation";
+import { usePapyrusConsole } from "./papyrus-console-shell";
 
 export type NewsroomNavCount = {
   count: number | null;
@@ -54,8 +56,6 @@ function OrganizerSearch({ demo }: { demo: boolean }) {
     <input aria-label="Search the knowledge base" data-newsroom-search type="search" onChange={event => setText(event.target.value)} placeholder="Search" value={text} />
   </form>;
 }
-
-const ICONS = { overview: House, articles: ClipboardList, references: BookOpen, messages: MessagesSquare };
 
 /** Navigation is a presentation layer; existing route and server authorization still own access. */
 function Navigation({ activePath, demo, admin, surface, onNavigate }: { activePath: string; demo: boolean; admin: boolean; surface: string; onNavigate?: () => void }) {
@@ -105,6 +105,7 @@ function Account({ placement }: { placement: "sidebar" | "header" }) {
 }
 
 export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabel, children, demo = false, headerActions, pageTitle, showNavigation = true }: NewsroomOpsShellProps) {
+  const consoleState = usePapyrusConsole();
   const pathname = usePathname();
   const themeAttributes = useNewsroomThemeAttributes();
   const session = useOptionalNewsDeskClient();
@@ -166,16 +167,13 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
       </header>
       <main className="organizer-main">{demo && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>
     </div>
-    {showNavigation && <nav className="organizer-bottom-nav" aria-label="Primary newsroom navigation"><ul>
-      {ORGANIZER_PRIMARY_NAV.map(item => { const Icon = ICONS[item.key as keyof typeof ICONS]; return <li key={item.key}><Link
-        href={getNewsroomNavHref(item.path, demo)} title={item.description} aria-label={item.label} aria-current={activeTab === item.key ? "page" : undefined}>
-        <Icon size={18} aria-hidden="true" /><span>{item.label}</span></Link></li>; })}
-      <li><Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger className="organizer-more" aria-label="More"><Menu size={18} aria-hidden="true" /><span>More</span></SheetTrigger>
+    {showNavigation && <NewsroomMobileNavigation activeTab={activeTab} items={ORGANIZER_PRIMARY_NAV.map(item => ({ ...item, href: getNewsroomNavHref(item.path, demo) }))}
+      chat={consoleState?.shouldOfferConsole ? { open: consoleState.open, onOpen: consoleState.openConsole } : undefined}
+      more={<Sheet open={menuOpen} onOpenChange={setMenuOpen}><SheetTrigger className="organizer-more" aria-label="More"><Menu size={18} aria-hidden="true" /><span>More</span></SheetTrigger>
         <SheetContent side="bottom" className="organizer-menu" {...themeAttributes}><SheetHeader><SheetTitle>Newsroom</SheetTitle><SheetDescription>Workspaces and administration</SheetDescription></SheetHeader>
           <Navigation activePath={activePath} demo={demo} admin={admin} surface="menu" onNavigate={() => setMenuOpen(false)} />
         </SheetContent>
-      </Sheet></li>
-    </ul></nav>}
+      </Sheet>} />}
   </div>;
 }
 

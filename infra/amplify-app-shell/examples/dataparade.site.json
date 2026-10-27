@@ -1,0 +1,53 @@
+{
+  "siteId": "dataparade",
+  "repository": "https://github.com/AnthusAI/DataParade-newsroom",
+  "brand": "data-parade",
+  "frontend": "markus-static",
+  "aws": {
+    "profile": "papyrus-production",
+    "accountId": "712236451410",
+    "region": "us-east-1"
+  },
+  "papyrusVersion": "5.42.1",
+  "cms": {
+    "staging": false,
+    "cognitoDomainPrefix": "papyrus-dataparade-cms",
+    "applyCognitoDomainPrefix": true,
+    "environment": {
+      "PAPYRUS_OAUTH_REDIRECT_URLS": "http://localhost:3001/,https://dataparade.anth.us/"
+    }
+  },
+  "github": {
+    "owner": "AnthusAI",
+    "repo": "DataParade-newsroom",
+    "branches": [
+      "main"
+    ]
+  },
+  "knowledgeRun": {
+    "schedule": "cron(0 11 * * ? *)",
+    "corpusKey": "data-parade",
+    "siteBucket": "amplify-d35q7zv4zad2we-main-bra-sitebucket397a1860-a2pz5pepxir0",
+    "edgeDistributionId": "EIAVDLXO64F62",
+    "redirectsKvsArn": "arn:aws:cloudfront::712236451410:key-value-store/7a9a0125-2ff0-432e-bff9-cbcd4cf31d21",
+    "appSyncApiId": "rgfkmmyyyrc7fb55qd5smbfrpm",
+    "amplifyAppId": "d35q7zv4zad2we",
+    "contentActionsFunction": "amplify-d35q7zv4zad2we-ma-papyruscontentactionsE8B-98vQtfpumJd8",
+    "siteBranch": "main",
+    "staticSubdir": "web",
+    "monitorSources": [
+      "routed"
+    ],
+    "monitorStories": {
+      "limit": 3
+    },
+    "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
+    "openAiKeyParameter": "/amplify/shared/d35q7zv4zad2we/OPENAI_API_KEY"
+  },
+  "email": {
+    "mode": "existing",
+    "sendingDomain": "mail.example.test",
+    "configurationSet": "existing-site-email",
+    "eventTopicName": "existing-site-email-events"
+  }
+}

@@ -97,6 +97,19 @@ Feature: The scheduled cloud knowledge run
     Then the pinned release from requirements-publication.txt was installed before the project command
     And the project command ran with the pinned release first on the Python path
 
+  Scenario: A site without requirements-publication.txt projects with the Papyrus version of its site.json
+    Given the site has no requirements-publication.txt and its infra/site.json says papyrusVersion "5.42.1"
+    When the stage "projection" runs
+    Then the stage succeeded
+    And the pinned release "papyrus-newsroom==5.42.1" was installed before the project command
+
+  Scenario: A site with neither file projects with the release the image carries
+    Given the site has no requirements-publication.txt and no infra/site.json
+    And the image carries Papyrus "5.50.0"
+    When the stage "projection" runs
+    Then the stage succeeded
+    And the pinned release "papyrus-newsroom==5.50.0" was installed before the project command
+
   Scenario: A pin without the projection lease stops the projection before it writes
     Given the pinned release lacks the projection lease
     When the stage "projection" runs
@@ -199,6 +212,19 @@ Feature: The scheduled cloud knowledge run
     And the commands include "--monitor-sources huggingface --monitor-weeks 26"
     And the commands include "--as-of 2026-10-26"
     And the state in S3 holds "runs/2026-W44/monitor-records.json"
+
+  Scenario: A site that sets no monitor weeks exports all history
+    Given the site sets the monitor sources "huggingface" for all history
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources huggingface"
+    And no command was given "--monitor-weeks"
+
+  Scenario: A site can ask for the stories its monitors routed to it as monitor records
+    Given the site sets the monitor sources "routed" for 26 weeks
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources routed --monitor-weeks 26"
 
   Scenario: The import, the snapshot, the archive and the wiki read the same records file
     Given the site sets the monitor sources "huggingface" for 26 weeks

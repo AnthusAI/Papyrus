@@ -14,7 +14,7 @@ steer something, it takes that steering into account as it moves forward.
 
 What that means for every entry:
 
-1. **Ignore-safe by default.** Everything except a hard gate proceeds if nobody acts. A soft review proceeds at its deadline; a flag never
+1. **Ignore-safe by default.** Everything except a hard gate proceeds if nobody acts. A soft review with an explicit deadline proceeds at it, and one without a deadline (the default) stays open until handled; a flag never
    waits. Each entry says so in words: "Proceeds automatically on 2026-10-30 07:00 UTC unless you steer it." Only a hard gate says
    "Waiting for you."
 2. **Steering, not just approve or reject.** Each open entry offers approve and reject (a flag offers acknowledge, stored as the decision `acknowledge` and shown as "Acknowledged by ..."; nothing is approved. Answers stored earlier as `approve` on a flag still read as Acknowledged), a short note ("Steer with
@@ -32,7 +32,7 @@ What that means for every entry:
 | Section | Source | In v0 |
 |---|---|---|
 | Waiting for you: hard gates | `ReviewRequest`, mode `hard_gate`, open | Entry with approve, reject, note, "not this kind of thing". |
-| Proceeding soon: soft reviews | `ReviewRequest`, mode `soft_review`, open, soonest deadline first | Same controls. Past-deadline requests are marked timed out when the page loads. |
+| Proceeding soon: soft reviews | `ReviewRequest`, mode `soft_review`, open, soonest deadline first, requests with no deadline after them (oldest first) | Same controls. A request with an explicit deadline that has passed is marked timed out when the page loads; one with no deadline stays here until someone answers it. |
 | Cyclotron items routed to a person | The References tab's own rule: a current relevance decision with `reviewRecommended` on a still-pending reference, least confident first | **Counts, a list of up to 10 and deep links** into the existing References review control. The relevance review control is not duplicated here. |
 | Flags | `ReviewRequest`, mode `flag`, open | Acknowledge, note. |
 | Answered, and what became of it | Answered, timed-out and withdrawn requests, newest first | Shows "proceeded without review" and "You steered ... applied in run Y". |

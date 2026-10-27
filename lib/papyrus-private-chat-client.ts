@@ -1,3 +1,4 @@
+import { newsroomChatFetch } from "./newsroom-chat-client";
 export type PapyrusPrivateChatChannel = {
   channel_id: string;
   participants: Array<{ kind: string; actor_id: string }>;
@@ -30,6 +31,8 @@ async function requestJson<T>(path: string, init: RequestInit, fetcher: PapyrusP
   });
   const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok) {
+    if (response.status === 401) throw new Error("sign_in_required");
+    if (response.status === 403) throw new Error("chat_account_access_denied");
     const error = typeof payload?.error === "string" ? payload.error
       : typeof payload?.detail === "string" ? payload.detail
         : `Private chat request failed (${response.status}).`;
@@ -39,8 +42,8 @@ async function requestJson<T>(path: string, init: RequestInit, fetcher: PapyrusP
   return payload as T;
 }
 
-/** Open the current editor's server-derived private channel using the signed same-origin session cookie. */
-export async function openPapyrusPrivateChat(fetcher: PapyrusPrivateChatFetch = globalThis.fetch): Promise<PapyrusPrivateChatChannel> {
+/** Open the current editor's server-derived private channel using the verified publication-local newsroom identity. */
+export async function openPapyrusPrivateChat(fetcher: PapyrusPrivateChatFetch = newsroomChatFetch): Promise<PapyrusPrivateChatChannel> {
   const result = await requestJson<PapyrusPrivateChatChannel>("private-channel", { method: "POST" }, fetcher);
   if (!result.channel_id?.trim() || !Array.isArray(result.participants)) {
     throw new Error("Private chat returned an invalid channel.");
@@ -51,7 +54,7 @@ export async function openPapyrusPrivateChat(fetcher: PapyrusPrivateChatFetch = 
 /** Read only the private channel returned by the host's authenticated open request. */
 export async function listPapyrusPrivateChatMessages(
   channelId: string,
-  fetcher: PapyrusPrivateChatFetch = globalThis.fetch,
+  fetcher: PapyrusPrivateChatFetch = newsroomChatFetch,
 ): Promise<PapyrusPrivateChatMessage[]> {
   if (!channelId.trim()) throw new Error("A private chat channel is required.");
   const result = await requestJson<{ messages?: unknown }>(`channels/${encodeURIComponent(channelId)}/messages`, { method: "GET" }, fetcher);
@@ -64,7 +67,7 @@ export async function sendPapyrusPrivateChatMessage(
   channelId: string,
   body: string,
   idempotencyKey: string,
-  fetcher: PapyrusPrivateChatFetch = globalThis.fetch,
+  fetcher: PapyrusPrivateChatFetch = newsroomChatFetch,
 ): Promise<PapyrusPrivateChatSendResult> {
   if (!channelId.trim() || !body.trim() || !idempotencyKey.trim()) {
     throw new Error("A channel, message and idempotency key are required.");

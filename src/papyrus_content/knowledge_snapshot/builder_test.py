@@ -90,6 +90,15 @@ def test_percent_needs_a_base_of_five():
     assert percent_change(1, 8) == -88
 
 
+def test_the_index_carries_every_entitys_full_weekly_history_from_its_first_week():
+    data, *_ = two_tasks()
+    files = build_files(data, OPTIONS)
+    row = next(entity for entity in files[INDEX_FILE]["entities"] if entity["key"] == "task--voice-cloning")
+    assert row["seriesWeekly"] == [1, 1, 2, 2, 3, 3, 3, 3] and len(row["seriesWeekly"]) == row["weeksOfHistory"] == 8
+    assert row["seriesWeekly"][-8:] == row["series8"] and sum(row["seriesWeekly"]) == row["itemCount"]
+    assert row["seriesWeeklyStart"] < files[INDEX_FILE]["asOf"]
+
+
 def test_weekly_series_and_change_for_an_entity():
     data, voice, _completion, _maker = two_tasks()
     files = build_files(data, OPTIONS)
@@ -409,7 +418,7 @@ def test_public_safe_output_has_no_email_or_private_text():
 INDEX_FIELDS = {"schemaVersion", "asOf", "entityCount", "topicCount", "kinds", "beats", "entities", "trending", "conceptOfTheWeek"}
 KIND_FIELDS = {"key", "label", "count"}
 BEAT_FIELDS = {"key", "name", "href", "itemCount", "series8", "topEntities"}
-INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "change", "isNew"}
+INDEX_ENTITY_FIELDS = {"key", "kind", "name", "aliases", "href", "acceptedBy", "itemCount", "weeksOfHistory", "series8", "series26", "seriesWeekly", "seriesWeeklyStart", "change", "isNew"}
 CHANGE_FIELDS = {"last4", "prior4", "percent"}
 CONCEPT_FIELDS = {"key", "name", "href", "lede", "editedBy", "itemCount", "makerCount"}
 ACTOR_FIELDS = {"actor", "name", "on"}

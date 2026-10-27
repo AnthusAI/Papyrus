@@ -35,6 +35,8 @@ import {
   type ReaderMotionSetting,
 } from "./reader-settings";
 import { PapyrusConsoleConversation, type ConsoleConversationMessage } from "./papyrus-console-conversation";
+import { PapyrusConsoleFrame } from "./papyrus-console-frame";
+import { useConsoleVisibility } from "./use-console-visibility";
 import { PapyrusPrivateChatPanel } from "./papyrus-private-chat-panel";
 import { ModelSelector } from "./ai-elements/model-selector";
 import { Suggestion, Suggestions } from "./ai-elements/suggestion";
@@ -149,12 +151,12 @@ const PapyrusConsoleContext = createContext<PapyrusConsoleContextValue | null>(n
 export function PapyrusConsoleShell({ children, privateChatEnabled = false }: PapyrusConsoleShellProps) {
   const pathname = usePathname();
   const [session, setSession] = useState<ReaderSessionSnapshot | null>(null);
-  const [open, setOpen] = useState(false);
   const [openingReferenceChat, setOpeningReferenceChat] = useState(false);
   const internalPathname = browserPathToInternalNewsroomPath(pathname);
   const isNewsroomPath = internalPathname === "/newsroom" || internalPathname.startsWith("/newsroom/");
   const canUseConsole = Boolean(session?.hasSession && session.groups.some((group) => group === "editor" || group === "admin"));
   const shouldOfferConsole = isNewsroomPath && canUseConsole;
+  const { open, openConsole, closeConsole, toggleOpen } = useConsoleVisibility({ available: shouldOfferConsole });
 
   useEffect(() => {
     let active = true;
@@ -165,35 +167,9 @@ export function PapyrusConsoleShell({ children, privateChatEnabled = false }: Pa
       .catch(() => {
         if (active) setSession({ auth: { status: "signedOut", label: "Signed out" }, groups: [], hasSession: false });
       });
-    try {
-      setOpen(window.localStorage.getItem("papyrus:console-open") === "true");
-    } catch {
-      setOpen(false);
-    }
     return () => {
       active = false;
     };
-  }, []);
-
-  const toggleOpen = useCallback(() => {
-    setOpen((current) => {
-      const next = !current;
-      try {
-        window.localStorage.setItem("papyrus:console-open", String(next));
-      } catch {
-        // Ignore storage failures.
-      }
-      return next;
-    });
-  }, []);
-
-  const openConsole = useCallback(() => {
-    setOpen(true);
-    try {
-      window.localStorage.setItem("papyrus:console-open", "true");
-    } catch {
-      // Ignore storage failures.
-    }
   }, []);
 
   const startReferenceChat = useCallback(async (target: NewsroomKnowledgeQueryTarget) => {
@@ -358,20 +334,15 @@ export function PapyrusConsoleShell({ children, privateChatEnabled = false }: Pa
 
   return (
     <PapyrusConsoleContext.Provider value={consoleContext}>
-      <div className={canUseConsole && open ? "papyrus-console-page papyrus-console-page--open" : "papyrus-console-page"}>
-        {children}
-      </div>
-      {shouldOfferConsole ? (
-        <aside className={open ? "papyrus-console papyrus-console--open" : "papyrus-console"} aria-label="Papyrus console">
-          {open ? (
-            canUseConsole
-              ? privateChatEnabled
-                ? <PapyrusPrivateChatPanel onClose={toggleOpen} />
-                : <ConsolePanel actorEmail={session?.auth.status === "signedIn" ? (session.auth.email ?? null) : null} actorLabel={session?.auth.label ?? "Papyrus editor"} onClose={toggleOpen} />
-              : <ConsoleAccessPanel onClose={toggleOpen} session={session} />
-          ) : null}
-        </aside>
-      ) : null}
+      <PapyrusConsoleFrame available={shouldOfferConsole} open={open} reserveSpace={canUseConsole && open} onClose={closeConsole} page={children}>
+        {open ? (
+          canUseConsole
+            ? privateChatEnabled
+                ? <PapyrusPrivateChatPanel onClose={closeConsole} />
+                : <ConsolePanel actorEmail={session?.auth.status === "signedIn" ? (session.auth.email ?? null) : null} actorLabel={session?.auth.label ?? "Papyrus editor"} onClose={closeConsole} />
+            : <ConsoleAccessPanel onClose={closeConsole} session={session} />
+        ) : null}
+      </PapyrusConsoleFrame>
     </PapyrusConsoleContext.Provider>
   );
 }

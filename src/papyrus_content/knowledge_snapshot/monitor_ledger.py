@@ -25,16 +25,24 @@ LEDGER_SCHEMA = 1
 IMPORT_VERSION = 1
 
 
-def record_hash(record: MonitorRecord) -> str:
+def record_hash(record: MonitorRecord, matched: Iterable[str] | None = None) -> str:
     """A hash of everything the import reads of a record: its identity, its address, the entities of its structured fields (model, maker,
     licence, task) and its base models with their relation. Likes, downloads and dates are not in it: the import does not use them, so a
-    record whose counters moved is still unchanged (the snapshot reads them from the records file, not from what the import wrote)."""
+    record whose counters moved is still unchanged (the snapshot reads them from the records file, not from what the import wrote).
+    A routed record has no structured fields: what it reads is the lineage ids of the accepted entities its text names (``matched``), so a
+    new entity on the map re-imports the stories that name it. A record with no match hashes as it always did."""
     bases = [[str(base.get("modelId") or ""), str(base.get("relation") or "declared")] for base in record.details.get("baseModels") or []]
     payload = {
         "version": IMPORT_VERSION, "referenceId": record.reference_id, "lineageId": record.lineage_id, "url": record.url, "provenance": record.provenance,
         "entities": sorted([kind, name] for kind, name in record_entities(record)), "bases": sorted(bases),
     }
+    if matched:
+        payload["matched"] = sorted(matched)
     return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()[:24]
+
+
+def _lineages(matches: Mapping[str, list[dict]] | None, record: MonitorRecord) -> list[str]:
+    return [str(node["lineageId"]) for node in (matches or {}).get(record.reference_id, [])]
 
 
 class MonitorLedger:
@@ -63,23 +71,23 @@ class MonitorLedger:
         temporary.write_text(json.dumps({"schema": LEDGER_SCHEMA, "records": self.entries}, indent=1, sort_keys=True) + "\n", encoding="utf-8")
         temporary.replace(target)
 
-    def changed(self, records: Iterable[MonitorRecord], placed: Callable[[str], bool]) -> list[MonitorRecord]:
+    def changed(self, records: Iterable[MonitorRecord], placed: Callable[[str], bool], matches: Mapping[str, list[dict]] | None = None) -> list[MonitorRecord]:
         """The records to import: new ones, ones whose hash differs, and ones with a base model that has since reached the map.
         ``placed(model_id)`` says whether a model is on the map now (it has a record in this import or an accepted entity)."""
         todo = []
         for record in records:
             entry = self.entries.get(record.reference_id)
-            if entry is None or entry["hash"] != record_hash(record) or any(placed(base) for base in entry["unplacedBases"]):
+            if entry is None or entry["hash"] != record_hash(record, _lineages(matches, record)) or any(placed(base) for base in entry["unplacedBases"]):
                 todo.append(record)
         return todo
 
-    def after_import(self, records: Iterable[MonitorRecord], imported: Mapping[str, list[str]]) -> "MonitorLedger":
+    def after_import(self, records: Iterable[MonitorRecord], imported: Mapping[str, list[str]], matches: Mapping[str, list[dict]] | None = None) -> "MonitorLedger":
         """The ledger as it stands once ``imported`` (reference id to the base models left unplaced) was applied: entries for exactly the current
         ``records`` (a record that left the window leaves the ledger), the imported ones refreshed and the skipped ones as they were."""
         entries: dict[str, dict[str, Any]] = {}
         for record in records:
             if record.reference_id in imported:
-                entries[record.reference_id] = {"hash": record_hash(record), "unplacedBases": sorted(set(imported[record.reference_id]))}
+                entries[record.reference_id] = {"hash": record_hash(record, _lineages(matches, record)), "unplacedBases": sorted(set(imported[record.reference_id]))}
             elif record.reference_id in self.entries:
                 entries[record.reference_id] = self.entries[record.reference_id]
         return MonitorLedger(entries)
