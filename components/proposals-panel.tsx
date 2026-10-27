@@ -2,21 +2,20 @@
 
 import { generateClient } from "aws-amplify/data";
 import amplifyOutputs from "papyrus-amplify-outputs";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProposalsView } from "./proposals-view";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
 import {
-  EDIT_PROPOSAL,
   LIST_PROPOSALS,
-  TRANSITION_PROPOSAL,
+  filterProposals,
   proposalReceiptMessage,
   type ProposalFilter,
   type ProposalMove,
-  type ProposalReceipt,
   type ProposalRow,
 } from "../lib/proposals-admin";
+import { performProposalMove } from "../lib/proposals-client";
 
-type GraphResult = { data?: Record<string, { items?: ProposalRow[]; nextToken?: string | null } | ProposalReceipt | null>; errors?: { message?: string }[] };
+type GraphResult = { data?: Record<string, { items?: ProposalRow[]; nextToken?: string | null } | null>; errors?: { message?: string }[] };
 const MAXIMUM_PAGES = 20;
 
 async function loadProposals(): Promise<ProposalRow[]> {
@@ -34,24 +33,6 @@ async function loadProposals(): Promise<ProposalRow[]> {
   return rows;
 }
 
-async function run(query: string, field: string, variables: Record<string, string | undefined>): Promise<ProposalReceipt> {
-  const client = generateClient({ authMode: "userPool" });
-  const result = (await client.graphql({ query, variables })) as GraphResult;
-  if (result.errors?.length) return { status: "refused", message: result.errors[0]?.message ?? "The action failed." };
-  return (result.data?.[field] as ProposalReceipt | null) ?? { status: "refused", message: "The action did not answer." };
-}
-
-/** One button: a path of states is one `transitionProposal` call per state, stopping at the first refusal; pin and hold are `editProposal`. */
-async function perform(proposalId: string, move: ProposalMove, reason: string): Promise<ProposalReceipt> {
-  if (move.edit) return run(EDIT_PROPOSAL, "editProposal", { proposalId, action: move.edit });
-  let receipt: ProposalReceipt = { status: "refused", message: "Nothing to do." };
-  for (const state of move.path ?? []) {
-    receipt = await run(TRANSITION_PROPOSAL, "transitionProposal", { proposalId, state, ...(reason ? { reason } : {}) });
-    if (receipt.status !== "ok") break;
-  }
-  return receipt;
-}
-
 /** Core to every site: it does not depend on the reader-steering plugin. */
 export function ProposalsPanel() {
   const [rows, setRows] = useState<ProposalRow[]>([]);
@@ -59,6 +40,8 @@ export function ProposalsPanel() {
   const [status, setStatus] = useState("Loading...");
   const [busy, setBusy] = useState(false);
   const [reason, setReason] = useState("");
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const focused = useRef(false);
   const readers = useMemo(() => pluginSettings(amplifyOutputs as PluginOutputs, "reader-steering") !== null, []);
 
   const refresh = useCallback(async (quiet = false) => {
@@ -77,12 +60,25 @@ export function ProposalsPanel() {
     void refresh();
   }, [refresh]);
 
+  // Sent here by a link such as `?proposal=<id>`: show the view that holds it and scroll to it.
+  useEffect(() => {
+    setFocusId(new URLSearchParams(window.location.search).get("proposal"));
+  }, []);
+  useEffect(() => {
+    if (!focusId || focused.current) return;
+    const row = rows.find((candidate) => candidate.id === focusId);
+    if (!row) return;
+    focused.current = true;
+    setFilter(filterProposals([row], "open").length ? "open" : "decided");
+    window.requestAnimationFrame(() => document.getElementById(`proposal-${focusId}`)?.scrollIntoView({ block: "start" }));
+  }, [focusId, rows]);
+
   const onMove = useCallback(
     async (proposalId: string, move: ProposalMove) => {
       setBusy(true);
       setStatus("Working...");
       try {
-        const receipt = await perform(proposalId, move, reason.trim());
+        const receipt = await performProposalMove(proposalId, move, reason.trim());
         setStatus(proposalReceiptMessage(receipt));
         if (receipt.status === "ok") setReason("");
       } catch (error) {
@@ -105,6 +101,7 @@ export function ProposalsPanel() {
       onReason={setReason}
       onMove={(proposalId, move) => void onMove(proposalId, move)}
       onRefresh={() => void refresh()}
+      focusId={focusId}
     />
   );
 }

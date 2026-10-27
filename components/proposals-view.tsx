@@ -32,6 +32,8 @@ export type ProposalsViewProps = {
   onReason: (reason: string) => void;
   onMove: (proposalId: string, move: ProposalMove) => void;
   onRefresh: () => void;
+  /** A proposal the editor was sent to (from the Notification Center): its draft opens and it is marked. */
+  focusId?: string | null;
 };
 
 export function ProposalsView(props: ProposalsViewProps) {
@@ -62,7 +64,7 @@ export function ProposalsView(props: ProposalsViewProps) {
       ) : (
         <ul>
           {shown.map((row) => (
-            <li key={row.id} data-proposal-row={row.id}>
+            <li key={row.id} id={`proposal-${row.id}`} data-proposal-row={row.id} data-proposal-focused={props.focusId === row.id || undefined}>
               <article aria-label={row.title}>
                 <p>
                   <strong>{kindLabel(row.kind)}</strong>: {row.title} ({stateLabel(row.state, props.readers)}
@@ -70,7 +72,7 @@ export function ProposalsView(props: ProposalsViewProps) {
                 </p>
                 {row.summary ? <p>{row.summary}</p> : null}
                 {row.body ? (
-                  <details>
+                  <details open={props.focusId === row.id || undefined}>
                     <summary>Read the draft</summary>
                     <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{row.body}</pre>
                   </details>

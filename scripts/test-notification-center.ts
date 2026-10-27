@@ -30,15 +30,18 @@ async function main() {
   // Sections: hard gates, then soft reviews by deadline, then flags; answered and timed out are kept apart.
   const sections = sectionReviews(FIXTURE_REVIEW_REQUESTS);
   assert.deepEqual(sections.hardGates.map((r) => r.id), ["rr-hard-1"]);
-  assert.deepEqual(sections.softReviews.map((r) => r.id), ["rr-soft-1", "rr-soft-2"], "soonest deadline first");
+  assert.deepEqual(sections.draftBatches.map((r) => r.id), ["rr-soft-1", "rr-soft-2"], "AI draft reviews, soonest deadline first");
+  assert.deepEqual(sections.softReviews.map((r) => r.id), ["rr-soft-3"], "other soft reviews apart from the drafts");
   assert.deepEqual(sections.flags.map((r) => r.id), ["rr-flag-1"]);
   assert.deepEqual(sections.decided.map((r) => r.id), ["rr-done-2", "rr-done-1", "rr-late-1"]);
 
   // A soft review with no deadline stays open until handled: listed after the ones with deadlines, never due, and its text says so.
-  const openEnded = { ...FIXTURE_REVIEW_REQUESTS[1], id: "rr-soft-open", deadline: null, raisedAt: "2026-10-01T00:00:00Z" };
-  assert.deepEqual(sectionReviews([...FIXTURE_REVIEW_REQUESTS, openEnded]).softReviews.map((r) => r.id), ["rr-soft-1", "rr-soft-2", "rr-soft-open"]);
+  const openEnded = { ...FIXTURE_REVIEW_REQUESTS[7], id: "rr-soft-open", deadline: null, raisedAt: "2026-10-01T00:00:00Z" };
+  assert.deepEqual(sectionReviews([...FIXTURE_REVIEW_REQUESTS, openEnded]).softReviews.map((r) => r.id), ["rr-soft-3", "rr-soft-open"]);
   assert.equal(isDue(openEnded, new Date("2036-01-01T00:00:00Z")), false);
-  assert.match(nextText(openEnded), /^Stays open until someone handles it/);
+  assert.equal(nextText(openEnded), "No deadline. Stays open until someone answers it.");
+  const openEndedDrafts = { ...FIXTURE_REVIEW_REQUESTS[1], deadline: null };
+  assert.equal(nextText(openEndedDrafts), "No deadline. The drafts stay in Proposals until an editor decides them.");
 
   // Cyclotron: low-confidence pending items are held (least confident first); confident ones are the read-only stream.
   const references = [reference("a"), reference("b"), reference("c"), reference("d", "accepted"), reference("e")];
@@ -53,15 +56,18 @@ async function main() {
   assert.deepEqual(auto.map((entry) => entry.lineageId), ["e", "c"], "newest first");
   assert.equal(auto[1].reviewedByPerson, true);
 
-  // The summary says it in the three counts Ryan asked for.
+  // The summary says it in plain counts: what waits, how many AI drafts, the other reviews, what the system decided.
   const summary = summarize(sections, held, auto, 3);
-  assert.equal(summaryText(summary), "3 waiting for you · 2 proceeding soon · 2 recently decided by the system");
+  assert.equal(summaryText(summary), "3 waiting for you · 4 AI drafts to review · 1 other review open · 2 recently decided by the system");
 
-  // Only a hard gate says "Waiting for you"; a soft review says when it proceeds on its own; a flag waits for nothing.
+  // Only a hard gate says "Waiting for you"; a soft review says in plain words what its deadline does; a flag waits for nothing.
   assert.match(nextText(FIXTURE_REVIEW_REQUESTS[0]), /^Waiting for you/);
-  assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[1]), "Proceeds automatically on 2026-10-30 07:00 UTC unless you steer it.");
+  assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[1]), "Closes on 2026-10-30 07:00 UTC if nobody answers. The drafts stay in Proposals.");
+  assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[7]), "If nobody answers by 2026-10-31 07:00 UTC, this closes and copy-editor carries on without a review.");
+  for (const request of FIXTURE_REVIEW_REQUESTS) assert.ok(!/Proceeds automatically|unless you steer/.test(nextText(request)), request.id);
   assert.match(nextText(FIXTURE_REVIEW_REQUESTS[3]), /^Nothing is waiting on this/);
   assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[4]), "Proceeded without review on 2026-10-17 07:00 UTC.");
+  assert.equal(nextText({ ...FIXTURE_REVIEW_REQUESTS[1], state: "timed_out", updatedAt: "2026-10-30T07:00:00Z" }), "Closed with no answer on 2026-10-30 07:00 UTC. The drafts stay in Proposals.");
   for (const request of FIXTURE_REVIEW_REQUESTS.filter((r) => r.mode !== "hard_gate")) assert.ok(!/Waiting for you/.test(nextText(request)), request.id);
 
   // What became of steering: applied in a run, or not yet used.
@@ -93,6 +99,7 @@ async function main() {
   // Links to the item.
   assert.equal(subjectHref({ type: "story", id: "s 1" }), "/newsroom/articles/s%201");
   assert.equal(subjectHref({ type: "batch", id: "x" }), null);
+  assert.equal(subjectHref({ type: "proposal", id: "p 1" }), "/newsroom/administration/proposals?proposal=p%201", "a proposal opens in the Proposals panel");
 
   // The page: summary first, sections in order, controls where relevant, read and unread in words.
   const render = (overrides: Partial<Parameters<typeof NotificationCenterView>[0]> = {}) =>
@@ -108,21 +115,21 @@ async function main() {
   assert.match(unavailableHtml, /role="alert"/);
   assert.match(text(unavailableHtml), /current request state is unknown/);
   const page = text(html);
-  assert.ok(page.includes("3 waiting for you · 2 proceeding soon · 2 recently decided by the system"));
-  const order = ["Waiting for you: hard gates", "Proceeding soon: soft reviews", "Cyclotron items routed to a person", "Flags: for your information", "Answered, and what became of it", "Recently decided by the system (2)"]
+  assert.ok(page.includes("3 waiting for you · 4 AI drafts to review · 1 other review open · 2 recently decided by the system"));
+  const order = ["Waiting for you: hard gates", "AI drafts to review (2)", "Other reviews, soonest deadline first (1)", "Cyclotron items routed to a person", "Flags: for your information", "Answered, and what became of it", "Recently decided by the system (2)"]
     .map((heading) => page.indexOf(heading));
   assert.ok(order.every((position, index) => position >= 0 && (index === 0 || position > order[index - 1])), `sections in order: ${order}`);
-  assert.ok(page.indexOf("Look, or steer.") < page.indexOf("Waiting for you: hard gates"), "the ignore-safe sentence comes before the stream");
+  assert.ok(page.indexOf("Accept or Reject what you want to decide") < page.indexOf("Waiting for you: hard gates"), "the ignore-safe sentence comes before the stream");
   for (const expected of [
-    "■ Hard gate", "◐ Soft review", "⚑ Flag", "● New", "Read", "Approve", "Reject", "Steer with this note", "Not this kind of thing", "Acknowledge",
+    "Hard gate", "Soft review", "Flag", "New", "Read", "Accept", "Reject", "Not this kind of thing", "Acknowledge", "Why? (optional)",
     "Held for review: it stays pending until someone decides", "Open it in References to correct it", "Review it in References",
-    "You steered \"Fewer listicles\". Applied in run run-w43", "Proceeded without review on 2026-10-17 07:00 UTC.", "6 unread",
+    "You steered \"Fewer listicles\". Applied in run run-w43", "Proceeded without review on 2026-10-17 07:00 UTC.", "7 unread",
   ]) assert.ok(page.includes(expected), `page shows: ${expected}`);
   assert.equal((page.match(/Waiting for you\. Nothing continues/g) ?? []).length, 1, "one hard gate says Waiting for you");
   assert.match(html, /href="\/newsroom\/articles\/story-ruling-1"/, "the entry links to its item");
-  assert.match(html, /href="\/newsroom\/topics\?proposal=proposal-1"/, "batch members link to their proposals");
+  for (const retired of ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "proceeding soon", "Proceeds automatically", "unless you steer", "draft batches"]) assert.ok(!page.includes(retired), `the retired wording is gone: ${retired}`);
   assert.match(html, /<details data-notification-section="auto-decided">/, "the stream is collapsible");
-  assert.equal((html.match(/data-review-controls/g) ?? []).length, 4, "controls only on open requests");
+  assert.equal((html.match(/data-review-controls/g) ?? []).length, 3, "request controls only on open requests that are not draft reviews (drafts have their own while loaded)");
 
   // A story request shows the story's title, linked, with the id as the fallback.
   const titled = text(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }));
@@ -141,9 +148,9 @@ async function main() {
   const answeredFlag = (decision: "acknowledge" | "approve") => ({ ...flag, state: "answered" as const, answer: { decision, feedback: null, steer: null, by: "Ed Itor", at: "2026-10-22T11:00:00Z" } });
   assert.equal(nextText(answeredFlag("acknowledge")), "Acknowledged by Ed Itor on 2026-10-22 11:00 UTC.");
   assert.equal(nextText(answeredFlag("approve")), "Acknowledged by Ed Itor on 2026-10-22 11:00 UTC.");
-  assert.equal(nextText({ ...answeredFlag("approve"), mode: "hard_gate" }), "Approved by Ed Itor on 2026-10-22 11:00 UTC.");
+  assert.equal(nextText({ ...answeredFlag("approve"), mode: "hard_gate" }), "Accepted by Ed Itor on 2026-10-22 11:00 UTC.");
   const flagPage = text(render({ requests: [answeredFlag("acknowledge")] }));
-  assert.ok(flagPage.includes("Acknowledged by Ed Itor") && !flagPage.includes("Approved by"), "an answered flag says Acknowledged");
+  assert.ok(flagPage.includes("Acknowledged by Ed Itor") && !flagPage.includes("Approved by") && !flagPage.includes("Accepted by"), "an answered flag says Acknowledged");
   assert.match(renderToStaticMarkup(createElement(NotificationCenterView, { loadState: "ready", requests: [flag], readIds: new Set<string>(), held: [], autoDecided: [] })), /Acknowledge<\/button>/);
 
   // A card about a deleted story says so; a known story shows its title, an unknown one its id.
@@ -170,7 +177,7 @@ async function main() {
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
   assert.match(render({ loadState: "loading" }), /aria-label="Loading Notification Center"/);
   const empty = text(render({ requests: [], held: [], autoDecided: [] }));
-  assert.ok(empty.includes("0 waiting for you · 0 proceeding soon · 0 recently decided by the system"));
+  assert.ok(empty.includes("0 waiting for you · 0 AI drafts to review · 0 other reviews open · 0 recently decided by the system"));
   assert.ok(empty.includes("No hard gates. Nothing is blocked on you.") && empty.includes("Nothing unread"));
 
   console.log("notification center: ok");

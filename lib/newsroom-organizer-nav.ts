@@ -11,6 +11,7 @@ export const ORGANIZER_NAV_GROUPS: readonly { title: string; items: readonly Org
     { key: "overview", label: "Overview", description: "See notifications and work needing attention.", path: "/newsroom", primary: true },
     { key: "articles", label: getContentItemName().plural, description: `Follow ${contentItemPluralLowercase} across their stages and open one to write or revise it.`, path: `/newsroom/${contentItemBoardPathSegment()}`, alsoActiveOnPaths: ["/newsroom/articles"], primary: true },
     { key: "assignments", label: "Assignments", description: "Follow research and reporting work across its statuses and claim it.", path: "/newsroom/assignments" },
+    { key: "drafts", label: "Drafts", description: "Read the story drafts that AI proposes, then accept or reject them.", path: "/newsroom/administration/proposals" },
     { key: "messages", label: "Messages", description: "Read and reply to newsroom conversations.", path: "/newsroom/messages", primary: true },
   ] },
   { title: "Research & knowledge", items: [
