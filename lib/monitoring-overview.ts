@@ -144,6 +144,17 @@ export type MonitoringFeed = {
   nextDueAt: string | null;
 };
 
+/** The lists on the page that are paged. Page sizes are the server's; there is no total. */
+export type MonitoringListName = "runs" | "routerRuns" | "items" | "emailSubmissions";
+export type MonitoringCursors = Partial<Record<MonitoringListName, string | null>>;
+export type MonitoringListRows = {
+  runs: MonitoringRun; routerRuns: MonitoringRouterRun; items: MonitoringItem; emailSubmissions: MonitoringEmailSummary;
+};
+/** One more page of one list. `cursor` is null when the list has ended. */
+export type MonitoringPage<L extends MonitoringListName = MonitoringListName> =
+  | { list: L; rows: MonitoringListRows[L][]; cursor: string | null; hiddenNotRelevant?: number }
+  | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
+
 export type MonitoringOverview = {
   state: "ready" | "empty";
   asOf: string;
@@ -164,6 +175,8 @@ export type MonitoringOverview = {
   otherMonitors?: string[];
   emailSubmissions?: MonitoringEmailSummary[];
   hiddenNotRelevant: number;
+  /** Where each list continues; null or missing when it has no more rows. */
+  cursors?: MonitoringCursors;
 };
 
 export type MonitoringResult =

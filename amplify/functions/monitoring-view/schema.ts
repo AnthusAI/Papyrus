@@ -16,6 +16,14 @@ export const monitoringViewSchemaDefinitions = {
     .returns(a.json())
     .authorization((allow) => [allow.groups(editors)])
     .handler(functionHandler("monitoringView", monitoringView)),
+  // One more page of one Monitoring list (runs, routerRuns, items, emailSubmissions), after a cursor from
+  // the overview or a previous page. filter "held" lists only held email submissions, restarting from the newest.
+  monitoringPage: a
+    .query()
+    .arguments({ list: a.string().required(), cursor: a.string(), filter: a.string(), scope: a.string() })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(editors)])
+    .handler(functionHandler("monitoringView", monitoringView)),
   monitoringEmailSubmission: a
     .query()
     .arguments({ receiptId: a.string().required() })

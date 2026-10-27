@@ -53,3 +53,25 @@ Feature: The Monitoring page shows the automated research pipeline to editors
     And the item "Decision on a mark" is waiting for the router
     And no item of the monitors "hn" and "huggingface" is returned
     And the monitors "hn" and "huggingface" are named as not routed to this site
+
+  Scenario: Every email receipt is reachable by paging, newest first
+    Given a monitoring table with 45 email receipts for "anth-us"
+    When an editor of "anth-us" opens the monitoring overview
+    Then the first page lists 20 email receipts, newest first, and offers more
+    When the editor loads more email receipts until the list ends
+    Then all 45 email receipts have been listed exactly once
+
+  Scenario: An old held email is always findable with the Held for review filter
+    Given a monitoring table with 70 email receipts for "anth-us" where the oldest is held for review
+    When an editor of "anth-us" opens the monitoring overview
+    Then the oldest receipt is not on the first page
+    When the editor filters to "Held for review"
+    Then the oldest receipt is listed as held for review
+    And the held filter lists nothing that was not held
+
+  Scenario: The collector and router lists keep paging past their page size
+    Given a monitoring table with 40 more collector runs and 40 more router runs
+    When an editor of "anth-us" opens the monitoring overview
+    Then the first page of runs offers more
+    When the editor loads more runs until the list ends
+    Then every collector run has been listed exactly once

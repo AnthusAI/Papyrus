@@ -7,10 +7,18 @@ import {
   importMonitoringEmailCandidates,
   loadMonitoringEmailSubmission,
   loadMonitoringOverview,
+  loadMonitoringPage,
   resolveMonitoringEmailArticleLink,
 } from "../lib/monitoring-client";
 import { FIXTURE_ALL_PIPELINE_OVERVIEW, FIXTURE_MONITORING_OVERVIEW } from "../lib/monitoring-overview-fixture";
-import type { EmailReferenceImportItem, MonitoringEmailDetails, MonitoringResult } from "../lib/monitoring-overview";
+import { withLoadedPages } from "../lib/monitoring-paging";
+import type {
+  EmailReferenceImportItem,
+  MonitoringEmailDetails,
+  MonitoringListName,
+  MonitoringResult,
+} from "../lib/monitoring-overview";
+import type { MonitoringLoadedPages } from "../lib/monitoring-paging";
 import { EmailSubmissions, MonitoringOverviewView, type MonitoringMode } from "./monitoring-overview-view";
 
 const REFRESH_MILLISECONDS = 60_000;
@@ -50,6 +58,18 @@ function MonitoringOverviewPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo
   const [mode, setMode] = useState<MonitoringMode>("publication");
   const [result, setResult] = useState<MonitoringResult | null>(null);
   const [emailDetail, setEmailDetail] = useState<MonitoringEmailDetails | null>(null);
+  // Pages the editor loaded beyond the newest page of each list. The 60 second refresh re-reads only the newest
+  // page, so what was loaded stays on screen.
+  const [loaded, setLoaded] = useState<MonitoringLoadedPages>({});
+  const [heldOnly, setHeldOnly] = useState(false);
+  const [held, setHeld] = useState<MonitoringLoadedPages["emailSubmissions"] | null>(null);
+  const [loadingList, setLoadingList] = useState<MonitoringListName | null>(null);
+
+  useEffect(() => {
+    setLoaded({});
+    setHeldOnly(false);
+    setHeld(null);
+  }, [mode]);
 
   useEffect(() => {
     if (isDemo) {
@@ -80,13 +100,51 @@ function MonitoringOverviewPanel({ isAdmin, isDemo }: { isAdmin: boolean; isDemo
     setEmailDetail(next);
   };
 
+  // Appends the next page of a list, or (held filter) the next page of held messages.
+  const loadMore = async (list: MonitoringListName) => {
+    if (isDemo || !result || !("scope" in result) || loadingList) return;
+    const current = withLoadedPages(result as never, loaded, heldOnly ? held : null);
+    const cursor = current.cursors?.[list];
+    if (!cursor) return;
+    setLoadingList(list);
+    try {
+      const page = await loadMonitoringPage(list, cursor, mode, heldOnly && list === "emailSubmissions");
+      if (!("rows" in page)) return;
+      if (heldOnly && list === "emailSubmissions") {
+        setHeld((existing) => ({ rows: [...(existing?.rows ?? []), ...page.rows] as never, cursor: page.cursor }));
+      } else {
+        setLoaded((existing) => ({ ...existing, [list]: { rows: [...(existing[list]?.rows ?? []), ...page.rows], cursor: page.cursor } }) as MonitoringLoadedPages);
+      }
+    } finally {
+      setLoadingList(null);
+    }
+  };
+
+  // Held for review restarts the email list at its newest held message, however old.
+  const changeHeldOnly = async (next: boolean) => {
+    setHeldOnly(next);
+    setHeld(null);
+    if (!next || isDemo) return;
+    setLoadingList("emailSubmissions");
+    try {
+      const page = await loadMonitoringPage("emailSubmissions", null, mode, true);
+      if ("rows" in page) setHeld({ rows: page.rows as never, cursor: page.cursor });
+      else setHeldOnly(false);
+    } finally {
+      setLoadingList(null);
+    }
+  };
+
+  const shown = result && "scope" in result ? withLoadedPages(result as never, loaded, heldOnly ? held ?? { rows: [], cursor: null } : null) : result;
+
   const resolveEmailArticleLink = (receiptId: string, candidateIndex: number) =>
     resolveMonitoringEmailArticleLink(receiptId, candidateIndex);
 
   const importEmailCandidates = (receiptId: string, candidates: EmailReferenceImportItem[]) =>
     importMonitoringEmailCandidates(receiptId, candidates);
 
-  return <MonitoringOverviewView result={result} canViewAll={isAdmin} mode={mode} onModeChange={setMode} demo={isDemo}
+  return <MonitoringOverviewView result={shown} canViewAll={isAdmin} mode={mode} onModeChange={setMode} demo={isDemo}
     emailDetail={emailDetail} onEmailOpen={isDemo ? () => {} : openEmail} onResolveArticleLink={isDemo ? undefined : resolveEmailArticleLink}
-    onImportCandidates={importEmailCandidates} onDecide={isDemo ? undefined : decideMonitoringEmailSubmission} />;
+    onImportCandidates={importEmailCandidates} onDecide={isDemo ? undefined : decideMonitoringEmailSubmission}
+    paging={isDemo ? undefined : { onLoadMore: (list) => void loadMore(list), loadingList, heldOnly, onHeldOnlyChange: (next) => void changeHeldOnly(next) }} />;
 }

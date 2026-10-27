@@ -9,6 +9,8 @@ import {
   endEmailSubmissionAction,
   isCurrentEmailSubmissionAction,
 } from "../lib/monitoring-overview";
+import { mergeListPages, withLoadedPages } from "../lib/monitoring-paging";
+import type { MonitoringEmailSummary } from "../lib/monitoring-overview";
 import type { MonitoringResult } from "../lib/monitoring-overview";
 
 function text(html: string): string {
@@ -203,6 +205,42 @@ async function main() {
   assert.ok(text(othersHtml).includes("Not routed to this site (2)"));
   assert.ok(othersHtml.includes('data-monitoring-other-monitor="hn"') && othersHtml.includes("<details") && !othersHtml.includes("<details open"));
   assert.ok(!text(render(FIXTURE_MONITORING_OVERVIEW)).includes("Not routed to this site"));
+
+  // Paging: the newest page shows "Load more" only while a list has a cursor; there is no total.
+  const email = (n: number, held = false): MonitoringEmailSummary => ({
+    receiptId: `EMAIL#${n}`, observedAt: `2026-10-20T00:${String(n % 60).padStart(2, "0")}:00Z`, status: held ? "pending_review" : "queued",
+    subject: `Mail ${n}`, envelopeSender: null, headerFrom: null, warnings: [], verdicts: {}, linkCount: 1, processedCount: 0,
+    unresolvedLinkCount: 0, reviewRequired: held, errorCode: null,
+    quarantine: held ? { state: "quarantined", decision: null, failure: null } : null,
+  });
+  const base = { ...FIXTURE_MONITORING_OVERVIEW, emailSubmissions: Array.from({ length: 20 }, (_, i) => email(44 - i)),
+    cursors: { emailSubmissions: "next-email", runs: null, items: null, routerRuns: null } };
+  const withMore = render(base, { paging: { onLoadMore: () => {}, loadingList: null, onHeldOnlyChange: () => {} } });
+  assert.ok(withMore.includes('data-monitoring-load-more="emailSubmissions"'), "a list with a cursor offers Load more");
+  assert.ok(!withMore.includes('data-monitoring-load-more="runs"') && !withMore.includes('data-monitoring-load-more="items"'),
+    "a list that has ended offers no Load more");
+  assert.ok(text(withMore).includes("Held for review") && text(withMore).includes("Load more"));
+  assert.ok(!render({ ...base, cursors: {} }, { paging: { onLoadMore: () => {} } }).includes("data-monitoring-load-more"),
+    "no cursor, no button");
+  assert.ok(!render(base).includes("data-monitoring-load-more"), "the demo has no paging");
+  assert.ok(render(base, { paging: { onLoadMore: () => {}, loadingList: "emailSubmissions" } }).includes("disabled"), "the button waits while loading");
+  const heldEmpty = text(render({ ...base, emailSubmissions: [], cursors: {} }, { paging: { heldOnly: true, onHeldOnlyChange: () => {} } }));
+  assert.ok(heldEmpty.includes("No email submissions are held for review."));
+  const heldFilterHtml = render(base, { paging: { heldOnly: true, onHeldOnlyChange: () => {} } });
+  assert.ok(/data-email-filter="held"[^>]*>/.test(heldFilterHtml) && /aria-pressed="true"[^>]*data-email-filter="held"/.test(heldFilterHtml), "Held for review shows as pressed");
+
+  // Loaded pages follow the refreshed newest page without duplicating a row that moved between them.
+  const merged = mergeListPages("emailSubmissions", [email(46), email(45), email(44)], [email(45), email(44), email(43)]);
+  assert.deepEqual(merged.map((row) => row.subject), ["Mail 46", "Mail 45", "Mail 44", "Mail 43"]);
+  const item = (revision: number) => ({ ...FIXTURE_MONITORING_OVERVIEW.items[0], monitorId: "hn", sourceId: "7", revision });
+  assert.deepEqual(mergeListPages("items", [item(1)], [item(2)]).map((row) => row.revision), [2], "the highest revision of an item wins");
+  const shown = withLoadedPages(base, { emailSubmissions: { rows: [email(24), email(23)], cursor: null } }, null);
+  assert.equal(shown.emailSubmissions!.length, 22);
+  assert.equal(shown.cursors!.emailSubmissions, null, "the last loaded page ends the list");
+  assert.equal(shown.cursors!.runs, null);
+  const heldOnly = withLoadedPages(base, {}, { rows: [email(3, true)], cursor: "older-held" });
+  assert.deepEqual(heldOnly.emailSubmissions!.map((row) => row.subject), ["Mail 3"], "the held filter replaces the email list");
+  assert.equal(heldOnly.cursors!.emailSubmissions, "older-held");
 
   console.log("monitoring page: ok");
 }

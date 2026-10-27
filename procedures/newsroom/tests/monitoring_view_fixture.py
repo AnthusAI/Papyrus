@@ -75,11 +75,30 @@ def rows():
     return deepcopy(table)
 
 
+def receipt_rows(count, *, held=(), destination=("anth-us",)):
+    """`count` email receipts, receipt 0 the oldest; the receipts numbered in `held` are held for review."""
+    table = []
+    for n in range(count):
+        digest = f"{n:064x}"
+        observed = f"2026-10-20T{n // 60:02d}:{n % 60:02d}:00Z"
+        status = "pending_review" if n in held else "queued"
+        table += [
+            {"pk": PK, "sk": f"EMAILINDEX#{observed}#{digest}", "receiptId": f"EMAIL#{digest}",
+             "destinationPublicationIds": list(destination)},
+            {"pk": PK, "sk": f"EMAIL#{digest}", "status": status, "emailTrustMode": "data-only",
+             "emailDestinationPublicationIds": list(destination), "observedAt": observed, "subject": f"Mail {n}",
+             "linkCount": 1, "processedCount": 0 if n in held else 1,
+             **({"reviewRequired": True} if n in held else {})},
+        ]
+    return table
+
+
 class FakeViewStore:
     """The read interface monitoring_view needs; refuses nothing because it can write nothing."""
 
     def __init__(self, table=None):
         self.table = {r["sk"]: r for r in (rows() if table is None else table)}
+        self.pk = next((r["pk"] for r in self.table.values()), PK)
 
     def get(self, sk):
         return deepcopy(self.table.get(sk))
@@ -87,6 +106,15 @@ class FakeViewStore:
     def newest(self, prefix, limit):
         found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"], reverse=True)
         return deepcopy(found[:limit])
+
+    def page(self, prefix, limit, start=None):
+        """Newest first, like the real store: the rows and the key to continue after them (None at the end)."""
+        found = sorted((r for sk, r in self.table.items() if sk.startswith(prefix)), key=lambda r: r["sk"], reverse=True)
+        if start:
+            assert start["pk"] == self.pk, "cursor is for another partition"
+            found = [r for r in found if r["sk"] < start["sk"]]
+        rows = deepcopy(found[:limit])
+        return rows, ({"pk": rows[-1]["pk"], "sk": rows[-1]["sk"]} if len(found) > limit else None)
 
     def email_details(self, receipt_digest):
         prefix = f"EMAILDETAIL#{receipt_digest}#"

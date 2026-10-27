@@ -16,6 +16,7 @@ Imports stay light: stdlib, with boto3 (provided by the Lambda runtime) only ins
 """
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime, timezone
 from decimal import Decimal
 import http.client
@@ -36,12 +37,15 @@ MONITOR_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 EDITOR_GROUPS = STAFF_GROUPS
 SCOPES = ("publication", "all")
 TABLE_PARAMETER = "/papyrus/monitoring/table-name"
-MAX_ITEMS = 60
-MAX_RUNS = 15
-MAX_ROUTER_RUNS = 10
+# Page sizes, not totals: every list is paged with a cursor ("Load more"), so nothing scrolls out of reach.
+ITEM_PAGE_SIZE = 60
+RUN_PAGE_SIZE = 15
+ROUTER_RUN_PAGE_SIZE = 10
+EMAIL_PAGE_SIZE = 20
 MAX_ERROR_TEXT = 160
 MAX_DECISION_PAGES = 20
-MAX_EMAIL_SUBMISSIONS = 20
+LISTS = {"runs": "RUN#", "routerRuns": "ROUTERUN#", "items": "DISC#", "emailSubmissions": "EMAILINDEX#"}
+HELD_STATES = {"quarantined", "decision_failed"}
 VIEWABLE_EMAIL_STATUSES = {"queued", "processing", "failed", "pending_review", "discarded"}
 
 
@@ -74,9 +78,20 @@ class TableViewStore:
             KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
             ExpressionAttributeValues={":pk": self.pk, ":prefix": prefix}, **extra)
 
-    def newest(self, prefix: str, limit: int) -> list[dict]:
-        result = self._query(prefix, ScanIndexForward=False, Limit=limit)
-        return [_clean(item) for item in result.get("Items", [])]
+    def page(self, prefix: str, limit: int, start: dict | None = None) -> tuple[list[dict], dict | None]:
+        """Newest-first rows under a prefix and the key to continue after them, or None at the end.
+
+        One extra row is read so the continuation key exists only when more rows really follow.
+        """
+        extra = {"ScanIndexForward": False, "Limit": limit + 1}
+        if start:
+            if start.get("pk") != self.pk:
+                raise ValueError("cursor is for another partition")
+            extra["ExclusiveStartKey"] = start
+        rows = [_clean(item) for item in self._query(prefix, **extra).get("Items", [])]
+        if len(rows) <= limit:
+            return rows, None
+        return rows[:limit], {"pk": rows[limit - 1]["pk"], "sk": rows[limit - 1]["sk"]}
 
     def decision_times(self) -> tuple[list[str], bool]:
         """Inspected decision timestamps and whether the bounded history query was exhaustive."""
@@ -251,8 +266,116 @@ def _latest_revisions(rows: list[dict]) -> list[dict]:
     return sorted(latest.values(), key=lambda r: str(r.get("observedAt")), reverse=True)
 
 
+def _key(row: dict) -> dict:
+    return {"pk": row["pk"], "sk": row["sk"]}
+
+
+def _valid_start(start, list_name: str):
+    """A continuation key is two strings in the list's own key range; anything else is a bad request."""
+    if start is None:
+        return None
+    if (not isinstance(start, dict) or set(start) != {"pk", "sk"} or not all(isinstance(v, str) for v in start.values())
+            or not start["sk"].startswith(LISTS[list_name])):
+        raise ValueError("bad cursor")
+    return start
+
+
+def encode_cursor(starts: dict) -> str | None:
+    """One opaque cursor for a list across monitors: only monitors with more rows remain in it."""
+    starts = {monitor: key for monitor, key in starts.items() if key}
+    if not starts:
+        return None
+    return base64.urlsafe_b64encode(json.dumps(starts, separators=(",", ":"), sort_keys=True).encode()).decode()
+
+
+def decode_cursor(cursor) -> dict:
+    if cursor in (None, ""):
+        return {}
+    try:
+        starts = json.loads(base64.urlsafe_b64decode(str(cursor).encode()))
+    except (ValueError, TypeError):
+        raise ValueError("bad cursor") from None
+    if not isinstance(starts, dict):
+        raise ValueError("bad cursor")
+    return starts
+
+
+class _Routing:
+    """What one monitor's router config says about the viewing site: used by every list."""
+
+    def __init__(self, store, email_store, *, site_endpoint, scope):
+        self.config, self.state = store.get("CONFIG"), store.get("STATE")
+        self.router = store.get("CONFIG#router")
+        configured = (self.router or {}).get("publications") or []
+        self.own = next((p for p in configured if p.get("appsyncEndpoint") == site_endpoint), None) if site_endpoint else None
+        self.selected = configured if scope == "all" else ([self.own] if self.own else [])
+        email_router = email_store.get("CONFIG#router")
+        if email_router is None and email_store is store:
+            email_router = self.router
+        self.email_allowed = {
+            p["publicationId"] for p in (email_router or {}).get("publications") or []
+            if p.get("appsyncEndpoint") == site_endpoint
+        } if site_endpoint else set()
+
+
+def _email_rows(email_store, allowed: set, start, *, held_only: bool, now: float) -> tuple[list[dict], dict | None]:
+    """A page of email receipts for this site, newest first, and where to continue.
+
+    Index rows for receipts that are not this site's are skipped without counting. With ``held_only`` the page is filled
+    with held messages only, reading as far back as it takes, so an old held message is always reachable.
+    """
+    out, position = [], start
+    while allowed:
+        rows, following = email_store.page("EMAILINDEX#", EMAIL_PAGE_SIZE, position)
+        for offset, index in enumerate(rows):
+            if not allowed.intersection(index.get("destinationPublicationIds") or []):
+                continue
+            receipt = email_store.get(index.get("receiptId", ""))
+            if (not receipt or receipt.get("emailTrustMode") != "data-only"
+                    or not allowed.intersection(receipt.get("emailDestinationPublicationIds") or [])):
+                continue
+            summary = _email_summary(receipt, _held_action(email_store, receipt), now=now)
+            if held_only and (summary["quarantine"] or {}).get("state") not in HELD_STATES:
+                continue
+            out.append(summary)
+            if len(out) >= EMAIL_PAGE_SIZE:
+                return out, (_key(index) if offset + 1 < len(rows) or following else None)
+        if not following:
+            return out, None
+        position = following
+    return out, None
+
+
+def _list_rows(store, email_store, routing: _Routing, name: str, start, *, monitor_id: str, scope: str,
+               held_only: bool = False, now: float) -> tuple[list[dict], dict | None, int]:
+    """One page of one list for one monitor: rows, the continuation key, and items hidden as not relevant."""
+    start = _valid_start(start, name)
+    if name == "emailSubmissions":
+        rows, following = _email_rows(email_store, routing.email_allowed, start, held_only=held_only, now=now)
+        return rows, following, 0
+    if name == "runs":
+        rows, following = store.page("RUN#", RUN_PAGE_SIZE, start)
+        return [_run(r, monitor_id) for r in rows], following, 0
+    if name == "routerRuns":
+        rows, following = store.page("ROUTERUN#", ROUTER_RUN_PAGE_SIZE, start)
+        return [_router_run(r, monitor_id) for r in rows], following, 0
+    rows, following = store.page("DISC#", ITEM_PAGE_SIZE, start)
+    items, hidden = [], 0
+    for disc in _latest_revisions(rows):
+        route = store.get(f"ROUTE#{disc.get('sourceId')}#{int(disc.get('revision') or 0):06d}")
+        item = _item(disc, route, routing.selected, monitor_id)
+        if scope == "publication" and routing.own and item["relevance"] and item["relevance"][0]["relevant"] is False:
+            hidden += 1
+            continue
+        items.append(item)
+    return items, following, hidden
+
+
 def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id: str = MONITOR_ID, email_store=None) -> dict:
-    """One monitor's overview. `monitoring_site_overview` combines the monitors routed to a site."""
+    """One monitor's overview, the newest page of each list. `monitoring_site_overview` combines the monitors routed to a site.
+
+    ``cursors`` holds, per list, the key to continue after this page (None when the list ends here).
+    """
     groups = set(groups or [])
     if not groups & EDITOR_GROUPS:
         raise Forbidden("monitoring is for editors and admins")
@@ -262,59 +385,40 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id:
     if scope == "all" and not is_admin:
         raise Forbidden("the whole pipeline is for admins")
 
-    config, state = store.get("CONFIG"), store.get("STATE")
-    router = store.get("CONFIG#router")
-    discoveries = _latest_revisions(store.newest("DISC#", MAX_ITEMS))
-    runs = [_run(r, monitor_id) for r in store.newest("RUN#", MAX_RUNS)]
-    router_runs = [_router_run(r, monitor_id) for r in store.newest("ROUTERUN#", MAX_ROUTER_RUNS)]
+    email_store = store if email_store is None else email_store
+    routing = _Routing(store, email_store, site_endpoint=site_endpoint, scope=scope)
+    pages, cursors, hidden = {}, {}, 0
+    for name in LISTS:
+        pages[name], cursors[name], more_hidden = _list_rows(
+            store, email_store, routing, name, None, monitor_id=monitor_id, scope=scope, now=now)
+        hidden += more_hidden
     base = {"asOf": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-    if not (config or router or discoveries or runs):
+    if not (routing.config or routing.router or pages["items"] or pages["runs"] or hidden):
         return {**base, "state": "empty", "scope": {"mode": scope, "publicationId": None, "site": None, "canViewAll": is_admin},
                 "feeds": [], "runs": [], "routerRuns": [], "router": None, "usage": None, "items": [],
-                "emailSubmissions": [], "hiddenNotRelevant": 0}
+                "emailSubmissions": [], "hiddenNotRelevant": 0, "cursors": {}}
 
-    configured = (router or {}).get("publications") or []
-    own = next((p for p in configured if p.get("appsyncEndpoint") == site_endpoint), None) if site_endpoint else None
-    selected = configured if scope == "all" else ([own] if own else [])
-    email_store = store if email_store is None else email_store
-    email_router = email_store.get("CONFIG#router")
-    if email_router is None and email_store is store:
-        email_router = router
-    email_configured = (email_router or {}).get("publications") or []
-    email_allowed = {
-        p["publicationId"] for p in email_configured
-        if p.get("appsyncEndpoint") == site_endpoint
-    } if site_endpoint else set()
-    submissions = []
-    for index in email_store.newest("EMAILINDEX#", MAX_EMAIL_SUBMISSIONS) if email_allowed else []:
-        if not email_allowed.intersection(index.get("destinationPublicationIds") or []):
-            continue
-        receipt = email_store.get(index.get("receiptId", ""))
-        if (not receipt or receipt.get("emailTrustMode") != "data-only"
-                or not email_allowed.intersection(receipt.get("emailDestinationPublicationIds") or [])):
-            continue
-        submissions.append(_email_summary(receipt, _held_action(email_store, receipt), now=now))
+    router, own = routing.router, routing.own
     result_scope = {"mode": scope, "publicationId": (own or {}).get("publicationId"), "site": (own or {}).get("site"), "canViewAll": is_admin}
-
-    routes = {(r.get("sourceId"), r.get("revision")): r for r in store.newest("ROUTE#", MAX_ITEMS * 2)}
-    items, hidden = [], 0
-    for disc in discoveries:
-        item = _item(disc, routes.get((disc.get("sourceId"), disc.get("revision"))), selected, monitor_id)
-        if scope == "publication" and own and item["relevance"] and item["relevance"][0]["relevant"] is False:
-            hidden += 1
-            continue
-        items.append(item)
-
     times, history_complete = store.decision_times()
     today = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
     usage = {"day": today, "decisionsToday": sum(1 for t in times if str(t).startswith(today)),
              "decisionsTotal": len(times), "historyComplete": history_complete}
-    out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(config, state, monitor_id), "runs": runs, "routerRuns": router_runs,
+    out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(routing.config, routing.state, monitor_id),
+           "runs": pages["runs"], "routerRuns": pages["routerRuns"],
            "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False} if router else None),
-           "usage": usage, "items": items, "emailSubmissions": submissions, "hiddenNotRelevant": hidden}
+           "usage": usage, "items": pages["items"], "emailSubmissions": pages["emailSubmissions"], "hiddenNotRelevant": hidden,
+           "cursors": cursors}
     if scope == "publication" and not own:
         out["notice"] = "publication_not_routed"
     return out
+
+
+SORT_KEYS = {"runs": "startedAt", "routerRuns": "startedAt", "items": "observedAt", "emailSubmissions": "observedAt"}
+
+
+def _newest(rows, key):
+    return sorted(rows, key=lambda r: str(r.get(key)), reverse=True)
 
 
 def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now) -> dict:
@@ -322,7 +426,8 @@ def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now)
 
     `stores` maps monitor id to its store. In publication scope a monitor that does not route to
     this site contributes nothing but its id, listed under `otherMonitors` (no items, runs or
-    counts). An admin's whole-pipeline scope combines every monitor.
+    counts). An admin's whole-pipeline scope combines every monitor. Each list is the newest page
+    from every monitor, with one cursor per list for `monitoring_list_page`.
     """
     parts, others = [], []
     for monitor_id, store in stores.items():
@@ -332,38 +437,68 @@ def monitoring_site_overview(stores: dict, *, groups, site_endpoint, scope, now)
         if scope == "publication" and part.get("notice") == "publication_not_routed":
             others.append(monitor_id)
             continue
-        parts.append(part)
+        parts.append((monitor_id, part))
     base = {"asOf": datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     is_admin = "admin" in set(groups or [])
     if not parts:
         out = {**base, "state": "ready" if others else "empty",
                "scope": {"mode": scope, "publicationId": None, "site": None, "canViewAll": is_admin},
                "feeds": [], "runs": [], "routerRuns": [], "router": None, "usage": None, "items": [],
-               "emailSubmissions": [], "hiddenNotRelevant": 0, "otherMonitors": others}
+               "emailSubmissions": [], "hiddenNotRelevant": 0, "otherMonitors": others, "cursors": {}}
         if others:
             out["notice"] = "publication_not_routed"
         return out
 
-    def newest(rows, key):
-        return sorted(rows, key=lambda r: str(r.get(key)), reverse=True)
-
     usage = None
-    for part in parts:
+    for _, part in parts:
         if part["usage"]:
             usage = usage or {"day": part["usage"]["day"], "decisionsToday": 0, "decisionsTotal": 0, "historyComplete": True}
             usage["decisionsToday"] += part["usage"]["decisionsToday"]
             usage["decisionsTotal"] += part["usage"]["decisionsTotal"]
             usage["historyComplete"] = usage["historyComplete"] and part["usage"]["historyComplete"]
-    return {**base, "state": "ready", "scope": parts[0]["scope"],
-            "feeds": [f for part in parts for f in part["feeds"]],
-            "runs": newest([r for part in parts for r in part["runs"]], "startedAt")[:MAX_RUNS],
-            "routerRuns": newest([r for part in parts for r in part["routerRuns"]], "startedAt")[:MAX_ROUTER_RUNS],
-            "router": next((part["router"] for part in parts if part["router"]), None),
+    combined = {name: _newest([r for _, part in parts for r in part[name]], SORT_KEYS[name]) for name in LISTS}
+    return {**base, "state": "ready", "scope": parts[0][1]["scope"],
+            "feeds": [f for _, part in parts for f in part["feeds"]],
+            **combined,
+            "router": next((part["router"] for _, part in parts if part["router"]), None),
             "usage": usage,
-            "items": newest([i for part in parts for i in part["items"]], "observedAt")[:MAX_ITEMS],
-            "emailSubmissions": [e for part in parts for e in part["emailSubmissions"]][:MAX_EMAIL_SUBMISSIONS],
-            "hiddenNotRelevant": sum(part["hiddenNotRelevant"] for part in parts),
+            "hiddenNotRelevant": sum(part["hiddenNotRelevant"] for _, part in parts),
+            "cursors": {name: encode_cursor({monitor_id: part["cursors"].get(name) for monitor_id, part in parts}) for name in LISTS},
             "otherMonitors": others}
+
+
+def monitoring_list_page(stores: dict, *, list_name, cursor, groups, site_endpoint, scope, now, held_only=False) -> dict:
+    """The next page of one list, across the monitors the cursor still has rows in.
+
+    ``cursor=None`` starts the list from its newest row (used by the Held-for-review filter, which restarts the email
+    list with only held messages). Returns ``rows``, the same row shape as the overview, and a ``cursor`` that is None
+    when the list is exhausted.
+    """
+    if not set(groups or []) & EDITOR_GROUPS:
+        raise Forbidden("monitoring is for editors and admins")
+    if list_name not in LISTS or scope not in SCOPES or (held_only and list_name != "emailSubmissions"):
+        raise ValueError("bad request")
+    if scope == "all" and "admin" not in set(groups or []):
+        raise Forbidden("the whole pipeline is for admins")
+    starts = decode_cursor(cursor)
+    if cursor in (None, ""):
+        wanted = dict.fromkeys(stores)
+    else:
+        if set(starts) - set(stores):
+            raise ValueError("bad cursor")
+        wanted = starts
+    rows, following, hidden = [], {}, 0
+    for monitor_id, start in wanted.items():
+        store = stores[monitor_id]
+        routing = _Routing(store, store, site_endpoint=site_endpoint, scope=scope)
+        if scope == "publication" and not routing.own and not routing.email_allowed:
+            continue  # a monitor that does not route to this site contributes nothing
+        monitor_rows, following[monitor_id], more_hidden = _list_rows(
+            store, store, routing, list_name, start, monitor_id=monitor_id, scope=scope, held_only=held_only, now=now)
+        rows += monitor_rows
+        hidden += more_hidden
+    return {"list": list_name, "rows": _newest(rows, SORT_KEYS[list_name]), "cursor": encode_cursor(following),
+            "hiddenNotRelevant": hidden}
 
 
 def _authorized_receipt(store, *, groups, site_endpoint, receipt_id, statuses=None):
@@ -577,14 +712,14 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     if field_name is not None and nested_field is not None and field_name != nested_field:
         return {"error": "bad_request"}
     field_name = field_name if field_name is not None else nested_field
-    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringDecideEmailSubmission"}:
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference", "monitoringDecideEmailSubmission", "monitoringPage"}:
         return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
     if (not set(groups) & EDITOR_GROUPS
-            or (field_name == "monitoringOverview" and scope == "all" and "admin" not in groups)):
+            or (field_name in ("monitoringOverview", "monitoringPage") and scope == "all" and "admin" not in groups)):
         return {"error": "forbidden"}
-    if field_name == "monitoringOverview" and scope not in SCOPES:
+    if field_name in ("monitoringOverview", "monitoringPage") and scope not in SCOPES:
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
@@ -622,11 +757,19 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
                 email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                 receipt_id=args.get("receiptId"), candidate_index=args.get("candidateIndex"),
             )
-        if field_name != "monitoringOverview":
+        if field_name not in ("monitoringOverview", "monitoringPage"):
             return {"error": "bad_request"}
         stores = {monitor_id: make_store(monitor_id) for monitor_id in _monitor_ids(env)}
         if any(store is None for store in stores.values()):
             return {"state": "not_configured"}
+        if field_name == "monitoringPage":
+            try:
+                return monitoring_list_page(
+                    stores, list_name=args.get("list"), cursor=args.get("cursor"), groups=groups,
+                    site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope, now=time.time() if now is None else now,
+                    held_only=args.get("filter") == "held")
+            except ValueError:
+                return {"error": "bad_request"}
         return monitoring_site_overview(stores, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"), scope=scope,
                                         now=time.time() if now is None else now)
     except Forbidden:

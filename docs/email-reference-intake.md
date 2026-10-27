@@ -180,8 +180,8 @@ span multiple invocations without losing content. Each batch checkpoints its byt
 cursor after conditional discovery writes; replay after a crash is idempotent and
 does not overwrite discoveries already routed onward. `queued` means every
 eligible unique discovery is durable, not classified or delivered. `DISC#` and `ROUTE#` rows and
-`ROUTERUN#` receipts show routing progress. The editor-only Monitoring console lists recent email receipts in the configured
-publication and opens one receipt's inert text and complete extracted link list.
+`ROUTERUN#` receipts show routing progress. The editor-only Monitoring console lists email receipts in the configured
+publication newest first, 20 at a time with "Load more" and a "Held for review" filter that always reaches a held message however old, and opens one receipt's inert text and complete extracted link list.
 Inspect private receipts and the receiver's failure queue for operational failures. A queued/rejected SES delivery is terminal
 and retries return the original outcome. A failed manifest-backed receipt retains
 its cursor in the pending index so the resume schedule retries it; failures remain
