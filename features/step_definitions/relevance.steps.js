@@ -6,42 +6,41 @@ function requirePage(world) {
   return world.page;
 }
 
-function relevanceReview(world) {
-  return requirePage(world).locator("[data-reference-relevance-review]").first();
-}
+const youRow = (world) => requirePage(world).locator("[data-review-row='you']:visible").first();
+const cyclotronRow = (world) => requirePage(world).locator("[data-review-row='cyclotron']:visible").first();
 
-Then("the reference detail should show the cyclotron decision {string}", async function (summary) {
-  const review = relevanceReview(this);
-  await review.waitFor({ state: "visible", timeout: 10_000 });
-  assert.match(await review.innerText(), new RegExp(summary.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+Then("the Cyclotron row should highlight {string} at {string}", async function (choice, confidence) {
+  const predicted = cyclotronRow(this).locator("[data-predicted]");
+  await predicted.waitFor({ state: "visible", timeout: 10_000 });
+  const text = (await predicted.innerText()).replace(/\s+/g, " ").trim();
+  assert.equal(text, `${choice} ${confidence}`);
 });
 
-Then("the reference detail should say why the decision was sent to review", async function () {
-  assert.match(await relevanceReview(this).innerText(), /Why you are seeing this: /);
+Then("the You row should offer Accept and Reject", async function () {
+  await youRow(this).getByRole("button", { name: "Accept", exact: true }).waitFor({ state: "visible" });
+  await youRow(this).getByRole("button", { name: "Reject", exact: true }).waitFor({ state: "visible" });
 });
 
-Then("the reference detail should offer thumbs for {string} and {string}", async function (yes, no) {
-  const review = relevanceReview(this);
-  await review.getByRole("button", { name: `Yes: ${yes}` }).waitFor({ state: "visible" });
-  await review.getByRole("button", { name: `No: ${no}` }).waitFor({ state: "visible" });
+When("I tap You Reject", async function () {
+  await youRow(this).getByRole("button", { name: "Reject", exact: true }).click();
 });
 
-When("I give the decision a thumbs down", async function () {
-  await relevanceReview(this).getByRole("button", { name: /^No: / }).click();
+Then("the card asks for a reason in words", async function () {
+  await requirePage(this).getByText("Choose a reason to save your Reject.").waitFor({ state: "visible" });
 });
 
-Then("the review cannot be submitted without a reason", async function () {
-  assert.equal(await relevanceReview(this).getByRole("button", { name: "Submit review" }).isDisabled(), true);
+When("I explain {string} and choose the reason {string}", async function (explanation, reason) {
+  const page = requirePage(this);
+  await page.getByLabel("Why? (optional)").fill(explanation);
+  await page.locator("[data-review-reasons]").getByRole("button", { name: reason, exact: true }).click();
 });
 
-When("I choose the reason {string} and explain {string}", async function (reason, explanation) {
-  const review = relevanceReview(this);
-  await review.getByLabel("Reason").selectOption({ label: reason });
-  await review.getByLabel("Explanation (optional)").fill(explanation);
+Then("the Cyclotron row should mark its answer as differing", async function () {
+  await cyclotronRow(this).locator("[data-verdict='miss'] svg").waitFor({ state: "visible", timeout: 10_000 });
 });
 
-When("I submit the review", async function () {
-  await relevanceReview(this).getByRole("button", { name: "Submit review" }).click();
+Then("the Cyclotron row should say there is no prediction", async function () {
+  await cyclotronRow(this).getByText("No prediction", { exact: true }).waitFor({ state: "visible" });
 });
 
 Then("the reference detail should show the status {string}", async function (status) {
@@ -80,10 +79,6 @@ Then("every listed reference should show a cyclotron suggestion", async function
 
 Then("that reference row should be marked {string}", async function (mark) {
   assert.match(await requirePage(this).locator("[data-reference-relevance-row]").first().innerText(), new RegExp(mark));
-});
-
-Then("the reference detail should not show a relevance review", async function () {
-  assert.equal(await requirePage(this).locator("[data-reference-relevance-review]").count(), 0);
 });
 
 Then("the suggestion status strip should say {string}", async function (text) {
