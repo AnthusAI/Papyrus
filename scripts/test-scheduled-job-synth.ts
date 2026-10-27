@@ -41,7 +41,8 @@ function policyStatements(template: Template, roleLogicalIdPrefix: string): any[
     .flatMap(([, resource]) => resource.Properties.PolicyDocument.Statement);
 }
 
-const { stack, template, config } = knowledgeStack();
+// The example opts in to monitor stories; the base stack here is the template without that optional step (it is tested below and per example).
+const { stack, template, config } = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; });
 const everything = JSON.stringify(template.toJSON());
 const stages = [...KNOWLEDGE_STAGE_NAMES];
 
@@ -210,7 +211,7 @@ assert.equal(trendEnvironment.TREND_DRAFTS_COOLDOWN_DAYS, "0", "zero is a value:
 assert.ok(!("TREND_DRAFTS_COOLDOWN_DAYS" in staticEnvironment), "no cooldown configured: the command's own 7 days applies");
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_TABLE, PROJECTION_LOCK_TABLE_NAME);
 assert.equal(staticEnvironment.PAPYRUS_PROJECTION_LOCK_WAIT_SECONDS, "1800");
-assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
+assert.equal(staticEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface,routed");
 assert.equal(staticEnvironment.KNOWLEDGE_CONCEPT_KINDS, "task,technique,concept,model_family");
 const withoutMonitors = knowledgeStack((site) => { delete site.knowledgeRun.monitorSources; delete site.knowledgeRun.monitorWeeks; delete site.knowledgeRun.monitorSuggestions; });
 const plainEnvironment = Object.fromEntries(
@@ -518,7 +519,7 @@ const environmentOf = (built: { template: Template }): Record<string, string> =>
 assert.ok(!("KNOWLEDGE_CORPUS_KEY" in staticEnvironment), "Shipped names no corpus key: the tasks find the corpus by the siteId, as before");
 assert.equal(config.corpusKey, undefined);
 assert.equal(staticEnvironment.KNOWLEDGE_APPSYNC_API_ID, "6sw6454pozbgvdgm233gqkxsxu", "the stage can seed config/amplify_outputs.json from the API id");
-const withCorpusKey = knowledgeStack((site) => { site.knowledgeRun.corpusKey = "ai-ml-research"; });
+const withCorpusKey = knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; site.knowledgeRun.corpusKey = "ai-ml-research"; });
 const corpusEnvironment = environmentOf(withCorpusKey);
 assert.equal(withCorpusKey.config.corpusKey, "ai-ml-research");
 assert.equal(corpusEnvironment.KNOWLEDGE_CORPUS_KEY, "ai-ml-research");
@@ -529,7 +530,7 @@ assert.deepEqual(
   "a corpus key adds one variable and changes nothing else",
 );
 assert.equal(withCorpusKey.stack.stackName, stack.stackName);
-const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.corpusKey; }));
+const withoutCorpusKey = environmentOf(knowledgeStack((site) => { delete site.knowledgeRun.monitorStories; delete site.knowledgeRun.corpusKey; }));
 assert.deepEqual(withoutCorpusKey, staticEnvironment, "Shipped's task environment is what it was");
 {
   const base = knowledgeStack();
