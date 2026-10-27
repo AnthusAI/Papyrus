@@ -35,7 +35,7 @@ async function main() {
   assert.equal(calls[2]?.init.cache, "no-store");
   const headers = new Headers(calls[2]?.init.headers);
   assert.equal(headers.get("idempotency-key"), "stable-request-key");
-  assert.equal(headers.has("authorization"), false, "the browser relies on the host-owned same-origin session cookie");
+  assert.equal(headers.has("authorization"), false, "this injected transport is responsible for adding credentials; the real transport obtains a fresh newsroom token");
   assert.deepEqual(JSON.parse(String(calls[2]?.init.body)), { body: "A new draft" }, "the browser sends no author, bot or tenant identity");
 
   let attempts = 0;

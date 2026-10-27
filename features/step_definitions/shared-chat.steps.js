@@ -63,8 +63,8 @@ When("the Papyrus hosted chat endpoint contract suite runs", { timeout: 120_000 
   const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-hosted-chat-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
   this.papyrusHostedChatResult = result.stdout;
 });
-Then("account and editor scope come from the sealed session and private channel access is enforced", function () {
-  assert.ok(this.papyrusHostedChatResult.includes("PASS: Papyrus gateway uses sealed Prospectus identity and Chatticus private chat core"));
+Then("publication and editor scope come from the verified newsroom session and private channel access is enforced", function () {
+  assert.ok(this.papyrusHostedChatResult.includes("PASS: Papyrus gateway uses verified newsroom identity and Chatticus private chat core"));
 });
 Then("the hosted chat route remains disabled until explicitly enabled", function () {
   assert.ok(this.papyrusHostedChatResult.includes("private route remains default-off"));
@@ -80,62 +80,41 @@ When("the private console browser integration runs", { timeout: 120_000 }, async
 Then("same-origin sends retain editor session scope, allow a pending-reply send and render the hosted reply", function () {
   assert.ok(this.privateChatUiResult.includes("shared UI sends through the private host route once"));
 });
-Then("the sealed editor creates the private channel and sees one persisted reply after refresh and replay", function () {
+Then("the newsroom editor creates the private channel and sees one persisted reply after refresh and replay", function () {
   assert.ok(this.papyrusWorkerIntegrationResult.includes("PASS: Papyrus private channel, hosted send, shared worker reply, refresh/replay, and foreign-editor denial"));
 });
 
 Given("an editor has a valid signed newsroom access token but no Prospectus session", function () {});
-Given("the connected editor has not selected a publishing Account", function () {});
-Given("an editor has matching newsroom and Prospectus identities and a selected Account", function () {});
-When("the editor connects private chat", { timeout: 120_000 }, async function () {
+When("the newsroom token verification suite runs", { timeout: 120_000 }, async function () {
   const result = await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-newsroom-chat-identity.ts"], { maxBuffer: 4 * 1024 * 1024 });
   this.newsroomIdentityResult = result.stdout;
-  await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "connection"], { maxBuffer: 4 * 1024 * 1024 });
 });
-for (const step of ["the server verifies the configured issuer, client, token use, expiry and editor role", "the Google sign-in challenge is bound to that editor's verified subject", "a callback for another subject is rejected before resolving a person"]) {
-  Then(step, function () { assert.match(this.newsroomIdentityResult, /PASS: verified newsroom JWT/); });
-}
-When("the editor opens private chat", { timeout: 120_000 }, async function () {
-  const result = await promisify(execFile)(process.execPath, ["scripts/run-papyrus-hosted-chat-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
-  this.connectedChatResult = result.stdout;
-  await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "selection"], { maxBuffer: 4 * 1024 * 1024 });
-});
-for (const step of ["the response requests validated publishing Account selection instead of another sign-in", "no channel, message or model run is created", "fresh Account membership and console permission are required", "another editor cannot read the channel or its turn stream"]) {
-  Then(step, function () { assert.match(this.connectedChatResult, /PASS: Papyrus gateway/); });
+Then("the server verifies the configured issuer, client, token use, expiry and editor role", function () { assert.match(this.newsroomIdentityResult, /PASS: verified newsroom JWT/); });
+for (const step of ["another publication or editor cannot read the channel or its turn stream", "expired credentials cannot read or send messages"]) {
+  Then(step, function () { assert.match(this.papyrusHostedChatResult, /PASS: Papyrus gateway/); });
 }
 Given("an editor has an open private conversation", function () {});
 When("the session expires during a send or a reply poll", { timeout: 120_000 }, async function () {
-  for (const mode of ["send-expiry", "poll-expiry"]) {
+  for (const mode of ["send-expiry", "poll-expiry", "identity-change"]) {
     await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
   }
   this.expiryRecoveryPassed = true;
 });
 Then("the old transcript and retry identity are removed from the panel", function () { assert.equal(this.expiryRecoveryPassed, true); });
-Then("the editor can reconnect or choose an authorized Account", function () { assert.equal(this.expiryRecoveryPassed, true); });
-Given("an editor previously read their private transcript", function () {});
-When("the publishing Account membership is revoked", { timeout: 120_000 }, async function () {
-  await promisify(execFile)(process.execPath, ["scripts/run-papyrus-hosted-chat-test.mjs"], { maxBuffer: 4 * 1024 * 1024 });
-  this.revokedMembershipDenied = true;
-});
-Then("subsequent transcript reads and sends are denied without creating a message", function () { assert.equal(this.revokedMembershipDenied, true); });
-
+Then("the editor can retry after signing into the newsroom", function () { assert.equal(this.expiryRecoveryPassed, true); });
 Given("an authorized editor is viewing the newsroom on a phone", function () {});
 Given("the newsroom changes between mobile and desktop widths", function () {});
 for (const action of ["the editor opens chat from the visible mobile control", "the keyboard reduces the available conversation height", "the chat shell updates its responsive controls"]) {
   When(action, { timeout: 120_000 }, async function () {
     const result = await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "mobile"], { maxBuffer: 4 * 1024 * 1024 });
     this.mobileChatResult = result.stdout;
-    for (const mode of ["mobile-connection", "mobile-selection"]) await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
+    for (const mode of ["mobile-send-expiry", "mobile-poll-expiry"]) await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", mode], { maxBuffer: 4 * 1024 * 1024 });
   });
 }
 for (const result of ["the conversation and close control fit the viewport", "keyboard focus stays within the mobile conversation", "closing chat returns focus and preserves the newsroom location", "browser Back closes mobile chat before leaving the newsroom", "the message composer and close control remain reachable", "the transcript scrolls without horizontal page overflow", "desktop layout keeps its existing toolbar behavior", "an unauthorized visitor has no chat entry point"]) {
   Then(result, function () { assert.match(this.mobileChatResult, /PASS: mobile chat entry/); });
 }
 
-Given("a signed-in editor has no eligible publishing Account", function () {});
-When("the editor opens private chat from mobile navigation", { timeout: 120_000 }, async function () {
-  const result = await promisify(execFile)(process.execPath, ["scripts/private-chat-ui-fixture.mjs", "mobile-no-account"], { maxBuffer: 4 * 1024 * 1024 });
-  this.accountAccessResult = result.stdout;
+Then("the newsroom session alone opens publication-local private chat", function () {
+  assert.match(this.papyrusHostedChatResult, /PASS: Papyrus gateway/);
 });
-Then("the panel explains the setup blocker below its header", function () { assert.match(this.accountAccessResult, /PASS: unavailable Account state/); });
-Then("checking again refreshes access without granting it or sending a message", function () { assert.match(this.accountAccessResult, /retry refreshes access without granting or sending/); });

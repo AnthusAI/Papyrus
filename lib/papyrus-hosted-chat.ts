@@ -2,52 +2,35 @@ import { resolveNewsroomChatIdentity, type NewsroomChatIdentityResolver } from "
 import { createHash } from "node:crypto";
 import type { EmbeddedChatAppDependencies } from "chatticus/chat-server";
 import type { NextRequest } from "next/server";
-import {
-  ProspectusAccountsError,
-  authorizeSignedInPersonForAccount,
-} from "./prospectus-site-identity";
-import {
-  resolveProspectusSignInRuntime,
-  signedInProspectusSession,
-  type ProspectusSignInRuntime,
-} from "./prospectus-session";
-import { prospectusSiteProduct, publishingAccountsForSite } from "./prospectus-publication-access";
 import { publicSiteOrigin } from "./site-origin-value";
 
 const NO_STORE_HEADERS = { "cache-control": "no-store" };
 
 export interface PapyrusChatScope {
-  siteProduct: string;
-  accountId: string;
-  personId: string;
   tenantId: string;
   editorId: string;
 }
 
 export interface PapyrusHostedChatOptions {
   resolveNewsroomIdentity?: NewsroomChatIdentityResolver;
-  resolveRuntime?: (siteOrigin: string) => Promise<ProspectusSignInRuntime | null>;
   resolvePrivateDependencies?: () => Promise<EmbeddedChatAppDependencies | null>;
   privateChatEnabled?: boolean;
-  siteProduct?: string | null;
   environment?: Record<string, string | undefined>;
   nowInSeconds?: () => number;
 }
 
-function siteAndAccountKey(siteProduct: string, accountId: string): string {
-  return createHash("sha256").update(JSON.stringify([siteProduct, accountId])).digest("hex");
+/** A new namespace: never aliases Account-scoped or legacy transcripts. */
+export function derivePapyrusChatScope(publicationNamespace: string, issuer: string, subject: string): PapyrusChatScope {
+  const tenantHash = createHash("sha256").update(JSON.stringify(["newsroom-v1", publicationNamespace, issuer])).digest("hex");
+  const editorHash = createHash("sha256").update(JSON.stringify(["newsroom-v1", publicationNamespace, issuer, subject])).digest("hex");
+  return { tenantId: `papyrus-newsroom-v1-${tenantHash.slice(0, 40)}`, editorId: `papyrus-newsroom-editor-v1-${editorHash.slice(0, 40)}` };
 }
 
-export function derivePapyrusChatScope(siteProduct: string, accountId: string, personId: string): PapyrusChatScope {
-  const tenantHash = siteAndAccountKey(siteProduct, accountId);
-  const editorHash = createHash("sha256").update(JSON.stringify([siteProduct, accountId, personId])).digest("hex");
-  return {
-    siteProduct,
-    personId,
-    accountId,
-    tenantId: `papyrus-${tenantHash.slice(0, 40)}`,
-    editorId: `papyrus-editor-${editorHash.slice(0, 40)}`,
-  };
+/** Existing server storage resources bind the publication, independently of request hosts or claims. */
+function publicationNamespace(environment: Record<string, string | undefined>, clientId: string): string | null {
+  const bucket = environment.PAPYRUS_CHAT_SESSION_BUCKET?.trim();
+  const table = environment.PAPYRUS_CHAT_MESSAGING_TABLE?.trim();
+  return bucket && table ? JSON.stringify([bucket, table, clientId]) : null;
 }
 
 type ResolvedPapyrusPrincipal = {
@@ -61,71 +44,24 @@ type ResolvedPapyrusPrincipal = {
 
 async function principalForRequest(
   request: NextRequest,
-  operation: "console:read" | "console:write",
   options: PapyrusHostedChatOptions,
-): Promise<{ principal: ResolvedPapyrusPrincipal | null; status: number; error?: string }> {
-  const environment = options.environment ?? process.env;
-  const siteProduct = options.siteProduct !== undefined ? options.siteProduct : prospectusSiteProduct(environment);
-  if (!siteProduct) return { principal: null, status: 503 };
-
-  let runtime: ProspectusSignInRuntime | null;
+): Promise<{ principal: ResolvedPapyrusPrincipal | null; status: number; expiresAt?: number }> {
+  let identity;
   try {
-    runtime = await (options.resolveRuntime ?? resolveProspectusSignInRuntime)(publicSiteOrigin(request, environment));
+    identity = await (options.resolveNewsroomIdentity ?? resolveNewsroomChatIdentity)(request);
   } catch {
     return { principal: null, status: 503 };
   }
-  if (!runtime) return { principal: null, status: 503 };
-
-  let newsroomIdentity;
-  try {
-    newsroomIdentity = await (options.resolveNewsroomIdentity ?? resolveNewsroomChatIdentity)(request);
-  } catch {
-    return { principal: null, status: 503 };
-  }
-  if (!newsroomIdentity) return { principal: null, status: 401 };
-  const nowInSeconds = options.nowInSeconds?.() ?? Math.floor(Date.now() / 1000);
-  const session = signedInProspectusSession(request, runtime.sealingSecret, nowInSeconds);
-  if (!session || !Number.isFinite(session.accessTokenExpiresAt) || session.accessTokenExpiresAt <= nowInSeconds) {
-    return { principal: null, status: 409, error: "chat_identity_connection_required" };
-  }
-  if (session.newsroomSubject !== newsroomIdentity.subject) {
-    return { principal: null, status: 409, error: "chat_identity_connection_required" };
-  }
-  if (!session.selectedAccountId) return { principal: null, status: 409, error: "publishing_account_required" };
-
-  try {
-    const directory = await runtime.accounts.accountDirectory(session.accessToken);
-    if (directory.person?.id !== session.personId) return { principal: null, status: 401 };
-    if (!publishingAccountsForSite(directory.accounts, siteProduct).some((account) => account.accountId === session.selectedAccountId)) {
-      return { principal: null, status: 403 };
-    }
-    const authorization = await authorizeSignedInPersonForAccount(
-      runtime.accounts,
-      session.accessToken,
-      session.selectedAccountId,
-      operation,
-    );
-    if (authorization.personId !== session.personId || authorization.accountId !== session.selectedAccountId || authorization.operation !== operation) {
-      return { principal: null, status: 403 };
-    }
-    const scope = derivePapyrusChatScope(siteProduct, session.selectedAccountId, session.personId);
-    return {
-      principal: {
-        kind: "user",
-        tenantId: scope.tenantId,
-        userId: scope.editorId,
-        workerId: null,
-        organizationStatus: "enabled",
-        role: "member",
-      },
-      status: 200,
-    };
-  } catch (error) {
-    if (error instanceof ProspectusAccountsError && (error.status === 401 || error.status === 403)) {
-      return { principal: null, status: error.status };
-    }
-    return { principal: null, status: 503 };
-  }
+  const now = options.nowInSeconds?.() ?? Math.floor(Date.now() / 1000);
+  if (!identity || !identity.subject || !identity.issuer || !identity.clientId || !Number.isFinite(identity.expiresAt) || identity.expiresAt <= now) return { principal: null, status: 401 };
+  const namespace = publicationNamespace(options.environment ?? process.env, identity.clientId);
+  if (!namespace) return { principal: null, status: 503 };
+  const scope = derivePapyrusChatScope(namespace, identity.issuer, identity.subject);
+  return {
+    principal: { kind: "user", tenantId: scope.tenantId, userId: scope.editorId, workerId: null, organizationStatus: "enabled", role: "member" },
+    status: 200,
+    expiresAt: identity.expiresAt,
+  };
 }
 
 function jsonFailure(status: number, error: string): Response {
@@ -175,8 +111,8 @@ export async function handlePapyrusHostedChatRequest(
   const privateChatEnabled = options.privateChatEnabled ?? environment.PAPYRUS_PRIVATE_CHAT_ENABLED === "true";
   if (!privateChatEnabled) return jsonFailure(404, "private_chat_disabled");
 
-  const authorization = await principalForRequest(request, request.method === "POST" ? "console:write" : "console:read", options);
-  if (!authorization.principal) return jsonFailure(authorization.status, authorization.error ?? (authorization.status === 401 ? "sign_in_required" : authorization.status === 403 ? "chat_account_access_denied" : "chat_runtime_unavailable"));
+  const authorization = await principalForRequest(request, options);
+  if (!authorization.principal) return jsonFailure(authorization.status, (authorization.status === 401 ? "sign_in_required" : authorization.status === 403 ? "chat_account_access_denied" : "chat_runtime_unavailable"));
 
   let dependencies: EmbeddedChatAppDependencies | null;
   try {
@@ -226,5 +162,38 @@ export async function handlePapyrusHostedChatRequest(
     ...dependencies,
     resolvePrincipal: async () => authorization.principal,
   });
-  return app.fetch(forwarded);
+  const response = await app.fetch(forwarded);
+  if (path[0] !== "turns" || path[2] !== "stream" || !response.ok || !response.body) return response;
+  const remaining = (authorization.expiresAt! - (options.nowInSeconds?.() ?? Date.now() / 1000)) * 1000;
+  return expireChatStream(response, remaining);
+}
+
+/** End an established stream at JWT expiry; reconnect must pass current authorization again. */
+export function expireChatStream(response: Response, remainingMilliseconds: number): Response {
+  if (!response.body) return response;
+  const reader = response.body.getReader();
+  let closed = false;
+  let timer: ReturnType<typeof setTimeout>;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      timer = setTimeout(() => {
+        if (closed) return;
+        closed = true;
+        controller.close();
+        void reader.cancel().catch(() => {});
+      }, Math.max(0, Math.min(remainingMilliseconds, 2_147_483_647)));
+    },
+    async pull(controller) {
+      try {
+        const next = await reader.read();
+        if (closed) return;
+        if (next.done) { closed = true; clearTimeout(timer); controller.close(); }
+        else controller.enqueue(next.value);
+      } catch (error) {
+        if (!closed) { closed = true; clearTimeout(timer); controller.error(error); }
+      }
+    },
+    async cancel(reason) { closed = true; clearTimeout(timer); await reader.cancel(reason); },
+  });
+  return new Response(body, { status: response.status, headers: response.headers });
 }
