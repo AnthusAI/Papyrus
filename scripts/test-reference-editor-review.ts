@@ -118,6 +118,10 @@ async function setup(options = "", width = 1280) {
     return route.fulfill({ contentType: "text/html", body: `<html><head><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root"></div>${history}<script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/newsroom/references${options}`);
+  // The page opens as a feed; these scenarios are about the list and queue, one tap away.
+  const toggle = page.locator("[data-reference-view=list]");
+  await toggle.waitFor();
+  await toggle.click();
   return { browser, page, errors };
 }
 

@@ -165,7 +165,7 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
         <Link className="organizer-masthead" href={backHref} title={backLabel}>{appTitle}</Link>
         <h1 data-newsroom-ops-title>{pageTitle}</h1><OrganizerSearch demo={demo} /><div className="organizer-header-actions">{headerActions}</div><Account placement="header" />
       </header>
-      <main className="organizer-main">{demo && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>
+      <main className="organizer-main">{demo && !session?.shell.dashboard?.realDataPreview && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>
     </div>
     {showNavigation && <NewsroomMobileNavigation activeTab={activeTab} items={ORGANIZER_PRIMARY_NAV.map(item => ({ ...item, href: getNewsroomNavHref(item.path, demo) }))}
       chat={consoleState?.shouldOfferConsole ? { open: consoleState.open, onOpen: consoleState.openConsole } : undefined}

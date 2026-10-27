@@ -83,9 +83,18 @@ Given("I open the topics newsroom at {int} by {int}", async function (width, hei
   await requirePage(this).waitForSelector("[data-news-desk-section='topics']", { state: "visible", timeout: 15_000 });
 });
 
+/** References open as a feed; the list/queue scenarios work in the List view, which stays one tap away. */
+async function showReferenceList(page) {
+  const toggle = page.locator("[data-reference-view='list']");
+  await toggle.waitFor({ state: "visible", timeout: 15_000 });
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+  await page.waitForSelector("[data-newsroom-card-grid]", { state: "visible", timeout: 15_000 });
+}
+
 Given("I open the references newsroom at {int} by {int}", async function (width, height) {
   await this.openPath("/newsroom/references?demo=1", width, height);
   await requirePage(this).waitForSelector("[data-news-desk-section='references']", { state: "visible", timeout: 15_000 });
+  await showReferenceList(requirePage(this));
 });
 
 Given("I open the concepts newsroom at {int} by {int}", async function (width, height) {
@@ -109,6 +118,7 @@ Given("I open the {string} newsroom section at {int} by {int}", async function (
   this.newsroomCardGridSection = sectionId;
   await this.openPath(`/newsroom/${sectionId}?demo=1`, width, height);
   await waitForNewsroomSection(requirePage(this), sectionId);
+  if (sectionId === "references") await showReferenceList(requirePage(this));
   await requirePage(this).waitForSelector("[data-newsroom-card-grid]", { state: "visible", timeout: 15_000 });
 });
 

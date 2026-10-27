@@ -656,6 +656,8 @@ export type NewsroomSummaryFacets = {
 
 export type CategorySteeringDashboard = {
   isDemo?: boolean;
+  /** Local preview only: the demo newsroom is showing a real export (scripts/export-reference-feed-fixture.py), so it must not say "synthetic". */
+  realDataPreview?: boolean;
   isPublicSkeleton?: boolean;
   summaryStatus?: "loading" | "missing" | "ready";
   summary?: NewsroomSummaryRecord | null;
@@ -820,7 +822,8 @@ function sortCategorys(categorys: CategorySteeringCategory[]): CategorySteeringC
 }
 
 function defaultNewsroomSections(importedAt: string, sectionsConfigPath?: string): NewsroomSectionRecord[] {
-  if (!sectionsConfigPath) return [];
+  // A data-driven site names a seed file it does not ship: its Sections live in the backend, so there is nothing to seed.
+  if (!sectionsConfigPath || !fs.existsSync(sectionsConfigPath)) return [];
   return loadNewsroomSectionSeedRows(sectionsConfigPath).map((row, index) => ({
     ...row,
     enabledStatus: "enabled",

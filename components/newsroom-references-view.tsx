@@ -4,7 +4,7 @@ import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
 import { ReferenceCurationControls, useReferenceImport } from "./reference-curation-controls";
 
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,14 @@ import {
 import { normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
+import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
+import { partitionReferenceFeed, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
+import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
+import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
+import { cn } from "@/lib/utils";
+import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
+import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import {
   ReviewCard,
   predictionFromDecision,
@@ -120,7 +128,13 @@ type NewsroomReferencesViewProps = {
   onReview: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
   referenceAttachments?: ReferenceAttachmentRecord[];
   references: ReferenceRecord[];
+  /** True while the References are still being read: the feed shows card skeletons instead of an empty page. */
+  loading?: boolean;
+  /** The last view this browser saved. Shown, read only, until the live read arrives. */
+  savedCopy?: { references: ReferenceRecord[]; previews: Array<[string, ReferencePreview]>; decisions: Array<[string, RelevanceDecisionView]> } | null;
 };
+
+type ReferenceView = "feed" | "list";
 
 type ReferenceListFilter = ReferenceStatusFilter | "needs_review";
 
@@ -442,7 +456,7 @@ export function NewsroomReferencesView({
   priming,
   cyclotronStatus,
   cyclotronPriming,
-  decisions,
+  decisions: liveDecisions,
   humanCuratedReferenceLineageIds,
   delegatedCurations,
   shadowAgreement = null,
@@ -461,9 +475,14 @@ export function NewsroomReferencesView({
   initialReferenceLineageId = null,
   onReview,
   referenceAttachments = [],
-  references,
+  references: liveReferences,
+  loading = false,
+  savedCopy = null,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
+  // The portaled mobile sheet sits outside the newsroom root, so it carries the theme attributes itself (same as useNewsroomThemeAttributes).
+  const themeMode = useResolvedPapyrusTheme();
+  const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
   const sessionImport = useReferenceImport(disabled);
   const [importedCount, setImportedCount] = useState(0);
   const isMobileDetail = useMediaQuery("(max-width: 767px)");
@@ -473,7 +492,66 @@ export function NewsroomReferencesView({
   );
   const routeLineageId = pathname ? pathnameLineageId ?? "" : initialReferenceLineageId ?? "";
 
+  // Until the live read arrives, a saved copy of the last view fills the page. It is display only.
+  const showingSavedCopy = loading && !liveReferences.length && Boolean(savedCopy?.references.length);
+  const references = showingSavedCopy ? savedCopy!.references : liveReferences;
+  const baseDecisions = useMemo(
+    () => (showingSavedCopy && !liveDecisions?.size ? new Map(savedCopy!.decisions) : liveDecisions),
+    [liveDecisions, savedCopy, showingSavedCopy],
+  );
+  // Preview only: ?feedSynthRejects=N makes the N weakest Accept predictions into made-up Rejects (the page says so).
+  const synthRejectCount = useMemo(() => {
+    if (typeof window === "undefined" || !isLocalPreviewEnabled()) return 0;
+    const requested = Number(new URLSearchParams(window.location.search).get("feedSynthRejects"));
+    return Number.isInteger(requested) && requested > 0 ? requested : 0;
+  }, []);
+  const syntheticChoice = useRef<string[] | null>(null);
+  if (synthRejectCount && syntheticChoice.current === null && baseDecisions?.size && references.length) {
+    syntheticChoice.current = chooseSyntheticRejects(
+      baseDecisions,
+      new Set(references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) === "pending").map(referenceLineageId)),
+      synthRejectCount,
+    );
+  }
+  const synthetic = useMemo(
+    () => (synthRejectCount && syntheticChoice.current ? withSyntheticRejects(baseDecisions, syntheticChoice.current) : null),
+    [baseDecisions, synthRejectCount],
+  );
+  const decisions = synthetic?.decisions ?? baseDecisions;
+  const previews = useMemo(() => {
+    const live = referencePreviewsByLineage(referenceAttachments);
+    return showingSavedCopy && !live.size ? new Map(savedCopy!.previews) : live;
+  }, [referenceAttachments, savedCopy, showingSavedCopy]);
+  const [view, setView] = useState<ReferenceView>("feed");
+  const [addOpen, setAddOpen] = useState(false);
+  const [feedTab, setFeedTab] = useState<ReferenceFeedTabKey>("feed");
+  const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(() => new Set());
+  const [mountedAt] = useState(() => Date.now());
+  const markVisitRated = useCallback((lineageId: string) => {
+    setVisitRated((current) => (current.has(lineageId) ? current : new Set(current).add(lineageId)));
+  }, []);
+  // Preview only: ?feedTau=<days> stands in for the learned freshness period, to review the Earlier section on a young corpus.
+  const tauDaysOverride = useMemo(() => {
+    if (typeof window === "undefined" || !isLocalPreviewEnabled()) return null;
+    const requested = Number(new URLSearchParams(window.location.search).get("feedTau"));
+    return Number.isFinite(requested) && requested > 0 ? requested : null;
+  }, []);
+
+  // Preview only: ?feedState=loading holds the page in its loading state, to review the card skeletons.
+  const previewSkeleton = useMemo(
+    () => typeof window !== "undefined" && isLocalPreviewEnabled() && new URLSearchParams(window.location.search).get("feedState") === "loading",
+    [],
+  );
+
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
+  const partition = useMemo(
+    () => partitionReferenceFeed(canonicalReferences, decisions, { now: mountedAt, visitRated, tauDaysOverride }),
+    [canonicalReferences, decisions, mountedAt, tauDaysOverride, visitRated],
+  );
+  const feedOrderIds = useMemo(
+    () => (feedTab === "feed" ? [...partition.feed, ...partition.earlier] : feedTab === "rated" ? partition.rated : partition.earlier).map((item) => item.lineageId),
+    [feedTab, partition],
+  );
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
 
   const [statusFilter, setStatusFilter] = useState<ReferenceListFilter>(routeLineageId ? "all" : "pending");
@@ -504,14 +582,14 @@ export function NewsroomReferencesView({
   // list, but keeps its place in the queue until they move on, so "3 of 29" does not jump under them.
   const queueRef = useRef<string[]>([]);
   const queue = useMemo(() => {
-    const ids = filteredReferences.map(referenceLineageId);
+    const ids = view === "feed" ? [...feedOrderIds] : filteredReferences.map(referenceLineageId);
     const open = selectedReference ? referenceLineageId(selectedReference) : "";
     if (open && !ids.includes(open)) {
       const before = queueRef.current.indexOf(open);
       if (before >= 0) ids.splice(Math.min(before, ids.length), 0, open);
     }
     return ids;
-  }, [filteredReferences, selectedReference]);
+  }, [feedOrderIds, filteredReferences, selectedReference, view]);
   useEffect(() => { queueRef.current = queue; }, [queue]);
   const [caughtUp, setCaughtUp] = useState(false);
   const selectedIndex = selectedReference ? queue.indexOf(referenceLineageId(selectedReference)) : -1;
@@ -582,8 +660,20 @@ export function NewsroomReferencesView({
 
   const runReview = (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => {
     if (!selectedReference) return;
+    if (action === "accept" || action === "reject") markVisitRated(referenceLineageId(selectedReference));
     return onReview(selectedReference, action, options);
   };
+
+  const rateFromFeed = async (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => {
+    const decision = decisions?.get(referenceLineageId(reference));
+    await onReview(reference, choice, {
+      reasonCode: choice === "reject" ? reasonCode : null,
+      ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
+    });
+  };
+  const feedDisabledReason = disabled
+    ? "Editor access is required to change this reference."
+    : showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null;
 
   const caughtUpPanel = (
     <div className="space-y-2 p-6 text-center" data-review-caught-up>
@@ -606,23 +696,64 @@ export function NewsroomReferencesView({
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:overflow-hidden">
-        <div className="shrink-0 space-y-1">
-          <h2 className="text-lg font-semibold tracking-tight">References</h2>
-          <p className="text-sm text-muted-foreground">
-            Review source intake before it becomes accepted evidence.
-          </p>
+        <div className="flex shrink-0 items-center justify-between gap-3" {...FEED_SURFACE_PROPS}>
+          <div className="min-w-0 space-y-0.5">
+            <h2 className="text-2xl font-bold tracking-tight">References</h2>
+            <p className="hidden text-sm text-muted-foreground sm:block">
+              {view === "feed" ? "A feed ranked by what you are most likely to accept." : "Review source intake before it becomes accepted evidence."}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              aria-controls="reference-add-panel"
+              aria-expanded={addOpen}
+              aria-label="Add a reference and prediction activity"
+              className={cn("inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", addOpen ? "bg-[var(--feed-control)] text-foreground" : "bg-[var(--feed-card)] text-muted-foreground hover:text-foreground")}
+              data-reference-add-toggle
+              onClick={() => setAddOpen((open) => !open)}
+              title="Add a reference and prediction activity"
+              type="button"
+            >
+              <PlusIcon aria-hidden="true" className="size-4" />
+              <span className="hidden sm:inline">Add</span>
+            </button>
+            <div aria-label="Reference view" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="group">
+              {([["feed", "Feed", LayoutGridIcon], ["list", "List", ListIcon]] as const).map(([key, label, Icon]) => (
+                <button
+                  aria-label={label}
+                  aria-pressed={view === key}
+                  className={cn(
+                    "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                    view === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                  data-reference-view={key}
+                  key={key}
+                  onClick={() => { setView(key); setCaughtUp(false); }}
+                  title={label}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" className="size-4" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        {predictionState === "loading" ? <p role="status">Loading predictions…</p> : null}
+        {synthetic?.changed ? (
+          <p className="rounded-2xl bg-[var(--feed-card)] p-3 text-sm" data-preview-synthetic role="status" {...FEED_SURFACE_PROPS}>
+            Preview only: {synthetic.changed} of these predictions are made up to show the Reject end of the feed. Real data has none yet.
+          </p>
+        ) : null}
+        {predictionState === "loading" && view === "list" ? <p role="status">Loading predictions…</p> : null}
         {predictionState === "error" ? (
-          <div role="alert" className="space-y-2 rounded-md border p-3">
+          <div role="alert" className="space-y-2 rounded-2xl bg-[var(--feed-card)] p-4" {...FEED_SURFACE_PROPS}>
             <p>Predictions unavailable. {predictionError}</p>
             <p className="text-sm">You can still review references. Existing suggestions may be out of date.</p>
             {onRetryPredictions ? <Button onClick={onRetryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
           </div>
         ) : null}
-        <details className="shrink-0 overflow-y-auto rounded-md border p-3 text-sm" style={{ maxHeight: "35dvh" }}>
-          <summary className="cursor-pointer font-semibold">Add a reference and prediction activity</summary>
-          <div className="mt-3 space-y-4">
+        <div className="shrink-0 overflow-y-auto rounded-[20px] bg-[var(--feed-card)] p-4 text-sm" data-feed-flat="" data-feed-surface="" hidden={!addOpen} id="reference-add-panel" style={{ ...FEED_SURFACE_STYLE, maxHeight: "45dvh", overflowY: "auto" }}>
+          <div className="space-y-4">
         <ReferenceLiveAgreement agreement={shadowAgreement} />
         <ReferenceAddEntry
           importOptions={disabled ? null : priming ?? sessionImport?.panel}
@@ -639,8 +770,31 @@ export function NewsroomReferencesView({
           </div>
         ) : null}
           </div>
-        </details>
+        </div>
 
+        {view === "feed" ? (
+          <ScrollArea className="min-h-0 flex-1" data-reference-feed-scroll>
+            <div className="pb-6 pr-1">
+              <ReferenceFeed
+                disabledReason={feedDisabledReason}
+                loading={previewSkeleton || (loading && !references.length)}
+                now={mountedAt}
+                onOpen={selectReference}
+                onRate={rateFromFeed}
+                onTabChange={(next) => { setFeedTab(next); setCaughtUp(false); }}
+                onVisitRated={markVisitRated}
+                partition={partition}
+                predictionLoading={predictionState === "loading"}
+                previews={previews}
+                selectedLineageId={selectedLineageId}
+                stale={showingSavedCopy || (loading && references.length > 0)}
+                tab={feedTab}
+                visitRated={visitRated}
+              />
+            </div>
+          </ScrollArea>
+        ) : (
+          <>
         <Tabs
           className="shrink-0"
           defaultValue="pending"
@@ -716,15 +870,22 @@ export function NewsroomReferencesView({
             )}
           </div>
         </ScrollArea>
+          </>
+        )}
       </div>
 
       <div
-        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
+        className={cn(
+          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]",
+          view === "feed" && !selectedReference && "md:hidden",
+        )}
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
         data-detail-open={selectedReference ? "true" : "false"}
+        data-feed-flat=""
+        {...FEED_SURFACE_PROPS}
       >
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-1">
           <span className="text-sm font-medium text-foreground">Detail</span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
@@ -766,12 +927,12 @@ export function NewsroomReferencesView({
           }}
           open={(mobileDetailOpen && Boolean(selectedReference)) || caughtUp}
         >
-          <SheetContent className="gap-0 p-0" side="bottom">
+          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" side="bottom" {...themeAttributes}>
             <SheetHeader className="border-b border-border px-4 py-3">
               <SheetTitle className="text-left text-base">Reference</SheetTitle>
             </SheetHeader>
             {selectedReference ? (
-              <div data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}><ScrollArea className="max-h-[70dvh]">
+              <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}><ScrollArea className="max-h-[70dvh]">
                 <ReferenceDetailPanel
                   key={referenceLineageId(selectedReference)}
                   predictionState={predictionState}

@@ -9,24 +9,26 @@ import { NewsroomOpsShell } from "./newsroom-ops-shell";
 import { NewsroomOverviewSkeleton } from "./newsroom-overview-skeleton";
 import { ReaderAuthControl } from "./reader-auth-control";
 import { buttonVariants } from "./ui/button";
+import { ReferencesPageLoading } from "./references-page-loading";
 
-export function NewsDeskAccessGate({ shell, showSectionTabs = false }: { shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
+export function NewsDeskAccessGate({ initialTab, shell, showSectionTabs = false }: { initialTab?: string; shell: NewsDeskShellState | null; showSectionTabs?: boolean }) {
   const accessPhase = shell?.phase ?? "checkingAccess";
   const pending = accessPhase === "checkingAccess" || accessPhase === "loadingDesk";
+  const referencesPage = initialTab === "references";
 
   return (
     <NewsroomOpsShell
-      activeTab="overview"
+      activeTab={referencesPage ? "references" : "overview"}
       appTitle={SITE_BRAND.appTitle}
       backHref="/"
       backLabel={SITE_BRAND.backToHomeLabel}
       headerActions={(
         <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
       )}
-      pageTitle={showSectionTabs ? "Notification Center" : "Newsroom"}
-      showNavigation={showSectionTabs}
+      pageTitle={referencesPage ? "References" : showSectionTabs ? "Notification Center" : "Newsroom"}
+      showNavigation={showSectionTabs || referencesPage}
     >
-      {pending ? (showSectionTabs ? <NewsroomOverviewSkeleton /> : (
+      {pending && referencesPage ? <ReferencesPageLoading /> : pending ? (showSectionTabs ? <NewsroomOverviewSkeleton /> : (
         <div aria-label="Loading newsroom" className="space-y-4" data-newsroom-page-skeleton role="status">
           <div className="h-6 w-48 rounded bg-muted" />
           <div className="h-4 w-3/4 rounded bg-muted" />
