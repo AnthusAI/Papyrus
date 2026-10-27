@@ -50,6 +50,30 @@ Feature: Scheduled container jobs
     And when it is enabled and the step fails or times out, the execution still ends in Done
     And the failure is in the task log and no Fail state, alarm or rollback follows from it
 
+  Scenario: a site that does not opt in gets no monitor-stories step
+    Given the site's knowledgeRun block has no monitorStories setting
+    Then the state machine has no monitor-stories task and no Run-monitor-stories choice
+    And the stack has no MonitorStoriesEnabled parameter and the task has no MONITOR_STORIES_LIMIT setting
+    And the template is otherwise what it was before the step existed
+
+  Scenario: a site that opts in with monitorStories gets an optional step after trend-drafts
+    Given the site's knowledgeRun block says monitorStories is {"limit": 2}
+    Then the stack has a MonitorStoriesEnabled parameter that is "false" by default
+    And trend-drafts continues into the Run-monitor-stories choice, also when trend-drafts is switched off
+    And when MonitorStoriesEnabled is "true", one more task, monitor-stories, runs the job script baked into the image with the AppSync endpoint of trend-drafts
+    And the task gets MONITOR_STORIES_LIMIT 2, and 3 when the block gives no limit
+    And the script calls "papyrus ideas monitor-stories --store proposals" with IAM authentication and writes its own ledger row with its cost
+    And it publishes nothing, it files private story_draft Proposals and raises one soft review request
+
+  Scenario: monitor stories are off until switched on and never fail the run
+    Given the stack parameter MonitorStoriesEnabled is "false", its default
+    Then the execution goes from the trend drafts straight to Done and no monitor-stories task starts
+    And when it is enabled and the step fails or times out, the execution still ends in Done
+    And the failure is in the task log and the ledger row, and no Fail state, alarm or rollback follows from it
+
+  Scenario: the monitorStories setting is validated
+    Then a limit below 1 or above 20, a limit that is not a whole number, an unknown field and a value that is not an object are all refused with the field named
+
   Scenario: a failing stage ends the execution in a Fail state
     Then each stage catches every error into its own Fail state
     And no stage continues into the next one after a failure, so projection never runs

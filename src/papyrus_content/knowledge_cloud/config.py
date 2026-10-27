@@ -20,6 +20,9 @@ STAGES = (
     "projection",
 )
 PROJECTION_STAGE = STAGES[-1]
+#: Steps that run after the projection as their own tasks (infra/knowledge-run/*.py), not as `papyrus knowledge cloud-run --stage`. They write
+#: a ledger row with their cost, which `papyrus knowledge runs` shows; the run total does not include them.
+POST_RUN_STEPS = ("monitor-stories",)
 TEST_EXECUTION_PREFIX = "test-"
 DEFAULT_MONITOR_WEEKS = 52
 

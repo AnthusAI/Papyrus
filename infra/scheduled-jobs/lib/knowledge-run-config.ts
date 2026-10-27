@@ -22,12 +22,21 @@ export const DEFAULT_STAGE_TIMEOUT_SECONDS = 7200;
 export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
 export const DEFAULT_MONITOR_WEEKS = 52;
 export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
+/** How many monitored items the optional monitor-stories step writes up per execution when `monitorStories` does not say. */
+export const DEFAULT_MONITOR_STORIES_LIMIT = 3;
+export const MAX_MONITOR_STORIES_LIMIT = 20;
 /** The trend window is whole weeks, one to four: the snapshot counts weekly and keeps eight weeks. */
 export const TREND_WINDOW_DAYS = [7, 14, 21, 28] as const;
 /** The sources `papyrus knowledge corpus export --monitor-sources` understands. */
 export const MONITOR_SOURCES = ["huggingface", "routed"] as const;
 
 const VALID_VCPU = [1, 2, 4, 8, 16];
+
+/** The `monitorStories` block of the `knowledgeRun` block, as written. */
+export type MonitorStoriesSettings = {
+  /** Stories drafted per execution, 1 to 20; default 3. */
+  limit?: number;
+};
 
 /** The `knowledgeRun` block of a publication's infra/site.json, as written. */
 export type KnowledgeRunSettings = {
@@ -61,6 +70,11 @@ export type KnowledgeRunSettings = {
   trendWindowDays?: number;
   /** How many days older than the execution's start the published snapshot's asOf may be for the trend-drafts step to use it; default 1. */
   trendSnapshotMaxAgeDays?: number;
+  /**
+   * Opt in to the monitor-stories step (docs/knowledge-cloud-run.md): after trend-drafts it writes a cited story draft for each of the top `limit`
+   * items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as draft Proposals. Absent means no step.
+   */
+  monitorStories?: MonitorStoriesSettings;
   /** Days an entity that anchored a story draft rests before it can anchor another (0 turns it off). Unset means the command's own 7. */
   trendCooldownDays?: number;
   openAiKeyParameter?: string;
@@ -95,6 +109,7 @@ export type KnowledgeRunConfig = {
   monitorSources?: string[];
   monitorWeeks: number;
   monitorSuggestions: number;
+  monitorStories?: { limit: number };
   trendWindowDays?: number;
   trendSnapshotMaxAgeDays: number;
   trendCooldownDays?: number;
@@ -150,6 +165,16 @@ function optionalTrendWindowDays(value: unknown): number | undefined {
   return value as number;
 }
 
+function optionalMonitorStories(value: unknown): MonitorStoriesSettings | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) fail("monitorStories", "must be an object such as {\"limit\": 3}");
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (key !== "limit") fail(`monitorStories.${key}`, "is not a known field (known: limit)");
+  }
+  return { limit: optionalInteger(record.limit, "monitorStories.limit", 1, MAX_MONITOR_STORIES_LIMIT) };
+}
+
 function optionalPlugins(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || !PLUGIN_PATTERN.test(entry))) {
@@ -170,7 +195,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -241,6 +266,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorSources,
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
+    monitorStories: optionalMonitorStories(record.monitorStories),
     trendWindowDays: optionalTrendWindowDays(record.trendWindowDays),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
     trendCooldownDays: optionalInteger(record.trendCooldownDays, "trendCooldownDays", 0, 365),
@@ -287,6 +313,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     monitorSources: settings.monitorSources,
     monitorWeeks: settings.monitorWeeks ?? DEFAULT_MONITOR_WEEKS,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
+    monitorStories: settings.monitorStories ? { limit: settings.monitorStories.limit ?? DEFAULT_MONITOR_STORIES_LIMIT } : undefined,
     trendWindowDays: settings.trendWindowDays,
     trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
     trendCooldownDays: settings.trendCooldownDays,
