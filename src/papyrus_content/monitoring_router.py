@@ -931,7 +931,7 @@ class Router:
                                       "since": _iso(self.now), "backoffSeconds": PARK_BACKOFF_FIRST,
                                       "nextProbeAt": int(self.now + PARK_BACKOFF_FIRST), "probes": 0}
         entry = {"sourceId": disc["sourceId"], "revision": int(disc["revision"])}
-        items = [i for i in park.get("items", []) if i != entry] + [entry]
+        items = [i for i in park.get("items", []) if i != entry] + ([] if disc.get("editorSelectedReference") else [entry])
         self.save_park(pub_id, {**park, "reason": reason[:200], "ready": False, "items": items[-PARK_KEEP_ITEMS:]})
         route.setdefault("notReady", {})[pub_id] = {"reason": reason[:200], "at": _iso(self.now)}
         self.counts["skippedNotReady"] += 1
@@ -1332,8 +1332,17 @@ class Router:
 
     def finish(self, disc: dict, route: dict, routing: str, reason: str):
         route["final"] = {"routing": routing, "reason": reason[:300], "at": _iso(self.now)}
+        partition = None
+        if disc.get("editorSelectedReference") and routing == "parked":
+            # Criteria can become ready later. Keep this exact job in its own lane;
+            # ordinary backfill must never be needed to recover a selected Reference.
+            publication_id = disc["editorSelectedReference"]["publicationId"]
+            retry_at = max(int(self.now + 300), int((self.park(publication_id) or {}).get("nextProbeAt", 0)))
+            route["nextAttemptAt"] = retry_at
+            disc = {**disc, "gsi1sk": f"{_iso(retry_at)}#{disc['sourceId']}#{int(disc['revision']):06d}"}
+            partition = "email-references"
         self.save(route)
-        set_routing(self.store, self.monitor_id, disc, routing, None)
+        set_routing(self.store, self.monitor_id, disc, routing, partition)
         self.counts[routing] += 1
 
     # sweep ----------------------------------------------------------------------------------------

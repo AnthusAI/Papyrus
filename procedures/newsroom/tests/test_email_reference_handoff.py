@@ -55,7 +55,8 @@ def test_operator_identity_cannot_queue():
     assert not f.table.by_prefix('DISC#')
 
 
-def test_selected_negative_prediction_is_delivered_once_without_procedures():
+@pytest.mark.parametrize("initially_not_ready", [False, True])
+def test_selected_negative_prediction_is_delivered_once_without_procedures(initially_not_ready):
     f, store, request, endpoint = fixture()
     queued = queue(store, request, endpoint)
     class Model(AccountCyclotron):
@@ -74,13 +75,24 @@ def test_selected_negative_prediction_is_delivered_once_without_procedures():
     def deliver(_client, pub, disc, decision, config):
         delivered.append(decision)
         return {'referenceId': request['referenceId']}
-    def run():
-        return run_router(RouterStore(f.table), 'email-publication', now=2000000000,
+    def run(now=2000000000):
+        return run_router(RouterStore(f.table), 'email-publication', now=now,
             task='email-references', source_ids=[queued['sourceId']], cyclotron=client, appsync=lambda _: AppSync(), deliver=deliver,
             context_receipt=lambda *_: {}, start_procedure=started.append)
-    result = run()
+    if initially_not_ready:
+        model.post_override['publication'] = (409, {'detail': 'publication criteria are pending'})
+        waiting = run()
+        assert waiting['counts']['parked'] == 1
+        assert not delivered
+        disc = f.table.by_prefix('DISC#')[0]
+        assert disc['gsi1pk'] == 'ROUTING#email-publication#email-references'
+        assert queue(store, request, endpoint) == queued
+        # No ordinary backfill entry exists; retries use only the selected job.
+        assert all(not park.get('items') for park in f.table.by_prefix('PARK#'))
+        model.post_override.clear()
+    result = run(2000010000)
     assert result['counts']['delivered'] == 1, result
     assert delivered[0]['label'] == 'exclude'
     assert not started
-    run()
-    assert len(delivered) == 1 and len(model.posts()) == 1
+    run(2000010010)
+    assert len(delivered) == 1 and len(model.posts()) == (2 if initially_not_ready else 1)
