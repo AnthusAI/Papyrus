@@ -171,12 +171,16 @@ for (const bad of [
 const definitions = readerSteeringSchemaDefinitions() as Record<string, unknown>;
 assert.deepEqual(
   Object.keys(definitions).sort(),
-  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, ...(readerSteeringManifest.queries ?? []), "ModerationReceipt", "ProposalReceipt", "StoryDraftSummary", "StoryDraftList"].sort(),
+  [...readerSteeringManifest.models, ...readerSteeringManifest.mutations, ...(readerSteeringManifest.queries ?? []), "ModerationReceipt"].sort(),
   "the schema defines exactly the manifest's models, mutations and queries, plus the receipt and list types",
 );
 assert.deepEqual(readerSteeringManifest.guest.mutations, [], "a guest can call nothing");
-assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader", "fileProposal", "transitionProposal", "editProposal"]);
-assert.deepEqual(readerSteeringManifest.queries, ["listStoryDrafts"]);
+assert.deepEqual(readerSteeringManifest.mutations, ["moderateReader"], "the Proposals queue is core: this plugin defines only the reader mutation");
+assert.equal(readerSteeringManifest.models.includes("Proposal"), false, "the Proposal model is core, not the plugin's");
+assert.equal(readerSteeringManifest.queries, undefined);
+for (const name of ["Proposal", "ProposalReceipt", "StoryDraftSummary", "StoryDraftList", "fileProposal", "transitionProposal", "editProposal", "listStoryDrafts"]) {
+  assert.equal(name in definitions, false, `${name} is defined by the core schema, not by reader-steering`);
+}
 assert.deepEqual(readerSteeringManifest.newsroomPanels, [{ id: "moderation", label: "Moderation" }]);
 
 const schemaSource = JSON.stringify(
@@ -384,7 +388,8 @@ assert.equal(readerSteeringPlugin.publicSettings(aiConfig).moderation && (reader
 assert.equal(JSON.stringify(readerSteeringPlugin.publicSettings(aiConfig)).includes("openai-api-key"), false, "the parameter name is not published to the browser");
 
 const transformed = schemaWithPlugins(readerSteeringSchemaDefinitions()).transform().schema;
-for (const model of readerSteeringManifest.models) {
+const coreModels = [...readerSteeringManifest.models, "Proposal"];
+for (const model of coreModels) {
   const declaration = new RegExp(`type ${model} @model[^\\n]*`).exec(transformed);
   assert.ok(declaration, `${model} is a model in the deployed schema`);
   assert.equal(/provider: (apiKey|iam|identityPool)|allow: (public|private)/.test(declaration[0]), false, `${model} has no guest, API key or IAM rule: ${declaration[0]}`);
@@ -423,11 +428,13 @@ for (const name of ["fileProposal", "transitionProposal", "editProposal"]) {
 
 // The operator (IAM) path lives in the function, not in the schema: no IAM rule is declared above, and the function
 // admits an operator only for filing and for draft -> in_steering / declined, in its own account.
-const proposalRules = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/proposals.py"), "utf8");
+const proposalRules = readFileSync(join(process.cwd(), "amplify/functions/proposal-actions/proposals.py"), "utf8");
 assert.match(proposalRules, /OPERATOR_TRANSITIONS = frozenset\(\{\(DRAFT, IN_STEERING\), \(DRAFT, DECLINED\)\}\)/, "an operator may only send a draft to steering or decline it");
 assert.match(proposalRules, /if staff is None:\n\s+return refused\("operator_not_allowed"/, "an operator is refused every editProposal action");
 assert.match(proposalRules, /parts\[4\] != account_id/, "an operator must belong to the function's own account");
 assert.match(proposalRules, /"cognitoIdentityId"/, "an identity-pool user is not an operator");
+const proposalHandler = readFileSync(join(process.cwd(), "amplify/functions/proposal-actions/handler.py"), "utf8");
+assert.match(proposalHandler, /account_id=function_account\(_context\)/, "the account comes from the function's own ARN");
 const readerHandler = readFileSync(join(process.cwd(), "amplify/plugins/reader-steering/function/handler.py"), "utf8");
-assert.match(readerHandler, /account_id=function_account\(_context\)/, "the account comes from the function's own ARN");
+assert.equal(/proposals as proposal_rules|fileProposal|listStoryDrafts/.test(readerHandler), false, "reader-actions no longer handles the Proposals queue");
 console.log("reader steering schema ok");

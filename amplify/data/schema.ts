@@ -3,6 +3,7 @@ import { assignmentAction } from "../functions/assignment-action/resource";
 import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
 import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
+import { proposalActionsSchemaDefinitions } from "../functions/proposal-actions/schema";
 import { monitoringViewSchemaDefinitions } from "../functions/monitoring-view/schema";
 import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
@@ -2225,6 +2226,7 @@ const definitions = {
   ...editorialChecksSchemaDefinitions,
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,
+  ...proposalActionsSchemaDefinitions,
 };
 if (!includeEditions) {
   const mutableDefinitions = definitions as Record<string, unknown>;

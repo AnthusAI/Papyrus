@@ -38,6 +38,12 @@ reader_handler = importlib.util.module_from_spec(_specification)
 sys.modules["reader_actions_handler"] = reader_handler
 _specification.loader.exec_module(reader_handler)
 
+PROPOSAL_HANDLER_PATH = Path(__file__).resolve().parents[3] / "amplify" / "functions" / "proposal-actions" / "handler.py"
+_proposal_specification = importlib.util.spec_from_file_location("proposal_actions_handler", PROPOSAL_HANDLER_PATH)
+proposal_handler = importlib.util.module_from_spec(_proposal_specification)
+sys.modules["proposal_actions_handler"] = proposal_handler
+_proposal_specification.loader.exec_module(proposal_handler)
+
 START_SECONDS = 1_800_000_000.0
 OLD_ACCOUNT_SECONDS = 3 * 24 * 3600
 PUBLISHED_SUBJECTS = ("item-one", "item-two")
@@ -83,6 +89,7 @@ class ScriptedRetirementPoll:
         return page
 
 
+PROPOSAL_FIELDS = ("fileProposal", "transitionProposal", "editProposal", "listStoryDrafts")
 OPERATOR_ACCOUNT = "123456789012"
 OPERATOR_ARN = f"arn:aws:sts::{OPERATOR_ACCOUNT}:assumed-role/ideas-pipeline/run-1"
 
@@ -157,9 +164,9 @@ class ReaderBackend:
             report_table=TABLE_NAMES["report"],
             action_table=TABLE_NAMES["action"],
             item_table=TABLE_NAMES["item"],
-            proposal_table=TABLE_NAMES["proposal"],
             flag_table=TABLE_NAMES["flag"],
         )
+        self.proposal_store = proposal_handler.DynamoProposalStore(resource=self.resource, proposal_table=TABLE_NAMES["proposal"])
         for subject in PUBLISHED_SUBJECTS:
             self.publish(subject)
         return self
@@ -215,6 +222,9 @@ class ReaderBackend:
         else:
             event = {"arguments": arguments, "identity": identity, "info": {"fieldName": field}}
         context = SimpleNamespace(invoked_function_arn=f"arn:aws:lambda:us-east-1:{account_id}:function:reader-steering") if account_id else None
+        if field in PROPOSAL_FIELDS:
+            # Proposals are core: their own function (amplify/functions/proposal-actions), the same table the reader snapshot reads.
+            return proposal_handler.handle_event(event, store=self.proposal_store, now_seconds=self.now, account_id=proposal_handler.function_account(context))
         saved = reader_handler.settings_from_environment, reader_handler.store_from_environment, reader_handler.time
         reader_handler.settings_from_environment = lambda: self.settings
         reader_handler.store_from_environment = lambda: self.store

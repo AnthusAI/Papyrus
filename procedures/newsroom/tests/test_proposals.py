@@ -13,9 +13,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from papyrus_content.projection.plugins import is_plugin_runtime_key  # noqa: E402
 from papyrus_content.projection.writers import LocalDirectoryWriter  # noqa: E402
 from papyrus_content.reader_steering import proposals as public  # noqa: E402
-from reader_fixtures import OPERATOR_ACCOUNT, OPERATOR_ARN, ReaderBackend, operator_identity, reader_handler, run_snapshot, subject_for  # noqa: E402
+from reader_fixtures import OPERATOR_ACCOUNT, OPERATOR_ARN, ReaderBackend, operator_identity, proposal_handler, reader_handler, run_snapshot, subject_for  # noqa: E402
 
-rules = reader_handler.proposal_rules
+rules = proposal_handler.proposal_rules
 BODY = "# Name the agents cluster\n\nThe cluster mixes **tool use** with *planning*.\n"
 
 
@@ -305,10 +305,10 @@ class TransitionTests(unittest.TestCase):
     def test_a_move_made_on_a_stale_view_is_refused(self) -> None:
         with ReaderBackend() as backend:
             identifier = file_one(backend)
-            stale = backend.store.get_proposal(identifier)
+            stale = backend.proposal_store.get_proposal(identifier)
             move(backend, identifier, "in_steering")
             plan = rules.transition_plan(stale, "declined", "Not now.", actor_sub="s", now_iso="2026-10-22T00:00:00Z")
-            self.assertFalse(backend.store.change_proposal(identifier, plan, stale["state"], "2026-10-22T00:00:00Z"))
+            self.assertFalse(backend.proposal_store.change_proposal(identifier, plan, stale["state"], "2026-10-22T00:00:00Z"))
             self.assertEqual(row_of(backend, identifier)["state"], "in_steering")
 
 

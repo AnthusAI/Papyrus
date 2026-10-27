@@ -31,6 +31,8 @@ import { defineSiteData } from "./data/resource";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
 import { wireAutomationView } from "./functions/automation-view/wire";
+import { proposalActions } from "./functions/proposal-actions/resource";
+import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
 import { wireEmailReferenceIntake, wireMonitoringView } from "./functions/monitoring-view/wire";
 import { wireEditorialChecks } from "./functions/editorial-checks/wire";
@@ -131,6 +133,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     modelAttachmentUpload,
     newsroomSummary,
     procedureAction,
+    proposalActions,
     publicForms,
     readerSettings,
     emailSubmissionProcessor,
@@ -777,6 +780,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   wireEditorialChecks(backend);
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
+  wireProposalActions(backend);
   wirePlugins(backend, plugins, contentActionsLambda);
 
   return backend;

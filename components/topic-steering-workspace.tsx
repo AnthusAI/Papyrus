@@ -17,6 +17,7 @@ import { EditorialChecksAdminPanel } from "./editorial-checks-admin-panel";
 import { AutomationPanel } from "./automation-panel";
 import { MonitoringPanel } from "./monitoring-panel";
 import { ModerationPanel } from "./moderation-panel";
+import { ProposalsPanel } from "./proposals-panel";
 import { NewsletterPanel } from "./newsletter-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
@@ -256,7 +257,7 @@ type AssignmentAction = "claim" | "release" | "complete" | "cancel" | "reopen" |
 type ReportingPacketReviewDecision = "select" | "merge" | "brief" | "hold" | "kill";
 type AssignmentDeskViewMode = "queue" | "budget";
 type UserRoleAction = "grant" | "revoke";
-type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "editorial-checks" | "monitoring";
+type AdministrationPanel = "users" | "policies" | "sections" | "procedures" | "automations" | "delegations" | "signups" | "newsletter" | "moderation" | "proposals" | "editorial-checks" | "monitoring";
 export type NewsDeskTab = "overview" | "desks" | "topics" | "concepts" | "references" | "messages" | "assignments" | "administration" | "search";
 type LexicalRuleScope = "publication" | "corpus" | "classifier" | "category";
 type AnalysisReindexMode = "online-update" | "classifier-retrain" | "scoped-topic-rebuild" | "entity-graph-rebuild" | "generated-analysis-rebuild";
@@ -4398,6 +4399,15 @@ function AdministrationDeskView({
                   <span>Subscribers, issues and delivery for the site&apos;s email</span>
                 </Link>
               ) : null}
+              <Link
+                href={administrationPanelHref("proposals", isDemo)}
+                data-news-desk-admin-nav="proposals"
+                data-active={administrationPanel === "proposals" || undefined}
+                onClick={() => onPanelChange("proposals")}
+              >
+                <strong>Proposals</strong>
+                <span>Story drafts and changes that AI proposes</span>
+              </Link>
               {readerPluginEnabled() ? (
                 <Link
                   href={administrationPanelHref("moderation", isDemo)}
@@ -4413,6 +4423,7 @@ function AdministrationDeskView({
             <div className="news-desk-settings-panel">
               {administrationPanel === "signups" ? <SignupEntriesPanel /> : null}
               {administrationPanel === "newsletter" ? <NewsletterPanel isAdmin={canManageUsers} isDemo={isDemo} /> : null}
+              {administrationPanel === "proposals" ? <ProposalsPanel /> : null}
               {administrationPanel === "moderation" ? <ModerationPanel /> : null}
               {administrationPanel === "editorial-checks" ? <EditorialChecksAdminPanel /> : null}
               {administrationPanel === "automations" ? <AutomationPanel isDemo={isDemo} /> : null}
@@ -12890,7 +12901,7 @@ function readerPluginEnabled(): boolean {
 }
 
 function normalizeAdministrationPanel(value: string | null | undefined, demo = false): AdministrationPanel {
-  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring") return value;
+  if (value === "policies" || value === "sections" || value === "procedures" || value === "automations" || value === "delegations" || value === "editorial-checks" || value === "monitoring" || value === "proposals") return value;
   if (value === "signups" && signupPluginEnabled()) return value;
   if (value === "newsletter" && newsletterPluginEnabled(demo)) return value;
   if (value === "moderation" && readerPluginEnabled()) return value;
