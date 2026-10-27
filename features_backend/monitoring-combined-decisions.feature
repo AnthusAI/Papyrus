@@ -29,11 +29,11 @@ Feature: The router asks Cyclotron once per story for every publication
     Then building it again gives the same request identity
     And a request with a different set of publication bindings has a different request identity
 
-  Scenario: A changed publication set does not collide with a job the lab already holds
+  Scenario: A changed publication set does not re-post a job the lab already holds
     Given the router has a pending job for the story under the current publication set
     When the publication set changes and the router sweeps again
-    Then the stored job is discarded as stale
-    And the story is posted again under a different request identity
+    Then the stored job is polled and collected
+    And the story is not posted again
     And the story is decided and delivered without a conflict
 
   Scenario: A request conflict leads to exactly one re-post
@@ -92,11 +92,31 @@ Feature: The router asks Cyclotron once per story for every publication
     Then the story is refused
     And the answers of the other publications are kept on the story's receipt
 
-  Scenario: A job left over from an earlier Cyclotron run is posted again under the current run
+  Scenario: A job left over from an earlier Cyclotron run is still polled and collected
     Given the story holds a combined job that was posted under an earlier Cyclotron run
     When the router sweeps the collected story
-    Then the earlier run's job is never polled
-    And the story is decided and delivered under a new request
+    Then the earlier run's job is polled
+    And the story is decided and delivered
+    And the story is not posted again
+
+  Scenario: A pending job stored under an old-format request id keeps being polled
+    Given the story holds a pending combined job stored under an old-format request id
+    When the router sweeps the collected story
+    And the router sweeps the collected story again
+    Then the story is not posted again
+    And the story is still waiting for the router
+
+  Scenario: A pending job stored under an old-format request id is collected without a new post
+    Given the story holds a combined job that was posted under an old-format request id
+    When the router sweeps the collected story
+    Then the story is decided and delivered
+    And the story is not posted again
+
+  Scenario: A job that ended failed is posted again once
+    Given the story holds a combined job that the lab reports as failed
+    When the router sweeps the collected story
+    Then the story is posted again once
+    And the story is decided and delivered
 
   Scenario: A job the lab no longer knows is posted again once
     Given the story holds a combined job under the current run that the lab answers with not found once

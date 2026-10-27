@@ -173,6 +173,11 @@ class JobGone(Exception):
     The router discards the stored job and re-posts once; it is never a run-stopping event."""
 
 
+class JobFailed(Exception):
+    """Polling a stored job answered a terminal failed state: nothing more will come from it. The router discards it
+    and re-posts once under a new id; it is never a run-stopping event."""
+
+
 class AllBindingsNotReady(Exception):
     """Every binding for the item is waiting for a classifier: nothing to decide or deliver yet."""
 
@@ -669,6 +674,8 @@ class CyclotronClient:
                 return payload
             if status == 404:
                 raise JobGone()
+            if status == 200 and str(payload.get("status") or "") == "failed":
+                raise JobFailed()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -703,6 +710,8 @@ class CyclotronClient:
                 return payload
             if status == 404:
                 raise JobGone()
+            if status == 200 and str(payload.get("status") or "") == "failed":
+                raise JobFailed()
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -1428,15 +1437,6 @@ class Router:
         cyclotron = self.config["cyclotron"]
         return {"runId": cyclotron["runId"], "bindingRevision": cyclotron["bindingRevision"]}
 
-    def job_is_stale(self, stored: dict, expected_request_id: str) -> bool:
-        """A stored job posted under an earlier run or binding revision (after a Cyclotron cutover)."""
-        current = self.posted_under()
-        if any(key in stored and stored[key] != value for key, value in current.items()):
-            return True
-        # ids are content-addressed: a stored id that differs from the one the current content produces was posted
-        # under other content, so the lab would answer request_conflict if it were reused
-        return stored.get("requestId") != expected_request_id
-
     def decide_combined(self, todo: list[dict], disc: dict, route: dict, item_id: str, reposted: bool = False) -> list[dict]:
         """One POST /machine/decisions for the story's unchecked bindings, one poll loop, then each publication's
         receipt is checked and stored under `jobs` exactly as a per-publication decide would. Returns the
@@ -1447,11 +1447,8 @@ class Router:
             return todo
         if not stored and (len(todo) < 2 or self.combined_unavailable):
             return todo
-        if stored and todo and self.job_is_stale(stored, build_combined_request(
-                self.config, todo, disc, int(route.get("attempt", 0)))["body"]["requestId"]):
-            del route["combinedJob"]   # posted under an earlier run: its id is unknown to the lab now, re-post
-            self.save(route)
-            return self.decide_combined(todo, disc, route, item_id, reposted)
+        # a stored job is always polled by its jobId, whatever request id or run it was posted under: only a 409
+        # request_conflict, a failed job or a 404 (below) discards it
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
         if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
@@ -1508,6 +1505,13 @@ class Router:
                 if reposted:
                     raise ItemInvalid("lab does not know the job posted for this story (404 after a re-post)")
                 return self.decide_combined(todo, disc, route, item_id, True)
+            except JobFailed:
+                del route["combinedJob"]   # the job ended failed: re-post once under a new id
+                route["attempt"] = int(route.get("attempt", 0)) + 1
+                self.save(route)
+                if reposted:
+                    raise ItemInvalid("the job posted for this story failed again after a re-post")
+                return self.decide_combined(todo, disc, route, item_id, True)
             except StopSweep as stop:
                 if stop.code in NON_CONSUMING_REFUSALS:
                     del route["combinedJob"]
@@ -1553,12 +1557,7 @@ class Router:
         job = jobs.get(pub_id)
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
-        if job and self.job_is_stale(job, built["body"]["requestId"]):
-            del jobs[pub_id]   # posted under an earlier run or binding: re-post under the current one
-            self.save(route)
-            return self.decide_binding(publication, disc, route, item_id, reposted)
-        if job and job.get("requestId") != built["body"]["requestId"]:
-            raise ItemInvalid("stored job belongs to a different request")
+        # a stored job is polled by its jobId whatever request id or run it was posted under
         if job and job.get("jobId"):
             if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
                 raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
@@ -1609,6 +1608,13 @@ class Router:
             self.save(route)
             if reposted:
                 raise ItemInvalid("lab does not know the job posted for this publication (404 after a re-post)")
+            return self.decide_binding(publication, disc, route, item_id, True)
+        except JobFailed:
+            del jobs[pub_id]   # the job ended failed: re-post once under a new id
+            route["attempt"] = int(route.get("attempt", 0)) + 1
+            self.save(route)
+            if reposted:
+                raise ItemInvalid("the job posted for this publication failed again after a re-post")
             return self.decide_binding(publication, disc, route, item_id, True)
         except StopSweep as stop:
             if stop.code in NON_CONSUMING_REFUSALS:
