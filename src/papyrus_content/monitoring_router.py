@@ -71,6 +71,30 @@ MAX_PENDING_JOB_SECONDS = 6 * 3600
 AWAITING = "awaiting"
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
+# A human curator is recorded as `user:<x>` (CLI), the editor's sign-in email, a Cognito username
+# (`google_<digits>`) or a Cognito sub (UUID). Everything else (worker, `ai`, `system:*`, `worker:*`,
+# `papyrus*`, `behave-*`, `*-import`, the "Papyrus newsroom" fallback label) is a machine or unknown actor.
+_EMAIL_ACTOR = re.compile(r"^[^@\s:]+@[^@\s:]+\.[^@\s:]+$")
+_COGNITO_ACTOR = re.compile(r"^(?:[A-Za-z][A-Za-z0-9-]*_[0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
+
+
+def human_actor(actor: str) -> bool:
+    actor = actor.strip()
+    if not actor or actor == WORKER_ACTOR:
+        return False
+    if actor.startswith("user:"):
+        return bool(actor[5:].strip())
+    return bool(_EMAIL_ACTOR.match(actor) or _COGNITO_ACTOR.match(actor))
+
+
+def editor_subject(site: str, actor: str) -> str:
+    """The stable, non-PII editor subject sent to Cyclotron. Never an email address."""
+    actor = actor.strip()
+    if actor.startswith("user:") and "@" not in actor:
+        return actor[:200]
+    if _COGNITO_ACTOR.match(actor) and "_" not in actor:
+        return f"cognito:{actor}"
+    return "editor:" + sha256(f"{site}:{actor.lower()}".encode()).hexdigest()[:32]
 PARTITION_COLLECTED = "collected"
 PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
@@ -1706,7 +1730,7 @@ class Router:
             self.rotate(row, f"curation {status or 'missing'}")
             return "pending"
         actor = str(reference.get("curationStatusUpdatedBy") or "")
-        if not actor.startswith("user:") or not actor[5:].strip() or actor == WORKER_ACTOR:
+        if not human_actor(actor):
             self.rotate(row, "curation actor is missing or not a human user")
             return "skipped"
         updated_at = str(reference.get("curationStatusUpdatedAt") or reference.get("updatedAt") or "")
@@ -1715,7 +1739,8 @@ class Router:
                 "requestId": sha256("\n".join([row["referenceId"], status, updated_at]).encode()).hexdigest(),
                 "payload": {"bindingRevision": row["bindingRevision"], "itemId": row["itemId"],
                             "itemRevision": (row.get("source") or {}).get("revision"), "output": row["output"],
-                            "label": label, "editor": {"site": publication["site"], "subject": actor}}}
+                            "label": label, "editor": {"site": publication["site"],
+                                       "subject": editor_subject(publication["publicationId"], actor)}}}
         if body["payload"]["itemRevision"] is None:
             self.rotate(row, "decision receipt has no item revision")
             return "skipped"
