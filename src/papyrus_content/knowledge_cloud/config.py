@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..ideas.excluded_hosts import normalize_hosts
+
 STAGES = (
     "corpus-sync",
     "topic-model",
@@ -84,6 +86,7 @@ class CloudRunConfig:
     monitor_weeks: int | None  # None: all history
     monitor_suggestions: int
     monitor_full: bool
+    excluded_source_hosts: tuple[str, ...]
     openai_parameter: str
     work_dir: Path
     region: str
@@ -136,6 +139,7 @@ class CloudRunConfig:
             monitor_weeks=int(text) if (text := (environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip()) else None,
             monitor_suggestions=int((environment.get("KNOWLEDGE_MONITOR_SUGGESTIONS") or "").strip() or 0),
             monitor_full=(environment.get("KNOWLEDGE_MONITOR_FULL") or "").strip().lower() == "true",
+            excluded_source_hosts=normalize_hosts(environment.get("KNOWLEDGE_EXCLUDED_SOURCE_HOSTS")),
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),
             work_dir=Path((environment.get("KNOWLEDGE_WORK_DIR") or "/work").strip()),
             region=(environment.get("AWS_REGION") or "us-east-1").strip(),

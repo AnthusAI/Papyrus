@@ -5,7 +5,7 @@
 `papyrus ideas digest` and `papyrus ideas synthesize` turn a site's recent references into private story ideas. This is the first
 version of PPY-8ffc18: a digest and a synthesis, run by hand against the cloud CMS. `papyrus ideas trends` adds the trend-story path
 ([below](#trend-stories)). Scheduling comes later. Executable specs: `features_backend/idea-pipeline.feature`,
-`features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`.
+`features_backend/idea-trend-stories.feature`, `features_backend/idea-monitor-stories.feature`; unit tests: `procedures/newsroom/tests/test_ideas.py`, `test_idea_trends.py`, `test_monitor_stories.py`, `test_excluded_hosts.py`; excluded source hosts: `features_backend/idea-excluded-source-hosts.feature`.
 
 ## Running it
 
@@ -297,6 +297,33 @@ problems, `modelCalls` (the usage of each call, for the ledger) and the cost. Th
 
 Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
 so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
+
+## Excluded source hosts
+
+A site can list source hosts that must never be cited in an AI draft, for example a competing publication. In the site file:
+`"knowledgeRun": {"excludedSourceHosts": ["ipwatchdog.com"]}`. The scheduled run passes them to `papyrus ideas trends` and
+`papyrus ideas monitor-stories` as `--exclude-host HOST` (repeatable; a comma-separated value is several hosts; an address is reduced to its host). A host
+matches itself and every subdomain (`ipwatchdog.com` matches `www.ipwatchdog.com`, not `notipwatchdog.com`).
+
+**The site lists hosts explicitly.** Papyrus does not classify source hosts by kind (news, blog, publication) anywhere, so there is no
+`excludedSourceKinds` setting. To exclude "any other blog or news-publication host", name each host.
+
+- **Monitor stories.** A Reference whose `sourceUri` host is excluded is never read further and never a candidate. The run record counts them in
+  `inputs.excludedHost` (also in the CLI summary line, the report and the ledger row's `details.result.excludedHost`) and lists the hosts in `excludedSourceHosts`.
+- **Cited Trends.** An item (a published story or a recorded release) whose address is on an excluded host is never shown to the model as citable
+  evidence and never appears in a draft's cited items or its Sources list. The run record counts them in `inputs.itemsExcludedByHost` and the signal
+  names them in `excludedItemIds`. **The statistics still count them**: a signal's item counts, window counts and weekly history come from the published
+  snapshot and describe the topic, not the source, so an excluded host's items can still make a topic rise. Only the evidence the story may cite and
+  quote is filtered.
+- **The citation check.** Defence in depth: a sentence that cites an excluded item fails with `cites_excluded_source_host:<handle>`, even though no
+  excluded item is offered, so the draft is not filed.
+
+### Monitors an automation handles
+
+Monitor stories skip every Reference delivered by a monitor that an **enabled Automation** of the site already handles (an Automation record whose trigger is
+`{"kind": "monitor", "config": {"monitorId": ...}}`, see [automations](automations.md)), so a site that turns monitor stories on does not get a second draft of what
+the automation drafts. They are counted in `inputs.handledByAutomation`; the monitors are listed in the run record's `automatedMonitors`. A disabled Automation
+hides nothing. If the Automation records cannot be read the run goes ahead and records `automationLookupError`.
 
 ## Friction for the run contract
 

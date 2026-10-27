@@ -40,9 +40,9 @@
     "monitorSources": [
       "routed"
     ],
-    "monitorStories": {
-      "limit": 3
-    },
+    "excludedSourceHosts": [
+      "ipwatchdog.com"
+    ],
     "alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email",
     "openAiKeyParameter": "/amplify/shared/d2xke8ygmrzqpp/OPENAI_API_KEY"
   },

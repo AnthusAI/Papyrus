@@ -15,6 +15,7 @@ from typing import Any
 
 from ..graphql_authoring import create_authoring_client
 from ..options import normalize_string, parse_options
+from .excluded_hosts import normalize_hosts
 from ..papyrus_config import resolve_openai_api_key
 from . import digest as digest_module
 from ..knowledge_snapshot.trends import TrendConfig
@@ -34,10 +35,10 @@ USAGE = (
     "      [--store json|proposals] [--feedback FILE (manual override of review steering)] [--model gpt-6-luna] [--dedupe-threshold 0.5] [--max-cost-usd 0.50]\n"
     "      [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
+    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
     "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
-    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--out DIR] [--report FILE] [--json]\n"
+    "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
 )
@@ -58,6 +59,14 @@ def _publication(options: dict[str, Any]) -> str:
 def _root(options: dict[str, Any], publication: str) -> Path:
     out = normalize_string(options.get("out"))
     return assert_private(Path(out)) if out else default_root(publication)
+
+
+def _excluded_hosts(flags: list[str]) -> tuple[str, ...]:
+    """Every ``--exclude-host HOST`` in the flags (repeatable; a comma-separated value is several hosts). ``parse_options`` keeps only the last of a repeated flag."""
+    values = [flags[index + 1] for index, flag in enumerate(flags[:-1]) if flag == "--exclude-host" and not flags[index + 1].startswith("--")]
+    if "--exclude-host" in flags and not normalize_hosts(values):
+        raise ValueError("--exclude-host needs a host such as ipwatchdog.com.")
+    return normalize_hosts(values)
 
 
 def _integer(options: dict[str, Any], key: str, default: int) -> int:
@@ -208,6 +217,7 @@ def trends_command(flags: list[str]) -> None:
             now=now,
             fetch_text=trends.read_item_summary,
             config=_trend_config(options),
+            excluded_hosts=_excluded_hosts(flags),
         )
     except (RunRefused, synthesis.SynthesisError) as error:
         raise ValueError(str(error)) from error
@@ -221,7 +231,7 @@ def trends_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\ttrends\t{run['runId']}\t{run['store']}")
-    print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})\titems {inputs.get('items', 0)} ({inputs.get('itemsWithSummary', 0)} with a summary)")
+    print(f"snapshot\t{run['snapshot']['asOf']}\t{run['snapshot']['source']}\tsignals {inputs['signals']} (clusters {inputs['clusterSignals']}, entities {inputs['entitySignals']})\titems {inputs.get('items', 0)} ({inputs.get('itemsWithSummary', 0)} with a summary)\texcluded by host {inputs.get('itemsExcludedByHost', 0)}")
     print(f"drafts\tproposed {run['proposed']}\tfailed the citation check {len(run['invalid'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
     print(f"llm\t{run['model']}\tin {usage.get('inputTokens', 0)}\tout {usage.get('outputTokens', 0)}\tcost ${usage.get('costUsd', 0)}")
     if run["priorDrafts"]:
@@ -280,6 +290,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         now=now,
         fetch=monitor_stories.fetch_html,
         corpus_key=normalize_string(options.get("corpus-key")),
+        excluded_hosts=_excluded_hosts(flags),
     )
     report = normalize_string(options.get("report"))
     if report:
@@ -291,7 +302,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\tmonitor-stories\t{run['runId']}\t{run['store']}")
-    print(f"items\tread {inputs['inWindow']}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\tcandidates {inputs['candidates']}")
+    print(f"items\tread {inputs['inWindow']}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
     fresh = run["freshness"]
     print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")

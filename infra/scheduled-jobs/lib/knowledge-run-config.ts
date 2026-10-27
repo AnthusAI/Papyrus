@@ -76,6 +76,11 @@ export type KnowledgeRunSettings = {
    * items the site's monitors found, any source, ranked by the relevance Cyclotron's verdict, and files them as draft Proposals. Absent means no step.
    */
   monitorStories?: MonitorStoriesSettings;
+  /**
+   * Hosts the AI drafts (trend-drafts and monitor-stories) must never cite, such as a competing publication. A host matches itself and its subdomains.
+   * The site lists hosts explicitly: Papyrus does not classify hosts by kind (docs/idea-pipeline.md#excluded-source-hosts).
+   */
+  excludedSourceHosts?: string[];
   openAiKeyParameter?: string;
   alarmEmailParameter?: string;
   lockWaitSeconds?: number;
@@ -111,6 +116,7 @@ export type KnowledgeRunConfig = {
   monitorWeeks?: number;
   monitorSuggestions: number;
   monitorStories?: { limit: number };
+  excludedSourceHosts?: string[];
   trendSnapshotMaxAgeDays: number;
   openAiKeyParameter: string;
   alarmEmailParameter: string;
@@ -167,6 +173,16 @@ function optionalMonitorStories(value: unknown): MonitorStoriesSettings | undefi
   return { limit: optionalInteger(record.limit, "monitorStories.limit", 1, MAX_MONITOR_STORIES_LIMIT) };
 }
 
+const HOST_PATTERN = /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/;
+
+function optionalHosts(value: unknown): string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || !HOST_PATTERN.test(entry))) {
+    fail("excludedSourceHosts", "must be an array of lowercase host names such as \"ipwatchdog.com\" (no scheme, no path)");
+  }
+  return [...new Set(value as string[])].sort();
+}
+
 function optionalPlugins(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || !PLUGIN_PATTERN.test(entry))) {
@@ -188,7 +204,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
   rejectUnknownKeys(record, [
     "schedule", "scheduleState", "vCpu", "memoryMiB", "ephemeralStorageGiB", "corpusKey", "siteBucket", "edgeDistributionId",
     "redirectsKvsArn", "appSyncApiId", "amplifyAppId", "contentActionsFunction", "plugins", "siteRepo", "siteBranch", "staticSubdir", "beatsConfig", "conceptKinds",
-    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
+    "monitorSources", "monitorWeeks", "monitorSuggestions", "monitorStories", "excludedSourceHosts", "trendWindowDays", "trendSnapshotMaxAgeDays", "trendCooldownDays", "openAiKeyParameter", "alarmEmailParameter", "lockWaitSeconds", "stageTimeouts", "environment",
   ]);
 
   const scheduleState = record.scheduleState;
@@ -261,6 +277,7 @@ export function parseKnowledgeRun(raw: unknown): KnowledgeRunSettings {
     monitorWeeks: optionalInteger(record.monitorWeeks, "monitorWeeks", 1, 260),
     monitorSuggestions: optionalInteger(record.monitorSuggestions, "monitorSuggestions", 0, 20),
     monitorStories: optionalMonitorStories(record.monitorStories),
+    excludedSourceHosts: optionalHosts(record.excludedSourceHosts),
     trendSnapshotMaxAgeDays: optionalInteger(record.trendSnapshotMaxAgeDays, "trendSnapshotMaxAgeDays", 0, 7),
     openAiKeyParameter: optionalString(record.openAiKeyParameter, "openAiKeyParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
     alarmEmailParameter: optionalString(record.alarmEmailParameter, "alarmEmailParameter", SSM_NAME_PATTERN, "SSM parameter name starting with /"),
@@ -307,6 +324,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     monitorWeeks: settings.monitorWeeks,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
     monitorStories: settings.monitorStories ? { limit: settings.monitorStories.limit ?? DEFAULT_MONITOR_STORIES_LIMIT } : undefined,
+    excludedSourceHosts: settings.excludedSourceHosts,
     trendSnapshotMaxAgeDays: settings.trendSnapshotMaxAgeDays ?? DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS,
     openAiKeyParameter: settings.openAiKeyParameter ?? `/papyrus/${publication}/openai-api-key`,
     alarmEmailParameter: settings.alarmEmailParameter ?? `/papyrus/${publication}/knowledge-run/alarm-email`,

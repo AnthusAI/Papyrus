@@ -29,11 +29,13 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from collections.abc import Iterable
 from typing import Any, Callable
 
 from ..knowledge_snapshot.trends import SERIES_SHORT, TrendConfig, corpus_volume, exceeds_report, scan_window
 from . import dedupe, synthesis
 from .digest import iso
+from .excluded_hosts import is_excluded, normalize_hosts
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
 from .review import request_human_review
 from .store import JsonStore, ProposalStore
@@ -496,10 +498,15 @@ def select_entities(snapshot: dict[str, Any], config: TrendConfig | None = None,
     }
 
 
-def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None, config: TrendConfig | None = None, selection: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def build_signals(
+    snapshot: dict[str, Any], fetch_text: FetchText | None = None, config: TrendConfig | None = None, selection: dict[str, Any] | None = None,
+    excluded_hosts: Iterable[str] = (),
+) -> list[dict[str, Any]]:
     """The week's signals, clusters first (growing, new, cooling, then the rest), then the anchor entities by score, then context entities.
     Entity signals carry ``items``: the releases behind them in the window, with a one-line summary where ``fetch_text`` can read the item page.
-    The snapshot publishes no member list for a cluster, so a cluster signal has no items."""
+    The snapshot publishes no member list for a cluster, so a cluster signal has no items. An item whose address is on one of ``excluded_hosts``
+    (or a subdomain) is left out of ``items`` and listed in the signal's ``excludedItemIds``: the signal's counts and history still include it."""
+    excluded_hosts = normalize_hosts(excluded_hosts)
     config = config or TrendConfig()
     as_of, signals = snapshot["asOf"], []
     previous = snapshot.get("previous") or {}
@@ -537,11 +544,19 @@ def build_signals(snapshot: dict[str, Any], fetch_text: FetchText | None = None,
             signal["neighbours"] = [{k: n.get(k) for k in ("name", "relation", "weight")} for n in detail["neighbours"][:3]]
         weeks = window["windowWeeks"]
         items = [*window_items(detail.get("relatedItems"), as_of, snapshot.get("siteBase"), weeks), *window_records(detail.get("relatedRecords"), as_of, weeks)]
-        if items:
-            signal["items"] = items
+        kept = [item for item in items if not item_is_excluded(item, excluded_hosts)]
+        if len(kept) != len(items):
+            signal["excludedItemIds"] = [item["id"] for item in items if item_is_excluded(item, excluded_hosts)]
+        if kept:
+            signal["items"] = kept
         signals.append(signal)
     attach_summaries(signals, fetch_text)
     return signals
+
+
+def item_is_excluded(item: dict[str, Any], excluded_hosts: Iterable[str]) -> bool:
+    """True when the item's address (its site URL or its source card; a bare site path has no host) is on an excluded host."""
+    return any(is_excluded(address, excluded_hosts) for address in (item.get("url"), item.get("path"), str(item.get("id") or "").removeprefix("item:")))
 
 
 def collect_items(signals: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -672,7 +687,9 @@ def ungrounded(text: str, allowed: list[tuple[set[str], set[str]]]) -> list[str]
     return sorted(numbers - held_numbers, key=float) + sorted(dates - held_dates)
 
 
-def check_sentence(where: str, entry: Any, handles: dict[str, str], views: dict[str, tuple[set[str], set[str]]]) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
+def check_sentence(
+    where: str, entry: Any, handles: dict[str, str], views: dict[str, tuple[set[str], set[str]]], excluded_ids: frozenset[str] = frozenset(),
+) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
     """(the sentence with real signal ids, its problems). Problems are reported together so a person sees all of them."""
     if not isinstance(entry, dict) or not isinstance(entry.get("text"), str) or not entry["text"].strip():
         return None, [_problem(where, "", "missing_text")]
@@ -681,6 +698,9 @@ def check_sentence(where: str, entry: Any, handles: dict[str, str], views: dict[
     unknown = sorted({handle for handle in cites if handle not in handles})  # a signal (S) or an item (I) handle from the input
     if not cites:
         problems.append(_problem(where, text, "no_citation"))
+    forbidden = sorted({handle for handle in cites if handles.get(handle) in excluded_ids})  # defence in depth: an excluded item is never offered, so never cited
+    if forbidden:
+        problems.append(_problem(where, text, f"cites_excluded_source_host:{','.join(forbidden)}"))
     if unknown:
         problems.append(_problem(where, text, f"unknown_signal:{','.join(unknown)}"))
     if len(text) > MAXIMUM_SENTENCE:
@@ -701,15 +721,15 @@ def check_sentence(where: str, entry: Any, handles: dict[str, str], views: dict[
     return {"text": text, "signalIds": [i for i in cited if not i.startswith("item:")], "itemIds": [i for i in cited if i.startswith("item:")]}, problems
 
 
-def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str, Any]], views: dict[str, tuple[set[str], set[str]]], allowed_sections: list[str]) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str, Any]], views: dict[str, tuple[set[str], set[str]]], allowed_sections: list[str], excluded_ids: frozenset[str] = frozenset()) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """(the checked draft or None, the citation check record). The record is kept for failing and passing drafts alike."""
     record: dict[str, Any] = {"status": "failed", "sentences": 0, "problems": []}
     if not isinstance(item, dict):
         record["problems"].append(_problem("draft", "", "not_an_object"))
         return None, record
     problems: list[dict[str, str]] = record["problems"]
-    headline, headline_problems = check_sentence("headline", item.get("headline"), handles, views)
-    dek, dek_problems = check_sentence("dek", item.get("dek"), handles, views)
+    headline, headline_problems = check_sentence("headline", item.get("headline"), handles, views, excluded_ids)
+    dek, dek_problems = check_sentence("dek", item.get("dek"), handles, views, excluded_ids)
     problems += headline_problems + dek_problems
     paragraphs, sentences, attempted = [], [], 0
     raw_paragraphs = item.get("paragraphs")
@@ -721,7 +741,7 @@ def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str,
         checked_paragraph = []
         for position, entry in enumerate(entries if isinstance(entries, list) else [], start=1):
             attempted += 1
-            checked, found = check_sentence(f"paragraph {number} sentence {position}", entry, handles, views)
+            checked, found = check_sentence(f"paragraph {number} sentence {position}", entry, handles, views, excluded_ids)
             problems += found
             if checked:
                 checked_paragraph.append(checked)
@@ -764,13 +784,17 @@ def check_draft(item: Any, handles: dict[str, str], signals: dict[str, dict[str,
     }, record
 
 
-def validate_drafts(raw: list[Any], handles: dict[str, str], signals: dict[str, dict[str, Any]], allowed_sections: list[str], maximum: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """(passing drafts, failing drafts with the citation check that failed them). The first ``maximum`` passing drafts are kept."""
+def validate_drafts(raw: list[Any], handles: dict[str, str], signals: dict[str, dict[str, Any]], allowed_sections: list[str], maximum: int, excluded_hosts: Iterable[str] = ()) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """(passing drafts, failing drafts with the citation check that failed them). The first ``maximum`` passing drafts are kept.
+    A sentence that cites an item on one of ``excluded_hosts`` fails the check, even though such an item is never offered."""
+    excluded_hosts = normalize_hosts(excluded_hosts)
+    known = collect_items(list(signals.values()))
+    excluded_ids = frozenset(identifier for identifier in set(handles.values()) if identifier.startswith("item:") and item_is_excluded(known.get(identifier) or {"id": identifier}, excluded_hosts))
     views = {identifier: facts_in(_grounding(signals[identifier])) for identifier in signals}
     views |= {identifier: facts_in({k: v for k, v in item_view("I0", item).items() if k != "handle"}) for identifier, item in collect_items(list(signals.values())).items()}
     valid, invalid = [], []
     for item in raw:
-        draft, record = check_draft(item, handles, signals, views, allowed_sections)
+        draft, record = check_draft(item, handles, signals, views, allowed_sections, excluded_ids)
         if draft is None:
             title = str(((item.get("headline") or {}).get("text")) if isinstance(item, dict) and isinstance(item.get("headline"), dict) else "")[:200]
             invalid.append({"title": title, "reason": "citation_check_failed", "citationCheck": record, "draft": item})
@@ -921,6 +945,7 @@ def draft_trends(
     now: datetime | None = None,
     fetch_text: FetchText | None = None,
     config: TrendConfig | None = None,
+    excluded_hosts: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Drafts trend stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -937,10 +962,13 @@ def draft_trends(
     selection = select_entities(snapshot, config, earlier)
     run["selection"] = selection
     run["priorDrafts"] = selection["priorDrafts"]
-    signals_list = build_signals(snapshot, fetch_text, config, selection)
+    excluded_hosts = normalize_hosts(excluded_hosts)
+    signals_list = build_signals(snapshot, fetch_text, config, selection, excluded_hosts)
     signals = {signal["id"]: signal for signal in signals_list}
     handles = handles_for(signals_list)
     run["inputs"] = estimate_inputs(snapshot, signals_list, context, documents)
+    run["excludedSourceHosts"] = list(excluded_hosts)
+    run["inputs"]["itemsExcludedByHost"] = len({i for signal in signals_list for i in signal.get("excludedItemIds", [])})
     run.update(proposed=0, invalid=[], duplicates=[], drafts=[], usage=None)
     if len(signals_list) < 2:
         run["noCall"] = f"The snapshot yields {len(signals_list)} signal(s); a trend story needs at least 2."
@@ -956,7 +984,7 @@ def draft_trends(
         raw, usage = call_model(transport, model, model_input)
         run["usage"] = usage.as_dict()
         run["proposed"] = len(raw)
-        valid, run["invalid"] = validate_drafts(raw, handles, signals, [s["title"] for s in context.get("sections", [])], maximum)
+        valid, run["invalid"] = validate_drafts(raw, handles, signals, [s["title"] for s in context.get("sections", [])], maximum, excluded_hosts)
         records = [draft_record(draft, run=run, signals=signals, snapshot=snapshot, now=moment) for draft in valid]
         similar, run["duplicates"] = dedupe.split_duplicates(records, documents, threshold)
         existing = [("proposal", row["id"], target_key(row.get("targets"))) for row in proposals if row.get("state") != "declined"]
@@ -989,7 +1017,7 @@ def render_report(run: dict[str, Any]) -> str:
         "",
         f"Run `{run['runId']}` on the snapshot of {run['snapshot']['asOf']} ({run['snapshot']['source']}). Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
-        f"- Signals read: {run['inputs']['signals']}; items behind them: {run['inputs'].get('items', 0)} ({run['inputs'].get('itemsWithSummary', 0)} with a summary); drafts proposed: {run['proposed']}; passed the citation check and kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; duplicates dropped: {len(run['duplicates'])}",
+        f"- Signals read: {run['inputs']['signals']}; items behind them: {run['inputs'].get('items', 0)} ({run['inputs'].get('itemsWithSummary', 0)} with a summary); left out as items from excluded source hosts (still counted in the statistics): {run['inputs'].get('itemsExcludedByHost', 0)}; drafts proposed: {run['proposed']}; passed the citation check and kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens, cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",
     ]

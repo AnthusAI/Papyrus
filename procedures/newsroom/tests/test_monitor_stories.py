@@ -61,7 +61,11 @@ class MonitorClient(FakeClient):
         self.items = list(items)
         self.filed: list[dict] = []
 
+    automations: list = []
+
     def list_records(self, model):
+        if model == "Automation":
+            return list(self.automations)
         return list(self.items) if model == "Item" else super().list_records(model)
 
     def list_semantic_relations_by_object_state(self, key):
@@ -552,3 +556,54 @@ class CommandTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExcludedHostAndAutomationTests(unittest.TestCase):
+    def test_a_reference_on_an_excluded_host_is_never_a_candidate_and_is_counted(self) -> None:
+        rows, client = world(3)
+        rows[0]["sourceUri"] = "https://www.ipwatchdog.com/2026/10/story"
+        items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW, excluded_hosts=["ipwatchdog.com"])
+        self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows[1:]))
+        self.assertEqual(counts["excludedHost"], 1)
+        self.assertEqual(counts["notMonitored"], 0)
+        self.assertNotIn(("incoming", f"reference#{rows[0]['lineageId']}"), [call for call in client.calls if call[0] == "incoming"])
+
+    def test_a_run_never_drafts_from_an_excluded_host(self) -> None:
+        rows, client = world(3)
+        rows[0]["sourceUri"] = "https://ipwatchdog.com/example1/post"
+        model = StoryModel()
+        run = draft(client, model, fetch=lambda url: PAGE, excluded_hosts=["ipwatchdog.com"])
+        self.assertEqual(run["inputs"]["excludedHost"], 1)
+        self.assertEqual(run["excludedSourceHosts"], ["ipwatchdog.com"])
+        self.assertTrue(run["drafts"])
+        self.assertFalse([d for d in run["drafts"] if "ipwatchdog.com" in str(d["citedItems"])])
+        self.assertFalse([req for req in model.requests if "ipwatchdog.com" in req["input"]])
+
+    def test_a_monitor_an_enabled_automation_handles_is_left_to_it(self) -> None:
+        rows, client = world(2)
+        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab")]
+        client.automations = [{"id": "distinctive.ttab", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": "ttab", "publicationId": "distinctive"}})}]
+        run = draft(client, StoryModel(), fetch=lambda url: PAGE)
+        self.assertEqual(run["inputs"]["handledByAutomation"], 1)
+        self.assertEqual(run["automatedMonitors"], ["ttab"])
+        self.assertEqual({d["monitorId"] for d in run["drafts"]}, {"hn"})
+
+    def test_a_disabled_automation_or_another_trigger_kind_does_not_hide_a_monitor(self) -> None:
+        _, client = world(1)
+        client.automations = [
+            {"id": "a", "enabled": False, "trigger": {"kind": "monitor", "config": {"monitorId": "hn"}}},
+            {"id": "b", "enabled": True, "trigger": {"kind": "event", "config": {"onStage": "draft"}}},
+            {"id": "c", "enabled": True, "trigger": "not json"},
+        ]
+        self.assertEqual(stories.automated_monitor_ids(client), (set(), None))
+
+    def test_unreadable_automations_do_not_stop_the_run(self) -> None:
+        _, client = world(2)
+
+        def refuse(model):
+            if model == "Automation":
+                raise PermissionError("denied")
+            return []
+
+        client.list_records = refuse
+        self.assertEqual(stories.automated_monitor_ids(client), (set(), "PermissionError"))
