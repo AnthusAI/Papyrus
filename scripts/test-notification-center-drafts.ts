@@ -32,10 +32,12 @@ function browserBundle(): Promise<string> {
       builder.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "fixture" }));
       builder.onLoad({ filter: /.*/, namespace: "fixture" }, ({ path }) => ({
         contents: path === "navigation"
-          ? "export const usePathname = () => window.location.pathname;"
+          ? "export const usePathname = () => window.location.pathname; export const useRouter = () => ({ push(href) { window.pushed = href; } });"
           : path === "link"
             ? "import {createElement} from 'react'; export default function Link({href, children, prefetch, ...rest}) { return createElement('a', {href, ...rest}, children); }"
-            : "export {};",
+            : path === "network"
+              ? "export const loadReviews = async () => ({ state: 'ready', requests: [], readIds: [], userKey: 'u1' }); export const loadDrafts = async () => ({ drafts: {}, missing: [], failed: [] }); export const loadStoryTitles = async () => ({ titles: {}, deleted: [] }); export const markReviewRead = async () => {};"
+              : "export {};",
         loader: "js", resolveDir: root,
       }));
     } }],
@@ -93,14 +95,14 @@ const api = {
   markReviewRead: async () => {},
 };
 
-const decision = { decisionRelationId: "d1", decisionId: "p1", label: "include", confidence: 0.82, version: null, reviewRecommended: true, reviewReason: "program", reviewDetail: null, classes: ["include", "exclude"], positiveLabel: "include", question: null, reviewControl: "thumbs", cyclotronId: "c", decidedAt: null, provenance: null };
+const decision = { decisionRelationId: "d1", decisionId: "p1", label: "include", confidence: 0.82, version: null, reviewRecommended: false, reviewReason: "program", reviewDetail: null, classes: ["include", "exclude"], positiveLabel: "include", question: null, reviewControl: "thumbs", cyclotronId: "c", decidedAt: null, provenance: null };
 const references = [
   { id: "reference-a-v1", lineageId: "reference-a", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "a", title: "ReadyArt: text-generation model", sourceUri: "https://example.org/a", curationStatus: "pending", importedAt: "2026-10-26T10:00:00Z" },
   { id: "reference-b-v1", lineageId: "reference-b", versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: "b", title: "Another pending source", sourceUri: "https://example.org/b", curationStatus: "pending", importedAt: "2026-10-25T10:00:00Z" },
 ];
 function Fixture() {
   if (params.has("overview")) {
-    return <NewsroomOpsOverview assignments={[]} decisions={new Map([["reference-a", decision]])} newsroomSections={[]} references={references} />;
+    return <NewsroomOpsOverview assignments={[]} decisions={new Map([["reference-a", decision]])} newsroomSections={[]} references={references} onReview={async (reference, action, options) => { window.calls.push({ type: "rate", id: reference.lineageId, action, options }); }} />;
   }
   return <NotificationCenter actorLabel="Ed Itor" api={api} decisions={new Map()} demo={false} humanCuratedReferenceLineageIds={new Set()} references={[]} />;
 }
@@ -134,7 +136,13 @@ type Call = { type: string; by?: string; id?: string; path?: string[]; requestId
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { calls: Call[] }).calls);
 const draft = (page: Page, id: string) => page.locator(`[data-review-draft="${id}"]`);
 const choice = (page: Page, id: string, which: "accept" | "reject") => draft(page, id).locator(`[data-review-choice="${which}"]`);
-const WORDS_GONE = ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "Proceeds automatically", "unless you steer", "draft batches"];
+const WORDS_GONE = ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read"];
+/** Reject is one tap; the quiet "Not this kind of story" chip, when on, rides along as the steering signal. */
+const reject = async (page: Page, id: string, notThisKind = false) => {
+  if (notThisKind) await draft(page, id).locator('[data-review-reason="not_this_kind"]').click();
+  await choice(page, id, "reject").click();
+};
+const answered = (page: Page) => page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "answer"));
 
 async function run(options: string, widths: number[], body: (page: Page, width: number) => Promise<void>) {
   for (const width of widths) {
@@ -147,24 +155,26 @@ async function run(options: string, widths: number[], body: (page: Page, width: 
 }
 
 const scenarios: Record<string, () => Promise<void>> = {
-  /** Each draft is shown in place: what it says, what it rests on, and the way to the full draft. */
+  /** Each draft is its own card, shown so it can be judged in place; the batch is only a caption. */
   async content() {
     await run("?only-batch=1", [375, 1440], async (page, width) => {
       await draft(page, "proposal-1").waitFor();
       const first = draft(page, "proposal-1");
       const text = await first.innerText();
-      for (const expected of ["Sparse attention goes open", "Open-weight models are adopting sparse attention", "Section: Research", "Evidence:", "32 items in the last 2 weeks", "Sources", "A sparse-attention model ships open weights", "(2026-10-20)", "Open the full draft in Proposals"]) {
+      for (const expected of ["Sparse attention goes open", "Open-weight models are adopting sparse attention", "Section: Research", "Evidence:", "32 items in the last 2 weeks", "example.org", "from Idea pipeline · Oct 23", "Open full draft"]) {
         assert.ok(text.includes(expected), `draft 1 shows: ${expected}`);
       }
-      assert.equal(await first.locator('a[href="https://example.org/sparse-attention"]').count(), 1, "a source links to its address");
+      assert.equal(await first.locator('a[href="https://example.org/sparse-attention"]').count(), 1, "a source chip links to its address");
       assert.equal(await first.locator("[data-draft-open]").getAttribute("href"), "/newsroom/administration/proposals?proposal=proposal-1");
       const monitor = await draft(page, "proposal-2").innerText();
-      assert.ok(monitor.includes("Found by the arxiv-cs monitor.") && monitor.includes("Rethinking 4-bit defaults"), "a monitor story names its monitor and its source");
-      const page_text = await page.locator("body").innerText();
-      assert.ok(page_text.includes("3 AI drafts to review"), "the header counts AI drafts, not batches");
-      assert.ok(page_text.includes("Closes on 2026-10-30 07:00 UTC if nobody answers. The drafts stay in Proposals."), "the deadline says what it does");
-      for (const word of WORDS_GONE) assert.ok(!page_text.includes(word), `retired wording gone: ${word}`);
+      assert.ok(monitor.includes("Found by the arxiv-cs monitor."), "a monitor story names its monitor");
+      assert.equal(await page.locator("[data-review-draft]").count(), 3, "a request covering three drafts is three cards");
+      assert.equal(await page.locator("[data-review-drafts]").count(), 0, "no batch container");
+      const body = await page.locator("body").innerText();
+      assert.ok(body.includes("What needs me?") && body.includes("3 drafts waiting for you"), "the header counts drafts, not batches");
+      for (const word of WORDS_GONE) assert.ok(!body.includes(word), `retired wording gone: ${word}`);
       assert.equal(await page.locator("[data-review-draft] [data-review-choice]").count(), 6, "Accept and Reject on every draft");
+      assert.equal(await page.locator("[data-review-draft] [data-review-row=cyclotron]").count(), 0, "no prediction row for a draft");
       for (const which of ["accept", "reject"] as const) {
         assert.equal(await choice(page, "proposal-1", which).getAttribute("aria-disabled"), null, "never silently disabled");
         assert.ok((await choice(page, "proposal-1", which).boundingBox())!.height >= 48, "large tap target");
@@ -176,6 +186,11 @@ const scenarios: Record<string, () => Promise<void>> = {
       });
       assert.ok(geometry.why >= geometry.card - 28, `the Why box spans the card at ${width}px (${geometry.why} of ${geometry.card})`);
       assert.ok(geometry.scrollX <= 0, `no horizontal scroll at ${width}px`);
+      // Grid: 1 column on a phone, 3 on a wide screen.
+      const columns = await page.evaluate(() => new Set([...document.querySelectorAll("[data-review-draft]")].map((card) => Math.round(card.getBoundingClientRect().left))).size);
+      assert.equal(columns, width < 640 ? 1 : 3, `columns at ${width}px`);
+      // No borders, no lines: nothing on a card has a border width.
+      assert.equal(await page.evaluate(() => [...document.querySelectorAll("[data-review-draft], [data-review-draft] *")].filter((node) => parseFloat(getComputedStyle(node).borderTopWidth) > 0 && getComputedStyle(node).borderTopStyle !== "none").length), 0, "no borders on cards");
       for (const svg of await page.locator("#root svg").all()) assert.ok(await svg.evaluate((node) => [...node.classList].some((name) => name.startsWith("lucide"))), "every icon is a Lucide icon");
       assert.equal(await page.locator("#root select").count(), 0, "no dropdowns");
     });
@@ -189,15 +204,16 @@ const scenarios: Record<string, () => Promise<void>> = {
       await draft(page, "proposal-1").locator('[data-draft-decided="accept"]').waitFor();
       assert.deepEqual((await calls(page)).filter((call) => call.type === "transition"), [{ type: "transition", id: "proposal-1", path: ["in_steering", "editor_review", "approved"] }], "a draft is walked to approved");
       assert.equal((await calls(page)).filter((call) => call.type === "answer").length, 0, "the request stays open while drafts wait");
-      assert.ok((await page.locator("body").innerText()).includes("2 AI drafts to review"));
+      assert.ok((await page.locator("body").innerText()).includes("2 drafts waiting for you"));
+      assert.equal(await page.locator("[data-review-draft]").count(), 3, "the decided card stays in place, showing its answer");
 
       await draft(page, "proposal-2").getByLabel("Why? (optional)").fill("Too thin for a story.");
-      await draft(page, "proposal-2").locator('[data-review-reason="not_this_kind"]').click();
-      assert.equal(await draft(page, "proposal-2").locator('[data-review-reason="not_this_kind"]').getAttribute("aria-pressed"), "true", "the chip says it is on in words and a check, not colour alone");
-      await choice(page, "proposal-2", "reject").click();
+      assert.equal(await draft(page, "proposal-2").locator('[data-review-reason="not_this_kind"]').getAttribute("aria-pressed"), "false", "the chip starts off");
+      await reject(page, "proposal-2", true);
+      assert.equal((await draft(page, "proposal-2").innerText()).includes("What should the AI learn"), false, "Reject asks nothing more");
       await draft(page, "proposal-2").locator('[data-draft-decided="reject"]').waitFor();
       await choice(page, "proposal-3", "accept").click();
-      await page.locator('[data-review-state="answered"]').waitFor();
+      await answered(page);
 
       const all = await calls(page);
       assert.deepEqual(all.filter((call) => call.type === "transition").map((call) => [call.id, call.path]), [
@@ -206,33 +222,32 @@ const scenarios: Record<string, () => Promise<void>> = {
       const answer = all.find((call) => call.type === "answer")!;
       assert.equal(answer.by, "Ed Itor");
       assert.equal(answer.answer!.decision, "feedback", "a mix of Accept and Reject is an answer with a note");
-      assert.equal(answer.answer!.steer, "not_this_kind", "the chip is the one steering signal");
+      assert.equal(answer.answer!.steer, "not_this_kind", "the chip is the steering signal");
       assert.match(String(answer.answer!.feedback), /Rejected "A new quantisation paper challenges 4-bit defaults" as not this kind of story: Too thin for a story\./);
       assert.equal((answer.answer!.drafts as unknown[]).length, 3, "every decision is recorded");
-      const closed = await page.locator('[data-review-state="answered"]').innerText();
-      assert.ok(closed.includes("Accepted 2 drafts and rejected 1 by Ed Itor"), "the closed request says what was decided");
-      assert.ok(closed.includes("Rejected as not this kind of story: Too thin for a story."));
       const text = await page.locator("body").innerText();
-      assert.ok(text.includes("0 AI drafts to review"));
+      assert.ok(text.includes("All caught up"), "nothing is left waiting");
+      assert.ok(text.includes("Rejected as not this kind: Too thin for a story."));
+      assert.equal(await page.locator('[data-recent-decision]').count(), 3, "what was decided is listed under Recently decided");
       for (const word of WORDS_GONE) assert.ok(!text.includes(word), `retired wording gone: ${word}`);
     });
   },
 
-  /** Accepting all is one approval; rejecting all is one rejection, neither is a steer without a chip. */
+  /** Accepting all is one approval; rejecting all is one rejection, neither is a steer. */
   async uniform() {
     await run("?only-batch=1", [1440], async (page) => {
       for (const id of ["proposal-1", "proposal-2"]) await choice(page, id, "accept").click().then(() => draft(page, id).locator('[data-draft-decided="accept"]').waitFor());
       await choice(page, "proposal-3", "accept").click();
-      await page.locator('[data-review-state="answered"]').waitFor();
+      await answered(page);
       const answer = (await calls(page)).find((call) => call.type === "answer")!.answer!;
       assert.equal(answer.decision, "approve");
       assert.equal(answer.steer, null);
       assert.equal(answer.feedback, null);
     });
     await run("?only-batch=1", [1440], async (page) => {
-      for (const id of ["proposal-1", "proposal-2"]) await choice(page, id, "reject").click().then(() => draft(page, id).locator('[data-draft-decided="reject"]').waitFor());
-      await choice(page, "proposal-3", "reject").click();
-      await page.locator('[data-review-state="answered"]').waitFor();
+      for (const id of ["proposal-1", "proposal-2"]) await reject(page, id).then(() => draft(page, id).locator('[data-draft-decided="reject"]').waitFor());
+      await reject(page, "proposal-3");
+      await answered(page);
       const answer = (await calls(page)).find((call) => call.type === "answer")!.answer!;
       assert.equal(answer.decision, "reject");
       assert.equal(answer.steer, null, "a plain rejection is not a not-this-kind steer");
@@ -260,22 +275,22 @@ const scenarios: Record<string, () => Promise<void>> = {
   /** Drafts decided in Proposals close the request; drafts that are not Proposals fall back to Accept or Reject on the request. */
   async closing() {
     await run("?only-batch=1&decided-elsewhere=1", [1440], async (page) => {
-      await page.locator('[data-review-state="answered"]').waitFor();
+      await answered(page);
       const answer = (await calls(page)).find((call) => call.type === "answer")!;
       assert.equal(answer.by, "an editor in Proposals");
       assert.equal(answer.answer!.decision, "feedback");
     });
     await run("?only-batch=1&missing=1", [375, 1440], async (page) => {
       await page.locator("[data-review-request] [data-review-controls]").waitFor();
-      const text = await page.locator("[data-review-request]").innerText();
+      const text = await page.locator("body").innerText();
       assert.ok(text.includes("2 of these drafts are not in Proposals on this site"), "unopenable drafts are said, not hidden");
       await page.locator('[data-review-controls] [data-review-choice="accept"]').click();
-      await page.locator('[data-review-state="answered"]').waitFor();
+      await answered(page);
       assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.decision, "approve");
     });
     await run("?only-batch=1&partly-missing=1", [1440], async (page) => {
       await choice(page, "proposal-1", "accept").click();
-      await page.locator('[data-review-state="answered"]').waitFor();
+      await answered(page);
       assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.decision, "approve", "drafts that cannot be opened do not block the rest");
     });
     await run("?only-batch=1&fail-load=1", [1440], async (page) => {
@@ -283,24 +298,32 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.getByRole("button", { name: "Try again" }).click();
       await draft(page, "proposal-1").locator("h3").waitFor();
     });
-    await run("?only-batch=1&no-deadline=1", [1440], async (page) => {
-      await draft(page, "proposal-1").waitFor();
-      assert.ok((await page.locator("body").innerText()).includes("No deadline. The drafts stay in Proposals until an editor decides them."));
-    });
   },
 
-  /** Needs attention shows the Cyclotron's suggestion and opens the review queue. */
-  async needs_attention() {
-    await run("?overview=1", [375, 1440], async (page) => {
-      const row = page.locator('[data-needs-attention-suggestion="reference-a"]');
-      await row.waitFor();
-      assert.equal(await row.locator('[data-cyclotron-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
-      assert.ok((await row.innerText()).includes("82%"), "with its confidence");
-      assert.equal(await page.locator('[data-needs-attention-suggestion="reference-b"]').innerText().then((text) => text.includes("No prediction")), true, "no invented suggestion");
-      assert.equal(await page.locator('[data-newsroom-card-id="reference-a"]').getAttribute("href"), "/newsroom/references/reference-a", "the row opens the reference review queue");
-      assert.equal(await page.locator('[data-needs-attention-suggestion] button').count(), 0, "the suggestion is read-only");
+  /** References are the feed's own cards, filters narrow the page, and a rating goes through the References review. */
+  async references() {
+    await run("?overview=1", [375, 1440], async (page, width) => {
+      const card = page.locator('[data-feed-card="reference-a"]');
+      await card.waitFor();
+      assert.equal(await card.locator('[data-cyclotron-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
+      assert.ok((await card.innerText()).includes("82%"), "with its confidence");
+      assert.ok(await page.locator('[data-feed-card="reference-b"]').innerText().then((text) => text.length > 0));
+      assert.ok((await page.locator("body").innerText()).includes("2 references waiting for you"), "the header counts References");
+      assert.equal(await page.locator('[data-feed-card="reference-b"] [data-cyclotron-state="none"]').count(), 1, "no invented suggestion");
+      await card.locator("[data-feed-open]").click();
+      assert.equal(await page.evaluate(() => (window as unknown as { pushed?: string }).pushed), "/newsroom/references/reference-a", "a card opens the References queue");
+      await card.locator('[data-review-choice="accept"]').click();
+      await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "rate"));
+      assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.id, (call as { action?: string }).action]), [["reference-a", "accept"]]);
+      // Filters.
+      await page.locator('[data-notification-filter="drafts"]').click();
+      assert.equal(await page.locator("[data-notification-references]").count(), 0, "the Drafts filter hides References");
+      assert.ok((await page.locator("[data-filter-empty]").innerText()).includes("Nothing in Drafts"), "an empty filter says so");
+      await page.locator('[data-notification-filter="references"]').click();
+      assert.equal(await page.locator("[data-notification-references]").count(), 1);
+      assert.equal(await page.locator('[data-notification-filter="references"]').getAttribute("aria-pressed"), "true");
       const scrollX = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-      assert.ok(scrollX <= 0, "no horizontal scroll");
+      assert.ok(scrollX <= 0, `no horizontal scroll at ${width}px`);
     });
   },
 };

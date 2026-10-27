@@ -5,7 +5,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReferenceRecord } from "../lib/category-repository";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
-import { FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
+import { FIXTURE_DRAFTS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
+import { draftView } from "../lib/review-drafts";
+import { buildNotificationItems, draftPicture, filterCount, previewsBySourceAddress, recentDecisions, requestCaption, waitingText } from "../lib/notification-feed";
 import {
   answerUpdate, cyclotronAutoDecided, cyclotronHeldForReview, isDue, nextText, normalizeReviewRow, sectionReviews,
   steeringText, subjectHref, subjectLabel, summarize, summaryText, timeoutUpdate, type ReviewRequest,
@@ -101,41 +103,8 @@ async function main() {
   assert.equal(subjectHref({ type: "batch", id: "x" }), null);
   assert.equal(subjectHref({ type: "proposal", id: "p 1" }), "/newsroom/administration/proposals?proposal=p%201", "a proposal opens in the Proposals panel");
 
-  // The page: summary first, sections in order, controls where relevant, read and unread in words.
-  const render = (overrides: Partial<Parameters<typeof NotificationCenterView>[0]> = {}) =>
-    renderToStaticMarkup(createElement(NotificationCenterView, {
-      loadState: "ready", requests: FIXTURE_REVIEW_REQUESTS, readIds: new Set(["rr-flag-1"]), held, autoDecided: auto, ...overrides,
-    }));
-  const html = render();
-  const loadingHtml = render({ loadState: "loading", requests: [], held: [], autoDecided: [] });
-  assert.match(loadingHtml, /data-notification-state="loading"/);
-  assert.match(loadingHtml, /aria-label="Loading Notification Center"/);
-  assert.doesNotMatch(text(loadingHtml), /No hard gates|Nothing unread|Nothing needs attention/);
-  const unavailableHtml = render({ loadState: "unavailable", requests: [], held: [], autoDecided: [] });
-  assert.match(unavailableHtml, /role="alert"/);
-  assert.match(text(unavailableHtml), /current request state is unknown/);
-  const page = text(html);
-  assert.ok(page.includes("3 waiting for you · 4 AI drafts to review · 1 other review open · 2 recently decided by the system"));
-  const order = ["Waiting for you: hard gates", "AI drafts to review (2)", "Other reviews, soonest deadline first (1)", "Cyclotron items routed to a person", "Flags: for your information", "Answered, and what became of it", "Recently decided by the system (2)"]
-    .map((heading) => page.indexOf(heading));
-  assert.ok(order.every((position, index) => position >= 0 && (index === 0 || position > order[index - 1])), `sections in order: ${order}`);
-  assert.ok(page.indexOf("Accept or Reject what you want to decide") < page.indexOf("Waiting for you: hard gates"), "the ignore-safe sentence comes before the stream");
-  for (const expected of [
-    "Hard gate", "Soft review", "Flag", "New", "Read", "Accept", "Reject", "Not this kind of thing", "Acknowledge", "Why? (optional)",
-    "Held for review: it stays pending until someone decides", "Open it in References to correct it", "Review it in References",
-    "You steered \"Fewer listicles\". Applied in run run-w43", "Proceeded without review on 2026-10-17 07:00 UTC.", "7 unread",
-  ]) assert.ok(page.includes(expected), `page shows: ${expected}`);
-  assert.equal((page.match(/Waiting for you\. Nothing continues/g) ?? []).length, 1, "one hard gate says Waiting for you");
-  assert.match(html, /href="\/newsroom\/articles\/story-ruling-1"/, "the entry links to its item");
-  for (const retired of ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "proceeding soon", "Proceeds automatically", "unless you steer", "draft batches"]) assert.ok(!page.includes(retired), `the retired wording is gone: ${retired}`);
-  assert.match(html, /<details data-notification-section="auto-decided">/, "the stream is collapsible");
-  assert.equal((html.match(/data-review-controls/g) ?? []).length, 3, "request controls only on open requests that are not draft reviews (drafts have their own while loaded)");
 
   // A story request shows the story's title, linked, with the id as the fallback.
-  const titled = text(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }));
-  assert.ok(titled.includes("About: Board refuses registration"), "a known story shows its title");
-  assert.ok(page.includes("About: story story-ruling-1"), "an unknown story shows its id");
-  assert.match(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } }), /href="\/newsroom\/articles\/story-ruling-1"[^>]*>Board refuses registration</);
   assert.equal(subjectLabel({ type: "story", id: "s1" }, { s1: "Title" }), "Title");
   assert.equal(subjectLabel({ type: "proposal", id: "p1" }), "proposal p1");
 
@@ -149,36 +118,80 @@ async function main() {
   assert.equal(nextText(answeredFlag("acknowledge")), "Acknowledged by Ed Itor on 2026-10-22 11:00 UTC.");
   assert.equal(nextText(answeredFlag("approve")), "Acknowledged by Ed Itor on 2026-10-22 11:00 UTC.");
   assert.equal(nextText({ ...answeredFlag("approve"), mode: "hard_gate" }), "Accepted by Ed Itor on 2026-10-22 11:00 UTC.");
-  const flagPage = text(render({ requests: [answeredFlag("acknowledge")] }));
-  assert.ok(flagPage.includes("Acknowledged by Ed Itor") && !flagPage.includes("Approved by") && !flagPage.includes("Accepted by"), "an answered flag says Acknowledged");
-  assert.match(renderToStaticMarkup(createElement(NotificationCenterView, { loadState: "ready", requests: [flag], readIds: new Set<string>(), held: [], autoDecided: [] })), /Acknowledge<\/button>/);
 
-  // A card about a deleted story says so; a known story shows its title, an unknown one its id.
-  assert.equal(subjectLabel({ type: "story", id: "s1" }, { s1: "Title" }, new Set()), "Title");
-  assert.equal(subjectLabel({ type: "story", id: "gone" }, {}, new Set(["gone"])), "story gone (story deleted)");
-  assert.equal(subjectLabel({ type: "story", id: "x" }, {}, new Set(["gone"])), "story x");
-  assert.ok(text(render({ deletedStories: new Set(["story-ruling-1"]) })).includes("About: story story-ruling-1 (story deleted)"), "the card marks the deleted story");
+  // The feed (What needs me?): one card per draft, never per batch.
+  const drafts = Object.fromEntries(FIXTURE_DRAFTS.map((row) => [row.id, draftView(row)]));
+  const items = buildNotificationItems({ requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]), draftsState: "ready", stay: new Set(), referenceCount: 12 });
+  assert.deepEqual(items.drafts.map((item) => item.key), ["rr-soft-2#proposal-1", "rr-soft-2#proposal-2", "rr-soft-2#proposal-3"], "a request covering 3 drafts is 3 draft cards");
+  assert.deepEqual(items.reviews.map((item) => item.key), ["rr-hard-1", "rr-soft-3", "rr-soft-1"], "hard gates first; a request whose draft is not a Proposal here takes the answer itself");
+  assert.deepEqual(items.flags.map((item) => item.key), ["rr-flag-1"]);
+  assert.deepEqual(items.counts, { drafts: 3, references: 12, other: 4 });
+  assert.equal(waitingText({ drafts: 3, references: 12, other: 0 }), "3 drafts and 12 references waiting for you");
+  assert.equal(waitingText({ drafts: 1, references: 0, other: 0 }), "1 draft waiting for you");
+  assert.equal(waitingText({ drafts: 3, references: 12, other: 2 }), "3 drafts, 12 references and 2 other items waiting for you");
+  assert.equal(waitingText({ drafts: 0, references: 0, other: 0 }), "All caught up");
+  assert.equal(filterCount("all", items.counts), 19);
+  assert.equal(requestCaption(FIXTURE_REVIEW_REQUESTS[1]), "from Idea pipeline · Oct 23", "a batch id with no words falls back to the step that raised it");
+  assert.equal(requestCaption({ subject: { type: "batch", id: "monitor-stories-run-20261027T163255Z-a0a2e4" }, raisedBy: "idea-pipeline", raisedAt: "2026-10-27T16:33:54Z" }), "from Monitor stories run · Oct 27");
+  // A draft decided in this visit stays in place; one decided before does not come back.
+  const decided = FIXTURE_REVIEW_REQUESTS[1].links.map((link) => (link.id === "proposal-1" ? { ...link, decision: { choice: "accept" as const, by: "Ed", at: "2026-10-24T09:00:00Z" } } : link));
+  const partial = [{ ...FIXTURE_REVIEW_REQUESTS[1], links: decided }];
+  const base = { requests: partial, drafts, missingDrafts: new Set<string>(), draftsState: "ready" as const, referenceCount: 0 };
+  assert.deepEqual(buildNotificationItems({ ...base, stay: new Set() }).drafts.map((item) => item.draftId), ["proposal-2", "proposal-3"]);
+  const kept = buildNotificationItems({ ...base, stay: new Set(["rr-soft-2#proposal-1"]) });
+  assert.deepEqual(kept.drafts.map((item) => item.draftId), ["proposal-1", "proposal-2", "proposal-3"]);
+  assert.equal(kept.counts.drafts, 2, "a decided draft no longer counts as waiting");
+  // Pictures: a draft's cited source finds the preview of the Reference it points to.
+  const cited = { ...draftView({ ...FIXTURE_DRAFTS[0], body: "x\n\n## Sources\n\n1. A page (2026-10-20) https://www.example.org/a/\n" }) };
+  const pictures = previewsBySourceAddress([{ id: "r", lineageId: "r", sourceUri: "https://example.org/a" } as unknown as ReferenceRecord], new Map([["r", { imageUrl: "https://img.example/x.jpg", description: null, siteName: "Example", title: null }]]));
+  assert.equal(draftPicture(cited, pictures).imageUrl, "https://img.example/x.jpg");
+  assert.equal(draftPicture(draftView(FIXTURE_DRAFTS[1]), pictures).imageUrl, null, "no picture is invented");
+  // Real Proposals carry JSON encoded twice and a relevance sentence.
+  const real = draftView({ ...FIXTURE_DRAFTS[1], evidence: JSON.stringify(JSON.stringify({ signals: 1, source: "hn monitor: https://example.org/q" })), body: "Dek. [1]\n\n## Source\n\n1. T (2026-10-22) https://example.org/q\n\nSection: articles. Drafted by AI from an item the hn monitor found. The relevance check labelled it include with a score of 0.96. An editor approves the copy before anything is published.\n" });
+  assert.deepEqual(real.evidence, ["Found by the hn monitor.", "Relevance check: include, score 0.96."]);
+  assert.equal(real.section, "articles");
+  // What you decided: drafts, references, newest first, a few.
+  const answered = { ...FIXTURE_REVIEW_REQUESTS[5], answer: { ...FIXTURE_REVIEW_REQUESTS[5].answer!, drafts: [{ id: "proposal-1", choice: "reject" as const, title: "Sparse attention goes open", by: "Ed", at: "2026-10-26T09:00:00Z" }] } };
+  const rated = { id: "ref-a", lineageId: "ref-a", title: "A source", curationStatus: "accepted", curationStatusUpdatedAt: "2026-10-27T09:00:00Z" } as unknown as ReferenceRecord;
+  const recent = recentDecisions([answered], [rated], false, 5);
+  assert.deepEqual(recent.map((entry) => [entry.kind, entry.word, entry.title]), [["reference", "Accepted", "A source"], ["draft", "Rejected", "Sparse attention goes open"]]);
 
-  // The console home: the Notification Center does not scroll inside the page on a phone, and the section headings avoid the avoided word.
-  const css = readFileSync(new URL("../components/newsroom-organizer.css", import.meta.url), "utf8");
-  const frame = css.split("\n").filter((line) => line.includes(".newsroom-overview-feed-frame"));
-  assert.ok(frame.length === 2 && !frame[0].includes("height:3") && !frame[0].includes("overflow"), "no fixed height or overflow below 640px");
-  assert.ok(frame[1].includes("@media(min-width:640px)"), "a fixed scrolling frame only from 640px");
-  const overview = readFileSync(new URL("../components/newsroom-ops-overview.tsx", import.meta.url), "utf8");
-  assert.ok(!/frame[^"]*overflow-y-auto/.test(overview.match(/className="newsroom-overview-feed-frame[^"]*"/)?.[0] ?? ""), "no inline scroll class on the feed");
-  assert.ok(!/\b(Core |Rotating )?Desks\b|\b(Core|Rotating) desks\b/.test(overview), "the home has no desk heading");
-
-  // Words and marks, no colour encoding, and not the avoided word.
-  assert.ok(!/ style=/.test(html), "no inline style");
+  // The page, rendered: header, filters, cards, no retired wording, no inline colour.
+  const render = (overrides: Partial<Parameters<typeof NotificationCenterView>[0]> = {}) =>
+    renderToStaticMarkup(createElement(NotificationCenterView, { loadState: "ready", requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]), ...overrides }));
+  const html = render();
+  const page = text(html);
+  assert.ok(page.includes("What needs me?") && page.includes("3 drafts and 4 other items waiting for you"));
+  for (const expected of ["All", "Drafts", "References", "Other", "Sparse attention goes open", "from Idea pipeline · Oct 23", "Open full draft", "Accept", "Reject", "Acknowledge", "Hard gate", "Waiting for you. Nothing continues"]) assert.ok(page.includes(expected), `page shows: ${expected}`);
+  assert.ok(html.includes('aria-label="Why? (optional)"'), "every decidable card has the optional Why box");
+  assert.equal((html.match(/data-review-draft="proposal-/g) ?? []).length, 3, "three draft cards");
+  assert.ok(!html.includes("data-review-drafts"), "no batch container");
+  for (const retired of ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read", "Needs attention"]) assert.ok(!page.includes(retired), `the retired wording is gone: ${retired}`);
   assert.ok(!/\bdesk\b/i.test(page), "no avoided vocabulary");
-
-  // Each state says so plainly.
+  assert.match(html, /aria-pressed="true"[^>]*data-notification-filter="all"|data-notification-filter="all"/, "the active filter is marked");
+  assert.ok(text(render({ requests: [], drafts: {} })).includes("All caught up"), "empty state");
+  const autoCards = [{ lineageId: "x", title: "A confident call", label: "include", confidence: 0.97, decidedAt: null, reviewDetail: null, reviewedByPerson: false, href: "/newsroom/references/x" }];
+  assert.ok(text(render({ autoDecided: autoCards })).includes("Decided automatically (1)"), "the system's decisions are a collapsed footer");
+  assert.match(render({ autoDecided: autoCards }), /<details[^>]*data-notification-section="auto-decided"/);
+  assert.ok(!text(render()).includes("Decided automatically"), "no footer when there are none");
   assert.ok(text(render({ loadState: "forbidden" })).includes("for editors and admins"));
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
-  assert.match(render({ loadState: "loading" }), /aria-label="Loading Notification Center"/);
-  const empty = text(render({ requests: [], held: [], autoDecided: [] }));
-  assert.ok(empty.includes("0 waiting for you · 0 AI drafts to review · 0 other reviews open · 0 recently decided by the system"));
-  assert.ok(empty.includes("No hard gates. Nothing is blocked on you.") && empty.includes("Nothing unread"));
+  assert.match(render({ loadState: "loading" }), /data-notification-skeleton/);
+  assert.match(text(render({ draftsState: "failed" })), /The drafts could not be loaded right now\./);
+  assert.ok(text(render({ deletedStories: new Set(["story-ruling-1"]) })).includes("About: story story-ruling-1 (story deleted)"), "the card marks the deleted story");
+  assert.ok(text(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } })).includes("About: Board refuses registration"));
+  assert.match(html, /href="\/newsroom\/administration\/proposals\?proposal=proposal-1"/, "a draft opens in Proposals");
+  assert.ok(!/<svg(?![^>]*lucide)/.test(html), "Lucide icons only");
+  assert.ok(!/<select/.test(html), "no dropdowns");
+
+  // No borders, no lines: the new components never use a border or divider utility.
+  for (const file of ["../components/notification-cards.tsx", "../components/notification-center.tsx"]) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    assert.ok(!/["' `]border(-[a-z0-9\[\]#/-]+)?["' `]|divide-|<hr|outline-(?!none)/.test(source.replace(/focus-visible:ring[^"' ]*/g, "")), `${file} draws no borders, dividers or outlines`);
+  }
+  const overview = readFileSync(new URL("../components/newsroom-ops-overview.tsx", import.meta.url), "utf8");
+  assert.ok(!overview.includes("newsroom-overview-feed-frame") && !/Needs attention/.test(overview), "the framed, scrolling feed and the duplicate Needs attention list are gone");
+  assert.ok(!/\b(Core |Rotating )?Desks\b|\b(Core|Rotating) desks\b/.test(overview), "the home has no desk heading");
 
   console.log("notification center: ok");
 }

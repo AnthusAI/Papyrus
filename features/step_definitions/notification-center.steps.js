@@ -12,22 +12,22 @@ Given("the organizer navigation", function () { this.notificationResult = ""; })
 
 const scenarios = [
   ["content", "the editor opens the Notification Center at 375 and 1440 pixels",
-    ["every draft shows its headline, dek, section, evidence line, linked sources and a link to its full draft in Proposals",
-      "every draft has large Accept and Reject buttons and a full-width Why box, and nothing scrolls sideways",
-      "the header counts AI drafts to review and the retired Approve, Steer and Agree wording is gone"]],
-  ["decide", "the editor accepts one draft, rejects one as not this kind of story with a Why, and accepts the last",
-    ["each Proposal is moved to approved or declined and the request stays open until the last draft is decided",
-      "the request closes with every decision recorded and \"not this kind\" as its one steering signal"]],
+    ["every draft shows its headline, dek, section, evidence line, source chips, batch caption and a link to its full draft in Proposals",
+      "every draft has large Accept and Reject buttons and a full-width Why box, with no prediction row, no borders and nothing scrolling sideways",
+      "the header counts drafts, the cards are one column on a phone and three on a wide screen, and the retired Approve, Steer and Agree wording is gone"]],
+  ["decide", "the editor accepts one draft, rejects one with one tap and the \"Not this kind of story\" chip and a Why, and accepts the last",
+    ["each Proposal is moved to approved or declined, decided cards stay in place showing their answer, and the request stays open until the last draft is decided",
+      "the request closes with every decision recorded, \"not this kind\" as its one steering signal, and the page says \"All caught up\" and lists what was decided"]],
   ["uniform", "the editor accepts all three drafts, and in another batch rejects all three",
     ["the answers are an approval and a rejection, and a plain rejection carries no steering signal"]],
   ["refusal", "a Proposal refuses the move, or a draft is on hold in Proposals",
     ["the draft stays undecided, says why in words, keeps its buttons, and nothing is recorded"]],
   ["closing", "the drafts were already decided in Proposals, or none or only some of them can be opened here",
     ["the request closes itself, takes Accept or Reject on the request, or lets the openable drafts finish it",
-      "a failed load offers Try again, and a request with no deadline says so plainly"]],
-  ["needs_attention", "the editor looks at pending references in Needs attention at 375 and 1440 pixels",
-    ["each shows the Cyclotron's Accept or Reject with its confidence, or says there is no prediction",
-      "the row opens the reference review queue and the suggestion itself is read only"]],
+      "a failed load offers Try again"]],
+  ["references", "the editor looks at pending References and uses the Drafts and References pills at 375 and 1440 pixels",
+    ["each Reference card shows the Cyclotron's Accept or Reject with its confidence, or says there is no prediction",
+      "the card opens the References queue, a rating is saved through the References review, and an empty pill says so"]],
 ];
 
 for (const [name, action, outcomes] of scenarios) {
