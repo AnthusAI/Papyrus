@@ -124,6 +124,7 @@ class FakeCyclotron:
         self.combined_post_override = None    # (status, body) for POST /machine/decisions
         self.combined_poll_override = None    # (status, body) for GET /machine/decisions/{job}
         self.combined_entry_override = {}     # pub -> entry replacing that publication's receipt
+        self.combined_poll_queue = []         # one-shot (status, body) answers to GET /machine/decisions/{job}, first in first out
 
     def combined(self, method, path, data):
         if not self.combined_enabled:
@@ -135,6 +136,8 @@ class FakeCyclotron:
             self.combined_jobs[job] = (sorted(data["payload"]["bindings"]), data["payload"]["item"]["id"])
             return 202, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": job,
                          "status": "accepted", "bindings": data["payload"]["bindings"]}
+        if self.combined_poll_queue:
+            return self.combined_poll_queue.pop(0)
         if self.combined_poll_override:
             return self.combined_poll_override
         if self.pending_polls:
@@ -1207,6 +1210,96 @@ def test_combined_run_busy_defers_without_repeating_the_post(table, where):
     ids = [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST" and c[2]["payload"]["item"]["id"] == "hn-101"]
     assert len(ids) == (2 if where == "post" else 1) and len(set(ids)) == 1
     assert routing_of(table)["DISC#101#000001"] == "routed"
+
+
+def post_ids(cyclotron, item="hn-101"):
+    return [c[2]["requestId"] for c in cyclotron.combined_calls if c[0] == "POST" and c[2]["payload"]["item"]["id"] == item]
+
+
+def test_combined_job_records_the_run_and_binding_it_was_posted_under(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    cyclotron.pending_polls = 1
+    assert go(table, store, cyclotron)["status"] in ("awaiting", "complete")
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    holder = route.get("combinedJob") or next(iter(route["jobs"].values()))
+    assert (holder["runId"], holder["bindingRevision"]) == ("run-1", "1")
+
+
+def leave_job_pending(table, store, cyclotron):
+    """Run once against a lab that never finishes, so the story keeps its recorded job."""
+    cyclotron.pending_polls = 10_000
+    state = {"t": 0}
+    config = validate_router_config(table.get_item({"pk": "MONITOR#hn", "sk": "CONFIG#router"})["Item"])
+    ticking = CyclotronClient(config, sign=lambda m, u, b: {}, http=cyclotron.http,
+                              sleep=lambda s: state.__setitem__("t", state["t"] + s), clock=lambda: state["t"])
+    result = run_router(store, "hn", now=2000, cyclotron=ticking, appsync=lambda e: object(), deliver=Delivery(),
+                        context_receipt=lambda c, p: {})
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+    return result
+
+
+def stale_combined_job(table, store, cyclotron, **marker):
+    """Leave the story holding a real combined job, then rewrite it as posted under another run / binding."""
+    leave_job_pending(table, store, cyclotron)
+    job = table.items[("MONITOR#hn", "ROUTE#101#000001")]["combinedJob"]
+    for key in ("runId", "bindingRevision"):
+        job.pop(key, None)
+    job.update(marker)
+    if not marker:
+        job["requestId"] = "stale-request-id-0"
+    cyclotron.pending_polls, cyclotron.combined_calls = 0, []
+    return job["jobId"]
+
+
+@pytest.mark.parametrize("marker", [{"runId": "run-0", "bindingRevision": "0"}, {"runId": "run-1", "bindingRevision": "0"}, {}])
+def test_a_combined_job_from_an_earlier_run_is_reposted_without_polling_it(table, marker):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    old = stale_combined_job(table, store, cyclotron, **marker)
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert not any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
+    assert len(post_ids(cyclotron)) == 1
+
+
+def test_a_404_on_a_stored_combined_job_reposts_once_in_the_same_run(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=1)
+    stale_combined_job(table, store, cyclotron, runId="run-1", bindingRevision="1")
+    cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"})]
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(post_ids(cyclotron)) == 1
+
+
+def test_a_repeated_404_errors_only_that_story_and_the_run_continues(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=2)
+    cyclotron.combined_poll_queue = [(404, {"detail": "Not Found"}), (404, {"detail": "Not Found"})]
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and not result.get("stoppedBy")
+    assert len(post_ids(cyclotron)) + len(post_ids(cyclotron, "hn-102")) == 3   # first story twice, the next story once
+    states = routing_of(table)
+    assert sorted(states.values()).count("error") == 1 and "routed" in states.values()
+
+
+def test_a_404_on_a_stored_single_publication_job_reposts_once_and_a_repeat_errors_the_story(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    cyclotron.poll_override["p-apyr-us"] = (404, {"detail": "Not Found"})
+    result = go(table, store, cyclotron)
+    assert result["status"] == "complete" and not result.get("stoppedBy")
+    assert routing_of(table)["DISC#101#000001"] == "error"
+    assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "p-apyr-us"]) == 2   # posted, then re-posted once
+
+
+def test_a_single_publication_job_from_an_earlier_run_is_reposted(table):
+    store, cyclotron = setup_router(table, maxItemsPerRun=1)
+    leave_job_pending(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    old = route["jobs"]["anth-us"]["jobId"]
+    route["jobs"]["anth-us"].update(runId="run-0", bindingRevision="0")
+    cyclotron.pending_polls, cyclotron.calls = 0, []
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    assert not any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.calls)
+    assert len([c for c in cyclotron.posts() if c[1].split("/")[3] == "anth-us"]) == 1
 
 
 def test_combined_503_provider_key_unavailable_retries_under_a_new_request_id(table):
