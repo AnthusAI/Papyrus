@@ -546,6 +546,32 @@ router, the two YAML data files the shared Reference factories read, and pure-Py
 runtime has boto3/botocore only). `PAPYRUS_ROOT=/var/task` lets the factories find `corpora/`. A test
 imports the extracted zip with a stdlib-only interpreter. The collector zip and its hash are unchanged.
 
+## Decision-ready events
+
+When a `/machine/decisions` job finishes, the Cyclotron lab can ring a doorbell so the router collects
+the answer in seconds instead of waiting for the 2-minute collector. The event is **only a doorbell**:
+it never carries a decision and nothing in it is delivered. The router still fetches each answer with
+its signed GET.
+
+- **Bus**: `papyrus-cyclotron-decisions` (output `CyclotronDecisionsBusArn`). Its resource policy allows
+  `events:PutEvents` only for the role in parameter `CyclotronWorkerRoleArn` (default
+  `arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime`) and only when `events:source` is
+  `cyclotron.lab`.
+- **Event**: source `cyclotron.lab`, detail-type `Decision Ready`, detail `{contractVersion:
+  "cyclotron-publication/v1", accountId, runId, jobId, requestId, itemId, publications, status:
+  "complete"|"failed"}`. Delivery is at least once; resends are harmless.
+- **Rule** `papyrus-monitoring-decision-ready` (state follows `ScheduleState`) invokes the router
+  Lambda with the event unchanged, with a small retry policy and the router dead-letter queue.
+- **Handler**: a strictly validated event is accepted; anything malformed is dropped with a log line
+  (it never raises, so EventBridge never retries it). Monitors are not derived from `itemId`. The
+  handler looks at every monitor that can hold a router config (`DOORBELL_MONITORS`: `hn`,
+  `huggingface`, `ttab`; add a new monitor there), skips any whose `CONFIG#router` `cyclotron.accountId`
+  or `cyclotron.runId` differs from the event's (counted in the log), and runs `collect` for the rest.
+  Each collect takes that monitor's own router lock; a locked monitor is skipped and its job is picked up
+  by the 2-minute collector or the next route run. A collect that finds nothing new changes nothing, so a
+  duplicate event is harmless.
+- Scheduled events (`{"monitorId", "task"}`) are unchanged.
+
 ## Operating the router
 
 - Seed: `seed_router_config.py --table TABLE --file router.json` (starts as `dry-run`, `feedback: false`).

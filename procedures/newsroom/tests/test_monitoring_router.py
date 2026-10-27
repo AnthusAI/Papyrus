@@ -1525,3 +1525,91 @@ def test_the_template_schedules_the_collector_on_the_router_function_without_new
     assert schedule["Target"]["Arn"] == resources["RouteSchedule"]["Properties"]["Target"]["Arn"]
     assert schedule["Target"]["RoleArn"] == resources["RouteSchedule"]["Properties"]["Target"]["RoleArn"]
     assert json.loads(schedule["Target"]["Input"]) == {"monitorId": "hn", "task": "collect"}
+
+
+# --- decision-ready doorbell --------------------------------------------------------------------
+
+def decision_event(**detail):
+    base = {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": "job-1",
+            "requestId": "req-1", "itemId": "hn-101", "publications": [], "status": "complete"}
+    return {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": base | detail}
+
+
+def ring(table, event, collected=None):
+    calls = []
+    outcome = mr.handle_decision_ready(mr.RouterStore(table), event, lambda m: calls.append(m) or {"status": "complete"})
+    return outcome, calls
+
+
+def test_doorbell_collects_every_configured_monitor_for_the_run(table):
+    table.put_item(router_config())
+    table.put_item(router_config() | {"pk": "MONITOR#ttab"})
+    outcome, calls = ring(table, decision_event())
+    assert calls == ["hn", "ttab"] and outcome["status"] == "collected"
+
+
+def test_doorbell_ignores_an_old_run_or_other_account(table):
+    table.put_item(router_config())
+    assert ring(table, decision_event(runId="run-0"))[1] == []
+    outcome, calls = ring(table, decision_event(accountId="acct-2"))
+    assert calls == [] and outcome["status"] == "ignored" and outcome["ignoredMonitors"] == 1
+
+
+@pytest.mark.parametrize("event", [
+    None, {}, {"source": "other", "detail-type": "Decision Ready", "detail": {}},
+    {"source": "cyclotron.lab", "detail-type": "Other", "detail": {}},
+    {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": "x"},
+    decision_event(runId=""), decision_event(jobId=5), decision_event(status="weird"),
+    decision_event(contractVersion="v0"), decision_event(publications="x"),
+    {k: v for k, v in decision_event().items() if k != "detail"}])
+def test_doorbell_drops_a_malformed_event_without_raising(table, event):
+    table.put_item(router_config())
+    outcome, calls = ring(table, event)
+    assert outcome["status"] == "malformed" and calls == []
+
+
+def test_doorbell_survives_a_failing_collect(table):
+    table.put_item(router_config())
+    def boom(m):
+        raise RuntimeError("down")
+    assert mr.handle_decision_ready(mr.RouterStore(table), decision_event(), boom)["collected"] == {"hn": "error"}
+
+
+def test_doorbell_duplicate_and_locked_monitor_are_harmless(table):
+    store, cyclotron = combined_setup(table, maxItemsPerRun=3)
+    cyclotron.polls_needed = 10_000
+    run_with(table, store, cyclotron)
+    cyclotron.polls_needed = 0
+    collect = lambda m: run_with(table, store, cyclotron, task="collect")
+    first = mr.handle_decision_ready(store, decision_event(), collect)
+    second = mr.handle_decision_ready(store, decision_event(), collect)
+    assert first["collected"] == {"hn": "complete"} and second["collected"] == {"hn": "complete"}
+    assert set(routing_of(table).values()) == {"routed"}
+    assert store.acquire_router_lock("hn", "route-run", 2100)
+    assert mr.handle_decision_ready(store, decision_event(), collect)["collected"] == {"hn": "locked"}
+
+
+def test_scheduled_events_are_not_decision_events():
+    assert not mr.is_decision_event({"monitorId": "hn", "task": "collect"}) and not mr.is_decision_event({})
+    assert mr.is_decision_event(decision_event())
+
+
+def test_template_bus_policy_names_only_the_cyclotron_worker_and_source():
+    template, parameters = _template()["Resources"], _template()["Parameters"]
+    policy = template["CyclotronDecisionsBusPolicy"]["Properties"]["Statement"]
+    assert policy["Principal"] == {"AWS": ("Ref", "CyclotronWorkerRoleArn")}
+    assert policy["Action"] == "events:PutEvents" and policy["Effect"] == "Allow"
+    assert policy["Condition"] == {"StringEquals": {"events:source": "cyclotron.lab"}}
+    assert parameters["CyclotronWorkerRoleArn"]["Default"] == "arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime"
+    assert template["CyclotronDecisionsBus"]["Properties"]["Name"] == "papyrus-cyclotron-decisions"
+
+
+def test_template_rule_targets_the_router_with_a_permission_scoped_to_it():
+    template, parameters = _template()["Resources"], _template()["Parameters"]
+    rule = template["DecisionReadyRule"]["Properties"]
+    assert rule["EventPattern"] == {"source": ["cyclotron.lab"], "detail-type": ["Decision Ready"]}
+    target = rule["Targets"][0]
+    assert target["Arn"] == ("GetAtt", "RouterFunction.Arn") and "Input" not in target and "InputTransformer" not in target
+    assert target["DeadLetterConfig"]["Arn"] == ("GetAtt", "RouterDeadLetterQueue.Arn") and target["RetryPolicy"]
+    permission = template["DecisionReadyInvokePermission"]["Properties"]
+    assert permission["Principal"] == "events.amazonaws.com" and permission["SourceArn"] == ("GetAtt", "DecisionReadyRule.Arn")
