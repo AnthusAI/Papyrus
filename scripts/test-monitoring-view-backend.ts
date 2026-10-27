@@ -20,6 +20,14 @@ assert.ok(emailQuery, "the base schema defines the private email detail query");
 assert.match(emailQuery, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/,
   "email details are limited to editors and admins");
 
+// The paged lists are the same editor/admin-only gate, a read-only query.
+const pageQuery = /monitoringPage\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
+assert.ok(pageQuery, "the base schema defines the paged list query");
+assert.match(pageQuery, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/, "paged lists are limited to editors and admins");
+assert.ok(!/allow: public|allow: private|provider: apiKey|identityPool/.test(pageQuery));
+assert.match(pageQuery, /list: String!/);
+assert.match(pageQuery, /cursor: String/);
+
 const handoffMutation = /monitoringQueueEmailReference\([^)]*\): AWSJSON[^\n]*/.exec(text)?.[0] ?? "";
 assert.ok(handoffMutation, "the base schema defines the selected Reference handoff");
 assert.match(handoffMutation, /groups: \["editor", "admin"\]|groups: \["editor","admin"\]/);

@@ -678,6 +678,23 @@ authorization point and one least-privilege grant.
 - Old `ceilings` and `maxItemsPerRun` fields in `CONFIG#router` are ignored (the router logs one `ignored_retired_config` line naming them) and are not returned to Monitoring. They can be deleted from the stored config; `infra/monitoring/seed_router_config.py --set` drops them on its next write.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
 
+### Paged lists: nothing scrolls out of reach
+
+The page never truncates a list. `monitoringOverview` returns the newest page of each list (email submissions 20,
+collector runs 15, router runs 10, collected items 60 per monitor) and, per list, an opaque `cursor` that is null once the list
+ends. Those numbers are page sizes, not totals. The `monitoringPage(list, cursor, filter, scope)` query returns the next page of
+one list (`runs`, `routerRuns`, `items` or `emailSubmissions`) and the cursor after it; the page's "Load more" button calls it.
+
+- The cursor is the DynamoDB key of the last row shown, per monitor (the view reads one extra row, so there is no empty last page).
+  It is validated on the way back: it must be this monitor's own partition and the list's own key range, or the request is
+  `bad_request`. The same editor/admin gate and scope rules as the overview apply, and a monitor not routed to the site contributes nothing.
+- `filter: "held"` (email submissions only) restarts the list at the newest message that is still held for review (including one
+  whose decision could not be applied) and reads back as far as it takes to fill a page, so an old held message is always
+  findable without paging through everything. It pages the same way.
+- The 60 second refresh re-reads only the newest page; the rows an editor loaded stay, and a row that moved between pages is shown once.
+- Queue items read their routing by key (`ROUTE#<sourceId>#<revision>`), not from a fixed window of recent routes.
+- Usage still reads a bounded history (`MAX_DECISION_PAGES`) and labels the count as a lower bound when it stops early.
+
 ### Open one email receipt
 
 Editors can open `/newsroom/administration/monitoring?receipt=EMAIL%23<receipt-hash>`

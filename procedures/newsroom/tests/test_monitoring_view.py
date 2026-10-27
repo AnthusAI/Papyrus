@@ -234,7 +234,7 @@ def test_email_submissions_can_use_the_receiver_partition_without_switching_the_
 
     assert [item["subject"] for item in result["emailSubmissions"]] == ["Newsletter"]
     assert result["router"]["mode"] == "live"
-    assert main_store.newest("EMAILINDEX#", 10) == []
+    assert main_store.page("EMAILINDEX#", 10)[0] == []
 
 
 def test_email_detail_uses_configured_receiver_partition_and_keeps_auth_checks():
@@ -573,3 +573,125 @@ def test_a_failed_exploration_reports_its_typed_reason_without_the_address(caplo
     result = resolve_with(store, receipt_id, lambda url: Response(404, {}), NoKey())
     assert result == {"error": "resolution_failed", "reason": "search_unavailable"}
     assert "private-recipient" not in caplog.text and "https://" not in caplog.text
+
+
+# --- paging: page sizes are not totals ---------------------------------------------------------
+
+def page_all(store, name, **options):
+    """Follow cursors to the end of one list; returns every row and the number of pages read."""
+    stores = fx.only_hn(store)
+    kwargs = dict(groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW, **options)
+    first = mv.monitoring_site_overview({"hn": store}, groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    rows, cursor, pages = list(first[name]), first["cursors"][name], 1
+    while cursor:
+        page = mv.monitoring_list_page({"hn": stores("hn")}, list_name=name, cursor=cursor, **kwargs)
+        rows += page["rows"]
+        cursor, pages = page["cursor"], pages + 1
+    return rows, pages
+
+
+def test_more_receipts_than_a_page_are_all_reachable_newest_first():
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(45))
+    first = overview(store=store)
+    assert len(first["emailSubmissions"]) == mv.EMAIL_PAGE_SIZE
+    assert first["emailSubmissions"][0]["subject"] == "Mail 44"
+    assert first["cursors"]["emailSubmissions"]
+    rows, pages = page_all(store, "emailSubmissions")
+    assert pages == 3 and [r["subject"] for r in rows] == [f"Mail {n}" for n in range(44, -1, -1)]
+
+
+def test_a_list_that_ends_exactly_on_a_page_has_no_cursor():
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(mv.EMAIL_PAGE_SIZE))
+    assert overview(store=store)["cursors"]["emailSubmissions"] is None
+
+
+def test_an_old_held_message_is_found_by_the_held_filter_without_paging_through_everything():
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(70, held={0, 3}))
+    assert "Mail 0" not in [r["subject"] for r in overview(store=store)["emailSubmissions"]]
+    page = mv.monitoring_list_page({"hn": store}, list_name="emailSubmissions", cursor=None, held_only=True, groups=["editor"],
+                                   site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    assert [r["subject"] for r in page["rows"]] == ["Mail 3", "Mail 0"]
+    assert all(r["quarantine"]["state"] == "quarantined" for r in page["rows"]) and page["cursor"] is None
+
+
+def test_the_held_filter_pages_when_more_messages_are_held_than_fit_a_page():
+    held = set(range(0, 50, 2))   # 25 held messages interleaved with accepted ones
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(50, held=held))
+    stores = {"hn": store}
+    options = dict(list_name="emailSubmissions", held_only=True, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                   scope="publication", now=fx.NOW)
+    first = mv.monitoring_list_page(stores, cursor=None, **options)
+    assert len(first["rows"]) == mv.EMAIL_PAGE_SIZE and first["cursor"]
+    second = mv.monitoring_list_page(stores, cursor=first["cursor"], **options)
+    assert len(second["rows"]) == 5 and second["cursor"] is None
+    assert sorted(r["subject"] for r in first["rows"] + second["rows"]) == sorted(f"Mail {n}" for n in held)
+
+
+def test_runs_router_runs_and_items_are_paged_not_truncated():
+    table = fx.rows()
+    for n in range(40):
+        stamp = f"2026-10-19T00:{n:02d}:00.000000Z"
+        table.append({"pk": fx.PK, "sk": f"RUN#{stamp}#x{n}", "runId": f"x{n}", "startedAt": stamp, "status": "complete"})
+        table.append({"pk": fx.PK, "sk": f"ROUTERUN#{stamp}#y{n}", "runId": f"y{n}", "startedAt": stamp, "status": "complete"})
+    for n in range(150):
+        table.append(fx.disc(f"{2000 + n}", f"Story {n}", "collected", f"2026-10-19T01:00:{n % 60:02d}.000000Z"))
+    store = fx.FakeViewStore(table)
+    runs, _ = page_all(store, "runs")
+    assert len(runs) == 43 and len({r["runId"] for r in runs}) == 43
+    router_runs, _ = page_all(store, "routerRuns")
+    assert len(router_runs) == 41
+    items, _ = page_all(store, "items")
+    assert len(items) == 155 - 1 and len({i["sourceId"] for i in items}) == len(items)   # one item is judged not relevant and hidden
+
+
+def test_item_routing_is_found_for_old_discoveries_beyond_one_page():
+    table = fx.rows() + [fx.disc(f"{3000 + n}", f"Later {n}", "collected") for n in range(130)]
+    items, _ = page_all(fx.FakeViewStore(table), "items")
+    quantum = next(i for i in items if i["title"] == "Quantum paper on arXiv")
+    assert quantum["relevance"][0]["delivery"]["state"] == "delivered"
+
+
+@pytest.mark.parametrize("cursor", ["!!!", "bnVsbA==", "eyJobiI6IDF9"])
+def test_a_forged_cursor_is_a_bad_request(cursor):
+    result = mv.handle(
+        {"fieldName": "monitoringPage", "identity": {"groups": ["editor"]},
+         "arguments": {"list": "runs", "cursor": cursor}},
+        env={"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}, store_factory=fx.only_hn(fx.FakeViewStore()), now=fx.NOW)
+    assert result == {"error": "bad_request"}
+
+
+def test_a_cursor_for_another_key_range_or_partition_is_refused():
+    stores = {"hn": fx.FakeViewStore()}
+    forged = mv.encode_cursor({"hn": {"pk": fx.PK, "sk": "CONFIG#router"}})
+    other = mv.encode_cursor({"hn": {"pk": "MONITOR#someone-else", "sk": "RUN#2026"}})
+    for cursor in (forged, other):
+        with pytest.raises((ValueError, AssertionError)):
+            mv.monitoring_list_page(stores, list_name="runs", cursor=cursor, groups=["editor"],
+                                    site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+    with pytest.raises(ValueError):
+        mv.monitoring_list_page(stores, list_name="runs", cursor=mv.encode_cursor({"elsewhere": {"pk": "p", "sk": "RUN#"}}),
+                                groups=["editor"], site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+
+
+def test_paging_keeps_the_scope_rules():
+    stores = {"hn": fx.FakeViewStore()}
+    with pytest.raises(Forbidden):
+        mv.monitoring_list_page(stores, list_name="items", cursor=None, groups=["reader"], site_endpoint=fx.APP_ANTH,
+                                scope="publication", now=fx.NOW)
+    with pytest.raises(Forbidden):
+        mv.monitoring_list_page(stores, list_name="items", cursor=None, groups=["editor"], site_endpoint=fx.APP_ANTH,
+                                scope="all", now=fx.NOW)
+    with pytest.raises(ValueError):
+        mv.monitoring_list_page(stores, list_name="runs", cursor=None, held_only=True, groups=["editor"],
+                                site_endpoint=fx.APP_ANTH, scope="publication", now=fx.NOW)
+
+
+def test_the_page_query_goes_through_the_handler_with_the_same_gate():
+    event = {"fieldName": "monitoringPage", "identity": {"groups": ["editor"]},
+             "arguments": {"list": "emailSubmissions", "filter": "held"}}
+    env = {"PAPYRUS_GRAPHQL_ENDPOINT": fx.APP_ANTH}
+    store = fx.FakeViewStore(fx.rows() + fx.receipt_rows(30, held={1}))
+    result = mv.handle(event, env=env, store_factory=fx.only_hn(store), now=fx.NOW)
+    assert [r["subject"] for r in result["rows"]] == ["Mail 1"] and result["cursor"] is None
+    assert mv.handle({**event, "identity": {"groups": ["reader"]}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "forbidden"}
+    assert mv.handle({**event, "arguments": {"list": "nope"}}, env=env, store_factory=fx.only_hn(store), now=fx.NOW) == {"error": "bad_request"}

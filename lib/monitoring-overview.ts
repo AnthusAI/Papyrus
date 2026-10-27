@@ -38,6 +38,12 @@ export type MonitoringEmailSummary = {
   envelopeSender: string | null; headerFrom: string | null; warnings: string[];
   verdicts: Record<string, string>; linkCount: number; processedCount: number; unresolvedLinkCount: number;
   reviewRequired: boolean; errorCode: string | null; quarantine: EmailQuarantine | null;
+  /** Present when the same email was received more than once: one item, every copy listed. One decision covers all copies. */
+  group?: EmailCopyGroup;
+};
+export type EmailCopyGroup = {
+  fingerprint: string; count: number;
+  copies: { receiptId: string; observedAt: string | null; status: string; linkCount: number; processedCount: number; quarantine: EmailQuarantine | null }[];
 };
 
 /** Where a held email submission stands. `null` means it never needed review. */
@@ -46,7 +52,7 @@ export type EmailQuarantineState =
   | "expired" | "decision_failed" | "release_failed";
 export type EmailQuarantine = {
   state: EmailQuarantineState;
-  decision: { action: "accept" | "reject"; by: string; at: string | null; reason: string } | null;
+  decision: { action: "accept" | "reject"; by: string; at: string | null; reason: string; viaGroup?: boolean } | null;
   failure: string | null;
 };
 export type EmailDecisionResult =
@@ -144,6 +150,17 @@ export type MonitoringFeed = {
   nextDueAt: string | null;
 };
 
+/** The lists on the page that are paged. Page sizes are the server's; there is no total. */
+export type MonitoringListName = "runs" | "routerRuns" | "items" | "emailSubmissions";
+export type MonitoringCursors = Partial<Record<MonitoringListName, string | null>>;
+export type MonitoringListRows = {
+  runs: MonitoringRun; routerRuns: MonitoringRouterRun; items: MonitoringItem; emailSubmissions: MonitoringEmailSummary;
+};
+/** One more page of one list. `cursor` is null when the list has ended. */
+export type MonitoringPage<L extends MonitoringListName = MonitoringListName> =
+  | { list: L; rows: MonitoringListRows[L][]; cursor: string | null; hiddenNotRelevant?: number }
+  | { error: "forbidden" | "bad_request" } | { state: "unavailable" | "not_configured" };
+
 export type MonitoringOverview = {
   state: "ready" | "empty";
   asOf: string;
@@ -164,6 +181,8 @@ export type MonitoringOverview = {
   otherMonitors?: string[];
   emailSubmissions?: MonitoringEmailSummary[];
   hiddenNotRelevant: number;
+  /** Where each list continues; null or missing when it has no more rows. */
+  cursors?: MonitoringCursors;
 };
 
 export type MonitoringResult =

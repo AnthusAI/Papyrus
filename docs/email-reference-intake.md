@@ -180,8 +180,8 @@ span multiple invocations without losing content. Each batch checkpoints its byt
 cursor after conditional discovery writes; replay after a crash is idempotent and
 does not overwrite discoveries already routed onward. `queued` means every
 eligible unique discovery is durable, not classified or delivered. `DISC#` and `ROUTE#` rows and
-`ROUTERUN#` receipts show routing progress. The editor-only Monitoring console lists recent email receipts in the configured
-publication and opens one receipt's inert text and complete extracted link list.
+`ROUTERUN#` receipts show routing progress. The editor-only Monitoring console lists email receipts in the configured
+publication newest first, 20 at a time with "Load more" and a "Held for review" filter that always reaches a held message however old, and opens one receipt's inert text and complete extracted link list.
 Inspect private receipts and the receiver's failure queue for operational failures. A queued/rejected SES delivery is terminal
 and retries return the original outcome. A failed manifest-backed receipt retains
 its cursor in the pending index so the resume schedule retries it; failures remain
@@ -254,6 +254,58 @@ aws lambda invoke --function-name papyrus-email-<monitor-id> --cli-binary-format
 Add `"receiptIds":["EMAIL#<hash>", ...]` to hold only specific receipts. The receiver needs the
 `dynamodb:Query` grants in `infra/email/papyrus-email-submissions.yaml` (the partition and the
 `EMAIL_ACTION#` index key), so deploy that stack update first.
+
+## Repeated copies of the same email
+
+People forward the same newsletter more than once, and each forward is a separate SES delivery with
+its own receipt. The receiver fingerprints every message at intake, stores it as `contentFingerprint`
+on the receipt, and writes an `EMAILFP#<fingerprint>#<digest>` membership row beside the
+`EMAILINDEX#` row. The fingerprint (version 1, `papyrus_content.email_fingerprint`) is the SHA-256 of:
+
+- the subject, lower-cased (NFKC), with every leading `Re:`/`Fwd:`/`Fw:` removed and whitespace collapsed;
+- the sorted set of distinct extracted candidate-link URLs (already canonical: tracking parameters and
+  fragments removed);
+- only when the message has no links, the whitespace-collapsed plain text with quote markers and
+  forward header lines (`From:`, `To:`, `Cc:`, `Date:`, `Sent:`, `Subject:`, "Forwarded message")
+  removed.
+
+The body is deliberately not hashed when links exist, because a forward adds headers and comments
+around the same newsletter and the link set identifies the content. Different subjects, or any
+different link, are different emails and are never grouped.
+
+The Monitoring email list shows one item per fingerprint: "Received N times", the latest date, and an
+expandable list of every copy with its date and state. The item stands for the copy that still needs a
+decision (otherwise the newest copy). Receipts without a fingerprint appear as single items.
+
+One Accept or Reject on the group applies to every copy:
+
+1. The decision writes one `EMAILGROUP#<fingerprint>` row (conditional create, first decision wins; the
+   opposite decision from any copy is refused as `already_decided`).
+2. Each copy that is still held and undecided gets its own `EMAILACTION#` row carrying the group's actor,
+   time and reason plus `groupFingerprint`, so every receipt records the decision and references the
+   group decision. The receiver applies them exactly as for a single message. A copy that was
+   already decided keeps its own decision. Retrying a group decision completes any copy an interrupted
+   request left undone.
+3. A copy that arrives after the group was decided inherits the decision and is never put to the editor
+   again. If the group was accepted, the copy is queued: a copy that passes authentication goes through
+   normally, and a held copy gets an inherited Accept so its links are queued. If the group was rejected,
+   the copy is held only long enough for the inherited Reject to close it, even when authentication passes.
+   Nothing is routed.
+
+Link import stays idempotent: a Reference request is keyed by the canonical URL, so importing the same
+link from several copies of one email never creates a second Reference.
+
+### Backfilling receipts stored before grouping (operator step)
+
+Receipts received before this feature have no fingerprint and list as single items. Invoke the receiver
+once to fingerprint them. It reads the stored inert text and links (no S3 or MIME access), adds only
+`contentFingerprint` and the membership row, leaves every other field untouched, and seeds a group
+decision from an already-decided copy so later copies inherit it. It is idempotent and needs no new IAM grant.
+
+```bash
+aws lambda invoke --function-name papyrus-email-<monitor-id> --cli-binary-format raw-in-base64-out \
+  --payload '{"task":"fingerprint-backfill","monitorId":"<monitor-id>"}' /dev/stdout
+```
 
 ## SES ownership and activation
 

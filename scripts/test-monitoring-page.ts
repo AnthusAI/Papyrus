@@ -7,8 +7,11 @@ import {
   beginEmailSubmissionAction,
   emailReferenceBatches,
   endEmailSubmissionAction,
+  formatUtc,
   isCurrentEmailSubmissionAction,
 } from "../lib/monitoring-overview";
+import { mergeListPages, withLoadedPages } from "../lib/monitoring-paging";
+import type { MonitoringEmailSummary } from "../lib/monitoring-overview";
 import type { MonitoringResult } from "../lib/monitoring-overview";
 
 function text(html: string): string {
@@ -138,6 +141,24 @@ async function main() {
   });
   assert.match(importReadyHtml, /Add selected links to References/);
 
+  // Several copies of the same email are one item: "received N times", the dates, and one decision for all.
+  const copyDates = ["2026-10-27T01:00:00Z", "2026-10-27T01:05:00Z", "2026-10-27T01:09:00Z"];
+  const grouped = { ...emailDetail.submission, status: "pending_review",
+    quarantine: { state: "quarantined" as const, decision: null, failure: null },
+    group: { fingerprint: "f".repeat(64), count: 3, copies: copyDates.map((observedAt, index) => ({
+      receiptId: `EMAIL#${String(index).repeat(64)}`, observedAt, status: "pending_review", linkCount: 41, processedCount: 0,
+      quarantine: { state: "quarantined" as const, decision: null, failure: null } })) } };
+  const groupedHtml = renderToStaticMarkup(createElement(EmailSubmissions, { items: [grouped],
+    detail: { ...emailDetail, submission: grouped }, onDecide: async () => ({ error: "bad_request" as const }) }));
+  const groupedText = text(groupedHtml);
+  assert.ok(groupedText.includes("Received 3 times"), "a repeated email shows how many times it was received");
+  assert.equal((groupedHtml.match(/data-email-copy=/g) ?? []).length, 3, "expanding lists every copy");
+  assert.ok(copyDates.every((date) => groupedHtml.includes(formatUtc(date))), "every copy shows its date");
+  assert.ok(groupedText.includes("One decision applies to all 3 copies of this email."), "Accept/Reject covers the group");
+  assert.equal((groupedHtml.match(/data-email-decision="accept"/g) ?? []).length, 1, "one Accept for the group");
+  const single_ = renderToStaticMarkup(createElement(EmailSubmissions, { items: [{ ...grouped, group: undefined }], detail: null }));
+  assert.ok(!single_.includes("Received") && !single_.includes("data-email-group"), "a single email shows no group");
+
   // A held message is read-only text until an editor accepts it; Accept and Reject are buttons with Lucide icons.
   const held = { ...emailDetail.submission, status: "pending_review",
     quarantine: { state: "quarantined" as const, decision: null, failure: null } };
@@ -203,6 +224,42 @@ async function main() {
   assert.ok(text(othersHtml).includes("Not routed to this site (2)"));
   assert.ok(othersHtml.includes('data-monitoring-other-monitor="hn"') && othersHtml.includes("<details") && !othersHtml.includes("<details open"));
   assert.ok(!text(render(FIXTURE_MONITORING_OVERVIEW)).includes("Not routed to this site"));
+
+  // Paging: the newest page shows "Load more" only while a list has a cursor; there is no total.
+  const email = (n: number, held = false): MonitoringEmailSummary => ({
+    receiptId: `EMAIL#${n}`, observedAt: `2026-10-20T00:${String(n % 60).padStart(2, "0")}:00Z`, status: held ? "pending_review" : "queued",
+    subject: `Mail ${n}`, envelopeSender: null, headerFrom: null, warnings: [], verdicts: {}, linkCount: 1, processedCount: 0,
+    unresolvedLinkCount: 0, reviewRequired: held, errorCode: null,
+    quarantine: held ? { state: "quarantined", decision: null, failure: null } : null,
+  });
+  const base = { ...FIXTURE_MONITORING_OVERVIEW, emailSubmissions: Array.from({ length: 20 }, (_, i) => email(44 - i)),
+    cursors: { emailSubmissions: "next-email", runs: null, items: null, routerRuns: null } };
+  const withMore = render(base, { paging: { onLoadMore: () => {}, loadingList: null, onHeldOnlyChange: () => {} } });
+  assert.ok(withMore.includes('data-monitoring-load-more="emailSubmissions"'), "a list with a cursor offers Load more");
+  assert.ok(!withMore.includes('data-monitoring-load-more="runs"') && !withMore.includes('data-monitoring-load-more="items"'),
+    "a list that has ended offers no Load more");
+  assert.ok(text(withMore).includes("Held for review") && text(withMore).includes("Load more"));
+  assert.ok(!render({ ...base, cursors: {} }, { paging: { onLoadMore: () => {} } }).includes("data-monitoring-load-more"),
+    "no cursor, no button");
+  assert.ok(!render(base).includes("data-monitoring-load-more"), "the demo has no paging");
+  assert.ok(render(base, { paging: { onLoadMore: () => {}, loadingList: "emailSubmissions" } }).includes("disabled"), "the button waits while loading");
+  const heldEmpty = text(render({ ...base, emailSubmissions: [], cursors: {} }, { paging: { heldOnly: true, onHeldOnlyChange: () => {} } }));
+  assert.ok(heldEmpty.includes("No email submissions are held for review."));
+  const heldFilterHtml = render(base, { paging: { heldOnly: true, onHeldOnlyChange: () => {} } });
+  assert.ok(/data-email-filter="held"[^>]*>/.test(heldFilterHtml) && /aria-pressed="true"[^>]*data-email-filter="held"/.test(heldFilterHtml), "Held for review shows as pressed");
+
+  // Loaded pages follow the refreshed newest page without duplicating a row that moved between them.
+  const merged = mergeListPages("emailSubmissions", [email(46), email(45), email(44)], [email(45), email(44), email(43)]);
+  assert.deepEqual(merged.map((row) => row.subject), ["Mail 46", "Mail 45", "Mail 44", "Mail 43"]);
+  const item = (revision: number) => ({ ...FIXTURE_MONITORING_OVERVIEW.items[0], monitorId: "hn", sourceId: "7", revision });
+  assert.deepEqual(mergeListPages("items", [item(1)], [item(2)]).map((row) => row.revision), [2], "the highest revision of an item wins");
+  const shown = withLoadedPages(base, { emailSubmissions: { rows: [email(24), email(23)], cursor: null } }, null);
+  assert.equal(shown.emailSubmissions!.length, 22);
+  assert.equal(shown.cursors!.emailSubmissions, null, "the last loaded page ends the list");
+  assert.equal(shown.cursors!.runs, null);
+  const heldOnly = withLoadedPages(base, {}, { rows: [email(3, true)], cursor: "older-held" });
+  assert.deepEqual(heldOnly.emailSubmissions!.map((row) => row.subject), ["Mail 3"], "the held filter replaces the email list");
+  assert.equal(heldOnly.cursors!.emailSubmissions, "older-held");
 
   console.log("monitoring page: ok");
 }

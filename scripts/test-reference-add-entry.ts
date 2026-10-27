@@ -98,8 +98,8 @@ test("Editor-facing copy never exposes engine concepts", async () => {
   ];
   assert.ok(pages[3].includes("Suggestions for this publication") && pages[3].includes("Add a reference") && pages[3].includes("data-review-row=\"cyclotron\""), "the whole References view rendered");
   for (const html of pages) {
-    // "Cyclotron" is the review card's own row label (product decision); other engine words stay banned.
-    const visible = text(html.replace(/(<span class="[^"]*">)Cyclotron(<\/span>)/g, "$1$2").replace(/(aria-label|data-[a-z-]+|class|placeholder)="[^"]*"/g, ""));
+    // "Cyclotron" is the review card's own row label and the feed card's prediction chip label (product decision); other engine words stay banned.
+    const visible = text(html.replace(/(<span class="[^"]*">)Cyclotron(<\/span>)/g, "$1$2").replace(/(<span>)Cyclotron · (Accept|Reject)/g, "$1$2").replace(/(aria-label|data-[a-z-]+|class|placeholder)="[^"]*"/g, ""));
     assert.ok(!ENGINE_WORDS.test(visible), `engine word in editor-facing copy: ${visible.match(ENGINE_WORDS)?.[0]} in ${visible.slice(Math.max(0, visible.search(ENGINE_WORDS) - 60), visible.search(ENGINE_WORDS) + 60)}`);
   }
 });

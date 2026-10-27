@@ -38,6 +38,11 @@ module.exports = {
     require: ["features/step_definitions/notification-center.steps.js"],
     format: ["summary"],
   },
+  referenceFeed: {
+    paths: ["features/newsroom-reference-feed.feature"],
+    require: ["features/step_definitions/reference-feed.steps.js"],
+    format: ["summary"],
+  },
   cliLoginDiscovery: {
     paths: ["features/cli-login-discovery.feature"],
     require: ["features/step_definitions/cli-login-discovery.steps.js"],

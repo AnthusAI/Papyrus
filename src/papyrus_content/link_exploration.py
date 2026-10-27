@@ -8,7 +8,8 @@ intake. It
    hides the destination (SendGrid ``ls/click?upn=``, Beehiiv, Mailchimp) is simply followed. Public http(s) only: every hop is
    checked again, the default transport connects to the address it verified, and the work is bounded only by real constraints
    (a redirect loop, a response-size guard, per-request timeouts and one overall deadline), never by a hop count;
-2. **reads** the destination (HTML or PDF) with the readers the monitor stories already use;
+2. **reads** the destination (HTML or PDF) with the readers the monitor stories already use, and takes the page's own preview
+   metadata (``og:image`` / ``twitter:image``, description, site name) for the References feed (``PageMetadata``);
 3. **falls back to search** when the address cannot be followed or read: it searches the web for the headline (or summary, or link
    text), picks the result that best matches by title, snippet and domain, and returns it marked ``via="search"`` with the query
    and the match score so an editor knows it is not the original address;
@@ -108,6 +109,20 @@ class Context:
 
 
 @dataclass(frozen=True)
+class PageMetadata:
+    """What the page says about itself for a preview card. Every address is absolute http(s); missing fields are None."""
+
+    image_url: str | None = None
+    description: str | None = None
+    site_name: str | None = None
+    title: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {name: value for name, value in (("imageUrl", self.image_url), ("description", self.description),
+                                                ("siteName", self.site_name), ("title", self.title)) if value}
+
+
+@dataclass(frozen=True)
 class SearchMatch:
     query: str
     score: float
@@ -140,6 +155,7 @@ class Exploration:
     readable: bool = False
     text_source: str | None = None  # "page" or "search_snippet"
     hops: int = 0
+    metadata: PageMetadata | None = None  # the destination page's own preview metadata, for direct HTML results
 
     def as_record(self) -> dict[str, Any]:
         """A JSON-safe, URL-free-except-for-the-destination description for ledgers and receipts."""
@@ -152,6 +168,8 @@ class Exploration:
                 record[key] = value
         if self.search:
             record["search"] = self.search.as_dict()
+        if self.metadata and self.metadata.as_dict():
+            record["metadata"] = self.metadata.as_dict()
         return record
 
 
@@ -381,6 +399,76 @@ def page_redirect(html: str, base: str, *, thin: bool) -> str | None:
     return absolute if absolute.lower().startswith(("http://", "https://")) else None
 
 
+# --- preview metadata -------------------------------------------------------------------------------------------------
+
+DESCRIPTION_LIMIT = 300
+_IMAGE_KEYS = ("og:image:secure_url", "og:image:url", "og:image", "twitter:image", "twitter:image:src")
+_DESCRIPTION_KEYS = ("og:description", "twitter:description", "description")
+_TITLE_KEYS = ("og:title", "twitter:title")
+
+
+class _Meta(HTMLParser):
+    """Collects ``<meta property|name=... content=...>`` pairs, the first value for each key, and the document title."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.values: dict[str, str] = {}
+        self.link_images: list[str] = []
+        self._in_title = False
+        self.document_title = ""
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        fields = {name.lower(): (value or "").strip() for name, value in attrs}
+        if tag == "meta":
+            key = (fields.get("property") or fields.get("name") or fields.get("itemprop") or "").lower()
+            content = fields.get("content", "")
+            if key and content and key not in self.values:
+                self.values[key] = content
+        elif tag == "link" and fields.get("rel", "").lower() == "image_src" and fields.get("href"):
+            self.link_images.append(fields["href"])
+        elif tag == "title":
+            self._in_title = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "title":
+            self._in_title = False
+
+    def handle_data(self, data: str) -> None:
+        if self._in_title and len(self.document_title) < 300:
+            self.document_title += data
+
+
+def _clean_text(value: str | None, limit: int) -> str | None:
+    text = re.sub(r"\s+", " ", unescape(value or "")).strip()
+    if not text:
+        return None
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
+
+
+def page_metadata(html: str, base: str) -> PageMetadata:
+    """The preview image, description, site name and title a page declares for link previews.
+
+    The image is resolved against the page address and must be public http(s) text (no ``data:`` pictures, no local or credentialed
+    addresses). Nothing is fetched here; a bad or hostile value simply yields None.
+    """
+    parser = _Meta()
+    try:
+        parser.feed(html[:400_000])
+    except Exception:  # noqa: BLE001 - a page that breaks the parser has no usable metadata
+        return PageMetadata()
+    image: str | None = None
+    for candidate in [*(parser.values.get(key) for key in _IMAGE_KEYS), *parser.link_images]:
+        if not candidate:
+            continue
+        absolute = urllib.parse.urljoin(base, unescape(candidate.strip()))
+        if absolute.lower().startswith(("http://", "https://")) and _address_problem(absolute) is None and len(absolute) <= 2000:
+            image = absolute
+            break
+    description = next((_clean_text(parser.values[key], DESCRIPTION_LIMIT) for key in _DESCRIPTION_KEYS if key in parser.values), None)
+    title = next((_clean_text(parser.values[key], 300) for key in _TITLE_KEYS if key in parser.values), None) or _clean_text(parser.document_title, 300)
+    return PageMetadata(image, description, _clean_text(parser.values.get("og:site_name"), 80), title)
+
+
 # --- following and reading --------------------------------------------------------------------------------------------
 
 
@@ -590,8 +678,12 @@ def explore(
         if destination and trace.response is not None:
             text, read_failure = _read(trace, transport, text_limit, expired) if want_text else (None, None)
         direct_failure = failure or read_failure
+        metadata = None
+        if destination and trace.response is not None and "html" in trace.response.headers.get("content-type", "").lower():
+            metadata = page_metadata(_html(trace.response), trace.url or destination)
         if destination and (text or not want_text):
-            return Exploration(True, destination, text, "direct", None, direct_failure, readable=bool(text), text_source="page" if text else None, hops=trace.hops)
+            return Exploration(True, destination, text, "direct", None, direct_failure, readable=bool(text), text_source="page" if text else None,
+                               hops=trace.hops, metadata=metadata)
 
         search_failure = None
         if use_search:
@@ -605,6 +697,6 @@ def explore(
                     return Exploration(**{**found.__dict__, "direct_failure": direct_failure or "unreadable", "hops": trace.hops})
         # A destination that resolved but cannot be read is still reported when text was wanted: the caller may use the address.
         final_failure = search_failure or direct_failure or "unreadable"
-        return Exploration(False, destination, None, None, final_failure, direct_failure or "unreadable", search_failure, hops=trace.hops)
+        return Exploration(False, destination, None, None, final_failure, direct_failure or "unreadable", search_failure, hops=trace.hops, metadata=metadata)
     except Exception:  # noqa: BLE001 - exploration is best effort; a bug must not take down intake or a run
         return Exploration(False, None, None, None, "unreadable", "unreadable")

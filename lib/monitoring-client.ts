@@ -4,6 +4,8 @@ import { generateClient } from "aws-amplify/data";
 import { emailReferenceBatches } from "./monitoring-overview";
 import type {
   EmailDecisionResult,
+  MonitoringListName,
+  MonitoringPage,
   EmailReferenceImportItem,
   EmailReferenceImportOutcome,
   MonitoringEmailArticleResolution,
@@ -11,10 +13,10 @@ import type {
   MonitoringResult,
 } from "./monitoring-overview";
 
-type QueryField = "monitoringOverview" | "monitoringEmailSubmission" | "monitoringDecideEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences" | "monitoringQueueEmailReference";
+type QueryField = "monitoringOverview" | "monitoringPage" | "monitoringEmailSubmission" | "monitoringDecideEmailSubmission" | "monitoringResolveEmailArticleLink" | "intakeEmailSubmissionReferences" | "monitoringQueueEmailReference";
 type GraphQLResult = { data?: Partial<Record<QueryField, unknown>>; errors?: { message?: string; errorType?: string }[] };
 
-async function query<T>(field: QueryField, queryText: string, variables: Record<string, string | number>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
+async function query<T>(field: QueryField, queryText: string, variables: Record<string, string | number | null>): Promise<T | { error: "forbidden" } | { state: "unavailable" }> {
   const client = generateClient({ authMode: "userPool" });
   let result: GraphQLResult;
   try {
@@ -33,6 +35,18 @@ async function query<T>(field: QueryField, queryText: string, variables: Record<
 export async function loadMonitoringOverview(scope: "publication" | "all"): Promise<MonitoringResult> {
   return query<MonitoringResult>("monitoringOverview",
     `query MonitoringOverview($scope: String) { monitoringOverview(scope: $scope) }`, { scope });
+}
+
+/**
+ * One more page of one list after `cursor` (null starts the list from its newest row). `heldOnly` lists only held
+ * email submissions, so a held message is findable however old it is.
+ */
+export async function loadMonitoringPage(
+  list: MonitoringListName, cursor: string | null, scope: "publication" | "all", heldOnly = false,
+): Promise<MonitoringPage> {
+  return query<MonitoringPage>("monitoringPage",
+    `query MonitoringPage($list: String!, $cursor: String, $filter: String, $scope: String) { monitoringPage(list: $list, cursor: $cursor, filter: $filter, scope: $scope) }`,
+    { list, cursor, filter: heldOnly ? "held" : null, scope });
 }
 
 /** Loads one receipt's safe plain-text rendering and its already extracted candidate links. */

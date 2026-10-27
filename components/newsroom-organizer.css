@@ -347,3 +347,51 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .news-desk-columns--administration .news-desk-newsletter__text{margin:0;padding:12px;max-height:280px;overflow:auto;border:1px solid var(--org-line);font:400 12px/1.5 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .news-desk-columns--administration .news-desk-newsletter__filters{display:flex;flex-wrap:wrap;gap:12px 24px}
 .news-desk-columns--administration .news-desk-newsletter__filters .news-desk-doctrine-card__field{min-width:180px}
+
+/* The References feed is rounded and borderless (Ryan's design rule): flat tones and rounded rectangles instead of lines and boxes.
+   The newsroom chrome squares every "rounded" class above; inside a [data-feed-surface] the rounded classes mean what they say.
+   The repeated attribute raises specificity over the squaring rules without !important escalation. */
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-full"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-full"] { border-radius: 9999px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[20px]"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[20px]"] { border-radius: 20px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-2xl"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-2xl"] { border-radius: 16px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[16px]"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[16px]"] { border-radius: 16px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-3xl"],
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-3xl"] { border-radius: 24px !important; }
+
+/* Feed tones. Light: cards a touch lighter than the page, footers between, controls a touch darker. Dark: each step lifts toward the ink.
+   Also set on the portaled mobile sheet, which carries the theme attributes itself. */
+[data-kanbus-theme] [data-feed-surface], [data-kanbus-theme][data-feed-surface] {
+  --feed-card: color-mix(in oklab, var(--kb-theme-paper) 35%, white);
+  --feed-footer: color-mix(in oklab, var(--kb-theme-paper) 70%, white);
+  --feed-control: color-mix(in oklab, var(--kb-theme-paper) 90%, var(--kb-theme-ink));
+}
+[data-kanbus-theme][data-color-mode="dark"] [data-feed-surface], [data-kanbus-theme][data-color-mode="dark"][data-feed-surface] {
+  --feed-card: color-mix(in oklab, var(--kb-theme-paper) 94%, var(--kb-theme-ink));
+  --feed-footer: color-mix(in oklab, var(--kb-theme-paper) 90%, var(--kb-theme-ink));
+  --feed-control: color-mix(in oklab, var(--kb-theme-paper) 80%, var(--kb-theme-ink));
+}
+
+/* Borderless detail pane, Add panel and mobile sheet ([data-feed-flat]): no border, rule or box anywhere inside. Regions are told apart
+   by tone (card, footer, control) and shapes are rounded rectangles. The repeated attribute outranks the newsroom chrome's own rules. */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat],
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] * { border-width: 0 !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] *:not(:focus-visible) { box-shadow: none; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is([data-slot=separator], hr) { display: none !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button], [data-slot=badge]):not([aria-pressed=true]):not([data-slot=sheet-close]):not([class*="hover:bg-muted"]) {
+  background: var(--feed-control) !important; border-radius: 9999px !important; color: var(--foreground, inherit);
+}
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true]:not([class*="destructive"]) {
+  background: var(--primary) !important; color: var(--primary-foreground) !important; border-radius: 9999px !important;
+}
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true][class*="destructive"] { border-radius: 9999px !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(textarea, input:not([type=radio]):not([type=checkbox]), select, details, [data-cyclotron-choice]:not([data-predicted])) {
+  background: var(--feed-control) !important; border-radius: 16px !important;
+}
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-cyclotron-choice] { border-radius: 9999px !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-review-queue-bar] { background: var(--feed-footer) !important; }
+/* The rating grid keeps its own rounded rectangles in the borderless panes (not the pill shape the flat rules give other buttons). */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: 16px !important; }

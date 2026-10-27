@@ -12,6 +12,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { RatingGrid } from "./review-rating-grid";
 import { REFERENCE_REJECTION_REASON_CODES, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 
 export type ReviewChoice = "accept" | "reject";
@@ -247,21 +248,17 @@ export function ReviewCard({
         {summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
       </header>
 
-      <CyclotronRow decided={decided} prediction={prediction} />
-
-      <div className="space-y-2" data-review-row="you">
-        <div className="flex items-center gap-3">
-          <span className="w-20 shrink-0 text-sm font-semibold">You</span>
-          <ChoiceButtons chosen={chosen} disabled={Boolean(disabledReason)} onChoose={choose} />
-        </div>
-        <div className="min-h-5 pl-[5.75rem] text-sm" role="status">
-          {saving ? "Saving…" : saved ? (
-            <span className="inline-flex items-center gap-1" data-review-saved><CheckIcon aria-hidden="true" className="size-4" />Saved</span>
-          ) : null}
-        </div>
-        {disabledReason ? <p className="text-sm text-muted-foreground" data-review-disabled-reason>{disabledReason}</p> : null}
-        {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-      </div>
+      <RatingGrid
+        answer={chosen}
+        decided={decided}
+        disabled={Boolean(disabledReason)}
+        disabledReason={disabledReason}
+        feedback={saving ? { phase: "saving" } : error ? { phase: "error", message: error } : saved ? { phase: "saved" } : { phase: "idle" }}
+        onChoose={choose}
+        prediction={prediction}
+        size="large"
+        surface="card"
+      />
 
       <label className="block text-sm font-medium">
         Why? (optional)
