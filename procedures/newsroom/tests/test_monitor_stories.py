@@ -7,12 +7,14 @@ import ast
 import copy
 import io
 import json
+import math
 import os
 import re
 import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -40,6 +42,15 @@ def decision(row, score=0.9, label="include"):
             "subjectLineageId": row["lineageId"], "score": score, "confidence": score, "createdAt": "2026-10-22T00:00:00Z",
             "metadata": json.dumps({"label": label, "positiveLabel": "include", "cyclotronId": "example-site-relevance", "decidedAt": "2026-10-22T00:00:00Z"})}
 
+
+
+
+class FixedClock(datetime):
+    """The CLI reads the wall clock; the fixtures are dated, so the CLI tests run at NOW."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return NOW if tz is None else NOW.astimezone(tz)
 
 class MonitorClient(FakeClient):
     """A backend with monitored References. ``incoming`` maps a Reference lineage to its provenance relations, ``relations`` to its own (the verdict)."""
@@ -149,13 +160,28 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual([item.lineage_id for item in items], [rows[0]["lineageId"]])
         self.assertEqual(counts["notMonitored"], 1)
 
-    def test_rejected_references_and_ones_outside_the_window_are_not_read(self) -> None:
+    def test_rejected_references_are_not_read_and_a_given_window_leaves_out_older_ones(self) -> None:
         rows, client = world(3)
         client.references[0]["curationStatus"] = "rejected"
         client.references[1]["createdAt"] = "2026-09-01T00:00:00Z"
         items, counts = stories.collect_monitored_items(client, site=SITE, since="7d", now=NOW)
         self.assertEqual([item.lineage_id for item in items], [rows[2]["lineageId"]])
         self.assertEqual(counts["inWindow"], 1)
+
+    def test_with_no_window_every_age_is_read(self) -> None:
+        rows, client = world(3)
+        client.references[0]["createdAt"] = "2025-01-01T00:00:00Z"
+        client.references[1]["createdAt"] = "2026-09-01T00:00:00Z"
+        items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW)
+        self.assertEqual(sorted(item.lineage_id for item in items), sorted(row["lineageId"] for row in rows))
+        self.assertEqual(counts["inWindow"], 3)
+
+    def test_the_decision_of_a_drafted_reference_is_not_read(self) -> None:
+        rows, client = world(2)
+        items, _ = stories.collect_monitored_items(client, site=SITE, now=NOW, drafted={rows[0]["lineageId"]})
+        by_id = {item.lineage_id: item for item in items}
+        self.assertIsNone(by_id[rows[0]["lineageId"]].verdict)
+        self.assertIsNotNone(by_id[rows[1]["lineageId"]].verdict)
 
     def test_accepted_references_count_too(self) -> None:
         _, client = world(2, status="accepted")
@@ -195,6 +221,23 @@ class RankingTests(unittest.TestCase):
     def test_the_newest_arrival_breaks_the_last_tie_and_the_order_is_stable(self) -> None:
         self.assertEqual(self.ranked(count=3, verdicts={1: 0.8, 2: 0.8, 3: 0.8}), [1, 2, 3])
 
+    def test_an_old_highly_relevant_item_is_still_a_candidate_and_wins_without_a_learned_weight(self) -> None:
+        rows, client = world(3, verdicts={1: 0.99, 2: 0.6, 3: 0.5})
+        client.references[0]["createdAt"] = "2024-01-01T00:00:00Z"
+        items, _ = stories.collect_monitored_items(client, site=SITE, now=NOW)
+        self.assertIsNone(stories.learn_freshness(items))
+        self.assertEqual(stories.rank(items, None, NOW)[0].lineage_id, rows[0]["lineageId"])
+
+    def test_a_learned_freshness_weights_the_score_by_age(self) -> None:
+        rows, client = world(3, verdicts={1: 0.99, 2: 0.9, 3: 0.5})
+        client.references[0]["createdAt"] = "2026-09-13T12:00:00Z"  # 30 days old
+        items, _ = stories.collect_monitored_items(client, site=SITE, now=NOW)
+        order = lambda freshness: [item.lineage_id for item in stories.rank(items, freshness, NOW)]
+        self.assertEqual(order(None)[0], rows[0]["lineageId"])
+        self.assertEqual(order({"tauDays": 5.0, "examples": 10})[0], rows[1]["lineageId"])
+        self.assertIn(rows[0]["lineageId"], order({"tauDays": 5.0, "examples": 10}))  # lower, never dropped
+        self.assertEqual(order({"tauDays": 5000.0, "examples": 10})[0], rows[0]["lineageId"])
+
     def test_no_source_is_named_in_the_code(self) -> None:
         tree = ast.parse(Path(stories.__file__).read_text(encoding="utf-8"))
         docstrings = {id(node.body[0].value) for node in ast.walk(tree) if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef)) and node.body and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant)}
@@ -204,6 +247,39 @@ class RankingTests(unittest.TestCase):
         for name in ("huggingface", "hugging face", "hacker news", "arxiv", "email"):
             self.assertNotIn(name, text, name)
         self.assertNotRegex(text, r"\bhn\b")
+
+
+def curated(number, days_to_curate, status="accepted"):
+    return stories.MonitoredItem(
+        reference_id=f"r{number}", lineage_id=f"l{number}", title="t", url="https://example.org", arrived_at="2026-10-01T00:00:00Z", published_at=None,
+        monitor_id="hn", status=status, curated_at=None if days_to_curate is None else f"2026-10-{1 + days_to_curate:02d}T00:00:00Z",
+    )
+
+
+class FreshnessTests(unittest.TestCase):
+    def test_tau_is_the_median_age_at_acceptance_over_ln_2(self) -> None:
+        items = [curated(number, 2) for number in range(1, 6)] + [curated(number, 4) for number in range(6, 11)] + [curated(11, 20), curated(12, 1, "pending"), curated(13, None)]
+        learned = stories.learn_freshness(items)
+        self.assertEqual(learned["examples"], 11)
+        self.assertAlmostEqual(learned["medianAgeDays"], 4.0)
+        self.assertAlmostEqual(learned["tauDays"], 4 / math.log(2), places=3)
+
+    def test_fewer_than_ten_accepted_examples_learn_nothing(self) -> None:
+        self.assertIsNone(stories.learn_freshness([curated(number, 3) for number in range(1, 10)]))
+        self.assertIsNone(stories.learn_freshness([curated(number, 3, "pending") for number in range(1, 20)]))
+
+    def test_the_run_records_tau_and_its_examples_or_the_fallback(self) -> None:
+        _, client = world(3)
+        run = draft(client, StoryModel(), limit=1, dry_run=True)
+        self.assertIsNone(run["freshness"]["tauDays"])
+        self.assertIn("no freshness weight", run["freshness"]["note"])
+        rows, client = world(12, status="accepted")
+        for number, row in enumerate(rows, start=1):
+            row["createdAt"] = "2026-10-01T00:00:00Z"
+            row["curationStatusUpdatedAt"] = "2026-10-05T00:00:00Z"
+        run = draft(client, StoryModel(), limit=1, dry_run=True)
+        self.assertEqual(run["freshness"]["examples"], 12)
+        self.assertAlmostEqual(run["freshness"]["tauDays"], 4 / math.log(2), places=3)
 
 
 class DraftingTests(unittest.TestCase):
@@ -420,15 +496,18 @@ class CommandTests(unittest.TestCase):
         with mock.patch.object(commands, "create_authoring_client", return_value=(client, {})), \
              mock.patch.object(commands.synthesis, "openai_transport", return_value=model), \
              mock.patch.object(commands.monitor_stories, "fetch_html", side_effect=lambda url: PAGE), \
+             mock.patch.object(commands, "datetime", wraps=commands.datetime) as clock, \
              mock.patch("papyrus_content.cli.load_dotenv"), mock.patch.dict(os.environ, {"OPENAI_API_KEY": "test-key", **(environment or {})}), \
+             mock.patch.object(commands, "datetime", FixedClock), mock.patch.object(commands.monitor_stories, "datetime", FixedClock), \
              redirect_stdout(out), redirect_stderr(err):
+            clock.now.return_value = NOW
             code = papyrus_cli.main(["--allow-cross-root", "ideas", "monitor-stories", *argv])
         return code, out.getvalue() + err.getvalue()
 
     def test_a_dry_run_prints_the_ranked_drafts_without_filing(self) -> None:
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
-            code, output = self.run_cli(["--site", SITE, "--limit", "2", "--store", "proposals", "--dry-run", "--out", directory], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "2", "--store", "proposals", "--dry-run", "--out", directory], client, StoryModel())
             self.assertFalse(Path(directory, "runs").exists())
         self.assertEqual(code, 0, output)
         self.assertIn("would file 2", output)
@@ -440,7 +519,7 @@ class CommandTests(unittest.TestCase):
         _, client = world(3)
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "report.md"
-            code, output = self.run_cli(["--site", SITE, "--limit", "1", "--store", "proposals", "--out", directory, "--report", str(report)], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--limit", "1", "--store", "proposals", "--out", directory, "--report", str(report)], client, StoryModel())
             self.assertEqual(code, 0, output)
             self.assertTrue(report.read_text().startswith("# Monitor story drafts"))
         self.assertIn("filed 1", output)
@@ -450,7 +529,7 @@ class CommandTests(unittest.TestCase):
     def test_json_output_carries_the_run(self) -> None:
         _, client = world(1)
         with tempfile.TemporaryDirectory() as directory:
-            code, output = self.run_cli(["--site", SITE, "--dry-run", "--json", "--out", directory], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--dry-run", "--json", "--out", directory], client, StoryModel())
         self.assertEqual(code, 0, output)
         self.assertEqual(json.loads(output)["run"]["kind"], "monitor-stories-run")
 
@@ -466,7 +545,7 @@ class CommandTests(unittest.TestCase):
     def test_it_needs_the_openai_key(self) -> None:
         _, client = world(1)
         with mock.patch.object(commands, "resolve_openai_api_key", return_value=None):
-            code, output = self.run_cli(["--site", SITE, "--dry-run"], client, StoryModel())
+            code, output = self.run_cli(["--site", SITE, "--since", "3650d", "--dry-run"], client, StoryModel())
         self.assertEqual(code, 2)
         self.assertIn("OPENAI_API_KEY", output)
 

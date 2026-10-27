@@ -75,7 +75,7 @@ import type { PrimingFormInput } from "./reference-cyclotron-priming";
 import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyclotron-status";
 import type { PrimingRequestView } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
-import type { RelevanceCuration, RelevanceDecisionView } from "../lib/relevance-decisions";
+import { awaitsEditorReview, type RelevanceCuration, type RelevanceDecisionView } from "../lib/relevance-decisions";
 import {
   loadReferenceAttachmentsForLineageId,
   loadStoragePathUrl,
@@ -252,8 +252,7 @@ function useReferencePreviewAttachments(
 }
 
 function needsReview(reference: ReferenceRecord, decision: RelevanceDecisionView | undefined): boolean {
-  return Boolean(decision?.reviewRecommended)
-    && normalizeReferenceCurationStatus(reference.curationStatus) === "pending";
+  return awaitsEditorReview(reference.curationStatus, decision);
 }
 
 function ReferenceDetailPanel({

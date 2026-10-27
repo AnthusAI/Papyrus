@@ -21,9 +21,8 @@ export const READER_POLL_SECRET_PARAMETER_ENV = "PAPYRUS_READER_POLL_SECRET_PARA
 export const readerSteeringManifest: PluginManifest = {
   name: "reader-steering",
   contract: 1,
-  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction", "Proposal"],
-  mutations: ["moderateReader", "fileProposal", "transitionProposal", "editProposal"],
-  queries: ["listStoryDrafts"],
+  models: ["ReaderProfile", "ReaderHandle", "ReaderVote", "ReaderFlag", "ReaderSubmission", "ReaderComment", "ReaderReport", "ModerationAction"],
+  mutations: ["moderateReader"],
   guest: { mutations: [] },
   newsroomPanels: [{ id: "moderation", label: "Moderation" }],
   staticAssets: ["_plugins/papyrus-reader@1.js", "_plugins/papyrus-reader@1.css"],
@@ -138,7 +137,6 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
       ["PAPYRUS_READER_COMMENT_TABLE", "ReaderComment"],
       ["PAPYRUS_READER_REPORT_TABLE", "ReaderReport"],
       ["PAPYRUS_READER_ACTION_TABLE", "ModerationAction"],
-      ["PAPYRUS_READER_PROPOSAL_TABLE", "Proposal"],
     ] as const) {
       tables[model].grantReadWriteData(lambda);
       lambda.addEnvironment(variable, tables[model].tableName);
@@ -155,8 +153,10 @@ export const readerSteeringPlugin: PapyrusPlugin<ReaderSteeringConfig, { readerA
     // The snapshot reads submissions, and the review step writes their signals and moderation state.
     tables.ReaderSubmission.grantReadWriteData(contentActions);
     tables.ReaderComment.grantReadWriteData(contentActions);
-    // The snapshot reads proposals and freezes the community result of one that reaches editor review.
+    // The snapshot reads proposals and freezes the community result of one that reaches editor review. The Proposal model and the
+    // functions that file and move proposals are core (amplify/functions/proposal-actions); this plugin only reads the same table.
     tables.Proposal.grantReadWriteData(contentActions);
+    contentActions.addEnvironment("PAPYRUS_READER_PROPOSAL_TABLE", tables.Proposal.tableName);
 
     lambda.addEnvironment("PAPYRUS_READER_SETTINGS", JSON.stringify(readerActionsSettings(config, interimSubjectsAllowedAtSynth())));
     if (config.reservedConcurrency !== undefined) {

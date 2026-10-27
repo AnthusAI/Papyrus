@@ -520,7 +520,14 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
     env = os.environ if env is None else env
     groups = (event.get("identity") or {}).get("groups")
     groups = [g for g in groups if isinstance(g, str)] if isinstance(groups, list) else []
-    field_name = (event.get("info") or {}).get("fieldName", "monitoringOverview")
+    field_name = event.get("fieldName")
+    info = event.get("info")
+    nested_field = info.get("fieldName") if isinstance(info, dict) else None
+    if field_name is not None and nested_field is not None and field_name != nested_field:
+        return {"error": "bad_request"}
+    field_name = field_name if field_name is not None else nested_field
+    if not isinstance(field_name, str) or field_name not in {"monitoringOverview", "monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"}:
+        return {"error": "bad_request"}
     args = event.get("arguments") or {}
     scope = args.get("scope") or "publication"
     if (not set(groups) & EDITOR_GROUPS
@@ -530,7 +537,7 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
         return {"error": "bad_request"}
     try:
         make_store = store_factory or default_store_factory(env)
-        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink"):
+        if field_name in ("monitoringEmailSubmission", "monitoringResolveEmailArticleLink", "monitoringQueueEmailReference"):
             email_monitor_id = configured_email_monitor_id(env)
             if email_monitor_id == MONITOR_ID and email_store_factory is None:
                 email_store = make_store(MONITOR_ID)
@@ -542,6 +549,17 @@ def handle(event: dict, *, env=None, store_factory=None, email_store_factory=Non
             return monitoring_email_submission(email_store, groups=groups,
                                                site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),
                                                receipt_id=args.get("receiptId"))
+        if field_name == "monitoringQueueEmailReference":
+            from .email_reference_handoff import queue_email_reference
+            from .reference_intake_validation import IntakeError
+            try:
+                payload = args.get("input")
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                return queue_email_reference(email_store, payload, event.get("identity") or {},
+                                             endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"))
+            except IntakeError as error:
+                return {"error": "handoff_rejected", "message": str(error)}
         if field_name == "monitoringResolveEmailArticleLink":
             return monitoring_email_resolve_article_link(
                 email_store, groups=groups, site_endpoint=env.get("PAPYRUS_GRAPHQL_ENDPOINT"),

@@ -64,6 +64,20 @@ Then("the references list should show only {string}", async function (lineageId)
   assert.deepEqual(ids, [lineageId]);
 });
 
+Then("the {string} tab count should equal the references listed", async function (label) {
+  const page = requirePage(this);
+  const tab = await page.getByRole("tab", { name: new RegExp(`^${label}`) }).innerText();
+  const count = Number(tab.replace(/\D+/g, " ").trim().split(" ").pop());
+  assert.ok(count > 0, `Expected a non-zero "${label}" count, got "${tab}"`);
+  assert.equal(await page.locator("[data-newsroom-card-id]").count(), count);
+});
+
+Then("every listed reference should show a cyclotron suggestion", async function () {
+  const page = requirePage(this);
+  const cards = await page.locator("[data-newsroom-card-id]").count();
+  assert.equal(await page.locator("[data-reference-relevance-row]").count(), cards);
+});
+
 Then("that reference row should be marked {string}", async function (mark) {
   assert.match(await requirePage(this).locator("[data-reference-relevance-row]").first().innerText(), new RegExp(mark));
 });

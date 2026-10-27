@@ -230,12 +230,13 @@ def current_rows(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if row and row.get("versionState", "current") == "current"]
 
 
-def collect_references(client: Any, corpus_ids: list[str], statuses: list[str], since: datetime) -> list[dict[str, Any]]:
+def collect_references(client: Any, corpus_ids: list[str], statuses: list[str], since: datetime | None) -> list[dict[str, Any]]:
+    """Every current Reference of the corpora in the statuses (each index is paged to the end); with ``since``, only those created at or after it."""
     found: list[dict[str, Any]] = []
     for corpus_id in corpus_ids:
         for status in statuses:
             rows = current_rows(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}"))
-            found.extend(row for row in rows if (parse_time(row.get("createdAt")) or since) >= since)
+            found.extend(row for row in rows if since is None or (parse_time(row.get("createdAt")) or since) >= since)
     unique = {row["id"]: row for row in found}
     return list(unique.values())
 

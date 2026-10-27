@@ -75,3 +75,11 @@ Feature: The router posts every story's lab job first and collects the answers a
     Given Cyclotron is busy with another run when the router posts
     When the route task runs
     Then the run ends stopped because Cyclotron is busy
+
+  Scenario: A busy lab stops new posts but the jobs already posted are still collected
+    Given Cyclotron accepts one job and is then busy with another run
+    And the lab answers each job after a few checks
+    When the route task runs
+    Then the run ends stopped because Cyclotron is busy
+    And one story is routed and delivered
+    And the other two stories were refused by the busy lab, hold no job and are not errors

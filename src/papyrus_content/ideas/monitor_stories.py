@@ -7,11 +7,12 @@ writing about and drafts one short story per item. Nothing in it names a source.
 
 The flow is read, rank, fetch, one model call per item, a deterministic citation check, then a ``story_draft`` Proposal in state ``draft``.
 
-* **Read.** References that arrived inside the window, pending or accepted (a rejected one is never read), that a monitor delivered, that no
+* **Read.** Every Reference (``--since`` is an optional filter, with no default), pending or accepted (a rejected one is never read), that a monitor delivered, that no
   item carries yet (promoted) and that no earlier draft cites. A Reference the relevance Cyclotron judged *not* relevant is left out.
 * **Rank.** The Cyclotron's verdict is the source-agnostic signal: the ``relevance_decision_is`` relation of the Reference holds the label and
-  the score (the probability of the positive label). Judged relevant comes before not judged, and a higher score before a lower one. Only
-  then do the source's own numbers (``SECONDARY_SIGNALS``: likes, downloads) break a tie, when the item has them, then the newest, then the id.
+  the score (the probability of the positive label). Judged relevant comes before not judged, and a higher score before a lower one, the score
+  times a freshness weight ``exp(-age / tau)`` where ``tau`` is learned from this site's own editors (``learn_freshness``): there is no cutoff, an old
+  item is only ranked lower among equals. Without enough examples there is no weight. Only then do the source's own numbers (``SECONDARY_SIGNALS``: likes, downloads) break a tie, when the item has them, then the newest, then the id.
 * **Fetch.** The linked page, as plain text, through the same public-address-only reader the digest uses. A page that cannot be read is only a
   missing text: the story then rests on the title and the stored details. An item with nothing but a title is skipped, without a model call.
 * **Draft.** One call per item, shown the mission, the policy, the allowed sections, the source and the recent stories. Every sentence
@@ -28,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -37,14 +39,14 @@ from ..categories_steering import semantic_state_key
 from ..knowledge_snapshot.monitor_records import RATIONALE_PREDICATE, _details_from_relations
 from ..monitor_promotion import promoted_reference_ids
 from . import dedupe, synthesis, trends
-from .digest import CORPUS_PREFIX, collect_references, iso, parse_window, relations_of, relevance_of
+from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
 from .excerpt import Fetcher, excerpt_from_html, fetch_html
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, comparison_documents
 from .review import request_human_review
 from .store import JsonStore, ProposalStore
 
 DEFAULT_LIMIT = 3
-DEFAULT_SINCE = "7d"
+MINIMUM_FRESHNESS_EXAMPLES = 10  # fewer accepted examples than this and there is no freshness weight: nothing is guessed
 ATTEMPT_FACTOR = 2  # a draft that fails the check may be replaced by the next ranked item, up to this many attempts per story wanted
 STATUSES = ["pending", "accepted"]
 POSITIVE_LABEL = "include"  # used only when the decision does not name its positive label
@@ -111,6 +113,7 @@ class MonitoredItem:
     status: str
     details: dict[str, Any] = field(default_factory=dict)
     verdict: dict[str, Any] | None = None  # the Cyclotron's: label, score, confidence, classifier, positiveLabel
+    curated_at: str | None = None  # when an editor last set the curation status
 
     @property
     def relevant(self) -> bool | None:
@@ -143,10 +146,13 @@ def monitor_of(relations: list[dict[str, Any]]) -> str | None:
     return max(found)[1] if found else None
 
 
-def collect_monitored_items(client: Any, *, site: str, since: str, now: datetime) -> tuple[list[MonitoredItem], dict[str, int]]:
-    """The monitored References of ``site`` that arrived in the window, each with the monitor, the stored details and the Cyclotron's verdict.
-    Two indexed queries per Reference in the window (its provenance relation and its decision)."""
-    rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(STATUSES), now - parse_window(since))
+def collect_monitored_items(
+    client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset()
+) -> tuple[list[MonitoredItem], dict[str, int]]:
+    """Every monitored Reference of ``site`` (all of them, or only those that arrived inside ``since`` when it is given), each with the monitor,
+    the stored details and the Cyclotron's verdict. One indexed query per Reference for its provenance and one more for its decision; the
+    decision is not read for a Reference in ``drafted`` (it is never a candidate again)."""
+    rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(STATUSES), now - parse_window(since) if since else None)
     counts = {"inWindow": len(rows), "notMonitored": 0, "judgedNotRelevant": 0}
     items: list[MonitoredItem] = []
     for row in sorted(rows, key=lambda entry: str(entry["id"])):
@@ -159,13 +165,44 @@ def collect_monitored_items(client: Any, *, site: str, since: str, now: datetime
         item = MonitoredItem(
             reference_id=row["id"], lineage_id=lineage, title=str(row.get("title") or row["sourceUri"]).strip(), url=str(row["sourceUri"]),
             arrived_at=str(row.get("createdAt") or ""), published_at=str(row.get("sourcePublishedAt") or "") or None, monitor_id=monitor,
-            status=str(row.get("curationStatus") or "pending"), details=_details_from_relations(incoming), verdict=relevance_of(relations_of(client, row)),
+            status=str(row.get("curationStatus") or "pending"), details=_details_from_relations(incoming),
+            verdict=None if lineage in drafted else relevance_of(relations_of(client, row)),
+            curated_at=str(row.get("curationStatusUpdatedAt") or "") or None,
         )
         if item.relevant is False:
             counts["judgedNotRelevant"] += 1
             continue
         items.append(item)
     return items, counts
+
+
+# --- freshness -----------------------------------------------------------------------------------------------------------------
+
+
+def age_days(start: str | None, end: str | None) -> float | None:
+    first, last = parse_time(start), parse_time(end)
+    return None if first is None or last is None else (last - first).total_seconds() / 86400
+
+
+def learn_freshness(items: list[MonitoredItem]) -> dict[str, Any] | None:
+    """How quickly this site's editors act on what monitors find, from their own decisions: the age at curation (``curationStatusUpdatedAt`` minus
+    the arrival) of the monitored References they ACCEPTED. For an exponential ``exp(-age / tau)`` the median age is ``tau * ln 2``, so
+    ``tau = median / ln 2``; the median keeps a few very late or instant decisions from moving it. None (no weight at all) when fewer than
+    ``MINIMUM_FRESHNESS_EXAMPLES`` accepted items have a positive age: a constant is never guessed."""
+    ages = sorted(age for item in items if item.status == "accepted" for age in [age_days(item.arrived_at, item.curated_at)] if age is not None and age > 0)
+    if len(ages) < MINIMUM_FRESHNESS_EXAMPLES:
+        return None
+    middle = len(ages) // 2
+    median = ages[middle] if len(ages) % 2 else (ages[middle - 1] + ages[middle]) / 2
+    return {"tauDays": round(median / math.log(2), 4), "medianAgeDays": round(median, 4), "examples": len(ages)}
+
+
+def freshness_weight(item: MonitoredItem, freshness: dict[str, Any] | None, now: datetime) -> float:
+    """``exp(-age / tau)`` for the item's age at ``now``; 1 without a learned tau (no weight) or an unreadable arrival."""
+    age = age_days(item.arrived_at, iso(now))
+    if freshness is None or age is None:
+        return 1.0
+    return math.exp(-max(age, 0.0) / freshness["tauDays"])
 
 
 # --- ranking -------------------------------------------------------------------------------------------------------------------
@@ -176,17 +213,19 @@ def secondary_interest(item: MonitoredItem) -> tuple[int, ...]:
     return tuple(int(item.details[name]) if isinstance(item.details.get(name), (int, float)) and not isinstance(item.details.get(name), bool) else 0 for name in SECONDARY_SIGNALS)
 
 
-def primary_key(item: MonitoredItem) -> tuple[Any, ...]:
-    """Smaller sorts first: judged relevant, then not judged; a higher Cyclotron score; then the source's own numbers."""
+def primary_key(item: MonitoredItem, weight: float = 1.0) -> tuple[Any, ...]:
+    """Smaller sorts first: judged relevant, then not judged; a higher Cyclotron score times the freshness weight; then the source's own numbers."""
     score = (item.verdict or {}).get("score")
-    return (0 if item.relevant else 1, 0 if score is not None else 1, -(score or 0.0), *(-number for number in secondary_interest(item)))
+    return (0 if item.relevant else 1, 0 if score is not None else 1, -(score or 0.0) * weight, *(-number for number in secondary_interest(item)))
 
 
-def rank(items: list[MonitoredItem]) -> list[MonitoredItem]:
-    """Best first. Ties on everything above go to the newest arrival, then the lower id, so the same input always gives the same order."""
+def rank(items: list[MonitoredItem], freshness: dict[str, Any] | None = None, now: datetime | None = None) -> list[MonitoredItem]:
+    """Best first. Ties on everything above go to the newest arrival, then the lower id, so the same input always gives the same order.
+    ``freshness`` (from ``learn_freshness``) weights the score by age at ``now``; without it the score alone ranks."""
+    moment = now or datetime.now(timezone.utc)
     ordered = sorted(items, key=lambda item: item.reference_id)
     ordered.sort(key=lambda item: item.arrived_at, reverse=True)
-    ordered.sort(key=primary_key)
+    ordered.sort(key=lambda item: primary_key(item, freshness_weight(item, freshness, moment)))
     return ordered
 
 
@@ -386,7 +425,7 @@ def draft_monitor_stories(
     review_client: Any = None,
     model: str = synthesis.DEFAULT_MODEL,
     limit: int = DEFAULT_LIMIT,
-    since: str = DEFAULT_SINCE,
+    since: str | None = None,
     threshold: float = dedupe.DEFAULT_THRESHOLD,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
     dry_run: bool = False,
@@ -403,11 +442,13 @@ def draft_monitor_stories(
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
     proposals = proposal_store.story_drafts() if proposal_store else []
-    items, counts = collect_monitored_items(client, site=corpus_key or site, since=since, now=moment)
     already = drafted_lineage_ids(proposals, stored)
+    items, counts = collect_monitored_items(client, site=corpus_key or site, since=since, now=moment, drafted=already)
+    freshness = learn_freshness(items)
+    run["freshness"] = freshness or {"tauDays": None, "examples": sum(item.status == "accepted" for item in items), "note": f"Fewer than {MINIMUM_FRESHNESS_EXAMPLES} accepted examples: no freshness weight, the score alone ranks."}
     promoted = promoted_reference_ids(client, items) if items else set()
     counts.update(alreadyDrafted=sum(item.lineage_id in already for item in items), promoted=sum(item.reference_id in promoted and item.lineage_id not in already for item in items))
-    candidates = rank([item for item in items if item.lineage_id not in already and item.reference_id not in promoted])
+    candidates = rank([item for item in items if item.lineage_id not in already and item.reference_id not in promoted], freshness, moment)
     counts["candidates"] = len(candidates)
     run["inputs"] = counts
     run["ranking"] = [{"rank": number, **item.as_dict()} for number, item in enumerate(candidates[: limit * ATTEMPT_FACTOR], start=1)]
@@ -484,9 +525,10 @@ def render_report(run: dict[str, Any]) -> str:
     lines = [
         f"# Monitor story drafts: {run['publication']}",
         "",
-        f"Run `{run['runId']}`, items that arrived in the last {run['window']['since']}. Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
+        f"Run `{run['runId']}`, " + (f"items that arrived in the last {run['window']['since']}" if run["window"]["since"] else "every undrafted monitored item") + f". Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
-        f"- Monitored items in the window: {inputs['inWindow'] - inputs['notMonitored']}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
+        "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
+        f"- Monitored items read: {inputs['inWindow'] - inputs['notMonitored']}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} (limit {run['limit']}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",

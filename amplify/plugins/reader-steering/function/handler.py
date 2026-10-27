@@ -30,7 +30,6 @@ if _FUNCTION_DIRECTORY not in sys.path:  # a Lambda already has its code directo
     sys.path.insert(0, _FUNCTION_DIRECTORY)
 import ai_moderation  # noqa: E402
 import moderation as moderation_rules  # noqa: E402
-import proposals as proposal_rules  # noqa: E402
 
 SITE_SUBJECT = re.compile(r"ss1_[A-Za-z0-9_-]{43}")
 INTERIM_SUBJECT = re.compile(r"ssdev_[A-Za-z0-9_-]{43}")
@@ -979,7 +978,6 @@ class DynamoReaderStore:
         report_table: str = "",
         action_table: str = "",
         item_table: str = "",
-        proposal_table: str = "",
         flag_table: str = "",
     ) -> None:
         self._resource = resource
@@ -994,71 +992,11 @@ class DynamoReaderStore:
             "report": report_table,
             "action": action_table,
             "item": item_table,
-            "proposal": proposal_table,
             "flag": flag_table,
         }
 
     def _table(self, key: str) -> Any:
         return self._resource.Table(self._names[key])
-
-    def get_proposal(self, proposal_id: str) -> dict[str, Any] | None:
-        item = self._table("proposal").get_item(Key={"id": proposal_id}, ConsistentRead=True).get("Item")
-        return plain(item) if item else None
-
-    def create_proposal(self, row: dict[str, Any]) -> bool:
-        item = {**_without_none(row), "__typename": "Proposal", "updatedAt": row["createdAt"]}
-        try:
-            self._table("proposal").put_item(Item=item, ConditionExpression="attribute_not_exists(id)")
-        except Exception as error:
-            if is_conditional_failure(error):
-                return False
-            raise
-        return True
-
-    def list_story_drafts(self, limit: int) -> list[dict[str, Any]]:
-        """The story drafts of the table, only the fields ``listStoryDrafts`` may answer; at most ``limit`` (the newest if there are more)."""
-        fields = proposal_rules.STORY_DRAFT_FIELDS
-        names = {"#kind": "kind", **{f"#f{index}": field for index, field in enumerate(fields)}}
-        request: dict[str, Any] = {
-            "FilterExpression": "#kind = :kind",
-            "ProjectionExpression": ", ".join(f"#f{index}" for index in range(len(fields))) + ", #kind",
-            "ExpressionAttributeNames": names,
-            "ExpressionAttributeValues": {":kind": "story_draft"},
-        }
-        rows: list[dict[str, Any]] = []
-        while True:
-            page = self._table("proposal").scan(**request)
-            rows.extend(plain(item) for item in page.get("Items") or [])
-            if not page.get("LastEvaluatedKey"):
-                break
-            request["ExclusiveStartKey"] = page["LastEvaluatedKey"]
-        rows.sort(key=lambda row: (row.get("createdAt") or "", row.get("id") or ""), reverse=True)
-        return [{field: row.get(field) for field in fields} for row in rows[:limit]]
-
-    def change_proposal(self, proposal_id: str, changes: dict[str, Any], expected_state: str, now_iso: str, *, expected_updated_at: str | None = None) -> bool:
-        """Apply ``changes`` if the state (and, when given, ``updatedAt``) is still what the caller saw; a value of ``None`` removes the attribute."""
-        names = {"#st": "state", "#u": "updatedAt", **{f"#c{index}": key for index, key in enumerate(changes)}}
-        sets = ", ".join(f"#c{index} = :c{index}" for index, value in enumerate(changes.values()) if value is not None)
-        removes = ", ".join(f"#c{index}" for index, value in enumerate(changes.values()) if value is None)
-        values = {":expected": expected_state, ":now": now_iso, **{f":c{index}": value for index, value in enumerate(changes.values()) if value is not None}}
-        condition = "#st = :expected"
-        if expected_updated_at is not None:
-            condition += " AND #u = :seen"
-            values[":seen"] = expected_updated_at
-        expression = f"SET {sets + ', ' if sets else ''}#u = :now" + (f" REMOVE {removes}" if removes else "")
-        try:
-            self._table("proposal").update_item(
-                Key={"id": proposal_id},
-                UpdateExpression=expression,
-                ConditionExpression=condition,
-                ExpressionAttributeNames=names,
-                ExpressionAttributeValues=values,
-            )
-        except Exception as error:
-            if is_conditional_failure(error):
-                return False
-            raise
-        return True
 
     def get_profile(self, site_subject: str) -> dict[str, Any] | None:
         item = self._table("profile").get_item(Key={"id": site_subject}, ConsistentRead=True).get("Item")
@@ -1473,7 +1411,6 @@ def store_from_environment(environment: dict[str, str] | None = None) -> DynamoR
         report_table=environment.get("PAPYRUS_READER_REPORT_TABLE", ""),
         action_table=environment.get("PAPYRUS_READER_ACTION_TABLE", ""),
         item_table=environment.get("PAPYRUS_READER_ITEM_TABLE", ""),
-        proposal_table=environment.get("PAPYRUS_READER_PROPOSAL_TABLE", ""),
         flag_table=environment.get("PAPYRUS_READER_FLAG_TABLE", ""),
     )
 
@@ -1528,10 +1465,6 @@ def run_ai_worker(
 
 def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSettings, now_seconds: float, account_id: str | None = None) -> dict[str, Any]:
     """``moderateReader`` from AppSync: an editor or admin hides, approves, promotes, bans or undoes. Answers a receipt, never an exception."""
-    if proposal_rules.event_field_name(event) in proposal_rules.MUTATIONS:
-        return proposal_rules.handle_proposal_event(event, store, now_iso=iso(now_seconds), account_id=account_id)
-    if proposal_rules.event_field_name(event) in proposal_rules.QUERIES:
-        return proposal_rules.handle_proposal_query(event, store, account_id=account_id)
     identity = event.get("identity") or {}
     claims = identity.get("claims") or {}
     groups = claims.get("cognito:groups") or identity.get("groups") or []
@@ -1556,8 +1489,18 @@ def handle_staff_event(event: dict[str, Any], *, store: Any, settings: ReaderSet
     return outcome.to_dict()
 
 
+def is_appsync_event(event: dict[str, Any]) -> bool:
+    """True for an AppSync invocation (arguments plus ``info`` or a top-level ``fieldName``); the public path sends siteSubject, action and payload.
+
+    The Amplify Gen 2 Lambda data source sends ``fieldName`` at the top level with no ``info`` key; a direct resolver nests it under ``info``.
+    """
+    info = event.get("info")
+    name = (info.get("fieldName") if isinstance(info, dict) else None) or event.get("fieldName")
+    return "arguments" in event and ("info" in event or (isinstance(name, str) and bool(name)))
+
+
 def function_account(context: Any) -> str | None:
-    """The AWS account this function runs in, from its own ARN: the only account whose IAM operators may file proposals."""
+    """The AWS account this function runs in, from its own ARN: the account of the function."""
     parts = str(getattr(context, "invoked_function_arn", None) or "").split(":")
     return parts[4] if len(parts) > 4 and parts[4] else None
 
@@ -1568,7 +1511,7 @@ def handler(event: dict[str, Any], _context: Any = None) -> dict[str, Any]:
     settings = settings_from_environment()
     store = store_from_environment()
     now_seconds = time.time()
-    if proposal_rules.is_appsync_event(event):
+    if is_appsync_event(event):
         return handle_staff_event(event, store=store, settings=settings, now_seconds=now_seconds, account_id=function_account(_context))
     target = snapshot_target_from_environment()
     if settings.moderation_mode == "ai" and target is not None and _context is not None:

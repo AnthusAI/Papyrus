@@ -512,8 +512,13 @@ the runner.
 Only when `mode` is `live` **and** `feedback` is `true`. For each `DELIV#` row still pending
 (25 per run, rotated) the router reads the Reference. `pending` is ignored. `accepted` maps to
 `include` and `rejected` to `exclude` for that publication's output. The editor comes from
-`curationStatusUpdatedBy` (`user:<sub>`, sent as the subject with the configured `site`); a missing
-actor, the worker's own actor or anything not `user:` is skipped and the reason recorded on the row.
+`curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
+newsroom UI records), a Cognito username (`google_<digits>`) or a Cognito sub (UUID). A missing actor, the
+worker's own actor and every other machine actor (`ai`, `system:*`, `worker:*`, `papyrus*`, `*-import`, the
+"Papyrus newsroom" fallback) are skipped and the reason recorded on the row. Cyclotron's `editor.subject` is
+free text and must never be an email address, so the subject sent with the configured `site` is:
+`user:<x>` as is (when `<x>` is not an email); `cognito:<sub>` for a bare Cognito sub; otherwise
+`editor:` + the first 32 hex characters of `sha256(publicationId + ":" + lowercased actor)`.
 `requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt)`, so repeats are
 idempotent; the item revision and output come from the stored decision receipt.
 
@@ -636,3 +641,39 @@ authorization point and one least-privilege grant.
   when the Cyclotron reports it between 0 and 1.
 - Old `ceilings` fields in `CONFIG#router` are ignored and are not returned to Monitoring.
 - Usage counts the decisions this router recorded (UTC days); incomplete bounded history reads are labeled as lower bounds without implying sort order. It is the router's view, not a Cyclotron model-usage meter.
+
+### Open one email receipt
+
+Editors can open `/newsroom/administration/monitoring?receipt=EMAIL%23<receipt-hash>`
+to inspect one known email. Encode the receipt with `encodeURIComponent` when
+constructing the link: an unescaped `#` becomes a URL fragment. This mode calls
+only the authenticated single-receipt query and never mounts or refreshes the
+monitoring overview. Empty, unavailable, and refused receipts do not fall back
+to listing submissions. Existing editor/admin authorization, redirect consent,
+and pending Reference intake apply unchanged.
+
+This UI change requires an engine release and a site pin update before the link
+is supported on a deployed site. It does not establish live email acceptance.
+
+
+### Predictions for editor-selected newsletter References
+
+Importing a receipt's selected candidates now registers normal pending References and then
+queues each successful Reference through `monitoringQueueEmailReference`. It requires the
+site's existing Cognito editor/admin identity, verifies the exact receipt and candidate
+(including a saved article redirect resolution), and writes a stable URL/corpus job identity.
+Retries reuse the Reference and prediction job; no human curation or vote is created.
+
+The existing router handles `task: "email-references"` using a separate routing partition.
+It checks the exact imported Reference before calling Cyclotron, attaches both positive and
+negative decisions, and starts no publishing procedures or feedback sweep. The optional
+`EmailReferenceMonitorId` stack parameter activates a five-minute schedule using the existing
+router scheduler role and dead-letter queue, with no additional IAM grants. For bounded
+acceptance, the same task accepts `sourceIds` (1–20 exact queued IDs) and reads those jobs only.
+A failed handoff leaves the import visible with an explicit retry notice. Receipt pages link
+to the exact References for normal prediction review.
+
+A maintenance deployment must preserve newer shared-router behavior: apply only this change's
+router/intake diff to the verified currently deployed router artifact, test that artifact,
+and update `RouterCodeKey` through a reviewed changeset. Do not replace the shared router with
+an older site maintenance baseline. Preserve all existing stack parameters and resources.

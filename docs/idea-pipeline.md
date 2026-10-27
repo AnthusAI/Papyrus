@@ -62,7 +62,7 @@ Ideas are private by default.
 - **`--store json` (default).** One JSON file per digest, idea and run under `~/.papyrus/ideas/<publication>` (or `--out`,
   `PAPYRUS_IDEAS_DIR`). The directory is refused if it sits inside `_data`, `public` or `static-root`.
 - **`--store proposals`.** Each idea is filed as a `story_draft` Proposal in state `draft`, proposer AI, with the digest in the
-  evidence. This needs the reader-steering plugin's Proposal model on the site. It works with an editor or admin session
+  evidence. Every site's backend has the Proposal model (it is core, not part of the reader-steering plugin), so this needs only a backend on a release that includes it. It works with an editor or admin session
   (`papyrus login`) and with `PAPYRUS_GRAPHQL_AUTH=iam` as an operator role of the site's own AWS account, so an unattended run can
   file drafts ([reader-steering.md](reader-steering.md#operator-filing)). Under IAM the proposer is still AI and the history records
   `operator:<principal ARN>`; the role needs `appsync:GraphQL` on `Mutation/fields/fileProposal`. Only editors and admins can read
@@ -209,14 +209,14 @@ delivers pending `Reference`s into the site's canonical knowledge corpus (`knowl
 structured `details`. Most of what arrives is never written about. This command picks the few most worth a story and files one cited draft for each.
 It is the same for every monitor: no source is named in the code, so a new site with any monitoring source uses it by configuration alone.
 
-1. **Read.** References of the site that arrived in the window (`--since`, default 7d), pending or accepted (a rejected one is never read),
+1. **Read.** Every Reference of the site, however old (there is no default window; `--since` is an optional filter and the cloud step passes none; the index is paged to the end), pending or accepted (a rejected one is never read),
    that a monitor delivered (a Reference with no `monitorId` provenance is not a monitored item), that no item carries yet (a promoted record,
    [monitoring-cloud.md](monitoring-cloud.md#promoting-a-record-to-an-item)) and that no earlier draft cites. A Reference the relevance Cyclotron judged *not*
-   relevant is left out. The run record counts each kind left out.
+   relevant is left out. The run record counts each kind left out. Reading costs two indexed queries per Reference (its provenance, then its decision; the decision is skipped for a Reference an earlier draft already cites) on one connection, so a corpus of a few thousand References takes minutes, not seconds.
 2. **Rank.** The source-agnostic signal is the Cyclotron's verdict, which the router records per delivered item as a `relevance_decision_is`
    `SemanticRelation` from the Reference to the node `relevance.<label>` ([cyclotron-priming.md](cyclotron-priming.md), [monitoring-cloud.md](monitoring-cloud.md)): the label, and `score`, the probability of the positive label
    (the decision's `metadata.positiveLabel`, `include` when it names none). The order is: judged relevant before not judged; a higher score
-   before a lower one; then, only to break a tie, the source's own numbers when the item has them (`likes`, then `downloads`, in `SECONDARY_SIGNALS`);
+   before a lower one, where the score is multiplied by a **freshness weight** `exp(-age / tau)` (age in days at the run) and `tau` is learned per site from its editors' own decisions: the median age at curation (`curationStatusUpdatedAt` minus arrival) of the monitored References they accepted, divided by ln 2 (for an exponential the median is `tau * ln 2`). With fewer than 10 such examples there is no weight at all (the score alone ranks, newest arrival breaking ties); no constant is guessed. An old, highly relevant item is therefore never excluded, only ranked lower when this site's editors tend to act fast. The run record's `freshness` holds `tauDays`, `medianAgeDays` and `examples` (or `tauDays: null` and a note); then, only to break a tie, the source's own numbers when the item has them (`likes`, then `downloads`, in `SECONDARY_SIGNALS`);
    then the newest arrival; then the Reference id, so the same input always gives the same order. An item with no verdict (a site whose monitor runs
    without the Cyclotron) ranks after the scored ones.
 3. **Fetch.** The linked page as plain text (a meta description and a few paragraphs, 4,000 characters at most) through the digest's reader, which
@@ -248,15 +248,15 @@ It is the same for every monitor: no source is named in the code, so a new site 
 
 ```bash
 papyrus ideas monitor-stories --site <site> --dry-run
-papyrus ideas monitor-stories --site <site> --limit 3 --since 7d --store proposals --report monitor-stories.md
+papyrus ideas monitor-stories --site <site> --limit 3 --store proposals --report monitor-stories.md
 # a site whose References live in a corpus of another name (knowledge-corpus-<key>):
 papyrus ideas monitor-stories --site <site> --corpus-key <key> --dry-run
 ```
 
-`--limit N` (default 3) is the number of stories wanted, `--since` the window (`7d`, `36h`), `--store json|proposals` (default `json`; the cloud step uses `proposals`),
+`--limit N` (default 3) is the number of stories wanted, `--since` an optional filter that leaves out older arrivals (`7d`, `36h`; no default), `--store json|proposals` (default `json`; the cloud step uses `proposals`),
 `--dry-run` calls the model and checks but stores, files and requests nothing and prints each passing draft, `--model`, `--dedupe-threshold` (near-duplicates of
 existing stories and earlier drafts are dropped, as for trends), `--max-cost-usd` (the run stops before a call that would pass it; `stoppedForCost` in the run record),
-`--story-days`, `--out`, `--report FILE`, `--json`. It needs `OPENAI_API_KEY` (or `openai.apiKey` in the Papyrus config) and a `papyrus login` session or
+`--story-days` (how many days of the site's own recent stories the model is shown as context; it does not select items), `--out`, `--report FILE`, `--json`. It needs `OPENAI_API_KEY` (or `openai.apiKey` in the Papyrus config) and a `papyrus login` session or
 `PAPYRUS_GRAPHQL_AUTH=iam`. The run record has the ranking (the first `2 x limit` candidates with their verdicts), the counts, the drafts, the failures with their
 problems, `modelCalls` (the usage of each call, for the ledger) and the cost. The weekly cloud knowledge run can run it after the trend drafts, off by default
 ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-stories-optional-off-by-default)).

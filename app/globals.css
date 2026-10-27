@@ -1,7 +1,7 @@
 @import "./papyrus-theme.css";
 
-@import "tailwindcss";
-@import "tw-animate-css";
+/* Tailwind (import, @source globs, @theme tokens) lives only in ./tailwind.css. Importing it again here
+   emitted a second full Tailwind build that loaded later and whose `.hidden` overrode `md:flex`. */
 @import "@radix-ui/colors/slate.css";
 @import "@radix-ui/colors/slate-alpha.css";
 @import "@radix-ui/colors/slate-dark.css";
@@ -14,39 +14,6 @@
 @import "@radix-ui/colors/tomato-alpha.css";
 @import "@radix-ui/colors/tomato-dark.css";
 @import "@radix-ui/colors/tomato-dark-alpha.css";
-
-@theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-danger: var(--danger);
-  --color-danger-foreground: var(--danger-foreground);
-  --color-surface: var(--surface);
-  --color-surface-foreground: var(--surface-foreground);
-  --color-foreground-strong: var(--foreground-strong);
-  --color-foreground-muted: var(--foreground-muted);
-  --color-foreground-subtle: var(--foreground-subtle);
-}
 
 :root {
   --radius: 0.875rem;
