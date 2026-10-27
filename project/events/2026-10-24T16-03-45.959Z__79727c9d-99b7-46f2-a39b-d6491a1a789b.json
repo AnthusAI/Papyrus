@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "79727c9d-99b7-46f2-a39b-d6491a1a789b",
+  "issue_id": "PPY-f582269d-1a25-4448-9ce1-79c08a967c2a",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-24T16:03:45.959Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "10b832ad-388b-4c9c-a778-b89c40742a02",
+    "comment_author": "home",
+    "agent": {
+      "platform": "codex",
+      "model": "gpt-6-luna",
+      "name": "email-quarantine-design",
+      "settings": {
+        "reasoning_effort": "medium"
+      }
+    }
+  }
+}

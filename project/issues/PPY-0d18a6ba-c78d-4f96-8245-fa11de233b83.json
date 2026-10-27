@@ -3,7 +3,7 @@
   "title": "Define Papyrus shared chat trust boundary contract",
   "description": "Add a code-local reusable admission contract for site-hosted shared chat. Inject a verified Papyrus principal and membership resolver; derive Account/site/editor on the server; enforce private per-editor transcript ownership and operation-scoped idempotency with payload-reuse rejection. Cover rejection and replay behavior in tests and Gherkin. Document that JWT audience, client_id and token_use are distinct and that the production token type and verifier configuration must be verified before wiring. No exposed endpoint, live AppSync changes, live IAM/OIDC, or deployment.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -202,11 +202,23 @@
         "model": "gpt-6",
         "name": "chat-owner"
       }
+    },
+    {
+      "id": "6e7d011d-8984-4306-8963-2d6a359b78ba",
+      "author": "home",
+      "text": "CLOSEOUT 2026-10-27: approved publication-local newsroom JWT model is deployed and verified. Existing authorized editor session -> one separately labelled acceptance test -> real production model reply -> reload/history passed at10:11AM America/New_York. User independently confirmed production response at11:19AM (parent report). PR754 delivered auth isolation; PR748 mobile navigation; PR774 merged21969547b145803f5fc9058ecf6e978b1ead46a5 after CI40519581045 python/ts success. Exact gateway/messaging and run-worker/conversation ConditionCheckItem additions applied via reviewed change set chat-condition-check-20261027;24resources, unchanged worker hashes/mappings, grants reverified after5.41.8 Amplify87. Anonymous transcript401. Old test turn failed recovery-exhausted and was preserved, not replayed; new test completed attempt1/recovery0. Limits: Chrome390x844 mobile only, no physical iPhone keyboard test; cross-editor/publication isolation is controlled regression coverage, not a live second-editor test. No Prospectus grants, legacy-history migration, broader editorial tools or Slack migration. Engineering ownership ended at user request; see docs/handoffs/2026-10-27-private-newsroom-chat.md on board/PPY-0d18a6-chat-closeout.",
+      "created_at": "2026-10-27T15:47:34.172740Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "chat-closeout"
+      }
     }
   ],
   "created_at": "2026-10-23T20:13:27.231123Z",
-  "updated_at": "2026-10-27T14:12:47.906164Z",
-  "closed_at": null,
+  "updated_at": "2026-10-27T15:47:42.360562Z",
+  "closed_at": "2026-10-27T15:47:42.360236Z",
   "agent": {
     "platform": "codex",
     "model": "gpt-6-luna",

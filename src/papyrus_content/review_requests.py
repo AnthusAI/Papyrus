@@ -392,7 +392,7 @@ def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: l
     return raise_review(
         client, subject={"type": "batch", "id": batch_id}, mode="soft_review", raised_by=raised_by,
         reason=f"{count} new {plural} to review",
-        ask="Approve to keep them all, reject to drop the batch, or steer with a note about what kind of ideas you want.",
+        ask="Accept or reject each one. Rejecting one as not this kind of story tells the idea pipeline what you do not want.",
         deadline_days=deadline_days, links=[*entries, *(_links(links))], request_id=f"rr-batch-{safe}", now=now)
 
 

@@ -22,12 +22,7 @@ import http.client
 import json
 import logging
 import os
-import queue
 import re
-import socket
-import ssl
-import threading
-from urllib.parse import urlsplit, urlunsplit
 
 from .staff_groups import STAFF_GROUPS
 
@@ -123,14 +118,21 @@ class TableViewStore:
                 raise
             return False
 
-    def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None):
-        """Persist one editor-requested destination so later Reference intake can verify it."""
+    def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None,
+                                found_via_search=None):
+        """Persist one editor-requested destination so later Reference intake can verify it.
+
+        ``found_via_search`` (query, match score, provider) marks a destination found by searching the headline because the
+        original link could not be followed. Editors see it so they can check it; it never contains the original link.
+        """
         sk = f"EMAILRESOLVED#{receipt_digest}#{candidate_index:06d}"
         item = {"pk": self.pk, "sk": sk, "receiptDigest": receipt_digest,
                 "candidateIndex": candidate_index, "sourceUri": url, "title": title,
                 "resolvedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z")}
         if isinstance(ttl, int) and not isinstance(ttl, bool):
             item["ttl"] = ttl
+        if found_via_search:
+            item["foundViaSearch"] = json.loads(json.dumps(found_via_search), parse_float=Decimal)
         try:
             self.table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
             return item
@@ -443,64 +445,19 @@ def monitoring_decide_email_submission(store, arguments, identity, *, groups, si
                             actor=actor, actor_email=email, publication_id=publication["publicationId"])
 
 
-def _resolve_beehiiv_article(url: str) -> str:
-    """Resolve only a selected supported article wrapper with bounded pinned-IP HEADs."""
-    from .email_submission import resolve_email_tracking_url
+def _explore_article(link: dict, submission: dict):
+    """Follow a selected wrapper to its article, or find the article by its headline when the wrapper cannot be followed.
 
-    def resolve_host(host, *, timeout):
-        # getaddrinfo has no timeout parameter, so isolate it on a daemon thread
-        # and bound how long this editor request waits without mutating the
-        # process-wide socket defaults used by other Lambda invocations.
-        result = queue.Queue(maxsize=1)
-        def lookup():
-            try:
-                result.put((True, sorted({entry[4][0] for entry in socket.getaddrinfo(
-                    host, 443, type=socket.SOCK_STREAM
-                )})))
-            except (OSError, ValueError) as error:
-                result.put((False, error))
-        worker = threading.Thread(target=lookup, daemon=True)
-        worker.start()
-        worker.join(timeout)
-        if worker.is_alive():
-            raise TimeoutError("DNS lookup timed out")
-        ok, value = result.get_nowait()
-        if not ok:
-            raise value
-        return value
+    Public http(s) only (link_exploration checks every hop and connects to the address it verified). The destination must also pass
+    the intake's own editorial-address check, so an account action or a private-looking address is never offered for import.
+    """
+    from .email_submission import safe_editorial_url
+    from .link_exploration import Context, explore
 
-    def request(current, *, connect_addresses, method, allow_redirects, read_body, trust_env, timeout):
-        if method != "HEAD" or allow_redirects or read_body or trust_env or not connect_addresses:
-            raise ValueError("unsafe redirect transport options")
-        parts = urlsplit(current)
-        host = parts.hostname or ""
-        path = urlunsplit(("", "", parts.path or "/", parts.query, ""))
-        address = connect_addresses[0]
-
-        class PinnedHTTPSConnection(http.client.HTTPSConnection):
-            def connect(self):
-                raw = socket.create_connection((address, 443), timeout=self.timeout)
-                try:
-                    self.sock = self._context.wrap_socket(raw, server_hostname=host)
-                except Exception:
-                    raw.close()
-                    raise
-
-        connection = PinnedHTTPSConnection(host, timeout=timeout, context=ssl.create_default_context())
-        try:
-            connection.request("HEAD", path, headers={
-                "Host": host,
-                "User-Agent": "Papyrus email article-link review",
-                "Accept": "*/*",
-                "Connection": "close",
-            })
-            response = connection.getresponse()
-            # Do not read even a byte of the remote response body.
-            return {"status": response.status, "headers": {"Location": response.getheader("Location")}}
-        finally:
-            connection.close()
-
-    return resolve_email_tracking_url(url, resolve_host=resolve_host, request=request)
+    return explore(
+        link["url"], Context(title=str(link.get("title") or ""), sender=str(submission.get("sender") or "")),
+        want_text=False, accept=safe_editorial_url,
+    )
 
 
 def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, receipt_id, candidate_index, resolver=None):
@@ -526,28 +483,43 @@ def monitoring_email_resolve_article_link(store, *, groups, site_endpoint, recei
         if (saved.get("receiptDigest") != digest or saved.get("candidateIndex") != candidate_index
                 or (isinstance(saved.get("ttl"), int) and saved["ttl"] <= int(datetime.now(UTC).timestamp()))):
             return {"error": "resolution_failed", "reason": "resolution_record_invalid"}
-        return {"url": saved.get("sourceUri"), "title": str(saved.get("title") or link.get("title") or "")[:1000],
-                "resolved": True}
+        recorded = {"url": saved.get("sourceUri"), "title": str(saved.get("title") or ("" if str(link.get("title") or "").lower().startswith(("http://", "https://")) else link.get("title")) or "")[:1000],
+                    "resolved": True}
+        return {**recorded, "foundVia": "search", "search": saved["foundViaSearch"]} if saved.get("foundViaSearch") else recorded
+    exploration = None
+    title = str(link.get("title") or "")[:1000]
+    if title.lower().startswith(("http://", "https://")):
+        title = ""  # an anchor-less link is titled with its own (subscriber-specific) address; never echo or record it
     try:
-        destination = (resolver or _resolve_beehiiv_article)(link["url"])
+        if resolver:
+            destination = resolver(link["url"])
+        else:
+            exploration = _explore_article(link, detail["submission"])
+            if not exploration.ok:
+                LOG.warning("email article link resolution failed: %s", exploration.failure)
+                return {"error": "resolution_failed", "reason": exploration.failure}
+            destination = exploration.url
     except RedirectResolutionError as error:
         LOG.warning("email article link resolution rejected: %s", error.code)
         return {"error": "resolution_failed", "reason": error.code}
     except (OSError, TimeoutError, http.client.HTTPException) as error:
         LOG.error("email article link resolution failed: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "redirect_request_failed"}
+    found = exploration.search.as_dict() if exploration and exploration.via == "search" and exploration.search else None
     try:
         # Keep the AWS SDK imports local so importing this Lambda module remains lightweight.
         from botocore.exceptions import BotoCoreError, ClientError
 
         store.record_email_resolution(
             digest, candidate_index, url=destination,
-            title=str(link.get("title") or "")[:1000], ttl=store.get(receipt_id).get("ttl"),
+            title=title, ttl=store.get(receipt_id).get("ttl"),
+            found_via_search=found,
         )
     except (BotoCoreError, ClientError, ValueError) as error:
         LOG.error("email article resolution could not be recorded: %s", type(error).__name__)
         return {"error": "resolution_failed", "reason": "resolution_not_recorded"}
-    return {"url": destination, "title": str(link.get("title") or "")[:1000], "resolved": True}
+    result = {"url": destination, "title": title, "resolved": True}
+    return {**result, "foundVia": "search", "search": found} if found else result
 
 
 # --- the Lambda boundary --------------------------------------------------------------------------

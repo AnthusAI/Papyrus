@@ -1,6 +1,5 @@
 """The Monitoring page's read path: scoping, permissions, usage, empty and error states, read-only access."""
 import json
-import io
 import sys
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -380,67 +379,6 @@ def test_email_redirect_and_persistence_failures_remain_fail_closed():
     assert store.get(f"EMAILRESOLVED#{'a' * 64}#000000") is None
 
 
-def test_production_beehiiv_resolver_pins_public_addresses_and_sends_head_without_reading_body():
-    tracker = "https://link.mail.beehiiv.com/ss/c/article-token"
-    requests, destinations, files, hostnames = [], [], [], []
-    responses = [
-        (b"HTTP/1.1 302 Found\r\nLocation: https://news.example.org/story?utm_source=mail\r\n"
-         b"Content-Length: 4\r\n\r\nBODY"),
-        b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nBODY",
-    ]
-
-    class FakeSocket:
-        def __init__(self, response):
-            self.response = response
-
-        def sendall(self, data):
-            requests.append(data.decode("ascii"))
-
-        def makefile(self, *_args, **_kwargs):
-            class TrackingStream(io.BytesIO):
-                position_before_close = None
-                body_start = None
-
-                def close(self):
-                    self.position_before_close = self.tell()
-                    self.body_start = self.getvalue().index(b"BODY")
-                    super().close()
-
-            stream = TrackingStream(self.response)
-            files.append(stream)
-            return stream
-
-        def close(self):
-            return None
-
-        def shutdown(self, *_args):
-            return None
-
-    class FakeContext:
-        def wrap_socket(self, raw, *, server_hostname):
-            hostnames.append(server_hostname)
-            return raw
-
-    def getaddrinfo(host, *_args, **_kwargs):
-        return [(2, 1, 6, "", ("93.184.216.34", 443))]
-
-    def connect(address, *, timeout):
-        destinations.append((address, timeout))
-        return FakeSocket(responses.pop(0))
-
-    with patch.object(mv.socket, "getaddrinfo", side_effect=getaddrinfo), \
-            patch.object(mv.socket, "create_connection", side_effect=connect), \
-            patch.object(mv.ssl, "create_default_context", return_value=FakeContext()):
-        result = mv._resolve_beehiiv_article(tracker)
-
-    assert result == "https://news.example.org/story"
-    assert [destination[0] for destination in destinations] == [("93.184.216.34", 443)] * 2
-    assert hostnames == ["link.mail.beehiiv.com", "news.example.org"]
-    assert len(requests) == 2 and all(request.startswith("HEAD ") for request in requests)
-    assert all("Cookie:" not in request and "Authorization:" not in request for request in requests)
-    assert all(stream.position_before_close == stream.body_start for stream in files)
-
-
 # --- the page shows only monitors routed to this site -----------------------------------------------
 
 APP_DISTINCTIVE = "https://dist9.appsync-api.us-east-1.amazonaws.com/graphql"
@@ -573,4 +511,65 @@ def test_tracking_failure_logs_only_safe_reason_without_recipient_url(caplog):
         candidate_index=0, resolver=reject)
     assert result == {"error": "resolution_failed", "reason": "redirect_target_unsafe"}
     assert "redirect_target_unsafe" in caplog.text
+    assert "private-recipient" not in caplog.text and "https://" not in caplog.text
+
+
+def explored_store():
+    store = fx.FakeViewStore(fx.rows() + email_rows())
+    receipt_id = "EMAIL#" + "a" * 64
+    store.table["EMAILDETAIL#" + "a" * 64 + "#LINKS#0000"]["json"] = json.dumps([
+        {"url": "https://link.mail.beehiiv.com/ss/c/private-recipient", "title": "Regulators approve cross-border licensing scheme for open models",
+         "resolutionStatus": "unresolved"}])
+    return store, receipt_id
+
+
+def resolve_with(store, receipt_id, transport, search):
+    from papyrus_content import link_exploration
+    with patch.object(link_exploration, "http_transport", transport), patch.object(link_exploration, "default_search_provider", lambda: search):
+        return mv.monitoring_email_resolve_article_link(store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id, candidate_index=0)
+
+
+def test_the_default_resolver_explores_the_wrapper_and_records_the_canonical_destination():
+    from papyrus_content.link_exploration import Response
+    store, receipt_id = explored_store()
+    pages = {"https://link.mail.beehiiv.com/ss/c/private-recipient": Response(302, {"location": "https://news.example.org/story?utm_source=beehiiv"}),
+             "https://news.example.org/story?utm_source=beehiiv": Response(200, {"content-type": "text/html"}, b"<html></html>")}
+    result = resolve_with(store, receipt_id, lambda url: pages[url], None)
+    assert result == {"url": "https://news.example.org/story", "title": "Regulators approve cross-border licensing scheme for open models", "resolved": True}
+    saved = store.get(f"EMAILRESOLVED#{'a' * 64}#000000")
+    assert saved["sourceUri"] == "https://news.example.org/story" and "foundViaSearch" not in saved
+    assert "private-recipient" not in json.dumps(saved)
+
+
+def test_a_dead_wrapper_is_resolved_by_searching_the_headline_and_marked_found_via_search():
+    from papyrus_content.link_exploration import Response
+    from papyrus_content.link_search import SearchHit
+    store, receipt_id = explored_store()
+
+    class Search:
+        name = "fake"
+        def search(self, query, *, limit=8):
+            return [SearchHit("https://news.example.org/story?utm_source=x", "Regulators approve cross-border licensing scheme for open models", "", 0.9)]
+
+    result = resolve_with(store, receipt_id, lambda url: Response(404, {}), Search())
+    assert result["url"] == "https://news.example.org/story" and result["foundVia"] == "search"
+    assert result["search"]["query"].startswith("Regulators approve") and result["search"]["matchScore"] >= 0.9
+    saved = store.get(f"EMAILRESOLVED#{'a' * 64}#000000")
+    assert saved["foundViaSearch"]["provider"] == "fake" and "private-recipient" not in json.dumps(saved)
+    again = mv.monitoring_email_resolve_article_link(store, groups=["editor"], site_endpoint=fx.APP_ANTH, receipt_id=receipt_id, candidate_index=0)
+    assert again["foundVia"] == "search" and again["url"] == result["url"]
+
+
+def test_a_failed_exploration_reports_its_typed_reason_without_the_address(caplog):
+    from papyrus_content.link_exploration import Response
+    from papyrus_content.link_search import SearchUnavailable
+
+    class NoKey:
+        name = "tavily"
+        def search(self, query, *, limit=8):
+            raise SearchUnavailable()
+
+    store, receipt_id = explored_store()
+    result = resolve_with(store, receipt_id, lambda url: Response(404, {}), NoKey())
+    assert result == {"error": "resolution_failed", "reason": "search_unavailable"}
     assert "private-recipient" not in caplog.text and "https://" not in caplog.text

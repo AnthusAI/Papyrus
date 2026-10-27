@@ -44,6 +44,7 @@ import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import {
   ReviewCard,
+  predictionFromDecision,
   ReviewQueueBar,
   useQueueGestures,
   type CardPrediction,
@@ -269,10 +270,7 @@ function summaryOf(reference: ReferenceRecord): string | null {
 }
 
 function cardPrediction(decision: RelevanceDecisionView | undefined, predictionState: PredictionState): CardPrediction {
-  if (decision) {
-    const positive = decision.positiveLabel ?? "include";
-    return { state: "ready", choice: decision.label === positive ? "accept" : "reject", confidence: decision.confidence };
-  }
+  if (decision) return predictionFromDecision(decision);
   if (predictionState === "loading") return { state: "loading" };
   if (predictionState === "error") return { state: "error" };
   return { state: "none" };

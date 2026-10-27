@@ -32,6 +32,14 @@ ENDPOINT = "https://fixture.appsync-api.us-east-1.amazonaws.com/graphql"
 ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_fixture"
 
 
+@pytest.fixture(autouse=True)
+def link_exploration_stays_off():
+    """The deployed handler installs link exploration globally; keep that out of other tests."""
+    yield
+    from papyrus_content import email_submission_intake
+    email_submission_intake.link_explorer = None
+
+
 def held_fixture():
     fixture = email_fixture()
     for name in ("dmarcVerdict", "dkimVerdict", "spfVerdict"):

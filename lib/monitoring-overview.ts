@@ -77,6 +77,8 @@ export type MonitoringEmailDetails = {
 
 export type MonitoringEmailArticleResolution = {
   url: string; title: string; resolved: true;
+  /** Present when the original link could not be followed and the destination was found by searching the headline. */
+  foundVia?: "search"; search?: { query: string; matchScore: number; provider: string; matchedTitle?: string };
 } | { error: "forbidden" | "bad_request" | "not_resolvable" | "resolution_failed"; reason?: string } | { state: "unavailable" };
 
 export type EmailReferenceImportItem = { candidateIndex: number; source_uri: string };

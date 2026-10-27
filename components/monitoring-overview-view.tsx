@@ -152,7 +152,7 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
       if (!isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) return;
       if (!("url" in result)) {
         const reason = "reason" in result && typeof result.reason === "string"
-          && /^(?:redirect_[a-z_]+|resolution_record_invalid|resolution_not_recorded)$/.test(result.reason)
+          && /^(?:redirect_[a-z_]+|resolution_record_invalid|resolution_not_recorded|invalid_url|not_public|dns|timeout|connection|tls|loop|http_4xx|http_5xx|blocked|too_large|unreadable|unsafe_destination|no_query|search_unavailable|search_error|no_match)$/.test(result.reason)
           ? ` (${result.reason})` : "";
         setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: `The article destination could not be resolved safely${reason}. The original link remains private and unchanged.` }));
         return;
@@ -160,7 +160,9 @@ export function EmailSubmissions({ items, detail, onOpen, onResolveArticleLink, 
       const candidate = detail && "submission" in detail ? detail.candidateLinks[index] : null;
       setResolvedByReceipt((current) => ({ ...current, [requestReceiptId]: { ...current[requestReceiptId], [index]: { url: result.url, title: result.title || candidate?.title || "Article" } } }));
       setSelectedByReceipt((current) => ({ ...current, [requestReceiptId]: { ...current[requestReceiptId], [index]: true } }));
-      setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "Resolved. This request may be recorded as a click by the newsletter sender." }));
+      setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: result.foundVia === "search"
+        ? `The newsletter link could not be followed, so this article was found by searching the headline (match ${Math.round((result.search?.matchScore ?? 0) * 100)}%). Check that it is the right article before importing it.`
+        : "Resolved. This request may be recorded as a click by the newsletter sender." }));
     } catch {
       if (isCurrentEmailSubmissionAction(activeReceiptId.current, requestReceiptId)) {
         setNoticeByReceipt((current) => ({ ...current, [requestReceiptId]: "The article destination could not be resolved. Try again later." }));

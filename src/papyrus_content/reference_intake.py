@@ -192,7 +192,8 @@ def intake_email_submission_references(client, arguments: dict, identity: dict, 
         elif original_url != source_url:
             raise IntakeError("The selected URL does not match this receipt candidate.")
         title = recorded.get("title")
-        if not isinstance(title, str) or not title.strip():
+        if not isinstance(title, str) or not title.strip() or title.strip().lower().startswith(("http://", "https://")):
+            # An anchor-less link is titled with its own address, which for a newsletter wrapper is subscriber-specific.
             title = source_url.split("/", 3)[2]
         items.append({
             "source_uri": source_url,

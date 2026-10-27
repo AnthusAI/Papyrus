@@ -289,6 +289,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         dry_run=dry_run,
         now=now,
         fetch=monitor_stories.fetch_source,
+        explorer=monitor_stories.explore_item,
         corpus_key=normalize_string(options.get("corpus-key")),
         excluded_hosts=_excluded_hosts(flags),
     )
