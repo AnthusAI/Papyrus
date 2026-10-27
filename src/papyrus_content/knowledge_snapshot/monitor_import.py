@@ -26,6 +26,7 @@ from ..categories_steering import semantic_relation_record
 from .actors import ACTOR_AI, Actor, ReviewMarks
 from .keys import entity_key
 from .model import LINK_MONITOR
+from .monitor_match import match_records
 from .monitor_records import MonitorRecord, record_entities
 from .publish_run import (
     NODE_KIND,
@@ -110,7 +111,7 @@ def built_on_row(record: MonitorRecord, subject: Mapping[str, Any], target: Mapp
 def monitor_placement(records: Iterable[MonitorRecord], index: NodeIndex) -> Callable[[str], bool]:
     """``placed(model_id)``: whether a base model is on the map now, so a record that named it can build its ``built_on`` relation. A model
     is placed when it has a record in this import (and its entity is not rejected) or an accepted entity of its own."""
-    models = {record.model_id for record in records}
+    models = {record.model_id for record in records if not record.routed}
 
     def placed(model_id: str) -> bool:
         node = index.by_key(entity_key("model", model_id)) or index.resolve("model", model_id) if model_id else None
@@ -129,10 +130,14 @@ def plan_monitor_records(
     *,
     corpus_id: str | None,
     now: str,
+    matched: Mapping[str, list[dict]] | None = None,
 ) -> None:
     """Add the nodes, links and relations of ``records`` to ``plan``. ``existing_rows`` are the current relation rows that touch
-    the accepted nodes, from which the links and relations already written are known."""
+    the accepted nodes, from which the links and relations already written are known. ``matched`` is what ``match_records`` found for the
+    routed records (computed from ``index`` when not given)."""
     records = sorted(records, key=lambda record: record.reference_id)
+    if matched is None:
+        matched = match_records(records, index.rows())
     existing = {str(row.get("id")): row for row in existing_rows if is_record_mention(row) or is_record_relation(row)}
     actor = Actor(actor=ACTOR_AI, name=IMPORT_ACTOR_NAME, on=now[:10])
     reason = ReviewMarks(accepted_by=actor).encode()
@@ -140,6 +145,12 @@ def plan_monitor_records(
     desired: set[str] = set()
     per_record: list[tuple[MonitorRecord, dict]] = []
     for record in records:
+        for node in matched.get(record.reference_id, []):  # a routed record: only entities already accepted on the map, never a new one
+            row = mention_row(record, node, now=now)
+            desired.add(row["id"])
+            if row["id"] not in existing:
+                plan.records.append({"modelName": "SemanticRelation", "expected": row, "createOnly": True})
+                plan.count("recordLinks")
         for kind, name in record_entities(record):
             if not _usable(kind, name, plan, record.reference_id):
                 continue

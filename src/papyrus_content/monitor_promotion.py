@@ -111,5 +111,5 @@ def suggest(records: Iterable[MonitorRecord], *, limit: int, as_of: date, promot
     def interest(record: MonitorRecord) -> tuple[int, int, str]:
         return (-int(record.details.get("likes") or 0), -int(record.details.get("downloads") or 0), record.model_id)
 
-    recent = [record for record in records if record.reference_id not in promoted and since <= parse_day(record.created_at) <= as_of + timedelta(days=6)]
+    recent = [record for record in records if not record.routed and record.reference_id not in promoted and since <= parse_day(record.created_at) <= as_of + timedelta(days=6)]
     return sorted(recent, key=interest)[:limit]

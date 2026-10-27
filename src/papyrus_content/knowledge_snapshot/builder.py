@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass
 
-from .monitor_records import PROVENANCE
+from .monitor_records import provenance_of
 from .keys import contains_email, entity_key, is_public_key, kind_label, kind_key, normalize_name, slug
 from .model import (
     DESCRIPTION_AI_EDITED,
@@ -240,7 +240,7 @@ def _related_records(entity: _Entity, dated: dict[str, tuple[int, PublishedItem]
                 "publishedAt": iso_timestamp(record.published_at),
                 "summary": record.summary,
                 "source": record.source,
-                "provenance": PROVENANCE.get(record.source or ""),
+                "provenance": provenance_of(record.source) if record.source else None,
                 "reason": entity.key,
             }
         )

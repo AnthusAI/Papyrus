@@ -187,6 +187,11 @@ const monitorEnvironment = Object.fromEntries(
 assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SOURCES, "huggingface");
 assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_WEEKS, "26");
 assert.equal(monitorEnvironment.KNOWLEDGE_MONITOR_SUGGESTIONS, "5");
+const withRouted = knowledgeStack((site) => { site.knowledgeRun.monitorSources = ["routed"]; });
+const routedEnvironment = Object.fromEntries(
+  (Object.values(withRouted.template.findResources("AWS::ECS::TaskDefinition"))[0] as any).Properties.ContainerDefinitions[0].Environment.map((entry: any) => [entry.Name, entry.Value]),
+);
+assert.equal(routedEnvironment.KNOWLEDGE_MONITOR_SOURCES, "routed", "routed References are a monitor source of their own");
 assert.ok(!("KNOWLEDGE_AUTHORING_ROLE_ARN" in staticEnvironment), "the task role signs AppSync itself; there is no role to assume");
 assert.equal(staticEnvironment.PAPYRUS_PUBLICATION_KIND, "s3-projection");
 assert.equal(staticEnvironment.PAPYRUS_PLUGINS, "newsletter,reader-steering", "the plugin list comes from site config");
