@@ -388,6 +388,17 @@ end the sweep cleanly: the run receipt says
 until the next schedule. A refused POST leaves no job marker, so it may be sent later; an
 accepted job keeps its `jobId` under `ROUTE#...`.`jobs` and is only polled.
 
+### Jobs left over from an earlier Cyclotron run
+
+A stored job (`combinedJob`, `jobs.<pub>`) also records the `runId` and `bindingRevision` it was posted under.
+After a Cyclotron run cutover the lab no longer answers for the old run's jobs (`GET /machine/decisions/{jobId}`
+returns 404). Before polling, the router compares the stored markers with `CONFIG#router`.`cyclotron`; a job
+with different markers (or, for a job stored before the markers existed, a `requestId` that does not match the
+request the current config would build) is discarded and the story is posted again under the current binding,
+as a new idempotent request. A 404 on a stored job is handled the same way, once: the job is discarded and
+re-posted in the same run. If the re-post's poll also answers 404 that one story ends as `error` and the sweep
+carries on; a single story's 404 never stops the run. Every other refusal behaves as before.
+
 ### Post first, then collect
 
 A cold lab job takes about 100 seconds, so a live sweep never waits on one story while others sit idle:
