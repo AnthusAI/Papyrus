@@ -1332,7 +1332,7 @@ function NewsDeskDashboard({
     refreshNewsroomSections,
   ]);
 
-  const needsReferenceReviewData = activeTab === "references" || activeTab === "assignments" || activeTab === "messages";
+  const needsReferenceReviewData = activeTab === "overview" || activeTab === "references" || activeTab === "assignments" || activeTab === "messages";
   const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
   const referenceReviewData = useReferenceReviewData({
     enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
@@ -1363,7 +1363,7 @@ function NewsDeskDashboard({
   const predictionError = selectedReviewIsCurrent ? selectedReviewRead.error : referenceReviewData.error;
   useEffect(() => {
     // Keep a display copy for the next visit once everything the feed shows has been read.
-    if (dashboard.isDemo || activeTab !== "references" || !hasHydratedReferences || predictionState !== "ready" || !references.length) return;
+    if (dashboard.isDemo || (activeTab !== "references" && activeTab !== "overview") || !hasHydratedReferences || predictionState !== "ready" || !references.length) return;
     const timer = window.setTimeout(() => {
       saveFeedSnapshot(SITE_BRAND.id, {
         references: selectCanonicalReferenceRecords(references),
@@ -3103,9 +3103,17 @@ function NewsDeskDashboard({
             assignments={assignments}
             decisions={relevanceDecisions}
             demo={Boolean(dashboard.isDemo)}
+            disabledReason={controlsDisabled ? "Editor access is required to change this reference." : null}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            loading={!dashboard.isDemo && !hasHydratedReferences}
             newsroomSections={newsroomSections}
+            notificationFixture={dashboard.notificationFixture ?? null}
+            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, undefined, options?.reasonCode,
+              options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined)}
+            predictionState={referenceReviewData.state}
+            referenceAttachments={referenceAttachments}
             references={references}
+            savedCopy={savedFeedCopy}
           />
         ) : null}
         {activeTab === "search" ? (

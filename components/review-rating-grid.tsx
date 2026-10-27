@@ -45,6 +45,7 @@ export function RatingGrid({
   note = null,
   onChoose,
   prediction,
+  showPrediction = true,
   size = "compact",
   surface = "footer",
 }: {
@@ -59,6 +60,8 @@ export function RatingGrid({
   note?: string | null;
   onChoose: (choice: ReviewChoice) => void;
   prediction: CardPrediction;
+  /** False for a card with nothing to predict (an AI draft): the Cyclotron row and the "You" label are left out and only the two buttons remain. */
+  showPrediction?: boolean;
   size?: "compact" | "large";
   /** The tone the grid sits on, so the bar's centre notch matches it. */
   surface?: "footer" | "card";
@@ -73,8 +76,15 @@ export function RatingGrid({
   const label = size === "large" ? "text-sm" : "text-xs";
 
   return (
-    <div className={cn("grid grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 gap-y-2.5", size === "large" && "grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)]")} data-rating-grid>
-      <div className="col-span-3 grid grid-cols-subgrid items-stretch gap-y-2" data-review-row="cyclotron">
+    <div
+      className={cn(
+        "grid gap-x-2 gap-y-2.5",
+        showPrediction ? "grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-2",
+        showPrediction && size === "large" && "grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)]",
+      )}
+      data-rating-grid
+    >
+      {showPrediction ? <div className="col-span-3 grid grid-cols-subgrid items-stretch gap-y-2" data-review-row="cyclotron">
         <span className={cn("self-center font-semibold", label)}>Cyclotron</span>
         {(["accept", "reject"] as const).map((choice) => {
           const predicted = ready?.choice === choice;
@@ -126,10 +136,10 @@ export function RatingGrid({
             {prediction.state === "ready" ? "\u00a0" : prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
           </small>
         </div>
-      </div>
+      </div> : null}
 
-      <div className="col-span-3 grid grid-cols-subgrid items-stretch" data-review-row="you">
-        <span className={cn("self-center font-semibold", label)}>You</span>
+      <div className={cn("grid grid-cols-subgrid items-stretch", showPrediction ? "col-span-3" : "col-span-2")} data-review-row="you">
+        {showPrediction ? <span className={cn("self-center font-semibold", label)}>You</span> : null}
         {(["accept", "reject"] as const).map((choice) => {
           const on = answer === choice;
           const Icon = choice === "accept" ? CheckIcon : XIcon;
@@ -141,7 +151,7 @@ export function RatingGrid({
                 "inline-flex items-center justify-center gap-1.5 rounded-[16px] px-2 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
                 cell,
                 on ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)] text-foreground hover:bg-[var(--feed-control)]/70",
-                disabled && "opacity-60",
+                disabled && !on && "opacity-60",
               )}
               data-review-choice={choice}
               key={choice}
@@ -155,13 +165,13 @@ export function RatingGrid({
         })}
       </div>
 
-      <div className="col-span-3 flex min-h-5 flex-wrap items-center gap-x-3 text-xs text-muted-foreground" data-feed-saved role="status">
+      <div className={cn("flex min-h-5 flex-wrap items-center gap-x-3 text-xs text-muted-foreground", showPrediction ? "col-span-3" : "col-span-2")} data-feed-saved role="status">
         {note ? <span data-feed-reason>{note}</span> : null}
         {feedback.phase === "saving" ? <span className="inline-flex items-center gap-1"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Saving…</span> : null}
         {feedback.phase === "saved" ? <span className="inline-flex items-center gap-1" data-review-saved><CheckIcon aria-hidden="true" className="size-3.5" />Saved</span> : null}
       </div>
-      {disabledReason ? <p className="col-span-3 text-xs text-muted-foreground" data-review-disabled-reason>{disabledReason}</p> : null}
-      {feedback.phase === "error" ? <p className="col-span-3 text-xs text-destructive" role="alert">{feedback.message}</p> : null}
+      {disabledReason ? <p className={cn("text-xs text-muted-foreground", showPrediction ? "col-span-3" : "col-span-2")} data-review-disabled-reason>{disabledReason}</p> : null}
+      {feedback.phase === "error" ? <p className={cn("text-xs text-destructive", showPrediction ? "col-span-3" : "col-span-2")} role="alert">{feedback.message}</p> : null}
     </div>
   );
 }

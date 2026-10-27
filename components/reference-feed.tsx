@@ -48,7 +48,7 @@ const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
 const TAB_LABELS: Record<ReferenceFeedTabKey, string> = { feed: "Feed", rated: "Rated", earlier: "Earlier" };
 const GROUP_HEADINGS: Record<FeedGroupKey, string> = { top: "Top predictions", more: "More for you", least: "Least likely" };
 
-const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
+export const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
 
 export type ReferenceFeedProps = {
   /** Read-only reason shown in words when answering is not possible yet (for example while the session is confirmed). */
@@ -81,7 +81,8 @@ export type ReferenceFeedProps = {
 };
 
 /** Columns follow the width the feed has (a container query, not the screen), so they stay put while a detail pane holds its place beside it. */
-const GRID = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-5";
+export const FEED_GRID = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-5";
+const GRID = FEED_GRID;
 /** The lead spans two columns only where there are at least two to span (two 17rem columns and the gap). */
 const LEAD_SPAN = "@[36rem]:col-span-2";
 
@@ -115,7 +116,7 @@ function hueOf(name: string): number {
 }
 
 /** A small mark for a source: its own favicon on a light tile when it loads, else its first letter. */
-function SourceMark({ host, size = "sm" }: { host: string | null; size?: "sm" | "lg" }) {
+export function SourceMark({ host, size = "sm" }: { host: string | null; size?: "sm" | "lg" }) {
   const [failed, setFailed] = useState(false);
   const box = size === "lg" ? "size-16 rounded-2xl text-3xl" : "size-5 rounded-md text-[0.65rem]";
   const letter = (host ?? "?")[0];
@@ -149,7 +150,7 @@ function FallbackTile({ host, name }: { host: string | null; name: string }) {
  * Photos fill the frame (cover). A text card (a repository social card, or a 2:1 picture) is shown whole instead: the frame takes
  * the picture's own ratio and the picture is contained, so no words are cut off at the edges.
  */
-function FeedImage({ host, lead, name, src }: { host: string | null; lead: boolean; name: string; src: string | null }) {
+export function FeedImage({ host, lead, name, src }: { host: string | null; lead: boolean; name: string; src: string | null }) {
   const [state, setState] = useState<"loading" | "loaded" | "failed">(src ? "loading" : "failed");
   const [ratio, setRatio] = useState<number | null>(null);
   const ref = useRef<HTMLImageElement | null>(null);
@@ -193,7 +194,7 @@ function FeedImage({ host, lead, name, src }: { host: string | null; lead: boole
   );
 }
 
-function FeedCard({
+export function FeedCard({
   capture,
   decision,
   disabledReason,
@@ -208,7 +209,8 @@ function FeedCard({
   selected,
   visitRated,
 }: {
-  capture: CaptureStatus | undefined;
+  /** Optional: the capture badge. */
+  capture?: CaptureStatus | undefined;
   decision: RelevanceDecisionView | undefined;
   disabledReason: string | null;
   item: FeedItem;
@@ -218,7 +220,8 @@ function FeedCard({
   onRate: ReferenceFeedProps["onRate"];
   predictionLoading: boolean;
   preview: ReferencePreview | undefined;
-  ratings: RatingController | undefined;
+  /** Optional: a shared rating store. Without it the card keeps its own. */
+  ratings?: RatingController | undefined;
   selected: boolean;
   visitRated: boolean;
 }) {
@@ -381,7 +384,7 @@ function RankingPopover({ freshness }: { freshness: FeedFreshness }) {
   );
 }
 
-function SectionHeading({ children, id }: { children: ReactNode; id: string }) {
+export function SectionHeading({ children, id }: { children: ReactNode; id: string }) {
   return <h3 className="mb-5 mt-10 text-3xl font-bold tracking-tight text-primary first:mt-2 sm:mt-12 sm:text-4xl" id={id}>{children}</h3>;
 }
 
@@ -478,20 +481,20 @@ export function ReferenceFeed({
               {groups.length ? groups.map((group) => (
                 <section aria-labelledby={headings ? `feed-group-${group.key}` : undefined} data-feed-group={group.key} key={group.key}>
                   {headings ? <SectionHeading id={`feed-group-${group.key}`}>{GROUP_HEADINGS[group.key]}</SectionHeading> : null}
-                  <div className={GRID} data-feed-grid>{group.items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+                  <div className={FEED_GRID} data-feed-grid>{group.items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
                 </section>
               )) : empty(counts.rated || counts.earlier ? "You are all caught up. Check Earlier and Rated." : "No references yet.")}
               {partition.earlier.length ? (
                 <section aria-labelledby="feed-earlier-heading" data-feed-earlier>
                   <SectionHeading id="feed-earlier-heading">Earlier</SectionHeading>
                   <p className="-mt-3 mb-5 text-sm text-muted-foreground">Unrated and past their freshness. Still yours to rate.</p>
-                  <div className={GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div>
+                  <div className={FEED_GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div>
                 </section>
               ) : null}
             </div>
           ) : null}
-          {tab === "rated" ? (partition.rated.length ? <div className={GRID} data-feed-grid>{partition.rated.map((item) => renderCard(item, false))}</div> : empty("Nothing rated yet. Your Accepts and Rejects collect here, newest first.")) : null}
-          {tab === "earlier" ? (partition.earlier.length ? <div className={GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div> : empty("Nothing has aged out. Unrated items that fall past their freshness collect here.")) : null}
+          {tab === "rated" ? (partition.rated.length ? <div className={FEED_GRID} data-feed-grid>{partition.rated.map((item) => renderCard(item, false))}</div> : empty("Nothing rated yet. Your Accepts and Rejects collect here, newest first.")) : null}
+          {tab === "earlier" ? (partition.earlier.length ? <div className={FEED_GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div> : empty("Nothing has aged out. Unrated items that fall past their freshness collect here.")) : null}
         </div>
       )}
     </div>

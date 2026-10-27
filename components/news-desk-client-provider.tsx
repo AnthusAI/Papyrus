@@ -6,7 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { DevSandboxEditorAuth } from "../lib/dev-sandbox-editor-auth";
 import type { CategorySteeringDashboard } from "../lib/category-repository";
 import { ensureDevSandboxEditorSession } from "./dev-sandbox-editor-sign-in";
-import { discardReferencesHeadStart, prefetchReferencesFeed } from "./references-prefetch";
+import { discardReferencesHeadStart, prefetchReferencesFeed, wantsReferencesHeadStart } from "./references-prefetch";
 import { SITE_BRAND } from "../lib/site-brand";
 import { clearSavedNewsroomDisplay, loadSessionDisplay, saveSessionDisplay } from "../lib/reference-feed-cache";
 import {
@@ -113,7 +113,7 @@ export function NewsDeskClientProvider({
     saveSessionDisplay(SITE_BRAND.id, { label: access.auth.label, isAdmin: access.isAdmin });
     setShell((current) => beginDeskLoad(current, access.auth));
     // The References reads do not depend on the summary dashboard: start them now, side by side with it.
-    if (typeof window !== "undefined" && /\/newsroom\/references(\/|$)/.test(window.location.pathname)) prefetchReferencesFeed();
+    if (typeof window !== "undefined" && wantsReferencesHeadStart(window.location.pathname)) prefetchReferencesFeed();
 
     try {
       const dashboard = await loadEditorNewsDeskDashboard({ isAdmin: access.isAdmin });
