@@ -26,6 +26,8 @@ export type SiteBrandId = string;
 export type SiteBrandComponents = {
   /** The mark shown at the top of the newsroom CMS sidebar in place of the app title. */
   NewsroomLogo?: ComponentType<{ className?: string }>;
+  /** A compact mark for the mobile newsroom top bar. Without it the bar scales down `NewsroomLogo`. */
+  NewsroomLogoCompact?: ComponentType<{ className?: string }>;
   PictogramFigure?: ComponentType<PictogramFigureProps>;
   BlogPageBackground?: ComponentType<BlogPageBackgroundProps>;
 };

@@ -143,6 +143,8 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
     media.addEventListener("change", change);
     return () => { document.removeEventListener("focusin", remember); media.removeEventListener("change", change); cancelAnimationFrame(frame); };
   }, []);
+  // The mobile top bar prefers the brand's compact mark, then scales the full logo; the serif title is the no-logo fallback.
+  const MastheadLogo = SITE_BRAND.components?.NewsroomLogoCompact ?? SITE_BRAND.components?.NewsroomLogo;
   const activePath = browserPathToInternalNewsroomPath(pathname ?? "/newsroom");
   const sidebarToggleLabel = collapsed ? "Expand sidebar" : "Collapse sidebar";
   const sidebarToggle = <button type="button" className="organizer-toggle" title={sidebarToggleLabel}
@@ -162,7 +164,7 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
     <div className="organizer-workspace">
       <header className="organizer-topbar" data-newsroom-ops-topbar>
         {showNavigation && collapsed && sidebarToggle}
-        <Link className="organizer-masthead" href={backHref} title={backLabel}>{appTitle}</Link>
+        <Link className="organizer-masthead" href={backHref} title={backLabel}>{MastheadLogo ? <MastheadLogo className="organizer-masthead-logo" /> : appTitle}</Link>
         <h1 data-newsroom-ops-title>{pageTitle}</h1><OrganizerSearch demo={demo} /><div className="organizer-header-actions">{headerActions}</div><Account placement="header" />
       </header>
       <main className="organizer-main">{demo && !session?.shell.dashboard?.realDataPreview && <p className="organizer-demo-notice">Demo workspace · synthetic examples</p>}{children}</main>

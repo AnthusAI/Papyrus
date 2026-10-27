@@ -18,7 +18,12 @@ Outputs in `dist-packages/`: `anthusai-papyrus-<v>.tgz` (the only npm tarball),
 | npm `@anthusai/papyrus` (stage + pack) | `packages/papyrus/scripts/stage.mjs`, `package.template.json` |
 | `withPapyrus()` | `packages/papyrus/src/with-papyrus.mjs` |
 | `papyrus-app sync` (route shims, `middleware.ts`) | `packages/papyrus/src/sync.mjs`, `bin/papyrus-app.mjs` |
+| `papyrus-app brand diff <id>` (site `publication/` vs the reference pack in a Papyrus checkout) | `packages/papyrus/src/brand.mjs` |
 | `defineSiteBackend(site)` | `amplify/site-backend.ts` (exported via `@anthusai/papyrus/backend`) |
 | Python Lambda bundling from the wheel | `amplify/functions/shared/python-bundle.ts` |
 | `@anthusai/papyrus/infra` (CDK constructs, optional peers) + `papyrus-infra` bin | stage step in `packages/papyrus/scripts/stage.mjs`, `bin/papyrus-infra.mjs` |
 | `defineSite()`, `papyrus-site` alias | `lib/define-site.ts`, `papyrus.config.ts`, `tsconfig.json` paths |
+
+## Brand packs are site-owned
+
+The npm package ships no publication code (staging refuses to), so a site's `publication/` brand pack is its own copy of a pack like `publications/anth_us/` and `papyrus-app sync` never touches it. Nothing upgrades it either, so it can fall behind the reference pack (a new logo component, CSS or font). After upgrading Papyrus, run `papyrus-app brand diff <brand-id> [--papyrus ../Papyrus]` from the site: it lists files the reference gained, files that differ (imports are normalized, so only real differences show) and site-only files, and exits 1 on drift. Site-specific edits, such as `readerDeployment`, are expected to appear as differences.
