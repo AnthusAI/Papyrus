@@ -296,6 +296,7 @@ PORTED_COMMANDS = frozenset(
         "references:export-scope-training",
         "references:decide-relevance",
         "references:enrich-images",
+        "references:curate",
         "references:decide-site-sections",
         "references:export-relevance-recording",
         "references:freeze-priming-held-out",
@@ -630,6 +631,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_export_analysis_manifest(flags)
     elif route == "references:export-scope-training":
         references_export_scope_training(flags)
+    elif route == "references:curate":
+        from .reference_curation import references_curate
+        references_curate(flags)
     elif route == "references:enrich-images":
         from .reference_images import references_enrich_images
         references_enrich_images(flags)
