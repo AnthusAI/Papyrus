@@ -28,7 +28,7 @@ export type PapyrusChatStackProps = StackProps & {
  * receives the scoped gateway policy through the `GatewayRoleArn` parameter (the app shell's `CmsComputeRoleArn`
  * output), and the app shell reads the resource names back through this stack's exports.
  *
- * The resource definitions are the ones the p.apyr.us stack `PapyrusChatDataCandidate` was activated from
+ * The resource definitions are the ones the first activated stack `PapyrusChatDataCandidate` was activated from
  * (infra/shared-chat-runtime/cdk/synth.cjs); logical ids and construct order are kept so that stack is adopted by an
  * in-place update (scripts/test-infra-chat.ts compares the two templates).
  */
