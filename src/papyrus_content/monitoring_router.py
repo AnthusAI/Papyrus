@@ -68,6 +68,7 @@ LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 RECEIPT_TTL_SECONDS = 30 * 86400
 MAX_REQUEST_BYTES = 32_768
 MAX_PENDING_JOB_SECONDS = 6 * 3600
+AWAITING = "awaiting"
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
 PARTITION_COLLECTED = "collected"
@@ -106,6 +107,14 @@ class StopSweep(Exception):
     def __init__(self, code: str, detail: str = ""):
         super().__init__(code)
         self.code, self.detail = code, detail
+
+
+class JobRunning(Exception):
+    """A posted job has not finished. Not a run-stopping event: the story keeps its recorded job and is collected later."""
+
+
+class NotPosting(Exception):
+    """The collector never posts. The story needs a new POST, so it is left for the route run."""
 
 
 class BindingNotReady(Exception):
@@ -519,8 +528,9 @@ class CyclotronClient:
             raise CombinedUnavailable()
         raise self.classify(status, payload)
 
-    def poll_combined(self, job_id: str) -> dict:
-        """Polls GET /machine/decisions/{jobId}; the 200 body maps each publication to its single receipt."""
+    def poll_combined(self, job_id: str, wait: bool = True) -> dict:
+        """Polls GET /machine/decisions/{jobId}; the 200 body maps each publication to its single receipt.
+        wait=False is one GET: a job that is still running raises JobRunning."""
         deadline = self.clock() + self.config["cyclotron"]["pollSeconds"]
         delay = 1.0
         while True:
@@ -532,6 +542,8 @@ class CyclotronClient:
                 return payload
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
+            if not wait:
+                raise JobRunning()
             if self.clock() + delay > deadline:
                 raise StopSweep("pending", "job still running")
             self.sleep(delay)
@@ -548,8 +560,9 @@ class CyclotronClient:
             return BindingNotReady(NOT_READY_CODE)
         return self.classify(status, entry)
 
-    def poll(self, publication_id: str, job_id: str) -> dict:
-        """Polls only. Returns the completed response; raises StopSweep('pending') when still running."""
+    def poll(self, publication_id: str, job_id: str, wait: bool = True) -> dict:
+        """Polls only. Returns the completed response; raises StopSweep('pending') when still running,
+        or JobRunning after a single GET when wait=False."""
         deadline = self.clock() + self.config["cyclotron"]["pollSeconds"]
         delay = 1.0
         while True:
@@ -561,6 +574,8 @@ class CyclotronClient:
                 return payload
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
+            if not wait:
+                raise JobRunning()
             if self.clock() + delay > deadline:
                 raise StopSweep("pending", "job still running")
             self.sleep(delay)
@@ -849,9 +864,11 @@ class Router:
         self._contexts: dict = {}
         self.publications = {p["publicationId"]: p for p in config["publications"]}
         self.active_publications = None
+        self.nowait = False        # live Cyclotron sweeps post and check once; the collect window does the waiting
+        self.post_allowed = True   # the collector sets this False: it never sends a new POST
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
-                       "refused": 0, "uncertain": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
+                       "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
         self._parks: dict = {}
@@ -1096,6 +1113,7 @@ class Router:
                     self.note_not_ready(pub_id, disc, route, (self.park(pub_id) or {}).get("reason", NOT_READY_CODE))
                     continue
                 todo.append(publication)
+        running = False
         for publication in self.decide_combined(todo, disc, route, item_id):
             pub_id = publication["publicationId"]
             try:
@@ -1103,7 +1121,12 @@ class Router:
             except BindingNotReady as error:
                 self.note_not_ready(pub_id, disc, route, str(error))
                 continue
+            except JobRunning:
+                running = True   # post the story's other bindings now; all of them are collected together
+                continue
             self.note_ready(pub_id)
+        if running:
+            raise JobRunning()
         active = self.active_publications or self.config["publications"]
         if not any(jobs.get(p["publicationId"], {}).get("checked") for p in active):
             raise AllBindingsNotReady()
@@ -1143,6 +1166,8 @@ class Router:
             raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
         response = None
         if not stored:
+            if not self.post_allowed:
+                return todo   # the collector sends nothing; stored per-publication jobs are still polled
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                                              "publications": list(built["body"]["payload"]["bindings"])}
@@ -1165,7 +1190,7 @@ class Router:
                 self.save(route)
         if response is None:
             try:
-                response = self.cyclotron.poll_combined(stored["jobId"])
+                response = self.cyclotron.poll_combined(stored["jobId"], wait=not self.nowait)
             except BindingNotReady:
                 del route["combinedJob"]   # a pending output in the set: the per-publication path finds out which
                 self.save(route)
@@ -1223,6 +1248,8 @@ class Router:
         elif job:
             raise ItemUncertain("an earlier POST had no recorded answer")
         else:
+            if not self.post_allowed:
+                raise NotPosting()
             jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now)}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
@@ -1241,7 +1268,7 @@ class Router:
                 self.save(route)
                 return
         try:
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"])
+            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
         except BindingNotReady:
             del jobs[pub_id]   # nothing ran at the provider; the park decides when to ask again
             self.save(route)
@@ -1434,6 +1461,7 @@ class Router:
                     continue
 
     def live(self, disc: dict):
+        """Returns AWAITING when the story's job is still running (its job stays recorded for the collector)."""
         route = self.get_route(disc)
         original_active_publications = self.active_publications
         try:
@@ -1459,6 +1487,10 @@ class Router:
             self.save(route)
             set_routing(self.store, self.monitor_id, disc, "routed", None)
             self.counts["routed"] += 1
+        except JobRunning:
+            return AWAITING
+        except NotPosting:
+            return None
         except AllBindingsNotReady:
             self.finish(disc, route, "parked", "every binding is waiting for a classifier")
         except ItemExcluded as error:
@@ -1481,6 +1513,7 @@ class Router:
     # sweep ----------------------------------------------------------------------------------------
 
     def sweep(self) -> dict:
+        """Post every candidate's job without waiting, then collect what finishes inside the collect window."""
         status, stopped = "complete", None
         errors: list = []
         if self.config["mode"] == "live":
@@ -1492,23 +1525,103 @@ class Router:
             except StopSweep as stop:
                 return {"status": "stopped", "stoppedBy": stop.code, "errors": [],
                         "waitingForClassifier": self.waiting_for_classifier()}
+            self.nowait = True
+        awaiting: list[dict] = []
         for disc in candidates:
             if self.time_left() < MIN_REMAINING_SECONDS:
                 status, stopped = "stopped", "time_budget"
                 break
             self.counts["examined"] += 1
             try:
-                (self.dry_run if self.config["mode"] == "dry-run" else self.live)(disc)
+                if (self.dry_run if self.config["mode"] == "dry-run" else self.live)(disc) == AWAITING:
+                    awaiting.append(disc)
             except StopSweep as stop:
                 status, stopped = "stopped", stop.code
                 break
             except Exception as error:   # one bad item must not hide the rest
                 errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
                 self.counts["error"] += 1
+        if awaiting and stopped in (None, "time_budget"):
+            try:
+                awaiting = self.collect_jobs(awaiting, errors)
+            except StopSweep as stop:
+                status, stopped = "stopped", stop.code
+        self.counts["awaiting"] = len(awaiting)
         if errors and status == "complete":
             status = "partial"
+        if awaiting and stopped is None:
+            status, stopped = AWAITING, AWAITING   # jobs are still running at the lab; the collector delivers them
         return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
                 "waitingForClassifier": self.waiting_for_classifier() if self.config["decisions"] == "cyclotron" else []}
+
+    def collect_jobs(self, awaiting: list[dict], errors: list) -> list[dict]:
+        """Polls the outstanding jobs round-robin with backoff for at most cyclotron.pollSeconds (and never into the
+        last MIN_REMAINING_SECONDS of the invocation), delivering each story as its job completes. Returns the stories
+        whose jobs are still running. Nothing is posted here that was not already recorded."""
+        client = self.cyclotron
+        window = self.config["cyclotron"]["pollSeconds"]
+        deadline, waited, delay = client.clock() + window, 0.0, 2.0
+        while awaiting:
+            if (client.clock() + delay > deadline or waited + delay > window
+                    or self.time_left() - delay < MIN_REMAINING_SECONDS):
+                break
+            client.sleep(delay)
+            waited += delay
+            delay = min(delay * 1.5, 8.0)
+            still = []
+            for disc in awaiting:
+                try:
+                    if self.live(disc) == AWAITING:
+                        still.append(disc)
+                except StopSweep:
+                    raise
+                except Exception as error:
+                    errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
+                    self.counts["error"] += 1
+            awaiting = still
+        return awaiting
+
+    def collect(self) -> dict:
+        """The collector task: poll the stored jobs, deliver the finished ones, post nothing."""
+        if self.config["mode"] != "live" or self.config["decisions"] != "cyclotron":
+            return {"status": "complete", "stoppedBy": None, "errors": [], "waitingForClassifier": []}
+        self.nowait, self.post_allowed = True, False
+        errors: list = []
+        pending = []
+        for disc in self.store.query_partition(gsi_partition(self.monitor_id, PARTITION_COLLECTED), 50):
+            route = self.store.get_any(self.monitor_id, route_key(disc)) or {}
+            if (route.get("combinedJob") or {}).get("jobId") or any(
+                    job.get("jobId") and not job.get("checked") for job in (route.get("jobs") or {}).values()):
+                pending.append(disc)
+        self.counts["examined"] = len(pending)
+        status, stopped = "complete", None
+        try:
+            # one pass first, so jobs that finished while nobody was looking are delivered without waiting
+            still = []
+            for index, disc in enumerate(pending):
+                if self.time_left() < MIN_REMAINING_SECONDS:
+                    status, stopped = "stopped", "time_budget"
+                    still += pending[index:]
+                    break
+                try:
+                    if self.live(disc) == AWAITING:
+                        still.append(disc)
+                except StopSweep:
+                    raise
+                except Exception as error:
+                    errors.append({"sourceId": disc.get("sourceId"), "message": short(error)})
+                    self.counts["error"] += 1
+            if still and stopped is None:
+                still = self.collect_jobs(still, errors)
+        except StopSweep as stop:
+            return {"status": "stopped", "stoppedBy": stop.code, "errors": errors[:10], "waitingForClassifier": []}
+        self.counts["awaiting"] = len(still)
+        if errors and status == "complete":
+            status = "partial"
+        if still and stopped is None:
+            status, stopped = AWAITING, AWAITING
+        return {"status": status, "stoppedBy": stopped, "errors": errors[:10],
+                "waitingForClassifier": self.waiting_for_classifier()}
 
     # feedback ---------------------------------------------------------------------------------------
 
@@ -1611,8 +1724,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito)
-        outcome = {"status": "skipped"} if task == "feedback" else router.sweep()
-        feedback = {"status": "skipped"} if task == "route" else router.feedback()
+        outcome = {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep()
+        feedback = {"status": "skipped"} if task in ("route", "collect") else router.feedback()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
                   "feedback": feedback, "errors": outcome.get("errors", []),
@@ -1628,7 +1741,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
 
 
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"feedback"}` limits the pass (operator debugging)."""
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"}` limits the pass (operator debugging)."""
     import boto3  # provided by the Lambda runtime
 
     event = event if isinstance(event, dict) else {}

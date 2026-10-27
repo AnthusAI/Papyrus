@@ -481,6 +481,24 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt RouterDeadLetterQueue.Arn
 
+  RouterCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-router-collect
+      Description: Collect the HN router's posted lab jobs every 2 minutes and deliver the finished ones. It posts nothing new and takes the same per-monitor router lock as the route run, so it never races it.
+      ScheduleExpression: rate(2 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"hn","task":"collect"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 120
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   RouterDataParadeIntakePolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:

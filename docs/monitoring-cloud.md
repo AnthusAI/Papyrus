@@ -316,8 +316,9 @@ publication. It runs on its own schedule `cron(7/15 * * * ? *)` (minutes 7, 22, 
 failure domains apart (a Cyclotron outage never touches collection, and collector
 code is not redeployed with the router); the cost is up to 15 minutes of latency.
 Feedback runs in the same invocation after routing (one lock, one schedule); a
-failed feedback pass never fails routing, and `{"task":"route"}` or `{"task":"feedback"}`
-limits an operator-invoked run.
+failed feedback pass never fails routing, and `{"task":"route"}`, `{"task":"collect"}` or `{"task":"feedback"}`
+limits an operator-invoked run. A second schedule runs `{"task":"collect"}` every 2 minutes to deliver jobs that
+were still running when the route run ended ([post first, then collect](#post-first-then-collect)).
 
 ## Dry-run and live
 
@@ -338,8 +339,8 @@ decision receipt and delivers (see below). The dry-run receipt also records that
 For each story the router sends `POST /machine/decisions` (SigV4, same principals, `X-Cyclotron-Account`)
 with `{"contractVersion", "requestId", "payload": {"bindings": {"<publication>": "<bindingRevision>", ...}, "item"}}`.
 The bindings are every active publication that has no decision yet and is not parked (a publication
-waiting for a classifier is left out, as the per-publication logic always did). It then polls
-`GET /machine/decisions/{jobId}` (202 while running). The 200 body's `publications` maps each publication to
+waiting for a classifier is left out, as the per-publication logic always did). It then checks
+`GET /machine/decisions/{jobId}` (202 while running; see [post first, then collect](#post-first-then-collect)). The 200 body's `publications` maps each publication to
 exactly what `GET /machine/publications/{pub}/commands/{job}` returns, and each is checked and stored as
 `ROUTE.jobs[pub].checked` by the same code as before, so the `decide_binding` receipts, `route.decision`
 and delivery keep their shape. A story takes one Cyclotron job instead of one per publication.
@@ -377,11 +378,36 @@ Both it and the combined id are identical in dry-run and live, so flipping to li
 
 Live mode reads `decided` first, then `collected` and `dry-run-validated` merged oldest
 first, up to `maxItemsPerRun` items. Stop conditions (`provider_key_unavailable`,
-`request_ceiling_reached`, `standing_capacity_reached`, `run_busy`, any 401/403/404/429/503/507/409,
-and a job still running after `pollSeconds`) end the sweep cleanly: the run receipt says
+`request_ceiling_reached`, `standing_capacity_reached`, `run_busy`, any 401/403/404/429/503/507/409)
+end the sweep cleanly: the run receipt says
 `status: stopped` with `stoppedBy`, items stay where they were, and nothing is retried
 until the next schedule. A refused POST leaves no job marker, so it may be sent later; an
 accepted job keeps its `jobId` under `ROUTE#...`.`jobs` and is only polled.
+
+### Post first, then collect
+
+A cold lab job takes about 100 seconds, so a live sweep never waits on one story while others sit idle:
+
+1. **Post.** For each candidate (up to `maxItemsPerRun`, which also caps the new POSTs per run) the router sends
+   or resumes the story's job and checks it with a single GET. A job that is still running is not a stop
+   condition: it stays recorded on the story (`combinedJob`, or `jobs.<pub>.jobId`) and the router goes on to
+   the next story. A finished job goes straight to the unchanged fan-out and delivery. The per-publication
+   path posts all of a story's bindings before it waits for any of them.
+2. **Collect.** The router then polls every outstanding job of this run round-robin with a backoff (2 s, growing
+   to 8 s) for at most `cyclotron.pollSeconds`, and never into the last `MIN_REMAINING_SECONDS` (120 s) of the
+   invocation, delivering each story the moment its job completes.
+3. **End.** Jobs still running leave the run with `status: awaiting`, `stoppedBy: awaiting` and
+   `counts.awaiting` set. That is normal, not a failure. A real stop condition from Cyclotron still ends the run
+   as `stopped`.
+
+The collector is the same function invoked with `{"monitorId":"hn","task":"collect"}`. It looks at the stories in
+`collected` that already hold a recorded job, polls them (one pass, then the same bounded collect window) and
+delivers the finished ones. It never posts a story that has no job and does not run feedback. It takes the
+per-monitor router lock exactly as a route run does, so the two cannot overlap: whichever comes second returns
+`status: locked` without calling Cyclotron. The schedule `RouterCollectSchedule` runs it `rate(2 minutes)`; it
+follows the same `ScheduleState` switch as the other schedules. Request ids stay deterministic and the job is
+recorded before the POST, so no job is ever sent twice. The specs are in
+`features_backend/monitoring-post-then-collect.feature`.
 
 ### Outputs that are not ready (waiting for classifier)
 
