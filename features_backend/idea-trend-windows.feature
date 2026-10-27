@@ -5,8 +5,8 @@ Feature: Cited Trends choose how far back to look from the data
   corpus's own growth is allowed for. Trying several windows and keeping the best would find false trends in plain noise, so the best
   p-value is corrected for the number of windows tried (Bonferroni) and an entity counts as trending only when the corrected p-value is
   within 0.01. The chosen window is part of the signal: the model is told "rising over the last N weeks", the draft's cited signals
-  describe it, and the draft's evidence records it. The snapshot index publishes the full 26 weeks for this; a snapshot that only has
-  eight weeks is scanned over those.
+  describe it, and the draft's evidence records it. The snapshot index publishes each entity's full weekly history (seriesWeekly) for this, so the
+  windows grow with the history; a snapshot that only has 26 or eight weeks is scanned over those.
 
   Scenario: A spike is detected over a short window
     Given a quiet concept that is mentioned 9 times in the latest week
@@ -19,6 +19,16 @@ Feature: Cited Trends choose how far back to look from the data
     When the trend windows are scanned
     Then the concept is a trend over a window of 16 weeks
     And the model is shown the concept with a window of 16 weeks and its full weekly history
+
+  Scenario: A snapshot with the full weekly history lets a window longer than 26 weeks win
+    Given a concept that was quiet for 70 weeks, then grew steadily for 50 weeks
+    When the trend windows are scanned
+    Then the window is longer than 26 weeks
+
+  Scenario: The same build seen through only the last 26 weeks is limited to those
+    Given a concept that was quiet for 70 weeks, then grew steadily for 50 weeks
+    When the trend windows are scanned over the last 26 weeks only
+    Then the longest window it can try is 16 weeks, and the full history is more surprising
 
   Scenario: Noise does not make a false trend once the number of windows tried is corrected for
     Given a concept that is mentioned once a week and 5 times in the latest week

@@ -85,8 +85,6 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     KNOWLEDGE_OPENAI_KEY_PARAMETER: config.openAiKeyParameter,
     // Read by the optional trend-drafts step only (infra/knowledge-run/trend_drafts.py).
     TREND_DRAFTS_MAX_AGE_DAYS: String(config.trendSnapshotMaxAgeDays),
-    ...(config.trendWindowDays ? { TREND_DRAFTS_WINDOW_DAYS: String(config.trendWindowDays) } : {}),
-    ...(config.trendCooldownDays !== undefined ? { TREND_DRAFTS_COOLDOWN_DAYS: String(config.trendCooldownDays) } : {}),
     // Read by the optional monitor-stories step only (infra/knowledge-run/monitor_stories.py); set only when the site opted in.
     ...(config.monitorStories ? { MONITOR_STORIES_LIMIT: String(config.monitorStories.limit) } : {}),
     PAPYRUS_SITE_BUCKET: config.siteBucket,

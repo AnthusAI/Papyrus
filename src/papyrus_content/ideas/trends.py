@@ -346,8 +346,10 @@ def maker_notability(entity: dict[str, Any], detail: dict[str, Any] | None, as_o
 
 
 def history_of(entity: dict[str, Any]) -> list[int | float]:
-    """The weekly counts an entity is scanned over: the snapshot's 26 weeks (``series26``) when it has them, else its 8 (``series8``)."""
-    return _series(entity.get("series26")) or _series(entity.get("series8"))
+    """The weekly counts an entity is scanned over: its full history (``seriesWeekly``, from its first week) when the snapshot has it, else the
+    26 weeks (``series26``), else the 8 (``series8``). The windows tried (1, 2, 4, 8, ... weeks) grow with the history, up to the longest one that
+    still leaves ``minimum_baseline_weeks`` of baseline."""
+    return _series(entity.get("seriesWeekly")) or _series(entity.get("series26")) or _series(entity.get("series8"))
 
 
 def _filed_date(row: dict[str, Any]) -> date | None:

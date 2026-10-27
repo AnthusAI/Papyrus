@@ -109,7 +109,7 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    `index.json`, or the `_data/knowledge/` directory or address (it reads `index.json`, `clusters.json`, `entities/<key>.json` and, for the
    cluster item counts of the last archived week before this one, `history/`). Paths and `http(s)` addresses both work.
 2. **Signals, no model.** Up to 6 named clusters (growing, new, cooling, then the rest) and entities chosen by `select_entities`, from the
-   index's weekly series (`series26`, the full 26 weeks; a snapshot that only has `series8` is scanned over those eight; the published `trending` order is not used, so the selection
+   index's weekly series (`seriesWeekly`, the full history from the entity's first week, else `series26`, the last 26 weeks; a snapshot that only has `series8` is scanned over those eight; the published `trending` order is not used, so the selection
    works on any snapshot, old or new). A signal carries what the snapshot holds: the weekly counts with their week dates, for an entity the
    window the scan chose and its counts (below), neighbours of an entity, the previous archived week's
    item count of a cluster. Signal ids are `cluster:<uid>` and `entity:<key>`; the model sees handles S1, S2, ....

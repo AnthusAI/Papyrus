@@ -36,7 +36,7 @@ from .trends import (
     weekly_counts,
     weeks_of_history,
 )
-from .weeks import iso_timestamp, parse_day, week_label, week_number
+from .weeks import iso_timestamp, parse_day, week_label, week_monday, week_number
 
 SCHEMA_VERSION = 1
 DATA_DIRECTORY = "_data/knowledge"
@@ -70,6 +70,8 @@ class _Entity:
     history: int
     values8: list[int]
     values26: list[int]
+    weekly_start: str  # the Monday of weekly[0]
+    weekly: list[int]  # every week from the first item to the as-of week, oldest first: the full history
     change: Change
     new: bool
     href: str | None
@@ -140,6 +142,7 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
         counts = weekly_counts(dated[item][0] for item in item_keys)
         values8, values26 = series(counts, as_of_week, SERIES_SHORT), series(counts, as_of_week, SERIES_LONG)
         history = weeks_of_history(min(counts), as_of_week)
+        weekly = series(counts, as_of_week, history)
         entities.append(
             _Entity(
                 node=node,
@@ -152,6 +155,8 @@ def _entities(data: KnowledgeData, options: SnapshotOptions, dated: dict[str, tu
                 history=history,
                 values8=values8,
                 values26=values26,
+                weekly=weekly,
+                weekly_start=week_monday(min(counts)).isoformat(),
                 change=change_of(values8, history),
                 new=is_new(history),
                 href=options.entity_href_template.format(key=key, slug=slug(key)) if options.entity_href_template and has_page else None,
@@ -275,6 +280,9 @@ def _index_entity(entity: _Entity) -> dict:
         "change": entity.change.to_dict(),
         "isNew": entity.new,
     }
+    if entity.weekly:  # additive: the full weekly history (series8 and series26 stay, as windows of it), from the entity's first week
+        row["seriesWeekly"] = entity.weekly
+        row["seriesWeeklyStart"] = entity.weekly_start
     if entity.record_keys:
         row["recordCount"] = len(entity.record_keys)
     return row
