@@ -161,7 +161,7 @@ def step_cited(context, slug, provenance):
 def step_signals(context, key):
     context.fetched = []
     snapshot = trends.load_snapshot(str(context.site / "_data" / "knowledge"))
-    chosen = {"anchors": [{"key": key}], "context": []}
+    chosen = {"anchors": [{"key": key, "window": {"windowWeeks": 4, "count": 0, "baselineWeeks": 4, "baselineCount": 0}}], "context": []}
     context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: context.fetched.append(url) or "# Page\n\nSummary.\n", selection=chosen)}
 
 

@@ -255,7 +255,7 @@ def step_signals(context):
     fetched = []
     context.fetched = fetched
     snapshot = trends.load_snapshot(str(context.site / "_data" / "knowledge"))
-    chosen = {"anchors": [{"key": "maker--org"}], "context": []}  # whether the maker is notable enough to anchor a draft is idea-trend-quality.feature's business
+    chosen = {"anchors": [{"key": "maker--org", "window": {"windowWeeks": 4, "count": 0, "baselineWeeks": 4, "baselineCount": 0}}], "context": []}  # whether the maker is notable enough to anchor a draft is idea-trend-quality.feature's business
     context.signals = {signal["id"]: signal for signal in trends.build_signals(snapshot, lambda url: fetched.append(url) or "# Page\n\nSummary.\n", selection=chosen)}
 
 
