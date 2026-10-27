@@ -226,9 +226,41 @@ def step_not_stopped(context):
     assert context.result["stoppedBy"] is None
 
 
-@then("the story is recorded as an error")
-def step_error(context):
-    assert tr.routing_of(context.table_)["DISC#101#000001"] == "error"
+@then("the story is not given up on and waits to be asked again later")
+def step_backed_off(context):
+    route = route_of(context)
+    assert "final" not in route and tr.routing_of(context.table_)["DISC#101#000001"] == "collected"
+    assert route["refusals"] == 1 and route["nextAttemptAt"] > 2000
+    context.wait_until = int(route["nextAttemptAt"])
+
+
+@when("the router sweeps again before the wait is over")
+def step_early(context):
+    context.posts_before = len([c for c in context.cyclotron.combined_calls if c[0] == "POST"])
+    run(context, now=context.wait_until - 1)
+
+
+@then("Cyclotron is not asked about the story again")
+def step_not_asked(context):
+    assert len([c for c in context.cyclotron.combined_calls if c[0] == "POST"]) == context.posts_before
+
+
+@when("Cyclotron stops refusing and the router sweeps after the wait")
+def step_after_wait(context):
+    context.cyclotron.combined_post_override = None
+    run(context, now=context.wait_until)
+
+
+@given("the lab refuses the first story with a conflict the router does not recognise")
+def step_first_refused(context):
+    run_collection(DynamoStore(context.table_), "hn", fetch=lambda url: tr.FEED, now=1100, force=True)   # two more stories behind the first
+    context.cyclotron.combined_post_queue = [(409, {"detail": "something unexpected"})]
+
+
+@then("the other story is decided and delivered")
+def step_other_story(context):
+    states = tr.routing_of(context.table_)
+    assert states["DISC#101#000001"] == "collected" and "routed" in states.values() and context.delivery.calls, (states, context.delivery.calls)
 
 
 @then("the run receipt says what Cyclotron answered")

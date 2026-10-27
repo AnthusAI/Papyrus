@@ -110,6 +110,9 @@ NOT_READY_DETAIL = "publication criteria are pending"
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 LOG = logging.getLogger(__name__)
 PARK_PREFIX = "PARK#"
+#: A story the lab refused for a non-permanent reason waits REFUSAL_BACKOFF_FIRST * 2**n seconds (n = refusals so far),
+#: capped at REFUSAL_BACKOFF_MAX. This is a backoff between asks, not a limit: the router never gives up on the story.
+REFUSAL_BACKOFF_FIRST, REFUSAL_BACKOFF_MAX = 900, 24 * 3600
 PARK_BACKOFF_FIRST, PARK_BACKOFF_MAX = 1800, 6 * 3600
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
@@ -170,6 +173,11 @@ class ItemUncertain(Exception):
 
 class ItemInvalid(Exception):
     pass
+
+
+class ItemRetryLater(ItemInvalid):
+    """The lab refused this story's request for a reason that is not explicitly permanent (an unknown 409, another
+    4xx the contract does not name). Nothing ran at the lab, so the story backs off and is asked again on a later run."""
 
 
 class ItemExcluded(Exception):
@@ -548,12 +556,15 @@ class CyclotronClient:
         if status == 409 and (code == NOT_READY_CODE or payload.get("detail") == NOT_READY_DETAIL):
             return BindingNotReady(NOT_READY_CODE)
         if status == 409 and code not in STOP_CODES:
-            # not a known conflict: it concerns this request only, so it must not stop the whole run
-            return ItemInvalid(body_excerpt(status, payload))
+            # not a known conflict: it concerns this request only, so it must not stop the whole run, and it may
+            # clear by itself, so the story is asked again later
+            return ItemRetryLater(body_excerpt(status, payload))
         if code in STOP_CODES or status in (401, 403, 404, 429, 503, 507):
             return StopSweep(code, f"http {status}")
         if status in (400, 413, 422):
-            return ItemInvalid(code)
+            return ItemInvalid(code)   # invalid per the contract: permanent
+        if 400 <= status < 500:
+            return ItemRetryLater(body_excerpt(status, payload))   # a definite refusal the contract does not call permanent
         return ItemUncertain(code)
 
     def post(self, publication_id: str, body: dict) -> tuple[str | None, dict | None]:
@@ -948,7 +959,7 @@ class Router:
         self.post_allowed = True   # the collector sets this False: it never sends a new POST
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
-                       "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "deliveryFailed": 0, "skippedNotReady": 0,
+                       "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
         self._parks: dict = {}
@@ -987,7 +998,8 @@ class Router:
             return part(PARTITION_COLLECTED)
         decided = [d for d in part(PARTITION_DECIDED)
                    if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now]
-        fresh = sorted(part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN), key=lambda d: d["gsi1sk"])
+        fresh = sorted((d for d in part(PARTITION_COLLECTED) + part(PARTITION_DRY_RUN)
+                        if (self.get_route(d).get("nextAttemptAt") or 0) <= self.now), key=lambda d: d["gsi1sk"])
         return decided + fresh
 
     def selected_references(self, source_ids=None) -> dict:
@@ -1674,10 +1686,22 @@ class Router:
             self.finish(disc, route, "refused", str(error))
         except ItemUncertain as error:
             self.finish(disc, route, "uncertain", str(error))
+        except ItemRetryLater as error:
+            self.back_off(route, str(error))
         except ItemInvalid as error:
             self.finish(disc, route, "error", str(error))
         finally:
             self.active_publications = original_active_publications
+
+    def back_off(self, route: dict, reason: str):
+        """The lab refused the story for a non-permanent reason: keep it where it is, record the refusal, and ask
+        again after an exponential backoff (REFUSAL_BACKOFF_FIRST * 2**n, capped at REFUSAL_BACKOFF_MAX). Never final."""
+        refusals = int(route.get("refusals", 0))
+        route["refusals"] = refusals + 1
+        route["nextAttemptAt"] = int(self.now + min(REFUSAL_BACKOFF_FIRST * 2 ** min(refusals, 32), REFUSAL_BACKOFF_MAX))
+        route["lastRefusal"] = {"message": reason[:300], "at": _iso(self.now), "refusals": refusals + 1}
+        self.save(route)
+        self.counts["backedOff"] += 1
 
     def finish(self, disc: dict, route: dict, routing: str, reason: str):
         route["final"] = {"routing": routing, "reason": reason[:300], "at": _iso(self.now)}
