@@ -178,7 +178,12 @@ try {
     await page.getByText("Private runtime reply", { exact: true }).waitFor();
     await page.reload();
     await page.getByText("Private runtime reply", { exact: true }).waitFor();
-    assert.equal(sendCount, 2, "sign-in retry and reload do not replay sends");
+    const beforeRefresh = requests.filter(request => request.url.endsWith("/private-channel")).length;
+    await page.evaluate(() => window.testAuthEvent("tokenRefresh"));
+    await page.waitForTimeout(100);
+    await page.getByText("Private runtime reply", { exact: true }).waitFor();
+    assert.equal(requests.filter(request => request.url.endsWith("/private-channel")).length, beforeRefresh + 1);
+    assert.equal(sendCount, 2, "sign-in retry, token refresh and reload do not replay sends");
   }
   assert.deepEqual(errors, []);
   console.log("PASS: shared UI sends through the private host route once, preserves pending-reply sends, and renders the reply");

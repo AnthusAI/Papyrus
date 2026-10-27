@@ -72,6 +72,8 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
     setError(null);
     setChannel(null);
     setMessages([]);
+    retryAttempt.current = null;
+    setSending(false);
     try {
       const nextChannel = await openPapyrusPrivateChat();
       if (generation !== identityGeneration.current) return;
@@ -90,10 +92,12 @@ export function PapyrusPrivateChatPanel({ onClose }: { onClose: () => void }) {
   }, [openConversation]);
 
   useEffect(() => Hub.listen("auth", ({ payload }) => {
-    if (["signedOut", "signedIn", "tokenRefresh_failure"].includes(payload.event)) {
+    if (payload.event === "tokenRefresh") {
+      void openConversation();
+    } else if (["signedOut", "signedIn", "tokenRefresh_failure"].includes(payload.event)) {
       void handleFailure(new Error("sign_in_required"));
     }
-  }), [handleFailure]);
+  }), [handleFailure, openConversation]);
 
   useEffect(() => {
     if (!channel || !isWaitingForReply) return;
