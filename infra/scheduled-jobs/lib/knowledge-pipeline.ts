@@ -107,7 +107,7 @@ export function knowledgeEnvironment(config: KnowledgeRunConfig): Record<string,
     ...(config.monitorSources
       ? {
           KNOWLEDGE_MONITOR_SOURCES: config.monitorSources.join(","),
-          KNOWLEDGE_MONITOR_WEEKS: String(config.monitorWeeks),
+          ...(config.monitorWeeks !== undefined ? { KNOWLEDGE_MONITOR_WEEKS: String(config.monitorWeeks) } : {}),
           ...(config.monitorSuggestions ? { KNOWLEDGE_MONITOR_SUGGESTIONS: String(config.monitorSuggestions) } : {}),
         }
       : {}),

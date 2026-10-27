@@ -44,7 +44,7 @@ Everything the stack needs per site that is plain configuration was confirmed fr
 
 ## Config in this change
 
-Only Shipped's example changed (`infra/amplify-app-shell/examples/shipped.site.json`): `monitorSources` is now `["huggingface", "routed"]` and `monitorStories` is `{"limit": 3}`. The schedule was already the daily `cron(0 5 * * ? *)`; `monitorWeeks` is 52 and trend drafts are on via the stack parameters. `scripts/test-scheduled-job-synth.ts` was adjusted so its base stack removes `monitorStories` (the optional step is still asserted separately) and expects `huggingface,routed`.
+Only Shipped's example changed (`infra/amplify-app-shell/examples/shipped.site.json`): `monitorSources` is now `["huggingface", "routed"]` and `monitorStories` is `{"limit": 3}`. The schedule was already the daily `cron(0 5 * * ? *)`; `monitorWeeks` is no longer set (all history counts, since 2026-10-27) and trend drafts are on via the stack parameters. `scripts/test-scheduled-job-synth.ts` was adjusted so its base stack removes `monitorStories` (the optional step is still asserted separately) and expects `huggingface,routed`.
 
 ### Draft blocks for the other sites (add when the prerequisites are met)
 
@@ -79,7 +79,7 @@ The redirects store ARN is shortened here (a full id is a bare UUID, which the r
 }
 ```
 
-Each also takes `"monitorSources": ["routed"], "monitorWeeks": 52, "monitorStories": {"limit": 3}`, `"alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email"` (shared mailbox, if Ryan agrees), and the site's own `siteRepo`/`conceptKinds`. For `dataparade` (bucket `amplify-d35q7zv4zad2we-main-bra-sitebucket397a1860-a2pz5pepxir0`, distribution `EIAVDLXO64F62`, redirects store `7a9a0125-...`, API `rgfkmmyyyrc7fb55qd5smbfrpm`, app `d35q7zv4zad2we`, Lambda `amplify-d35q7zv4zad2we-ma-papyruscontentactionsE8B-98vQtfpumJd8`) and `p-apyr-us` (bucket `amplify-ds6yswxui41yi-main-bran-sitebucket397a1860-y3dzuduvsux5`, reader distribution `E2EM0JLBC2W9WW`, redirects store `27bad446-...`, API `36xh4ckhhvfyrlxxbltoy246ea`, app `ds6yswxui41yi`, Lambda `amplify-ds6yswxui41yi-mai-papyruscontentactionsE8B-l8LUa08YMLSs`) the corpus-key blocker comes first. The p.apyr.us public origin is the marketing distribution, so confirm which distribution the projection should invalidate before using `E2EM0JLBC2W9WW`.
+Each also takes `"monitorSources": ["routed"], "monitorStories": {"limit": 3}`, `"alarmEmailParameter": "/papyrus/shipped/knowledge-run/alarm-email"` (shared mailbox, if Ryan agrees), and the site's own `siteRepo`/`conceptKinds`. For `dataparade` (bucket `amplify-d35q7zv4zad2we-main-bra-sitebucket397a1860-a2pz5pepxir0`, distribution `EIAVDLXO64F62`, redirects store `7a9a0125-...`, API `rgfkmmyyyrc7fb55qd5smbfrpm`, app `d35q7zv4zad2we`, Lambda `amplify-d35q7zv4zad2we-ma-papyruscontentactionsE8B-98vQtfpumJd8`) and `p-apyr-us` (bucket `amplify-ds6yswxui41yi-main-bran-sitebucket397a1860-y3dzuduvsux5`, reader distribution `E2EM0JLBC2W9WW`, redirects store `27bad446-...`, API `36xh4ckhhvfyrlxxbltoy246ea`, app `ds6yswxui41yi`, Lambda `amplify-ds6yswxui41yi-mai-papyruscontentactionsE8B-l8LUa08YMLSs`) the corpus-key blocker comes first. The p.apyr.us public origin is the marketing distribution, so confirm which distribution the projection should invalidate before using `E2EM0JLBC2W9WW`.
 
 ## Deploy commands
 

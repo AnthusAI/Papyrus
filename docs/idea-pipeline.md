@@ -88,7 +88,7 @@ for `gpt-6-luna`, LiteLLM standard tier, read 2026-10-11). A run whose estimate 
 Review goes through review requests ([review-requests.md](review-requests.md)) and shows in the Notification Center.
 
 - **Raising.** When a run creates ideas, `request_human_review(client, run, ideas)` in `ideas/review.py` calls `raise_batch_review`: ONE
-  soft review per run, "N new story ideas to review", 7-day deadline, subject `{batch, <run id>}`, idempotent per run. Ideas filed as
+  soft review per run, "N new story ideas to review", no deadline (it stays open until handled), subject `{batch, <run id>}`, idempotent per run. Ideas filed as
   Proposals are linked by Proposal id. Ideas kept as JSON are linked by idea id, which the console cannot open: a limit of the JSON
   store. A run with no ideas raises nothing.
 - **Reading back.** At the start of a run, `steering_for(client, raised_by="idea-pipeline")` returns what editors said about earlier
@@ -181,7 +181,7 @@ the automated trend-story path of PPY-8ffc18 (story PPY-fb4dfa). The flow:
    weeks, 1 to 6 series, numeric values, 8,000 bytes at most; otherwise `invalid_evidence`), and drops unknown keys. A site that has not deployed
    a backend with this release drops the figure silently (the body still lists the series values), so deploy before the first real run.
    The figure is published only if the site publishes proposals (`proposals.publish`), like the rest of the Proposal.
-7. **Review.** One soft review request per run through the same `request_human_review` ("N new trend story drafts to review", 7 days,
+7. **Review.** One soft review request per run through the same `request_human_review` ("N new trend story drafts to review", no deadline,
    subject `{batch, <run id>}`, links the Proposals). Approving the Proposal (`papyrus proposals approve`, after an editor moves it through
    steering and review) approves the copy and the figure together. The command never transitions, approves or publishes anything. The
    trend drafts are also kept in the JSON store, so an editor's answer to the batch reaches the next `synthesize` run as feedback.
@@ -232,7 +232,7 @@ It is the same for every monitor: no source is named in the code, so a new site 
    least two body sentences, at most three paragraphs and a section from the allowed list. Because the only handle is the source, every sentence cites the source.
    A failing draft is not filed; the run record says which sentence failed and why, and the next ranked item takes its place (at most twice `--limit` attempts a run).
 6. **File.** The record has the shape of a trend draft and goes through the same `ProposalStore.file_story_draft` (formerly `file_trend_draft`) as a `story_draft` Proposal in state
-   `draft`, proposed by AI, with `request_human_review` raising one soft review request for the run ("N new monitor story drafts to review", 7 days). Under IAM the
+   `draft`, proposed by AI, with `request_human_review` raising one soft review request for the run ("N new monitor story drafts to review", no deadline). Under IAM the
    operator path is the one trends use: `fileProposal` and the read-only `listStoryDrafts`.
 
    | Field | Value |

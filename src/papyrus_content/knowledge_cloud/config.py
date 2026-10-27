@@ -24,7 +24,6 @@ PROJECTION_STAGE = STAGES[-1]
 #: a ledger row with their cost, which `papyrus knowledge runs` shows; the run total does not include them.
 POST_RUN_STEPS = ("monitor-stories",)
 TEST_EXECUTION_PREFIX = "test-"
-DEFAULT_MONITOR_WEEKS = 52
 
 
 class ConfigError(ValueError):
@@ -82,7 +81,7 @@ class CloudRunConfig:
     beats_config: str | None
     concept_kinds: str | None
     monitor_sources: tuple[str, ...]
-    monitor_weeks: int
+    monitor_weeks: int | None  # None: all history
     monitor_suggestions: int
     monitor_full: bool
     openai_parameter: str
@@ -134,7 +133,7 @@ class CloudRunConfig:
             beats_config=(environment.get("KNOWLEDGE_BEATS_CONFIG") or "").strip() or None,
             concept_kinds=(environment.get("KNOWLEDGE_CONCEPT_KINDS") or "").strip() or None,
             monitor_sources=_monitor_sources(environment.get("KNOWLEDGE_MONITOR_SOURCES")),
-            monitor_weeks=int((environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip() or DEFAULT_MONITOR_WEEKS),
+            monitor_weeks=int(text) if (text := (environment.get("KNOWLEDGE_MONITOR_WEEKS") or "").strip()) else None,
             monitor_suggestions=int((environment.get("KNOWLEDGE_MONITOR_SUGGESTIONS") or "").strip() or 0),
             monitor_full=(environment.get("KNOWLEDGE_MONITOR_FULL") or "").strip().lower() == "true",
             openai_parameter=(environment.get("KNOWLEDGE_OPENAI_KEY_PARAMETER") or f"/papyrus/{publication}/openai-api-key").strip(),

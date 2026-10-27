@@ -70,7 +70,6 @@ from .model import UNACCEPTED_HIDE, UNACCEPTED_UNNAMED, KnowledgeData, SnapshotO
 from .monitor_import import is_record_mention, is_record_relation
 from .monitor_ledger import MonitorLedger
 from .monitor_records import (
-    DEFAULT_WEEKS,
     biblicus_record_id,
     load_monitor_records,
     parse_sources,
@@ -332,7 +331,7 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         if not corpus_key:
             raise ValueError("--monitor-sources needs --corpus-key (the publication's knowledge corpus key).")
         as_of = parse_day(options["as-of"]) if normalize_string(options.get("as-of")) else current_monday(datetime.now(timezone.utc).date())
-        weeks = _whole(options.get("monitor-weeks"), "--monitor-weeks", DEFAULT_WEEKS)
+        weeks = _whole(options.get("monitor-weeks"), "--monitor-weeks", None)  # absent: all history
         records, warnings = load_monitor_records(
             client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks,
             workers=worker_count(options.get("parallel")), client_factory=worker_clients(client),
@@ -352,7 +351,7 @@ def knowledge_corpus_export(flags: list[str]) -> None:
     print(f"knowledge\tcorpus-export\t{counts['items']} items\t{monitor}{counts['undated']} undated\t{counts['removed']} removed\t{out}")
 
 
-def _whole(value: Any, flag: str, default: int) -> int:
+def _whole(value: Any, flag: str, default: int | None) -> int | None:
     text = normalize_string(value)
     if text is None:
         return default

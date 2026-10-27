@@ -300,12 +300,11 @@ def step_review(context, count):
     assert (review["status"], review["requested"], review["ideas"]) == ("pending", False, count), review
 
 
-@then('one soft review "{reason}" is open with a 7-day deadline')
+@then('one soft review "{reason}" is open with no deadline')
 def step_one_review(context, reason):
     (request,) = [review_requests.read_review(row) for row in client_of(context).reviews.values()]
     assert (request["mode"], request["reason"], request["state"]) == ("soft_review", reason, "open"), request
-    raised, deadline = review_requests.parse_time(request["raisedAt"]), review_requests.parse_time(request["deadline"])
-    assert (deadline - raised).days == 7
+    assert request["deadline"] is None, request
     context.request = request
 
 

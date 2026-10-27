@@ -200,6 +200,13 @@ Feature: The scheduled cloud knowledge run
     And the commands include "--as-of 2026-10-26"
     And the state in S3 holds "runs/2026-W44/monitor-records.json"
 
+  Scenario: A site that sets no monitor weeks exports all history
+    Given the site sets the monitor sources "huggingface" for all history
+    When the stage "corpus-sync" runs
+    Then the stage succeeded
+    And the commands include "--monitor-sources huggingface"
+    And no command was given "--monitor-weeks"
+
   Scenario: A site can ask for the stories its monitors routed to it as monitor records
     Given the site sets the monitor sources "routed" for 26 weeks
     When the stage "corpus-sync" runs

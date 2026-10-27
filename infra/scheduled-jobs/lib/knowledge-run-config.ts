@@ -20,7 +20,6 @@ export const DEFAULT_MEMORY_MIB = 16384;
 export const DEFAULT_EPHEMERAL_STORAGE_GIB = 40;
 export const DEFAULT_STAGE_TIMEOUT_SECONDS = 7200;
 export const DEFAULT_LOCK_WAIT_SECONDS = 1800;
-export const DEFAULT_MONITOR_WEEKS = 52;
 export const DEFAULT_TREND_SNAPSHOT_MAX_AGE_DAYS = 1;
 /** How many monitored items the optional monitor-stories step writes up per execution when `monitorStories` does not say. */
 export const DEFAULT_MONITOR_STORIES_LIMIT = 3;
@@ -67,7 +66,7 @@ export type KnowledgeRunSettings = {
   conceptKinds?: string[];
   /** Monitor sources whose delivered References count in the Knowledge Map as data, never as pages (docs/knowledge-cloud-run.md). */
   monitorSources?: string[];
-  /** How many weeks back a monitor record counts (its source date decides); default 52. */
+  /** Optional override: how many weeks back a monitor record counts (its source date decides). Without it every record counts, all history. */
   monitorWeeks?: number;
   /** How many monitor records the AI review stage suggests promoting in one soft review request each week; default 0 (none). */
   monitorSuggestions?: number;
@@ -114,7 +113,7 @@ export type KnowledgeRunConfig = {
   beatsConfig?: string;
   conceptKinds?: string[];
   monitorSources?: string[];
-  monitorWeeks: number;
+  monitorWeeks?: number;
   monitorSuggestions: number;
   monitorStories?: { limit: number };
   trendWindowDays?: number;
@@ -321,7 +320,7 @@ export function resolveKnowledgeRunConfig(site: Pick<AmplifyAppShellSiteConfig, 
     beatsConfig: settings.beatsConfig,
     conceptKinds: settings.conceptKinds,
     monitorSources: settings.monitorSources,
-    monitorWeeks: settings.monitorWeeks ?? DEFAULT_MONITOR_WEEKS,
+    monitorWeeks: settings.monitorWeeks,
     monitorSuggestions: settings.monitorSuggestions ?? 0,
     monitorStories: settings.monitorStories ? { limit: settings.monitorStories.limit ?? DEFAULT_MONITOR_STORIES_LIMIT } : undefined,
     trendWindowDays: settings.trendWindowDays,

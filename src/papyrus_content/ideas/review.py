@@ -1,6 +1,6 @@
 """Human review of a synthesis run, through review requests (docs/review-requests.md).
 
-A run that creates ideas raises ONE soft review for the batch ("N new story ideas to review", 7-day deadline), idempotent per run.
+A run that creates ideas raises ONE soft review for the batch ("N new story ideas to review", no deadline), idempotent per run.
 The next run reads what editors said (``steering_for``), shows it to the model as reviewer feedback and records that it used it
 (``mark_applied``). ``--feedback FILE`` stays as a manual override.
 
@@ -22,7 +22,6 @@ log = logging.getLogger("papyrus.ideas")
 RAISED_BY = "idea-pipeline"
 VERDICTS = ("accept", "decline", "revise")
 VERDICT_OF_DECISION = {"approve": "accept", "acknowledge": "accept", "reject": "decline", "feedback": "revise"}
-DEADLINE_DAYS = 7
 
 
 def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str, Any]], noun: str = "story idea") -> dict[str, Any]:
@@ -34,7 +33,7 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
     else:
         identifiers = [idea.get("proposalId") or idea["ideaId"] for idea in ideas]
         try:
-            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun, deadline_days=DEADLINE_DAYS)
+            request = review_requests.raise_batch_review(client, raised_by=RAISED_BY, batch_id=run["runId"], proposal_ids=identifiers, noun=noun)
         except Exception as error:  # noqa: BLE001 - the ideas are stored; a site without review requests must not fail the run
             review = {"status": "not_raised", "requested": False, "ideas": len(ideas), "error": f"{type(error).__name__}: {error}"[:300]}
         else:

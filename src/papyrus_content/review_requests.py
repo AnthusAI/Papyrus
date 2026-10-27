@@ -4,8 +4,9 @@ Review is not a story state. Any step can raise a ReviewRequest about any item (
 reference, an automation run, a Cyclotron decision, or a batch of those). Three modes:
 
 * ``flag``         informational. Nothing waits. An editor can acknowledge or steer it.
-* ``soft_review``  the process waits until a deadline. If nobody answers it proceeds, and the request records
-                   "proceeded without review" (state ``timed_out``).
+* ``soft_review``  the request stays open until someone handles it: it has no expiry unless the caller passes a
+                   deadline. With a deadline, if nobody answers by then it proceeds, and the request records
+                   "proceeded without review" (state ``timed_out``). Without one it is never timed out.
 * ``hard_gate``    the process never proceeds without an explicit answer. A hard gate has no deadline.
 
 An answer is ``approve``, ``acknowledge`` (the flag form of approve: nothing was approved, the editor saw it), ``reject`` or ``feedback``, with optional feedback text and an optional ``steer``
@@ -43,7 +44,6 @@ ANSWERING_ROLES = frozenset({"editor", "admin"})
 RECIPIENT_SCOPES = ("default", "mode", "automation")
 RECIPIENT_ROLES = ("editor", "admin")
 PROCEEDED_WITHOUT_REVIEW = "proceeded without review"
-DEFAULT_SOFT_REVIEW_DAYS = 7
 SUBJECT_TYPES = ("story", "proposal", "reference", "automation_run", "cyclotron_decision", "batch")
 REQUEST_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 MAX_TEXT = 2000
@@ -169,7 +169,8 @@ def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, rai
                  request_id: str | None = None, now: datetime | None = None) -> dict[str, Any]:
     """Raise a review request. A given ``request_id`` makes the call idempotent: raising it again returns the existing request.
 
-    A soft review needs a deadline (``deadline`` or ``deadline_days``; default 7 days). A flag and a hard gate take none."""
+    A soft review has no deadline unless the caller passes one (``deadline`` or ``deadline_days``): by default it stays open until
+    someone handles it and is never timed out. A flag and a hard gate take none."""
     if mode not in MODES:
         raise ReviewError(f"mode must be one of {', '.join(MODES)}.")
     if request_id is not None and not REQUEST_ID.match(request_id):
@@ -184,11 +185,12 @@ def raise_review(client, *, subject: dict[str, Any], mode: str, reason: str, rai
             if parse_time(deadline) is None:
                 raise ReviewError("deadline must be an ISO date and time.")
             deadline_at = now_iso(parse_time(deadline))
-        else:
-            days = DEFAULT_SOFT_REVIEW_DAYS if deadline_days is None else deadline_days
-            if days <= 0:
+        elif deadline_days is not None:
+            if deadline_days <= 0:
                 raise ReviewError("deadline_days must be more than zero.")
-            deadline_at = now_iso(moment + timedelta(days=days))
+            deadline_at = now_iso(moment + timedelta(days=deadline_days))
+        else:
+            deadline_at = None  # no expiry: the request stays open until someone handles it
     else:
         if deadline is not None or deadline_days is not None:
             raise ReviewError(f"a {mode.replace('_', ' ')} has no deadline: only a soft review waits until one.")
@@ -374,7 +376,7 @@ def review_gate(client, *, wait: bool = True, poll_seconds: float = 30.0, max_wa
 
 
 def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: list[str], noun: str = "story idea",
-                       deadline_days: float = DEFAULT_SOFT_REVIEW_DAYS, links: Any = None, now: datetime | None = None) -> dict[str, Any]:
+                       deadline_days: float | None = None, links: Any = None, now: datetime | None = None) -> dict[str, Any]:
     """ONE soft review for a run that produced a batch of proposals: "N new story ideas to review".
 
     The subject is the batch; each proposal is a link. Idempotent per ``batch_id``, so a re-run of the same synthesis
@@ -453,7 +455,10 @@ def resolve_recipients(client, *, mode: str, automation: str | None = None, site
 
 def _line(request: dict[str, Any]) -> str:
     subject = request["subject"]
-    when = f"proceeds {request['deadline']}" if request["mode"] == "soft_review" and request["state"] == "open" else request["outcome"]
+    if request["mode"] == "soft_review" and request["state"] == "open":
+        when = f"proceeds {request['deadline']}" if request["deadline"] else "open until handled"
+    else:
+        when = request["outcome"]
     return "\t".join(["reviews", request["id"], request["mode"], request["state"], f"{subject.get('type')}:{subject.get('id')}", when, request["reason"] or ""])
 
 

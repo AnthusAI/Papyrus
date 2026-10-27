@@ -308,7 +308,8 @@ def corpus_sync(run: Run) -> dict:
     export = ["papyrus", "knowledge", "corpus", "export", "--out", str(run.corpus / "raw" / "papyrus"), *backend_options(run), "--static-dir", str(run.static_dir)]
     if run.config.monitor_sources:  # monitor-delivered References join the corpus as data documents, dated by their source date
         export += [
-            "--monitor-sources", ",".join(run.config.monitor_sources), "--monitor-weeks", str(run.config.monitor_weeks),
+            "--monitor-sources", ",".join(run.config.monitor_sources),
+            *(["--monitor-weeks", str(run.config.monitor_weeks)] if run.config.monitor_weeks is not None else []),  # optional; absent means all history
             "--corpus-key", run.config.corpus_key, "--as-of", run.config.monday.isoformat(), "--monitor-records-out", str(run.monitor_records),
         ]
     run.sh(*export)
@@ -530,7 +531,6 @@ def suggest_promotions(run: Run, client: Any) -> dict:
             raised_by="knowledge-run",
             reason=f"{len(picks)} monitor record{'s' if len(picks) != 1 else ''} worth a look this week",
             ask="Promote the ones worth a story with `papyrus references promote <reference id> --section <section>` (it saves a draft; nothing is published). Approve when you have looked, or steer with a note.",
-            deadline_days=7,
             links=[{"label": f"{record.model_id} ({record.reference_id})", "url": record.url} for record in picks],
             request_id=f"rr-monitor-records-{run.config.publication}-{run.config.week}".lower(),
         )
