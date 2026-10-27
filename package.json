@@ -130,6 +130,7 @@
     "test:blog-feature-solver": "tsx scripts/test-blog-feature-solver.ts",
     "test:inline-excerpt": "tsx scripts/test-inline-excerpt.ts",
     "test:sync-middleware-shim": "node scripts/test-sync-middleware-shim.mjs",
+    "test:brand-diff": "node scripts/test-brand-diff.mjs",
     "test:brand-fonts": "tsx scripts/test-brand-fonts.ts",
     "test:brand-fonts-watch": "tsx scripts/test-brand-fonts-watch.ts",
     "test:rhythm-blog-layout": "tsx scripts/test-rhythm-blog-layout.ts",
