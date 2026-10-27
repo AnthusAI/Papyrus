@@ -14,6 +14,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - **Run the weekly knowledge run**: [knowledge-workstation-run.md](knowledge-workstation-run.md), [knowledge-cloud-run.md](knowledge-cloud-run.md).
 - **Review requests and the Notification Center**: [notification-center.md](notification-center.md), [review-requests.md](review-requests.md). The console home is ignore-safe (only a hard gate waits for a person), steering is fed back to the step that raised the request, and marks accompany every colour.
 
+- **Private newsroom chat on a site** (per-site `chat` config, data stack, enablement order): [private-newsroom-chat-per-site.md](private-newsroom-chat-per-site.md).
 - **Shared chat UI implementation**: [shared-chat-ui.md](shared-chat-ui.md), the first Chatticus presentation dependency increment; backend migration remains planned.
 
 ## Features at a glance

@@ -5,6 +5,10 @@
   "brand": "shipped",
   "frontend": "markus-static",
   "papyrusVersion": "5.26.0",
+  "chat": {
+    "enabled": true,
+    "modelKeyParameter": "/papyrus/shipped/openai-api-key"
+  },
   "aws": {
     "profile": "papyrus-production",
     "accountId": "712236451410",
