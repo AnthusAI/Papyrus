@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AssignmentRecord, NewsroomSectionRecord, ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
@@ -15,7 +14,8 @@ import {
   newsroomDeskKind,
   sortNewsroomSections,
 } from "../lib/newsroom-sections";
-import { newsroomInboxRowClassName } from "../lib/newsroom-list-selection";
+import { cn } from "@/lib/utils";
+import { FEED_SURFACE_PROPS } from "./reference-feed";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
@@ -101,7 +101,7 @@ export function NewsroomOpsOverview({
   const rateDisabled = disabledReason ?? (showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null);
 
   const below = (
-    <div className="space-y-12 pt-6" data-newsroom-overview-below>
+    <div className="space-y-12 pt-6" data-newsroom-overview-below {...FEED_SURFACE_PROPS}>
         {attentionAssignments.length ? (
           <section aria-label="Open assignments" className="space-y-3">
             <h2 className="text-sm font-medium text-muted-foreground">Open assignments</h2>
@@ -112,7 +112,7 @@ export function NewsroomOpsOverview({
                 return (
                   <Link
                     aria-current={active ? "true" : undefined}
-                    className={newsroomInboxRowClassName(active)}
+                    className={cn("flex items-start gap-3 rounded-[16px] bg-[var(--feed-card)] p-3 text-foreground outline-none transition-colors hover:bg-[var(--feed-control)] focus-visible:ring-2 focus-visible:ring-ring", active && "bg-[var(--feed-control)]")}
                     data-newsroom-inbox-item="assignment"
                     data-newsroom-list-row
                     data-selected={active || undefined}
@@ -123,7 +123,7 @@ export function NewsroomOpsOverview({
                       <p className="truncate text-sm font-medium text-foreground">{assignment.title}</p>
                       <p className="text-xs text-muted-foreground">Assignment · {assignment.assignmentTypeKey}</p>
                     </div>
-                    <Badge className="mt-0.5 shrink-0" variant="secondary">{assignment.status}</Badge>
+                    <span className="mt-0.5 shrink-0 rounded-full bg-[var(--feed-control)] px-2 py-0.5 text-xs font-medium">{assignment.status}</span>
                   </Link>
                 );
               })}
@@ -143,7 +143,7 @@ export function NewsroomOpsOverview({
                   href={buildNewsroomSectionHref(section.id, demo)}
                   key={section.id}
                 >
-                  <Card className="h-full transition-colors hover:border-primary/30">
+                  <Card className="h-full rounded-[20px] border-0 bg-[var(--feed-card)] shadow-none ring-0 transition-colors hover:bg-[var(--feed-control)]">
                     <CardHeader className="p-4">
                       <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
                       <CardDescription className="uppercase tracking-wide text-[0.65rem]">
@@ -163,7 +163,7 @@ export function NewsroomOpsOverview({
                   href={buildNewsroomSectionHref(section.id, demo)}
                   key={section.id}
                 >
-                  <Card className="h-full transition-colors hover:border-primary/30">
+                  <Card className="h-full rounded-[20px] border-0 bg-[var(--feed-card)] shadow-none ring-0 transition-colors hover:bg-[var(--feed-control)]">
                     <CardHeader className="p-4">
                       <CardTitle className="text-base font-semibold">{section.title}</CardTitle>
                       <CardDescription className="uppercase tracking-wide text-[0.65rem]">

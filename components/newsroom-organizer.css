@@ -16,7 +16,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-destinations a[aria-current=page]{color:var(--org-ink);box-shadow:inset 3px 0 0 var(--org-accent)}
 .newsroom-organizer :is(a,button):focus-visible,.organizer-menu :is(a,button):focus-visible{outline:2px solid currentColor;outline-offset:-3px}
 .organizer-workspace{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;padding:0 16px}
-.organizer-topbar{height:48px;min-height:48px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--org-line)}
+.organizer-topbar{height:48px;min-height:48px;display:flex;align-items:center;gap:16px}
 .organizer-masthead{font:900 28px var(--font-wordmark),Georgia,serif;white-space:nowrap;max-width:30vw;overflow:hidden;text-overflow:ellipsis}
 .organizer-masthead-logo{display:block;height:24px;width:auto;max-width:36vw;overflow:visible}
 .organizer-topbar h1{font:400 12px var(--kb-theme-ui-font);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
