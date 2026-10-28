@@ -103,6 +103,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise
     And our captured record and the import details come after the rating
     And the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there
+    And the stored text is Markdown shown formatted, with headings and lists as such and no Markdown syntax showing through
     And the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing
     And each state has its own Lucide icon as well as its words, and the record sits above the source preview
     And every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened
@@ -141,6 +142,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then the record shows the card's status, word count, summary, GROBID fields and the curation text, and the card badge follows the curation status
     And "No text captured" shows only when neither a card with text nor extracted text exists, with the card's typed reason in words
     And a paywall phrase at the end of a long capture says it may be cut off, and a degraded card says a stage is unfinished
+    And a long capture that only ends without a full stop lists that as a fact but is not sent to the editor as a capture check
 
   Scenario: An editor pastes or corrects the text and says whether the capture was complete
     Given a Reference with no captured text

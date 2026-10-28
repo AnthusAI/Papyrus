@@ -432,3 +432,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
  .organizer-header-settings{display:none}
  .organizer-bottom-nav{border-top:0;background:color-mix(in oklab,var(--org-paper) 95%,var(--org-ink))}
 }
+
+/* Captured text in the reference detail reads in the feed's own type, not the analysis view's serif and small caps. */
+[data-capture-text] .reference-capture-markdown,[data-capture-text] .reference-capture-markdown :is(h1,h2,h3,h4,h5,h6,p,li,th,td){font-family:inherit;letter-spacing:normal;text-transform:none}
+[data-capture-text] .reference-capture-markdown :is(h3,h4,h5){font-size:1em;font-weight:600;margin:1em 0 .25em}

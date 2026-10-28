@@ -56,7 +56,7 @@ const decision = (label, confidence) => ({ decisionRelationId: "d", decisionId: 
 const initialDecisions = new Map([["r1", decision("include", 0.95)], ["r2", decision("include", 0.9)], ["r3", decision("include", 0.85)], ["r4", decision("exclude", 0.9)], ["r5", decision("include", 0.8)]]);
 const attachment = (n, role, extra = {}) => ({ id: "att-" + n + "-" + role, referenceId: "r" + n + "-v1", referenceLineageId: "r" + n, referenceVersionKey: "reference#r" + n + "-v1", role, sortKey: "900-" + role, ...extra });
 const words = (count) => Array.from({ length: count }, (_, index) => "word" + index).join(" ");
-window.fixtureTexts = { "fixture://full": "Captured article. " + words(600), "fixture://thin": "Only a teaser. " + words(60) };
+window.fixtureTexts = { "fixture://full": "## Captured article.\\n\\n" + words(600), "fixture://thin": "Only a teaser. " + words(60) };
 window.fixturePayloads = { "r1-v1": [{ attachment: { role: "metadata", sortKey: "metadata" }, json: { summary: "A stored summary of the full article." }, text: null, error: null }] };
 const attachments = [
   attachment(1, "source", { sourceUri: "https://site1.example.org/a" }),
@@ -377,7 +377,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.equal(await panel.locator("[data-capture-label]").innerText(), "Full text captured");
         await panel.locator("[data-capture-text]").waitFor();
         assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("Captured article."), "the stored text is shown");
-        assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("602 words"), "with its word count");
+        // Stored as Markdown, shown formatted: the heading is a heading and no "##" shows through.
+        assert.equal(await panel.locator("[data-capture-text] :is(h2,h3,h4,h5)", { hasText: "Captured article." }).count(), 1, "a Markdown heading renders as a heading");
+        assert.ok(!(await panel.locator("[data-capture-text]").innerText()).includes("##"), "no Markdown syntax shows through");
+        assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("603 words"), "with its word count");
         assert.ok((await review(page).locator("[data-review-summary]").innerText()).includes("A stored summary of the full article."), "the summary is shown with the title");
         assert.equal(await panel.locator("[data-capture-summary]").count(), 0, "and not repeated in the record");
         assert.ok((await panel.locator("[data-capture-structured]").innerText()).includes("Parsed paper title"), "and the structured extraction");

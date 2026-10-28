@@ -256,12 +256,18 @@ test("The curation card is read first; extracted_text is the fallback; No text o
   assert.equal(curationCardOf([attach("a", "curation", { metadata: JSON.stringify({ status: "nonsense" }) })]), null, "an unknown status is not a card");
 });
 
-test("Completeness signals become plain facts, and a paywall phrase in the tail makes a long capture doubtful", () => {
+test("Completeness signals become plain facts, and a paywall phrase in the tail makes a long capture doubtful, but a bare unpunctuated ending does not", () => {
   assert.deepEqual(completenessFlags({ paywallMarkers: [{ id: "subscribe_to_continue", inTail: true }], endingPattern: "ellipsis", bodyNotLongerThanDescription: true }),
     ["The text ends with a subscribe or sign-in phrase.", "The text stops with an ellipsis or a cut-off marker.", "The text is no longer than the page's own description."]);
   assert.deepEqual(completenessFlags({ endingPattern: "sentence_end" }), []);
   const tail = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] } });
   assert.equal(captureStatus([attach("a", "source"), tail]).thinBy, "signals");
+  const midSentence = curation({ status: "ready", capture: { status: "completed", wordCount: 5407 }, signals: { wordCount: 5407, endingPattern: "no_terminal_punctuation" } });
+  const unpunctuated = captureStatus([attach("a", "source"), midSentence]);
+  assert.equal(unpunctuated.state, "full", "a long text that only ends without a full stop is not sent for a capture check");
+  assert.deepEqual(unpunctuated.flags, ["The text stops mid-sentence."], "the ending is still listed as a fact");
+  const ellipsis = curation({ status: "ready", capture: { status: "completed", wordCount: 5407 }, signals: { wordCount: 5407, endingPattern: "ellipsis" } });
+  assert.equal(captureStatus([attach("a", "source"), ellipsis]).thinBy, "signals", "an ellipsis or cut-off marker still is");
   const vouched = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] }, labels: [{ kind: "capture_completeness", assessment: "complete" }] });
   assert.equal(captureStatus([attach("a", "source"), vouched]).state, "full", "an editor's Complete is not second-guessed");
   const edited = curation({ status: "ready", capture: { status: "completed", wordCount: 5 }, signals: { wordCount: 5 }, editedSignals: { wordCount: 1500 }, current: { textSortKey: "curation-edit-0001-text" } });

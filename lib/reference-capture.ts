@@ -196,8 +196,9 @@ export function captureStatus(attachments: readonly ReferenceAttachmentRecord[],
     const flags = completenessFlags(card.editedSignals ?? card.signals);
     const thin = words !== null && words < teaserLine;
     const edited = Boolean(card.current?.textSortKey?.startsWith("curation-edit"));
-    // A complete text an editor vouched for is not second-guessed by the signals.
-    const doubtful = !edited && assessment !== "complete" && flags.length > 0 && !thin ? flags.some((flag) => /ends with|stops|no longer|not free|cut|declares/.test(flag)) : false;
+    // A complete text an editor vouched for is not second-guessed by the signals. A long text that merely ends without a full stop
+    // (a byline, a footnote, a list) is listed as a fact but is not on its own a reason to ask for a capture check.
+    const doubtful = !edited && assessment !== "complete" && flags.length > 0 && !thin ? flags.some((flag) => /ends with|stops with|no longer|not free|cut|declares/.test(flag)) : false;
     return { state: thin || doubtful ? "thin" : "full", words, estimated: false, source: "curation", curation: card.status, reason: null, flags, assessment, summaryStale, ...(thin ? { thinBy: "length" as const } : doubtful ? { thinBy: "signals" as const } : {}) };
   }
   if (primaryTextAttachment(attachments)) {

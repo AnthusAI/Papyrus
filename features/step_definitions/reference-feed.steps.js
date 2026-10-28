@@ -90,6 +90,7 @@ const syncOutcomes = [
     "the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise",
     "our captured record and the import details come after the rating",
     'the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there',
+    "the stored text is Markdown shown formatted, with headings and lists as such and no Markdown syntax showing through",
     'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',
     "each state has its own Lucide icon as well as its words, and the record sits above the source preview",
     "every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened",
@@ -137,6 +138,7 @@ Then("an Earlier card can be rated and stays where it is", async function () { a
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("the page header, the tabs and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
+Then("a long capture that only ends without a full stop lists that as a fact but is not sent to the editor as a capture check", async function () { assert.match(await ranking(), /but a bare unpunctuated ending does not/); });
 Then("the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out", async function () { assert.match(await ranking(), /The saved copy and the session display survive a return visit/); });
 
 Then("each source's mark is the icon the newsroom found for it, or its first letter when there is none", async function () { assert.ok((await browser("images")).includes("passed: images")); });
