@@ -18,7 +18,7 @@ Feature: A collected item is curated before it is decided and before an editor r
 
   Scenario: The decision request carries the summary and the captured text
     When the enriching router runs
-    Then each decision request carries the summary and the full captured text
+    Then each decision request carries the summary and the full captured text inside its text
     And the request text is the title, the address, the summary and the captured text
 
   Scenario: Delivery copies the curation onto each delivered Reference
@@ -45,5 +45,5 @@ Feature: A collected item is curated before it is decided and before an editor r
   Scenario: A very long source is sent whole
     Given the article is far longer than any size the router once cut to
     When the enriching router runs
-    Then every decision request carries the whole body and the matching text
+    Then every decision request carries the whole body once, inside its text
     And the story's discovery records no cut

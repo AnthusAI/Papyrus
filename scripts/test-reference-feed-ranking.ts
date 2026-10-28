@@ -12,6 +12,7 @@ import {
   takeFeedOrderSnapshot,
   partitionReferenceFeed,
 } from "../lib/reference-feed-ranking";
+import { withoutSiteName } from "../lib/newsroom-references";
 import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
 import { captureLine, captureStatus, curationCardOf, completenessFlags, captureStatusesByLineage, countWords, structuredRows, teaserWords, DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
 import { clearSavedNewsroomDisplay, loadFeedSnapshot, loadSessionDisplay, saveFeedSnapshot, saveSessionDisplay, SESSION_DISPLAY_TTL_MS } from "../lib/reference-feed-cache";
@@ -179,6 +180,16 @@ test("Sections: Top predictions are the Accepts at least half as strong as the b
   assert.deepEqual(groupFeedItems([]), []);
 });
 
+test("A title drops the site name tacked on its end, and only that", () => {
+  assert.equal(withoutSiteName("Auditing employment algorithms for discrimination | Brookings", "www.brookings.edu"), "Auditing employment algorithms for discrimination");
+  assert.equal(withoutSiteName("How an algorithm denied food to the poor | Poverty and Development | Al Jazeera", "www.aljazeera.com"), "How an algorithm denied food to the poor", "with a pipe the section name goes too");
+  assert.equal(withoutSiteName("Welfare system fuels mass surveillance – report - Amnesty International", "www.amnesty.org"), "Welfare system fuels mass surveillance – report", "only the shortest segment naming the site");
+  assert.equal(withoutSiteName("GitHub - foo/bar: a tool", "github.com"), "GitHub - foo/bar: a tool", "a site name at the start stays");
+  assert.equal(withoutSiteName("Malicious AI Models Undermine Supply-Chain Security", "cacm.acm.org"), "Malicious AI Models Undermine Supply-Chain Security");
+  assert.equal(withoutSiteName("Brookings", "brookings.edu"), "Brookings", "never an empty title");
+  assert.equal(withoutSiteName("A | B", null), "A | B");
+});
+
 test("A dek is dropped when it adds nothing to the headline or the picture", () => {
   assert.equal(dekAddsInformation("Jukebox-OS: time-travel replay for AI agents", "Jukebox-OS: time-travel replay for AI agents - owner/jukebox-os", null), false, "repeats the headline");
   assert.equal(dekAddsInformation("Jukebox-OS", "A deterministic flight recorder for multi-agent systems", "https://opengraph.githubassets.com/abc/owner/repo"), false, "a GitHub social card already prints it");
@@ -256,12 +267,18 @@ test("The curation card is read first; extracted_text is the fallback; No text o
   assert.equal(curationCardOf([attach("a", "curation", { metadata: JSON.stringify({ status: "nonsense" }) })]), null, "an unknown status is not a card");
 });
 
-test("Completeness signals become plain facts, and a paywall phrase in the tail makes a long capture doubtful", () => {
+test("Completeness signals become plain facts, and a paywall phrase in the tail makes a long capture doubtful, but a bare unpunctuated ending does not", () => {
   assert.deepEqual(completenessFlags({ paywallMarkers: [{ id: "subscribe_to_continue", inTail: true }], endingPattern: "ellipsis", bodyNotLongerThanDescription: true }),
     ["The text ends with a subscribe or sign-in phrase.", "The text stops with an ellipsis or a cut-off marker.", "The text is no longer than the page's own description."]);
   assert.deepEqual(completenessFlags({ endingPattern: "sentence_end" }), []);
   const tail = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] } });
   assert.equal(captureStatus([attach("a", "source"), tail]).thinBy, "signals");
+  const midSentence = curation({ status: "ready", capture: { status: "completed", wordCount: 5407 }, signals: { wordCount: 5407, endingPattern: "no_terminal_punctuation" } });
+  const unpunctuated = captureStatus([attach("a", "source"), midSentence]);
+  assert.equal(unpunctuated.state, "full", "a long text that only ends without a full stop is not sent for a capture check");
+  assert.deepEqual(unpunctuated.flags, ["The text stops mid-sentence."], "the ending is still listed as a fact");
+  const ellipsis = curation({ status: "ready", capture: { status: "completed", wordCount: 5407 }, signals: { wordCount: 5407, endingPattern: "ellipsis" } });
+  assert.equal(captureStatus([attach("a", "source"), ellipsis]).thinBy, "signals", "an ellipsis or cut-off marker still is");
   const vouched = curation({ status: "ready", capture: { status: "completed", wordCount: 800 }, signals: { wordCount: 800, paywallMarkers: [{ id: "x", inTail: true }] }, labels: [{ kind: "capture_completeness", assessment: "complete" }] });
   assert.equal(captureStatus([attach("a", "source"), vouched]).state, "full", "an editor's Complete is not second-guessed");
   const edited = curation({ status: "ready", capture: { status: "completed", wordCount: 5 }, signals: { wordCount: 5 }, editedSignals: { wordCount: 1500 }, current: { textSortKey: "curation-edit-0001-text" } });

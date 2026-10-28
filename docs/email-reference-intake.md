@@ -127,7 +127,6 @@ must agree. An example publication destination is:
   "mode": "dry-run",
   "enabled": false,
   "decisions": "direct",
-  "feedback": false,
   "publications": [{
     "publicationId": "publication",
     "site": "publication.example",
@@ -142,8 +141,8 @@ For a shared destination, use `kind: "shared"`, an explicit list of permitted
 `cyclotron` block (`endpoint`, `accountId`, `runId`, `bindingRevision`, `roleArn`).
 The Account IDs must match; router publications must exactly match the explicit
 grant list. The shared Cyclotron independently enforces the machine invoker's
-grants. Procedure triggers and automated feedback are prohibited for email
-destinations. No additional inference about site ownership is made.
+grants. Procedure triggers are prohibited for email
+destinations. Editor feedback is not configured; a Cyclotron-decided router always sends it in live mode. No additional inference about site ownership is made.
 
 Email source identity is provenance only. SES's envelope source and the MIME
 `From` header are displayed separately and labeled unverified; neither is matched

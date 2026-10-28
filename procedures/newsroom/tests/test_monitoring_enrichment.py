@@ -63,8 +63,8 @@ def test_a_collected_item_is_enriched_before_it_is_posted_and_the_payload_carrie
     assert len(enrich.capture.calls) == 1                       # once per item, not once per publication
     values = posted_values(cyclotron)
     assert len(values) == len(PUBS) and all(v == values[0] for v in values)
-    assert set(values[0]) == {"title", "url", "source", "sourceItemUrl", "summary", "body", "text"}
-    assert values[0]["summary"] == SUMMARY and values[0]["body"] == ARTICLE
+    assert set(values[0]) == {"title", "url", "source", "sourceItemUrl", "summary", "text"}
+    assert values[0]["summary"] == SUMMARY and "body" not in values[0]
     assert values[0]["text"] == f"Alpha source\nhttps://example.org/alpha\n\n{SUMMARY}\n\n{ARTICLE}"
     row = table.items[("MONITOR#hn", "ENRICH#101#000001")]
     assert row["final"] is True and row["status"] == "ready" and row["curation"]["summary"]["text"] == SUMMARY
@@ -76,7 +76,8 @@ def test_the_combined_request_carries_the_same_enriched_item(table):
     cyclotron.combined_enabled = True
     go(table, store, cyclotron, enricher=enricher(good()))
     (_, _, body), = cyclotron.combined_calls[:1]
-    assert body["payload"]["item"]["values"]["summary"] == SUMMARY and body["payload"]["item"]["values"]["body"] == ARTICLE
+    assert body["payload"]["item"]["values"]["summary"] == SUMMARY and "body" not in body["payload"]["item"]["values"]
+    assert body["payload"]["item"]["values"]["text"].endswith(ARTICLE)
 
 
 def test_nothing_is_posted_before_enrichment_was_attempted_and_a_rerun_does_not_enrich_again(table):
@@ -132,7 +133,7 @@ def test_a_transient_failure_that_passes_gets_the_enriched_decision(table):
     enrich = enricher(failed(transient=True), good())
     go(table, store, cyclotron, now=2000, enricher=enrich)
     go(table, store, cyclotron, now=2400, enricher=enrich)
-    assert posted_values(cyclotron)[0]["body"] == ARTICLE
+    assert posted_values(cyclotron)[0]["text"].endswith(ARTICLE)
 
 
 def test_a_missing_summarizer_is_a_degraded_status_not_a_stop(table):
@@ -177,7 +178,7 @@ def test_a_very_long_body_is_sent_whole_in_every_request(table):
     go(table, store, cyclotron, enricher=enrich)
     assert cyclotron.posts()
     for values in posted_values(cyclotron):
-        assert values["body"] == huge and values["text"].endswith(huge) and values["summary"] == SUMMARY
+        assert "body" not in values and values["text"].endswith(huge) and values["summary"] == SUMMARY
     assert "bodyTruncatedForLabLimit" not in table.items[("MONITOR#hn", "DISC#101#000001")]
 
 
@@ -196,7 +197,7 @@ def test_validation_accepts_the_enriched_shape_and_rejects_a_text_that_is_not_th
     with pytest.raises(ValueError):
         mr.validate_request(bad)
     oversize = json.loads(json.dumps(body))
-    oversize["payload"]["item"]["values"].update(body="B" * 70_000, text="x")
+    oversize["payload"]["item"]["values"].update(body="B")   # the captured text travels only inside `text`
     with pytest.raises(ValueError):
         mr.validate_request(oversize)
 
@@ -242,7 +243,7 @@ def test_what_the_panel_shows_is_what_was_decided(copied):
     decided = posted_values(copied.cyclotron)[0]
     card = copied.client.card("reference-anth-us-101")
     assert card["summary"]["text"] == decided["summary"]
-    assert copied.stores[0].text({"id": "reference-anth-us-101"}, "curation-text") == decided["body"]
+    assert copied.stores[0].text({"id": "reference-anth-us-101"}, "curation-text") == decided["text"].split("\n\n", 2)[2]
 
 
 def test_the_post_delivery_curation_procedure_finds_nothing_to_do(copied):

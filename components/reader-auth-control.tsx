@@ -36,7 +36,9 @@ export function ReaderAuthControl({
     if (!nextPath) return;
     if (window.location.pathname !== "/" || window.location.search || window.location.hash) return;
     if (storedPath) window.sessionStorage.removeItem(POST_AUTH_PATH_KEY);
-    window.history.replaceState(window.history.state, "", nextPath);
+    if (nextPath === "/") return;
+    // Sign-in comes back to "/"; the page asked for (a deep link such as /references/<id>) may be another route, so load it.
+    window.location.replace(nextPath);
   }, [postAuthPath]);
 
   const refreshAuthState = useCallback(async () => {

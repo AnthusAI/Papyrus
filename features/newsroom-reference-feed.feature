@@ -17,6 +17,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then the order runs from the strongest Accept, through the item with no prediction, to the strongest Reject
     And the first card is the large lead card, and the grid has one column on a phone and three or more on a desktop
     And every card shows its title, dek, source, age, the Cyclotron's Accept or Reject with its confidence and icon, and large Accept and Reject buttons
+    And a title shows without the site name a page tacks on its end, such as " | Brookings" or " | Poverty and Development | Al Jazeera"
     And nothing scrolls sideways and there are no drop-downs
 
   Scenario: Age fades a prediction toward not sure, at a pace learned from the editor's own accepts
@@ -69,6 +70,14 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor opens the feed at 375 and 1440 pixels
     Then the pictures are lazy, in a fixed frame and requested with no referrer
     And a missing or failing picture shows a soft gradient tile with the source's mark and name
+    And each source's mark is the icon the newsroom found for it, or its first letter when there is none
+
+  Scenario: The newsroom finds a source's real icon instead of guessing
+    Given a source home page that declares its icons
+    When the newsroom looks for that source's icon
+    Then it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons
+    And it falls back to /favicon.ico only when that is more than an empty placeholder
+    And only real host names that resolve to public addresses are ever fetched
 
   Scenario: The page shows its shell and card skeletons at once, never a checking screen
     Given the References are still loading
@@ -95,6 +104,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise
     And our captured record and the import details come after the rating
     And the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there
+    And the stored text is Markdown shown formatted, with headings and lists as such and no Markdown syntax showing through
     And the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing
     And each state has its own Lucide icon as well as its words, and the record sits above the source preview
     And every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened
@@ -117,14 +127,15 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   Scenario: Previous and Next scroll the grid to the same item and select it
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens a card and steps through the queue with Next and Previous
-    Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline
+    Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge
     And opening a card from the grid selects it too
+    And before any card is selected there is no Detail pane and the feed has the whole width
 
   Scenario: The grid stays put while the editor selects, rates and the data refreshes
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item
     Then every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels
-    And the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet
+    And the column count stays fixed while the detail pane is open: from the tablet width up the pane appears beside the grid with the first selection and then holds its place, so moving between items moves nothing, while below that the detail is a sheet
     And the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it
 
   Scenario: The captured record reads the curation card first, with extracted text as a fallback
@@ -133,6 +144,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then the record shows the card's status, word count, summary, GROBID fields and the curation text, and the card badge follows the curation status
     And "No text captured" shows only when neither a card with text nor extracted text exists, with the card's typed reason in words
     And a paywall phrase at the end of a long capture says it may be cut off, and a degraded card says a stage is unfinished
+    And a long capture that only ends without a full stop lists that as a fact but is not sent to the editor as a capture check
 
   Scenario: An editor pastes or corrects the text and says whether the capture was complete
     Given a Reference with no captured text

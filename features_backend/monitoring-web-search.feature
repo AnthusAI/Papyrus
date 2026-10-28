@@ -13,6 +13,12 @@ Feature: Web-search monitors find new references for each publication through Ta
     Then all seventy articles are recorded
     And the monitor asked Tavily for narrower date ranges until no range filled a page
 
+  Scenario: An arXiv paper is titled by arXiv, not by its first section heading
+    Given Tavily returns an arXiv HTML page titled "1 Introduction" and an ordinary article
+    When the results become items
+    Then the arXiv item carries the paper's own title from arXiv in one request, and the article keeps its title
+    And if arXiv cannot be reached the search engine's title stands
+
   Scenario: Recency comes from the query's high-water mark, not a fixed window
     Given a web monitor for anth-us whose query completed a pass on 21 October
     When the web monitor collects five days later

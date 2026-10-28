@@ -56,7 +56,7 @@ const decision = (label, confidence) => ({ decisionRelationId: "d", decisionId: 
 const initialDecisions = new Map([["r1", decision("include", 0.95)], ["r2", decision("include", 0.9)], ["r3", decision("include", 0.85)], ["r4", decision("exclude", 0.9)], ["r5", decision("include", 0.8)]]);
 const attachment = (n, role, extra = {}) => ({ id: "att-" + n + "-" + role, referenceId: "r" + n + "-v1", referenceLineageId: "r" + n, referenceVersionKey: "reference#r" + n + "-v1", role, sortKey: "900-" + role, ...extra });
 const words = (count) => Array.from({ length: count }, (_, index) => "word" + index).join(" ");
-window.fixtureTexts = { "fixture://full": "Captured article. " + words(600), "fixture://thin": "Only a teaser. " + words(60) };
+window.fixtureTexts = { "fixture://full": "## Captured article.\\n\\n" + words(600), "fixture://thin": "Only a teaser. " + words(60) };
 window.fixturePayloads = { "r1-v1": [{ attachment: { role: "metadata", sortKey: "metadata" }, json: { summary: "A stored summary of the full article." }, text: null, error: null }] };
 const attachments = [
   attachment(1, "source", { sourceUri: "https://site1.example.org/a" }),
@@ -332,13 +332,26 @@ const scenarios: Record<string, () => Promise<void>> = {
     }
   },
 
-  /** Previous / Next scrolls the grid to the same item and selects it: a tinted surface and a left accent bar, no outline. */
+  /** Previous / Next scrolls the grid to the same item and selects it: a tinted surface and a thick ring outside the card, no border. */
   async previous_next_selects() {
     const { browser, page, errors } = await setup(1440);
     try {
+      await card(page, "r1").waitFor();
+      assert.equal(await page.locator("[data-newsroom-list-detail-shell]").isVisible(), false, "no empty Detail pane before a reference is selected");
       await open(page, "r1");
+      assert.equal(await page.locator("[data-newsroom-list-detail-shell]").isVisible(), true, "the pane appears with the selection");
       assert.equal(await page.locator("[data-feed-selected]").getAttribute("data-feed-card"), "r1", "opening from the grid selects the card");
-      assert.equal(await card(page, "r1").locator("[data-feed-selected-bar]").count(), 1, "with a left accent bar");
+      // A thick ring drawn outside the card on every side (a box-shadow): nothing inside it is covered and it takes no layout space.
+      assert.equal(await card(page, "r1").locator("[data-feed-selected-bar]").count(), 0, "no left strip");
+      await page.waitForTimeout(400);   // the ring eases in
+      const ring = await card(page, "r1").evaluate((el) => getComputedStyle(el).boxShadow);
+      assert.match(ring, /0px 0px 0px 4px/, `a 4px ring outside the card: ${ring}`);
+      const room = await page.evaluate(() => {
+        const box = document.querySelector('[data-feed-card="r1"]')!.getBoundingClientRect();
+        const scroller = document.querySelector("[data-reference-feed-scroll]")!.getBoundingClientRect();
+        return { left: box.left - scroller.left, top: box.top - scroller.top };
+      });
+      assert.ok(room.left >= 4 && room.top >= 4, `the scroller leaves room for the ring, so it is not cut off: ${JSON.stringify(room)}`);
       const style = await card(page, "r1").evaluate((el) => { const c = getComputedStyle(el); return { border: c.borderTopWidth, outline: c.outlineStyle }; });
       assert.deepEqual(style, { border: "0px", outline: "none" }, "no outline lines");
       const queue = page.locator("[data-review-queue-bar]:visible");
@@ -377,7 +390,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.equal(await panel.locator("[data-capture-label]").innerText(), "Full text captured");
         await panel.locator("[data-capture-text]").waitFor();
         assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("Captured article."), "the stored text is shown");
-        assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("602 words"), "with its word count");
+        // Stored as Markdown, shown formatted: the heading is a heading and no "##" shows through.
+        assert.equal(await panel.locator("[data-capture-text] :is(h2,h3,h4,h5)", { hasText: "Captured article." }).count(), 1, "a Markdown heading renders as a heading");
+        assert.ok(!(await panel.locator("[data-capture-text]").innerText()).includes("##"), "no Markdown syntax shows through");
+        assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("603 words"), "with its word count");
         assert.ok((await review(page).locator("[data-review-summary]").innerText()).includes("A stored summary of the full article."), "the summary is shown with the title");
         assert.equal(await panel.locator("[data-capture-summary]").count(), 0, "and not repeated in the record");
         assert.ok((await panel.locator("[data-capture-structured]").innerText()).includes("Parsed paper title"), "and the structured extraction");
@@ -466,13 +482,16 @@ function assertSame(before: Awaited<ReturnType<typeof geometry>>, after: Awaited
 Object.assign(scenarios, {
   /** Selecting, rating and a background refresh never move a card: same order, same boxes, same scroll position. */
   async grid_stays_put() {
-    // 900 and 1440: the detail pane holds its place beside the grid all along; 375: the detail is a sheet.
+    // 900 and 1440: the detail pane appears beside the grid with the first selection (the grid narrows once) and then holds its place;
+    // 375: the detail is a sheet.
     for (const width of [375, 900, 1440]) {
       const { browser, page, errors } = await setup(width);
       try {
-        // The pane's place is reserved from md up, so opening it changes nothing (below md the detail is a sheet).
-        assert.equal(await page.locator("[data-news-desk-section=references]").first().getAttribute("data-detail-reserved"), "true");
         const columns = async () => page.locator("[data-feed-grid]").first().evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length);
+        await domClick(card(page, "r1").locator("[data-feed-open]"));
+        await review(page).waitFor();
+        await page.waitForTimeout(250);
+        if (width < 768) { await page.keyboard.press("Escape"); await page.waitForTimeout(300); }
         const columnsBefore = await columns();
         const before = await geometry(page);
         let last = before;

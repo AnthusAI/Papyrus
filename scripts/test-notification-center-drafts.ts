@@ -398,8 +398,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator('[data-notification-filter="all"]').click();
       assert.ok((await page.locator("[data-needs-me-card]").count()) >= 6);
 
-      // The same detail pane opens for every type, with a body that fits it.
+      // The same detail pane opens for every type, with a body that fits it. Until something is selected there is no pane at all.
       const shell = page.locator("[data-needs-me-detail-shell]");
+      assert.equal(await shell.isVisible(), false, `no empty Detail pane before a selection at ${width}px`);
       for (const [selector, type, expected] of [
         ['[data-needs-me-card="stage_review"]', "stage_review", ["Hard gate", "Accept this ruling summary"]],
         ['[data-review-draft="proposal-1"]', "draft", ["Sparse attention goes open", "Citations"]],
@@ -420,6 +421,31 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await page.locator('[data-needs-me-card="held_email"] [data-needs-me-default]').innerText()).includes("stays held privately"));
       assert.ok((await page.locator('[data-review-draft="proposal-1"] [data-needs-me-default]').innerText()).includes("Closes on"));
       assert.ok((await noHorizontalScroll(page)) <= 0, `no horizontal scroll at ${width}px`);
+    });
+  },
+
+  /** The open item is in the address: selecting one shows /needs-me/<id>, a link to it opens it, closing returns to the overview. */
+  async deepLink() {
+    await run("?mixed=1", [1440, 375], async (page, width) => {
+      const card = page.locator('[data-feed-card="reference-a"]');
+      await card.waitFor();
+      assert.ok(!page.url().includes("/needs-me/"), "the overview address names no item");
+      await openDetail(page, card);
+      assert.ok(new URL(page.url()).pathname.endsWith("/needs-me/reference-a"), `selecting shows the item in the address at ${width}px: ${page.url()}`);
+      if (width < 768) {   // the phone sheet closes, and the address goes back to the overview
+        await page.keyboard.press("Escape");
+        await page.waitForFunction(() => !location.pathname.includes("/needs-me/"));
+      }
+    });
+    await run("/needs-me/reference-a?mixed=1", [1440, 375], async (page, width) => {
+      const pane = page.locator('[data-needs-me-detail-type="reference"]').last();
+      await pane.waitFor({ timeout: 15_000 });
+      assert.ok((await pane.innerText()).includes("ReadyArt"), `a link opens that item at ${width}px`);
+      assert.equal(await page.locator("[data-needs-me-link-gone]").count(), 0);
+    });
+    await run("/needs-me/no-such-item?mixed=1", [1440], async (page) => {
+      await page.locator("[data-needs-me-link-gone]").waitFor({ timeout: 15_000 });
+      assert.equal(await page.locator("[data-needs-me-detail-shell]").isVisible(), false, "no empty pane for a link to an item that is not waiting");
     });
   },
 

@@ -6,6 +6,7 @@ import { captureLine, type CaptureAssessment, type CaptureState, type CaptureSta
 import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import type { CaptureView } from "./reference-capture-client";
+import { MarkdownContext } from "./markdown-context";
 
 const ICON = { full: FileCheckIcon, thin: FileWarningIcon, none: FileXIcon, running: FileClockIcon } as const;
 /** Colour never stands alone: each state has its own icon and words. */
@@ -147,8 +148,9 @@ export function ReferenceCapturePanel({ capture, showSummary = true, startEditin
       {text && !editing ? (
         <div className="space-y-2">
           {/* No scroll box of its own: on a phone a swipe here scrolls the page. "Show all" grows it in place. */}
-          <div className="whitespace-pre-wrap rounded-2xl bg-[var(--feed-control)] p-3 text-sm leading-relaxed" data-capture-text>
-            {expanded || !long ? text : `${text.slice(0, PREVIEW_CHARACTERS)}…`}
+          {/* Captured pages are stored as Markdown: render it (as React elements, never HTML) so headings and lists read as such. */}
+          <div className="rounded-2xl bg-[var(--feed-control)] p-3 text-sm leading-relaxed" data-capture-text>
+            <MarkdownContext className="reference-capture-markdown" text={expanded || !long ? text : `${text.slice(0, PREVIEW_CHARACTERS)}…`} />
           </div>
           {long ? (
             <button className="rounded-full bg-[var(--feed-control)] px-3 py-1.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring" data-capture-toggle onClick={() => setExpanded((value) => !value)} type="button">

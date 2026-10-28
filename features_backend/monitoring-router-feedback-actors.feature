@@ -5,7 +5,7 @@ Feature: The router sends feedback for references curated by people, including i
   Curation by the worker or by AI is not an editor's judgement and is never sent.
 
   Background:
-    Given a router with feedback on and three delivered stories
+    Given a router and three delivered stories
 
   Scenario: An accept from the newsroom UI is sent as feedback
     When an editor accepts a reference in the newsroom UI
@@ -56,3 +56,15 @@ Feature: The router sends feedback for references curated by people, including i
     And the feedback task runs
     Then no feedback was sent to Cyclotron that was accepted
     And the vote was recorded as stale
+
+  Scenario: A Cyclotron-decided live monitor always sends editors' feedback; there is no switch
+    Given the stored router config has no feedback setting
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+
+  Scenario: A feedback setting left over in an old stored config is ignored
+    Given the stored router config still says feedback is false
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include

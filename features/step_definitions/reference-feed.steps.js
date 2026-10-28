@@ -90,6 +90,7 @@ const syncOutcomes = [
     "the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise",
     "our captured record and the import details come after the rating",
     'the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there',
+    "the stored text is Markdown shown formatted, with headings and lists as such and no Markdown syntax showing through",
     'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',
     "each state has its own Lucide icon as well as its words, and the record sits above the source preview",
     "every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened",
@@ -100,12 +101,13 @@ const syncOutcomes = [
   ["card_and_detail_agree", ["both show the Reject, the card shows the reason and the red or green match state with its icon"]],
   ["grid_stays_put", [
     "every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels",
-    "the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet",
+    "the column count stays fixed while the detail pane is open: from the tablet width up the pane appears beside the grid with the first selection and then holds its place, so moving between items moves nothing, while below that the detail is a sheet",
     'the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it',
   ]],
   ["previous_next_selects", [
-    "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline",
+    "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge",
     "opening a card from the grid selects it too",
+    "before any card is selected there is no Detail pane and the feed has the whole width",
   ]],
 ];
 for (const [name, texts] of syncOutcomes) {
@@ -137,7 +139,20 @@ Then("an Earlier card can be rated and stays where it is", async function () { a
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("the page header, the tabs and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
+Then("a title shows without the site name a page tacks on its end, such as \" | Brookings\" or \" | Poverty and Development | Al Jazeera\"", async function () { assert.match(await ranking(), /A title drops the site name tacked on its end/); });
+Then("a long capture that only ends without a full stop lists that as a fact but is not sent to the editor as a capture check", async function () { assert.match(await ranking(), /but a bare unpunctuated ending does not/); });
 Then("the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out", async function () { assert.match(await ranking(), /The saved copy and the session display survive a return visit/); });
+
+Then("each source's mark is the icon the newsroom found for it, or its first letter when there is none", async function () { assert.ok((await browser("images")).includes("passed: images")); });
+
+// The icon lookup itself: scripts/test-source-icon.ts covers the ordering and the host guard.
+Given("a source home page that declares its icons", function () { this.iconResult = ""; });
+When("the newsroom looks for that source's icon", async function () { this.iconResult = await run("scripts/test-source-icon.ts"); });
+for (const text of [
+  "it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons",
+  "it falls back to /favicon.ico only when that is more than an empty placeholder",
+  "only real host names that resolve to public addresses are ever fetched",
+]) Then(text, function () { assert.match(this.iconResult, /source icon check: ok/); });
 
 // The framing check itself: scripts/test-source-frameable.ts covers the header rules and the address guard.
 Given("a source page and the headers it sends", function () { this.frameableResult = ""; });
