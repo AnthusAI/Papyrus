@@ -122,16 +122,19 @@ export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNot
     try {
       await latest.current.save(id, choice, { note: note.trim(), reasonCode: choice === "reject" ? reasonCode : null });
       if (latest.current.sticky?.(id)) decidedHere.current.add(id);
-      // What was saved now follows the record again (another editor's update shows); anything typed meanwhile is kept.
+      // What was saved now follows the record again (another editor's update shows); anything typed meanwhile is kept. While another
+      // save is due (changed mid-save), the store keeps everything: the record may not show this save yet, and the next one sends it.
       const now = itemsRef.current[id] ?? EMPTY;
-      patch(id, { pending: null, feedback: { phase: "saved" }, ...(now.note === started.note ? { note: undefined } : {}), ...(now.reasonCode === started.reasonCode ? { reasonCode: undefined } : {}) });
+      const follow = !dirty.current.has(id);
+      patch(id, { pending: null, feedback: { phase: "saved" }, ...(follow && now.note === started.note ? { note: undefined } : {}), ...(follow && now.reasonCode === started.reasonCode ? { reasonCode: undefined } : {}) });
     } catch (failure) {
       // The typed reason stays in the store; only the vote is undone.
       patch(id, { pending: null, feedback: { phase: "error", message: failure instanceof Error ? failure.message : "Your answer could not be saved. Tap it again to retry." } });
     } finally {
       inFlight.current.delete(id);
     }
-    if (dirty.current.has(id)) { dirty.current.delete(id); const again = itemsRef.current[id]?.pending ?? latest.current.saved(id); if (again) void commit(id, again); }
+    // Changed while saving (a reason chip tapped mid-save): save again. The record may not show the vote yet, so fall back to it.
+    if (dirty.current.has(id)) { dirty.current.delete(id); const again = itemsRef.current[id]?.pending ?? latest.current.saved(id) ?? choice; if (again) void commit(id, again); }
   }, [patch, saveNoteOnly]);
 
   const effective = (id: string): ReviewChoice | null => itemsRef.current[id]?.pending ?? latest.current.saved(id);

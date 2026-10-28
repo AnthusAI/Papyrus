@@ -28,6 +28,7 @@ Feature: An editor reviews references even when a prediction is unavailable
     When the editor reloads a rejected reference and clears its saved explanation
     Then the reason from review history remains selected and the cleared explanation survives another reload
     And live feedback updates refresh an untouched card while preserving an unsaved draft
+    And a reason chip tapped while a Reject is still saving is saved right after it, without losing the typed explanation
 
   Scenario: Distinguish publication and Section predictions without invented confidence
     Given an isolated inbox of synthetic pending references
