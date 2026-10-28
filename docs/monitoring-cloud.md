@@ -21,7 +21,9 @@ accepts a `sourceUrl` on its own host. `CONFIG#router.decisions` is `cyclotron` 
 Cyclotron per publication) or `direct` (deliver every collected item to every configured publication,
 recorded as the monitor's own rule; no Cyclotron block, no feedback). Seed a TTAB monitor with
 `seed_config.py --monitor-id ttab --source-type ttab-decisions --interval-seconds 86400` and
-`seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`.
+`seed_router_config.py --monitor-id ttab --file router.json` with `"decisions": "direct"`. A third value,
+`hold`, is for a publication that has no Cyclotron yet: the router collects and enriches its items and never
+decides; the config needs no `cyclotron` block (see [web search](#web-search-monitors-web-search)).
 
 ### Reading a source: no item, page or request limits
 
@@ -58,6 +60,7 @@ runs out.
 | `hn` | `hn-rss` | `papyrus-monitoring-hn-collect`, every 15 min | `papyrus-monitoring-hn-route`, :07/:22/:37/:52 | cyclotron | anth-us, p-apyr-us, threat-intelligence |
 | `ttab` | `ttab-decisions` | `papyrus-monitoring-ttab-collect`, every 6 h (collects daily) | `papyrus-monitoring-ttab-route`, hourly at :41 | direct | distinctive |
 | `huggingface` | `huggingface-models` | `papyrus-monitoring-huggingface-collect`, every 6 h (collects daily) | `papyrus-monitoring-huggingface-route`, hourly at :17 | direct, with a `rule` | shipped |
+| `web-<publication>` (seven) | `web-search` | `papyrus-monitoring-web-collect`, every 5 min (each monitor runs when due, hourly by default) | `papyrus-monitoring-web-<publication>-route`, hourly | cyclotron (Distinctive: hold), `holdDecisions` | that publication only |
 
 A publication the router delivers to needs its AppSync grants in the router role. The inline policy holds
 three sites; Distinctive Mark's are in the managed policy `RouterDistinctiveIntakePolicy`, and further
@@ -87,6 +90,62 @@ prints the planned writes (reference id, label, confidence) and the skip counts 
 has any current decision relation is skipped, a decision already recorded (even if superseded since) is not
 recreated, and nothing is ever superseded, so a re-run writes nothing. Options: `--publication <id>` (repeatable),
 `--since <iso>` (delivery time, needs a timezone), `--monitor <id>` (default `hn`).
+
+## Web-search monitors (`web-search`)
+
+One monitor per publication, `web-<publicationId>` (`anth-us`, `p-apyr-us`, `threat-intelligence`, `data-parade`,
+`pilobol-us`, `shipped`, `distinctive`), reads [Tavily](https://tavily.com) for the queries that publication's editors
+approved and stores each result like any other discovery (title, canonical URL, `sourcePublishedAt`, and in `details`
+the `query` that found it and Tavily's `snippet`, which seeds the item's summary until enrichment writes a better one). The
+source id is a hash of the canonical URL. Code: `monitoring_web.py`; config builders: `monitoring_web_publications.py`.
+
+**Config** (`MONITOR#web-<id>` / `CONFIG`): `sourceType: "web-search"`, `sourceUrl: "https://api.tavily.com/search"`,
+`queries: [...]` (distinct, non-empty; an enabled monitor needs at least one), `topic` (`news`, the default, or `general`),
+`intervalSeconds` (default 3600), optional `startDate` (`YYYY-MM-DD`, for a monitor's very first pass), optional
+`dedupeAgainstWebMonitors` (below). The Tavily key is read as the router's is: `TAVILY_API_KEY`, or the SSM SecureString
+named in `PAPYRUS_TAVILY_KEY_PARAMETER` (`/papyrus/shared/tavily-api-key`).
+
+**Recency is the high-water mark.** `STATE.watermark` is the start time of the last pass that read every query to its end
+without an error. A pass searches from the day before the mark to today, so Tavily's date bounds can never lose the boundary
+day (the overlap costs nothing: collected URLs are skipped). A pass that stops early (time, rate limit) or fails leaves the mark
+where it was. A monitor with no mark yet uses `startDate`, else Tavily's own default recency, in one request per query.
+
+**All the results, with no limit of ours.** Tavily's search has no result offset and answers at most 20 per request. A window whose
+answer fills the page is therefore split in two (`start_date` / `end_date`, whole days) and each half is asked again, down to a
+single day; so a busy week is read in as many requests as it takes. A single day that still fills a page is taken as Tavily
+gives it (its own limit). What bounds a pass is the collector Lambda's time (the rest of the work is stored as resume cursors in
+`STATE.resume` and the next pass continues it) and Tavily's rate limit (a 429 waits for its `Retry-After`).
+
+**Dedupe.** A URL (canonical: tracking parameters dropped) is skipped when this monitor already has it, or when any other
+monitor collected it: every collection writes a `URL#<hash>` / `MON#<monitorId>` record, and a web monitor reads them. So a
+story Hacker News found is not collected again as new. Another *web* monitor's finds do not count unless the config sets
+`dedupeAgainstWebMonitors: true`: each web monitor routes only to its own publication, so one story can fairly be found for two.
+The records exist from this release on; `infra/monitoring/index_urls.py` writes them for discoveries collected before (an
+operator step, below).
+
+**Schedule.** `papyrus-monitoring-web-collect` (`rate(5 minutes)`) invokes the collector with
+`{"sourceType":"web-search","monitorIds":[...the seven...]}`. It runs every listed web monitor whose next-due time has passed,
+the longest overdue first, dividing the pass's read time between them; a monitor that stopped early is due again at once, so the
+next invocation continues it. Disabled, unseeded and not-yet-due monitors are skipped. Routing has one hourly schedule per
+monitor, `papyrus-monitoring-web-<id>-route`, at staggered minutes.
+
+**Routing.** Each monitor has its own `CONFIG#router` listing only its publication. The six publications decided by the shared
+relevance Cyclotron reuse the `hn` router's `cyclotron` block (run, binding revision, invoker role, endpoint) and publication
+entry as stored. Distinctive Mark has no Cyclotron yet, so its router config is `decisions: "hold"` with no `cyclotron` block
+(validation accepts that): items are collected and enriched, never decided. When Cyclotron bootstraps Distinctive's own run,
+re-seed its router config with `decisions: "cyclotron"` and the cyclotron block. Every web router config sets
+`holdDecisions: true` and `mode: "live"`: enrichment runs, no decide request is posted, and the receipt says
+`stoppedBy: decisions_held`. Release a publication with `seed_router_config.py --monitor-id web-<id> --set holdDecisions=false`.
+Cyclotron items from a web monitor carry `values.source: "web-search"`; the Cyclotron must accept that source.
+
+**Queries.** `papyrus monitors web-queries --publication <id>` (or `--all`) drafts 8 to 15 queries with gpt-6-luna from the
+publication's mission and editorial policy (read from its backend, IAM, read-only), plus the reviewed relevance criteria
+(`<id>-relevance.json` in the Cyclotron repo's `infra/lab/criteria`, or `--criteria-dir`) when present. It prints them and,
+with `--out FILE`, saves JSON; `--write` stores them in the monitor's CONFIG (an AWS write) and `--enable` also enables it.
+
+**Operating.** Seed (plan only without `--apply`): `python3 infra/monitoring/seed_web_monitors.py --table TABLE [--queries-file
+web-queries.json --enable] --apply`. The monitors start disabled with no queries, so nothing is searched or spent until queries
+are approved and the monitor is enabled.
 
 ## Hugging Face Hub monitor (`huggingface-models`)
 

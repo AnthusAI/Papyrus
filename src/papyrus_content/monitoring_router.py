@@ -103,7 +103,7 @@ def editor_subject(site: str, actor: str) -> str:
 PARTITION_COLLECTED = "collected"
 PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
-DECISIONS = ("cyclotron", "direct")
+DECISIONS = ("cyclotron", "direct", "hold")
 ROUTING_FINAL = ("routed", "refused", "uncertain", "error", "parked")
 NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
@@ -141,7 +141,7 @@ POLL_BACKOFF_MAX = COLLECT_CADENCE_SECONDS * POLL_BACKOFF_CADENCES
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
-ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface"}
+ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface", "web-search": "web-search"}
 ITEM_SOURCE_NAMES = frozenset({"hacker-news", *ITEM_SOURCES.values()})
 PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 APPSYNC_HOST = re.compile(r"^[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com$")
@@ -256,6 +256,10 @@ def validate_router_config(raw: dict) -> dict:
                 "holdDecisions": raw.get("holdDecisions") is True,
                 "decisions": decisions, "feedback": False, "publications": publications,
                 "cyclotron": None, "rule": rule, **account_scope}
+    if decisions == "hold":   # no Cyclotron yet (Distinctive Mark): collect and enrich, never decide; no cyclotron block needed
+        return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "holdDecisions": True,
+                "decisions": decisions, "feedback": False, "publications": publications,
+                "cyclotron": None, "rule": None, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
     endpoint = urlsplit(str(cyclotron.get("endpoint") or ""))
     match = EXECUTE_API_HOST.match(endpoint.netloc)
@@ -465,6 +469,8 @@ def build_item(discovery: dict, enrichment: dict | None = None) -> dict:
         raise ItemInvalid("discovery is not a valid Cyclotron item")
     source = ITEM_SOURCES.get(discovery.get("sourceType"), "hacker-news")
     summary, body = str((enrichment or {}).get("summary") or ""), str((enrichment or {}).get("body") or "")
+    if not summary and discovery.get("sourceType") == "web-search":
+        summary = str((discovery.get("details") or {}).get("snippet") or "")   # the search engine's snippet seeds the summary
     values = {"title": title, "url": url, "source": source, "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""),
               **({"summary": summary} if summary else {}), **({"body": body} if body else {}),
               "text": compose_text(title, url, summary, body)}
@@ -1364,6 +1370,9 @@ class Router:
             return self.finish(disc, route, "error", str(error))
         requests = {}
         for publication in (self.active_publications or self.config["publications"]):
+            if self.config["decisions"] == "hold":
+                requests[publication["publicationId"]] = {"held": True}
+                continue
             if self.config["decisions"] == "direct":
                 try:
                     self.check_rule(disc)
@@ -2041,6 +2050,9 @@ class Router:
                         key: value for key, value in route["decision"].get("publications", {}).items()
                         if key in allowed}
             if not route.get("decision"):
+                if self.config["decisions"] == "hold":
+                    self.enrichment_for(disc, route)   # captured and summarized now; decided once a Cyclotron is bound
+                    raise NotPosting()
                 if self.config["decisions"] == "direct":
                     self.check_rule(disc)
                     self.enrichment_for(disc, route)
