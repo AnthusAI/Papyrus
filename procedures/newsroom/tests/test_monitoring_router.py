@@ -31,7 +31,7 @@ PUBS = ("anth-us", "p-apyr-us", "threat-intelligence")
 
 
 def router_config(mode="live", **overrides):
-    config = {"pk": "MONITOR#hn", "sk": "CONFIG#router", "mode": mode, "feedback": False,
+    config = {"pk": "MONITOR#hn", "sk": "CONFIG#router", "mode": mode,
               "publications": [{"publicationId": p, "site": f"{p}.example", "appsyncEndpoint": ENDPOINT.replace("abc123", f"api{n}")}
                                for n, p in enumerate(PUBS)],
               "cyclotron": {"endpoint": "https://o01d28uizl.execute-api.us-east-1.amazonaws.com", "accountId": "acct-1",
@@ -286,7 +286,7 @@ def routing_of(table):
 
 def test_config_validation_accepts_the_shape_and_rejects_unsafe_values():
     parsed = validate_router_config(router_config())
-    assert "maxItemsPerRun" not in parsed and parsed["feedback"] is False and parsed["mode"] == "live"
+    assert "maxItemsPerRun" not in parsed and parsed["feedback"] is True and parsed["mode"] == "live"
     assert parsed["publications"][1]["corpusKey"] == "ai-ml-research"
     assert parsed["publications"][0]["output"] == "anth-us-relevance"
     for bad in ({"mode": "maybe"}, {"publications": []},
@@ -651,7 +651,7 @@ class FakeAppSync:
 
 
 def delivered_table(table, labels=None):
-    store, cyclotron = setup_router(table, feedback=True)
+    store, cyclotron = setup_router(table)
     go(table, store, cyclotron, deliver=Delivery())
     return store, cyclotron
 
@@ -781,14 +781,16 @@ def test_feedback_skips_missing_or_non_human_actors_and_records_why(table, recor
     assert "not a human" in row["lastNote"] and row["gsi1pk"] == "FEEDBACK#hn#pending"
 
 
-def test_feedback_is_off_unless_enabled_and_live(table):
-    store, cyclotron = setup_router(table, feedback=False)
+def test_feedback_is_off_unless_live_and_a_stored_switch_is_ignored(table):
+    store, cyclotron = setup_router(table, feedback=False)   # a retired stored switch: no effect
+    assert validate_router_config(router_config(feedback=False))["feedback"] is True
     go(table, store, cyclotron, deliver=Delivery())
     refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["status"] == "complete"
+    sent = len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"])
+    table.put_item(router_config("dry-run"))
     assert feedback_run(table, store, cyclotron, refs)["feedback"]["status"] == "off"
-    table.put_item(router_config("dry-run", feedback=True))
-    assert feedback_run(table, store, cyclotron, refs)["feedback"]["status"] == "off"
-    assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+    assert len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == sent
 
 
 def test_feedback_refusal_stops_cleanly_and_uncertain_is_retried_later(table):
@@ -807,7 +809,7 @@ def test_feedback_refusal_stops_cleanly_and_uncertain_is_retried_later(table):
 
 
 def rebind(table, revision, since=None, only=None):
-    cfg = router_config("live", feedback=True)
+    cfg = router_config("live")
     cfg["cyclotron"] = cfg["cyclotron"] | {"bindingRevision": revision}
     for entry in cfg["publications"]:
         if since is not None and (only is None or entry["publicationId"] == only):
@@ -860,7 +862,7 @@ def test_feedback_binding_changed_is_retried_next_run_instead_of_stopping_the_sw
 
 def test_feedback_for_a_publication_missing_from_the_config_is_skipped_without_posting(table):
     store, cyclotron = delivered_table(table)
-    cfg = router_config("live", feedback=True)
+    cfg = router_config("live")
     cfg["publications"] = [p for p in cfg["publications"] if p["publicationId"] != "anth-us"]
     table.put_item(cfg)
     result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
@@ -2286,7 +2288,7 @@ def test_the_per_publication_path_backs_off_the_same_way(table):
 
 
 def test_feedback_posts_wait_for_the_pause_too(table):
-    store, cyclotron = setup_router(table, feedback=True)
+    store, cyclotron = setup_router(table)
     table.put_item({"pk": "MONITOR#hn", "sk": "STATE#labBackoff", "until": 6000, "strikes": 1})
     result = feedback_run(table, store, cyclotron, {}, now=5000)
     assert result["feedback"]["status"] == "stopped" and result["feedback"]["stoppedBy"] == "lab_backoff"
@@ -2465,7 +2467,7 @@ def fingerprint_row(table, pub="anth-us", ref_id="reference-anth-us-101"):
 
 
 def test_decision_stores_the_criteria_fingerprint_and_remembers_the_latest_per_publication(table):
-    store, cyclotron = setup_router(table, feedback=True)
+    store, cyclotron = setup_router(table)
     cyclotron.output_extra = {"anth-us": {"criteriaFingerprint": "c-1"}}
     go(table, store, cyclotron, deliver=Delivery())
     assert fingerprint_row(table)["criteriaFingerprint"] == "c-1"

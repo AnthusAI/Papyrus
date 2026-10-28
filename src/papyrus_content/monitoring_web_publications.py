@@ -49,11 +49,11 @@ def router_config(publication_id: str, hn_router: dict) -> dict:
     Hacker News items are. Distinctive Mark routes on its own and only holds."""
     key = {"pk": f"MONITOR#{monitor_id(publication_id)}", "sk": "CONFIG#router"}
     if publication_id == DISTINCTIVE:
-        return {**key, "mode": "live", "enabled": True, "decisions": "hold", "holdDecisions": True, "feedback": False,
+        return {**key, "mode": "live", "enabled": True, "decisions": "hold", "holdDecisions": True,
                 "publications": [dict(DISTINCTIVE_ENTRY)]}
     by_id = {p.get("publicationId"): p for p in hn_router.get("publications") or []}
     missing = [p for p in SHARED_CYCLOTRON if p not in by_id]
     if missing or not isinstance(hn_router.get("cyclotron"), dict):
         raise ValueError(f"The hn router config has no {', '.join(missing) or 'cyclotron block'} to reuse")
-    return {**key, "mode": "live", "enabled": True, "decisions": "cyclotron", "holdDecisions": True, "feedback": False,
+    return {**key, "mode": "live", "enabled": True, "decisions": "cyclotron", "holdDecisions": True,
             "publications": [dict(by_id[p]) for p in SHARED_CYCLOTRON], "cyclotron": dict(hn_router["cyclotron"])}

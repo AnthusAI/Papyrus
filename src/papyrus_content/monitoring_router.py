@@ -5,7 +5,7 @@ for one decision per item (one `decide` per publication binding; the bindings sh
 native decision), and delivers items a publication's relevance output labels `include`
 into THAT publication's newsroom References queue as `pending`, through the existing
 `ReferenceIntake` over IAM-signed AppSync. A feedback pass reports editors' later
-accept/reject decisions back to Cyclotron when `router.feedback` is enabled.
+accept/reject decisions back to Cyclotron, always, for Cyclotron-decided monitors in live mode.
 
 Everything (mode, endpoints, publications, account, run, binding revision) is data in the
 `CONFIG#router` table item (docs/monitoring-cloud.md); nothing here hard-codes it.
@@ -230,7 +230,7 @@ def feedback_partition(monitor_id: str) -> str:
     return f"FEEDBACK#{monitor_id}#pending"
 
 
-RETIRED_ROUTER_FIELDS = ("ceilings", "maxItemsPerRun")   # limits the router no longer has; stored copies are ignored
+RETIRED_ROUTER_FIELDS = ("ceilings", "maxItemsPerRun", "feedback")   # limits and the feedback switch the router no longer has; stored copies are ignored
 
 
 def validate_router_config(raw: dict) -> dict:
@@ -251,8 +251,6 @@ def validate_router_config(raw: dict) -> dict:
     if decisions != "direct" and raw.get("rule") is not None:
         raise ValueError("router rule applies only to decisions: direct")
     if decisions == "direct":
-        if raw.get("feedback") is True:
-            raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
         rule = validate_rule(raw["rule"], name="router rule") if raw.get("rule") is not None else None
         return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
                 "holdDecisions": raw.get("holdDecisions") is True,
@@ -284,7 +282,8 @@ def validate_router_config(raw: dict) -> dict:
         raise ValueError("router cyclotron.maxRequestsPerSecond must be a positive number")
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
             "holdDecisions": raw.get("holdDecisions") is True,
-            "decisions": decisions, "feedback": raw.get("feedback") is True,
+            "decisions": decisions, "feedback": True,   # always: editors' votes on Cyclotron-decided stories are sent in live mode
+           
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
                           "runId": run_id, "bindingRevision": revision, "roleArn": role_arn, "pollSeconds": poll,
@@ -297,7 +296,7 @@ def email_routing_fingerprint(config: dict) -> str:
     Mode, enabled state and batch size can change without redirecting a source.
     Any identity, endpoint, grant or procedure change requires explicit reconciliation.
     """
-    scope = {key: config.get(key) for key in ("accountId", "decisions", "publications", "cyclotron", "feedback")}
+    scope = {key: config.get(key) for key in ("accountId", "decisions", "publications", "cyclotron")}   # not "feedback": it is no longer config
     return sha256(json.dumps(scope, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -463,8 +462,9 @@ def compose_text(title: str, url: str, summary: str = "", body: str = "") -> str
 
 
 def build_item(discovery: dict, enrichment: dict | None = None) -> dict:
-    """The Cyclotron item. `enrichment` is `{summary, body}` from item enrichment (docs/reference-curation-pipeline.md): `summary` and
-    `body` (the full captured text) join `values`, and `text` = title, url, summary, body."""
+    """The Cyclotron item. `enrichment` is `{summary, body}` from item enrichment (docs/reference-curation-pipeline.md): `summary` joins
+    `values`, and `text` = title, url, summary, body. The captured `body` appears only inside `text`, never as its own value (it would
+    send the article twice)."""
     source_id = str(discovery.get("sourceId") or "")
     title, url = str(discovery.get("title") or ""), str(discovery.get("canonicalUrl") or "")
     if not SOURCE_ID.match(source_id) or not title.strip() or len(title) > 1000 or not url or len(url) > 2048:
@@ -474,7 +474,7 @@ def build_item(discovery: dict, enrichment: dict | None = None) -> dict:
     if not summary and discovery.get("sourceType") == "web-search":
         summary = str((discovery.get("details") or {}).get("snippet") or "")   # the search engine's snippet seeds the summary
     values = {"title": title, "url": url, "source": source, "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""),
-              **({"summary": summary} if summary else {}), **({"body": body} if body else {}),
+              **({"summary": summary} if summary else {}),
               "text": compose_text(title, url, summary, body)}
     return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": values}
 
@@ -529,6 +529,12 @@ def validate_combined_request(body: dict) -> None:
                       "payload": {"bindingRevision": "x", "item": payload["item"]}})
 
 
+def _text_matches(values: dict) -> bool:
+    """`text` is compose_text(title, url, summary), alone or followed by a blank line and the captured body."""
+    prefix = compose_text(values["title"], values["url"], values.get("summary", ""))
+    return values["text"] == prefix or values["text"].startswith(prefix + "\n\n")
+
+
 def validate_request(body: dict) -> None:
     """Structural validation of a machine-API body; raises ValueError on anything off-contract."""
     if body.get("contractVersion") != CONTRACT_VERSION:
@@ -551,10 +557,10 @@ def validate_request(body: dict) -> None:
         if set(item) != {"id", "values"} or not valid_id:
             raise ValueError("decide item shape")
         required = {"title", "url", "source", "sourceItemUrl", "text"}
-        if not required <= set(values) or set(values) - required - {"summary", "body"} or values["source"] not in ITEM_SOURCE_NAMES:
+        if not required <= set(values) or set(values) - required - {"summary"} or values["source"] not in ITEM_SOURCE_NAMES:
             raise ValueError("decide item values shape")
         if (any(not isinstance(v, str) or not v for v in values.values())
-                or values["text"] != compose_text(values["title"], values["url"], values.get("summary", ""), values.get("body", ""))):
+                or not _text_matches(values)):
             raise ValueError("decide item values content")
     elif body["operation"] == "feedback":
         required = {"bindingRevision", "itemId", "itemRevision", "output", "label", "editor"}

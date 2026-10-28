@@ -12,7 +12,7 @@ def feedback_posts(context):
     return [c[2] for c in context.cyclotron.posts() if c[2]["operation"] == "feedback"]
 
 
-@given("a router with feedback on and three delivered stories")
+@given("a router and three delivered stories")
 def step_given(context):
     context.table_ = tr.FakeTable()
     context.table_.put_item(tr.COLLECTOR_CONFIG)
@@ -107,3 +107,15 @@ def step_second(context):
     sent = feedback_posts(context)
     assert len(sent) == 2 and sent[0]["requestId"] == sent[1]["requestId"], sent
     assert context.result["feedback"]["sent"] == 1
+
+
+@given("the stored router config has no feedback setting")
+def step_no_switch(context):
+    config = tr.router_config()
+    assert "feedback" not in config
+    context.table_.put_item(config)
+
+
+@given("the stored router config still says feedback is false")
+def step_old_switch(context):
+    context.table_.put_item(tr.router_config(feedback=False))

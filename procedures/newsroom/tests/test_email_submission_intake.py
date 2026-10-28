@@ -373,11 +373,10 @@ def test_bad_or_mismatched_operator_config_fails_before_reading_mail(mutation):
     assert fixture.s3.calls == [] and fixture.table.by_prefix("DISC#") == []
 
 
-def test_email_cannot_start_procedures_or_generate_feedback():
+def test_a_stored_feedback_switch_on_an_email_router_is_ignored():
     fixture = shared_fixture()
     fixture.router["feedback"] = True
-    with pytest.raises(ConfigurationError, match="feedback"):
-        validate_email_config(fixture.config, fixture.router)
+    validate_email_config(fixture.config, fixture.router)   # feedback is never configured: it is always on for Cyclotron decisions
 
 
 def test_dynamodb_decimal_sender_rate_limit_validates():

@@ -10,7 +10,7 @@ A monitor that watches the Hacker News feed and offers items to the publications
 
 - **Collector.** A Lambda that runs every 15 minutes (EventBridge Scheduler). It fetches the feed, dedupes by fingerprint, keeps a checkpoint and records receipts in a DynamoDB table. It holds no provider keys and writes nothing to any publication.
 - **Router.** A second Lambda in the same stack, on its own schedule offset from the collector. It asks the shared Cyclotron which collected items each configured publication wants. It delivers only the items the relevance output labels `include`, as `pending` References with a provenance Message. It never creates an accepted Reference, and it never resets a human decision.
-- **Modes.** The router config has `mode: dry-run` (no Cyclotron call, nothing written to a publication) and `mode: live`. Editor accepts and rejects can flow back to the Cyclotron as labels only when the config has `feedback: true` in live mode.
+- **Modes.** The router config has `mode: dry-run` (no Cyclotron call, nothing written to a publication) and `mode: live`. Editor accepts and rejects can flow back to the Cyclotron as labels always in live mode for Cyclotron-decided monitors; there is no feedback switch.
 - **Deployment.** Both Lambdas are in the `papyrus-monitoring` CloudFormation stack, which is applied by hand with a change set. It is not part of any site's backend deploy.
 
 Beta because it is one monitor with one source, configured as data by an operator.

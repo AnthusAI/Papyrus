@@ -168,11 +168,10 @@ def collected_table():
     return table
 
 
-def test_direct_config_needs_no_cyclotron_and_refuses_feedback():
+def test_direct_config_needs_no_cyclotron_and_has_no_feedback():
     config = validate_router_config(direct_router_config())
     assert config["decisions"] == "direct" and config["cyclotron"] is None and config["feedback"] is False
-    with pytest.raises(ValueError, match="feedback"):
-        validate_router_config(direct_router_config(feedback=True))
+    assert validate_router_config(direct_router_config(feedback=True))["feedback"] is False   # a stored switch is ignored
     with pytest.raises(ValueError, match="decisions"):
         validate_router_config(direct_router_config(decisions="coin-flip"))
 

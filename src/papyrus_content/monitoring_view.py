@@ -471,7 +471,7 @@ def monitoring_overview(store, *, groups, site_endpoint, scope, now, monitor_id:
              "decisionsTotal": len(times), "historyComplete": history_complete}
     out = {**base, "state": "ready", "scope": result_scope, "feeds": _feed(routing.config, routing.state, monitor_id),
            "runs": pages["runs"], "routerRuns": pages["routerRuns"],
-           "router": ({"mode": router.get("mode"), "feedback": router.get("feedback") is True, "enabled": router.get("enabled", True) is not False} if router else None),
+           "router": ({"mode": router.get("mode"), "feedback": (router.get("decisions") or "cyclotron") == "cyclotron", "enabled": router.get("enabled", True) is not False} if router else None),
            "usage": usage, "items": pages["items"], "emailSubmissions": pages["emailSubmissions"], "hiddenNotRelevant": hidden,
            "cursors": cursors}
     if scope == "publication" and not own:

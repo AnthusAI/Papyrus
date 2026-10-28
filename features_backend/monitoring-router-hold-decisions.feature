@@ -3,7 +3,7 @@ Feature: The router can hold lab decisions while still sending editor feedback
   decision endpoints, but editors' votes still reach Cyclotron.
 
   Scenario: Feedback is sent while decisions are held
-    Given a router with feedback on and three delivered stories
+    Given a router and three delivered stories
     And the router holds decisions
     When an editor accepts a reference in the newsroom UI
     And the feedback task runs

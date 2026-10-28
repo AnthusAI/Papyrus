@@ -102,8 +102,6 @@ def validate_email_config(raw, raw_router):
         raise ConfigurationError("email_publication_grants_mismatch")
     if any(row["procedureTriggers"] for row in router["publications"]):
         raise ConfigurationError("email_does_not_execute_procedures")
-    if router["feedback"]:
-        raise ConfigurationError("email_feedback_must_be_disabled")
     kind = raw.get("kind")
     if kind == "publication":
         if len(publications) != 1 or router["decisions"] != "direct":

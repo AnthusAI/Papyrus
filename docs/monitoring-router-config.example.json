@@ -1,6 +1,5 @@
 {
   "mode": "dry-run",
-  "feedback": false,
   "publications": [
     {"publicationId": "anth-us", "site": "anth.us",
      "appsyncEndpoint": "https://2m5fh2nqlnfxlfg2mxepp7tdbm.appsync-api.us-east-1.amazonaws.com/graphql"},
