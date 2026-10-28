@@ -358,6 +358,8 @@ def validate_router_publications(raw: dict) -> list[dict]:
     return publications
 
 
+DECISION_KEYS = ("output", "label", "fingerprint", "version", "confidence", "criteriaFingerprint")
+
 VIA_DECISIONS, VIA_PUBLICATION = "decisions", "publication"
 
 
@@ -879,6 +881,20 @@ class CyclotronClient:
             delay = min(delay * 1.5, 8.0)
 
 
+def criteria_fingerprint(response: dict, output_id: str) -> str | None:
+    """The fingerprint of the criteria an output was judged against. Cyclotron sends it as `criteriaFingerprint` on each
+    `outputs[]` entry; an envelope that only carries the output's `question` gets sha256 (hex) of that UTF-8 string, which is
+    how Cyclotron derives it (assumed: no stored envelope carrying both was available to confirm against)."""
+    for entry in (response.get("outputs") if isinstance(response, dict) else None) or []:
+        if isinstance(entry, dict) and entry.get("id") == output_id:
+            value = entry.get("criteriaFingerprint")
+            if isinstance(value, str) and value:
+                return value
+            question = entry.get("question")
+            return sha256(question.encode("utf-8")).hexdigest() if isinstance(question, str) and question else None
+    return None
+
+
 def checked_decision(response: dict, publication: dict, config: dict, item_id: str) -> dict:
     """Validate one completed `decide` response and reduce it to the receipt we keep."""
     decision = response.get("decision") if isinstance(response, dict) else None
@@ -908,6 +924,9 @@ def checked_decision(response: dict, publication: dict, config: dict, item_id: s
     confidence = classifier.get("confidence")
     if isinstance(confidence, (int, float)) and not isinstance(confidence, bool) and 0 <= confidence <= 1:
         checked["confidence"] = Decimal(str(round(float(confidence), 4)))   # for the Monitoring page; DynamoDB takes Decimal
+    criteria = criteria_fingerprint(response, publication["output"])
+    if criteria:
+        checked["criteriaFingerprint"] = criteria
     return checked
 
 
@@ -1579,7 +1598,7 @@ class Router:
             self.save(route)
             return
         route["decision"]["publications"][pub_id] = {k: checked[k] for k in
-                                                     ("output", "label", "fingerprint", "version", "confidence") if k in checked}
+                                                     DECISION_KEYS if k in checked}
         route.get("notReady", {}).pop(pub_id, None)
         if checked["label"] == publication["positiveLabel"] or disc.get("editorSelectedReference"):
             route.setdefault("publications", {})[pub_id] = {"label": checked["label"], "delivered": False, "attempts": 0}
@@ -1633,7 +1652,7 @@ class Router:
             "decisionId": first["decisionId"], "source": first["source"], "decidedAt": _iso(self.now),
             "accountId": self.config["cyclotron"]["accountId"], "runId": self.config["cyclotron"]["runId"],
             "bindingRevision": self.config["cyclotron"]["bindingRevision"],
-            "publications": {pid: {k: c[k] for k in ("output", "label", "fingerprint", "version", "confidence") if k in c}
+            "publications": {pid: {k: c[k] for k in DECISION_KEYS if k in c}
                              for pid, c in checked.items()}}
         route["publications"] = {pid: {"label": c["label"], "delivered": False, "attempts": 0}
                                  for pid, c in checked.items() if c["label"] == self.publications[pid]["positiveLabel"] or disc.get("editorSelectedReference")}
@@ -1641,6 +1660,17 @@ class Router:
         self.save(route)
         self.counts["decided"] += 1
 
+
+    def check_decision(self, response: dict, publication: dict, item_id: str) -> dict:
+        """checked_decision, plus remember the publication's latest criteria fingerprint for the feedback pass."""
+        checked = checked_decision(response, publication, self.config, item_id)
+        criteria = checked.get("criteriaFingerprint")
+        key = f"CRIT#{publication['publicationId']}"
+        if criteria and (self.store.get_any(self.monitor_id, key) or {}).get("criteriaFingerprint") != criteria:
+            self.store.put_any(self.monitor_id, {"pk": pk(self.monitor_id), "sk": key, "criteriaFingerprint": criteria,
+                                                 "output": checked["output"], "decisionId": checked["decisionId"],
+                                                 "recordedAt": _iso(self.now)})
+        return checked
 
     def posted_under(self) -> dict:
         """The run and binding revision a job is being posted under, stored with it."""
@@ -1744,7 +1774,7 @@ class Router:
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
                                 "jobId": stored["jobId"], "via": VIA_DECISIONS, **self.posted_under(),
-                                "checked": checked_decision(entry, publication, self.config, item_id)}
+                                "checked": self.check_decision(entry, publication, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
                 self.note_not_ready(pub_id, disc, route, str(error))
@@ -1797,7 +1827,7 @@ class Router:
                 self._fresh.add(job_id)
                 self.save(route)
             else:
-                jobs[pub_id]["checked"] = checked_decision(immediate, publication, self.config, item_id)
+                jobs[pub_id]["checked"] = self.check_decision(immediate, publication, item_id)
                 self.save(route)
                 return
         if not self.job_due(jobs[pub_id]):
@@ -1835,7 +1865,7 @@ class Router:
                 route["attempt"] = int(route.get("attempt", 0)) + 1
                 self.save(route)
             raise
-        jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
+        jobs[pub_id]["checked"] = self.check_decision(response, publication, item_id)
         self.job_done(jobs[pub_id])
         self.save(route)
 
@@ -1915,6 +1945,9 @@ class Router:
             "itemId": route["itemId"], "decisionId": decision["decisionId"], "source": decision["source"],
             "output": decision["publications"][publication["publicationId"]]["output"],
             "bindingRevision": decision["bindingRevision"], "deliveredAt": _iso(self.now)}
+        criteria = decision["publications"][publication["publicationId"]].get("criteriaFingerprint")
+        if criteria:
+            record["criteriaFingerprint"] = criteria
         if self.config["decisions"] == "cyclotron":
             record.update(gsi1pk=feedback_partition(self.monitor_id),
                           gsi1sk=f"{_iso(self.now)}#{publication['publicationId']}#{result['referenceId']}")
@@ -2293,13 +2326,19 @@ class Router:
             return "skipped"
         validate_request(body)
         current = str(self.config["cyclotron"]["bindingRevision"])
-        since = publication.get("criteriaSince", current)   # default: only votes under the current revision count
-        if not criteria_unchanged(row.get("bindingRevision"), since):
+        voted = row.get("criteriaFingerprint")
+        latest = (self.store.get_any(self.monitor_id, f"CRIT#{publication['publicationId']}") or {}).get("criteriaFingerprint")
+        if voted and latest:   # the fingerprint decides; criteriaSince is only the fallback when either one is unknown
+            changed, basis = voted != latest, {"votedFingerprint": voted, "currentFingerprint": latest}
+        else:
+            since = publication.get("criteriaSince", current)   # default: only votes under the current revision count
+            changed, basis = not criteria_unchanged(row.get("bindingRevision"), since), {"criteriaSince": since}
+        if changed:
             self.store.put_any(self.monitor_id, {
                 "pk": pk(self.monitor_id), "sk": f"FB#{body['requestId']}", "requestId": body["requestId"],
                 "publicationId": publication["publicationId"], "referenceId": row["referenceId"],
                 "outcome": "stale", "code": "criteria changed since this vote", "votedUnder": str(row.get("bindingRevision")),
-                "criteriaSince": since, "sentAt": _iso(self.now), "runId": self.run_id})
+                **basis, "sentAt": _iso(self.now), "runId": self.run_id})
             self.store.put_any(self.monitor_id, {k: v for k, v in row.items() if k not in ("gsi1pk", "gsi1sk")} | {"feedback": "stale"})
             return "skipped"
         receipt = {"pk": pk(self.monitor_id), "sk": f"FB#{body['requestId']}", "requestId": body["requestId"],

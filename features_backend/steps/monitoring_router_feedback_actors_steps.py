@@ -64,6 +64,11 @@ def step_rebind_changed(context, revision):
     tr.rebind(context.table_, revision, since=revision)
 
 
+@given('the vote was stored under criteria fingerprint "{voted}" and the publication\'s criteria are {tense} "{current}"')
+def step_fingerprints(context, voted, tense, current):
+    tr.set_fingerprints(context.table_, voted, current)
+
+
 @then("the vote was recorded as stale")
 def step_stale(context):
     assert context.table_.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["feedback"] == "stale"

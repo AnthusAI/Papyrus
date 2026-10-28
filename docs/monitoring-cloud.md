@@ -490,6 +490,7 @@ Monitoring page shows it on the router run.
 | `LOCK#router` | Lease (660 s, longer than the 600 s timeout), separate from the collector's `LOCK` |
 | `ROUTE#<sourceId>#<rev6>` | `dryRun` (`count`, `validatedAt`, `requests.<pub>` = path, `requestId`, bytes, body; `contexts.<pub>` = `contextHash`/`reason`), `jobs.<pub>` (`requestId`, `jobId`, `checked`), `decision` (`decisionId`, `source` = id/revision/fingerprint, per-publication `output`, `label`, `fingerprint`, `version`, plus account, run, binding revision), `publications.<pub>` (`delivered`, `referenceId`, `attempts`, `lastError`), `final` |
 | `ENRICH#<sourceId>#<rev6>` | The item's enrichment before its decision ([Enrich before decide](#enrich-before-decide-item-enrichment)): `status`, `final`, `attempts`, `curation`, S3 keys |
+| `CRIT#<pub>` | The latest `criteriaFingerprint` Cyclotron reported for the publication's output (feedback compares against it) |
 | `DELIV#<pub>#<referenceId>` | A Reference this router delivered; feedback source. In `FEEDBACK#hn#pending` while feedback is outstanding |
 | `TRIGGER#<pub>#<procedureKey>#<sourceId>` | A procedure trigger for this item: `status` (`starting`, `started`, `startFailed`, `notTriggered`, `skipped`, `deferred`, then the runner's `running`, `completed`, `failed` or `notRunnable`), the runner `request`, `runId`, a `reason` for `skipped` and `deferred`, the `automationId` when an automation governed the start, errors. Written only if absent, so each item starts each procedure once (`docs/procedure-runner.md`, `docs/automations.md`) |
 | `MANUAL#<automationId>#<timestamp>` | A "Run now" of an automation, written by the CLI or the console (not by the router): who started it, the runner `request`, then the runner's `running`/`runId` and outcome, as on a `TRIGGER#` row (`docs/automations.md`) |
@@ -528,7 +529,12 @@ by a data edit. A publication that is not in `publications` is never called.
 
 Editor feedback is sent under the publication's *current* `cyclotron.bindingRevision`, never the revision stored
 when the item was decided (the lab refuses a stale one with 409 "publication binding changed"; the router logs the
-body and asks again next run). Feedback is tied to the criteria the editor judged, so each publication entry takes an
+body and asks again next run). Feedback is tied to the criteria the editor judged. Cyclotron puts a
+`criteriaFingerprint` on each `outputs[]` entry of a decision envelope (the router derives sha256 hex of the UTF-8 `question`
+when only the question is present). The router stores it on each `DELIV#` row and keeps the latest per publication in
+`CRIT#<pub>`; a vote is sent under the current binding only when the two fingerprints are equal, otherwise it is recorded
+as outcome `stale`. `criteriaSince` is now only the fallback, used when either fingerprint is unknown (votes stored before
+fingerprints existed, or no decision seen yet). Each publication entry takes an
 optional `criteriaSince`: the earliest binding revision whose criteria match the current ones (default: the current
 revision, the safe choice). A vote stored under revision R is sent with the current revision when R >= `criteriaSince`
 (integers compare numerically); otherwise it is recorded as outcome `stale` ("criteria changed since this vote"),

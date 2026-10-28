@@ -40,3 +40,19 @@ Feature: The router sends feedback for references curated by people, including i
     When Cyclotron accepts feedback again
     And the feedback task runs
     Then the feedback was delivered on the second attempt with the same request id
+
+  Scenario: A vote is sent when the criteria fingerprint still matches, whatever the binding revision
+    Given the publication binding has since moved to revision 4 with changed criteria
+    And the vote was stored under criteria fingerprint "c-1" and the publication's criteria are still "c-1"
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+    And the feedback was sent under binding revision 4
+
+  Scenario: A vote is dropped when the criteria fingerprint has changed since the vote
+    Given the publication binding has since moved to revision 4 with unchanged criteria
+    And the vote was stored under criteria fingerprint "c-1" and the publication's criteria are now "c-2"
+    When an editor accepts a reference in the newsroom UI
+    And the feedback task runs
+    Then no feedback was sent to Cyclotron that was accepted
+    And the vote was recorded as stale
