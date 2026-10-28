@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "baab4133-e515-4c63-b7b5-e4eee5cf9790",
+  "issue_id": "PPY-8860ab1b-2743-412f-8915-9b0a29277852",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-28T02:21:03.794Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "UI: Suggested queries panel and Found-by chip",
+    "description": "Accept/Reject cards with reasons; Found by chip on References feed cards. Needs screenshot review.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+    "labels": []
+  }
+}

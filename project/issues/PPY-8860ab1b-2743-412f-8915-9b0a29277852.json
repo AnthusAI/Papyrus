@@ -1,0 +1,20 @@
+{
+  "id": "PPY-8860ab1b-2743-412f-8915-9b0a29277852",
+  "title": "UI: Suggested queries panel and Found-by chip",
+  "description": "Accept/Reject cards with reasons; Found by chip on References feed cards. Needs screenshot review.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-28T02:21:03.794213Z",
+  "updated_at": "2026-10-28T02:21:03.794251Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a10e36e4-48b9-41da-b522-d4e598c29e23",
+  "title": "Docs: web search monitors on p.apyr.us",
+  "description": "Document the feature on the Papyrus product site.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-28T02:21:03.870699Z",
+  "updated_at": "2026-10-28T02:21:03.870737Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
