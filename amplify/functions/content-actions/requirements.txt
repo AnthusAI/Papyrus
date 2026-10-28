@@ -5,3 +5,4 @@ Pillow>=11.3,<12
 awscrt>=0.23,<1
 humanus>=0.33,<0.34
 pypdf>=6.12.1,<7
+youtube-transcript-api>=1.2.4,<2

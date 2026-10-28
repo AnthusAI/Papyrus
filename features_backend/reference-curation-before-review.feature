@@ -114,6 +114,28 @@ Feature: References are curated before an editor reviews them
     Then the model summarized "The complete article, pasted by an editor."
     And the source was not fetched again
 
+  Scenario: A YouTube video is captured from its transcript
+    Given the Reference is a YouTube video whose page only has a short description
+    And YouTube gives the transcript of the video
+    When the curation procedure runs for the Reference
+    Then the Reference's curation card is "ready"
+    And the card's text is the video's transcript and not the short description
+    And the capture records that the text came from the YouTube transcript
+
+  Scenario: A YouTube video whose transcript is blocked falls back to its description and says why
+    Given the Reference is a YouTube video whose page only has a short description
+    And YouTube blocks the request for the transcript
+    When the curation procedure runs for the Reference
+    Then the card's text is the video's short description
+    And the capture records that the text came from the video description because the transcript was "blocked"
+
+  Scenario: A YouTube video without a transcript falls back to its description and says why
+    Given the Reference is a YouTube video whose page only has a short description
+    And the video has no transcript
+    When the curation procedure runs for the Reference
+    Then the card's text is the video's short description
+    And the capture records that the text came from the video description because the transcript was "no_transcript"
+
   Scenario: The backfill curates existing pending References once
     Given a corpus with 2 pending References, 1 accepted Reference and 1 Reference in another corpus
     When the backfill runs for the pending References

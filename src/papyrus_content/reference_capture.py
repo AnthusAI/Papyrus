@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 from typing import Any
 
-from papyrus_content import pdf_text
+from papyrus_content import pdf_text, youtube_transcript
 from papyrus_content.link_exploration import Context, Exploration, Response, explore
 
 # Capture failures that say the network or the server had a bad moment, not that the source is unreadable. A later run retries them.
@@ -71,6 +71,8 @@ class Capture:
     paper: dict[str, Any] = field(default_factory=dict)
     page: dict[str, Any] = field(default_factory=dict)   # what the page declares about itself (title, description, site name)
     full_text_url: str | None = None        # the address the text actually came from when it is not the page itself (the PDF the page links)
+    text_via: str | None = None             # YouTube links only: "youtube_transcript", or "youtube_description" when the transcript was unavailable
+    text_reason: str | None = None          # why the transcript was not used: "blocked", "no_transcript", "unavailable", "unreadable", "library_missing"
 
     @property
     def transient(self) -> bool:
@@ -466,6 +468,32 @@ def _pdf_capture(found: Exploration, via: str) -> Capture:
 
 
 def capture_source(source_url: str, *, title: str = "", explorer: Explorer = explore) -> Capture:
+    """The page capture, and for a YouTube video its transcript in place of the page text (``_youtube_capture``)."""
+    captured = _capture_page(source_url, title=title, explorer=explorer)
+    identifier = youtube_transcript.video_id(source_url)
+    return captured if identifier is None else _youtube_capture(captured, identifier)
+
+
+def _youtube_capture(captured: Capture, identifier: str) -> Capture:
+    """The video's transcript is the text. When YouTube will not give it, the page's title and description stand in, with the reason."""
+    text, reason = youtube_transcript.fetch_transcript(identifier)
+    if text:
+        captured.ok, captured.failure, captured.text = True, None, text
+        captured.source_kind, captured.content_type = "transcript", "text/plain"
+        captured.signals = completeness_signals(text)
+        captured.text_via, captured.text_reason = "youtube_transcript", None
+        return captured
+    captured.text_via, captured.text_reason = "youtube_description", reason
+    if not captured.ok:
+        blurb = "\n\n".join(captured.page[key] for key in ("title", "description") if captured.page.get(key))
+        if blurb:
+            captured.ok, captured.failure, captured.text = True, None, blurb
+            captured.source_kind, captured.content_type = "html", "text/html"
+            captured.signals = completeness_signals(blurb, description=captured.page.get("description", ""))
+    return captured
+
+
+def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = explore) -> Capture:
     """Resolve the address, read the destination (whole HTML article or whole PDF) and describe how complete the text looks.
 
     Never raises. A source that cannot be captured returns ``ok=False`` with a typed, URL-free ``failure`` and any signals that were

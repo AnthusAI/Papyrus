@@ -260,7 +260,7 @@ def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str
     stamp = iso(now)
     capture: dict[str, Any] = {"status": "completed" if captured.ok else "failed", "capturedAt": stamp, "sourceKind": captured.source_kind,
                                "contentType": captured.content_type, "via": captured.via, "destinationUrl": captured.destination_url,
-                               "fullTextUrl": captured.full_text_url}
+                               "fullTextUrl": captured.full_text_url, "textVia": captured.text_via, "textReason": captured.text_reason}
     if captured.ok:
         store.write(reference, TEXT_SORT_KEY, "curation-text.md", "text/markdown", captured.text, now)
         capture.update(textSortKey=TEXT_SORT_KEY, textSha256=sha256_text(captured.text), wordCount=captured.signals.get("wordCount"))
