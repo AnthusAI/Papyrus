@@ -101,11 +101,11 @@ const syncOutcomes = [
   ["card_and_detail_agree", ["both show the Reject, the card shows the reason and the red or green match state with its icon"]],
   ["grid_stays_put", [
     "every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels",
-    "the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet",
+    "the column count stays fixed while the detail pane is open: from the tablet width up the pane appears beside the grid with the first selection and then holds its place, so moving between items moves nothing, while below that the detail is a sheet",
     'the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it',
   ]],
   ["previous_next_selects", [
-    "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline",
+    "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge",
     "opening a card from the grid selects it too",
     "before any card is selected there is no Detail pane and the feed has the whole width",
   ]],

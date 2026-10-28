@@ -127,7 +127,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   Scenario: Previous and Next scroll the grid to the same item and select it
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens a card and steps through the queue with Next and Previous
-    Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline
+    Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge
     And opening a card from the grid selects it too
     And before any card is selected there is no Detail pane and the feed has the whole width
 
@@ -135,7 +135,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item
     Then every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels
-    And the column count stays fixed while the detail pane is open, and the pane's place is reserved beside the grid from the tablet width up, so opening it moves nothing, while below that the detail is a sheet
+    And the column count stays fixed while the detail pane is open: from the tablet width up the pane appears beside the grid with the first selection and then holds its place, so moving between items moves nothing, while below that the detail is a sheet
     And the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it
 
   Scenario: The captured record reads the curation card first, with extracted text as a fallback

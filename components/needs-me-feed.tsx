@@ -29,7 +29,7 @@ import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
 import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
-import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SourceMark } from "./reference-feed";
+import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SELECTED_RING, SourceMark } from "./reference-feed";
 import { predictionFromDecision, ReviewQueueBar, useQueueGestures, type CardPrediction, type ReviewChoice } from "./reference-review-card";
 import type { CorrectCaptureAction } from "./reference-capture-client";
 import { RatingGrid } from "./review-rating-grid";
@@ -121,18 +121,18 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
       aria-labelledby={titleId}
       className={cn(
         "relative flex flex-col overflow-hidden rounded-[20px] text-card-foreground transition-[background-color,box-shadow] duration-200",
-        selected ? "bg-[var(--feed-control)] shadow-xl" : "bg-[var(--feed-card)]",
+        selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)]",
       )}
       data-feed-card={item.id}
       data-feed-rated={decided ?? undefined}
       data-feed-selected={selected || undefined}
+      style={selected ? SELECTED_RING : undefined}
       data-needs-me-card={item.type}
       data-needs-me-state={item.decisionState}
       data-newsroom-card-id={item.id}
       data-review-draft={draftId}
       data-review-request={requestId}
     >
-      {selected ? <span aria-hidden="true" className="absolute inset-y-0 left-0 z-10 w-1.5 bg-[var(--primary)]" data-feed-selected-bar /> : null}
       <button
         aria-label={`Open: ${item.title}`}
         className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -426,8 +426,8 @@ export function NeedsMeView({
   ) : null;
 
   return (
-    <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
-      <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
+    <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-notification-center {...FEED_SURFACE_PROPS}>
+      <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto px-1.5 pt-1.5 md:pr-2.5" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
           <div className="space-y-1.5">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>

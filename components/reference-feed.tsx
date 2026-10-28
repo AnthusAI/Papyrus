@@ -81,6 +81,10 @@ export type ReferenceFeedProps = {
 };
 
 /** Columns follow the width the feed has (a container query, not the screen), so they stay put while a detail pane holds its place beside it. */
+/** A selected card: a thick ring drawn outside it on every side (a box-shadow, so it takes no layout space and covers nothing inside
+ *  the card). The grid's gap leaves room for it between cards. The fallback keeps the ring if a theme has no --primary. */
+export const SELECTED_RING = { boxShadow: "0 0 0 4px var(--primary, currentColor)" } as const;
+
 export const FEED_GRID = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-5";
 const GRID = FEED_GRID;
 /** The lead spans two columns only where there are at least two to span (two 17rem columns and the gap). */
@@ -254,17 +258,17 @@ export function FeedCard({
       aria-current={selected ? "true" : undefined}
       className={cn(
         "relative flex flex-col overflow-hidden rounded-[20px] text-card-foreground transition-[background-color,box-shadow] duration-200",
-        selected ? "bg-[var(--feed-control)] shadow-xl" : "bg-[var(--feed-card)]",
+        selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)]",
         lead && LEAD_SPAN,
       )}
       data-feed-card={item.lineageId}
       data-feed-lead={lead || undefined}
       data-feed-rated={answer ?? undefined}
       data-feed-selected={selected || undefined}
+      style={selected ? SELECTED_RING : undefined}
       data-feed-visit-rated={visitRated || undefined}
       data-newsroom-card-id={item.lineageId}
     >
-      {selected ? <span aria-hidden="true" className="absolute inset-y-0 left-0 z-10 w-1.5 bg-[var(--primary)]" data-feed-selected-bar /> : null}
       <button
         aria-label={`Open: ${title}`}
         className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"

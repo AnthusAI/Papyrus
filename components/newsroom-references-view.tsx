@@ -661,7 +661,6 @@ export function NewsroomReferencesView({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[100dvh] md:flex-row"
-      data-detail-reserved={view === "feed" ? "true" : undefined}
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
@@ -762,8 +761,9 @@ export function NewsroomReferencesView({
               </button>
             </div>
           ) : null}
+          {/* 6px of room on every side, so a selected card's 4px ring (drawn outside the card) is never cut off by the scroller. */}
           <ScrollArea className="min-h-0 flex-1 [overflow-anchor:none]" data-reference-feed-scroll>
-            <div className="pb-6 pr-1">
+            <div className="px-1.5 pb-6 pt-1.5 pr-2.5">
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
                 loading={previewSkeleton || (loading && !references.length)}

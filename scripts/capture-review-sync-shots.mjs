@@ -103,7 +103,7 @@ try {
     console.log(name("sync-reject-reason-from-pane"));
     await context.close();
 
-    // Previous / Next: the grid follows, the card is selected (tint and a left accent bar).
+    // Previous / Next: the grid follows, the card is selected (tint and a ring outside the card).
     ({ context, page } = await newPage());
     await openCard(page, "");
     const queue = page.locator("[data-review-queue-bar]").locator("visible=true").first();
