@@ -85,6 +85,17 @@ Parameters:
     Default: ""
     AllowedPattern: "^$|^[a-z0-9][a-z0-9-]{0,62}$"
     Description: Optional existing email partition whose editor-selected References need cloud predictions.
+  EnrichmentOpenAiKeyParameter:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the OpenAI key for item enrichment summaries (gpt-6-luna). The router role may read only
+      this parameter. Empty leaves summaries as the typed skip openai_not_configured.
+  EnrichmentGrobidUrl:
+    Type: String
+    Default: ""
+    Description: Optional GROBID service URL. Empty leaves research papers with the typed skip grobid_not_configured.
 
 Conditions:
   HasEmailReferenceMonitor: !Not [!Equals [!Ref EmailReferenceMonitorId, ""]]
@@ -92,6 +103,8 @@ Conditions:
   ReserveRouterConcurrency: !Not [!Equals [!Ref RouterReservedConcurrency, 0]]
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
+  HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
+  HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
   MonitoringTable:
@@ -122,6 +135,24 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
+
+  EnrichmentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      Tags:
+        - { Key: purpose, Value: "item enrichment: captured article text, GROBID output (private; read by the router only)" }
 
   CollectorLogGroup:
     Type: AWS::Logs::LogGroup
@@ -413,6 +444,49 @@ Resources:
           PAPYRUS_ROOT: /var/task
           PAPYRUS_GRAPHQL_AUTH: iam
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
+          ENRICHMENT_BUCKET: !Ref EnrichmentBucket
+          ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
+
+  RouterEnrichmentStoragePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Item enrichment: the router reads and writes captured text in its own private bucket, and reads back a delivered
+        Reference's metadata attachment (createModelAttachmentDownload) when it copies the item's curation onto it.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnrichmentText
+            Effect: Allow
+            Action: [s3:GetObject, s3:PutObject]
+            Resource: !Sub "${EnrichmentBucket.Arn}/enrichment/*"
+          - Sid: ReadBackMetadataAttachment
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createModelAttachmentDownload"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/createModelAttachmentDownload"
+
+  RouterEnrichmentKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasEnrichmentKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the enrichment OpenAI key.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadEnrichmentOpenAiKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EnrichmentOpenAiKeyParameter}"
 
   RouterProcedureRunnerPolicy:
     Type: AWS::IAM::ManagedPolicy

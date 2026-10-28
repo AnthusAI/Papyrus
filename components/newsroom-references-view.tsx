@@ -662,7 +662,7 @@ export function NewsroomReferencesView({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[calc(100dvh-8.5rem)] md:flex-row"
+      className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[100dvh] md:flex-row"
       data-detail-reserved={view === "feed" ? "true" : undefined}
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}

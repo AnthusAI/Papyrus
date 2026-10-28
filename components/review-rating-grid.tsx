@@ -47,6 +47,7 @@ export function RatingGrid({
   prediction,
   showPrediction = true,
   size = "compact",
+  statusOverlay = false,
   surface = "footer",
 }: {
   /** The side the buttons show as chosen (it may be a pending choice that is still saving). */
@@ -63,6 +64,8 @@ export function RatingGrid({
   /** False for a card with nothing to predict (an AI draft): the Cyclotron row and the "You" label are left out and only the two buttons remain. */
   showPrediction?: boolean;
   size?: "compact" | "large";
+  /** Lay the Saved / note line over the bottom padding of the nearest positioned ancestor, so it adds no height under the buttons. */
+  statusOverlay?: boolean;
   /** The tone the grid sits on, so the bar's centre notch matches it. */
   surface?: "footer" | "card";
 }) {
@@ -78,7 +81,7 @@ export function RatingGrid({
   return (
     <div
       className={cn(
-        "grid gap-x-2 gap-y-2.5",
+        "grid gap-x-2 gap-y-2",
         showPrediction ? "grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-2",
         showPrediction && size === "large" && "grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)]",
       )}
@@ -113,7 +116,7 @@ export function RatingGrid({
             </span>
           );
         })}
-        <div className="col-span-2 col-start-2 flex flex-col gap-1" data-confidence>
+        <div className="col-span-2 col-start-2 flex flex-col justify-center" data-confidence>
           <div
             aria-label={ready ? `Cyclotron confidence: leans ${leansAccept ? "Accept" : "Reject"}, ${Math.round(confidenceFillPercent(probability))} percent of the way` : "No confidence"}
             className="relative h-2.5 w-full overflow-hidden rounded-full bg-[var(--feed-control)]"
@@ -131,9 +134,9 @@ export function RatingGrid({
             ) : null}
             <span aria-hidden="true" className={cn("absolute inset-y-0 left-1/2 w-1 -translate-x-1/2", surface === "footer" ? "bg-[var(--feed-footer)]" : "bg-[var(--feed-card)]")} />
           </div>
-          {/* The line is always there, so a prediction arriving later never changes the card's height. */}
-          <small className="min-h-4 text-center text-xs text-muted-foreground" data-cyclotron-state={prediction.state === "ready" ? undefined : prediction.state}>
-            {prediction.state === "ready" ? "\u00a0" : prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
+          {/* Screen-reader status only: a visible line under the bar would push it off the middle between the Cyclotron and You rows. */}
+          <small className="sr-only" data-cyclotron-state={prediction.state === "ready" ? undefined : prediction.state}>
+            {prediction.state === "ready" ? "" : prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
           </small>
         </div>
       </div> : null}
@@ -165,7 +168,7 @@ export function RatingGrid({
         })}
       </div>
 
-      <div className={cn("flex min-h-5 flex-wrap items-center gap-x-3 text-xs text-muted-foreground", showPrediction ? "col-span-3" : "col-span-2")} data-feed-saved role="status">
+      <div className={cn("flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground", statusOverlay ? "absolute inset-x-4 bottom-0 h-4 overflow-hidden leading-4" : cn("min-h-5", showPrediction ? "col-span-3" : "col-span-2"))} data-feed-saved role="status">
         {note ? <span data-feed-reason>{note}</span> : null}
         {feedback.phase === "saving" ? <span className="inline-flex items-center gap-1"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Saving…</span> : null}
         {feedback.phase === "saved" ? <span className="inline-flex items-center gap-1" data-review-saved><CheckIcon aria-hidden="true" className="size-3.5" />Saved</span> : null}

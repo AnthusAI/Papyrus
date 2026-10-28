@@ -43,6 +43,29 @@ def build(out: Path = OUT) -> str:
     return hashlib.sha256(out.read_bytes()).hexdigest()
 
 
+def _module_names(node: ast.ImportFrom) -> list[str]:
+    """In-package modules (as paths like `ideas/synthesis`) one `from ... import` may load: relative (`from .x import y`) and
+    absolute (`from papyrus_content.x import y`, `from papyrus_content import x`) forms, subpackages and their `__init__`."""
+    if node.level == 1:
+        base = (node.module or "").replace(".", "/")
+    elif node.level == 0 and node.module == "papyrus_content":
+        base = ""
+    elif node.level == 0 and (node.module or "").startswith("papyrus_content."):
+        base = node.module[len("papyrus_content."):].replace(".", "/")
+    else:
+        return []
+    names = []
+    if base and (PACKAGE / f"{base}.py").exists():
+        names.append(base)
+    if base and (PACKAGE / base / "__init__.py").exists():
+        names.append(f"{base}/__init__")
+    for alias in node.names:
+        child = f"{base}/{alias.name}" if base else alias.name
+        if (PACKAGE / f"{child}.py").exists():
+            names.append(child)
+    return names
+
+
 def package_modules(roots) -> list[str]:
     """Transitive closure of in-package imports (module level and lazy)."""
     seen, stack = set(), list(roots)
@@ -52,8 +75,8 @@ def package_modules(roots) -> list[str]:
             continue
         seen.add(name)
         for node in ast.walk(ast.parse((PACKAGE / f"{name}.py").read_text())):
-            if isinstance(node, ast.ImportFrom) and node.level == 1:
-                stack.extend([node.module] if node.module else [alias.name for alias in node.names])
+            if isinstance(node, ast.ImportFrom):
+                stack.extend(_module_names(node))
     return sorted(seen)
 
 
