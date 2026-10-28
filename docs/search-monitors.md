@@ -16,8 +16,15 @@ the optimizer and the UI are separate PRs. Operating details of what already exi
 ## Monitor
 
 `web-<publicationId>` (`MONITOR#web-<id>` / `CONFIG`): `sourceType: web-search`, `publicationId`, `intervalSeconds` (the schedule),
-`topic`, `enabled`, and routing: `CONFIG#router` names a Cyclotron target (run, binding, invoker role) or `decisions: "hold"` /
-`holdDecisions: true`. One monitor per publication. Queries are no longer a list inside the config; they are records.
+`topic`, `enabled`, `candidateGroup`, and routing: `CONFIG#router` names a Cyclotron target (run, binding, invoker role) or
+`decisions: "hold"` / `holdDecisions: true`. One monitor per publication. Queries are no longer a list inside the config; they are records.
+
+**Routing is shared across the six shared-Cyclotron publications.** A candidate a web monitor finds is decided for **all six**
+shared publications in one combined `POST /machine/decisions`, exactly as Hacker News items are, so a `web-anth-us` find can land
+in Shipped, Threat Intelligence and the others. Their six router configs therefore list all six publications (the `hn` router's
+entries and cyclotron block) and share `candidateGroup: shared`, so a story found by two of these monitors is one candidate and
+is decided once. Only `web-distinctive` routes on its own: it has its own Cyclotron (not bootstrapped yet), keeps
+`decisions: "hold"`, and stays hold-only; its candidates are its own group. Every router config sets `holdDecisions` until released.
 
 ## Query records
 
@@ -30,7 +37,7 @@ the optimizer and the UI are separate PRs. Operating details of what already exi
 | `rationale` | why the query exists (the drafter's reason, or the editor's) |
 | `origin` | `drafted` (model) or `editor` |
 | `createdBy`, `createdAt` | who made it (model name or editor subject) |
-| `approvedBy`, `approvedAt` | the editor who accepted it; a query is searched only once approved |
+| `approvedBy`, `approvedAt` | who accepted it; a query is searched only once approved. The first queries carry `approvedBy: "Ryan (review delegated to Claude, 2026-10-28)"`; editors can retire or edit any query later, and every change stays an Accept/Reject card |
 | `status` | `active`, `paused` or `retired`; only `active` is searched; `retired` keeps its history |
 | `highWater` | the last date the query was searched through (its own high-water mark; replaces the monitor-wide mark) |
 | `history[]` | append-only edit history: `{at, by, change, before, after, reason}` (a row of its own per entry once long) |
@@ -56,8 +63,9 @@ One record per canonical URL for the whole table, whatever found it (Hacker News
   it never creates a second candidate. Dedupe across HN, email and web is this key.
 - **Enrichment is written once**, content-addressed: capture, summary and body live in write-once records
   (`CONTENT#<sha256>`, large text in S3) and the candidate holds only their hashes. Two monitors finding the same URL reuse them.
-- `decisions` per publication: `{publicationId, jobId, via, label, confidence, criteriaFingerprint, decidedAt}`. A publication
-  decides a candidate once per criteria fingerprint.
+- `decisions` per publication: `{publicationId, jobId, via, label, confidence, criteriaFingerprint, decidedAt}`. **The decision
+  key is item revision plus criteria fingerprint**: a candidate is decided once per pair, and decided again when its item revision
+  changes (a later capture adds the body, an editor corrects the title) or the criteria change.
 - `votes`: editor Accept/Reject per publication (the existing feedback records, linked by candidate).
 
 Discoveries (`DISC#...`) remain the per-monitor routing records the router already works from; each points at its candidate.
