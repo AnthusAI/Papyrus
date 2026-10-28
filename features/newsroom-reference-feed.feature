@@ -69,6 +69,14 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor opens the feed at 375 and 1440 pixels
     Then the pictures are lazy, in a fixed frame and requested with no referrer
     And a missing or failing picture shows a soft gradient tile with the source's mark and name
+    And each source's mark is the icon the newsroom found for it, or its first letter when there is none
+
+  Scenario: The newsroom finds a source's real icon instead of guessing
+    Given a source home page that declares its icons
+    When the newsroom looks for that source's icon
+    Then it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons
+    And it falls back to /favicon.ico only when that is more than an empty placeholder
+    And only real host names that resolve to public addresses are ever fetched
 
   Scenario: The page shows its shell and card skeletons at once, never a checking screen
     Given the References are still loading

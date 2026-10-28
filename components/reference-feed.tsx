@@ -115,7 +115,7 @@ function hueOf(name: string): number {
   return Math.abs(hash) % 360;
 }
 
-/** A small mark for a source: its own favicon on a light tile when it loads, else its first letter. */
+/** A small mark for a source: its own icon (found on the server, see lib/source-icon.ts) on a light tile when there is one, else its first letter. */
 export function SourceMark({ host, size = "sm" }: { host: string | null; size?: "sm" | "lg" }) {
   const [failed, setFailed] = useState(false);
   const box = size === "lg" ? "size-16 rounded-2xl text-3xl" : "size-5 rounded-md text-[0.65rem]";
@@ -124,7 +124,7 @@ export function SourceMark({ host, size = "sm" }: { host: string | null; size?: 
     <span aria-hidden="true" className={cn("inline-flex shrink-0 items-center justify-center overflow-hidden bg-white font-bold uppercase text-neutral-700", box)} data-feed-source-mark>
       {host && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img alt="" className={size === "lg" ? "size-10 object-contain" : "size-3.5 object-contain"} loading="lazy" onError={() => setFailed(true)} referrerPolicy="no-referrer" src={`https://${host}/favicon.ico`} />
+        <img alt="" className={size === "lg" ? "size-10 object-contain" : "size-3.5 object-contain"} loading="lazy" onError={() => setFailed(true)} src={`/api/newsroom/source-icon?host=${encodeURIComponent(host)}`} />
       ) : letter}
     </span>
   );

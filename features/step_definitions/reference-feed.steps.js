@@ -139,6 +139,17 @@ Then("a missing or failing picture shows a soft gradient tile with the source's 
 Then("the page header, the tabs and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
 Then("the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out", async function () { assert.match(await ranking(), /The saved copy and the session display survive a return visit/); });
 
+Then("each source's mark is the icon the newsroom found for it, or its first letter when there is none", async function () { assert.ok((await browser("images")).includes("passed: images")); });
+
+// The icon lookup itself: scripts/test-source-icon.ts covers the ordering and the host guard.
+Given("a source home page that declares its icons", function () { this.iconResult = ""; });
+When("the newsroom looks for that source's icon", async function () { this.iconResult = await run("scripts/test-source-icon.ts"); });
+for (const text of [
+  "it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons",
+  "it falls back to /favicon.ico only when that is more than an empty placeholder",
+  "only real host names that resolve to public addresses are ever fetched",
+]) Then(text, function () { assert.match(this.iconResult, /source icon check: ok/); });
+
 // The framing check itself: scripts/test-source-frameable.ts covers the header rules and the address guard.
 Given("a source page and the headers it sends", function () { this.frameableResult = ""; });
 When("the newsroom checks whether it may show that page in a frame", async function () { this.frameableResult = await run("scripts/test-source-frameable.ts"); });

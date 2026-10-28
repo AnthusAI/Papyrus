@@ -105,6 +105,10 @@ async function setup(options = "", width = 1440, beforeLoad?: (page: Page) => Pr
       return url.pathname.endsWith("ok.svg") ? route.fulfill({ contentType: "image/svg+xml", body: SVG }) : route.fulfill({ status: 404, body: "" });
     }
     if (url.origin !== origin) return route.abort();
+    if (url.pathname === "/api/newsroom/source-icon") {
+      requests.push({ url: url.href, referrer: route.request().headers().referer });
+      return url.searchParams.get("host")?.includes("broken") ? route.fulfill({ status: 404, body: "" }) : route.fulfill({ contentType: "image/svg+xml", body: SVG });
+    }
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
     return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root" class="p-4"></div><script src="/fixture.js"></script></body></html>` });
   });
@@ -320,7 +324,12 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok(/gradient/.test(await fallback.evaluate((element) => getComputedStyle(element).backgroundImage)), "a soft gradient from the source name");
       const noPreview = card(page, "no-prediction").locator("[data-feed-image-fallback]");
       assert.equal(await noPreview.count(), 1, "a Reference with no preview shows the tile at once");
-      assert.ok(requests.every((request) => request.referrer === undefined), "images are requested with no referrer");
+      assert.ok(requests.every((request) => request.referrer === undefined || request.url.includes("/api/newsroom/source-icon")), "images are requested with no referrer");
+      // Source icons come from the newsroom's own icon route, never a guessed /favicon.ico on the source; no icon means the letter.
+      const marks = await page.locator("[data-feed-source-mark] img").evaluateAll((images) => images.map((image) => (image as HTMLImageElement).getAttribute("src") ?? ""));
+      assert.ok(marks.length > 0 && marks.every((src) => src.startsWith("/api/newsroom/source-icon?host=")), "every source icon is asked of the newsroom");
+      await page.waitForFunction(() => !document.querySelector('[data-feed-card="broken-image"] [data-feed-image-fallback] [data-feed-source-mark] img'));
+      assert.match(await fallback.locator("[data-feed-source-mark]").innerText(), /^\S$/, "a source with no icon shows its first letter");
     });
   },
 
