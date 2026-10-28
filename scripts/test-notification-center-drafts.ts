@@ -629,7 +629,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 };
 
-type Call = { type: string; update?: Record<string, unknown>; note?: string; by?: string; id?: string; path?: string[]; requestId?: string; answer?: Record<string, unknown>; draftId?: string; decision?: Record<string, unknown>; receiptId?: string; reason?: string };
+type Call = { type: string; action?: string; update?: Record<string, unknown>; note?: string; by?: string; id?: string; path?: string[]; requestId?: string; answer?: Record<string, unknown>; draftId?: string; decision?: Record<string, unknown>; receiptId?: string; reason?: string };
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { calls: Call[] }).calls);
 
 export async function runNotificationCenterScenario(name: string) {
