@@ -22,6 +22,7 @@ from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_
                          parse_ttab_page, ttab_search_body)
 from .monitoring_huggingface import Reading, hf_feeds, hf_window_start, validate_hf_config
 from .monitoring_paging import READ_BUDGET_SECONDS, Page, read_feed
+from .monitoring_web import WEB_SEARCH, DEFAULT_INTERVAL_SECONDS as WEB_INTERVAL_SECONDS, TAVILY_SOURCE_URL, url_hash, validate_web_config, web_feed
 
 LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout (LAMBDA_TIMEOUT_SECONDS); a crashed run's lease expires
 DUE_SLACK_SECONDS = 60       # scheduler jitter must not skip a whole interval
@@ -122,6 +123,18 @@ class DynamoStore:
     def put_item(self, monitor_id, record):
         self.table.put_item(Item=record)
 
+    def url_holders(self, digest: str) -> list[dict]:
+        """The monitors that have collected this canonical URL (`URL#<hash>` / `MON#<monitorId>` records)."""
+        rows, start = [], None
+        while True:
+            kwargs = {"ExclusiveStartKey": start} if start else {}
+            page = self.table.query(KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+                                    ExpressionAttributeValues={":pk": f"URL#{digest}", ":prefix": "MON#"}, **kwargs)
+            rows += [self._clean(row) for row in page.get("Items", [])]
+            start = page.get("LastEvaluatedKey")
+            if not start:
+                return rows
+
     def put_receipt(self, monitor_id, record):
         self.table.put_item(Item=record)
 
@@ -134,6 +147,8 @@ def _validate_config(raw: dict) -> dict:
     if source_type not in SOURCE_TYPES:
         raise ValueError(f"Config sourceType must be one of {', '.join(sorted(SOURCE_TYPES))}")
     host = SOURCE_TYPES[source_type]["host"]
+    if source_type == WEB_SEARCH:
+        raw = {"sourceUrl": TAVILY_SOURCE_URL, "intervalSeconds": WEB_INTERVAL_SECONDS, **raw}
     source = urlsplit(str(raw.get("sourceUrl") or ""))
     if (source.scheme != "https" or source.hostname != host or source.username
             or source.password or source.query or source.fragment):
@@ -160,14 +175,20 @@ def _validate_config(raw: dict) -> dict:
                       precedentialLookbackDays=recheck, pageSize=page_size)
     if source_type == "huggingface-models":
         config.update(validate_hf_config(raw))
+    if source_type == WEB_SEARCH:
+        config.update(validate_web_config(raw))
     return config
 
 
-def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, reading: Reading) -> list[dict]:
+def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, reading: Reading, *,
+                 known: Callable | None = None, watermark: int | None = None) -> list[dict]:
     """The feeds one source is read through (see `monitoring_paging.read_feed`). Each is a dict with a `key`,
     `fetch_page(cursor) -> (rows, next_cursor)`, `items(rows) -> (SourceItem list, over)` and `stop_at_seen`
     (true when the feed is newest first, so a page of collected items is its high-water mark).
-    `fetch` replaces the network call in tests."""
+    `fetch` replaces the network call in tests. A feed may also carry `known(item)`: an item it returns True for
+    was collected before (by this monitor or, for web search, another) and is skipped."""
+    if config["sourceType"] == WEB_SEARCH:
+        return [web_feed(config, int(now), watermark, fetch, known or (lambda item: False))]
     if config["sourceType"] == "huggingface-models":
         return hf_feeds(config, now, fetch, reading)
     if config["sourceType"] == "ttab-decisions":
@@ -206,6 +227,33 @@ def ttab_feed(config: dict, now: float, fetch: Callable, key: str, lookback_days
     return {"key": key, "fetch_page": fetch_page, "items": items, "stop_at_seen": True}
 
 
+def register_url(store, monitor_id: str, config: dict, item, observed: str):
+    """Record that this monitor collected the URL, so a web-search monitor can tell a story another source already found.
+    Best effort: a failed write only means the story may be collected again elsewhere."""
+    try:
+        store.put_item(monitor_id, {"pk": f"URL#{url_hash(item.canonical_url)}", "sk": f"MON#{monitor_id}",
+                                    "monitorId": monitor_id, "sourceType": config["sourceType"], "sourceId": item.source_id,
+                                    "canonicalUrl": item.canonical_url, "firstObservedAt": observed})
+    except Exception as error:   # noqa: BLE001
+        print(json.dumps({"monitor": "url_registry_failed", "monitorId": monitor_id, "error": str(error)[:200]}))
+
+
+def known_in_other_sources(store, monitor_id: str, config: dict):
+    """The `known` test of a web-search feed: the URL is already an item of this monitor, or some other monitor collected
+    it. Another web-search monitor counts only when the config says so (`dedupeAgainstWebMonitors`): each publication's
+    web monitor routes only to its own publication, so one story can fairly be found for several."""
+    def known(item) -> bool:
+        if store.get_item(monitor_id, item.source_id):
+            return True
+        for holder in store.url_holders(url_hash(item.canonical_url)):
+            if holder.get("monitorId") == monitor_id:
+                return True
+            if holder.get("sourceType") != WEB_SEARCH or config["dedupeAgainstWebMonitors"]:
+                return True
+        return False
+    return known
+
+
 def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_id: str) -> str:
     """Dedupe one source item against its current record and, when new or changed, write its discovery and
     current-item record (in that order, so a crash between them is repaired by the next run).
@@ -235,14 +283,17 @@ def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_i
                                 "revision": revision, "eventId": event_id,
                                 "firstObservedAt": old.get("firstObservedAt", observed) if old else observed,
                                 "lastChangedAt": observed})
+    if not old:
+        register_url(store, monitor_id, config, item, observed)
     return "revised" if old else "new"
 
 
 def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, run_id: str, result: dict,
-                   reading: Reading, resume: dict) -> dict:
+                   reading: Reading, resume: dict, watermark: int | None = None) -> dict:
     """Read every feed of the source, page by page, committing each page's items before asking for the next, so a
     stop (time, rate limit, a crash) loses nothing. Returns the resume cursors per feed key (empty: all read)."""
-    feeds = source_feeds(config, now, fetch, reading)
+    known = known_in_other_sources(store, monitor_id, config) if config["sourceType"] == WEB_SEARCH else None
+    feeds = source_feeds(config, now, fetch, reading, known=known, watermark=watermark)
     changed_now: set[str] = set()      # committed by this pass (an item two feeds both list is not "already seen")
     carry, failed = {}, 0
     for feed in feeds:
@@ -255,6 +306,10 @@ def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, r
                     break
                 result["itemCount"] += 1
                 try:
+                    if feed.get("known") and feed["known"](item):
+                        result["unchanged"] += 1
+                        page.seen += 1
+                        continue
                     outcome = commit_item(store, monitor_id, config, item, now=now, run_id=run_id)
                 except Exception as error:
                     result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
@@ -314,9 +369,10 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
         reading = Reading(budget_seconds, clock=clock, sleep=sleep)
         resume = (state or {}).get("resume") or {}
         carry = resume
+        watermark = (state or {}).get("watermark")
         try:
             carry = collect_source(store, monitor_id, config, fetch=fetch, now=now, run_id=run_id, result=result,
-                                   reading=reading, resume=resume)
+                                   reading=reading, resume=resume, watermark=watermark)
         except Exception as error:
             result["status"] = "failed"
             result["errors"].append({"stage": "fetch", "message": str(error)[:300]})
@@ -335,6 +391,10 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             result["status"] = "partial"
         finished = now if injected_clock else time.time()
         next_due = now if carry and result["status"] != "failed" else now + config["intervalSeconds"]
+        if config["sourceType"] == WEB_SEARCH:
+            # The high-water mark moves to the start of a pass that read every query to its end without an error.
+            if result["status"] == "complete" and not carry and not reading.errors:
+                watermark = int(((resume.get("web") or [{}])[0]).get("until") or now)
         result.update(finishedAt=_iso(finished), nextDueAt=_iso(next_due), errorCount=len(result["errors"]))
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"RUN#{result['startedAt']}#{run_id}", "runId": run_id,
@@ -345,10 +405,42 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
             "ttl": int(now + RECEIPT_TTL_SECONDS), **({"read": result["read"]} if "read" in result else {})})
         store.put_state(monitor_id, {"pk": pk(monitor_id), "sk": "STATE", "nextDueAt": int(next_due),
                                      "lastRunId": run_id, "lastStatus": result["status"],
-                                     "lastFinishedAt": result["finishedAt"], **({"resume": carry} if carry else {})})
+                                     "lastFinishedAt": result["finishedAt"], **({"resume": carry} if carry else {}),
+                                     **({"watermark": int(watermark)} if watermark is not None else {})})
         return result
     finally:
         store.release_lock(monitor_id, owner)
+
+
+def run_web_collections(store, monitor_ids, *, now: float | None = None, force: bool = False,
+                        budget_seconds: float = READ_BUDGET_SECONDS, clock: Callable[[], float] = time.monotonic,
+                        sleep: Callable[[float], None] = time.sleep, fetch=None) -> list[dict]:
+    """Collect every web-search monitor in `monitor_ids` whose next-due time has passed, the longest-overdue first.
+
+    One scheduled invocation serves all of them, so the pass's read time is shared: each monitor gets an equal share of
+    what is left (a monitor that stops early is due again at once, and the next invocation continues it). Monitors that
+    are not configured, disabled, of another source type or not yet due are left alone."""
+    now = time.time() if now is None else now
+    due = []
+    for monitor_id in monitor_ids:
+        raw = store.get_config(monitor_id)
+        if raw is None or raw.get("sourceType") != WEB_SEARCH or raw.get("enabled") is False:
+            continue
+        state = store.get_state(monitor_id)
+        next_due = (state or {}).get("nextDueAt", 0)
+        if force or next_due - DUE_SLACK_SECONDS <= now:
+            due.append((next_due, monitor_id))
+    started, results = clock(), []
+    for index, (_, monitor_id) in enumerate(sorted(due)):
+        left = budget_seconds - (clock() - started)
+        if left <= 0:
+            break
+        try:
+            results.append(run_collection(store, monitor_id, now=now, force=force, budget_seconds=left / (len(due) - index),
+                                          clock=clock, sleep=sleep, fetch=fetch))
+        except Exception as error:   # one monitor's bad config must not stop the others
+            results.append({"monitorId": monitor_id, "status": "failed", "errors": [{"stage": "config", "message": str(error)[:300]}]})
+    return results
 
 
 def handler(event, context):
@@ -357,6 +449,12 @@ def handler(event, context):
 
     event = event if isinstance(event, dict) else {}
     store = DynamoStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
+    if event.get("sourceType") == WEB_SEARCH:   # {"sourceType": "web-search", "monitorIds": [...]}: every due web monitor
+        results = run_web_collections(store, [str(m) for m in event.get("monitorIds") or []], force=event.get("force") is True)
+        print(json.dumps([{k: v for k, v in r.items() if k != "errors"} | {"errors": r.get("errors", [])[:3]} for r in results]))
+        if any(r["status"] == "failed" for r in results):
+            raise RuntimeError("Web monitor collection failed; see the run receipts")
+        return [{k: r.get(k) for k in ("monitorId", "runId", "status", "new", "unchanged", "errorCount", "nextDueAt")} for r in results]
     result = run_collection(store, str(event.get("monitorId") or "hn"), force=event.get("force") is True)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     if result["status"] == "failed":
