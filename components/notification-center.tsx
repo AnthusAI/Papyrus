@@ -116,11 +116,11 @@ type ContainerProps = {
 
 const REFRESH_MILLISECONDS = 60_000;
 
-/** Preview only: ?ncState=loading holds the skeleton, caught-up shows the empty state, sample swaps in the invented hard gate, flags and batches. */
-function previewState(): "loading" | "caught-up" | "sample" | null {
+/** Preview only: ?ncState=loading holds the skeleton, caught-up shows the empty state, sample swaps in the invented hard gate, flags, batches and held email, mixed adds the invented hard gate, flag and held email to the real data. */
+function previewState(): "loading" | "caught-up" | "sample" | "mixed" | null {
   if (typeof window === "undefined" || !isLocalPreviewEnabled()) return null;
   const requested = new URLSearchParams(window.location.search).get("ncState");
-  return requested === "loading" || requested === "caught-up" || requested === "sample" ? requested : null;
+  return requested === "loading" || requested === "caught-up" || requested === "sample" || requested === "mixed" ? requested : null;
 }
 
 const EMAIL_REFUSALS: Record<string, string> = {
@@ -158,6 +158,10 @@ export function NotificationCenter({
   const preview = useMemo(() => previewState(), []);
   const sample = useMemo(() => {
     if (preview === "sample" || !fixture) return { requests: FIXTURE_REVIEW_REQUESTS, drafts: FIXTURE_DRAFTS };
+    if (preview === "mixed") {
+      const invented = FIXTURE_REVIEW_REQUESTS.filter((request) => request.id === "rr-hard-1" || request.id === "rr-flag-1");
+      return { requests: [...invented, ...fixture.requests], drafts: fixture.drafts };
+    }
     return { requests: preview === "caught-up" ? [] : fixture.requests, drafts: fixture.drafts };
   }, [fixture, preview]);
 
@@ -189,13 +193,15 @@ export function NotificationCenter({
   // Email held for review is read on its own: a site without monitoring, or an editor who may not read it, simply has none.
   const loadEmailsNow = useCallback(async () => {
     if (preview === "caught-up") { setEmails([]); setEmailsState("ready"); return; }
+    // The real-data preview has no held email of its own; only the sample and mixed previews show the invented one.
+    if (demo && fixture && preview !== "sample" && preview !== "mixed") { setEmails(fixture.emails ?? []); setEmailsState("ready"); return; }
     try {
       setEmails((await api.loadHeldEmails?.()) ?? []);
     } catch {
       // Held email is one source among several; the others still show.
     }
     setEmailsState("ready");
-  }, [api, preview]);
+  }, [api, demo, fixture, preview]);
 
   // A return visit paints the last view at once, marked as such, while the real reads run.
   useEffect(() => {

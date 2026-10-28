@@ -545,7 +545,7 @@ export function NeedsMeView({
 
       {isMobile ? (
         <Sheet onOpenChange={(open) => { if (!open) closeDetail(); else setSheetOpen(true); }} open={(sheetOpen && Boolean(selected)) || caughtUp}>
-          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" side="bottom" {...themeAttributes}>
+          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
             <SheetHeader className="px-4 py-3"><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
             {selected ? (
               <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
