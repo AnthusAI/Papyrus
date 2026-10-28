@@ -110,7 +110,9 @@ export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNot
 
   const commit = useCallback(async (id: string, choice: ReviewChoice) => {
     if (finalDecision(id)) { void saveNoteOnly(id); return; }
-    const { note, reasonCode } = values(id);
+    const { note, reasonCode: chosenCode } = values(id);
+    // A typed reason is a reason: a Reject with words but no reason button is filed under "other" rather than left waiting.
+    const reasonCode = chosenCode ?? (choice === "reject" && note.trim() ? "other" : null);
     if (choice === "reject" && !reasonCode && (latest.current.needsReason?.(id) ?? true)) { patch(id, { pending: "reject", askReason: true }); return; }
     if (inFlight.current.has(id)) { dirty.current.add(id); return; }
     inFlight.current.add(id);

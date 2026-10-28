@@ -6,7 +6,7 @@ import { SITE_BRAND } from "../lib/site-brand";
 import type { NewsDeskShellState } from "../lib/news-desk-session";
 import { cn } from "../lib/utils";
 import { NewsroomOpsShell } from "./newsroom-ops-shell";
-import { NewsroomOverviewSkeleton } from "./newsroom-overview-skeleton";
+import { NotificationSkeleton } from "./notification-cards";
 import { ReaderAuthControl } from "./reader-auth-control";
 import { buttonVariants } from "./ui/button";
 import { ReferencesPageLoading } from "./references-page-loading";
@@ -28,19 +28,10 @@ export function NewsDeskAccessGate({ initialTab, shell, showSectionTabs = false 
       pageTitle={referencesPage ? "References" : showSectionTabs ? "Notification Center" : "Newsroom"}
       showNavigation={showSectionTabs || referencesPage}
     >
-      {pending && referencesPage ? <ReferencesPageLoading /> : pending ? (showSectionTabs ? <NewsroomOverviewSkeleton /> : (
-        <div aria-label="Loading newsroom" className="space-y-4" data-newsroom-page-skeleton role="status">
-          <div className="h-6 w-48 rounded bg-muted" />
-          <div className="h-4 w-3/4 rounded bg-muted" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            {Array.from({ length: 4 }, (_, index) => <div className="h-32 rounded-xl border bg-card p-4" key={index}>
-              <div className="h-4 w-2/3 rounded bg-muted" /><div className="mt-4 h-3 w-1/2 rounded bg-muted" />
-            </div>)}
-          </div>
-        </div>
-      )) : (
+      {/* The loading state is the feed's own skeleton, so what loads replaces it in place. */}
+      {pending && referencesPage ? <ReferencesPageLoading /> : pending ? <NotificationSkeleton bare={!showSectionTabs} count={4} /> : (
       <section aria-live="polite" data-news-desk-access={accessPhase} data-news-desk-access-phase={accessPhase}>
-        <div className="space-y-3 rounded-xl border border-border bg-card p-6">
+        <div className="space-y-3 rounded-xl bg-card p-6">
           <p className="m-0 text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Access</p>
           <h2 className="m-0 font-sans text-xl font-semibold tracking-tight">{formatAccessTitle(shell)}</h2>
           <p className="m-0 text-sm text-muted-foreground">{formatAccessDetail(shell)}</p>

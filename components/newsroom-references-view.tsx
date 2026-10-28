@@ -50,7 +50,7 @@ import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capt
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { captureStatusesByLineage } from "../lib/reference-capture";
 import { applyFeedOrderSnapshot, partitionReferenceFeed, takeFeedOrderSnapshot, type FeedOrderSnapshot, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
-import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
+import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
 import { cn } from "@/lib/utils";
@@ -262,28 +262,30 @@ function ReferenceDetailPanel({
       data-news-desk-reference-detail={lineageId}
     >
       <div className="space-y-4 p-4" data-reference-curation-status={status}>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
-          {reference.corpusId ? <Badge variant="outline">{reference.corpusId}</Badge> : null}
-        </div>
-
         <ReviewCard
           decided={status === "accepted" ? "accept" : status === "rejected" ? "reject" : null}
+          dek={referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId))}
           disabledReason={disabled ? "Editor access is required to change this reference." : null}
           initialNote={sourceNote}
           initialReason={sourceReason}
           itemId={lineageId}
+          meta={(
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
+              {reference.corpusId ? <Badge variant="secondary">{reference.corpusId}</Badge> : null}
+            </div>
+          )}
           ratings={ratings}
           onArchive={status === "archived" ? undefined : async () => { await onReview("archive"); }}
           onDecide={decide}
           prediction={cardPrediction(decision, predictionState)}
-          summary={summaryOf(reference)}
+          summary={capture.summary ?? summaryOf(reference)}
           title={referenceDisplayTitle(reference)}
           titleHref={url}
         >
           {decision ? <div data-reference-relevance-decision={lineageId}><ReferenceSuggestionProvenance decision={decision} /></div> : null}
           {sectionSuggestion || ((status === "pending" || status === "accepted") && sections.length) ? (
-            <details className="rounded-md border p-3 text-sm">
+            <details className="rounded-[var(--feed-radius-lg,10px)] bg-[var(--feed-control)] p-3 text-sm">
               <summary className="cursor-pointer font-semibold">Section placement (optional)</summary>
               <div className="mt-3 space-y-3">
                 {sectionSuggestion ? <SectionSuggestionBlock agreement={sectionAgreement} referenceLineageId={lineageId} sections={sections} suggestion={sectionSuggestion} /> : null}
@@ -304,7 +306,7 @@ function ReferenceDetailPanel({
 
         <Separator />
 
-        <ReferenceCapturePanel capture={capture} />
+        <ReferenceCapturePanel capture={capture} showSummary={false} />
 
         <section aria-label="Source preview" className="space-y-2">
           <h3 className="text-sm font-medium text-foreground">Source preview</h3>

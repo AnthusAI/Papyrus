@@ -33,6 +33,7 @@ const outcomes = [
   ]],
   ["grid", [
     "the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels",
+    "on a card as narrow as 240 pixels every icon, word and percentage fits inside its cell, the confidence wrapping onto its own line",
     "a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one",
     "the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction",
     "before a vote the predicted cell is neutral with a Check or X icon",
@@ -66,6 +67,7 @@ const outcomes = [
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
+  "the editor opens the full-text one at 375 pixels and shows all of the captured text",
   "the editor chooses Paste or correct the text, pastes the article and marks the capture complete",
   "the editor accepts on the grid card and then types a reason in the detail pane",
   "the editor types a reason in the detail pane before voting, then votes",
@@ -84,13 +86,16 @@ const syncOutcomes = [
     "a verdict alone is saved as just a label, and nothing can be saved without a verdict",
   ]],
   ["capture_status", [
-    'the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction',
+    "the title comes first, then the source's own blurb when it has one, the link, the badges and the summary, then Accept and Reject with the Why box",
+    "our captured record, the source preview and the import details come after the rating",
+    'the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there',
     'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',
     "each state has its own Lucide icon as well as its words, and the record sits above the source preview",
     "every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened",
   ]],
   ["vote_then_reason", ["the pane shows the vote, the green match state, and the reason is saved onto the same decision after a pause or on blur, with a Saved tick in both places"]],
-  ["reason_then_vote", ["the vote carries the reason, a Reject waits for its reason code, and a failed save keeps what was typed"]],
+  ["reason_then_vote", ['the vote carries the reason, a Reject with a typed reason saves at once under "Other", a Reject with no reason at all waits for one, and a failed save keeps what was typed']],
+  ["phone_scroll", ["the captured text and every text box grow to fit their text, none of them scrolls inside itself, and the page scrolls past them"]],
   ["card_and_detail_agree", ["both show the Reject, the card shows the reason and the red or green match state with its icon"]],
   ["grid_stays_put", [
     "every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels",

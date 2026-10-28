@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { cn } from "@/lib/utils";
 import { RatingGrid } from "./review-rating-grid";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
@@ -132,10 +133,12 @@ export function predictionFromDecision(decision: { label: string; positiveLabel:
 export function ReviewCard({
   children,
   decided,
+  dek,
   disabledReason,
   initialNote = "",
   initialReason = null,
   itemId,
+  meta,
   onArchive,
   onDecide,
   prediction,
@@ -149,11 +152,15 @@ export function ReviewCard({
   ratings?: RatingController;
   /** The saved human answer, or null while the item is undecided. */
   decided: ReviewChoice | null;
+  /** The source's own subtitle or blurb, shown under the title. */
+  dek?: string | null;
   /** When set, the controls explain in words why they cannot change anything. */
   disabledReason?: string | null;
   initialNote?: string;
   initialReason?: ReferenceRejectionReasonCode | null;
   itemId: string;
+  /** Badges (type, status) shown under the title and link. */
+  meta?: ReactNode;
   onArchive?: () => Promise<void> | void;
   onDecide: (choice: ReviewChoice, decision: ReviewCardDecision) => Promise<void> | void;
   prediction: CardPrediction;
@@ -192,15 +199,23 @@ export function ReviewCard({
 
   return (
     <section aria-label="Review" className="space-y-4" data-review-card={itemId}>
-      <header className="space-y-1">
+      {/* Title, blurb, link, badges, summary: what the item is, read top to bottom before the rating. */}
+      <header className="space-y-2">
         <h2 className="text-lg font-semibold leading-snug text-foreground">{title}</h2>
+        {dek && dek.trim() !== title.trim() ? <p className="text-base text-muted-foreground" data-review-dek>{dek}</p> : null}
         {titleHref ? (
           <a className="inline-flex max-w-full items-center gap-1 truncate text-sm text-primary underline-offset-4 hover:underline" href={titleHref} rel="noreferrer" target="_blank">
             <span className="truncate">{titleHref}</span>
             <ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" />
           </a>
         ) : null}
-        {summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
+        {meta}
+        {summary ? (
+          <div className="space-y-1 pt-1" data-review-summary>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Summary</h3>
+            <p className="text-sm leading-relaxed text-foreground">{summary}</p>
+          </div>
+        ) : null}
       </header>
 
       <RatingGrid
@@ -217,9 +232,9 @@ export function ReviewCard({
 
       <label className="block text-sm font-medium">
         Why? (optional)
-        <textarea
+        <AutoGrowTextarea
           aria-label="Why? (optional)"
-          className="mt-1 block min-h-24 w-full rounded-md border bg-background p-3 text-base font-normal"
+          className="mt-1 block min-h-20 w-full rounded-[var(--feed-radius-lg,10px)] bg-[var(--feed-control)] p-3 text-base font-normal outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
           onBlur={commitNote}
           onChange={(event) => store.setNote(itemId, event.target.value)}
           placeholder="Say what made this an easy yes or a clear no. Your note teaches the Cyclotron."
@@ -232,22 +247,21 @@ export function ReviewCard({
           <p className="text-sm font-medium">Reason for rejecting</p>
           <div className="flex flex-wrap gap-2">
             {REFERENCE_REJECTION_REASON_CODES.map((code) => (
-              <Button
+              <button
                 aria-disabled={disabledReason ? true : undefined}
                 aria-pressed={reason === code}
-                className="min-h-10"
+                className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-[var(--feed-radius-pill,8px)] px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", reason === code ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)]")}
                 data-review-reason={code}
                 key={code}
                 onClick={() => chooseReason(code)}
                 type="button"
-                variant={reason === code ? "default" : "outline"}
               >
                 {reason === code ? <CheckIcon aria-hidden="true" className="size-4" /> : null}
                 {REASON_LABELS[code]}
-              </Button>
+              </button>
             ))}
           </div>
-          {!reason ? <p className="text-sm text-muted-foreground">Choose a reason to save your Reject.</p> : null}
+          {!reason && !note.trim() ? <p className="text-sm text-muted-foreground">Choose a reason, or say why above, to save your Reject.</p> : null}
         </div>
       ) : null}
 
