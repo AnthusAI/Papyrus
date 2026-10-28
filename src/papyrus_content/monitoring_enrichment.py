@@ -186,7 +186,8 @@ def enrich_item(row: dict[str, Any], disc: dict[str, Any], monitor_id: str, enri
         if capture_open and captured is not None:
             capture: dict[str, Any] = {"status": "completed" if captured.ok else "failed", "capturedAt": iso(now),
                                        "sourceKind": captured.source_kind, "contentType": captured.content_type, "via": captured.via,
-                                       "destinationUrl": captured.destination_url, "fullTextUrl": captured.full_text_url}
+                                       "destinationUrl": captured.destination_url, "fullTextUrl": captured.full_text_url,
+                                       "textVia": captured.text_via, "textReason": captured.text_reason}
             if captured.ok:
                 enricher.texts.put(key_text, captured.text)
                 text = captured.text

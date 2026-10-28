@@ -60,6 +60,12 @@ URL-free failures). Capture adds:
 * **PDF**: every page, with line wraps and hyphenation undone. The bytes are kept in memory for GROBID.
 * **Following a PDF**: arXiv `abs` pages are read from `arxiv.org/pdf/<id>`; a page with
   `citation_pdf_url` is read from that PDF; a thin page that links one main PDF uses it when it is longer.
+* **YouTube**: a video link (`watch`, `youtu.be`, `shorts`, `live` or an embed, on `youtube.com`, `m.youtube.com` or
+  `youtube-nocookie.com`) is captured from its transcript (`youtube-transcript-api`, English when offered). `capture.textVia`
+  is `youtube_transcript`. YouTube often refuses cloud addresses; then the page's own text (its description, or its title when
+  there is nothing else) is kept, `capture.textVia` is `youtube_description` and `capture.textReason` says why: `blocked`,
+  `no_transcript`, `unavailable`, `unreadable` or `library_missing`. Every attempt prints one JSON line
+  (`{"youtubeTranscript": "captured" | "fallback", "videoId", "reason", "characters"}`) so CloudWatch can count the blocks.
 * **Bounds** are the real ones: the reader's response guards (400 KB of HTML, 8 MB of PDF; larger fails
   as `too_large`), per-request timeouts and the one overall deadline.
 
