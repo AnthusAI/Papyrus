@@ -406,6 +406,18 @@ def _discovery(monitor_id, config, row, receipt_key, message_id, link, source_ur
             "gsi1sk": f"{row['observedAt']}#{source_id}#000001"}
 
 
+def _note_candidate(store, monitor_id, discovery):
+    """The shared candidate for this URL (docs/search-monitors.md), so web monitors skip what an email already brought.
+    Best effort: it never fails the intake."""
+    try:
+        from .monitoring_candidates import record_candidate
+        record_candidate(store, url=discovery["canonicalUrl"], title=discovery["title"], published_at=None, monitor_id=monitor_id,
+                         source_type="email", group=monitor_id, source_id=discovery["sourceId"], found_at=discovery["observedAt"],
+                         run_id=discovery["runId"], collected=True)
+    except Exception as error:   # noqa: BLE001
+        print(json.dumps({"email": "candidate_failed", "monitorId": monitor_id, "error": str(error)[:200]}))
+
+
 def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id, destination_publications):
     cursor, size = int(row.get("cursorBytes", 0)), int(row["manifestBytes"])
     source_url = "mailto:" + config["addresses"][0]
@@ -422,8 +434,9 @@ def _drain_manifest(store, s3, monitor_id, config, row, receipt_key, message_id,
             if link.get("resolutionStatus") == "unresolved":
                 link = _explored(link, row)
             if link is not None:
-                store.put_discovery(monitor_id, _discovery(
-                    monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications))
+                discovery = _discovery(monitor_id, config, row, receipt_key, message_id, link, source_url, destination_publications)
+                store.put_discovery(monitor_id, discovery)
+                _note_candidate(store, monitor_id, discovery)
             cursor = next_cursor
             processed += 1
     done = cursor >= size
