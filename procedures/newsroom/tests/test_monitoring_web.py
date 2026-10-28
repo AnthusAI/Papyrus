@@ -9,7 +9,8 @@ from papyrus_content.monitoring_candidates import candidate_key, record_candidat
 from papyrus_content.monitoring_cloud import DynamoStore, _validate_config, run_collection, run_web_collections
 from papyrus_content.monitoring_paging import RateLimited
 from papyrus_content.monitoring_router import CyclotronClient, RouterStore, run_router, validate_router_config
-from papyrus_content.monitoring_web import TAVILY_PAGE_LIMIT, canonical_url, parse_results, query_record, searchable
+from papyrus_content.monitoring_web import (TAVILY_PAGE_LIMIT, arxiv_paper_id, canonical_url, parse_results, query_record, searchable,
+                                           with_paper_titles)
 from papyrus_content.monitoring_web_publications import (SHARED_CYCLOTRON, WEB_PUBLICATIONS, monitor_config, monitor_id,
                                                          router_config)
 
@@ -101,6 +102,23 @@ def test_results_become_items_with_canonical_urls_snippet_date_and_the_query_tha
     assert item.canonical_url == "https://example.org/a?id=1" and item.title == "A story"
     assert item.published_at == "2026-10-20T00:00:00Z" and item.source_id.startswith("w")
     assert item.details == {"query": "ai agents", "queryId": "q1", "snippet": "About agents", "tavilyScoreBp": 9123}
+
+
+def test_an_arxiv_result_takes_the_papers_own_title_from_arxiv():
+    items = parse_results("ai evaluation", [{"url": "https://arxiv.org/html/2610.35725v1", "title": "1 Introduction"},
+                                            {"url": "https://example.org/a", "title": "A story"}])
+    asked = []
+
+    def lookup(ids):
+        asked.append(ids)
+        return {"2610.35725": "The Watchtower Imperative: Lifespan-Calibrated Evaluation for Frontier AI"}
+
+    titled = with_paper_titles(items, lookup)
+    assert [i.title for i in titled] == ["The Watchtower Imperative: Lifespan-Calibrated Evaluation for Frontier AI", "A story"]
+    assert asked == [["2610.35725"]], "one request for the page's arXiv papers"
+    assert titled[0].fingerprint != items[0].fingerprint, "the fingerprint follows the stored title"
+    assert [i.title for i in with_paper_titles(items, lambda ids: {})] == ["1 Introduction", "A story"], "arXiv down: the title stands"
+    assert arxiv_paper_id("https://arxiv.org/abs/1706.03762v7") == "1706.03762" and arxiv_paper_id("https://example.org/abs/1") is None
 
 
 def test_results_without_a_usable_url_or_title_and_repeats_are_dropped():
