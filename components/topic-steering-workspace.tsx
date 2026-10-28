@@ -103,7 +103,7 @@ import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
-import { NewsroomOpsSearchButton, NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
+import { NewsroomOpsSectionIntro, NewsroomOpsShell, NewsroomOpsStatusBanner, type NewsroomNavCount } from "./newsroom-ops-shell";
 import { Button, buttonVariants } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -3060,14 +3060,8 @@ function NewsDeskDashboard({
             {dashboard.isDemo ? (
               dashboard.realDataPreview ? null : <Badge variant="outline">Demo</Badge>
             ) : (
-              <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+              <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "organizer-header-settings")} href="/settings">Settings</Link>
             )}
-            {canEdit && editorShellReady && !dashboard.isDemo ? (
-              <NewsroomOpsSearchButton
-                disabled={false}
-                onPress={activeTab === "search" ? focusNewsroomSearchForm : topBarSearchControl.open}
-              />
-            ) : null}
             <NewsroomConsoleProgressToggle />
           </>
         )}
@@ -14569,17 +14563,6 @@ function buildNewsroomSearchHref(request: NewsroomSearchRequest, demo?: boolean)
   if (demo) params.set("demo", "1");
   const queryString = params.toString();
   return toPublicNewsroomPath(queryString ? `/newsroom/search?${queryString}` : "/newsroom/search");
-}
-
-function focusNewsroomSearchForm() {
-  if (typeof window === "undefined") return;
-  const input = document.getElementById("newsroom-search-query");
-  if (input instanceof HTMLElement) {
-    input.focus();
-    input.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
-  }
-  window.dispatchEvent(new CustomEvent("papyrus:newsroom-search-focus"));
 }
 
 function resolveCurrentRouteAnchor(activeTab: NewsDeskTab): KnowledgeQueryAnchor | null {

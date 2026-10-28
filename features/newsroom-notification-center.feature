@@ -107,3 +107,10 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     When the Notification Center or another newsroom page is loading
     Then the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule
     And when the feed loads it replaces the skeleton in place, in the same shapes
+
+  Scenario: The newsroom's own bar and menus are flat, and a phone's bar has nothing cut off
+    Given the newsroom shell at 375 and 1440 pixels
+    When the editor looks at the top bar, the sidebar, the account button and the bottom navigation
+    Then none of them has a border, an outline or a rule, and the controls are tone fills in rounded rectangles
+    And the bar has one search field and no second search button
+    And on a phone the bar shows the search field and the account button only, with no cut-off page title, because the page's own heading names it and Settings is in the account menu

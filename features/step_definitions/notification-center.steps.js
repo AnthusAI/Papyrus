@@ -77,4 +77,11 @@ When("the Notification Center or another newsroom page is loading", async functi
   this.loadingResult = (await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-newsroom-loading.ts"], { cwd: path.resolve(__dirname, "../..") })).stdout;
 });
 Then("the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });
+Given("the newsroom shell at 375 and 1440 pixels", function () { this.chromeResult = ""; });
+When("the editor looks at the top bar, the sidebar, the account button and the bottom navigation", async function () { this.chromeResult = await run("scripts/test-newsroom-chrome.ts"); });
+for (const text of [
+  "none of them has a border, an outline or a rule, and the controls are tone fills in rounded rectangles",
+  "the bar has one search field and no second search button",
+  "on a phone the bar shows the search field and the account button only, with no cut-off page title, because the page's own heading names it and Settings is in the account menu",
+]) Then(text, function () { assert.match(this.chromeResult, /newsroom chrome: ok/); });
 Then("when the feed loads it replaces the skeleton in place, in the same shapes", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });

@@ -417,3 +417,18 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-review-queue-bar] { background: var(--feed-footer) !important; }
 /* The rating grid keeps its own rounded rectangles in the borderless panes (not the pill shape the flat rules give other buttons). */
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: var(--feed-radius-md) !important; }
+
+/* Flat chrome (Ryan, 2026-10-28): the shell has no outlines or rules either. Controls are tone fills in rounded rectangles; on a phone the
+   page's own heading names the page, so the bar keeps one search field and the account button, nothing cut off. */
+.newsroom-organizer,.organizer-menu,.organizer-account-popup{--org-control:color-mix(in oklab,var(--org-paper) 90%,var(--org-ink))}
+.organizer-sidebar{border-right:0}
+.organizer-search{border-bottom:0;background:var(--org-control);border-radius:8px;padding:6px 10px}
+.newsroom-organizer button.organizer-toggle,.newsroom-organizer button.organizer-account{border:0;background:var(--org-control);border-radius:8px !important}
+.organizer-account-popup{border:0}
+.organizer-menu .organizer-destinations a{border:0;background:var(--org-control);border-radius:8px !important}
+@media(max-width:900px){
+ .organizer-topbar h1{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .organizer-search{flex:1;max-width:none}
+ .organizer-header-settings{display:none}
+ .organizer-bottom-nav{border-top:0;background:color-mix(in oklab,var(--org-paper) 95%,var(--org-ink))}
+}

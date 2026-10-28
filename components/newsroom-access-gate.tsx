@@ -23,7 +23,7 @@ export function NewsDeskAccessGate({ initialTab, shell, showSectionTabs = false 
       backHref="/"
       backLabel={SITE_BRAND.backToHomeLabel}
       headerActions={(
-        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} href="/settings">Settings</Link>
+        <Link className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "organizer-header-settings")} href="/settings">Settings</Link>
       )}
       pageTitle={referencesPage ? "References" : showSectionTabs ? "Notification Center" : "Newsroom"}
       showNavigation={showSectionTabs || referencesPage}
