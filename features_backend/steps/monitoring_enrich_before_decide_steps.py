@@ -47,7 +47,7 @@ def step_timeout(context):
     context.enricher = te.enricher(te.failed(transient=True), te.failed(transient=True), te.failed(transient=True))
 
 
-@given("the article is far longer than the lab accepts in one command")
+@given("the article is far longer than any size the router once cut to")
 def step_long(context):
     context.article = "A sentence about transit that goes on and on. " * 5000
     context.enricher = te.enricher(te.good(context.article))
@@ -135,22 +135,15 @@ def step_waiting(context):
     assert row["final"] is False and row["nextAttemptAt"] > 2000
 
 
-@then("every decision request fits the lab's command limit")
-def step_fits(context):
-    assert context.cyclotron.posts() and all(len(json.dumps(c[2], separators=(",", ":")).encode()) <= mr.MAX_REQUEST_BYTES
-                                              for c in context.cyclotron.posts())
+@then("every decision request carries the whole body and the matching text")
+def step_whole_body(context):
+    assert values(context) and all(v["body"] == context.article and v["text"].endswith(context.article) and v["summary"] == te.SUMMARY
+                                   for v in values(context))
 
 
-@then("only the body of the request was cut")
-def step_body_cut(context):
-    first = values(context)[0]
-    assert 0 < len(first["body"]) < len(context.article) and context.article.startswith(first["body"]) and first["summary"] == te.SUMMARY
-    assert first["text"] == f"{first['title']}\n{first['url']}\n\n{first['summary']}\n\n{first['body']}"
-
-
-@then("the story's discovery records that its body was cut for the lab limit")
-def step_flag(context):
-    assert context.table_.items[("MONITOR#hn", "DISC#101#000001")]["bodyTruncatedForLabLimit"] is True
+@then("the story's discovery records no cut")
+def step_no_cut(context):
+    assert "bodyTruncatedForLabLimit" not in context.table_.items[("MONITOR#hn", "DISC#101#000001")]
 
 
 @then("the captured text kept for the editors is whole")

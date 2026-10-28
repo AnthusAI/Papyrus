@@ -327,8 +327,7 @@ def test_decide_request_has_the_exact_contract_shape(table):
     lambda b: b.update(requestId="short"), lambda b: b["payload"].update(extra=1),
     lambda b: b["payload"]["item"]["values"].update(text="mismatch"),
     lambda b: b["payload"]["item"]["values"].pop("url"),
-    lambda b: b["payload"]["item"].update(id="other-1"),
-    lambda b: b["payload"]["item"]["values"].update(title="x" * 40_000, text="x" * 40_000 + "\nhttps://example.org/alpha")])
+    lambda b: b["payload"]["item"].update(id="other-1")])
 def test_validation_rejects_off_contract_bodies(table, mutate):
     config = validate_router_config(router_config())
     body = deepcopy(build_decide_request(config, config["publications"][0], table.items[("MONITOR#hn", "DISC#101#000001")])["body"])
@@ -687,6 +686,29 @@ def test_feedback_maps_accepted_and_rejected_to_labels_with_deterministic_reques
     # rerun: sent rows are out of the queue, the pending one is checked again, nothing is re-sent
     again = feedback_run(table, store, cyclotron, references, now=6000)
     assert again["feedback"]["sent"] == 0 and len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 2
+
+
+def test_held_decisions_send_no_decide_request_and_say_so_in_the_receipt(table):
+    store, cyclotron = setup_router(table, holdDecisions=True)
+    result = go(table, store, cyclotron)
+    assert cyclotron.posts() == [] and result["stoppedBy"] == "decisions_held"
+    receipt = [v for k, v in table.items.items() if k[1].startswith("ROUTERUN#")][0]
+    assert receipt["stoppedBy"] == "decisions_held"
+
+
+def test_a_disabled_router_still_does_nothing_even_when_decisions_are_held(table):
+    store, cyclotron = setup_router(table, holdDecisions=True, enabled=False)
+    assert go(table, store, cyclotron)["status"] == "disabled" and cyclotron.posts() == []
+
+
+def test_feedback_is_still_sent_while_decisions_are_held(table):
+    store, cyclotron = delivered_table(table)
+    table.items[("MONITOR#hn", "CONFIG#router")]["holdDecisions"] = True
+    before = len(cyclotron.posts())
+    references = {"reference-anth-us-101": ref("accepted", "user:sub-1")}
+    result = feedback_run(table, store, cyclotron, references)
+    new = cyclotron.posts()[before:]
+    assert result["feedback"]["sent"] == 1 and [c[2]["operation"] for c in new] == ["feedback"]
 
 
 @pytest.mark.parametrize("record", [
