@@ -113,6 +113,7 @@ NOT_READY_CODE = "criteria_pending"   # typed form of the 409 below, accepted if
 # HTTP 409 and a FastAPI body {"detail": "publication criteria are pending"}: no typed code.
 NOT_READY_DETAIL = "publication criteria are pending"
 REQUEST_CONFLICT_CODE = "request_conflict"   # 409: the requestId was already used for a job with different content
+RECONCILIATION_CODE = "reconciliation_required"   # 409 on a job poll: the lab ended the job failed (operator reconcile), no refusal code
 BINDING_CHANGED_DETAIL = "publication binding changed"   # 409 from POST /machine/decisions: a key is no longer a standing binding
 LOG = logging.getLogger(__name__)
 PARK_PREFIX = "PARK#"
@@ -773,8 +774,9 @@ class CyclotronClient:
                 return payload
             if status == 404:
                 raise JobGone()
-            if status == 200 and str(payload.get("status") or "") == "failed":
-                raise JobFailed()
+            if status == 200 and str(payload.get("status") or "") == "failed" or \
+                    status == 409 and refusal_code(status, payload) == RECONCILIATION_CODE:
+                raise JobFailed()   # a reconciled job is terminal like a failed one: re-posted once, shared decision cache
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:
@@ -809,8 +811,9 @@ class CyclotronClient:
                 return payload
             if status == 404:
                 raise JobGone()
-            if status == 200 and str(payload.get("status") or "") == "failed":
-                raise JobFailed()
+            if status == 200 and str(payload.get("status") or "") == "failed" or \
+                    status == 409 and refusal_code(status, payload) == RECONCILIATION_CODE:
+                raise JobFailed()   # a reconciled job is terminal like a failed one: re-posted once, shared decision cache
             if not self._transient(status, payload):
                 raise self.classify(status, payload)
             if not wait:

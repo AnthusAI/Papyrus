@@ -207,6 +207,24 @@ def step_failed_job(context):
     context.cyclotron.combined_poll_queue = [(200, {"status": "failed"})]
 
 
+@given("the story holds a combined job that the lab reports as reconciled")
+def step_reconciled_job(context):
+    stale_job(context, runId="run-1", bindingRevision="1")
+    context.cyclotron.combined_poll_queue = [(409, {"code": "reconciliation_required"})]
+
+
+@given("the story holds a combined job and the lab reports every job as reconciled")
+def step_every_reconciled(context):
+    stale_job(context, runId="run-1", bindingRevision="1")
+    context.cyclotron.combined_poll_override = (409, {"code": "reconciliation_required"})
+
+
+@given("the story holds a combined job and the lab answers polling with a conflict the router does not recognise")
+def step_poll_other_conflict(context):
+    stale_job(context, runId="run-1", bindingRevision="1")
+    context.cyclotron.combined_poll_override = (409, {"code": "something_else"})
+
+
 @when("the router sweeps the collected story again")
 def step_sweep_again(context):
     run(context, now=2200)

@@ -1666,6 +1666,43 @@ def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table
     assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
 
 
+def test_a_reconciled_combined_job_is_reposted_once_under_a_new_id(table):
+    store, cyclotron = combined_setup(table)
+    old = stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_queue = [(409, {"code": "reconciliation_required"})]
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    ids = post_ids(cyclotron)
+    assert len(ids) == 1 and ids[0] != "stale-request-id-0"
+    assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
+
+
+def test_a_second_reconciliation_required_is_not_reposted_again(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_override = (409, {"code": "reconciliation_required"})
+    go(table, store, cyclotron, now=2100)
+    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+    assert "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+
+
+def test_another_409_on_a_combined_poll_still_backs_off_without_a_repost(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_override = (409, {"code": "something_else"})
+    go(table, store, cyclotron, now=2100)
+    assert post_ids(cyclotron) == [] and routing_of(table)["DISC#101#000001"] == "collected"
+
+
+def test_a_reconciled_single_publication_job_is_reposted_once_and_a_repeat_errors_the_story(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.poll_override["p-apyr-us"] = (409, {"code": "reconciliation_required"})
+    go(table, store, cyclotron)
+    ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/p-apyr-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "error"
+
+
 def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(table):
     store, cyclotron = combined_setup(table)
     go(table, store, cyclotron)
