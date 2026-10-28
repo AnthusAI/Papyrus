@@ -42,6 +42,8 @@ import {
 import { normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
+import { useReferencePreviewAttachments } from "./use-reference-preview-attachments";
+import { useMediaQuery } from "./use-media-query";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
@@ -88,10 +90,6 @@ import { ReferenceCyclotronStatus, type ReviewRateChoice } from "./reference-cyc
 import type { PrimingRequestView } from "../lib/relevance-status";
 import type { CyclotronStatus } from "cyclotron/cyclotron-status";
 import { awaitsEditorReview, type RelevanceCuration, type RelevanceDecisionView } from "../lib/relevance-decisions";
-import {
-  loadReferenceAttachmentsForLineageId,
-  loadStoragePathUrl,
-} from "./news-desk-taxonomy-client";
 
 type NewsroomReferencesViewProps = {
   /** Present only when the host has configured optional example priming. */
@@ -154,18 +152,6 @@ const STATUS_FILTERS: Array<{ key: ReferenceListFilter; label: string }> = [
   { key: "archived", label: "Archived" },
 ];
 
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-  useEffect(() => {
-    const mediaQuery = window.matchMedia(query);
-    const update = () => setMatches(mediaQuery.matches);
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, [query]);
-  return matches;
-}
-
 function buildReferenceDetailPath(lineageId: string, demo?: boolean): string {
   return getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo);
 }
@@ -175,100 +161,6 @@ function referenceUrl(reference: ReferenceRecord): string | null {
   if (!candidate) return null;
   if (/^https?:\/\//i.test(candidate)) return candidate;
   return null;
-}
-
-function normalizeReferenceDetailHttpUri(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return null;
-}
-
-function useReferencePreviewAttachments(
-  reference: ReferenceRecord | null,
-  referenceAttachments: ReferenceAttachmentRecord[],
-) {
-  const lineageId = reference ? referenceLineageId(reference) : "";
-  const seededAttachments = useMemo(
-    () => referenceAttachments.filter((attachment) => attachment.referenceLineageId === lineageId),
-    [lineageId, referenceAttachments],
-  );
-  const [attachments, setAttachments] = useState<ReferenceAttachmentRecord[]>(seededAttachments);
-  const [attachmentLinksById, setAttachmentLinksById] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setAttachments(seededAttachments);
-  }, [seededAttachments]);
-
-  useEffect(() => {
-    if (!lineageId) return;
-    if (seededAttachments.length > 0) return;
-    let active = true;
-    void loadReferenceAttachmentsForLineageId(lineageId)
-      .then((loaded) => {
-        if (!active || !loaded.length) return;
-        setAttachments(loaded);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [lineageId, seededAttachments.length]);
-
-  useEffect(() => {
-    if (!attachments.length) {
-      setAttachmentLinksById({});
-      return;
-    }
-    let active = true;
-    const staticLinks = new Map<string, string>();
-    const storageLookups: Array<{ id: string; storagePath: string }> = [];
-
-    for (const attachment of attachments) {
-      if (attachment.storagePath) {
-        storageLookups.push({ id: attachment.id, storagePath: attachment.storagePath });
-        continue;
-      }
-      const sourceHref = normalizeReferenceDetailHttpUri(attachment.sourceUri);
-      if (sourceHref) staticLinks.set(attachment.id, sourceHref);
-    }
-
-    if (!storageLookups.length) {
-      setAttachmentLinksById(Object.fromEntries(staticLinks.entries()));
-      return () => {
-        active = false;
-      };
-    }
-
-    setAttachmentLinksById(Object.fromEntries(staticLinks.entries()));
-    void Promise.all(storageLookups.map(async (lookup) => {
-      const result = await loadStoragePathUrl(lookup.storagePath);
-      return { id: lookup.id, url: result.url };
-    }))
-      .then((resolved) => {
-        if (!active) return;
-        const nextLinks = Object.fromEntries(staticLinks.entries());
-        for (const entry of resolved) {
-          if (entry.url) nextLinks[entry.id] = entry.url;
-        }
-        setAttachmentLinksById(nextLinks);
-      })
-      .catch(() => undefined);
-
-    return () => {
-      active = false;
-    };
-  }, [attachments]);
-
-  const previewAttachments = useMemo(
-    () => attachments.map((attachment) => ({
-      ...attachment,
-      sourceUri: attachmentLinksById[attachment.id] ?? attachment.sourceUri,
-    })),
-    [attachmentLinksById, attachments],
-  );
-
-  return previewAttachments;
 }
 
 function needsReview(reference: ReferenceRecord, decision: RelevanceDecisionView | undefined): boolean {

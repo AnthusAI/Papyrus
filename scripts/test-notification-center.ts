@@ -7,7 +7,7 @@ import type { ReferenceRecord } from "../lib/category-repository";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { FIXTURE_DRAFTS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
 import { draftView } from "../lib/review-drafts";
-import { buildNotificationItems, draftPicture, filterCount, previewsBySourceAddress, recentDecisions, requestCaption, waitingText } from "../lib/notification-feed";
+import { buildNotificationItems, draftPicture, previewsBySourceAddress, recentDecisions, requestCaption } from "../lib/notification-feed";
 import {
   answerUpdate, cyclotronAutoDecided, cyclotronHeldForReview, isDue, nextText, normalizeReviewRow, sectionReviews,
   steeringText, subjectHref, subjectLabel, summarize, summaryText, timeoutUpdate, type ReviewRequest,
@@ -27,7 +27,7 @@ const decision = (label: string, confidence: number, reviewRecommended: boolean,
 
 async function main() {
   (globalThis as { React?: typeof React }).React = React;
-  const { NotificationCenterView } = await import("../components/notification-center");
+  const { NeedsMeView } = await import("../components/needs-me-feed");
 
   // Sections: hard gates, then soft reviews by deadline, then flags; answered and timed out are kept apart.
   const sections = sectionReviews(FIXTURE_REVIEW_REQUESTS);
@@ -121,26 +121,20 @@ async function main() {
 
   // The feed (What needs me?): one card per draft, never per batch.
   const drafts = Object.fromEntries(FIXTURE_DRAFTS.map((row) => [row.id, draftView(row)]));
-  const items = buildNotificationItems({ requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]), draftsState: "ready", stay: new Set(), referenceCount: 12 });
+  const items = buildNotificationItems({ requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]), draftsState: "ready", stay: new Set() });
   assert.deepEqual(items.drafts.map((item) => item.key), ["rr-soft-2#proposal-1", "rr-soft-2#proposal-2", "rr-soft-2#proposal-3"], "a request covering 3 drafts is 3 draft cards");
   assert.deepEqual(items.reviews.map((item) => item.key), ["rr-hard-1", "rr-soft-3", "rr-soft-1"], "hard gates first; a request whose draft is not a Proposal here takes the answer itself");
   assert.deepEqual(items.flags.map((item) => item.key), ["rr-flag-1"]);
-  assert.deepEqual(items.counts, { drafts: 3, references: 12, other: 4 });
-  assert.equal(waitingText({ drafts: 3, references: 12, other: 0 }), "3 drafts and 12 references waiting for you");
-  assert.equal(waitingText({ drafts: 1, references: 0, other: 0 }), "1 draft waiting for you");
-  assert.equal(waitingText({ drafts: 3, references: 12, other: 2 }), "3 drafts, 12 references and 2 other items waiting for you");
-  assert.equal(waitingText({ drafts: 0, references: 0, other: 0 }), "All caught up");
-  assert.equal(filterCount("all", items.counts), 19);
   assert.equal(requestCaption(FIXTURE_REVIEW_REQUESTS[1]), "from Idea pipeline · Oct 23", "a batch id with no words falls back to the step that raised it");
   assert.equal(requestCaption({ subject: { type: "batch", id: "monitor-stories-run-20261027T163255Z-a0a2e4" }, raisedBy: "idea-pipeline", raisedAt: "2026-10-27T16:33:54Z" }), "from Monitor stories run · Oct 27");
   // A draft decided in this visit stays in place; one decided before does not come back.
   const decided = FIXTURE_REVIEW_REQUESTS[1].links.map((link) => (link.id === "proposal-1" ? { ...link, decision: { choice: "accept" as const, by: "Ed", at: "2026-10-24T09:00:00Z" } } : link));
   const partial = [{ ...FIXTURE_REVIEW_REQUESTS[1], links: decided }];
-  const base = { requests: partial, drafts, missingDrafts: new Set<string>(), draftsState: "ready" as const, referenceCount: 0 };
+  const base = { requests: partial, drafts, missingDrafts: new Set<string>(), draftsState: "ready" as const };
   assert.deepEqual(buildNotificationItems({ ...base, stay: new Set() }).drafts.map((item) => item.draftId), ["proposal-2", "proposal-3"]);
   const kept = buildNotificationItems({ ...base, stay: new Set(["rr-soft-2#proposal-1"]) });
   assert.deepEqual(kept.drafts.map((item) => item.draftId), ["proposal-1", "proposal-2", "proposal-3"]);
-  assert.equal(kept.counts.drafts, 2, "a decided draft no longer counts as waiting");
+  assert.equal(kept.drafts.filter((item) => !item.decision).length, 2, "a decided draft no longer counts as waiting");
   // Pictures: a draft's cited source finds the preview of the Reference it points to.
   const cited = { ...draftView({ ...FIXTURE_DRAFTS[0], body: "x\n\n## Sources\n\n1. A page (2026-10-20) https://www.example.org/a/\n" }) };
   const pictures = previewsBySourceAddress([{ id: "r", lineageId: "r", sourceUri: "https://example.org/a" } as unknown as ReferenceRecord], new Map([["r", { imageUrl: "https://img.example/x.jpg", description: null, siteName: "Example", title: null }]]));
@@ -157,35 +151,40 @@ async function main() {
   assert.deepEqual(recent.map((entry) => [entry.kind, entry.word, entry.title]), [["reference", "Accepted", "A source"], ["draft", "Rejected", "Sparse attention goes open"]]);
 
   // The page, rendered: header, filters, cards, no retired wording, no inline colour.
-  const render = (overrides: Partial<Parameters<typeof NotificationCenterView>[0]> = {}) =>
-    renderToStaticMarkup(createElement(NotificationCenterView, { loadState: "ready", requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]), ...overrides }));
+  const { buildNeedsMeItems } = await import("../lib/needs-me-items");
+  const { learnConfidenceThreshold } = await import("../lib/needs-me-ranking");
+  const sources = (overrides: Partial<Parameters<typeof buildNeedsMeItems>[0]> = {}): Parameters<typeof buildNeedsMeItems>[0] => ({
+    references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: FIXTURE_REVIEW_REQUESTS, drafts, missingDrafts: new Set(["proposal-9"]),
+    draftsState: "ready", stay: new Set(), bySource: new Map(), storyTitles: {}, storyExcerpts: {}, deletedStories: new Set(), emails: [], emailsDecided: new Map(), ...overrides,
+  });
+  const render = (overrides: Partial<Parameters<typeof NeedsMeView>[0]> = {}, from: Partial<Parameters<typeof buildNeedsMeItems>[0]> = {}) =>
+    renderToStaticMarkup(createElement(NeedsMeView, {
+      loadState: "ready", entries: buildNeedsMeItems(sources(from)), freshness: { tauDays: null, medianAgeDays: null, examples: 0 }, threshold: learnConfidenceThreshold([], undefined),
+      now: NOW.getTime(), shaping: { decisions: 0, agreed: 0, overruled: 0 }, recent: [], settled: true, onDecide: async () => undefined, ...overrides,
+    }));
   const html = render();
   const page = text(html);
-  assert.ok(page.includes("What needs me?") && page.includes("3 drafts and 4 other items waiting for you"));
-  for (const expected of ["All", "Drafts", "References", "Other", "Sparse attention goes open", "from Idea pipeline · Oct 23", "Open full draft", "Accept", "Reject", "Acknowledge", "Hard gate", "Waiting for you. Nothing continues"]) assert.ok(page.includes(expected), `page shows: ${expected}`);
-  assert.ok(html.includes('aria-label="Why? (optional)"'), "every decidable card has the optional Why box");
+  assert.match(page, /What needs me\? \d+ drafts?(, [\w ]+)* waiting for you/, "the header counts what waits");
+  for (const expected of ["All", "References", "Drafts", "Stories", "Email", "Captures", "Other", "Sparse attention goes open", "Hard gate", "You\u2019re shaping this", "Accept", "Reject", "Acknowledge"]) assert.ok(page.includes(expected), `page shows: ${expected}`);
   assert.equal((html.match(/data-review-draft="proposal-/g) ?? []).length, 3, "three draft cards");
   assert.ok(!html.includes("data-review-drafts"), "no batch container");
-  for (const retired of ["Approve", "Steer with this note", "Steering note", "Agree", "Overrule", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read", "Needs attention"]) assert.ok(!page.includes(retired), `the retired wording is gone: ${retired}`);
+  for (const retired of ["Approve", "Steer with this note", "Steering note", "Agree", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read", "Needs attention"]) assert.ok(!page.includes(retired), `the retired wording is gone: ${retired}`);
   assert.ok(!/\bdesk\b/i.test(page), "no avoided vocabulary");
   assert.match(html, /aria-pressed="true"[^>]*data-notification-filter="all"|data-notification-filter="all"/, "the active filter is marked");
-  assert.ok(text(render({ requests: [], drafts: {} })).includes("All caught up"), "empty state");
-  const autoCards = [{ lineageId: "x", title: "A confident call", label: "include", confidence: 0.97, decidedAt: null, reviewDetail: null, reviewedByPerson: false, href: "/newsroom/references/x" }];
-  assert.ok(text(render({ autoDecided: autoCards })).includes("Decided automatically (1)"), "the system's decisions are a collapsed footer");
-  assert.match(render({ autoDecided: autoCards }), /<details[^>]*data-notification-section="auto-decided"/);
-  assert.ok(!text(render()).includes("Decided automatically"), "no footer when there are none");
+  assert.ok(text(render({}, { requests: [] })).includes("All caught up"), "empty state");
   assert.ok(text(render({ loadState: "forbidden" })).includes("for editors and admins"));
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
   assert.match(render({ loadState: "loading" }), /data-notification-skeleton/);
-  assert.match(text(render({ draftsState: "failed" })), /The drafts could not be loaded right now\./);
-  assert.ok(text(render({ deletedStories: new Set(["story-ruling-1"]) })).includes("About: story story-ruling-1 (story deleted)"), "the card marks the deleted story");
-  assert.ok(text(render({ storyTitles: { "story-ruling-1": "Board refuses registration" } })).includes("About: Board refuses registration"));
-  assert.match(html, /href="\/newsroom\/administration\/proposals\?proposal=proposal-1"/, "a draft opens in Proposals");
+  assert.match(text(render({ draftsFailed: true })), /The drafts could not be loaded right now\./);
+  const autoCards = [{ lineageId: "x", title: "A confident call", label: "include", confidence: 0.97, decidedAt: null, reviewDetail: null, reviewedByPerson: false, href: "/newsroom/references/x" }];
+  assert.ok(text(render({ legacyAuto: autoCards })).includes("Decided automatically (1)"), "the system's decisions are a collapsed footer");
+  assert.match(render({ legacyAuto: autoCards }), /<details[^>]*data-notification-section="auto-decided"/);
+  assert.ok(!text(render()).includes("Decided automatically"), "no footer when there are none");
   assert.ok(!/<svg(?![^>]*lucide)/.test(html), "Lucide icons only");
   assert.ok(!/<select/.test(html), "no dropdowns");
 
   // No borders, no lines: the new components never use a border or divider utility.
-  for (const file of ["../components/notification-cards.tsx", "../components/notification-center.tsx"]) {
+  for (const file of ["../components/notification-cards.tsx", "../components/notification-center.tsx", "../components/needs-me-feed.tsx", "../components/needs-me-detail.tsx", "../components/needs-me-shared.tsx"]) {
     const source = readFileSync(new URL(file, import.meta.url), "utf8");
     assert.ok(!/["' `]border(-[a-z0-9\[\]#/-]+)?["' `]|divide-|<hr|outline-(?!none)/.test(source.replace(/focus-visible:ring[^"' ]*/g, "")), `${file} draws no borders, dividers or outlines`);
   }

@@ -1,3 +1,4 @@
+import type { MonitoringEmailDetails, MonitoringEmailSummary } from "./monitoring-overview";
 import type { DraftRow } from "./review-drafts";
 import type { ReviewRequest } from "./review-requests";
 
@@ -77,3 +78,22 @@ export const FIXTURE_DRAFTS: DraftRow[] = [
     evidence: { signals: 2, source: "knowledge snapshot 2026-10-23 (shipped), papyrus ideas trends" }, history: [], createdAt: "2026-10-23T07:00:00Z",
   },
 ];
+
+/** Demo and test data: email submissions held for review (placeholders only, no real addresses). */
+export const FIXTURE_HELD_EMAILS: MonitoringEmailSummary[] = [
+  {
+    receiptId: "receipt-held-1", observedAt: "2026-10-26T15:20:00Z", status: "held", subject: "Interesting preprint on retrieval for legal research",
+    envelopeSender: "bounce@mailer.example.test", headerFrom: "A Reader <reader@example.test>", warnings: ["dkim_failed"],
+    verdicts: { spf: "PASS", dkim: "FAIL", dmarc: "FAIL", spam: "PASS", virus: "PASS" }, linkCount: 2, processedCount: 0, unresolvedLinkCount: 0,
+    reviewRequired: true, errorCode: null, quarantine: { state: "quarantined", decision: null, failure: null },
+  },
+];
+
+export const FIXTURE_EMAIL_DETAILS: Record<string, MonitoringEmailDetails> = {
+  "receipt-held-1": {
+    submission: { ...FIXTURE_HELD_EMAILS[0], corpusId: null },
+    safeBodyText: "Hi,\n\nThought you would want to see this preprint on retrieval-augmented drafting for legal research. The authors compare three retrievers on 4,000 rulings.\n\nhttps://example.org/papers/retrieval-legal\nhttps://example.org/papers/retrieval-legal/data\n\nBest,\nA Reader",
+    candidateLinks: [{ url: "https://example.org/papers/retrieval-legal", title: "Retrieval for legal research" }, { url: "https://example.org/papers/retrieval-legal/data", title: "Dataset" }],
+    sourceMaterialIsUntrusted: true,
+  },
+};

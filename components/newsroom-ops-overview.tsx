@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import type { NotificationFixture } from "./notification-center";
 import { NotificationCenter } from "./notification-center";
+import type { CorrectCaptureAction } from "./reference-capture-client";
 import type { ReviewChoice } from "./reference-review-card";
 
 type NewsroomOpsOverviewProps = {
@@ -38,7 +39,9 @@ type NewsroomOpsOverviewProps = {
   predictionState?: "loading" | "ready" | "error";
   /** Words for why a rating cannot be saved right now, or null. */
   disabledReason?: string | null;
-  onReview?: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: { reasonCode?: ReferenceRejectionReasonCode | null; decisionRelationId?: string; shareable?: boolean }) => Promise<void> | void;
+  onReview?: (reference: ReferenceRecord, action: ReferenceCurationAction, options?: { reasonCode?: ReferenceRejectionReasonCode | null; note?: string; decisionRelationId?: string; shareable?: boolean }) => Promise<void> | void;
+  /** Saves a pasted or corrected capture (the `correctReferenceCapture` action). Without it the capture panel has no edit action. */
+  onCorrectCapture?: CorrectCaptureAction;
   /** Local real-data preview of the Notification Center (scripts/export-notification-center-fixture.py). */
   notificationFixture?: NotificationFixture | null;
 };
@@ -55,6 +58,7 @@ export function NewsroomOpsOverview({
   loading = false,
   newsroomSections,
   notificationFixture = null,
+  onCorrectCapture,
   onReview,
   predictionState = "ready",
   referenceAttachments = [],
@@ -62,7 +66,6 @@ export function NewsroomOpsOverview({
   savedCopy = null,
 }: NewsroomOpsOverviewProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const liveReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
   // Until the live read arrives, a saved copy of the last view fills the page. It is display only.
   const showingSavedCopy = loading && !liveReferences.length && Boolean(savedCopy?.references.length);
@@ -72,14 +75,11 @@ export function NewsroomOpsOverview({
     const live = referencePreviewsByLineage(referenceAttachments);
     return showingSavedCopy && !live.size ? new Map(savedCopy!.previews) : live;
   }, [referenceAttachments, savedCopy, showingSavedCopy]);
-  const openReference = useCallback(
-    (lineageId: string) => router.push(getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo)),
-    [demo, router],
-  );
-  const rateReference = useCallback(async (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => {
+  const rateReference = useCallback(async (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null, note?: string) => {
     const decision = shownDecisions.get(referenceLineageId(reference));
     await onReview?.(reference, choice, {
       reasonCode: choice === "reject" ? reasonCode : null,
+      ...(note ? { note } : {}),
       ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
     });
   }, [onReview, shownDecisions]);
@@ -114,8 +114,9 @@ export function NewsroomOpsOverview({
             demo={demo}
             fixture={notificationFixture}
             humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            onOpenReference={openReference}
+            onCorrectCapture={onCorrectCapture}
             onRateReference={rateReference}
+            referenceAttachments={referenceAttachments}
             predictionLoading={predictionState === "loading"}
             previews={previews}
             referenceDisabledReason={rateDisabled}
