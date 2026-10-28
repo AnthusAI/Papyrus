@@ -118,6 +118,36 @@ retryable reason is. A `running` card holds a 30-minute lease, so two runners do
 Reference. Text an editor has pasted is never recaptured over (the machine capture stays as the
 original). `--force` redoes finished stages, except recapture over an edit.
 
+## 2a. Enrich before decide (2026-10-27)
+
+Curation now happens **before the Cyclotron decision and before human rating**, once per item, so the lab decides on enriched text
+and editors rate exactly what was decided, with no second revision:
+
+```
+collector discovers (title, URL)
+  -> router ENRICH, once per item  (capture -> signals -> summary -> GROBID if configured)   [ENRICH# row + S3]
+  -> router DECIDE on item.values {title, url, source, sourceItemUrl, summary, body, text}
+  -> router DELIVER: a pending Reference per included publication, with the item's curation COPIED onto it
+  -> (async) papyrus.reference.curate  only fills per-site gaps (none expected)
+```
+
+* **Same stages, same shapes.** Item enrichment runs the stage code described below (`reference_capture`,
+  `reference_curation.openai_summarizer`, `reference_grobid`); only the storage differs while there is no Reference yet
+  (`monitoring_enrichment.py`; the `ENRICH#` row and S3 are described in `docs/monitoring-cloud.md`). Statuses and typed reasons
+  are the card's (`ready`, `degraded`, `capture_failed`; `capture.reason`, `summary.reason`, `grobid.reason`).
+* **Delivery copy.** `monitoring_enrichment.copy_curation` writes the card (`origin.kind = "item-enrichment"`) and the `curation-*`
+  bodies on each delivered Reference version, so section 3 below describes what the newsroom panel shows, and
+  `plan_stages` finds the Reference `already_curated`. A Reference whose item was captured transiently-failed, or a paper while
+  GROBID was not configured, is exactly what the procedure may still fill in (typed skips stay skips unless a service appears).
+* **Decide payload.** `summary` is the card's summary text; `body` is the full captured text; `text` is
+  `title \n url \n\n summary \n\n body` (absent parts left out). The router sets no length limit of its own. **Temporary lab
+  limit:** the lab refuses commands over 65,536 bytes of JSON, so the router cuts only `body` (and `text`) to fit
+  60,000 bytes and sets `bodyTruncatedForLabLimit` on the DISC row; the stored capture and the copy on the Reference stay whole.
+* **Never wait forever.** One attempt, transient failures retried on later runs (three attempts in all), then the decision
+  proceeds with whatever exists. A capture failure is a typed status, not a stop.
+* **Editor corrections** (section 4) remain a per-Reference new version. Sending a correction back as a new item revision, so the
+  lab decides again on the corrected text, is intended later and deliberately not built.
+
 ## 3. Where the outputs are (for the UI)
 
 All additive; no model, field or enum changed.
