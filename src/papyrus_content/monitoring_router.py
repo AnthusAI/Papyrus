@@ -340,7 +340,11 @@ def validate_router_publications(raw: dict) -> list[dict]:
         pool_id = entry.get("userPoolId")
         if pool_id is not None and (not isinstance(pool_id, str) or not re.fullmatch(r"[A-Za-z0-9-]+_[A-Za-z0-9]+", pool_id)):
             raise ValueError(f"router publication {publication_id} has an invalid editor user pool")
+        since = entry.get("criteriaSince")
+        if since is not None and (not isinstance(since, (str, int)) or not str(since).strip()):
+            raise ValueError(f"router publication {publication_id} has an invalid criteriaSince")
         publications.append({
+            **({"criteriaSince": str(since).strip()} if since is not None else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
@@ -352,6 +356,27 @@ def validate_router_publications(raw: dict) -> list[dict]:
     if not publications:
         raise ValueError("router needs at least one publication")
     return publications
+
+
+VIA_DECISIONS, VIA_PUBLICATION = "decisions", "publication"
+
+
+def job_via(route: dict, job: dict) -> str:
+    """Which route a stored job was posted to. Entries stored before `via` existed are combined jobs when their jobId
+    is the route's combined job; anything else was posted per publication."""
+    if job.get("via") in (VIA_DECISIONS, VIA_PUBLICATION):
+        return job["via"]
+    combined = (route.get("combinedJob") or {}).get("jobId")
+    return VIA_DECISIONS if combined and job.get("jobId") == combined else VIA_PUBLICATION
+
+
+def criteria_unchanged(stored: str, since: str) -> bool:
+    """True when a vote stored under binding revision `stored` was judged against criteria that still hold, given the
+    earliest matching revision `since`. Integer revisions compare numerically; anything else must match exactly."""
+    try:
+        return int(stored) >= int(since)
+    except (TypeError, ValueError):
+        return str(stored) == str(since)
 
 
 def validate_procedure_triggers(publication_id: str, entry: dict) -> list[dict]:
@@ -1644,7 +1669,7 @@ class Router:
             self.note_truncation(disc, built)
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                                              "publications": list(built["body"]["payload"]["bindings"]),
-                                             **self.posted_under()}
+                                             "via": VIA_DECISIONS, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
@@ -1718,7 +1743,7 @@ class Router:
                 if not isinstance(entry, dict) or not entry.get("decision"):
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
-                                "jobId": stored["jobId"], **self.posted_under(),
+                                "jobId": stored["jobId"], "via": VIA_DECISIONS, **self.posted_under(),
                                 "checked": checked_decision(entry, publication, self.config, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
@@ -1748,7 +1773,8 @@ class Router:
             if not self.post_allowed:
                 raise NotPosting()
             self.note_truncation(disc, built)
-            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
+                            "via": VIA_PUBLICATION, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
@@ -1777,7 +1803,11 @@ class Router:
         if not self.job_due(jobs[pub_id]):
             raise JobRunning()   # still inside its own backoff: no call to the lab
         try:
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
+            if job_via(route, jobs[pub_id]) == VIA_DECISIONS:
+                # a combined job lives behind GET /machine/decisions/{jobId}; the per-publication route would 404 it
+                response = self.poll_combined_entry(pub_id, jobs[pub_id]["jobId"])
+            else:
+                response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
         except JobRunning:
             self.note_still_running(jobs[pub_id], route)
             raise
@@ -1808,6 +1838,16 @@ class Router:
         jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
         self.job_done(jobs[pub_id])
         self.save(route)
+
+    def poll_combined_entry(self, pub_id: str, job_id: str) -> dict:
+        """One publication's receipt out of a combined job, polled through the route the job was posted to."""
+        response = self.cyclotron.poll_combined(job_id, wait=not self.nowait)
+        entry = (response.get("publications") or {}).get(pub_id)
+        if entry is None:
+            raise ItemInvalid("combined receipt has no entry for this publication")
+        if not isinstance(entry, dict) or not entry.get("decision"):
+            raise self.cyclotron.classify_entry(entry)
+        return entry
 
     def check_rule(self, disc: dict) -> None:
         """A direct monitor's optional `rule`, run on the structured fields the collector stored."""
@@ -2225,6 +2265,12 @@ class Router:
         self.store.put_any(self.monitor_id, row)
 
     def feedback_one(self, publication: dict, row: dict) -> str:
+        # Feedback goes out under the publication's CURRENT binding revision, not the one stored when the item was
+        # decided: the lab refuses a stale revision (409 "publication binding changed") after a cutover. The
+        # requestId does not include the revision, so retries stay idempotent.
+        if self.publications.get(publication["publicationId"]) is not publication:
+            self.rotate(row, "publication not in the current config")
+            return "skipped"
         reference = self.client(publication).get_record("Reference", row["referenceId"])
         status = (reference or {}).get("curationStatus")
         if status not in ("accepted", "rejected"):
@@ -2238,7 +2284,7 @@ class Router:
         label = publication["positiveLabel"] if status == "accepted" else publication["negativeLabel"]
         body = {"contractVersion": CONTRACT_VERSION, "operation": "feedback",
                 "requestId": sha256("\n".join([row["referenceId"], status, updated_at]).encode()).hexdigest(),
-                "payload": {"bindingRevision": row["bindingRevision"], "itemId": row["itemId"],
+                "payload": {"bindingRevision": self.config["cyclotron"]["bindingRevision"], "itemId": row["itemId"],
                             "itemRevision": (row.get("source") or {}).get("revision"), "output": row["output"],
                             "label": label, "editor": {"site": publication["site"],
                                        "subject": editor_subject(publication["publicationId"], actor)}}}
@@ -2246,6 +2292,16 @@ class Router:
             self.rotate(row, "decision receipt has no item revision")
             return "skipped"
         validate_request(body)
+        current = str(self.config["cyclotron"]["bindingRevision"])
+        since = publication.get("criteriaSince", current)   # default: only votes under the current revision count
+        if not criteria_unchanged(row.get("bindingRevision"), since):
+            self.store.put_any(self.monitor_id, {
+                "pk": pk(self.monitor_id), "sk": f"FB#{body['requestId']}", "requestId": body["requestId"],
+                "publicationId": publication["publicationId"], "referenceId": row["referenceId"],
+                "outcome": "stale", "code": "criteria changed since this vote", "votedUnder": str(row.get("bindingRevision")),
+                "criteriaSince": since, "sentAt": _iso(self.now), "runId": self.run_id})
+            self.store.put_any(self.monitor_id, {k: v for k, v in row.items() if k not in ("gsi1pk", "gsi1sk")} | {"feedback": "stale"})
+            return "skipped"
         receipt = {"pk": pk(self.monitor_id), "sk": f"FB#{body['requestId']}", "requestId": body["requestId"],
                    "publicationId": publication["publicationId"], "referenceId": row["referenceId"],
                    "curationStatus": status, "label": label, "output": row["output"], "itemId": row["itemId"],
@@ -2262,6 +2318,12 @@ class Router:
             return "failed"
         except ItemUncertain as error:   # safe to retry later: same requestId
             self.rotate(row, f"uncertain: {error}")
+            return "failed"
+        except StopSweep as stop:
+            if stop.code != "binding_changed":
+                raise
+            # the body was logged by classify; the row stays queued and the next run asks again under the then-current revision
+            self.rotate(row, f"binding_changed ({stop.detail}) under revision {body['payload']['bindingRevision']}; retry next run")
             return "failed"
         self.store.put_any(self.monitor_id, {**receipt, "outcome": "sent",
                                              "response": {k: response[k] for k in ("status", "feedbackId", "accepted") if k in response

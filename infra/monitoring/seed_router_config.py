@@ -7,7 +7,9 @@
 `--file` is a JSON document of the shape in docs/monitoring-cloud.md (example:
 docs/monitoring-router-config.example.json). `--set` changes one top-level field of the stored
 item (mode, feedback, enabled). Every write is validated with the Lambda's own
-validator, so a config the router would refuse is never stored. Asserts the AWS account.
+validator, so a config the router would refuse is never stored. Each publication may set `criteriaSince`
+(earliest binding revision whose criteria match the current ones; default = current revision): editor feedback
+stored under an older revision is dropped as stale, otherwise it is sent under the current revision. Asserts the AWS account.
 """
 import argparse
 import json

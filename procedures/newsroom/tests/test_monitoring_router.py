@@ -721,6 +721,68 @@ def test_feedback_refusal_stops_cleanly_and_uncertain_is_retried_later(table):
     assert len(request_ids) == 1           # every retry used the same idempotency key
 
 
+def rebind(table, revision, since=None, only=None):
+    cfg = router_config("live", feedback=True)
+    cfg["cyclotron"] = cfg["cyclotron"] | {"bindingRevision": revision}
+    for entry in cfg["publications"]:
+        if since is not None and (only is None or entry["publicationId"] == only):
+            entry["criteriaSince"] = since
+    table.put_item(cfg)
+
+
+def test_feedback_vote_under_older_binding_is_dropped_when_criteria_changed(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="1", only="anth-us")          # anth-us criteria unchanged; the others default to "4"
+    refs = {"reference-anth-us-101": ref("accepted", "user:a"), "reference-p-apyr-us-101": ref("accepted", "user:b")}
+    result = feedback_run(table, store, cyclotron, refs)
+    assert result["feedback"]["sent"] == 1 and result["feedback"]["skipped"] == 1
+    sent = [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+    assert len(sent) == 1 and "anth-us" in sent[0][1] and sent[0][2]["payload"]["bindingRevision"] == "4"
+    dropped = table.items[("MONITOR#hn", "DELIV#p-apyr-us#reference-p-apyr-us-101")]
+    assert dropped["feedback"] == "stale" and "gsi1pk" not in dropped
+    assert [v["outcome"] for k, v in table.items.items() if k[1].startswith("FB#") and v["publicationId"] == "p-apyr-us"] == ["stale"]
+    feedback_run(table, store, cyclotron, refs, now=6000)
+    assert len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 1   # not retried
+
+
+def test_criteria_unchanged_compares_numerically():
+    from papyrus_content.monitoring_router import criteria_unchanged
+    assert criteria_unchanged("10", "9") and not criteria_unchanged("3", "4") and criteria_unchanged("3", "3")
+    assert criteria_unchanged("a", "a") and not criteria_unchanged("a", "b")
+
+
+def test_feedback_for_an_item_decided_under_an_older_binding_is_sent_with_the_current_binding(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="1")
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    row = table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
+    assert row["bindingRevision"] == "1"
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["sent"] == 1
+    sent = [c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+    assert [p["payload"]["bindingRevision"] for p in sent] == ["4"]
+
+
+def test_feedback_binding_changed_is_retried_next_run_instead_of_stopping_the_sweep(table):
+    store, cyclotron = delivered_table(table)
+    refs = {"reference-anth-us-101": ref("accepted", "user:s"), "reference-p-apyr-us-101": ref("accepted", "user:t")}
+    cyclotron.feedback_override = (409, {"detail": "publication binding changed"})
+    result = feedback_run(table, store, cyclotron, refs)
+    assert result["feedback"]["status"] == "complete" and result["feedback"]["failed"] == 2
+    assert table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["gsi1pk"] == "FEEDBACK#hn#pending"
+    cyclotron.feedback_override = None
+    assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["sent"] == 2
+
+
+def test_feedback_for_a_publication_missing_from_the_config_is_skipped_without_posting(table):
+    store, cyclotron = delivered_table(table)
+    cfg = router_config("live", feedback=True)
+    cfg["publications"] = [p for p in cfg["publications"] if p["publicationId"] != "anth-us"]
+    table.put_item(cfg)
+    result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] >= 1
+    assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback" and "anth-us" in c[1]]
+
+
 # --- intake provenance, packaging, template --------------------------------------------------------------------
 
 def test_intake_rationale_names_the_machine_decision():
@@ -1498,6 +1560,39 @@ def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table
     cyclotron.combined_poll_override = (200, {"status": "failed"})
     go(table, store, cyclotron, now=2100)
     assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+
+
+def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(table):
+    store, cyclotron = combined_setup(table)
+    go(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert {j["via"] for j in route["jobs"].values()} == {"decisions"}
+    assert not [c for c in cyclotron.calls if c[0] == "GET"]          # no GET on /machine/publications/*/commands/*
+
+
+def test_a_combined_job_entry_without_a_receipt_is_polled_via_decisions_not_commands(table):
+    store, cyclotron = combined_setup(table)
+    leave_job_pending(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    job_id = route["combinedJob"]["jobId"]
+    route["jobs"] = {"anth-us": {"requestId": "r", "postedAt": 1500, "jobId": job_id, "via": "decisions"}}
+    del route["combinedJob"]
+    cfg = router_config()
+    cfg["publications"] = cfg["publications"][:1]          # one publication: the per-publication path handles it
+    table.put_item(cfg)
+    cyclotron.pending_polls, cyclotron.calls, cyclotron.combined_calls = 0, [], []
+    go(table, store, cyclotron, now=2100)
+    assert not [c for c in cyclotron.calls if c[0] == "GET" and job_id in c[1]]
+    assert any(c[0] == "GET" and c[1].endswith(job_id) for c in cyclotron.combined_calls)
+
+
+def test_job_via_infers_decisions_for_legacy_entries_matching_the_combined_job():
+    from papyrus_content.monitoring_router import job_via
+    route = {"combinedJob": {"jobId": "cjob-0"}}
+    assert job_via(route, {"jobId": "cjob-0"}) == "decisions"
+    assert job_via(route, {"jobId": "job-x"}) == "publication"
+    assert job_via({}, {"jobId": "cjob-0"}) == "publication"
+    assert job_via(route, {"jobId": "cjob-0", "via": "publication"}) == "publication"
 
 
 def test_a_404_on_a_stored_combined_job_reposts_once_in_the_same_run(table):
