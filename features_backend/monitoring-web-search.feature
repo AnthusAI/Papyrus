@@ -1,40 +1,54 @@
 Feature: Web-search monitors find new references for each publication through Tavily
-  Every publication has its own web monitor (web-<publication>). It asks Tavily the queries its editors approved, for
-  the days since its last complete pass, and records what is new. Nothing is cut at an invented number: Tavily answers
-  twenty results at most per request, so a busy window is split into narrower date ranges until all of it is read; what
-  bounds a pass is the Lambda's time (the next pass resumes) and Tavily's own rate limit.
+  Every publication has its own web monitor (web-<publication>) whose queries are records: each has a text, a
+  rationale, who made and approved it, a status and its own high-water mark. A monitor searches only approved,
+  active queries, for the days since each query's last complete pass. Nothing is cut at an invented number:
+  Tavily answers twenty results at most per request, so a busy window is split into narrower date ranges until
+  all of it is read; what bounds a pass is the Lambda's time (the next pass resumes) and Tavily's rate limit.
+  Every story is one shared candidate per canonical URL, whatever found it, with provenance.
 
   Scenario: A busy window is read in full by narrowing the dates
-    Given a web monitor for anth-us whose last complete pass was fourteen days ago
+    Given a web monitor for anth-us with one approved query last searched fourteen days ago
     And Tavily holds seventy matching articles over those fourteen days
     When the web monitor collects
     Then all seventy articles are recorded
     And the monitor asked Tavily for narrower date ranges until no range filled a page
 
-  Scenario: Recency comes from the high-water mark, not a fixed window
-    Given a web monitor for anth-us that completed a pass on 21 October
+  Scenario: Recency comes from the query's high-water mark, not a fixed window
+    Given a web monitor for anth-us whose query completed a pass on 21 October
     When the web monitor collects five days later
     Then it asks Tavily for results from the day before 21 October up to the new day
-    And the high-water mark moves to the start of that pass
+    And the query's high-water mark moves to the start of that pass
+
+  Scenario: Only approved, active queries are searched
+    Given a web monitor for anth-us with one approved query, one unapproved query and one paused query
+    When the web monitor collects
+    Then Tavily was asked only the approved query
+
+  Scenario: Each query's run is recorded
+    Given a web monitor for anth-us whose approved query already found one story
+    And Tavily now returns that story and a new one
+    When the web monitor collects five days later
+    Then the query's run records two results, one new, one duplicate and its credits
 
   Scenario: A story another source already found is not collected as new
-    Given a web monitor for anth-us
-    And the Hacker News monitor already collected https://example.org/story-1
+    Given a web monitor for anth-us with one approved query
+    And the Hacker News monitor already found https://example.org/story-1
     And Tavily returns that story, with tracking parameters, and a new one
     When the web monitor collects
     Then only the new story is recorded
+    And the shared candidate for the first story lists both finds in its provenance
 
-  Scenario: Two publications' web monitors each keep the same story
-    Given a web monitor for anth-us
+  Scenario: Shared-group web monitors find a story once; Distinctive keeps its own
+    Given a web monitor for anth-us with one approved query
     And a web monitor for shipped that already collected https://example.org/story-1
     And Tavily returns that story
     When the web monitor collects
-    Then the story is recorded for anth-us too
+    Then the story is not recorded again for anth-us
 
-  Scenario: Each shared-Cyclotron publication has its own router config
+  Scenario: Each shared-Cyclotron monitor decides for all six publications
     Given the hn router config lists all the shared publications
     When the web monitors' router configs are built
-    Then each lists only its own publication
+    Then each shared monitor lists all six publications
     And each reuses the hn router's Cyclotron block
     And each holds decisions
 

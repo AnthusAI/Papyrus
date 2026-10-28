@@ -2,11 +2,13 @@
 
 `papyrus monitors web-queries --publication <id> [--write]` reads the publication's doctrine (read-only AppSync, IAM),
 the criteria question the Cyclotron decides with (the lab's reviewed `<publication>-relevance.json`, when it is on this
-machine), asks gpt-6-luna for 8 to 15 searches and prints them. `--write` stores them in the monitor's CONFIG (the one
-AWS write here; leave it out to only review). `--out FILE` also saves the proposal as JSON.
+machine), asks gpt-6-luna for 8 to 15 searches, each with a rationale, and prints them. `--write` stores them as `QUERY#` records of the
+monitor (the one AWS write here; leave it out to only review; they are searched only once approved, see `--approved-by`).
+`--out FILE` also saves the proposal as JSON.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -19,7 +21,8 @@ MIN_QUERIES, MAX_QUERIES = 8, 15
 DEFAULT_CRITERIA_DIR = Path.home() / "Projects" / "Cyclotron" / "infra" / "lab" / "criteria"
 INSTRUCTIONS = (
     "You write web-search queries for a monitor that finds new articles for one publication. Reply with a JSON array of "
-    f"{MIN_QUERIES} to {MAX_QUERIES} distinct strings and nothing else. Each query is a plain search-engine query of at most "
+    f"{MIN_QUERIES} to {MAX_QUERIES} objects {{\"query\": string, \"rationale\": string}} and nothing else. The rationale is one "
+    "sentence on what the query is meant to find for this publication. Each query is a plain search-engine query of at most "
     "twelve words that a news search would answer with recent, substantive pieces on one topic the publication covers. "
     "Cover the publication's range of topics, not one topic many times. Use the criteria to aim at what the publication "
     "includes and away from what it excludes. No site: operators, no dates, no quotation marks around the whole query.")
@@ -50,17 +53,22 @@ def prompt(publication_id: str, site: str, mission: str | None, policy: str | No
     return "\n\n".join(parts)
 
 
-def parse_queries(answer: str) -> list[str]:
+def parse_queries(answer: str) -> list[dict]:
+    """`[{"text", "rationale"}, ...]` from the model's JSON answer; 8 to 15 distinct queries."""
     text = answer.strip()
     if text.startswith("```"):
         text = text.strip("`").removeprefix("json").strip()
-    queries = json.loads(text)
-    if not isinstance(queries, list) or not all(isinstance(q, str) for q in queries):
-        raise ValueError("The model did not return a JSON array of strings")
-    unique = list(dict.fromkeys(" ".join(q.split()) for q in queries if q.strip()))
-    if not MIN_QUERIES <= len(unique) <= MAX_QUERIES:
-        raise ValueError(f"The model returned {len(unique)} distinct queries; expected {MIN_QUERIES} to {MAX_QUERIES}")
-    return unique
+    rows = json.loads(text)
+    if not isinstance(rows, list) or not all(isinstance(r, dict) and isinstance(r.get("query"), str) for r in rows):
+        raise ValueError("The model did not return a JSON array of {query, rationale} objects")
+    found = {}
+    for row in rows:
+        query = " ".join(row["query"].split())
+        if query and query not in found:
+            found[query] = " ".join(str(row.get("rationale") or "").split())
+    if not MIN_QUERIES <= len(found) <= MAX_QUERIES:
+        raise ValueError(f"The model returned {len(found)} distinct queries; expected {MIN_QUERIES} to {MAX_QUERIES}")
+    return [{"text": query, "rationale": rationale} for query, rationale in found.items()]
 
 
 def openai_asker(api_key: str, transport=None) -> Callable[[str], str]:
@@ -78,7 +86,7 @@ def openai_asker(api_key: str, transport=None) -> Callable[[str], str]:
     return ask
 
 
-def draft_queries(publication_id: str, site: str, mission, policy, criteria, ask: Callable[[str], str], attempts: int = 2) -> list[str]:
+def draft_queries(publication_id: str, site: str, mission, policy, criteria, ask: Callable[[str], str], attempts: int = 2) -> list[dict]:
     message = prompt(publication_id, site, mission, policy, criteria)
     last: Exception | None = None
     for _ in range(attempts):
@@ -132,21 +140,32 @@ def propose(publication_id: str, publications: dict, ask: Callable[[str], str], 
                         "contextHash": pack.get("contextHash")}}
 
 
-def write_queries(publication_id: str, queries: list[str], *, enable: bool = False) -> None:
-    """Store the queries in the monitor's CONFIG (an AWS write: only with --write). The config must already be seeded."""
+def write_queries(publication_id: str, queries: list[dict], *, approved_by: str | None = None, enable: bool = False) -> int:
+    """Store the queries as the monitor's `QUERY#` records (an AWS write: only with --write). The monitor's CONFIG must already
+    be seeded. A record that exists is left alone (its history is not rewritten). Returns how many were written."""
     import boto3
 
-    from .monitoring_cloud import _validate_config
+    from .monitoring_web import query_record
 
     ssm, dynamo = boto3.client("ssm"), boto3.resource("dynamodb")
     table = dynamo.Table(ssm.get_parameter(Name="/papyrus/monitoring/table-name")["Parameter"]["Value"])
-    key = {"pk": f"MONITOR#{monitor_id(publication_id)}", "sk": "CONFIG"}
-    item = table.get_item(Key=key, ConsistentRead=True).get("Item")
-    if not item:
-        raise ValueError(f"{key['pk']} is not seeded; run infra/monitoring/seed_web_monitors.py first")
-    item = {**item, "queries": queries, **({"enabled": True} if enable else {})}
-    _validate_config(json.loads(json.dumps(item, default=int)))
-    table.put_item(Item=item)
+    monitor = monitor_id(publication_id)
+    if not table.get_item(Key={"pk": f"MONITOR#{monitor}", "sk": "CONFIG"}, ConsistentRead=True).get("Item"):
+        raise ValueError(f"MONITOR#{monitor} is not seeded; run infra/monitoring/seed_web_monitors.py first")
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    written = 0
+    for query in queries:
+        record = query_record(monitor, query["text"], query["rationale"], origin="drafted", created_by=MODEL, now_iso=now,
+                              approved_by=approved_by)
+        try:
+            table.put_item(Item=record, ConditionExpression="attribute_not_exists(pk)")
+            written += 1
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            pass
+    if enable:
+        table.update_item(Key={"pk": f"MONITOR#{monitor}", "sk": "CONFIG"}, UpdateExpression="SET enabled = :t",
+                          ExpressionAttributeValues={":t": True})
+    return written
 
 
 def command(args) -> int:
@@ -164,10 +183,10 @@ def command(args) -> int:
         proposals.append(proposal)
         print(f"{publication_id} ({', '.join(k for k, v in proposal['basedOn'].items() if v is True) or 'no doctrine'}):")
         for query in proposal["queries"]:
-            print(f"  - {query}")
+            print(f"  - {query['text']}\n      {query['rationale']}")
         if args.write:
-            write_queries(publication_id, proposal["queries"], enable=args.enable)
-            print(f"  stored in {proposal['monitorId']} CONFIG")
+            count = write_queries(publication_id, proposal["queries"], approved_by=args.approved_by, enable=args.enable)
+            print(f"  stored {count} QUERY records in {proposal['monitorId']}" + ("" if args.approved_by else " (unapproved: not searched)"))
     if args.out:
         Path(args.out).write_text(json.dumps({p["publicationId"]: p for p in proposals}, indent=2) + "\n")
     return 1 if failed else 0
