@@ -588,7 +588,9 @@ onto each delivered Reference) -> the post-delivery `papyrus.reference.curate` p
 
 `EnrichmentBucket` (private, SSE-S3, retained), `EnrichmentOpenAiKeyParameter` (SSM SecureString name; the role may `ssm:GetParameter`
 only that name) and optional `EnrichmentGrobidUrl`; environment `ENRICHMENT_BUCKET`, `ENRICHMENT_OPENAI_KEY_PARAMETER`,
-`BIBLICUS_GROBID_URL`. `RouterEnrichmentStoragePolicy` grants `s3:GetObject`/`PutObject` on `enrichment/*` of that bucket and
+`BIBLICUS_GROBID_URL`. Link exploration during enrichment searches with Tavily: stack parameter `TavilyKeyParameter` (default
+`/papyrus/shared/tavily-api-key`; empty disables) sets `PAPYRUS_TAVILY_KEY_PARAMETER`, and `RouterTavilyKeyPolicy` grants `ssm:GetParameter` on
+exactly that parameter plus `kms:Decrypt` through SSM only (`kms:ViaService`). `RouterEnrichmentStoragePolicy` grants `s3:GetObject`/`PutObject` on `enrichment/*` of that bucket and
 `createModelAttachmentDownload` on the seven site APIs (to read back a Reference's `metadata.json` before adding the summary). The
 router zip now also carries the capture and curation modules (about 245 KB; `build.py` follows absolute `papyrus_content`
 imports and subpackages). With `ENRICHMENT_BUCKET` unset the router behaves exactly as before.

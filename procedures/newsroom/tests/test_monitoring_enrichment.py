@@ -331,3 +331,16 @@ def test_the_stack_has_a_private_bucket_one_key_parameter_and_least_privilege_fo
     storage = resources["RouterEnrichmentStoragePolicy"]["Properties"]["PolicyDocument"]["Statement"]
     assert storage[0]["Action"] == ["s3:GetObject", "s3:PutObject"] and storage[0]["Resource"][1].endswith("/enrichment/*")
     assert all(r[1].endswith("/types/Mutation/fields/createModelAttachmentDownload") for r in storage[1]["Resource"]) and len(storage[1]["Resource"]) == 7
+
+
+def test_the_router_gets_the_tavily_key_parameter_and_may_read_and_decrypt_only_that():
+    from test_monitoring_router import _template
+    template = _template()
+    assert template["Parameters"]["TavilyKeyParameter"]["Default"] == "/papyrus/shared/tavily-api-key"
+    env = template["Resources"]["RouterFunction"]["Properties"]["Environment"]["Variables"]
+    assert "PAPYRUS_TAVILY_KEY_PARAMETER" in env
+    policy = template["Resources"]["RouterTavilyKeyPolicy"]
+    assert policy["Condition"] == "HasTavilyKey"
+    read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
+    assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
+    assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])

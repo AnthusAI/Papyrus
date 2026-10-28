@@ -366,3 +366,9 @@ python infra/monitoring/build.py --router
 AWS references: [regional identities and receiving](https://docs.aws.amazon.com/ses/latest/dg/regions.html),
 [SES Lambda actions](https://docs.aws.amazon.com/ses/latest/dg/receiving-email-action-lambda.html),
 and [trusted event fields](https://docs.aws.amazon.com/ses/latest/dg/receiving-email-action-lambda-event.html).
+
+## Link search key
+
+The receiver explores unresolved links and falls back to Tavily search. The `papyrus-email-submissions` stack parameter `TavilyKeyParameter`
+(default `/papyrus/shared/tavily-api-key`; empty disables search) sets `PAPYRUS_TAVILY_KEY_PARAMETER` on the receiver Lambda and attaches
+`SubmissionTavilyKeyPolicy`: `ssm:GetParameter` on that one parameter and `kms:Decrypt` only through SSM. See `docs/link-exploration.md`.

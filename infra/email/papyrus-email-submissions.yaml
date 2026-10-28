@@ -45,10 +45,18 @@ Parameters:
     Type: CommaDelimitedList
     Default: ""
     Description: Exact Cognito user-pool ARNs configured for destination publications; grants read-only sender membership checks.
+  TavilyKeyParameter:
+    Type: String
+    Default: /papyrus/shared/tavily-api-key
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Tavily key for link-exploration search (environment variable
+      PAPYRUS_TAVILY_KEY_PARAMETER). The role may read only this parameter and decrypt through SSM. Empty disables search.
 Conditions:
   ReserveConcurrency: !Equals [!Ref ReservedConcurrency, 1]
   EnableReceipt: !Equals [!Ref Enabled, "true"]
   EnableRouter: !Equals [!Ref RouterEnabled, "true"]
+  HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
 Resources:
   RawMailBucket:
@@ -156,6 +164,26 @@ Resources:
           - Effect: Allow
             Action: [cognito-idp:ListUsers, cognito-idp:AdminListGroupsForUser]
             Resource: !Ref EditorUserPoolArns
+  SubmissionTavilyKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasTavilyKey
+    Properties:
+      Description: Lets the submission read the one SSM parameter that holds the Tavily key for link search.
+      Roles: [!Ref SubmissionRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadTavilyKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+          - Sid: DecryptTavilyKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
   SubmissionLogs:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -181,6 +209,7 @@ Resources:
           EMAIL_MONITOR_ID: !Ref MonitorId
           EMAIL_RAW_BUCKET: !Ref RawMailBucket
           EMAIL_RAW_PREFIX: email-submissions/
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
   AsyncRetries:
     Type: AWS::Lambda::EventInvokeConfig
     Properties:

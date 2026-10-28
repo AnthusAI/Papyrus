@@ -63,6 +63,7 @@ once with decryption; the function's role needs `ssm:GetParameter` on that param
 | --- | --- | --- |
 | `TAVILY_API_KEY` | environment | The Tavily key. Used first. |
 | `PAPYRUS_TAVILY_KEY_PARAMETER` | environment | SSM SecureString holding the key, for Lambdas and tasks. |
+| `TavilyKeyParameter` (stack parameter) | `papyrus-monitoring` and `papyrus-email-submissions` stacks | Default `/papyrus/shared/tavily-api-key`; sets `PAPYRUS_TAVILY_KEY_PARAMETER` on the router and the email receiver and attaches a policy granting `ssm:GetParameter` on that parameter and `kms:Decrypt` via SSM. Empty disables search. |
 | `EMAIL_LINK_EXPLORATION` | email intake Lambda environment | `off` disables exploring wrappers at intake (default on). |
 
 The lambdas that explore (email intake, monitoring view, the knowledge-run task) also need outbound internet access.
