@@ -388,8 +388,8 @@ export function NeedsMeView({
   ) : null;
 
   return (
-    <div className="@container flex flex-col gap-5 md:flex-row md:items-start" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
-      <div className="min-w-0 flex-1 space-y-6" data-needs-me-main>
+    <div className="@container flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
+      <div className="min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
           <div className="space-y-1.5">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
@@ -527,7 +527,7 @@ export function NeedsMeView({
 
       <aside
         aria-label="Detail"
-        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:sticky md:top-4 md:flex md:max-h-[calc(100dvh-2rem)] md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
+        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
         data-feed-flat=""
         data-needs-me-detail-shell
         data-detail-open={selected ? "true" : "false"}
