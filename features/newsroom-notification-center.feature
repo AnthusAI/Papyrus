@@ -71,6 +71,27 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     When the editor rejects a held email with a Why written in its detail pane
     Then the email is rejected with that reason, its card shows the answer, and nothing else is changed
 
+  Scenario: A draft's label and explanation come in either order, and the explanation can be changed later
+    Given an isolated Notification Center with a batch of three AI drafts
+    When the editor accepts a draft and then writes its Why, writes a Why and then rejects another, closes the request, and changes a Why afterwards
+    Then the Why box stays open and editable after the vote, a Why written after the vote is saved onto it with a Saved tick, and a Why written first goes with the vote
+    And a reopened draft and its card show the saved reason, and changing a Why after the request closed rewrites the answer's words without touching the choices or moving a Proposal
+
+  Scenario: A reason that cannot be saved is said in words and never lost
+    Given an isolated Notification Center with a batch of three AI drafts
+    When the editor writes a Why after the vote and the save is refused
+    Then the page says in words that the note could not be saved and is kept, the typed text stays in the box, and tapping away saves it
+
+  Scenario: A stage review, a hard gate and a flag take their note in either order
+    Given an isolated Notification Center with a batch of three AI drafts
+    When the editor answers a hard gate and then writes its note, and writes a flag's note before acknowledging it and changes it afterwards
+    Then each note is saved onto the existing answer, the choice and the person who answered stay as they were, and the card shows the note
+
+  Scenario: A held email and a Reference take their reason in either order
+    Given an isolated Notification Center with a batch of three AI drafts
+    When the editor rejects a held email and then writes its reason, and accepts a Reference and then writes its reason
+    Then the held email's decision is sent again with the reason so the recorded reason changes, the Reference's rating is saved again with its note, and each reopens showing its reason
+
   Scenario: Drafts is reachable under Editorial work
     Given the organizer navigation
     When the editor looks at Editorial work

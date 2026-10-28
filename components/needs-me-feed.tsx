@@ -24,7 +24,7 @@ import type { FeedFreshness } from "../lib/reference-feed-ranking";
 import type { RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
-import { FlagFooter, decidedChoiceOf, isReferenceLike } from "./needs-me-shared";
+import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
 import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SourceMark } from "./reference-feed";
 import { predictionFromDecision, ReviewQueueBar, useQueueGestures, type CardPrediction, type ReviewChoice } from "./reference-review-card";
@@ -102,6 +102,9 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
   const feedback = rating.feedback.phase === "idle" && decided ? { phase: "saved" as const } : rating.feedback;
   const reason = item.payload.kind === "reference" ? rating.reasonCode : null;
   const reasonLabel = decided === "reject" && reason ? REASON_LABELS[reason] : null;
+  // A decided item shows the Why it was given (clipped; the whole text is edited in the detail pane).
+  const why = !refLike && locked ? rating.note?.trim() ?? "" : "";
+  const whyLine = why ? `Why: ${why.length > 90 ? `${why.slice(0, 89).trimEnd()}\u2026` : why}` : null;
   const time = item.payload.kind === "reference" ? item.payload.displayTime ?? item.createdAt : item.createdAt;
   const age = formatFeedAge(time, now);
   const picture = item.image || item.host ? <FeedImage host={item.host} lead={false} name={item.source} src={item.image} /> : <TypeTile type={item.type} />;
@@ -169,7 +172,7 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
             disabled={Boolean(disabledReason) || locked}
             disabledReason={disabledReason}
             feedback={feedback}
-            note={reasonLabel ? `Reason: ${reasonLabel}` : locked ? "Decided here." : null}
+            note={reasonLabel ? `Reason: ${reasonLabel}` : locked ? whyLine ?? "Decided here." : null}
             onChoose={(choice) => { if (!disabledReason && !locked) ratings.choose(item.id, choice); }}
             prediction={cardPrediction(item, predictionLoading)}
             showPrediction={refLike}
@@ -247,7 +250,7 @@ export function NeedsMeRecipe({ freshness, threshold }: { freshness: FeedFreshne
 // --- the view -----------------------------------------------------------------------------------------------------------
 
 export type NeedsMeLoadState = "loading" | "ready" | "forbidden" | "unavailable";
-const NO_EXTRAS: DecisionExtras = { why: "", notThisKind: false };
+const NO_EXTRAS: DecisionExtras = { notThisKind: false };
 const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
 
 export type NeedsMeViewProps = {
@@ -276,6 +279,8 @@ export type NeedsMeViewProps = {
   captureTeaserLine?: number;
   onCorrectCapture?: CorrectCaptureAction;
   onDecide: (item: NeedsMeEntry, decision: NeedsMeDecision) => Promise<void>;
+  /** Changes only the Why of an item that is already decided (an AI draft, a review request, a held email). Throws a sentence when it cannot. */
+  onEditReason?: (item: NeedsMeEntry, why: string) => Promise<void>;
   onRetryDrafts?: () => void;
   onOpened?: (item: NeedsMeEntry) => void;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
@@ -288,7 +293,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
   loadState, entries, freshness, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
-  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onRetryDrafts, onOpened, loadEmail,
+  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onRetryDrafts, onOpened, loadEmail,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -319,13 +324,22 @@ export function NeedsMeView({
       const item = latest.current.byId.get(id);
       if (!item) throw new Error("This item is no longer in the list.");
       const typed = latest.current.extras[id] ?? NO_EXTRAS;
-      const referenceLike = isReferenceLike(item);
-      await onDecide(item, { choice, reasonCode: detail.reasonCode, why: referenceLike ? detail.note : typed.why.trim(), notThisKind: choice === "reject" && typed.notThisKind });
+      await onDecide(item, { choice, reasonCode: detail.reasonCode, why: detail.note, notThisKind: choice === "reject" && typed.notThisKind });
     },
-    saved: (id) => { const item = latest.current.byId.get(id); return item ? decidedChoiceOf(item) : null; },
+    // The Why of an AI draft, a review request or a held email is typed in either order and edited after the decision, onto that decision.
+    sticky: (id) => { const item = latest.current.byId.get(id); return item ? !isReferenceLike(item) : false; },
+    saveNote: async (id, note) => {
+      const item = latest.current.byId.get(id);
+      if (!item) throw new Error("This item is no longer in the list.");
+      if (!onEditReason) throw new Error("A reason cannot be changed here.");
+      await onEditReason(item, note);
+    },
+    // An acknowledged flag counts as an Accept: it is decided, and only its note can change.
+    saved: (id) => { const item = latest.current.byId.get(id); return item ? decidedChoiceOf(item) ?? (item.decisionState === "acknowledged" ? "accept" : null) : null; },
     seed: (id) => {
       const item = latest.current.byId.get(id);
-      if (!item || item.payload.kind !== "reference") return { note: "", reasonCode: null };
+      if (!item) return { note: "", reasonCode: null };
+      if (item.payload.kind !== "reference") return { note: recordedAnswer(item).why ?? "", reasonCode: null };
       const { reference } = item.payload;
       const pending = normalizeReferenceCurationStatus(reference.curationStatus) === "pending";
       return { note: pending ? "" : reference.curationStatusReason ?? "", reasonCode: referenceReasonCode(reference) ?? null };

@@ -14,11 +14,11 @@ import { DecidedLine } from "./notification-cards";
 import { SourceMark } from "./reference-feed";
 import { RatingGrid } from "./review-rating-grid";
 import type { RatingController } from "./use-reference-ratings";
-import { FlagFooter, decidedChoiceOf } from "./needs-me-shared";
+import { FlagFooter, decidedChoiceOf, recordedAnswer } from "./needs-me-shared";
 
 import type { CorrectCaptureAction } from "./reference-capture-client";
-/** What the editor typed before deciding an item that is not a Reference: the optional why, and the one steering chip. */
-export type DecisionExtras = { why: string; notThisKind: boolean };
+/** What the editor chose before deciding an item that is not a Reference: the one steering chip. (The Why lives in the rating store, so it can be typed before or after.) */
+export type DecisionExtras = { notThisKind: boolean };
 
 const CHIP = "inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-[var(--feed-control)] px-2.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-[var(--feed-control)]/70 focus-visible:ring-2 focus-visible:ring-ring";
 const PILL_TOGGLE = "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-full px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
@@ -47,20 +47,27 @@ export function Heading({ item }: { item: NeedsMeEntry }) {
   );
 }
 
-/** What was recorded when the item was decided, for the line under the buttons. */
-function recordedAnswer(item: NeedsMeEntry): { why: string | null; notThisKind: boolean } {
-  const { payload } = item;
-  if (payload.kind === "draft") return { why: payload.item.decision?.why ?? null, notThisKind: Boolean(payload.item.decision?.notThisKind) };
-  if (payload.kind === "request") return { why: payload.request.answer?.feedback ?? null, notThisKind: payload.request.answer?.steer === "not_this_kind" };
-  if (payload.kind === "email") return { why: payload.summary.quarantine?.decision?.reason || null, notThisKind: false };
-  return { why: null, notThisKind: false };
-}
-
 function chipLabel(item: NeedsMeEntry): string | null {
   return item.type === "draft" ? "Not this kind of story" : item.type === "stage_review" ? "Not this kind of thing" : null;
 }
 
-/** Accept / Reject for everything that is not a Reference: an optional why (read when you tap), one steering chip on Reject, then the shared grid. */
+/** The save state of a Why edited after the decision, in words and a tick: never colour alone. */
+function ReasonStatus({ feedback, unsaved, hasReason }: { feedback: { phase: string; message?: string }; unsaved: boolean; hasReason: boolean }) {
+  return (
+    <div aria-live="polite" className="min-h-5 text-xs text-muted-foreground" data-reason-status={feedback.phase}>
+      {feedback.phase === "saving" ? <span className="inline-flex items-center gap-1"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Saving…</span> : null}
+      {(feedback.phase === "saved" || (feedback.phase === "idle" && hasReason)) && !unsaved ? <span className="inline-flex items-center gap-1" data-reason-saved><CheckIcon aria-hidden="true" className="size-3.5" />Saved</span> : null}
+      {feedback.phase === "idle" && unsaved ? <span data-reason-unsaved>Not saved yet. It saves when you pause or tap away.</span> : null}
+      {feedback.phase === "error" ? <span className="text-destructive" role="alert">{feedback.message}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * Accept / Reject for everything that is not a Reference. The Why box is always there, and the label and the explanation can come in either
+ * order: a Why typed first goes with the vote; a Why typed after the vote is saved onto that decision (when you pause or tap away), and
+ * it can be changed again whenever the item is reopened. A decided item keeps its Accept or Reject; only its Why stays editable.
+ */
 export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason, lockedNote }: Pick<DetailProps, "item" | "ratings" | "extras" | "onExtras" | "disabledReason"> & { lockedNote?: ReactNode }) {
   const rating = ratings.get(item.id);
   const decided = decidedChoiceOf(item);
@@ -69,6 +76,8 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
   const flag = item.type === "flag";
   const chip = chipLabel(item);
   const recorded = recordedAnswer(item);
+  const note = rating.note ?? "";
+  const unsaved = note.trim() !== (recorded.why ?? "").trim();
 
   // Desktop shortcuts: A accepts, R rejects. Never while typing, and never once decided.
   useEffect(() => {
@@ -86,25 +95,26 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
 
   return (
     <section aria-label="Your decision" className="space-y-3 rounded-[20px] bg-[var(--feed-footer)] p-3" data-needs-me-decision {...(locked ? {} : { "data-review-controls": "" })}>
+      <textarea
+        aria-label="Why? (optional)"
+        className="block min-h-20 w-full resize-y rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        data-needs-me-why
+        onBlur={() => { if (!disabledReason) ratings.commitNote(item.id); }}
+        onChange={(event) => ratings.setNote(item.id, event.target.value)}
+        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : "Why? Optional. Your note teaches the AI."}
+        value={note}
+      />
+      {locked ? <ReasonStatus feedback={rating.feedback} hasReason={Boolean(recorded.why)} unsaved={unsaved} /> : null}
       {locked ? (
         <>
           {item.decisionState === "acknowledged"
-            ? <p className="flex items-center gap-1.5 text-sm font-medium" data-flag-acknowledged><CircleCheckIcon aria-hidden="true" className="size-4" />Acknowledged{recorded.why ? <span className="font-normal text-muted-foreground">: {recorded.why}</span> : null}</p>
-            : <DecidedLine choice={decided ?? "accept"} notThisKind={recorded.notThisKind} why={recorded.why} />}
-          {flag ? null : <RatingGrid answer={decided} disabled feedback={{ phase: "saved" }} onChoose={() => undefined} prediction={{ state: "none" }} showPrediction={false} size="large" surface="footer" />}
+            ? <p className="flex items-center gap-1.5 text-sm font-medium" data-flag-acknowledged><CircleCheckIcon aria-hidden="true" className="size-4" />Acknowledged</p>
+            : <DecidedLine choice={decided ?? "accept"} notThisKind={recorded.notThisKind} />}
+          {flag ? null : <RatingGrid answer={decided} disabled feedback={{ phase: "idle" }} onChoose={() => undefined} prediction={{ state: "none" }} showPrediction={false} size="large" surface="footer" />}
           {lockedNote ? <p className="text-xs text-muted-foreground" data-review-disabled-reason>{lockedNote}</p> : null}
         </>
       ) : (
         <>
-          <textarea
-            aria-label="Why? (optional)"
-            className="block min-h-20 w-full resize-y rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            data-needs-me-why
-            onChange={(event) => onExtras({ ...extras, why: event.target.value })}
-            placeholder={flag ? "Why? Optional. Tell the step what to do differently." : "Why? Optional. Your note teaches the AI."}
-            readOnly={busy}
-            value={extras.why}
-          />
           {chip && !flag ? (
             <div className="flex flex-wrap items-center gap-2" data-review-reasons>
               <button

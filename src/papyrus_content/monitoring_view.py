@@ -148,6 +148,20 @@ class TableViewStore:
                 raise
             return False
 
+    def replace_email_decision(self, item: dict) -> bool:
+        """Rewrite a decision row that exists and has not been applied yet (only its reason changes); False when it is gone or applied.
+
+        The receiver writes ``outcome`` when it applies a decision and is the receipt's only writer afterwards, so an applied row is left alone.
+        """
+        try:
+            self.table.put_item(Item={**item, "pk": self.pk}, ConditionExpression="attribute_exists(pk) AND attribute_not_exists(outcome)")
+            return True
+        except Exception as error:
+            if ("ConditionalCheckFailed" not in str(error)
+                    and getattr(error, "response", {}).get("Error", {}).get("Code") != "ConditionalCheckFailedException"):
+                raise
+            return False
+
     def record_email_resolution(self, receipt_digest: str, candidate_index: int, *, url: str, title: str, ttl=None,
                                 found_via_search=None):
         """Persist one editor-requested destination so later Reference intake can verify it.

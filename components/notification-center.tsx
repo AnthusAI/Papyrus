@@ -5,9 +5,9 @@ import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category
 import type { EmailDecisionResult, MonitoringEmailDetails, MonitoringEmailSummary } from "../lib/monitoring-overview";
 import { proposalReceiptMessage, stateLabel, type ProposalReceipt } from "../lib/proposals-admin";
 import type { DraftLoad, ReviewLoad } from "../lib/review-client";
-import { acceptPath, batchAnswer, draftView, rejectPath, undecidedDraftIds, withDecision, draftDecisionUpdate, type DraftChoice, type DraftView } from "../lib/review-drafts";
+import { acceptPath, batchAnswer, draftDecisionOf, draftReasonUpdate, draftView, rejectPath, undecidedDraftIds, withDecision, draftDecisionUpdate, type DraftChoice, type DraftView } from "../lib/review-drafts";
 import { previewsBySourceAddress, recentDecisions } from "../lib/notification-feed";
-import { answerUpdate, cyclotronAutoDecided, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
+import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { learnFreshness } from "../lib/reference-feed-ranking";
 import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
@@ -42,6 +42,8 @@ export type NotificationApi = {
   loadStoryTitles: (ids: string[]) => Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string> }>;
   answerReviewRequest: (request: ReviewRequest, input: AnswerInput, by: string) => Promise<ReviewRequest>;
   saveDraftDecision: (request: ReviewRequest, draftId: string, decision: DraftDecision) => Promise<ReviewRequest>;
+  /** Changes only the Why of a draft or request that is already decided (`draftReasonUpdate`, `answerReasonUpdate`). Returns the saved request. */
+  saveReviewReason: (request: ReviewRequest, update: Record<string, unknown>) => Promise<ReviewRequest>;
   markReviewRead: (userKey: string, requestId: string) => Promise<void>;
   transitionProposalPath: (proposalId: string, path: readonly string[]) => Promise<ProposalReceipt>;
   /** Email submissions held for review (Monitoring's own read). Optional: a site without monitoring has none. */
@@ -56,6 +58,7 @@ const liveApi: NotificationApi = {
   loadStoryTitles: async (ids) => (await import("../lib/review-client")).loadStoryTitles(ids),
   answerReviewRequest: async (request, input, by) => (await import("../lib/review-client")).answerReviewRequest(request, input, by),
   saveDraftDecision: async (request, draftId, decision) => (await import("../lib/review-client")).saveDraftDecision(request, draftId, decision),
+  saveReviewReason: async (request, update) => (await import("../lib/review-client")).saveReviewReason(request, update),
   markReviewRead: async (userKey, requestId) => (await import("../lib/review-client")).markReviewRead(userKey, requestId),
   transitionProposalPath: async (proposalId, path) => (await import("../lib/proposals-client")).transitionProposalPath(proposalId, path),
   loadHeldEmails: async () => {
@@ -87,6 +90,7 @@ const demoApi: NotificationApi = {
     const update = draftDecisionUpdate(request, draftId, decision);
     return { ...request, links: JSON.parse(String(update.links)), history: JSON.parse(String(update.history)), updatedAt: String(update.updatedAt) };
   },
+  saveReviewReason: async (request, update) => applyReviewUpdate(request, update),
   markReviewRead: async () => undefined,
   transitionProposalPath: async () => ({ status: "ok" }),
   loadHeldEmails: async () => FIXTURE_HELD_EMAILS,
@@ -126,6 +130,7 @@ function previewState(): "loading" | "caught-up" | "sample" | "mixed" | null {
 const EMAIL_REFUSALS: Record<string, string> = {
   forbidden: "Your session cannot decide held email.",
   bad_request: "That email could not be decided from here.",
+  already_applied: "This email was already queued, so its reason can no longer be changed here.",
   already_decided: "Someone already decided this email. Refresh to see what they chose.",
   not_quarantined: "This email is no longer held.",
   expired: "This email expired and can no longer be accepted.",
@@ -332,6 +337,54 @@ export function NotificationCenter({
     }
   }, [api, demo, drafts, draftsState, requests, stale]);
 
+  /** Accept or Reject a held email, or (the same choice again) correct the reason it was given. The reason shown is what the server recorded. */
+  const sendEmailDecision = useCallback(async (summary: MonitoringEmailSummary, choice: "accept" | "reject", why: string, editing = false) => {
+    const result = await api.decideEmail?.(summary.receiptId, choice, why);
+    if (!result) throw new Error("Held email cannot be decided from here.");
+    if (!("ok" in result)) throw new Error("error" in result ? EMAIL_REFUSALS[result.error] ?? "The decision could not be saved." : "The decision could not be saved right now. Try again in a minute.");
+    const plain = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 500);
+    const recorded = result.quarantine?.decision;
+    // The server keeps the first reason once it has queued the email; say so in words rather than showing a reason that was not kept.
+    if (editing && recorded && plain(recorded.reason) !== plain(why)) throw new Error(EMAIL_REFUSALS.already_applied);
+    const kept = recorded?.reason ?? plain(why);
+    setEmailsDecided((current) => new Map(current).set(summary.receiptId, choice));
+    setEmails((current) => current.map((entry) => (entry.receiptId === summary.receiptId
+      ? { ...entry, quarantine: { state: entry.quarantine?.state ?? "quarantined", failure: entry.quarantine?.failure ?? null, decision: { action: choice, by: recorded?.by || actorLabel, at: recorded?.at ?? new Date().toISOString(), reason: kept, viaGroup: recorded?.viaGroup } } }
+      : entry)));
+  }, [actorLabel, api]);
+
+  /**
+   * Changes only the Why of an item that is already decided, onto the decision that exists:
+   *   AI draft          the request's link for the draft (and, once the request has closed, its answer's drafts and feedback)
+   *   review request    the request's answer note (a hard gate, a stage review, an acknowledged flag)
+   *   held email        the same decision again with the new reason, so the Monitoring view updates the recorded reason
+   * A Proposal's own transitions carry only public reasons, so a private note is never written there.
+   */
+  const latest = useRef({ requests, drafts, emails, emailsDecided });
+  latest.current = { requests, drafts, emails, emailsDecided };
+  const editReason = useCallback(async (item: NeedsMeEntry, why: string) => {
+    const { payload } = item;
+    const now = new Date();
+    const store = (saved: ReviewRequest) => {
+      latest.current.requests = latest.current.requests.map((entry) => (entry.id === saved.id ? saved : entry));
+      setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    };
+    if (payload.kind === "draft") {
+      const request = latest.current.requests.find((entry) => entry.id === payload.item.request.id) ?? payload.item.request;
+      const view = latest.current.drafts[payload.item.draftId];
+      const decision = draftDecisionOf(request.links.find((link) => link.id === payload.item.draftId), view, { by: actorLabel, at: now.toISOString() });
+      if (!decision) throw new Error("This draft has not been decided yet.");
+      store(await api.saveReviewReason(request, draftReasonUpdate(request, payload.item.draftId, { ...decision, title: decision.title ?? view?.headline, why }, actorLabel, now)));
+    } else if (payload.kind === "request") {
+      const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;
+      store(await api.saveReviewReason(request, answerReasonUpdate(request, why, actorLabel, now)));
+    } else if (payload.kind === "email") {
+      const choice = latest.current.emailsDecided.get(payload.summary.receiptId) ?? payload.summary.quarantine?.decision?.action;
+      if (!choice) throw new Error("This email has not been decided yet.");
+      await sendEmailDecision(payload.summary, choice, why, true);
+    }
+  }, [actorLabel, api, sendEmailDecision]);
+
   /** One decision, whatever the type: it goes to the action that already owns that kind of thing. */
   const decide = useCallback(async (item: NeedsMeEntry, decision: NeedsMeDecision) => {
     const { payload } = item;
@@ -346,12 +399,9 @@ export function NotificationCenter({
       else if (decision.choice === "accept") await answer(request, { decision: "approve", feedback: decision.why || null });
       else await answer(request, { decision: "reject", feedback: decision.why || null, steer: decision.notThisKind ? "not_this_kind" : null });
     } else if (payload.kind === "email") {
-      const result = await api.decideEmail?.(payload.summary.receiptId, decision.choice, decision.why);
-      if (!result) throw new Error("Held email cannot be decided from here.");
-      if (!("ok" in result)) throw new Error("error" in result ? EMAIL_REFUSALS[result.error] ?? "The decision could not be saved." : "The decision could not be saved right now. Try again in a minute.");
-      setEmailsDecided((current) => new Map(current).set(payload.summary.receiptId, decision.choice));
+      await sendEmailDecision(payload.summary, decision.choice, decision.why);
     }
-  }, [answer, api, decideDraft, onRateReference]);
+  }, [answer, decideDraft, onRateReference, sendEmailDecision]);
 
   const shownReferences = preview === "caught-up" ? references.filter((reference) => normalizeReferenceCurationStatus(reference.curationStatus) !== "pending") : references;
   const bySource = useMemo(() => previewsBySourceAddress(shownReferences, previews), [shownReferences, previews]);
@@ -384,7 +434,7 @@ export function NotificationCenter({
   return (
     <NeedsMeView
       captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} freshness={freshness} legacyAuto={legacyAuto}
-      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} missingDraftCount={missingCount} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide}
+      loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} missingDraftCount={missingCount} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
       onRetryDrafts={() => void loadDraftsFor(requests)} predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}
     />

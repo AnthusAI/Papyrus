@@ -33,6 +33,17 @@ Feature: Held email submissions are released or discarded by an editor
     Then the second request reports the existing decision
     And no further discovery, manifest or receipt change is made
 
+  Scenario: The reason can be added or changed after the decision, until the receiver has applied it
+    Given a publication email destination and a newsletter whose SES authentication checks failed
+    And the quarantine receiver has processed the SES delivery
+    When an editor rejects the held message with no reason
+    And the editor rejects the same message again and explains why
+    Then the recorded reason is the explanation and the decision is unchanged
+    And a plain repeat of the decision, with no reason, changes nothing
+    When the receiver applies the recorded decision
+    And the editor tries to change the reason once more
+    Then the receipt keeps the reason it was applied with
+
   Scenario: An editor rejects a held message and nothing is ever routed
     Given a publication email destination and a newsletter whose SES authentication checks failed
     And the quarantine receiver has processed the SES delivery

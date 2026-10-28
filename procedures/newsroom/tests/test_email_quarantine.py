@@ -79,6 +79,35 @@ def discoveries(fixture):
     return fixture.table.by_prefix("DISC#")
 
 
+# --- the reason, in any order ---------------------------------------------------------------------
+
+def test_the_reason_can_be_added_after_the_decision_until_the_receiver_applies_it():
+    fixture = held_fixture()
+    assert view_decide(fixture, "discard")["ok"]
+    key = receipt(fixture)["sk"]
+    action = fixture.table.by_prefix("EMAILACTION#")[0]
+    assert action["reason"] == ""
+    again = view_decide(fixture, "discard", reason="  Not   for\nthis publication ")
+    assert again["already"] is True and again["quarantine"]["decision"]["reason"] == "Not for this publication"
+    action = fixture.table.by_prefix("EMAILACTION#")[0]
+    assert (action["decision"], action["reason"], action["actor"]) == ("discard", "Not for this publication", "editor-sub")
+    # A repeat without a reason (or with the same one) changes nothing.
+    before = deepcopy(fixture.table.items)
+    assert view_decide(fixture, "discard")["already"] is True and view_decide(fixture, "discard", reason="Not for this publication")["already"] is True
+    assert fixture.table.items == before
+    # The opposite decision is still refused, and does not touch the reason.
+    assert view_decide(fixture, "release", reason="changed my mind")["error"] == "already_decided"
+    assert fixture.table.by_prefix("EMAILACTION#")[0]["reason"] == "Not for this publication"
+    # The reason can be cleared.
+    assert view_decide(fixture, "discard", reason="")["quarantine"]["decision"]["reason"] == ""
+    # Once the receiver has applied the decision, the receipt's own record stands.
+    assert view_decide(fixture, "discard", reason="Final words")["quarantine"]["decision"]["reason"] == "Final words"
+    apply_email_decisions(fixture)
+    applied = view_decide(fixture, "discard", reason="Too late")
+    assert applied["quarantine"]["decision"]["reason"] == "Final words"
+    assert fixture.table.get_item(Key={"pk": "MONITOR#" + MONITOR, "sk": key})["Item"]["decision"]["reason"] == "Final words"
+
+
 # --- quarantine ---------------------------------------------------------------------------------
 
 def test_failed_authentication_is_quarantined_privately_and_nothing_is_routed():
