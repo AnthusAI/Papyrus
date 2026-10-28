@@ -41,6 +41,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from hashlib import sha256
@@ -63,6 +64,7 @@ from .email_submission_authorization import (
 )
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
+from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
 from .monitoring_huggingface import hf_accepts, validate_rule
 
 CONTRACT_VERSION = "cyclotron-publication/v1"
@@ -70,8 +72,11 @@ ROUTER_CONFIG_SK = "CONFIG#router"
 ROUTER_LOCK_SK = "LOCK#router"
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 RECEIPT_TTL_SECONDS = 30 * 86400
-MAX_REQUEST_BYTES = 32_768
-MAX_PENDING_JOB_SECONDS = 6 * 3600
+# TEMPORARY lab limit, to be removed when Cyclotron stores item values separately: the lab refuses a decision command over
+# 65,536 bytes of JSON (409 request_conflict "bounded credential-free command required"). The router keeps its command under this
+# and, when an enriched item would exceed it, cuts ONLY `body` (and so `text`), recording `bodyTruncatedForLabLimit` on the DISC row.
+MAX_REQUEST_BYTES = 60_000
+STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
 WORKER_ACTOR = "papyrus-monitoring-worker"   # the intake's own curation actor; never a human
@@ -151,6 +156,10 @@ PROCEDURE_INPUT_NAME = re.compile(r"^[a-z_][a-z0-9_]{0,63}$")
 SSM_PARAMETER = re.compile(r"^/[A-Za-z0-9_./-]{1,1000}$")
 TRIGGER_PLACEHOLDERS = frozenset({"sourceId", "sourceIdPrefix", "canonicalUrl", "documentUrl", "sourceItemUrl", "title",
                                   "publishedAt", "referenceId", "publicationId", "corpusId"})
+
+
+class EnrichmentPending(Exception):
+    """The item's enrichment has not finished (a retry is waiting, or this run is out of time): post nothing yet."""
 
 
 class StopSweep(Exception):
@@ -331,7 +340,11 @@ def validate_router_publications(raw: dict) -> list[dict]:
         pool_id = entry.get("userPoolId")
         if pool_id is not None and (not isinstance(pool_id, str) or not re.fullmatch(r"[A-Za-z0-9-]+_[A-Za-z0-9]+", pool_id)):
             raise ValueError(f"router publication {publication_id} has an invalid editor user pool")
+        since = entry.get("criteriaSince")
+        if since is not None and (not isinstance(since, (str, int)) or not str(since).strip()):
+            raise ValueError(f"router publication {publication_id} has an invalid criteriaSince")
         publications.append({
+            **({"criteriaSince": str(since).strip()} if since is not None else {}),
             "publicationId": publication_id, "site": site, "appsyncEndpoint": entry["appsyncEndpoint"],
             **({"userPoolId": pool_id} if pool_id else {}),
             "corpusId": corpus_id, "corpusKey": corpus_id.removeprefix("knowledge-corpus-"),
@@ -343,6 +356,27 @@ def validate_router_publications(raw: dict) -> list[dict]:
     if not publications:
         raise ValueError("router needs at least one publication")
     return publications
+
+
+VIA_DECISIONS, VIA_PUBLICATION = "decisions", "publication"
+
+
+def job_via(route: dict, job: dict) -> str:
+    """Which route a stored job was posted to. Entries stored before `via` existed are combined jobs when their jobId
+    is the route's combined job; anything else was posted per publication."""
+    if job.get("via") in (VIA_DECISIONS, VIA_PUBLICATION):
+        return job["via"]
+    combined = (route.get("combinedJob") or {}).get("jobId")
+    return VIA_DECISIONS if combined and job.get("jobId") == combined else VIA_PUBLICATION
+
+
+def criteria_unchanged(stored: str, since: str) -> bool:
+    """True when a vote stored under binding revision `stored` was judged against criteria that still hold, given the
+    earliest matching revision `since`. Integer revisions compare numerically; anything else must match exactly."""
+    try:
+        return int(stored) >= int(since)
+    except (TypeError, ValueError):
+        return str(stored) == str(since)
 
 
 def validate_procedure_triggers(publication_id: str, entry: dict) -> list[dict]:
@@ -417,42 +451,87 @@ def item_id_for(monitor_id: str, source_id: str) -> str:
     return f"{monitor_id}-{source_id}"
 
 
-def build_item(discovery: dict) -> dict:
+def compose_text(title: str, url: str, summary: str = "", body: str = "") -> str:
+    """`title\nurl`, then the summary, then the captured body, each after a blank line; absent parts are left out."""
+    return "\n\n".join(part for part in (f"{title}\n{url}", summary, body) if part)
+
+
+def build_item(discovery: dict, enrichment: dict | None = None) -> dict:
+    """The Cyclotron item. `enrichment` is `{summary, body}` from item enrichment (docs/reference-curation-pipeline.md): `summary` and
+    `body` (the full captured text) join `values`, and `text` = title, url, summary, body."""
     source_id = str(discovery.get("sourceId") or "")
     title, url = str(discovery.get("title") or ""), str(discovery.get("canonicalUrl") or "")
     if not SOURCE_ID.match(source_id) or not title.strip() or len(title) > 1000 or not url or len(url) > 2048:
         raise ItemInvalid("discovery is not a valid Cyclotron item")
     source = ITEM_SOURCES.get(discovery.get("sourceType"), "hacker-news")
-    return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": {
-        "title": title, "url": url, "source": source,
-        "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""), "text": f"{title}\n{url}"}}
+    summary, body = str((enrichment or {}).get("summary") or ""), str((enrichment or {}).get("body") or "")
+    values = {"title": title, "url": url, "source": source, "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""),
+              **({"summary": summary} if summary else {}), **({"body": body} if body else {}),
+              "text": compose_text(title, url, summary, body)}
+    return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": values}
 
 
-def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0) -> dict:
+def fitted_item(discovery: dict, enrichment: dict | None, command_size) -> tuple[dict, bool]:
+    """The item with the whole captured body when the command fits the lab limit, else with `body` cut to the longest prefix that
+    fits (TEMPORARY, see MAX_REQUEST_BYTES). `command_size(item)` is the serialized command's byte length. Returns (item, cut)."""
+    item = build_item(discovery, enrichment)
+    body = str((enrichment or {}).get("body") or "")
+    if not body or command_size(item) <= MAX_REQUEST_BYTES:
+        return item, False
+    low, high = 0, len(body)
+    while low < high:
+        middle = (low + high + 1) // 2
+        if command_size(build_item(discovery, {**enrichment, "body": body[:middle]})) <= MAX_REQUEST_BYTES:
+            low = middle
+        else:
+            high = middle - 1
+    return build_item(discovery, {**enrichment, "body": body[:low]}), True
+
+
+PLACEHOLDER_REQUEST_ID = "0" * 64
+
+
+def build_decide_request(config: dict, publication: dict, discovery: dict, attempt: int = 0, enrichment: dict | None = None) -> dict:
     validate_email_discovery_scope(discovery, config)
-    cyclotron, item = config["cyclotron"], build_item(discovery)
+    cyclotron = config["cyclotron"]
+
+    def size(item):
+        return len(json.dumps({"contractVersion": CONTRACT_VERSION, "operation": "decide", "requestId": PLACEHOLDER_REQUEST_ID,
+                               "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}},
+                              separators=(",", ":")).encode())
+
+    item, cut = fitted_item(discovery, enrichment, size)
     payload = {"bindingRevision": cyclotron["bindingRevision"], "item": item}
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
                                     payload, attempt),
             "payload": payload}
     validate_request(body)
-    return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
+    return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body,
+            "bodyTruncatedForLabLimit": cut}
 
 
-def build_combined_request(config: dict, publications: list[dict], discovery: dict, attempt: int = 0) -> dict:
+def build_combined_request(config: dict, publications: list[dict], discovery: dict, attempt: int = 0,
+                           enrichment: dict | None = None) -> dict:
     """One POST /machine/decisions body for a story and every given publication's binding."""
     validate_email_discovery_scope(discovery, config)
-    cyclotron, item = config["cyclotron"], build_item(discovery)
+    cyclotron = config["cyclotron"]
     bindings = {p["publicationId"]: cyclotron["bindingRevision"] for p in publications}
     if not bindings:
         raise ItemInvalid("no publication bindings to decide")
+
+    def size(item):
+        return len(json.dumps({"contractVersion": CONTRACT_VERSION, "requestId": PLACEHOLDER_REQUEST_ID,
+                               "payload": {"bindings": dict(sorted(bindings.items())), "item": item}},
+                              separators=(",", ":")).encode())
+
+    item, cut = fitted_item(discovery, enrichment, size)
     payload = {"bindings": dict(sorted(bindings.items())), "item": item}
     body = {"contractVersion": CONTRACT_VERSION,
             "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], payload, attempt),
             "payload": payload}
     validate_combined_request(body)
-    return {"path": "/machine/decisions", "body": body}
+    return {"path": "/machine/decisions", "body": body, "bodyTruncatedForLabLimit": cut}
 
 
 def validate_combined_request(body: dict) -> None:
@@ -468,6 +547,8 @@ def validate_combined_request(body: dict) -> None:
         raise ValueError("combined payload shape")
     validate_request({"contractVersion": CONTRACT_VERSION, "operation": "decide", "requestId": request,
                       "payload": {"bindingRevision": "x", "item": payload["item"]}})
+    if len(json.dumps(body, separators=(",", ":")).encode()) > MAX_REQUEST_BYTES:
+        raise ValueError("request body is too large")
 
 
 def validate_request(body: dict) -> None:
@@ -491,9 +572,11 @@ def validate_request(body: dict) -> None:
                     bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}-[A-Za-z0-9_-]{1,64}", str(item.get("id", "")))))
         if set(item) != {"id", "values"} or not valid_id:
             raise ValueError("decide item shape")
-        if set(values) != {"title", "url", "source", "sourceItemUrl", "text"} or values["source"] not in ITEM_SOURCE_NAMES:
+        required = {"title", "url", "source", "sourceItemUrl", "text"}
+        if not required <= set(values) or set(values) - required - {"summary", "body"} or values["source"] not in ITEM_SOURCE_NAMES:
             raise ValueError("decide item values shape")
-        if any(not isinstance(v, str) or not v for v in values.values()) or values["text"] != f"{values['title']}\n{values['url']}":
+        if (any(not isinstance(v, str) or not v for v in values.values())
+                or values["text"] != compose_text(values["title"], values["url"], values.get("summary", ""), values.get("body", ""))):
             raise ValueError("decide item values content")
     elif body["operation"] == "feedback":
         required = {"bindingRevision", "itemId", "itemRevision", "output", "label", "editor"}
@@ -897,6 +980,18 @@ class RouterStore(DynamoStore):
                                ExpressionAttributeNames=names,
                                ExpressionAttributeValues={f":v{n}": decimalize(value) for n, value in enumerate(fields.values())})
 
+    def reopen_final(self, monitor_id, sk, reason) -> bool:
+        """Remove `final` from a ROUTE row, only while its reason is still exactly `reason`; nothing else changes."""
+        try:
+            self.table.update_item(Key={"pk": pk(monitor_id), "sk": sk}, UpdateExpression="REMOVE #f",
+                                   ConditionExpression="#f.#r = :r", ExpressionAttributeNames={"#f": "final", "#r": "reason"},
+                                   ExpressionAttributeValues={":r": reason})
+            return True
+        except Exception as error:
+            if getattr(error, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return False
+            raise
+
     def delete_any(self, monitor_id, sk):
         self.table.delete_item(Key={"pk": pk(monitor_id), "sk": sk})
 
@@ -1050,7 +1145,8 @@ class Router:
     def __init__(self, store, config: dict, *, monitor_id="hn", now: float, run_id: str,
                  cyclotron: CyclotronClient | None, appsync: Callable[[str], Any], deliver=deliver_reference,
                  context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
-                 start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=()):
+                 start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=(),
+                 enricher: Enricher | None = None):
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
         self.rung = {j for j in rung_job_ids if j}   # jobs a Decision Ready doorbell named: asked about despite their backoff
         self._fresh: set = set()     # jobs posted by this run: checked at once, their backoff starts with the next run
@@ -1058,6 +1154,8 @@ class Router:
         self._lab_state = None
         self.start_procedure = start_procedure
         self.cognito = cognito
+        self.enricher = enricher     # item enrichment (capture, summary, GROBID) before the decision; None leaves items as discovered
+        self._enriched: dict = {}
         self.cyclotron, self.appsync_factory, self.deliver = cyclotron, appsync, deliver
         self.context_receipt, self.time_left = context_receipt, time_left
         self._clients: dict = {}
@@ -1070,7 +1168,8 @@ class Router:
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
-                       "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0}
+                       "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0,
+                       "enriched": 0, "enrichmentWaiting": 0, "curationCopied": 0, "curationCopyFailed": 0}
         self._parks: dict = {}
         self._automation_rows: dict = {}
 
@@ -1200,6 +1299,70 @@ class Router:
                 return {"status": "stopped", "stoppedBy": str(error)[:200]}
         return {"status": "completed"}
 
+    # enrichment -------------------------------------------------------------------------------------
+
+    def inputs_for(self, disc: dict) -> dict | None:
+        """`{summary, body}` the item's finished enrichment gives the decision, or None (no enricher, or not enriched).
+        Never runs an enrichment."""
+        if self.enricher is None:
+            return None
+        key = (disc["sourceId"], int(disc["revision"]))
+        if key not in self._enriched:
+            row = self.store.get_any(self.monitor_id, enrich_sk(disc))
+            if not row or not row.get("final"):
+                return None
+            self._enriched[key] = decision_inputs(row, self.enricher.texts)
+        return self._enriched[key]
+
+    def enrichment_for(self, disc: dict, route: dict) -> dict | None:
+        """Enrich the item once, before anything is posted. Returns its decision inputs, or None when enrichment is off or the item
+        was posted before it existed. Raises EnrichmentPending while an attempt is waiting to be retried or this run is out of time:
+        the item is simply picked up again next run (enrichment is attempted, then the decision proceeds with whatever exists)."""
+        if self.enricher is None or self.config["mode"] != "live":
+            return None
+        if self.inputs_for(disc) is not None:
+            return self.inputs_for(disc)
+        if (route.get("combinedJob") or {}).get("requestId") or route.get("jobs"):
+            return None   # already posted unenriched: the lab holds that text; do not change what it decided on
+        if not self.post_allowed:
+            raise EnrichmentPending()   # the collector never starts new work for an item
+        sk = enrich_sk(disc)
+        row = self.store.get_any(self.monitor_id, sk) or new_row(self.monitor_id, disc)
+        if int(row.get("nextAttemptAt") or 0) > self.now or self.time_left() < MIN_REMAINING_SECONDS:
+            self.counts["enrichmentWaiting"] += 1
+            raise EnrichmentPending()
+        row = enrich_item(row, disc, self.monitor_id, self.enricher, datetime.fromtimestamp(self.now, timezone.utc))
+        self.store.put_any(self.monitor_id, row)
+        if not row.get("final"):
+            self.counts["enrichmentWaiting"] += 1
+            raise EnrichmentPending()
+        self.counts["enriched"] += 1
+        return self.inputs_for(disc)
+
+    def note_truncation(self, disc: dict, built: dict):
+        """TEMPORARY (lab command limit): remember on the DISC row that the posted body was cut to fit."""
+        if built.get("bodyTruncatedForLabLimit") and not disc.get("bodyTruncatedForLabLimit"):
+            disc["bodyTruncatedForLabLimit"] = True
+            self.store.put_any(self.monitor_id, disc)
+
+    def copy_curation(self, publication: dict, disc: dict, result: dict) -> str | None:
+        """Give the delivered Reference the item's curation (the card and bodies the editor sees). Never fails the delivery: a
+        Reference without it is filled in by the post-delivery curation procedure."""
+        if self.enricher is None:
+            return None
+        row = self.store.get_any(self.monitor_id, enrich_sk(disc))
+        if not row or not row.get("final"):
+            return None
+        try:
+            client = self.client(publication)
+            reference = client.get_record("Reference", result["referenceId"])
+            outcome = copy_curation(client, reference, row, self.enricher.texts, datetime.fromtimestamp(self.now, timezone.utc))
+        except Exception as error:
+            self.counts["curationCopyFailed"] += 1
+            return f"failed: {short(error)}"
+        self.counts["curationCopied"] += outcome == "copied"
+        return outcome
+
     # dry-run ----------------------------------------------------------------------------------------
 
     def dry_run(self, disc: dict):
@@ -1229,7 +1392,7 @@ class Router:
                     requests[publication["publicationId"]] = {"direct": True, "wouldDeliver": False, "reason": str(excluded)}
                 continue
             try:
-                built = build_decide_request(self.config, publication, disc)
+                built = build_decide_request(self.config, publication, disc, enrichment=self.inputs_for(disc))
             except (ItemInvalid, ValueError) as error:
                 return self.finish(disc, route, "error", f"invalid request: {error}")
             requests[publication["publicationId"]] = {
@@ -1242,7 +1405,7 @@ class Router:
                            "runId": self.run_id, "requests": requests, "contexts": contexts}
         if self.config["decisions"] == "cyclotron" and len(active) > 1:
             try:
-                combined = build_combined_request(self.config, active, disc)
+                combined = build_combined_request(self.config, active, disc, enrichment=self.inputs_for(disc))
             except (ItemInvalid, ValueError) as error:
                 return self.finish(disc, route, "error", f"invalid request: {error}")
             route["dryRun"]["combined"] = {
@@ -1440,6 +1603,8 @@ class Router:
                     self.note_not_ready(pub_id, disc, route, (self.park(pub_id) or {}).get("reason", NOT_READY_CODE))
                     continue
                 todo.append(publication)
+        if todo:
+            self.enrichment_for(disc, route)   # curation BEFORE the decision: capture, summary, GROBID; raises EnrichmentPending
         running = False
         for publication in self.decide_combined(todo, disc, route, item_id):
             pub_id = publication["publicationId"]
@@ -1496,16 +1661,15 @@ class Router:
         # request_conflict, a failed job or a 404 (below) discards it
         if stored and not stored.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
-        if stored and self.now - int(stored.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
-            raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
         response = None
         if not stored:
             if not self.post_allowed:
                 return todo   # the collector sends nothing; stored per-publication jobs are still polled
-            built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
+            built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)), enrichment=self.inputs_for(disc))
+            self.note_truncation(disc, built)
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                                              "publications": list(built["body"]["payload"]["bindings"]),
-                                             **self.posted_under()}
+                                             "via": VIA_DECISIONS, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
@@ -1579,7 +1743,7 @@ class Router:
                 if not isinstance(entry, dict) or not entry.get("decision"):
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
-                                "jobId": stored["jobId"], **self.posted_under(),
+                                "jobId": stored["jobId"], "via": VIA_DECISIONS, **self.posted_under(),
                                 "checked": checked_decision(entry, publication, self.config, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
@@ -1598,20 +1762,19 @@ class Router:
         validate_email_discovery_scope(disc, self.config)
         jobs = route.setdefault("jobs", {})
         pub_id = publication["publicationId"]
-        built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)))
+        built = build_decide_request(self.config, publication, disc, int(route.get("attempt", 0)), enrichment=self.inputs_for(disc))
         job = jobs.get(pub_id)
         if job and job.get("checked"):
             return   # already decided under an earlier request id; the shared decision is cached
         # a stored job is polled by its jobId whatever request id or run it was posted under
-        if job and job.get("jobId"):
-            if self.now - int(job.get("postedAt", self.now)) > MAX_PENDING_JOB_SECONDS:
-                raise ItemInvalid("job pending longer than the allowed time; reconcile manually")
-        elif job:
+        if job and not job.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
-        else:
+        elif not job:
             if not self.post_allowed:
                 raise NotPosting()
-            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
+            self.note_truncation(disc, built)
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
+                            "via": VIA_PUBLICATION, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
@@ -1640,7 +1803,11 @@ class Router:
         if not self.job_due(jobs[pub_id]):
             raise JobRunning()   # still inside its own backoff: no call to the lab
         try:
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
+            if job_via(route, jobs[pub_id]) == VIA_DECISIONS:
+                # a combined job lives behind GET /machine/decisions/{jobId}; the per-publication route would 404 it
+                response = self.poll_combined_entry(pub_id, jobs[pub_id]["jobId"])
+            else:
+                response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
         except JobRunning:
             self.note_still_running(jobs[pub_id], route)
             raise
@@ -1671,6 +1838,16 @@ class Router:
         jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
         self.job_done(jobs[pub_id])
         self.save(route)
+
+    def poll_combined_entry(self, pub_id: str, job_id: str) -> dict:
+        """One publication's receipt out of a combined job, polled through the route the job was posted to."""
+        response = self.cyclotron.poll_combined(job_id, wait=not self.nowait)
+        entry = (response.get("publications") or {}).get(pub_id)
+        if entry is None:
+            raise ItemInvalid("combined receipt has no entry for this publication")
+        if not isinstance(entry, dict) or not entry.get("decision"):
+            raise self.cyclotron.classify_entry(entry)
+        return entry
 
     def check_rule(self, disc: dict) -> None:
         """A direct monitor's optional `rule`, run on the structured fields the collector stored."""
@@ -1713,6 +1890,9 @@ class Router:
                              provenanceMessageId=result.get("provenanceMessageId"), lastError=None)
                 self.record_delivery(publication, disc, route, result)
                 self.counts["delivered"] += 1
+                copied = self.copy_curation(publication, disc, result)   # before the procedure, so it only fills gaps
+                if copied:
+                    state["curationCopy"] = copied
                 if not disc.get("editorSelectedReference"):
                     self.start_procedures(publication, disc, result)
             except Exception as error:
@@ -1869,7 +2049,12 @@ class Router:
                         key: value for key, value in route["decision"].get("publications", {}).items()
                         if key in allowed}
             if not route.get("decision"):
-                (self.decide_direct if self.config["decisions"] == "direct" else self.decide)(disc, route)
+                if self.config["decisions"] == "direct":
+                    self.check_rule(disc)
+                    self.enrichment_for(disc, route)
+                    self.decide_direct(disc, route)
+                else:
+                    self.decide(disc, route)
             if not self.deliver_positive(disc, route):
                 set_routing(self.store, self.monitor_id, disc, "decided", PARTITION_DECIDED)
                 return
@@ -1879,7 +2064,7 @@ class Router:
             self.counts["routed"] += 1
         except JobRunning:
             return AWAITING
-        except NotPosting:
+        except (NotPosting, EnrichmentPending):
             return None
         except AllBindingsNotReady:
             self.finish(disc, route, "parked", "every binding is waiting for a classifier")
@@ -2080,6 +2265,12 @@ class Router:
         self.store.put_any(self.monitor_id, row)
 
     def feedback_one(self, publication: dict, row: dict) -> str:
+        # Feedback goes out under the publication's CURRENT binding revision, not the one stored when the item was
+        # decided: the lab refuses a stale revision (409 "publication binding changed") after a cutover. The
+        # requestId does not include the revision, so retries stay idempotent.
+        if self.publications.get(publication["publicationId"]) is not publication:
+            self.rotate(row, "publication not in the current config")
+            return "skipped"
         reference = self.client(publication).get_record("Reference", row["referenceId"])
         status = (reference or {}).get("curationStatus")
         if status not in ("accepted", "rejected"):
@@ -2093,7 +2284,7 @@ class Router:
         label = publication["positiveLabel"] if status == "accepted" else publication["negativeLabel"]
         body = {"contractVersion": CONTRACT_VERSION, "operation": "feedback",
                 "requestId": sha256("\n".join([row["referenceId"], status, updated_at]).encode()).hexdigest(),
-                "payload": {"bindingRevision": row["bindingRevision"], "itemId": row["itemId"],
+                "payload": {"bindingRevision": self.config["cyclotron"]["bindingRevision"], "itemId": row["itemId"],
                             "itemRevision": (row.get("source") or {}).get("revision"), "output": row["output"],
                             "label": label, "editor": {"site": publication["site"],
                                        "subject": editor_subject(publication["publicationId"], actor)}}}
@@ -2101,6 +2292,16 @@ class Router:
             self.rotate(row, "decision receipt has no item revision")
             return "skipped"
         validate_request(body)
+        current = str(self.config["cyclotron"]["bindingRevision"])
+        since = publication.get("criteriaSince", current)   # default: only votes under the current revision count
+        if not criteria_unchanged(row.get("bindingRevision"), since):
+            self.store.put_any(self.monitor_id, {
+                "pk": pk(self.monitor_id), "sk": f"FB#{body['requestId']}", "requestId": body["requestId"],
+                "publicationId": publication["publicationId"], "referenceId": row["referenceId"],
+                "outcome": "stale", "code": "criteria changed since this vote", "votedUnder": str(row.get("bindingRevision")),
+                "criteriaSince": since, "sentAt": _iso(self.now), "runId": self.run_id})
+            self.store.put_any(self.monitor_id, {k: v for k, v in row.items() if k not in ("gsi1pk", "gsi1sk")} | {"feedback": "stale"})
+            return "skipped"
         receipt = {"pk": pk(self.monitor_id), "sk": f"FB#{body['requestId']}", "requestId": body["requestId"],
                    "publicationId": publication["publicationId"], "referenceId": row["referenceId"],
                    "curationStatus": status, "label": label, "output": row["output"], "itemId": row["itemId"],
@@ -2118,6 +2319,12 @@ class Router:
         except ItemUncertain as error:   # safe to retry later: same requestId
             self.rotate(row, f"uncertain: {error}")
             return "failed"
+        except StopSweep as stop:
+            if stop.code != "binding_changed":
+                raise
+            # the body was logged by classify; the row stays queued and the next run asks again under the then-current revision
+            self.rotate(row, f"binding_changed ({stop.detail}) under revision {body['payload']['bindingRevision']}; retry next run")
+            return "failed"
         self.store.put_any(self.monitor_id, {**receipt, "outcome": "sent",
                                              "response": {k: response[k] for k in ("status", "feedbackId", "accepted") if k in response
                                                           and isinstance(response[k], (str, bool, int))}})
@@ -2132,13 +2339,33 @@ def oldest_posted_at(route: dict) -> int:
     return min(posted) if posted else 0
 
 
+def reopen_stale_finals(store, monitor_id: str) -> int:
+    """One-off recovery for stories an old pending-age limit finalized as errors while the lab still held their jobs.
+    Their stored jobs are kept; `final` is removed and the discovery returns to the collected partition, where the
+    collector polls the jobs again. Returns how many routes were reopened."""
+    reopened = 0
+    for route in store.query_prefix(monitor_id, "ROUTE#"):
+        if (route.get("final") or {}).get("reason") != STALE_FINAL_REASON:
+            continue
+        has_job = (route.get("combinedJob") or {}).get("jobId") or any(
+            job.get("jobId") for job in (route.get("jobs") or {}).values())
+        disc = store.get_any(monitor_id, f"DISC#{route['sourceId']}#{int(route['revision']):06d}")
+        if not has_job or not disc or not store.reopen_final(monitor_id, route["sk"], STALE_FINAL_REASON):
+            continue
+        disc = {k: v for k, v in disc.items() if k != "gsi1sk"} | {
+            "gsi1sk": f"{disc['observedAt']}#{disc['sourceId']}#{int(disc['revision']):06d}"}
+        set_routing(store, monitor_id, disc, PARTITION_COLLECTED, PARTITION_COLLECTED)
+        reopened += 1
+    return reopened
+
+
 def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner: str | None = None,
                run_id: str | None = None, task: str | None = None, cyclotron: CyclotronClient | None = None,
                appsync: Callable[[str], Any] = make_appsync_client, deliver=deliver_reference,
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
                start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
-               rung_job_ids=()) -> dict:
+               rung_job_ids=(), enricher: Enricher | None = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2150,11 +2377,13 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
     if not store.acquire_router_lock(monitor_id, owner, now):
         return {"monitorId": monitor_id, "runId": run_id, "status": "locked"}
     try:
+        if task == "reopen-stale-finals":
+            return {"monitorId": monitor_id, "runId": run_id, "status": "complete", "reopened": reopen_stale_finals(store, monitor_id)}
         if cyclotron is None and config["mode"] == "live" and config["decisions"] == "cyclotron":
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
-                        start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids)
+                        start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references") else router.feedback()
@@ -2232,11 +2461,13 @@ def handler(event, context):
     store = RouterStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
     remaining = (lambda: context.get_remaining_time_in_millis() / 1000) if hasattr(context, "get_remaining_time_in_millis") else (lambda: 1e9)
     cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
+    from .monitoring_enrichment import lambda_enricher
+    enricher = lambda_enricher()   # None unless the stack set ENRICHMENT_BUCKET
     if is_decision_event(event):
         return handle_decision_ready(store, event, lambda monitor_id, job_id=None: run_router(
             store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter,
-            rung_job_ids=[job_id]))
+            rung_job_ids=[job_id], enricher=enricher))
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
-                        cognito=cognito, start_procedure=starter)
+                        cognito=cognito, start_procedure=starter, enricher=enricher)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}

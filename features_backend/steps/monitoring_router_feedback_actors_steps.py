@@ -52,3 +52,53 @@ def step_no_email(context):
 def step_none(context):
     assert feedback_posts(context) == []
     assert context.result["feedback"]["skipped"] == 2
+
+
+@given("the publication binding has since moved to revision {revision} with unchanged criteria")
+def step_rebind(context, revision):
+    tr.rebind(context.table_, revision, since="1")
+
+
+@given("the publication binding has since moved to revision {revision} with changed criteria")
+def step_rebind_changed(context, revision):
+    tr.rebind(context.table_, revision, since=revision)
+
+
+@then("the vote was recorded as stale")
+def step_stale(context):
+    assert context.table_.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["feedback"] == "stale"
+    assert context.result["feedback"]["skipped"] == 1
+
+
+@then("no feedback was sent to Cyclotron that was accepted")
+def step_none_accepted(context):
+    assert feedback_posts(context) == []
+
+
+@then("the feedback was sent under binding revision {revision}")
+def step_revision(context, revision):
+    assert [p["payload"]["bindingRevision"] for p in feedback_posts(context)] == [revision]
+
+
+@then("the feedback stays queued for the next run")
+def step_queued(context):
+    assert context.result["feedback"]["failed"] == 1 and context.result["feedback"]["status"] == "complete"
+    row = context.table_.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
+    assert row["gsi1pk"] == "FEEDBACK#hn#pending"
+
+
+@given("Cyclotron answers feedback with publication binding changed")
+def step_409(context):
+    context.cyclotron.feedback_override = (409, {"detail": "publication binding changed"})
+
+
+@when("Cyclotron accepts feedback again")
+def step_ok(context):
+    context.cyclotron.feedback_override = None
+
+
+@then("the feedback was delivered on the second attempt with the same request id")
+def step_second(context):
+    sent = feedback_posts(context)
+    assert len(sent) == 2 and sent[0]["requestId"] == sent[1]["requestId"], sent
+    assert context.result["feedback"]["sent"] == 1

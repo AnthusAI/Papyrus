@@ -457,6 +457,12 @@ follows the same `ScheduleState` switch as the other schedules. Request ids stay
 recorded before the POST, so no job is ever sent twice. The specs are in
 `features_backend/monitoring-post-then-collect.feature`.
 
+A stored job is polled until the lab completes it, reports it failed, or answers 404; its age never ends it. A story
+an earlier age limit finalized with the reason `job pending longer than the allowed time; reconcile manually` is
+put back by the one-off task `{"monitorId":"hn","task":"reopen-stale-finals"}`: it removes `final` (only while that
+reason still matches), keeps the stored jobs, returns the discovery to the `collected` partition and reports
+`reopened`. The specs are in `features_backend/monitoring-no-pending-timeout.feature`.
+
 ### Outputs that are not ready (waiting for classifier)
 
 A binding whose Cyclotron output has no runnable classifier yet (`pending_criteria`) answers `decide`
@@ -483,6 +489,7 @@ Monitoring page shows it on the router run.
 | `CONFIG#router` | Config (below) |
 | `LOCK#router` | Lease (660 s, longer than the 600 s timeout), separate from the collector's `LOCK` |
 | `ROUTE#<sourceId>#<rev6>` | `dryRun` (`count`, `validatedAt`, `requests.<pub>` = path, `requestId`, bytes, body; `contexts.<pub>` = `contextHash`/`reason`), `jobs.<pub>` (`requestId`, `jobId`, `checked`), `decision` (`decisionId`, `source` = id/revision/fingerprint, per-publication `output`, `label`, `fingerprint`, `version`, plus account, run, binding revision), `publications.<pub>` (`delivered`, `referenceId`, `attempts`, `lastError`), `final` |
+| `ENRICH#<sourceId>#<rev6>` | The item's enrichment before its decision ([Enrich before decide](#enrich-before-decide-item-enrichment)): `status`, `final`, `attempts`, `curation`, S3 keys |
 | `DELIV#<pub>#<referenceId>` | A Reference this router delivered; feedback source. In `FEEDBACK#hn#pending` while feedback is outstanding |
 | `TRIGGER#<pub>#<procedureKey>#<sourceId>` | A procedure trigger for this item: `status` (`starting`, `started`, `startFailed`, `notTriggered`, `skipped`, `deferred`, then the runner's `running`, `completed`, `failed` or `notRunnable`), the runner `request`, `runId`, a `reason` for `skipped` and `deferred`, the `automationId` when an automation governed the start, errors. Written only if absent, so each item starts each procedure once (`docs/procedure-runner.md`, `docs/automations.md`) |
 | `MANUAL#<automationId>#<timestamp>` | A "Run now" of an automation, written by the CLI or the console (not by the router): who started it, the runner `request`, then the runner's `running`/`runId` and outcome, as on a `TRIGGER#` row (`docs/automations.md`) |
@@ -518,6 +525,67 @@ The output is `<publicationId>-relevance` with labels `include` and `exclude` (o
 publication with `output`, `positiveLabel`, `negativeLabel`). The validator refuses non-`execute-api`
 Cyclotron origins and non-AppSync publication endpoints, so credentials cannot be pointed elsewhere
 by a data edit. A publication that is not in `publications` is never called.
+
+Editor feedback is sent under the publication's *current* `cyclotron.bindingRevision`, never the revision stored
+when the item was decided (the lab refuses a stale one with 409 "publication binding changed"; the router logs the
+body and asks again next run). Feedback is tied to the criteria the editor judged, so each publication entry takes an
+optional `criteriaSince`: the earliest binding revision whose criteria match the current ones (default: the current
+revision, the safe choice). A vote stored under revision R is sent with the current revision when R >= `criteriaSince`
+(integers compare numerically); otherwise it is recorded as outcome `stale` ("criteria changed since this vote"),
+dropped, and not retried.
+
+## Enrich before decide (item enrichment)
+
+The lab decides on what an editor will later rate, so the router curates each item **once, before the first decision is
+posted** (`monitoring_enrichment.py`). Order: collect (title, URL) -> **enrich** -> decide -> deliver (copying the item's curation
+onto each delivered Reference) -> the post-delivery `papyrus.reference.curate` procedure, which now only fills per-site gaps.
+
+- **When.** Inside `live()`, right before the first `POST` of an item that has at least one binding to decide (parked items and
+  items every binding refuses are never enriched). The collector task (`post_allowed = false`) never starts an enrichment. An item
+  already posted before enrichment existed keeps the text the lab decided on. A `direct` monitor enriches too (after its rule
+  accepts the item), for delivery.
+- **Stages** (the curation pipeline's own code, `docs/reference-curation-pipeline.md`): capture the whole article or PDF, completeness
+  signals, a `gpt-6-luna` summary, GROBID for research papers only when `BIBLICUS_GROBID_URL` is set (else the typed skip
+  `grobid_not_configured`). The OpenAI key is read from the SSM SecureString named by the stack parameter
+  `EnrichmentOpenAiKeyParameter` (environment variable `ENRICHMENT_OPENAI_KEY_PARAMETER`); without it the summary is the typed skip
+  `openai_not_configured` and the item is `degraded`. The router Lambda has no `pypdf`, so a PDF source ends `capture_failed`
+  (`unreadable`) until it is bundled; HTML sources and everything else work.
+- **Where it is stored.** `ENRICH#<sourceId>#<rev6>` in the monitoring table: `status` (`ready`, `degraded`, `capture_failed`,
+  or `pending` while a retry waits), `final`, `attempts`, `nextAttemptAt`, and `curation` in the shape of a reference curation
+  card (capture with typed `reason`, `signals`, `paper`, `page`, `summary`, `grobid`). The big text (captured article, GROBID
+  fields and TEI) goes to the stack's private `EnrichmentBucket` under `enrichment/<monitor>/<sourceId>/<rev6>/` (DynamoDB items
+  stop at 400 KB); the row holds only the keys.
+- **Retries, never forever.** A transient failure (timeout, connection, 5xx, DNS; a busy model or GROBID) schedules another attempt
+  on a later run (5 minutes, then 10), at most three attempts in all. After that the row is final with whatever exists and the
+  decision proceeds. Any other outcome is final at once. An unexpected bug is recorded on the row (`errors`) and also proceeds.
+  Lambda time is the only other bound: with less than `MIN_REMAINING_SECONDS` left, enrichment continues next run (nothing is
+  posted for that item meanwhile). Finished stages are never repeated.
+- **The decide payload.** `item.values` = `{title, url, source, sourceItemUrl, summary, body, text}` where `body` is the full
+  captured text and `text = title + "\n" + url + "\n\n" + summary + "\n\n" + body`. A part that does not exist (no summary,
+  no capture) is left out, and `text` falls back to `title\nurl`, the previous shape. The router sets no length limit of its own;
+  Cyclotron applies its own input policy.
+- **Temporary lab limit.** The lab refuses a decision command over 65,536 bytes of JSON (409 `request_conflict`, "bounded
+  credential-free command required"). Until it stores item values separately, the router keeps each command under
+  `MAX_REQUEST_BYTES` (60,000): if the serialized command would exceed it, only `body` (and so `text`) is cut to the longest prefix
+  that fits, and `bodyTruncatedForLabLimit: true` is set on the DISC row. Nothing else is ever truncated. Remove this when
+  Cyclotron stores item values separately.
+- **Delivery copy.** After a Reference is delivered, `copy_curation` writes the item's curation onto it in the shape #797 uses: a
+  `curation` `ReferenceAttachment` card (`origin.kind = "item-enrichment"`) and `ModelAttachment` bodies `curation-text`
+  (and `curation-grobid`, `curation-grobid-tei` for papers), plus `summary` in the Reference's `metadata.json`. The text is the
+  full capture, so the panel can show more than the lab was sent when the body was cut. A Reference that already has a card keeps
+  it. A failed copy never fails the delivery (`publications.<pub>.curationCopy` says `copied`, `kept` or `failed: ...`); the
+  procedure then fills the gap. Counts: `enriched`, `enrichmentWaiting`, `curationCopied`, `curationCopyFailed`.
+- **Editor corrections** (`correctReferenceCapture`) stay a per-Reference new version of the card. Feeding a correction back as a
+  new item revision, so the lab decides again on the corrected text, is deliberate future work and is not implemented.
+
+### What the stack needs
+
+`EnrichmentBucket` (private, SSE-S3, retained), `EnrichmentOpenAiKeyParameter` (SSM SecureString name; the role may `ssm:GetParameter`
+only that name) and optional `EnrichmentGrobidUrl`; environment `ENRICHMENT_BUCKET`, `ENRICHMENT_OPENAI_KEY_PARAMETER`,
+`BIBLICUS_GROBID_URL`. `RouterEnrichmentStoragePolicy` grants `s3:GetObject`/`PutObject` on `enrichment/*` of that bucket and
+`createModelAttachmentDownload` on the seven site APIs (to read back a Reference's `metadata.json` before adding the summary). The
+router zip now also carries the capture and curation modules (about 245 KB; `build.py` follows absolute `papyrus_content`
+imports and subpackages). With `ENRICHMENT_BUCKET` unset the router behaves exactly as before.
 
 ## Delivery
 
@@ -581,7 +649,7 @@ account quota cannot reserve any; the table lease serializes runs anyway). Alarm
 ## Packaging
 
 `python3 infra/monitoring/build.py --router [--upload BUCKET]` builds a separate deterministic zip
-(`papyrus-monitoring/router-<sha256>.zip`, about 130 KB): the in-package import closure of the
+(`papyrus-monitoring/router-<sha256>.zip`, about 245 KB with item enrichment): the in-package import closure of the
 router, the two YAML data files the shared Reference factories read, and pure-Python PyYAML (the
 runtime has boto3/botocore only). `PAPYRUS_ROOT=/var/task` lets the factories find `corpora/`. A test
 imports the extracted zip with a stdlib-only interpreter. The collector zip and its hash are unchanged.

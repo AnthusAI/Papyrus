@@ -85,6 +85,13 @@ class FakeTable:
                 raise Conditional()
         self.items[key] = self._dec(deepcopy(Item))
 
+    def update_item(self, Key, UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues):
+        item = self.items.get((Key["pk"], Key["sk"]))
+        assert UpdateExpression == "REMOVE #f" and ConditionExpression == "#f.#r = :r"
+        if not item or (item.get("final") or {}).get("reason") != ExpressionAttributeValues[":r"]:
+            raise Conditional()
+        del item["final"]
+
     def delete_item(self, Key, ConditionExpression=None, ExpressionAttributeNames=None, ExpressionAttributeValues=None):
         existing = self.items.get((Key["pk"], Key["sk"]))
         if ConditionExpression is None:
@@ -513,6 +520,48 @@ def test_pending_job_is_resumed_by_polling_only(table):
     assert routing_of(table)["DISC#101#000001"] == "routed"
 
 
+def test_a_long_pending_job_is_never_finalized_and_is_collected_when_the_lab_completes(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.pending_polls = 10_000
+    go(table, store, cyclotron, now=2000)
+    assert not hasattr(mr, "MAX_PENDING_JOB_SECONDS")
+    go(table, store, cyclotron, now=2000 + 30 * 86400, task="collect")   # a month later, still pending
+    assert routing_of(table)["DISC#101#000001"] == "collected"
+    assert "final" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    cyclotron.pending_polls = 0
+    go(table, store, cyclotron, now=2000 + 31 * 86400, task="collect")
+    assert routing_of(table)["DISC#101#000001"] == "routed"
+    assert len(cyclotron.posts()) == 3
+
+
+def test_reopen_stale_finals_restores_only_the_age_limit_finals_and_the_collector_delivers_them(table3):
+    store, cyclotron = setup_router(table3)
+    cyclotron.pending_polls = 10_000
+    go(table3, store, cyclotron, now=2000)
+    route_sk, disc_sk = ("MONITOR#hn", "ROUTE#101#000001"), ("MONITOR#hn", "DISC#101#000001")
+    # what the old limit did: final error, out of the routing partition, jobs kept
+    route = table3.items[route_sk]
+    route["final"] = {"routing": "error", "reason": mr.STALE_FINAL_REASON, "at": "x"}
+    original = dict(table3.items[disc_sk])
+    mr.set_routing(store, "hn", table3.items[disc_sk], "error", None)
+    other = table3.items[("MONITOR#hn", "ROUTE#102#000001")]
+    other["final"] = {"routing": "error", "reason": "lab does not know the job", "at": "x"}
+    mr.set_routing(store, "hn", table3.items[("MONITOR#hn", "DISC#102#000001")], "error", None)
+    assert "gsi1pk" not in table3.items[disc_sk]
+    jobs_before = deepcopy({k: route.get(k) for k in ("jobs", "combinedJob")})
+    result = go(table3, store, cyclotron, now=3000, task="reopen-stale-finals")
+    assert result["reopened"] == 1 and result["status"] == "complete"
+    assert "final" not in table3.items[route_sk] and {k: table3.items[route_sk].get(k) for k in jobs_before} == jobs_before
+    assert table3.items[disc_sk]["routing"] == "collected" and table3.items[disc_sk]["gsi1pk"] == "ROUTING#hn#collected"
+    assert table3.items[disc_sk]["gsi1sk"] == original["gsi1sk"]
+    assert table3.items[("MONITOR#hn", "ROUTE#102#000001")]["final"]["reason"] == "lab does not know the job"
+    assert routing_of(table3)["DISC#102#000001"] == "error"
+    assert go(table3, store, cyclotron, now=3001, task="reopen-stale-finals")["reopened"] == 0
+    cyclotron.pending_polls = 0
+    go(table3, store, cyclotron, now=4000, task="collect")
+    assert routing_of(table3)["DISC#101#000001"] == "routed" and routing_of(table3)["DISC#102#000001"] == "error"
+
+
 def test_divergent_decisions_are_an_error_not_a_delivery(table):
     store, cyclotron = setup_router(table)
     original = cyclotron.http
@@ -670,6 +719,68 @@ def test_feedback_refusal_stops_cleanly_and_uncertain_is_retried_later(table):
     assert feedback_run(table, store, cyclotron, refs, now=7000)["feedback"]["sent"] == 1
     request_ids = {c[2]["requestId"] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
     assert len(request_ids) == 1           # every retry used the same idempotency key
+
+
+def rebind(table, revision, since=None, only=None):
+    cfg = router_config("live", feedback=True)
+    cfg["cyclotron"] = cfg["cyclotron"] | {"bindingRevision": revision}
+    for entry in cfg["publications"]:
+        if since is not None and (only is None or entry["publicationId"] == only):
+            entry["criteriaSince"] = since
+    table.put_item(cfg)
+
+
+def test_feedback_vote_under_older_binding_is_dropped_when_criteria_changed(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="1", only="anth-us")          # anth-us criteria unchanged; the others default to "4"
+    refs = {"reference-anth-us-101": ref("accepted", "user:a"), "reference-p-apyr-us-101": ref("accepted", "user:b")}
+    result = feedback_run(table, store, cyclotron, refs)
+    assert result["feedback"]["sent"] == 1 and result["feedback"]["skipped"] == 1
+    sent = [c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+    assert len(sent) == 1 and "anth-us" in sent[0][1] and sent[0][2]["payload"]["bindingRevision"] == "4"
+    dropped = table.items[("MONITOR#hn", "DELIV#p-apyr-us#reference-p-apyr-us-101")]
+    assert dropped["feedback"] == "stale" and "gsi1pk" not in dropped
+    assert [v["outcome"] for k, v in table.items.items() if k[1].startswith("FB#") and v["publicationId"] == "p-apyr-us"] == ["stale"]
+    feedback_run(table, store, cyclotron, refs, now=6000)
+    assert len([c for c in cyclotron.posts() if c[2]["operation"] == "feedback"]) == 1   # not retried
+
+
+def test_criteria_unchanged_compares_numerically():
+    from papyrus_content.monitoring_router import criteria_unchanged
+    assert criteria_unchanged("10", "9") and not criteria_unchanged("3", "4") and criteria_unchanged("3", "3")
+    assert criteria_unchanged("a", "a") and not criteria_unchanged("a", "b")
+
+
+def test_feedback_for_an_item_decided_under_an_older_binding_is_sent_with_the_current_binding(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="1")
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    row = table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
+    assert row["bindingRevision"] == "1"
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["sent"] == 1
+    sent = [c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"]
+    assert [p["payload"]["bindingRevision"] for p in sent] == ["4"]
+
+
+def test_feedback_binding_changed_is_retried_next_run_instead_of_stopping_the_sweep(table):
+    store, cyclotron = delivered_table(table)
+    refs = {"reference-anth-us-101": ref("accepted", "user:s"), "reference-p-apyr-us-101": ref("accepted", "user:t")}
+    cyclotron.feedback_override = (409, {"detail": "publication binding changed"})
+    result = feedback_run(table, store, cyclotron, refs)
+    assert result["feedback"]["status"] == "complete" and result["feedback"]["failed"] == 2
+    assert table.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]["gsi1pk"] == "FEEDBACK#hn#pending"
+    cyclotron.feedback_override = None
+    assert feedback_run(table, store, cyclotron, refs, now=6000)["feedback"]["sent"] == 2
+
+
+def test_feedback_for_a_publication_missing_from_the_config_is_skipped_without_posting(table):
+    store, cyclotron = delivered_table(table)
+    cfg = router_config("live", feedback=True)
+    cfg["publications"] = [p for p in cfg["publications"] if p["publicationId"] != "anth-us"]
+    table.put_item(cfg)
+    result = feedback_run(table, store, cyclotron, {"reference-anth-us-101": ref("accepted", "user:s")})
+    assert result["feedback"]["sent"] == 0 and result["feedback"]["skipped"] >= 1
+    assert not [c for c in cyclotron.posts() if c[2]["operation"] == "feedback" and "anth-us" in c[1]]
 
 
 # --- intake provenance, packaging, template --------------------------------------------------------------------
@@ -1449,6 +1560,39 @@ def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table
     cyclotron.combined_poll_override = (200, {"status": "failed"})
     go(table, store, cyclotron, now=2100)
     assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+
+
+def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(table):
+    store, cyclotron = combined_setup(table)
+    go(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert {j["via"] for j in route["jobs"].values()} == {"decisions"}
+    assert not [c for c in cyclotron.calls if c[0] == "GET"]          # no GET on /machine/publications/*/commands/*
+
+
+def test_a_combined_job_entry_without_a_receipt_is_polled_via_decisions_not_commands(table):
+    store, cyclotron = combined_setup(table)
+    leave_job_pending(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    job_id = route["combinedJob"]["jobId"]
+    route["jobs"] = {"anth-us": {"requestId": "r", "postedAt": 1500, "jobId": job_id, "via": "decisions"}}
+    del route["combinedJob"]
+    cfg = router_config()
+    cfg["publications"] = cfg["publications"][:1]          # one publication: the per-publication path handles it
+    table.put_item(cfg)
+    cyclotron.pending_polls, cyclotron.calls, cyclotron.combined_calls = 0, [], []
+    go(table, store, cyclotron, now=2100)
+    assert not [c for c in cyclotron.calls if c[0] == "GET" and job_id in c[1]]
+    assert any(c[0] == "GET" and c[1].endswith(job_id) for c in cyclotron.combined_calls)
+
+
+def test_job_via_infers_decisions_for_legacy_entries_matching_the_combined_job():
+    from papyrus_content.monitoring_router import job_via
+    route = {"combinedJob": {"jobId": "cjob-0"}}
+    assert job_via(route, {"jobId": "cjob-0"}) == "decisions"
+    assert job_via(route, {"jobId": "job-x"}) == "publication"
+    assert job_via({}, {"jobId": "cjob-0"}) == "publication"
+    assert job_via(route, {"jobId": "cjob-0", "via": "publication"}) == "publication"
 
 
 def test_a_404_on_a_stored_combined_job_reposts_once_in_the_same_run(table):

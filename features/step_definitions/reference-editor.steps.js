@@ -63,3 +63,21 @@ When("the editor opens the full newsroom at 1280 by 720", { timeout: 120_000 }, 
 Then("a reference row is visible inside the list viewport and pending feedback is reachable", function () {
   assert.ok(this.referenceEditorLayoutResult.includes("Reference editor layout passed at 1280x720"));
 });
+
+When("the editor opens the References page at four desktop sizes", { timeout: 300_000 }, async function () {
+  if (!process.env.PAPYRUS_REFERENCES_FILL_URL) return "skipped";
+  const result = await promisify(execFile)(process.execPath,
+    ["--import", "tsx", "scripts/test-references-fill-viewport.ts"],
+    { cwd: path.resolve(__dirname, "../.."), maxBuffer: 8 * 1024 * 1024 });
+  this.referencesFillResult = result.stdout;
+});
+for (const step of [
+  "the feed scroller and the Detail pane both end at the bottom of the viewport",
+  "the confidence bar sits midway between the Cyclotron row and the You row on a card and in the Detail pane",
+  "the space under a card's You buttons is no larger than the card's side padding",
+]) {
+  Then(step, function () {
+    if (!process.env.PAPYRUS_REFERENCES_FILL_URL) return "skipped";
+    assert.ok(this.referencesFillResult.includes("References fill-viewport passed at 1024x768"));
+  });
+}
