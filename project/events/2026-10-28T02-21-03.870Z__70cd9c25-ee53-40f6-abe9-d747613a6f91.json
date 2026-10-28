@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "70cd9c25-ee53-40f6-abe9-d747613a6f91",
+  "issue_id": "PPY-a10e36e4-48b9-41da-b522-d4e598c29e23",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-28T02:21:03.870Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Docs: web search monitors on p.apyr.us",
+    "description": "Document the feature on the Papyrus product site.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+    "labels": []
+  }
+}

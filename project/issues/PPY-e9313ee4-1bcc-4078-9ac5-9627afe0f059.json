@@ -1,0 +1,20 @@
+{
+  "id": "PPY-e9313ee4-1bcc-4078-9ac5-9627afe0f059",
+  "title": "Optimizer: QueryYield and proposed queries/retirements",
+  "description": "Derive found -> included -> accepted per query by week; scheduled optimizer proposes queries and retirements as Accept/Reject records; never applies silently.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-28T02:21:03.637555Z",
+  "updated_at": "2026-10-28T02:21:03.637591Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
