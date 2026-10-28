@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "e7d419d9-1fbd-4cc1-91d2-06cd647a4e8a",
+  "issue_id": "PPY-0b8a0cbc-3463-4a50-ab5f-25ec52f5a585",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-28T02:21:03.718Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "UI: Monitoring page and monitor detail",
+    "description": "Monitors list with Lucide Search/Rss/Mail icons, status, last run, week yield; per-query funnel; add/edit/pause; run timeline. Needs screenshot review.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+    "labels": []
+  }
+}

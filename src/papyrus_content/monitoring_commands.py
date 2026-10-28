@@ -95,7 +95,22 @@ def command(argv: list[str]) -> int:
     window.add_argument("--since", required=True, help="Models created at or after this ISO timestamp (with timezone)")
     window.add_argument("--until", help="Only models created before this ISO timestamp (with timezone)")
     window.add_argument("--apply", action="store_true", help="Write discoveries and the checkpoint; without it nothing is written")
+    queries = sub.add_parser("web-queries",
+                             help="Draft a publication's web-search queries from its mission, policy and Cyclotron criteria (gpt-6-luna); prints them, stores them only with --write")
+    target = queries.add_mutually_exclusive_group(required=True)
+    target.add_argument("--publication", help="Publication id, for example anth-us")
+    target.add_argument("--all", action="store_true", help="Every publication that has a web monitor")
+    queries.add_argument("--write", action="store_true", help="Store the queries as QUERY records of the monitor (an AWS write)")
+    queries.add_argument("--approved-by", help="With --write: who approved them (a query is searched only once approved)")
+    queries.add_argument("--enable", action="store_true", help="With --write: also enable the monitor")
+    queries.add_argument("--out", help="Also save the proposal as JSON")
+    queries.add_argument("--criteria-dir", help="Directory of the lab's reviewed <publication>-relevance.json files")
     args = parser.parse_args(argv)
+    if args.command == "web-queries":
+        if args.enable and not args.write:
+            parser.error("--enable needs --write")
+        from .monitoring_web_queries import command as web_queries
+        return web_queries(args)
     if args.command == "backfill":
         from .monitoring_backfill import collection_command
         return collection_command(args)

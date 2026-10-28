@@ -69,7 +69,6 @@ def test_a_collected_item_is_enriched_before_it_is_posted_and_the_payload_carrie
     row = table.items[("MONITOR#hn", "ENRICH#101#000001")]
     assert row["final"] is True and row["status"] == "ready" and row["curation"]["summary"]["text"] == SUMMARY
     assert "text" not in row["curation"]["capture"] and row["textKey"] in enrich.texts.objects   # the body lives outside the table
-    assert not table.items[("MONITOR#hn", "DISC#101#000001")].get("bodyTruncatedForLabLimit")
 
 
 def test_the_combined_request_carries_the_same_enriched_item(table):
@@ -78,7 +77,6 @@ def test_the_combined_request_carries_the_same_enriched_item(table):
     go(table, store, cyclotron, enricher=enricher(good()))
     (_, _, body), = cyclotron.combined_calls[:1]
     assert body["payload"]["item"]["values"]["summary"] == SUMMARY and body["payload"]["item"]["values"]["body"] == ARTICLE
-    assert len(json.dumps(body).encode()) < mr.MAX_REQUEST_BYTES
 
 
 def test_nothing_is_posted_before_enrichment_was_attempted_and_a_rerun_does_not_enrich_again(table):
@@ -154,25 +152,15 @@ def test_a_paper_without_grobid_is_a_typed_skip():
     assert row["curation"]["grobid"] == {"status": "skipped", "reason": "grobid_not_configured"} and row["status"] == "ready"
 
 
-def test_the_body_is_cut_only_to_fit_the_lab_command_limit_and_the_disc_row_says_so(table):
+def test_a_very_long_body_is_sent_whole_in_every_request(table):
     store, cyclotron = setup_router(table)
     huge = ("A sentence about transit that goes on and on. " * 5000)           # about 225 KB
     enrich = enricher(good(huge))
     go(table, store, cyclotron, enricher=enrich)
-    posts = [c for c in cyclotron.posts()]
-    assert posts and all(len(json.dumps(c[2], separators=(",", ":")).encode()) <= mr.MAX_REQUEST_BYTES for c in posts)
-    values = posted_values(cyclotron)[0]
-    assert 10_000 < len(values["body"]) < len(huge) and huge.startswith(values["body"])
-    assert values["text"].endswith(values["body"]) and values["summary"] == SUMMARY
-    assert table.items[("MONITOR#hn", "DISC#101#000001")]["bodyTruncatedForLabLimit"] is True
-    assert enrich.texts.objects[table.items[("MONITOR#hn", "ENRICH#101#000001")]["textKey"]] == huge   # the stored capture is whole
-
-
-def test_a_body_that_fits_is_never_cut():
-    discovery = {"sourceId": "101", "title": "T", "canonicalUrl": "https://example.org/a", "sourceItemUrl": "https://news.ycombinator.com/item?id=1"}
-    body = "x" * 20_000
-    item, cut = mr.fitted_item(discovery, {"summary": "s", "body": body}, lambda i: len(json.dumps(i).encode()))
-    assert cut is False and item["values"]["body"] == body
+    assert cyclotron.posts()
+    for values in posted_values(cyclotron):
+        assert values["body"] == huge and values["text"].endswith(huge) and values["summary"] == SUMMARY
+    assert "bodyTruncatedForLabLimit" not in table.items[("MONITOR#hn", "DISC#101#000001")]
 
 
 def test_validation_accepts_the_enriched_shape_and_rejects_a_text_that_is_not_the_composition(table):
@@ -331,3 +319,28 @@ def test_the_stack_has_a_private_bucket_one_key_parameter_and_least_privilege_fo
     storage = resources["RouterEnrichmentStoragePolicy"]["Properties"]["PolicyDocument"]["Statement"]
     assert storage[0]["Action"] == ["s3:GetObject", "s3:PutObject"] and storage[0]["Resource"][1].endswith("/enrichment/*")
     assert all(r[1].endswith("/types/Mutation/fields/createModelAttachmentDownload") for r in storage[1]["Resource"]) and len(storage[1]["Resource"]) == 7
+
+
+def test_the_router_gets_the_tavily_key_parameter_and_may_read_and_decrypt_only_that():
+    from test_monitoring_router import _template
+    template = _template()
+    assert template["Parameters"]["TavilyKeyParameter"]["Default"] == "/papyrus/shared/tavily-api-key"
+    env = template["Resources"]["RouterFunction"]["Properties"]["Environment"]["Variables"]
+    assert "PAPYRUS_TAVILY_KEY_PARAMETER" in env
+    policy = template["Resources"]["RouterTavilyKeyPolicy"]
+    assert policy["Condition"] == "HasTavilyKey"
+    read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
+    assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
+    assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])
+
+
+def test_the_collector_gets_the_same_tavily_key_grants_for_web_search():
+    from test_monitoring_router import _template
+    template = _template()
+    env = template["Resources"]["CollectorFunction"]["Properties"]["Environment"]["Variables"]
+    assert "PAPYRUS_TAVILY_KEY_PARAMETER" in env
+    policy = template["Resources"]["CollectorTavilyKeyPolicy"]
+    assert policy["Condition"] == "HasTavilyKey" and policy["Properties"]["Roles"] == [("Ref", "CollectorRole")]
+    read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
+    assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
+    assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])

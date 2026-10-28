@@ -210,10 +210,10 @@ export function NewsroomOpsStatusBanner({
   return (
     <div
       className={cn(
-        "mb-4 rounded-xl border px-3 py-2 text-sm",
-        tone === "error" && "border-destructive/30 bg-destructive/10 text-destructive",
-        tone === "ok" && "border-primary/20 bg-primary/10 text-foreground",
-        tone === "info" && "border-border bg-muted/40 text-foreground",
+        // A success is announced to screen readers and never drawn: it would push the page down. Errors and notes are flat fills, no outlines.
+        tone === "ok" ? "sr-only" : "mb-4 rounded-lg px-3 py-2 text-sm",
+        tone === "error" && "bg-destructive/10 text-destructive",
+        tone === "info" && "bg-muted/60 text-foreground",
       )}
       role="status"
     >

@@ -22,6 +22,9 @@ from .monitoring import (SOURCE_TYPES, _digest, _iso, fetch_hn_feed, fetch_ttab_
                          parse_ttab_page, ttab_search_body)
 from .monitoring_huggingface import Reading, hf_feeds, hf_window_start, validate_hf_config
 from .monitoring_paging import READ_BUDGET_SECONDS, Page, read_feed
+from .monitoring_candidates import candidate_key, collected_elsewhere, record_candidate
+from .monitoring_web import (WEB_SEARCH, DEFAULT_INTERVAL_SECONDS as WEB_INTERVAL_SECONDS, TAVILY_SOURCE_URL, finished_query_ids,
+                             pass_started_at, searchable, validate_web_config, web_feed)
 
 LEASE_SECONDS = 150          # longer than the 120 s Lambda timeout (LAMBDA_TIMEOUT_SECONDS); a crashed run's lease expires
 DUE_SLACK_SECONDS = 60       # scheduler jitter must not skip a whole interval
@@ -122,6 +125,28 @@ class DynamoStore:
     def put_item(self, monitor_id, record):
         self.table.put_item(Item=record)
 
+    def get_raw(self, pk_, sk):
+        item = self.table.get_item(Key={"pk": pk_, "sk": sk}, ConsistentRead=True).get("Item")
+        return self._clean(item) if item else None
+
+    def put_raw(self, record):
+        self.table.put_item(Item=record)
+
+    def query_prefix(self, pk_, prefix) -> list[dict]:
+        """Every record of a partition whose sort key starts with `prefix`, all pages."""
+        rows, start = [], None
+        while True:
+            kwargs = {"ExclusiveStartKey": start} if start else {}
+            page = self.table.query(KeyConditionExpression="pk = :pk AND begins_with(sk, :prefix)",
+                                    ExpressionAttributeValues={":pk": pk_, ":prefix": prefix}, **kwargs)
+            rows += [self._clean(row) for row in page.get("Items", [])]
+            start = page.get("LastEvaluatedKey")
+            if not start:
+                return rows
+
+    def list_queries(self, monitor_id) -> list[dict]:
+        return self.query_prefix(pk(monitor_id), "QUERY#")
+
     def put_receipt(self, monitor_id, record):
         self.table.put_item(Item=record)
 
@@ -134,6 +159,8 @@ def _validate_config(raw: dict) -> dict:
     if source_type not in SOURCE_TYPES:
         raise ValueError(f"Config sourceType must be one of {', '.join(sorted(SOURCE_TYPES))}")
     host = SOURCE_TYPES[source_type]["host"]
+    if source_type == WEB_SEARCH:
+        raw = {"sourceUrl": TAVILY_SOURCE_URL, "intervalSeconds": WEB_INTERVAL_SECONDS, **raw}
     source = urlsplit(str(raw.get("sourceUrl") or ""))
     if (source.scheme != "https" or source.hostname != host or source.username
             or source.password or source.query or source.fragment):
@@ -160,14 +187,20 @@ def _validate_config(raw: dict) -> dict:
                       precedentialLookbackDays=recheck, pageSize=page_size)
     if source_type == "huggingface-models":
         config.update(validate_hf_config(raw))
+    if source_type == WEB_SEARCH:
+        config.update(validate_web_config(raw))
     return config
 
 
-def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, reading: Reading) -> list[dict]:
+def source_feeds(config: dict, now: float, fetch: Callable[..., bytes] | None, reading: Reading, *,
+                 known: Callable | None = None, queries: list[dict] | None = None, stats: dict | None = None) -> list[dict]:
     """The feeds one source is read through (see `monitoring_paging.read_feed`). Each is a dict with a `key`,
     `fetch_page(cursor) -> (rows, next_cursor)`, `items(rows) -> (SourceItem list, over)` and `stop_at_seen`
     (true when the feed is newest first, so a page of collected items is its high-water mark).
-    `fetch` replaces the network call in tests."""
+    `fetch` replaces the network call in tests. A feed may also carry `known(item)`: an item it returns True for
+    was collected before (by this monitor or, for web search, another) and is skipped."""
+    if config["sourceType"] == WEB_SEARCH:
+        return [web_feed(config, queries or [], now, fetch, known or (lambda item: False), stats if stats is not None else {})]
     if config["sourceType"] == "huggingface-models":
         return hf_feeds(config, now, fetch, reading)
     if config["sourceType"] == "ttab-decisions":
@@ -206,6 +239,32 @@ def ttab_feed(config: dict, now: float, fetch: Callable, key: str, lookback_days
     return {"key": key, "fetch_page": fetch_page, "items": items, "stop_at_seen": True}
 
 
+def record_found(store, monitor_id: str, config: dict, item, *, observed: str, run_id: str, collected: bool) -> None:
+    """Note on the shared candidate (by canonical URL) that this monitor found the item: provenance always, and `collectedBy` when
+    it made a discovery. Best effort: a failed write only means a later source may collect the story again."""
+    details = item.details or {}
+    try:
+        record_candidate(store, url=item.canonical_url, title=item.title, published_at=item.published_at, monitor_id=monitor_id,
+                         source_type=config["sourceType"], group=config.get("candidateGroup") or monitor_id,
+                         source_id=item.source_id, found_at=observed, run_id=run_id, collected=collected,
+                         query_id=details.get("queryId"), score_bp=details.get("tavilyScoreBp"))
+    except Exception as error:   # noqa: BLE001
+        print(json.dumps({"monitor": "candidate_failed", "monitorId": monitor_id, "error": str(error)[:200]}))
+
+
+def known_in_other_sources(store, monitor_id: str, config: dict):
+    """The `known` test of a web-search feed: the URL is already an item of this monitor, or its shared candidate says some other
+    source collected it, or another web monitor of the same `candidateGroup` did."""
+    group = config.get("candidateGroup") or monitor_id
+
+    def known(item) -> bool:
+        if store.get_item(monitor_id, item.source_id):
+            return True
+        key = candidate_key(item.canonical_url)
+        return collected_elsewhere(store.get_raw(key["pk"], key["sk"]), monitor_id, WEB_SEARCH, group)
+    return known
+
+
 def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_id: str) -> str:
     """Dedupe one source item against its current record and, when new or changed, write its discovery and
     current-item record (in that order, so a crash between them is repaired by the next run).
@@ -235,6 +294,7 @@ def commit_item(store, monitor_id: str, config: dict, item, *, now: float, run_i
                                 "revision": revision, "eventId": event_id,
                                 "firstObservedAt": old.get("firstObservedAt", observed) if old else observed,
                                 "lastChangedAt": observed})
+    record_found(store, monitor_id, config, item, observed=observed, run_id=run_id, collected=True)
     return "revised" if old else "new"
 
 
@@ -242,7 +302,11 @@ def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, r
                    reading: Reading, resume: dict) -> dict:
     """Read every feed of the source, page by page, committing each page's items before asking for the next, so a
     stop (time, rate limit, a crash) loses nothing. Returns the resume cursors per feed key (empty: all read)."""
-    feeds = source_feeds(config, now, fetch, reading)
+    web = config["sourceType"] == WEB_SEARCH
+    known = known_in_other_sources(store, monitor_id, config) if web else None
+    queries = [r for r in store.list_queries(monitor_id) if searchable(r)] if web else []
+    stats: dict = {}
+    feeds = source_feeds(config, now, fetch, reading, known=known, queries=queries, stats=stats)
     changed_now: set[str] = set()      # committed by this pass (an item two feeds both list is not "already seen")
     carry, failed = {}, 0
     for feed in feeds:
@@ -255,7 +319,18 @@ def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, r
                     break
                 result["itemCount"] += 1
                 try:
+                    query_id = (item.details or {}).get("queryId")
+                    if feed.get("known") and feed["known"](item):
+                        result["unchanged"] += 1
+                        page.seen += 1
+                        stats.setdefault(query_id, {}).setdefault("duplicateCount", 0)
+                        stats[query_id]["duplicateCount"] += 1
+                        record_found(store, monitor_id, config, item, observed=_iso(now), run_id=run_id, collected=False)
+                        continue
                     outcome = commit_item(store, monitor_id, config, item, now=now, run_id=run_id)
+                    if web and outcome == "new":
+                        stats.setdefault(query_id, {}).setdefault("newCount", 0)
+                        stats[query_id]["newCount"] += 1
                 except Exception as error:
                     result["errors"].append({"stage": "store", "sourceId": item.source_id, "message": str(error)[:300]})
                     page.unseen += 1
@@ -278,9 +353,34 @@ def collect_source(store, monitor_id: str, config: dict, *, fetch, now: float, r
                                    "message": str(error)[:300]})
         if left:
             carry[feed["key"]] = left
+    if web:
+        record_query_runs(store, monitor_id, config, queries, stats, carry=carry.get("web", []), resume=resume.get("web", []),
+                          now=now, run_id=run_id, reading=reading)
     if failed == len(feeds):
         raise ValueError(reading.errors[0]["message"])
     return carry
+
+
+def record_query_runs(store, monitor_id: str, config: dict, queries: list[dict], stats: dict, *, carry: list, resume: list,
+                      now: float, run_id: str, reading: Reading) -> None:
+    """One `QRUN#` record per query this pass asked Tavily, and each query read to its end gets its new high-water mark: the
+    start of the pass. A pass that met an error moves no mark (the next pass asks again from the old one; collected URLs are
+    skipped)."""
+    started = pass_started_at(resume, now)
+    for query_id, used in sorted((k, v) for k, v in stats.items() if k):
+        store.put_raw({"pk": pk(monitor_id), "sk": f"QRUN#{_iso(now)}#{run_id}#{query_id}", "monitorId": monitor_id,
+                       "queryId": query_id, "runId": run_id, "startedAt": _iso(now), "finishedAt": _iso(now),
+                       "params": {"topic": config["topic"], "searchDepth": "basic", "windows": used.get("windows", [])},
+                       "requests": used.get("requests", 0), "resultsReturned": used.get("resultsReturned", 0),
+                       "newCount": used.get("newCount", 0), "duplicateCount": used.get("duplicateCount", 0),
+                       "credits": used.get("credits", 0),
+                       "stoppedBy": reading.stopped_by if carry else None})
+    if reading.errors:
+        return
+    done = set(finished_query_ids(queries, carry, resume))
+    for record in queries:
+        if record["id"] in done:
+            store.put_raw({**record, "highWater": started})
 
 
 def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes] | None = None,
@@ -351,12 +451,49 @@ def run_collection(store, monitor_id: str = "hn", *, fetch: Callable[..., bytes]
         store.release_lock(monitor_id, owner)
 
 
+def run_web_collections(store, monitor_ids, *, now: float | None = None, force: bool = False,
+                        budget_seconds: float = READ_BUDGET_SECONDS, clock: Callable[[], float] = time.monotonic,
+                        sleep: Callable[[float], None] = time.sleep, fetch=None) -> list[dict]:
+    """Collect every web-search monitor in `monitor_ids` whose next-due time has passed, the longest-overdue first.
+
+    One scheduled invocation serves all of them, so the pass's read time is shared: each monitor gets an equal share of
+    what is left (a monitor that stops early is due again at once, and the next invocation continues it). Monitors that
+    are not configured, disabled, of another source type or not yet due are left alone."""
+    now = time.time() if now is None else now
+    due = []
+    for monitor_id in monitor_ids:
+        raw = store.get_config(monitor_id)
+        if raw is None or raw.get("sourceType") != WEB_SEARCH or raw.get("enabled") is False:
+            continue
+        state = store.get_state(monitor_id)
+        next_due = (state or {}).get("nextDueAt", 0)
+        if force or next_due - DUE_SLACK_SECONDS <= now:
+            due.append((next_due, monitor_id))
+    started, results = clock(), []
+    for index, (_, monitor_id) in enumerate(sorted(due)):
+        left = budget_seconds - (clock() - started)
+        if left <= 0:
+            break
+        try:
+            results.append(run_collection(store, monitor_id, now=now, force=force, budget_seconds=left / (len(due) - index),
+                                          clock=clock, sleep=sleep, fetch=fetch))
+        except Exception as error:   # one monitor's bad config must not stop the others
+            results.append({"monitorId": monitor_id, "status": "failed", "errors": [{"stage": "config", "message": str(error)[:300]}]})
+    return results
+
+
 def handler(event, context):
     """EventBridge Scheduler entry point. `{"force": true}` is for operator debugging only."""
     import boto3  # provided by the Lambda runtime
 
     event = event if isinstance(event, dict) else {}
     store = DynamoStore(boto3.resource("dynamodb").Table(os.environ["TABLE_NAME"]))
+    if event.get("sourceType") == WEB_SEARCH:   # {"sourceType": "web-search", "monitorIds": [...]}: every due web monitor
+        results = run_web_collections(store, [str(m) for m in event.get("monitorIds") or []], force=event.get("force") is True)
+        print(json.dumps([{k: v for k, v in r.items() if k != "errors"} | {"errors": r.get("errors", [])[:3]} for r in results]))
+        if any(r["status"] == "failed" for r in results):
+            raise RuntimeError("Web monitor collection failed; see the run receipts")
+        return [{k: r.get(k) for k in ("monitorId", "runId", "status", "new", "unchanged", "errorCount", "nextDueAt")} for r in results]
     result = run_collection(store, str(event.get("monitorId") or "hn"), force=event.get("force") is True)
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     if result["status"] == "failed":

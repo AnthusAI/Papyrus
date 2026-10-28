@@ -1,7 +1,8 @@
 """Bounded monitor collection through existing intake; never curates or trains.
 
 A monitor reads one source type (`SOURCE_TYPES`): the Hacker News RSS feed, the USPTO TTAB
-Reading Room's decision search, or the Hugging Face Hub model list (`monitoring_huggingface.py`). Each type turns its source into `SourceItem`s; everything after
+Reading Room's decision search, the Hugging Face Hub model list (`monitoring_huggingface.py`) or a web search of
+queries through Tavily (`monitoring_web.py`). Each type turns its source into `SourceItem`s; everything after
 that (fingerprints, revisions, routing, intake) is shared.
 """
 from __future__ import annotations
@@ -224,6 +225,7 @@ SOURCE_TYPES = {
     "hn-rss": {"host": "news.ycombinator.com", "name": "Hacker News", "media": "rss"},
     "ttab-decisions": {"host": "ttab-reading-room.uspto.gov", "name": "TTAB Reading Room", "media": "json-search"},
     "huggingface-models": {"host": "huggingface.co", "name": "Hugging Face Hub", "media": "json-list"},
+    "web-search": {"host": "api.tavily.com", "name": "Web search", "media": "json-search"},
 }
 
 

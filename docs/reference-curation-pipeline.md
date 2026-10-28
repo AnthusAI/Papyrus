@@ -140,9 +140,7 @@ collector discovers (title, URL)
   `plan_stages` finds the Reference `already_curated`. A Reference whose item was captured transiently-failed, or a paper while
   GROBID was not configured, is exactly what the procedure may still fill in (typed skips stay skips unless a service appears).
 * **Decide payload.** `summary` is the card's summary text; `body` is the full captured text; `text` is
-  `title \n url \n\n summary \n\n body` (absent parts left out). The router sets no length limit of its own. **Temporary lab
-  limit:** the lab refuses commands over 65,536 bytes of JSON, so the router cuts only `body` (and `text`) to fit
-  60,000 bytes and sets `bodyTruncatedForLabLimit` on the DISC row; the stored capture and the copy on the Reference stay whole.
+  `title \n url \n\n summary \n\n body` (absent parts left out). The router sets no length limit of its own and always sends the whole body; the stored capture and the copy on the Reference stay whole too.
 * **Never wait forever.** One attempt, transient failures retried on later runs (three attempts in all), then the decision
   proceeds with whatever exists. A capture failure is a typed status, not a stop.
 * **Editor corrections** (section 4) remain a per-Reference new version. Sending a correction back as a new item revision, so the

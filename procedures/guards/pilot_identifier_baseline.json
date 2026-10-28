@@ -18,6 +18,7 @@
   "infra/edge/threat-intelligence-media.yaml": 7,
   "infra/edge/threat-intelligence-reader-cache.yaml": 6,
   "infra/edge/threat-intelligence.yaml": 6,
+  "infra/monitoring/papyrus-monitoring.yaml": 4,
   "lib/site-brand.ts": 1,
   "lib/site-stack.ts": 1,
   "lib/themed-image.ts": 1,

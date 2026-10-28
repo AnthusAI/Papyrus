@@ -394,6 +394,45 @@ The pinned public Cyclotron `ui-v0.2.1` artifact does not expose the new panel.
 Do not deploy this Papyrus change with that old UI artifact; updating the
 source pin follows publication approval.
 
+## Exporting a publication's labels for a new Cyclotron
+
+`papyrus cyclotron export-priming --publication <id> --corpus-key <key> [--include-unlabeled] [--out FILE]` writes a
+publication's editor decisions as JSON Lines, one item per line, in the shape the lab's priming import takes. It only
+reads: use `PAPYRUS_GRAPHQL_AUTH=iam` and `PAPYRUS_GRAPHQL_ENDPOINT` for the site's backend (any credentials that can
+read it). The code is `papyrus_content.priming_export`; the behaviour is specified in
+`features_backend/cyclotron-priming-export.feature`.
+
+```json
+{"id": "ref-<lineageId> | ttab-<proceeding>-<date>", "occurred_at": "<ISO 8601 source date>",
+ "values": {"title": "", "url": "", "summary": "", "body": "", "text": ""},
+ "labels": {"<classifier>": {"label": "include|exclude", "explanation": ""}},
+ "provenance": {"source": "corpus|ttab-automation", "state": "", "labeledBy": "editor|automation", "labeledAt": "", "modelMade": false}}
+```
+
+* `text` is `title`, a newline, `url`, a blank line, `summary`, a blank line, then the full `body`, untrimmed.
+  Summary and body come from the Reference's curation card and `curation-text` body, else its `extracted_text`
+  attachment, else they are empty.
+* **Corpus References** (`source: corpus`, id `ref-<lineageId>`): accepted is `include` and rejected is `exclude` for the
+  classifier `distinctive-relevance`; the explanation is the curation reason. A pending Reference has no label and is
+  exported (with empty `labels`) only with `--include-unlabeled`.
+* **TTAB drafts** (`source: ttab-automation`, id `ttab-<proceeding>-<opinion date>`): the publication's monitor
+  automations on the `ttab` monitor name the procedure; each completed ProcedureRun of it names a story. The story's
+  stage is the editor's verdict for the classifier `distinctive-draft-accept`: `published` is `include`; `held` and
+  `spiked` are `exclude`; any earlier stage is pending (no label unless `--include-unlabeled`). The explanation is the
+  change reason of the version that entered the stage. The item text is the decision's own (title, opinion URL, and the
+  Reference's summary and body when the corpus has the Reference).
+* A TTAB item never gets `distinctive-relevance` from its draft. Only a curation decision on its Reference is a
+  judgement of relevance, and that decision comes out as its own `ref-` row.
+* `modelMade` is true when the actor that set the state is a machine and no editor confirmed it. For curation the test is
+  the monitoring router's `human_actor` (a `user:` subject, an editor's sign-in or a Cognito identity are people; the
+  monitoring worker, `agent:*`, `system:*`, `*-import`, "Papyrus content CLI" and an empty actor are not). For a story
+  stage, `automation:*`, `agent:*`, `system:*`, `worker:*` and `(Tactus)` bots are machines; the operator's CLI and any
+  person are editors. A machine-set state keeps its label, with `modelMade: true` and an empty explanation, so the lab
+  can weigh it apart from an editor.
+* `labeledBy` is a role (`editor` or `automation`), never a name, address or account subject. Any address found in an
+  explanation is replaced before it is written.
+* A story that no longer exists is skipped (the summary line on standard error counts them).
+
 ## 3. The proof number
 
 "The classifier uses the editor's labels" is a claim until there is a number.

@@ -75,6 +75,19 @@ def quarantine_summary(receipt: dict, action: dict | None, *, now: float) -> dic
     return {"state": state, "decision": shown, "failure": failure}
 
 
+def correct_reason(store, row: dict, text: str, supplied, *, now: float) -> dict:
+    """The same decision asked for again with a different reason: the recorded reason is corrected, once, until the receiver has applied it.
+
+    The editor may add or change the explanation after the label ("any order"). Nothing else on the row changes. A decision the receiver has
+    already applied (it carries ``outcome``) is left as it is, and the summary shows the reason the receipt kept. A request that supplies no
+    reason at all (``None``) never changes anything, so a plain repeat click stays a no-op.
+    """
+    if supplied is None or row.get("outcome") or text == str(row.get("reason") or ""):
+        return row
+    edited = {**row, "reason": text, "reasonEditedAt": datetime.fromtimestamp(now, UTC).isoformat().replace("+00:00", "Z")}
+    return edited if store.replace_email_decision(edited) else row
+
+
 def request_decision(store, *, receipt: dict, receipt_id: str, decision: str, reason, actor: str,
                      actor_email: str | None, publication_id: str, now: float | None = None) -> dict:
     """Record the editor's decision for one held message; idempotent, first decision wins.
@@ -92,6 +105,13 @@ def request_decision(store, *, receipt: dict, receipt_id: str, decision: str, re
     existing = store.get(action_key(receipt_id))
     if existing:
         if existing.get("decision") == decision:
+            corrected = correct_reason(store, existing, text, reason, now=now)
+            if corrected is not existing and existing.get("groupFingerprint"):
+                from .email_fingerprint import group_key
+                group = store.get(group_key(existing["groupFingerprint"]))
+                if group:
+                    correct_reason(store, group, text, reason, now=now)  # the group's record says what its copies say
+            existing = corrected
             return {"ok": True, "already": True, "quarantine": quarantine_summary(receipt, existing, now=now)}
         return {"error": "already_decided", "quarantine": quarantine_summary(receipt, existing, now=now)}
     state = quarantine_state(receipt, None, now=now)
@@ -179,6 +199,15 @@ def request_group_decision(store, *, copies: list[dict], fingerprint: str, decis
             group = store.get(group_key(fingerprint)) or group  # lost a race: report what is recorded
     if group.get("decision") != decision:
         return {"error": "already_decided", "quarantine": quarantine_summary(shown, group, now=now)}
+    if not created:
+        # The same group decision again: a corrected reason reaches the group and every copy that has not been applied yet.
+        corrected = correct_reason(store, group, text, reason, now=now)
+        if corrected is not group:
+            group = corrected
+            for copy in copies:
+                action = actions.get(copy["sk"])
+                if action and action.get("groupFingerprint") == fingerprint:
+                    correct_reason(store, action, text, reason, now=now)
     # Every held copy without a decision of its own takes the group decision. Idempotent, so a retry
     # completes what an interrupted request left undone; a copy already decided keeps its decision.
     for copy in pending:

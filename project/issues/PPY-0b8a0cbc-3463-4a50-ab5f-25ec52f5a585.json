@@ -1,0 +1,20 @@
+{
+  "id": "PPY-0b8a0cbc-3463-4a50-ab5f-25ec52f5a585",
+  "title": "UI: Monitoring page and monitor detail",
+  "description": "Monitors list with Lucide Search/Rss/Mail icons, status, last run, week yield; per-query funnel; add/edit/pause; run timeline. Needs screenshot review.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-2069646f-2bd9-4471-8d91-9908015e9419",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-28T02:21:03.717991Z",
+  "updated_at": "2026-10-28T02:21:03.718027Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

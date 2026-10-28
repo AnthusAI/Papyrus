@@ -16,7 +16,7 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 .organizer-destinations a[aria-current=page]{color:var(--org-ink);box-shadow:inset 3px 0 0 var(--org-accent)}
 .newsroom-organizer :is(a,button):focus-visible,.organizer-menu :is(a,button):focus-visible{outline:2px solid currentColor;outline-offset:-3px}
 .organizer-workspace{display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden;padding:0 16px}
-.organizer-topbar{height:48px;min-height:48px;display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--org-line)}
+.organizer-topbar{height:48px;min-height:48px;display:flex;align-items:center;gap:16px}
 .organizer-masthead{font:900 28px var(--font-wordmark),Georgia,serif;white-space:nowrap;max-width:30vw;overflow:hidden;text-overflow:ellipsis}
 .organizer-masthead-logo{display:block;height:24px;width:auto;max-width:36vw;overflow:visible}
 .organizer-topbar h1{font:400 12px var(--kb-theme-ui-font);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
@@ -362,15 +362,21 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
    The newsroom chrome squares every "rounded" class above; inside a [data-feed-surface] the rounded classes mean what they say.
    The repeated attribute raises specificity over the squaring rules without !important escalation. */
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-full"],
-.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-full"] { border-radius: 9999px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-full"] { border-radius: var(--feed-radius-pill) !important; }
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[20px]"],
-.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[20px]"] { border-radius: 20px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[20px]"] { border-radius: var(--feed-radius-lg) !important; }
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-2xl"],
-.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-2xl"] { border-radius: 16px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-2xl"] { border-radius: var(--feed-radius-md) !important; }
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-[16px]"],
-.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[16px]"] { border-radius: 16px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-[16px]"] { border-radius: var(--feed-radius-md) !important; }
 .newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface] [class*="rounded-3xl"],
-.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-3xl"] { border-radius: 24px !important; }
+.newsroom-organizer[data-kanbus-theme] [data-feed-surface][data-feed-surface][data-feed-surface][class*="rounded-3xl"] { border-radius: var(--feed-radius-xl) !important; }
+
+/* The mobile sheet is portaled outside .newsroom-organizer; it carries the theme attributes itself, so the same radii apply inside it. */
+[data-kanbus-theme][data-feed-surface] [class*="rounded-full"] { border-radius: var(--feed-radius-pill) !important; }
+[data-kanbus-theme][data-feed-surface] [class*="rounded-[20px]"] { border-radius: var(--feed-radius-lg) !important; }
+[data-kanbus-theme][data-feed-surface] [class*="rounded-2xl"], [data-kanbus-theme][data-feed-surface] [class*="rounded-[16px]"] { border-radius: var(--feed-radius-md) !important; }
+[data-kanbus-theme][data-feed-surface] [class*="rounded-3xl"] { border-radius: var(--feed-radius-xl) !important; }
 
 /* Feed tones. Light: cards a touch lighter than the page, footers between, controls a touch darker. Dark: each step lifts toward the ink.
    Also set on the portaled mobile sheet, which carries the theme attributes itself. */
@@ -378,6 +384,12 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
   --feed-card: color-mix(in oklab, var(--kb-theme-paper) 35%, white);
   --feed-footer: color-mix(in oklab, var(--kb-theme-paper) 70%, white);
   --feed-control: color-mix(in oklab, var(--kb-theme-paper) 90%, var(--kb-theme-ink));
+  /* Corner radii of the whole feed layer, in one place (Ryan, 2026-10-27: half of the first design). lg: cards and the detail pane;
+     md: rating cells, buttons, textareas; xl: sheets; pill: chips, filters and toggles (a rounded rectangle, not a capsule). */
+  --feed-radius-xl: 12px;
+  --feed-radius-lg: 10px;
+  --feed-radius-md: 8px;
+  --feed-radius-pill: 8px;
 }
 [data-kanbus-theme][data-color-mode="dark"] [data-feed-surface], [data-kanbus-theme][data-color-mode="dark"][data-feed-surface] {
   --feed-card: color-mix(in oklab, var(--kb-theme-paper) 94%, var(--kb-theme-ink));
@@ -392,16 +404,16 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] *:not(:focus-visible) { box-shadow: none; }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is([data-slot=separator], hr) { display: none !important; }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button], [data-slot=badge]):not([aria-pressed=true]):not([data-slot=sheet-close]):not([class*="hover:bg-muted"]) {
-  background: var(--feed-control) !important; border-radius: 9999px !important; color: var(--foreground, inherit);
+  background: var(--feed-control) !important; border-radius: var(--feed-radius-pill) !important; color: var(--foreground, inherit);
 }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true]:not([class*="destructive"]) {
-  background: var(--primary) !important; color: var(--primary-foreground) !important; border-radius: 9999px !important;
+  background: var(--primary) !important; color: var(--primary-foreground) !important; border-radius: var(--feed-radius-pill) !important;
 }
-[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true][class*="destructive"] { border-radius: 9999px !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(button, [role=button])[aria-pressed=true][class*="destructive"] { border-radius: var(--feed-radius-pill) !important; }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] :is(textarea, input:not([type=radio]):not([type=checkbox]), select, details, [data-cyclotron-choice]:not([data-predicted])) {
   background: var(--feed-control) !important; border-radius: 16px !important;
 }
-[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-cyclotron-choice] { border-radius: 9999px !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-cyclotron-choice] { border-radius: var(--feed-radius-pill) !important; }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-review-queue-bar] { background: var(--feed-footer) !important; }
 /* The rating grid keeps its own rounded rectangles in the borderless panes (not the pill shape the flat rules give other buttons). */
-[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: 16px !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: var(--feed-radius-md) !important; }

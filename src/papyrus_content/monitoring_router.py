@@ -72,10 +72,6 @@ ROUTER_CONFIG_SK = "CONFIG#router"
 ROUTER_LOCK_SK = "LOCK#router"
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
 RECEIPT_TTL_SECONDS = 30 * 86400
-# TEMPORARY lab limit, to be removed when Cyclotron stores item values separately: the lab refuses a decision command over
-# 65,536 bytes of JSON (409 request_conflict "bounded credential-free command required"). The router keeps its command under this
-# and, when an enriched item would exceed it, cuts ONLY `body` (and so `text`), recording `bodyTruncatedForLabLimit` on the DISC row.
-MAX_REQUEST_BYTES = 60_000
 STALE_FINAL_REASON = "job pending longer than the allowed time; reconcile manually"   # an old limit's finals, reopened by hand
 AWAITING = "awaiting"
 MIN_REMAINING_SECONDS = 120            # do not start another item with less time than this
@@ -107,7 +103,7 @@ def editor_subject(site: str, actor: str) -> str:
 PARTITION_COLLECTED = "collected"
 PARTITION_DRY_RUN = "dry-run-validated"
 PARTITION_DECIDED = "decided"
-DECISIONS = ("cyclotron", "direct")
+DECISIONS = ("cyclotron", "direct", "hold")
 ROUTING_FINAL = ("routed", "refused", "uncertain", "error", "parked")
 NON_CONSUMING_REFUSALS = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached"})
 STOP_CODES = frozenset({"provider_key_unavailable", "request_ceiling_reached", "standing_capacity_reached", "run_busy"})
@@ -145,7 +141,7 @@ POLL_BACKOFF_MAX = COLLECT_CADENCE_SECONDS * POLL_BACKOFF_CADENCES
 PENDING_STATUSES = frozenset({"pending", "queued", "running", "accepted", "in_progress"})
 SOURCE_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 #: The `source` a Cyclotron item names, by the discovery's sourceType (HN discoveries carry none).
-ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface"}
+ITEM_SOURCES = {"email": "email", "huggingface-models": "huggingface", "web-search": "web-search"}
 ITEM_SOURCE_NAMES = frozenset({"hacker-news", *ITEM_SOURCES.values()})
 PUBLICATION_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 APPSYNC_HOST = re.compile(r"^[a-z0-9]+\.appsync-api\.[a-z0-9-]+\.amazonaws\.com$")
@@ -257,8 +253,13 @@ def validate_router_config(raw: dict) -> dict:
             raise ValueError("router feedback needs Cyclotron decisions; a direct monitor has none to correct")
         rule = validate_rule(raw["rule"], name="router rule") if raw.get("rule") is not None else None
         return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
+                "holdDecisions": raw.get("holdDecisions") is True,
                 "decisions": decisions, "feedback": False, "publications": publications,
                 "cyclotron": None, "rule": rule, **account_scope}
+    if decisions == "hold":   # no Cyclotron yet (Distinctive Mark): collect and enrich, never decide; no cyclotron block needed
+        return {"mode": mode, "enabled": raw.get("enabled", True) is not False, "holdDecisions": True,
+                "decisions": decisions, "feedback": False, "publications": publications,
+                "cyclotron": None, "rule": None, **account_scope}
     cyclotron = raw.get("cyclotron") or {}
     endpoint = urlsplit(str(cyclotron.get("endpoint") or ""))
     match = EXECUTE_API_HOST.match(endpoint.netloc)
@@ -280,6 +281,7 @@ def validate_router_config(raw: dict) -> dict:
     if isinstance(rate, bool) or not isinstance(rate, (int, float, Decimal)) or not rate > 0:
         raise ValueError("router cyclotron.maxRequestsPerSecond must be a positive number")
     return {"mode": mode, "enabled": raw.get("enabled", True) is not False,
+            "holdDecisions": raw.get("holdDecisions") is True,
             "decisions": decisions, "feedback": raw.get("feedback") is True,
             "publications": publications,
             "cyclotron": {"endpoint": f"https://{endpoint.netloc}", "region": match.group(1), "accountId": account,
@@ -467,27 +469,12 @@ def build_item(discovery: dict, enrichment: dict | None = None) -> dict:
         raise ItemInvalid("discovery is not a valid Cyclotron item")
     source = ITEM_SOURCES.get(discovery.get("sourceType"), "hacker-news")
     summary, body = str((enrichment or {}).get("summary") or ""), str((enrichment or {}).get("body") or "")
+    if not summary and discovery.get("sourceType") == "web-search":
+        summary = str((discovery.get("details") or {}).get("snippet") or "")   # the search engine's snippet seeds the summary
     values = {"title": title, "url": url, "source": source, "sourceItemUrl": str(discovery.get("sourceItemUrl") or ""),
               **({"summary": summary} if summary else {}), **({"body": body} if body else {}),
               "text": compose_text(title, url, summary, body)}
     return {"id": item_id_for(str(discovery.get("monitorId") or "hn"), source_id), "values": values}
-
-
-def fitted_item(discovery: dict, enrichment: dict | None, command_size) -> tuple[dict, bool]:
-    """The item with the whole captured body when the command fits the lab limit, else with `body` cut to the longest prefix that
-    fits (TEMPORARY, see MAX_REQUEST_BYTES). `command_size(item)` is the serialized command's byte length. Returns (item, cut)."""
-    item = build_item(discovery, enrichment)
-    body = str((enrichment or {}).get("body") or "")
-    if not body or command_size(item) <= MAX_REQUEST_BYTES:
-        return item, False
-    low, high = 0, len(body)
-    while low < high:
-        middle = (low + high + 1) // 2
-        if command_size(build_item(discovery, {**enrichment, "body": body[:middle]})) <= MAX_REQUEST_BYTES:
-            low = middle
-        else:
-            high = middle - 1
-    return build_item(discovery, {**enrichment, "body": body[:low]}), True
 
 
 PLACEHOLDER_REQUEST_ID = "0" * 64
@@ -497,20 +484,14 @@ def build_decide_request(config: dict, publication: dict, discovery: dict, attem
     validate_email_discovery_scope(discovery, config)
     cyclotron = config["cyclotron"]
 
-    def size(item):
-        return len(json.dumps({"contractVersion": CONTRACT_VERSION, "operation": "decide", "requestId": PLACEHOLDER_REQUEST_ID,
-                               "payload": {"bindingRevision": cyclotron["bindingRevision"], "item": item}},
-                              separators=(",", ":")).encode())
-
-    item, cut = fitted_item(discovery, enrichment, size)
+    item = build_item(discovery, enrichment)
     payload = {"bindingRevision": cyclotron["bindingRevision"], "item": item}
     body = {"contractVersion": CONTRACT_VERSION, "operation": "decide",
             "requestId": request_id(cyclotron["accountId"], cyclotron["runId"], publication["publicationId"],
                                     payload, attempt),
             "payload": payload}
     validate_request(body)
-    return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body,
-            "bodyTruncatedForLabLimit": cut}
+    return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
 
 
 def build_combined_request(config: dict, publications: list[dict], discovery: dict, attempt: int = 0,
@@ -522,18 +503,13 @@ def build_combined_request(config: dict, publications: list[dict], discovery: di
     if not bindings:
         raise ItemInvalid("no publication bindings to decide")
 
-    def size(item):
-        return len(json.dumps({"contractVersion": CONTRACT_VERSION, "requestId": PLACEHOLDER_REQUEST_ID,
-                               "payload": {"bindings": dict(sorted(bindings.items())), "item": item}},
-                              separators=(",", ":")).encode())
-
-    item, cut = fitted_item(discovery, enrichment, size)
+    item = build_item(discovery, enrichment)
     payload = {"bindings": dict(sorted(bindings.items())), "item": item}
     body = {"contractVersion": CONTRACT_VERSION,
             "requestId": combined_request_id(cyclotron["accountId"], cyclotron["runId"], payload, attempt),
             "payload": payload}
     validate_combined_request(body)
-    return {"path": "/machine/decisions", "body": body, "bodyTruncatedForLabLimit": cut}
+    return {"path": "/machine/decisions", "body": body}
 
 
 def validate_combined_request(body: dict) -> None:
@@ -549,8 +525,6 @@ def validate_combined_request(body: dict) -> None:
         raise ValueError("combined payload shape")
     validate_request({"contractVersion": CONTRACT_VERSION, "operation": "decide", "requestId": request,
                       "payload": {"bindingRevision": "x", "item": payload["item"]}})
-    if len(json.dumps(body, separators=(",", ":")).encode()) > MAX_REQUEST_BYTES:
-        raise ValueError("request body is too large")
 
 
 def validate_request(body: dict) -> None:
@@ -587,8 +561,6 @@ def validate_request(body: dict) -> None:
         editor = payload["editor"]
         if not isinstance(editor, dict) or set(editor) != {"site", "subject"} or not all(editor.values()):
             raise ValueError("feedback editor shape")
-    if len(json.dumps(body, separators=(",", ":")).encode()) > MAX_REQUEST_BYTES:
-        raise ValueError("request body is too large")
 
 
 # --- Cyclotron machine API ------------------------------------------------------------------------
@@ -1183,6 +1155,7 @@ class Router:
         self.active_publications = None
         self.nowait = False        # live Cyclotron sweeps post and check once; the collect window does the waiting
         self.post_allowed = True   # the collector sets this False: it never sends a new POST
+        self.holding = config.get("holdDecisions") is True   # CONFIG#router holdDecisions: no decide POST; enrichment, polling and feedback still run
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
@@ -1358,12 +1331,6 @@ class Router:
         self.counts["enriched"] += 1
         return self.inputs_for(disc)
 
-    def note_truncation(self, disc: dict, built: dict):
-        """TEMPORARY (lab command limit): remember on the DISC row that the posted body was cut to fit."""
-        if built.get("bodyTruncatedForLabLimit") and not disc.get("bodyTruncatedForLabLimit"):
-            disc["bodyTruncatedForLabLimit"] = True
-            self.store.put_any(self.monitor_id, disc)
-
     def copy_curation(self, publication: dict, disc: dict, result: dict) -> str | None:
         """Give the delivered Reference the item's curation (the card and bodies the editor sees). Never fails the delivery: a
         Reference without it is filled in by the post-delivery curation procedure."""
@@ -1403,6 +1370,9 @@ class Router:
             return self.finish(disc, route, "error", str(error))
         requests = {}
         for publication in (self.active_publications or self.config["publications"]):
+            if self.config["decisions"] == "hold":
+                requests[publication["publicationId"]] = {"held": True}
+                continue
             if self.config["decisions"] == "direct":
                 try:
                     self.check_rule(disc)
@@ -1693,10 +1663,9 @@ class Router:
             raise ItemUncertain("an earlier POST had no recorded answer")
         response = None
         if not stored:
-            if not self.post_allowed:
+            if not self.post_allowed or self.holding:
                 return todo   # the collector sends nothing; stored per-publication jobs are still polled
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)), enrichment=self.inputs_for(disc))
-            self.note_truncation(disc, built)
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                                              "publications": list(built["body"]["payload"]["bindings"]),
                                              "via": VIA_DECISIONS, **self.posted_under()}
@@ -1800,9 +1769,8 @@ class Router:
         if job and not job.get("jobId"):
             raise ItemUncertain("an earlier POST had no recorded answer")
         elif not job:
-            if not self.post_allowed:
+            if not self.post_allowed or self.holding:
                 raise NotPosting()
-            self.note_truncation(disc, built)
             jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                             "via": VIA_PUBLICATION, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
@@ -2082,6 +2050,9 @@ class Router:
                         key: value for key, value in route["decision"].get("publications", {}).items()
                         if key in allowed}
             if not route.get("decision"):
+                if self.config["decisions"] == "hold":
+                    self.enrichment_for(disc, route)   # captured and summarized now; decided once a Cyclotron is bound
+                    raise NotPosting()
                 if self.config["decisions"] == "direct":
                     self.check_rule(disc)
                     self.enrichment_for(disc, route)
@@ -2150,7 +2121,7 @@ class Router:
         if self.config["mode"] == "live":
             self.retry_deferred()
         candidates = self.candidates()
-        if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron":
+        if self.config["mode"] == "live" and self.config["decisions"] == "cyclotron" and not self.holding:
             try:
                 self.backfill()
             except StopSweep as stop:
@@ -2182,6 +2153,8 @@ class Router:
             status = "partial"
         if awaiting and stopped is None:
             status, stopped = AWAITING, AWAITING   # jobs are still running at the lab; the collector delivers them
+        if self.holding and stopped is None:
+            stopped = "decisions_held"   # visible in the receipt: new decisions were not posted
         return {"status": status, "stoppedBy": stopped, "errors": self.with_lab_errors(errors),
                 "waitingForClassifier": self.waiting_for_classifier() if self.config["decisions"] == "cyclotron" else []}
 

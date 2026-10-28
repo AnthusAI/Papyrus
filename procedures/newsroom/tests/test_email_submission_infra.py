@@ -116,3 +116,17 @@ def test_receiving_rule_set_is_account_owned_inactive_and_retained():
     assert rule_set["UpdateReplacePolicy"] == "Retain"
     assert template["Parameters"]["ReceiptRuleSetName"]["Default"] == "papyrus-email-receiving"
     assert not any(r["Type"] in {"AWS::SES::ReceiptRule", "AWS::SES::EmailIdentity", "AWS::Route53::RecordSet"} for r in resources.values())
+
+
+def test_receiver_gets_the_tavily_key_parameter_and_may_read_and_decrypt_only_that():
+    path = Path(__file__).resolve().parents[3] / "infra/email/papyrus-email-submissions.yaml"
+    template = yaml.load(path.read_text(), Loader=CloudFormationLoader)
+    assert template["Parameters"]["TavilyKeyParameter"]["Default"] == "/papyrus/shared/tavily-api-key"
+    env = template["Resources"]["SubmissionFunction"]["Properties"]["Environment"]["Variables"]
+    assert "PAPYRUS_TAVILY_KEY_PARAMETER" in env
+    policy = template["Resources"]["SubmissionTavilyKeyPolicy"]
+    assert policy["Condition"] == "HasTavilyKey"
+    read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
+    text = str(read["Resource"])
+    assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in text and "*" not in text
+    assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in str(decrypt["Condition"])

@@ -20,7 +20,7 @@ async function main() {
     deletedStories: new Set(input.deletedStories ?? []), emails: [], emailsDecided: new Map(),
   });
   const html = renderToStaticMarkup(createElement(RequestBody, {
-    item, payload: item.payload as never, ratings, extras: { why: "", notThisKind: false }, onExtras: () => undefined, disabledReason: null, attachments: [], demo: false, predictionLoading: false,
+    item, payload: item.payload as never, ratings, extras: { notThisKind: false }, onExtras: () => undefined, disabledReason: null, attachments: [], demo: false, predictionLoading: false,
   }));
   process.stdout.write(html.replace(/<[^>]+>/g, " ").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " "));
 }

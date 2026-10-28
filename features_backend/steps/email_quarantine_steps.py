@@ -89,6 +89,44 @@ def editor_rejects(context):
     assert context.q_decision["ok"], context.q_decision
 
 
+@when("an editor rejects the held message with no reason")
+def editor_rejects_without_reason(context):
+    context.q_decision = view_decide(context.q, "discard")
+    assert context.q_decision["ok"], context.q_decision
+
+
+@when("the editor rejects the same message again and explains why")
+def editor_explains(context):
+    context.q_second = view_decide(context.q, "discard", reason="Not for this publication")
+    assert context.q_second["ok"] and context.q_second["already"] is True, context.q_second
+
+
+@when("the editor tries to change the reason once more")
+def editor_changes_after_apply(context):
+    context.q_third = view_decide(context.q, "discard", reason="A different reason")
+    assert context.q_third["ok"], context.q_third
+
+
+@then("the recorded reason is the explanation and the decision is unchanged")
+def reason_recorded(context):
+    action = context.q.table.by_prefix("EMAILACTION#")[0]
+    assert action["decision"] == "discard" and action["reason"] == "Not for this publication" and action["reasonEditedAt"]
+    assert context.q_second["quarantine"]["decision"]["reason"] == "Not for this publication"
+
+
+@then("a plain repeat of the decision, with no reason, changes nothing")
+def plain_repeat(context):
+    before = deepcopy(context.q.table.items)
+    assert view_decide(context.q, "discard")["already"] is True
+    assert context.q.table.items == before
+
+
+@then("the receipt keeps the reason it was applied with")
+def reason_kept(context):
+    assert receipt(context.q)["decision"]["reason"] == "Not for this publication"
+    assert context.q_third["quarantine"]["decision"]["reason"] == "Not for this publication"
+
+
 @when("a second request tries to accept the same message")
 def second_accept(context):
     context.q_second = view_decide(context.q, "release")

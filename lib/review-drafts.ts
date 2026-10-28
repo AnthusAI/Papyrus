@@ -215,6 +215,38 @@ function quote(text: string): string {
   return `"${text.replace(/"/g, "'")}"`;
 }
 
+/** The words of an answer that covers several drafts: each rejection and each Why in a sentence, the plain Accepts of a mixed batch in one more. */
+export function draftFeedback(decisions: readonly (DraftDecision & { id: string })[]): string | null {
+  const rejected = decisions.filter((decision) => decision.choice === "reject");
+  const lines = decisions
+    .filter((decision) => decision.choice === "reject" || decision.why)
+    .map((decision) => `${decision.choice === "accept" ? "Accepted" : "Rejected"} ${quote(decision.title ?? decision.id)}${decision.notThisKind ? " as not this kind of story" : ""}${decision.why ? `: ${decision.why}` : ""}.`);
+  if (rejected.length > 0 && rejected.length < decisions.length) {
+    const kept = decisions.filter((decision) => decision.choice === "accept" && !decision.why).map((decision) => quote(decision.title ?? decision.id));
+    if (kept.length) lines.push(`Accepted ${kept.join(", ")}.`);
+  }
+  return lines.join(" ") || null;
+}
+
+/**
+ * The update that changes only the Why of a draft that is already decided. The Why is stored where the decision is: on the request's link
+ * for the draft and, once the request has closed, in its answer (`drafts` and the `feedback` sentence the idea pipeline reads back).
+ * The choice, the steering chip, who decided and when stay as they were. Applied with the condition that the state is unchanged.
+ */
+export function draftReasonUpdate(request: ReviewRequest, draftId: string, decision: DraftDecision, editor: string, now: Date): Record<string, unknown> {
+  const at = now.toISOString();
+  const why = decision.why?.trim() || null;
+  const next: DraftDecision = { ...decision, why };
+  const history = [...request.history, { at, event: "reason_edited", by: editor, note: `${decision.choice} ${draftId}` }].slice(-50);
+  const update: Record<string, unknown> = { id: request.id, links: JSON.stringify(withDecision(request, draftId, next)), updatedAt: at, history: JSON.stringify(history) };
+  if (request.answer?.drafts?.length && request.state === "answered") {
+    const known = request.answer.drafts;
+    const drafts = known.some((entry) => entry.id === draftId) ? known.map((entry) => (entry.id === draftId ? { ...entry, why } : entry)) : [...known, { ...next, id: draftId }];
+    update.answer = JSON.stringify({ ...request.answer, drafts, feedback: draftFeedback(drafts) });
+  }
+  return update;
+}
+
 /**
  * The answer that closes a request once every draft that can be decided has been: Accept on all is an approval, Reject on all a rejection,
  * a mix is an answer with a note naming each draft. A draft rejected as the wrong kind of story makes the answer a "not this kind" steer, which
@@ -230,21 +262,14 @@ export function batchAnswer(request: ReviewRequest, drafts: DraftLookup, fallbac
     decisions.push({ ...decision, title: decision.title ?? drafts[id]?.headline, id });
   }
   const rejected = decisions.filter((decision) => decision.choice === "reject");
-  const lines = decisions
-    .filter((decision) => decision.choice === "reject" || decision.why)
-    .map((decision) => `${decision.choice === "accept" ? "Accepted" : "Rejected"} ${quote(decision.title ?? decision.id)}${decision.notThisKind ? " as not this kind of story" : ""}${decision.why ? `: ${decision.why}` : ""}.`);
   const mixed = rejected.length > 0 && rejected.length < decisions.length;
-  if (mixed) {
-    const kept = decisions.filter((decision) => decision.choice === "accept" && !decision.why).map((decision) => quote(decision.title ?? decision.id));
-    if (kept.length) lines.push(`Accepted ${kept.join(", ")}.`);
-  }
   const links = request.links.some((link) => link.type === "proposal") ? request.links.map((link) => {
     const decision = decisions.find((entry) => entry.id === link.id);
     return decision ? { ...link, decision } : link;
   }) : [...request.links, ...decisions.map((decision) => ({ type: "proposal", id: decision.id, decision }))];
   return {
     decision: !rejected.length ? "approve" : mixed ? "feedback" : "reject",
-    feedback: lines.join(" ") || null,
+    feedback: draftFeedback(decisions),
     steer: rejected.some((decision) => decision.notThisKind) ? "not_this_kind" : null,
     drafts: decisions,
     links,
