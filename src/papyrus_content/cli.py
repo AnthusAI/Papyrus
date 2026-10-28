@@ -404,6 +404,7 @@ PORTED_COMMANDS = frozenset(
         "ontology:recompute-authority",
         "ontology:doctor",
         "reader:feedback",
+        "cyclotron:export-priming",
         "ideas:digest",
         "ideas:synthesize",
         "ideas:trends",
@@ -864,6 +865,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
             raise ValueError(f"Unsupported ontology command: {route}")
     elif route == "reader:feedback":
         reader_feedback(flags)
+    elif route == "cyclotron:export-priming":
+        from .priming_export import cyclotron_export_priming
+        cyclotron_export_priming(flags)
     elif route.startswith("ideas:"):
         ideas_command(command, flags)
     elif route.startswith("proposals:"):
@@ -1719,6 +1723,7 @@ def print_usage() -> None:
     print("  content import-markus --content-dir DIR [--article-dirs a,b] [--draft-dirs drafts=articles] [--aliases-file F] [--image-source-dir D] [--bucket B] [--tenant ID] [--no-publish] [--force] [--dry-run] [--rebuild-app-id ID] [--json],")
     print("  content publish|unpublish (--id <item-id> | --slug <slug> [--section <s>]) [--dry-run] [--no-trigger] [--rebuild-app-id ID] [--rebuild-branch B] [--json]  (s3-projection sites also project the pages; the kind and the content-actions function come from amplify_outputs.json, PAPYRUS_PUBLICATION_KIND and PAPYRUS_CONTENT_ACTIONS_FUNCTION override; with no function it runs locally),")
     print("  content rebuild (--reader | --staging) [--app-id ID] [--branch B],")
+    print("  cyclotron export-priming --publication ID --corpus-key KEY [--include-unlabeled] [--out FILE]  (read-only: a publication's editor labels as JSON Lines for a Cyclotron's priming import),")
     print("  reader feedback export [--since ISO_TIME] [--out FILE]  (reader comments and the ratings they explain, as JSON Lines for the Cyclotron loop),")
     print("  renderers markus-build (--content web/content --out web/dist --theme hackerman),")
     print("  and test category-mappers/doi-backfill/identifier-backfill")
