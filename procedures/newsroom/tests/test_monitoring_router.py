@@ -179,13 +179,18 @@ class FakeCyclotron:
         seen = self.job_gets[job] = self.job_gets.get(job, 0) + 1
         return seen <= self.polls_needed
 
+    def output_entry(self, pub):
+        entry = {"id": f"{pub}-relevance"}
+        extra = getattr(self, "output_extra", {}).get(pub)
+        return entry | extra if extra else entry
+
     def single_receipt(self, pub, item):
         return {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
                 "decision": {"decisionId": f"dec-{item}", "itemId": item, "classifiers": {
                     f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
                                          "fingerprint": f"fp-{pub}", "version": 3,
                                          **({"confidence": self.confidence[(item, pub)]} if (item, pub) in self.confidence else {})}}},
-                "outputs": [{"id": f"{pub}-relevance"}], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
+                "outputs": [self.output_entry(pub)], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
 
     def http(self, method, url, headers, body, timeout):
         path = url.split("amazonaws.com", 1)[1]
@@ -217,7 +222,7 @@ class FakeCyclotron:
                          f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
                                               "fingerprint": f"fp-{pub}", "version": 3,
                                               **({"confidence": self.confidence[(item, pub)]} if (item, pub) in self.confidence else {})}}},
-                     "outputs": [{"id": f"{pub}-relevance"}], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
+                     "outputs": [self.output_entry(pub)], "source": {"id": item, "revision": 2, "fingerprint": "sfp"}}
 
     def posts(self):
         return [c for c in self.calls if c[0] == "POST"]
@@ -2315,3 +2320,62 @@ def test_an_old_429_pause_without_retry_after_is_cleared_on_the_next_run(table3)
     result = run_with(table3, store, cyclotron, now=3000, task="collect")
     assert result["stoppedBy"] != "lab_backoff" and len(lab_gets(cyclotron)) > seen
     assert BACKOFF_KEY not in table3.items
+
+
+# --- criteria fingerprint ------------------------------------------------------------------------
+
+def fingerprint_row(table, pub="anth-us", ref_id="reference-anth-us-101"):
+    return table.items[("MONITOR#hn", f"DELIV#{pub}#{ref_id}")]
+
+
+def test_decision_stores_the_criteria_fingerprint_and_remembers_the_latest_per_publication(table):
+    store, cyclotron = setup_router(table, feedback=True)
+    cyclotron.output_extra = {"anth-us": {"criteriaFingerprint": "c-1"}}
+    go(table, store, cyclotron, deliver=Delivery())
+    assert fingerprint_row(table)["criteriaFingerprint"] == "c-1"
+    assert table.items[("MONITOR#hn", "CRIT#anth-us")]["criteriaFingerprint"] == "c-1"
+    assert "criteriaFingerprint" not in fingerprint_row(table, "p-apyr-us", "reference-p-apyr-us-101")
+    assert ("MONITOR#hn", "CRIT#p-apyr-us") not in table.items
+
+
+def test_criteria_fingerprint_falls_back_to_sha256_of_the_question():
+    from hashlib import sha256
+    fp = mr.criteria_fingerprint({"outputs": [{"id": "o", "question": "Is it relevant?"}]}, "o")
+    assert fp == sha256(b"Is it relevant?").hexdigest()
+    assert mr.criteria_fingerprint({"outputs": [{"id": "o", "question": "q", "criteriaFingerprint": "given"}]}, "o") == "given"
+    assert mr.criteria_fingerprint({"outputs": [{"id": "o"}]}, "o") is None
+    assert mr.criteria_fingerprint({"outputs": [{"id": "x", "criteriaFingerprint": "z"}]}, "o") is None
+
+
+def set_fingerprints(table, voted, current):
+    if voted:
+        fingerprint_row(table)["criteriaFingerprint"] = voted
+    if current:
+        table.items[("MONITOR#hn", "CRIT#anth-us")] = {"pk": "MONITOR#hn", "sk": "CRIT#anth-us", "criteriaFingerprint": current}
+
+
+def test_feedback_is_sent_when_the_fingerprint_matches_even_if_criteria_since_says_changed(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="4")
+    set_fingerprints(table, "c-1", "c-1")
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["sent"] == 1
+
+
+def test_feedback_is_stale_when_the_fingerprint_differs_even_if_criteria_since_says_unchanged(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="1")
+    set_fingerprints(table, "c-1", "c-2")
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["skipped"] == 1
+    assert fingerprint_row(table)["feedback"] == "stale"
+    outcome = [v for k, v in table.items.items() if k[1].startswith("FB#") and v["publicationId"] == "anth-us"][0]
+    assert outcome["outcome"] == "stale" and outcome["votedFingerprint"] == "c-1" and outcome["currentFingerprint"] == "c-2"
+
+
+def test_feedback_falls_back_to_criteria_since_when_a_fingerprint_is_unknown(table):
+    store, cyclotron = delivered_table(table)
+    rebind(table, "4", since="4")
+    set_fingerprints(table, None, "c-2")           # a vote stored before fingerprints existed
+    refs = {"reference-anth-us-101": ref("accepted", "user:s")}
+    assert feedback_run(table, store, cyclotron, refs)["feedback"]["skipped"] == 1

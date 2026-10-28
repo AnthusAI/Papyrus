@@ -35,7 +35,7 @@ export const FEED_SURFACE_STYLE = {} as CSSProperties;
 /** Spread on every feed surface: the tone variables, and the hook the newsroom stylesheet uses to allow round corners here. */
 export const FEED_SURFACE_PROPS = { "data-feed-surface": "", style: FEED_SURFACE_STYLE } as const;
 
-const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
+export const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
   out_of_scope: "Out of scope",
   policy_exclusion: "Policy exclusion",
   duplicate: "Duplicate",

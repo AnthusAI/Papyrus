@@ -3109,7 +3109,8 @@ function NewsDeskDashboard({
             loading={!dashboard.isDemo && !hasHydratedReferences}
             newsroomSections={newsroomSections}
             notificationFixture={dashboard.notificationFixture ?? null}
-            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, undefined, options?.reasonCode,
+            onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
+            onReview={(reference, action, options) => runReferenceCurationAction(reference, action, options?.note, options?.reasonCode,
               options?.decisionRelationId ? { decisionRelationId: options.decisionRelationId, shareable: options.shareable === true } : undefined)}
             predictionState={referenceReviewData.state}
             referenceAttachments={referenceAttachments}

@@ -113,9 +113,9 @@ function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () 
 }
 
 /** Our captured record of a Reference: what we stored of its content, said plainly, above the live source preview. */
-export function ReferenceCapturePanel({ capture }: { capture: CaptureView }) {
+export function ReferenceCapturePanel({ capture, startEditing = false }: { capture: CaptureView; startEditing?: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(startEditing && Boolean(capture.correct));
   const [savedNote, setSavedNote] = useState(false);
   const line = captureLine(capture.status);
   const Icon = ICON[line.state];

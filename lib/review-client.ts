@@ -100,24 +100,37 @@ export async function markReviewRead(userKey: string, requestId: string, now: Da
 }
 
 const MAX_TITLE_LOOKUPS = 40;
+/** The opening of a story, for a reviewer who has not opened it: the deck, then the first paragraphs of the body. */
+const EXCERPT_CHARACTERS = 900;
+
+export function storyExcerpt(deck: string | null | undefined, body: readonly (string | null)[] | null | undefined): string | null {
+  const text = [deck, ...(body ?? [])].map((part) => (part ?? "").trim()).filter(Boolean).join("\n\n");
+  if (!text) return null;
+  if (text.length <= EXCERPT_CHARACTERS) return text;
+  const cut = text.slice(0, EXCERPT_CHARACTERS);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), EXCERPT_CHARACTERS - 80))}…`;
+}
 
 /** Titles of the stories that review requests are about, by lineage id, and the ids of stories that no longer exist (no version of the lineage remains). A story that cannot be read simply has no entry (the card falls back to the id). */
-export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[] }> {
+export async function loadStoryTitles(ids: string[]): Promise<{ titles: Record<string, string>; deleted: string[]; excerpts?: Record<string, string> }> {
   const titles: Record<string, string> = {};
+  const excerpts: Record<string, string> = {};
   const deleted: string[] = [];
   await Promise.all([...new Set(ids)].slice(0, MAX_TITLE_LOOKUPS).map(async (id) => {
     const result = await run(
-      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title } } }`,
+      `query StoryTitle($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title deck body } } }`,
       { lineageId: id },
     );
     // Only a clean, empty answer means the story is gone; a failed lookup says nothing.
     if (!result.errors?.length && result.data?.listItemsByLineageAndVersion && !(result.data.listItemsByLineageAndVersion.items ?? []).filter(Boolean).length) deleted.push(id);
-    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string }[];
+    const items = (result.data?.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as { versionNumber?: number; headline?: string; title?: string; deck?: string | null; body?: (string | null)[] | null }[];
     const newest = items.sort((a, b) => (b.versionNumber ?? 0) - (a.versionNumber ?? 0))[0];
     const title = newest?.headline || newest?.title;
     if (title) titles[id] = title;
+    const excerpt = storyExcerpt(newest?.deck, newest?.body);
+    if (excerpt) excerpts[id] = excerpt;
   }));
-  return { titles, deleted };
+  return { titles, deleted, excerpts };
 }
 
 const MAX_DRAFT_LOOKUPS = 60;
