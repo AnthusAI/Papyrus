@@ -525,6 +525,14 @@ publication with `output`, `positiveLabel`, `negativeLabel`). The validator refu
 Cyclotron origins and non-AppSync publication endpoints, so credentials cannot be pointed elsewhere
 by a data edit. A publication that is not in `publications` is never called.
 
+Editor feedback is sent under the publication's *current* `cyclotron.bindingRevision`, never the revision stored
+when the item was decided (the lab refuses a stale one with 409 "publication binding changed"; the router logs the
+body and asks again next run). Feedback is tied to the criteria the editor judged, so each publication entry takes an
+optional `criteriaSince`: the earliest binding revision whose criteria match the current ones (default: the current
+revision, the safe choice). A vote stored under revision R is sent with the current revision when R >= `criteriaSince`
+(integers compare numerically); otherwise it is recorded as outcome `stale` ("criteria changed since this vote"),
+dropped, and not retried.
+
 ## Delivery
 
 For each positive publication the router runs the existing `ReferenceIntake` over IAM-signed
