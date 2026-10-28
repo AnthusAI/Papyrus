@@ -79,6 +79,68 @@ def test_a_page_that_points_at_its_pdf_with_citation_pdf_url_is_captured_from_th
     assert capture.source_kind == "pdf" and capture.via == "citation_pdf_url" and "citation_meta" in capture.paper["basis"]
 
 
+JOURNAL_URL = "https://journal.example.org/article/view/42"
+JOURNAL_PDF = "https://journal.example.org/article/download/42/paper.pdf"
+BLURB = "A peer-reviewed record of the contemporary biodiversity crisis."
+
+
+def landing_page(*, head="", body="", description=BLURB):
+    return (f"<html><head><title>Record</title><meta name='description' content='{description}'>{head}</head>"
+            f"<body><header><p>Journal of Things and the site menu that is not content</p></header>{body}</body></html>")
+
+
+def capture_landing(html, *, pdf_urls=(JOURNAL_PDF,)):
+    explorer = Explorer({JOURNAL_URL: page(html), **{url: page(paper_pdf(), "application/pdf") for url in pdf_urls}})
+    return reference_capture.capture_source(JOURNAL_URL, explorer=explorer), explorer
+
+
+def test_a_thin_landing_page_follows_its_citation_pdf_url_and_records_where_the_text_came_from():
+    capture, _ = capture_landing(landing_page(head=f'<meta name="citation_pdf_url" content="{JOURNAL_PDF}">'))
+    assert capture.ok and capture.source_kind == "pdf" and "Introduction" in capture.text
+    assert capture.via == "citation_pdf_url" and capture.full_text_url == JOURNAL_PDF and capture.destination_url == JOURNAL_PDF
+
+
+def test_a_thin_landing_page_follows_a_link_rel_alternate_pdf_when_there_is_no_citation_meta():
+    capture, _ = capture_landing(landing_page(head=f'<link rel="alternate" type="application/pdf" href="{JOURNAL_PDF}">'))
+    assert capture.via == "alternate_pdf" and capture.full_text_url == JOURNAL_PDF and "Introduction" in capture.text
+
+
+def test_a_thin_landing_page_follows_a_same_site_pdf_anchor_and_a_full_text_label():
+    capture, _ = capture_landing(landing_page(body=f'<p><a href="{JOURNAL_PDF}">Download</a></p>'))
+    assert capture.via == "linked_pdf" and capture.full_text_url == JOURNAL_PDF
+    labelled = "https://journal.example.org/article/pdf/42"
+    capture, _ = capture_landing(landing_page(body=f'<p><a href="{labelled}">Full Text (PDF)</a></p>'), pdf_urls=(labelled,))
+    assert capture.via == "full_text_link" and capture.full_text_url == labelled and "Introduction" in capture.text
+
+
+def test_the_standard_signals_come_first_and_another_site_s_anchors_are_not_followed():
+    other = "https://elsewhere.example.net/ad.pdf"
+    html = landing_page(head=f'<meta name="citation_pdf_url" content="{JOURNAL_PDF}">', body=f'<a href="{other}">PDF</a>')
+    links = reference_capture.full_text_links(html, JOURNAL_URL, {"citation_pdf_url": JOURNAL_PDF})
+    assert links == [(JOURNAL_PDF, "citation_pdf_url")]
+    capture, explorer = capture_landing(landing_page(body=f'<a href="{other}">PDF</a>'), pdf_urls=(other,))
+    assert not capture.full_text_url and capture.text == BLURB and other not in explorer.asked
+
+
+def test_a_page_with_a_real_article_keeps_its_own_text_even_though_it_links_a_pdf():
+    capture, explorer = capture_landing(article_html(footer=f'<a href="{JOURNAL_PDF}">PDF</a>'))
+    assert capture.source_kind == "html" and capture.full_text_url is None and JOURNAL_PDF not in explorer.asked
+
+
+def test_an_unreadable_full_text_link_leaves_the_blurb_capture_in_place():
+    capture, _ = capture_landing(landing_page(head=f'<link rel="alternate" type="application/pdf" href="{JOURNAL_PDF}">'), pdf_urls=())
+    assert capture.ok and capture.text == BLURB and capture.full_text_url is None
+
+
+def test_the_capture_card_records_the_full_text_url_and_the_backfill_counts_short_bodies():
+    html = landing_page(head=f'<meta name="citation_pdf_url" content="{JOURNAL_PDF}">')
+    client = MemoryClient([reference("j", sourceUri=JOURNAL_URL), reference("s", sourceUri="https://news.example.org/s")])
+    pages = {JOURNAL_URL: page(html), JOURNAL_PDF: page(paper_pdf(), "application/pdf"), "https://news.example.org/s": page(article_html())}
+    result = curation.curate_corpus(client, corpus_id="knowledge-corpus-site", status="pending", services=services(client, pages=pages))
+    assert client.card("j-v1")["capture"]["fullTextUrl"] == JOURNAL_PDF and "fullTextUrl" not in client.card("s-v1")["capture"]
+    assert result["counts"]["shortBodies"] == 1 and result["counts"]["curated"] == 2
+
+
 @pytest.mark.parametrize("failure,transient", [("blocked", False), ("timeout", True), ("http_5xx", True), ("http_4xx", False)])
 def test_a_source_that_cannot_be_read_fails_with_a_typed_reason(failure, transient):
     capture = reference_capture.capture_source(ARTICLE_URL, explorer=Explorer({ARTICLE_URL: failure}))

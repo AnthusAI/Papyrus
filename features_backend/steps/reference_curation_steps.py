@@ -268,3 +268,77 @@ def _(context):
 @then("it plans {count:d} References and writes nothing")
 def _(context, count):
     assert context.backfill["counts"]["planned"] == count and context.client.writes == context.writes_before
+
+
+# --- full-text links on thin landing pages -------------------------------------------------------------------------------------------------
+
+JOURNAL_URL = "https://journal.example.org/article/view/42"
+JOURNAL_PDF = "https://journal.example.org/article/download/42/paper.pdf"
+BLURB = "A peer-reviewed record of the contemporary biodiversity crisis."
+
+
+def _landing(head: str = "", body: str = "") -> str:
+    return (f"<html><head><title>Record</title><meta name='description' content='{BLURB}'>{head}</head>"
+            f"<body><header><p>Journal menu that is not content</p></header>{body}</body></html>")
+
+
+@given("the source is a journal landing page whose only text is its one-line description")
+def _(context):
+    context.ref = reference(sourceUri=JOURNAL_URL)
+    context.client = MemoryClient([context.ref])
+    context.pages = {JOURNAL_URL: page(_landing())}
+    context.summarizer = Summarizer()
+    context.grobid_url = context.grobid = context.services = None
+
+
+@given('the landing page declares its full text with "{signal}"')
+def _(context, signal):
+    head, body = {"citation_pdf_url": (f'<meta name="citation_pdf_url" content="{JOURNAL_PDF}">', ""),
+                  "alternate_pdf": (f'<link rel="alternate" type="application/pdf" href="{JOURNAL_PDF}">', ""),
+                  "linked_pdf": ("", f'<p><a href="{JOURNAL_PDF}">Download</a></p>')}[signal]
+    context.pages = {JOURNAL_URL: page(_landing(head, body)), JOURNAL_PDF: page(paper_pdf(), "application/pdf")}
+
+
+@given('the landing page declares its full text with "{signal}" but the file is gone')
+def _(context, signal):
+    context.pages = {JOURNAL_URL: page(_landing(f'<link rel="alternate" type="application/pdf" href="{JOURNAL_PDF}">'))}
+
+
+@given("the source is an article that also links a PDF")
+def _(context):
+    context.ref = reference(sourceUri=JOURNAL_URL)
+    context.client = MemoryClient([context.ref])
+    context.pages = {JOURNAL_URL: page(article_html(footer=f'<a href="{JOURNAL_PDF}">PDF</a>')), JOURNAL_PDF: page(paper_pdf(), "application/pdf")}
+    context.summarizer = Summarizer()
+    context.grobid_url = context.grobid = context.services = None
+
+
+@then("the card's text is the PDF's text and not the one-line description")
+def _(context):
+    text = svc(context).store.text(context.ref, "curation-text")
+    assert "Introduction" in text and BLURB not in text
+
+
+@then("the card's text is the one-line description")
+def _(context):
+    assert svc(context).store.text(context.ref, "curation-text") == BLURB
+
+
+@then("the capture records the full-text address the text came from")
+def _(context):
+    assert card(context)["capture"]["fullTextUrl"] == JOURNAL_PDF
+
+
+@then("the capture records no full-text address")
+def _(context):
+    assert "fullTextUrl" not in card(context)["capture"]
+
+
+@given("one of the pending References has a source with only a short body")
+def _(context):
+    context.pages["https://news.example.org/p0"] = page("<p>The board met on Tuesday and adopted the transit plan.</p>")
+
+
+@then("the backfill counts {count:d} short body and still curated both References")
+def _(context, count):
+    assert context.backfill["counts"]["shortBodies"] == count and context.backfill["counts"]["curated"] == 2, context.backfill["counts"]

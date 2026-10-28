@@ -26,6 +26,46 @@ Feature: References are curated before an editor reviews them
     Then the Reference's curation card is "capture_failed"
     And the capture failure is "blocked" and the card holds no text
 
+  Scenario: A journal landing page that fronts a PDF is captured from the PDF, not from its blurb
+    Given the source is a journal landing page whose only text is its one-line description
+    And the landing page declares its full text with "citation_pdf_url"
+    When the curation procedure runs for the Reference
+    Then the Reference's curation card is "ready"
+    And the card's text is the PDF's text and not the one-line description
+    And the capture records the full-text address the text came from
+
+  Scenario: A landing page without citation metadata is followed through its alternate PDF link or its PDF anchor
+    Given the source is a journal landing page whose only text is its one-line description
+    And the landing page declares its full text with "alternate_pdf"
+    When the curation procedure runs for the Reference
+    Then the card's text is the PDF's text and not the one-line description
+    And the capture records the full-text address the text came from
+
+  Scenario: A landing page that only links a PDF in its body text is followed through the anchor
+    Given the source is a journal landing page whose only text is its one-line description
+    And the landing page declares its full text with "linked_pdf"
+    When the curation procedure runs for the Reference
+    Then the card's text is the PDF's text and not the one-line description
+
+  Scenario: An article with real text keeps its own text even when it links a PDF
+    Given the source is an article that also links a PDF
+    When the curation procedure runs for the Reference
+    Then the card holds the article's full text with its word count
+    And the capture records no full-text address
+
+  Scenario: A full-text link that cannot be read leaves the page's own text in place
+    Given the source is a journal landing page whose only text is its one-line description
+    And the landing page declares its full text with "alternate_pdf" but the file is gone
+    When the curation procedure runs for the Reference
+    Then the card's text is the one-line description
+    And the capture records no full-text address
+
+  Scenario: The backfill reports how many bodies are shorter than 500 characters
+    Given a corpus with 2 pending References, 1 accepted Reference and 1 Reference in another corpus
+    And one of the pending References has a source with only a short body
+    When the backfill runs for the pending References
+    Then the backfill counts 1 short body and still curated both References
+
   Scenario: A research paper gets its GROBID fields
     Given the Reference is an arXiv paper and a GROBID service is available
     When the curation procedure runs for the Reference

@@ -28,7 +28,7 @@ from typing import Any
 from .ids import hash_short
 from .link_exploration import explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
-from .reference_capture import Capture, capture_source
+from .reference_capture import SHORT_BODY_CHARACTERS, Capture, capture_source
 from .reference_curation_store import (
     GROBID_SORT_KEY,
     GROBID_TEI_SORT_KEY,
@@ -251,7 +251,7 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
     card["status"] = compute_status(card)
     card["completedAt"] = iso(services.now())
     write_card(client, reference, card, services.now())
-    result.update(outcome="curated", status=card["status"], stages={name: (card.get(name) or {}).get("status")
+    result.update(outcome="curated", status=card["status"], bodyCharacters=(card.get("signals") or {}).get("characterCount"), stages={name: (card.get(name) or {}).get("status")
                                                                     for name in ("capture", "summary", "grobid")})
     return result
 
@@ -259,7 +259,8 @@ def curate_reference(client: Any, reference: dict[str, Any], *, services: Servic
 def _record_capture(card: dict[str, Any], captured: Capture, reference: dict[str, Any], store: AttachmentStore, now: datetime) -> None:
     stamp = iso(now)
     capture: dict[str, Any] = {"status": "completed" if captured.ok else "failed", "capturedAt": stamp, "sourceKind": captured.source_kind,
-                               "contentType": captured.content_type, "via": captured.via, "destinationUrl": captured.destination_url}
+                               "contentType": captured.content_type, "via": captured.via, "destinationUrl": captured.destination_url,
+                               "fullTextUrl": captured.full_text_url}
     if captured.ok:
         store.write(reference, TEXT_SORT_KEY, "curation-text.md", "text/markdown", captured.text, now)
         capture.update(textSortKey=TEXT_SORT_KEY, textSha256=sha256_text(captured.text), wordCount=captured.signals.get("wordCount"))
@@ -381,7 +382,7 @@ def curate_corpus(client: Any, *, corpus_id: str, status: str = "pending", limit
             cards[row.get("referenceId")] = row
     services = services or (None if dry_run else default_services(client))
     counts = {"considered": len(references), "curated": 0, "alreadyCurated": 0, "inProgress": 0, "planned": 0, "ready": 0, "degraded": 0,
-              "captureFailed": 0, "limited": 0}
+              "captureFailed": 0, "limited": 0, "shortBodies": 0}
     items = []
     attempted = 0
     for reference in references:
@@ -401,6 +402,8 @@ def curate_corpus(client: Any, *, corpus_id: str, status: str = "pending", limit
                 counts["curated"] += 1
                 attempted += 1
                 counts[{"ready": "ready", "degraded": "degraded", "capture_failed": "captureFailed"}.get(outcome["status"], "degraded")] += 1
+                characters = outcome.get("bodyCharacters")
+                counts["shortBodies"] += characters is not None and 0 < characters < SHORT_BODY_CHARACTERS   # a statistic, not a gate
             else:
                 counts["alreadyCurated" if outcome["outcome"] == "already_curated" else "inProgress"] += 1
         items.append(outcome)

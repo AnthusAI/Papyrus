@@ -152,6 +152,24 @@ def test_a_paper_without_grobid_is_a_typed_skip():
     assert row["curation"]["grobid"] == {"status": "skipped", "reason": "grobid_not_configured"} and row["status"] == "ready"
 
 
+def test_the_router_counts_bodies_under_500_characters_without_gating_them(table):
+    store, cyclotron = setup_router(table)
+    short = go(table, store, cyclotron, enricher=enricher(good("A short blurb.")))
+    assert short["counts"]["shortBodies"] == 1 and cyclotron.posts()      # counted, and the decision still goes ahead
+    table2 = collected_table(ONE_FEED)
+    store, cyclotron = setup_router(table2)
+    assert go(table2, store, cyclotron, enricher=enricher(good()))["counts"]["shortBodies"] == 0
+
+
+def test_the_capture_row_carries_the_full_text_url_the_text_came_from():
+    capture = good()
+    capture.full_text_url = "https://journal.example.org/paper.pdf"
+    row = me.enrich_item(me.new_row("hn", {"sourceId": "1", "revision": 1, "canonicalUrl": "https://example.org/a"}),
+                         {"sourceId": "1", "revision": 1, "title": "P", "canonicalUrl": "https://example.org/a"}, "hn",
+                         enricher(capture), me.utc_now())
+    assert row["curation"]["capture"]["fullTextUrl"] == "https://journal.example.org/paper.pdf"
+
+
 def test_a_very_long_body_is_sent_whole_in_every_request(table):
     store, cyclotron = setup_router(table)
     huge = ("A sentence about transit that goes on and on. " * 5000)           # about 225 KB
