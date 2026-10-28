@@ -11,6 +11,7 @@ import pytest
 
 from curation_support import (ARTICLE_PARAGRAPHS, NOW, TEI, Explorer, Grobid, MemoryClient, Summarizer, article_html, page, paper_pdf,
                               reference, services)
+from pdf_fixtures import make_pdf
 from papyrus_content import reference_capture, reference_curation as curation
 from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture, read_card
 from papyrus_content.reference_grobid import GrobidUnavailable, parse_tei, resolve_grobid_url
@@ -381,6 +382,66 @@ def test_the_appsync_action_records_the_signed_in_editor_and_an_assessment_alone
     assert result["ok"] and result["label"]["labeledBy"] == "google_123" and result["edits"] == []
     with pytest.raises(CurationError, match="not found"):
         correct_reference_capture(client, {"referenceId": "missing", "assessment": "complete"}, {"username": "e"}, store=store)
+
+
+# --- an editor uploads the PDF --------------------------------------------------------------------------------------------------------
+
+
+def uploaded(pdf, **options):
+    client = MemoryClient([reference(), reference("other")])
+    store = services(client).store
+    return client, store, store.upload("r1-v1", pdf, **options)
+
+
+def test_text_from_an_uploaded_pdf_is_stored_like_pasted_text_and_marked_as_from_a_pdf():
+    client, store, attachment_id = uploaded(paper_pdf())
+    result = correct_reference_capture(client, {"referenceId": "r1-v1", "pdfAttachmentId": attachment_id, "assessment": "incomplete"},
+                                       {"username": "editor-1"}, now=lambda: NOW, store=store)
+    card = client.card("r1-v1")
+    text = store.text(client.get_record("Reference", "r1-v1"), "curation-edit-0001-text")
+    assert "steered by retrieval" in text  # the PDF's pages, joined as the capture joins them
+    edit = card["edits"][0]
+    assert (edit["via"], edit["pdfAttachmentId"], edit["pdfPageCount"], edit["provenance"]) == ("editor_pdf", attachment_id, 4, "edited by editor")
+    assert card["current"] == {"textSortKey": "curation-edit-0001-text", "textVia": "editor_pdf"}
+    assert card["labels"][0]["assessment"] == "incomplete" and result["edits"][0]["via"] == "editor_pdf"
+    assert card["paper"]["isPaper"] is True, "the card says whether it is a paper, so `papyrus references curate` can decide on GROBID"
+
+
+def test_pasting_text_after_a_pdf_upload_clears_the_pdf_mark():
+    client, store, attachment_id = uploaded(paper_pdf())
+    correct_reference_capture(client, {"referenceId": "r1-v1", "pdfAttachmentId": attachment_id, "assessment": "incomplete"}, {"username": "e"}, store=store)
+    correct_reference_capture(client, {"referenceId": "r1-v1", "text": "Typed by hand.", "assessment": "incomplete"}, {"username": "e"}, store=store)
+    assert "textVia" not in client.card("r1-v1")["current"]
+
+
+@pytest.mark.parametrize("make,message", [
+    (lambda: uploaded(b"<html>not a pdf</html>"), "not a PDF"),
+    (lambda: uploaded(paper_pdf(), media_type="application/pdf", name="x")[:2] + ("missing-id",), "not uploaded to this Reference"),
+    (lambda: uploaded(b"%PDF-1.4 " + b"x" * 8_000_100), "larger than we read"),
+    (lambda: uploaded(make_pdf([[""]])), "looks like a scan"),
+    (lambda: uploaded(b"%PDF-1.4 damaged beyond repair"), "could not be read"),
+])
+def test_an_unusable_pdf_is_refused_in_words(make, message):
+    client, store, attachment_id = make()
+    with pytest.raises(CurationError, match=message):
+        correct_reference_capture(client, {"referenceId": "r1-v1", "pdfAttachmentId": attachment_id, "assessment": "incomplete"}, {"username": "e"}, store=store)
+    assert client.card("r1-v1") is None, "a refused upload changes nothing"
+
+
+def test_a_pdf_uploaded_to_another_reference_is_refused():
+    client = MemoryClient([reference(), reference("other")])
+    store = services(client).store
+    foreign = store.upload("other-v1", paper_pdf())
+    with pytest.raises(CurationError, match="not uploaded to this Reference"):
+        correct_reference_capture(client, {"referenceId": "r1-v1", "pdfAttachmentId": foreign, "assessment": "incomplete"}, {"username": "e"}, store=store)
+
+
+def test_an_uploaded_pdf_still_needs_an_assessment_and_cannot_be_sent_with_text():
+    client, store, attachment_id = uploaded(paper_pdf())
+    with pytest.raises(CurationError, match="needs an assessment"):
+        correct_reference_capture(client, {"referenceId": "r1-v1", "pdfAttachmentId": attachment_id}, {"username": "e"}, store=store)
+    with pytest.raises(CurationError, match="not both"):
+        correct_reference_capture(client, {"referenceId": "r1-v1", "pdfAttachmentId": attachment_id, "text": "x", "assessment": "incomplete"}, {"username": "e"}, store=store)
 
 
 # --- the backfill --------------------------------------------------------------------------------------------------------------------

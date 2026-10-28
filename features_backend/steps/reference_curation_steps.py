@@ -17,7 +17,8 @@ from curation_support import (  # noqa: E402
     NOW, MemoryClient, Grobid, Summarizer, article_html, page, paper_pdf, reference, services as build_services,
 )
 from papyrus_content import reference_curation as curation  # noqa: E402
-from papyrus_content.reference_curation_store import apply_editor_correction  # noqa: E402
+from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
+from pdf_fixtures import make_pdf  # noqa: E402
 
 ARTICLE_URL = "https://news.example.org/r1"
 ARXIV_URL = "https://arxiv.org/abs/2601.01234"
@@ -342,3 +343,42 @@ def _(context):
 @then("the backfill counts {count:d} short body and still curated both References")
 def _(context, count):
     assert context.backfill["counts"]["shortBodies"] == count and context.backfill["counts"]["curated"] == 2, context.backfill["counts"]
+
+
+@when('the editor "{editor}" uploads a PDF of a research paper and labels the capture "{assessment}"')
+def _(context, editor, assessment):
+    context.original_text = svc(context).store.text(context.ref, "curation-text")
+    attachment_id = svc(context).store.upload(context.ref["id"], paper_pdf())
+    correct_reference_capture(context.client, {"referenceId": context.ref["id"], "pdfAttachmentId": attachment_id, "assessment": assessment},
+                              {"username": editor}, now=lambda: NOW, store=svc(context).store)
+
+
+@then('the PDF\'s text is stored as version {number:d} "{provenance}" by "{editor}", marked as coming from an uploaded PDF')
+def _(context, number, provenance, editor):
+    edit = card(context)["edits"][number - 1]
+    assert (edit["n"], edit["provenance"], edit["editedBy"], edit["via"]) == (number, provenance, editor, "editor_pdf")
+    assert "steered by retrieval" in svc(context).store.text(context.ref, edit["sortKey"])
+    assert card(context)["current"]["textVia"] == "editor_pdf"
+
+
+@then("the card says whether it is a research paper, so the next curation run can decide on GROBID")
+def _(context):
+    assert card(context)["paper"]["isPaper"] is True
+
+
+@when("the editor uploads a file that is not a PDF, a PDF with no text, or a PDF uploaded to another Reference")
+def _(context):
+    store, context.refusals = svc(context).store, []
+    for owner, body in (("r1-v1", b"<html>no</html>"), ("r1-v1", make_pdf([[""]])), ("other-v1", paper_pdf())):
+        attachment_id = store.upload(owner, body)
+        try:
+            correct_reference_capture(context.client, {"referenceId": context.ref["id"], "pdfAttachmentId": attachment_id, "assessment": "incomplete"},
+                                      {"username": "editor-one"}, now=lambda: NOW, store=store)
+        except CurationError as error:
+            context.refusals.append(str(error))
+
+
+@then("each is refused saying what is wrong, and the card still shows the original text")
+def _(context):
+    assert len(context.refusals) == 3 and all(len(message) > 20 for message in context.refusals), context.refusals
+    assert card(context)["current"]["textSortKey"] == "curation-text" and card(context).get("edits") == []

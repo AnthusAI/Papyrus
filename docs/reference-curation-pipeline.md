@@ -240,6 +240,18 @@ At least one of `text`, `grobid`, `assessment` is required. Replacing text marks
 does not change `curationStatus`. Concurrent corrections to one Reference are last-write-wins on the card
 (editors do not edit the same Reference at once; the version bodies are never lost).
 
+**Uploading a PDF.** When the source sits behind a bot wall, the editor downloads the PDF themselves and
+uses "Upload a PDF" on the Reference. The browser stores it as a `ModelAttachment` of the Reference (owner
+kind `reference`, role `curation-upload-pdf`, media type `application/pdf`) with the usual two-step upload,
+then calls `correctReferenceCapture` with `pdfAttachmentId` (instead of `text`) and the `assessment`. The
+Lambda checks the attachment belongs to that Reference, is a PDF (`%PDF`) and is at most 8 MB (the capture's
+own PDF limit), reads it page by page with `pdf_text`/`pdf_to_text` (the one extractor the capture uses), and
+refuses in words a scan with no text. The text is stored exactly like pasted text; the edit and
+`card.current` record `via: "editor_pdf"` (`textVia`) so the panel says "Text from a PDF you uploaded". The
+card's `paper` is re-detected from the text. GROBID does not run in the Lambda; `papyrus references curate`
+decides it by `paper.isPaper`, but it has no access to an uploaded PDF's bytes yet (it skips with
+`pdf_unavailable`).
+
 `papyrus_content.reference_curation_store.apply_editor_correction(client, reference, editor=..., text=...,
 grobid=..., assessment=..., note=...)` is the same operation for scripts.
 

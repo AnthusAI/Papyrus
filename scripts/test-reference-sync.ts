@@ -38,7 +38,8 @@ function browserBundle(): Promise<string> {
           : `export const loadReferenceAttachmentsForLineageId = async () => [];
 export const loadStoragePathUrl = async () => ({url:null,error:null});
 export const loadStoragePathText = async (path) => ({text: (window.fixtureTexts || {})[path] ?? null, error: null});
-export const loadModelPayloadsForOwner = async (kind, id) => (window.fixturePayloads || {})[id] || [];`,
+export const loadModelPayloadsForOwner = async (kind, id) => (window.fixturePayloads || {})[id] || [];
+export const uploadModelPayloadForOwner = async (input) => { window.fixtureUploads.push({ ownerKind: input.ownerKind, ownerId: input.ownerId, role: input.role, mediaType: input.mediaType, filename: input.filename, byteSize: input.content.size }); if (window.fixtureUploadFails) throw new Error("Attachment upload failed: 403 Forbidden"); return { id: "upload-" + window.fixtureUploads.length }; };`,
         loader: "js", resolveDir: root,
       }));
     } }],
@@ -78,6 +79,7 @@ card(7, { status: "degraded", capture: { status: "completed", wordCount: 800, te
 window.fixturePayloads["r7-v1"] = [body("curation-text", { text: "Teaser article. " + words(798) })];
 card(8, { status: "running", capture: { status: "not_run" }, signals: {} });
 window.fixtureCorrections = [];
+window.fixtureUploads = [];
 window.fixtureRequests = [];
 window.fixtureFailNext = false;
 function Fixture() {
@@ -96,7 +98,13 @@ function Fixture() {
     setReasons((current) => { const next = new Map(current); if (action === "reject") next.set(reference.lineageId, options.reasonCode); else next.delete(reference.lineageId); return next; });
   }
   return <div style={{ height: "100dvh", display: "flex", flexDirection: "column", padding: 12 }}>
-    <NewsroomReferencesView decisions={decisions} onCorrectCapture={params.has("nocorrect") ? undefined : async (input) => { window.fixtureCorrections.push(input); }} onReview={save} referenceAttachments={attachments} references={references} reviewReasons={reasons} />
+    <NewsroomReferencesView decisions={decisions} onCorrectCapture={params.has("nocorrect") ? undefined : async (input) => {
+      window.fixtureCorrections.push(input);
+      if (!input.pdfAttachmentId) return;
+      if (window.fixtureReadFails) throw new Error("That PDF has no text we can read; it looks like a scan. Paste the text instead.");
+      window.fixturePayloads[input.referenceId] = [body("curation-edit-0001-text", { text: "Text read from the uploaded PDF. " + words(40) })];
+      return { ok: true, edits: [{ kind: "text", sortKey: "curation-edit-0001-text", via: "editor_pdf" }] };
+    }} onReview={save} referenceAttachments={attachments} references={references} reviewReasons={reasons} />
   </div>;
 }
 createRoot(document.getElementById("root")).render(<Fixture />);
@@ -233,6 +241,53 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await open(page, "r5");
       assert.equal(await page.locator("[data-capture-correct]").count(), 0);
+    } finally { await browser.close(); }
+  },
+
+  /** "Upload a PDF": the file is stored as an attachment of the Reference, then correctReferenceCapture gets its id with the verdict. */
+  async upload_pdf() {
+    const pdf = { name: "paper.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fixture") };
+    for (const width of [375, 1440]) {
+      const { browser, page, errors } = await setup(width);
+      try {
+        await open(page, "r5");
+        const panel = review(page).locator("xpath=ancestor::*[.//*[@data-capture-panel]][1]").locator("[data-capture-panel]");
+        await panel.locator("[data-capture-upload]").click();
+        const input = panel.locator("[data-capture-upload-input]");
+        assert.equal(await input.getAttribute("accept"), "application/pdf");
+        // A verdict comes first, as with pasted text; choosing a file without one does nothing.
+        await panel.locator("[data-capture-upload-choose]").click({ force: true });
+        assert.ok(await panel.locator("[data-capture-upload-reason]").isVisible());
+        await panel.locator("[data-capture-assessment=incomplete]").click();
+        await input.setInputFiles(pdf);
+        await panel.locator("[data-capture-correction-saved]").waitFor();
+        assert.deepEqual(await page.evaluate(() => (window as unknown as { fixtureUploads: unknown[] }).fixtureUploads), [{ ownerKind: "reference", ownerId: "r5-v1", role: "curation-upload-pdf", mediaType: "application/pdf", filename: "paper.pdf", byteSize: pdf.buffer.length }]);
+        assert.deepEqual(await page.evaluate(() => (window as unknown as { fixtureCorrections: unknown[] }).fixtureCorrections), [{ referenceId: "r5-v1", pdfAttachmentId: "upload-1", assessment: "incomplete" }]);
+        assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("Text read from the uploaded PDF"), "the panel shows the new text");
+        assert.equal((await panel.locator("[data-capture-from-pdf]").innerText()).trim(), "Text from a PDF you uploaded");
+        assert.ok((await panel.locator("[data-capture-assessment-note]").innerText()).includes("incomplete"));
+        assert.deepEqual(errors, []);
+        await closeDetail(page, width);
+        // The server refuses a scan: the reason shows in words and nothing is shown as replaced.
+        await page.evaluate(() => { (window as unknown as { fixtureReadFails: boolean }).fixtureReadFails = true; });
+        await open(page, "r6");
+        const second = review(page).locator("xpath=ancestor::*[.//*[@data-capture-panel]][1]").locator("[data-capture-panel]");
+        await second.locator("[data-capture-upload]").click();
+        await second.locator("[data-capture-assessment=incorrect]").click();
+        await second.locator("[data-capture-upload-input]").setInputFiles(pdf);
+        assert.ok((await second.locator("[data-capture-upload-error]").innerText()).includes("looks like a scan"));
+        assert.equal(await second.locator("[data-capture-from-pdf]").count(), 0);
+        // A failed upload reads in words too.
+        await page.evaluate(() => { (window as unknown as { fixtureUploadFails: boolean }).fixtureUploadFails = true; });
+        await second.locator("[data-capture-upload-input]").setInputFiles(pdf);
+        assert.ok((await second.locator("[data-capture-upload-error]").innerText()).includes("Attachment upload failed"));
+      } finally { await browser.close(); }
+    }
+    // Without the correction action there is no upload button.
+    const { browser, page } = await setup(1440, "?nocorrect=1");
+    try {
+      await open(page, "r5");
+      assert.equal(await page.locator("[data-capture-upload]").count(), 0);
     } finally { await browser.close(); }
   },
 

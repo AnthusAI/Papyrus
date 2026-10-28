@@ -69,6 +69,7 @@ for (const action of [
   "the editor opens each of them",
   "the editor opens the full-text one at 375 pixels and shows all of the captured text",
   "the editor chooses Paste or correct the text, pastes the article and marks the capture complete",
+  "the editor chooses Upload a PDF, marks the capture incomplete and chooses a PDF, at 375 and 1440 pixels",
   "the editor accepts on the grid card and then types a reason in the detail pane",
   "the editor types a reason in the detail pane before voting, then votes",
   "the editor rejects on the card and chooses the reason in the detail pane",
@@ -84,6 +85,10 @@ const syncOutcomes = [
   ["correct_capture", [
     "correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run",
     "a verdict alone is saved as just a label, and nothing can be saved without a verdict",
+  ]],
+  ["upload_pdf", [
+    "the PDF is stored as an attachment of the Reference, correctReferenceCapture receives its id and the verdict, and the record shows the new text with the line \"Text from a PDF you uploaded\"",
+    "a refusal from the server and a failed upload each show in words, and no upload button appears without the correction action",
   ]],
   ["capture_status", [
     "the title comes first, then the source's own blurb when it has one, the link, the badges and the summary, then Accept and Reject with the Why box",
