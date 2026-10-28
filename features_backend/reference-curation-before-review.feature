@@ -94,6 +94,19 @@ Feature: References are curated before an editor reviews them
     And the label records that the original capture was "incomplete" with its signals
     And the summary is marked stale until the next curation run
 
+  Scenario: An editor uploads the PDF they downloaded and its text becomes the Reference's text
+    Given the curation procedure has run for the Reference
+    When the editor "editor-one" uploads a PDF of a research paper and labels the capture "incomplete"
+    Then the PDF's text is stored as version 1 "edited by editor" by "editor-one", marked as coming from an uploaded PDF
+    And the original captured text is unchanged
+    And the card says whether it is a research paper, so the next curation run can decide on GROBID
+    And the summary is marked stale until the next curation run
+
+  Scenario: An upload that cannot give us text is refused in plain words and changes nothing
+    Given the curation procedure has run for the Reference
+    When the editor uploads a file that is not a PDF, a PDF with no text, or a PDF uploaded to another Reference
+    Then each is refused saying what is wrong, and the card still shows the original text
+
   Scenario: The next curation run summarizes the corrected text and never recaptures over it
     Given the curation procedure has run for the Reference
     And the editor "editor-one" pasted the full text "The complete article, pasted by an editor." and labeled the capture "incorrect"

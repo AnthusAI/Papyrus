@@ -76,7 +76,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given a source home page that declares its icons
     When the newsroom looks for that source's icon
     Then it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons
-    And it falls back to /favicon.ico only when that is more than an empty placeholder
+    And it falls back to the site's favicon.ico only when that is more than an empty placeholder
     And only real host names that resolve to public addresses are ever fetched
 
   Scenario: The page shows its shell and card skeletons at once, never a checking screen
@@ -151,6 +151,12 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor chooses Paste or correct the text, pastes the article and marks the capture complete
     Then correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run
     And a verdict alone is saved as just a label, and nothing can be saved without a verdict
+
+  Scenario: An editor uploads the PDF they downloaded when the source sits behind a bot wall
+    Given a Reference with no captured text
+    When the editor chooses Upload a PDF, marks the capture incomplete and chooses a PDF, at 375 and 1440 pixels
+    Then the PDF is stored as an attachment of the Reference, correctReferenceCapture receives its id and the verdict, and the record shows the new text with the line "Text from a PDF you uploaded"
+    And a refusal from the server and a failed upload each show in words, and no upload button appears without the correction action
 
   Scenario: On a phone, a swipe anywhere in the detail scrolls the page, never a box inside it
     Given References where one has full stored text, one only a teaser, and one nothing but its link

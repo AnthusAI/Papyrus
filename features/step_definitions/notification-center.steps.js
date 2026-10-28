@@ -37,7 +37,7 @@ const scenarios = [
       "before anything is selected there is no Detail pane and the feed has the whole width",
       "nothing is moved, answered, rated or decided, and each card says what happens if it is left alone"]],
   ["deepLink", "the editor opens a Reference, and later follows a link to it, and a link to an item that is no longer waiting",
-    ["opening an item shows /needs-me/<its id> in the address, and closing it on a phone returns the address to the overview",
+    ["opening an item shows its needs-me address with its id, and closing it on a phone returns the address to the overview",
       "a link to an item opens the feed with that item in the detail pane, on a desktop and on a phone",
       "a link to an item that is not waiting any more says so, with no empty pane"]],
   ["reasonDraft", "the editor accepts a draft and then writes its Why, writes a Why and then rejects another, closes the request, and changes a Why afterwards",

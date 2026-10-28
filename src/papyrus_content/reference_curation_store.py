@@ -138,6 +138,12 @@ class AttachmentStore:
         attachment = self.client.get_record("ModelAttachment", model_attachment_id("reference", reference["id"], BODY_ROLE, sort_key))
         return download_attachment_buffer(self.client, attachment) if attachment else None
 
+    def get_attachment(self, attachment_id: str) -> dict[str, Any] | None:
+        return self.client.get_record("ModelAttachment", attachment_id)
+
+    def download(self, attachment: dict[str, Any]) -> bytes | None:
+        return download_attachment_buffer(self.client, attachment)
+
     def read_text(self, reference: dict[str, Any], sort_key: str) -> str | None:
         body = self.read(reference, sort_key)
         return body.decode("utf-8") if body is not None else None
@@ -157,6 +163,44 @@ def current_text(card: dict[str, Any], reference: dict[str, Any], store: Attachm
 
 
 # --- editor corrections ----------------------------------------------------------------------------------------------
+
+EDITOR_PDF_VIA = "editor_pdf"
+EDITOR_PDF_ROLE = "curation-upload-pdf"
+# The same ceiling the capture's own PDF reader uses (ideas.source_text.MAXIMUM_PDF_BYTES): a PDF the pipeline would not read from the
+# web is not read from an upload either, and the content-actions Lambda (1 GB, 60 s) reads a file of this size comfortably.
+def _maximum_pdf_bytes() -> int:
+    from .ideas.source_text import MAXIMUM_PDF_BYTES
+
+    return MAXIMUM_PDF_BYTES
+
+
+def text_from_uploaded_pdf(reference: dict[str, Any], attachment_id: Any, store: AttachmentStore) -> tuple[str, dict[str, Any]]:
+    """The text of a PDF the editor uploaded as a ModelAttachment of this Reference, read with the one general extractor.
+
+    Returns (text, facts for the edit record). Refuses, in plain words, a missing or foreign attachment, a file that is not a PDF, one
+    that is too large, and one with no text layer (a scan).
+    """
+    from . import pdf_text, reference_capture
+
+    if not isinstance(attachment_id, str) or not attachment_id.strip():
+        raise CurationError("pdfAttachmentId must be the id of the uploaded PDF.")
+    attachment = store.get_attachment(attachment_id)
+    if not attachment or attachment.get("ownerKind") != "reference" or attachment.get("ownerId") != reference["id"]:
+        raise CurationError("That PDF was not uploaded to this Reference.")
+    if (attachment.get("byteSize") or 0) > _maximum_pdf_bytes():
+        raise CurationError(f"That PDF is larger than we read ({_maximum_pdf_bytes() // 1_000_000} MB). Paste the text instead.")
+    body = store.download(attachment)
+    if not body or not pdf_text.is_pdf_bytes(body):
+        raise CurationError("That file is not a PDF.")
+    if len(body) > _maximum_pdf_bytes():
+        raise CurationError(f"That PDF is larger than we read ({_maximum_pdf_bytes() // 1_000_000} MB). Paste the text instead.")
+    try:
+        text, facts = reference_capture.pdf_to_text(body)
+    except Exception as error:  # pypdf raises several kinds for damaged or encrypted files
+        raise CurationError("That PDF could not be read. It may be damaged or password protected.") from error
+    if not text.strip():
+        raise CurationError("That PDF has no text we can read; it looks like a scan. Paste the text instead.")
+    return text, {"via": EDITOR_PDF_VIA, "pdfAttachmentId": attachment_id, "pdfFilename": attachment.get("filename"), **facts}
 
 
 def _validated_grobid_fields(fields: Any) -> dict[str, Any]:
@@ -188,6 +232,8 @@ def apply_editor_correction(
     note: str = "",
     now: datetime | None = None,
     store: AttachmentStore | None = None,
+    text_source: dict[str, Any] | None = None,
+    paper: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Store an editor's correction as a new version, keep the original, and record the label it gives.
 
@@ -195,7 +241,8 @@ def apply_editor_correction(
     same-named fields of the current extraction. ``assessment`` says whether the *machine capture* was ``complete``, ``incomplete`` or
     ``incorrect``; it is required with ``text`` because replacing the text is itself a judgment of the capture, and it is the training
     label for the future completeness classifier. A correction appends to ``edits`` and ``labels``; it never edits or deletes an earlier
-    body. The summary of replaced text is marked ``stale`` and is rewritten by the next ``papyrus references curate`` run.
+    body. ``text_source`` says where ``text`` came from when it was not typed (an uploaded PDF: ``via`` and the attachment id); it is
+    kept on the edit and as ``current.textVia``. ``paper`` is the paper detection for that text and replaces the card's. The summary of replaced text is marked ``stale`` and is rewritten by the next ``papyrus references curate`` run.
     """
     editor = (editor or "").strip()
     if not editor:
@@ -225,8 +272,14 @@ def apply_editor_correction(
         store.write(reference, sort_key, f"{sort_key}.md", "text/markdown", text, now)
         made.append({"n": number, "kind": "text", "sortKey": sort_key, "editedBy": editor, "editedAt": stamp, "provenance": EDITOR_PROVENANCE,
                      "basedOn": card["current"].get("textSortKey"), "originalSortKey": TEXT_SORT_KEY if original_text_sha else None,
-                     "sha256": sha256_text(text), "note": note})
+                     "sha256": sha256_text(text), "note": note, **(text_source or {})})
         card["current"]["textSortKey"] = sort_key
+        if text_source and text_source.get("via"):
+            card["current"]["textVia"] = text_source["via"]
+        else:
+            card["current"].pop("textVia", None)
+        if paper is not None:
+            card["paper"] = paper
         from .reference_capture import completeness_signals
 
         card["editedSignals"] = {**completeness_signals(text), "editedAt": stamp}
@@ -279,10 +332,11 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
                               now: Callable[[], datetime] = utc_now, store: AttachmentStore | None = None) -> dict[str, Any]:
     """The AppSync action ``correctReferenceCapture`` (content-actions Lambda): validated request in, stored correction out.
 
-    ``arguments`` holds ``referenceId`` and any of ``text``, ``grobid`` (object), ``assessment``, ``note``. The editor recorded is the
+    ``arguments`` holds ``referenceId`` and any of ``text``, ``grobid`` (object), ``assessment``, ``note``, or ``pdfAttachmentId`` (the
+    id of a PDF the editor uploaded to this Reference; its text replaces the capture's, instead of ``text``). The editor recorded is the
     signed-in caller (never a field of the request).
     """
-    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note"}:
+    if set(arguments) - {"referenceId", "text", "grobid", "assessment", "note", "pdfAttachmentId"}:
         raise CurationError("Unsupported correction fields; the editor is taken from the signed-in session.")
     reference_id = arguments.get("referenceId")
     if not isinstance(reference_id, str) or not _REFERENCE_ID.match(reference_id):
@@ -292,6 +346,17 @@ def correct_reference_capture(client: Any, arguments: dict[str, Any], identity: 
     if not isinstance(note, str) or len(note) > 4000:
         raise CurationError("note must be text of at most 4000 characters.")
     reference = find_reference(client, reference_id)
-    result = apply_editor_correction(client, reference, editor=editor, text=arguments.get("text"), grobid=arguments.get("grobid"),
-                                     assessment=arguments.get("assessment"), note=note, now=now(), store=store)
+    text, text_source, paper = arguments.get("text"), None, None
+    if arguments.get("pdfAttachmentId") is not None:
+        if text is not None:
+            raise CurationError("Send either the text or an uploaded PDF, not both.")
+        store = store or AttachmentStore(client)
+        text, text_source = text_from_uploaded_pdf(reference, arguments["pdfAttachmentId"], store)
+        from .reference_capture import detect_paper
+
+        # GROBID itself runs in `papyrus references curate`, which decides by `paper.isPaper`; this Lambda has no GROBID.
+        paper = detect_paper(str(reference.get("sourceUri") or ""), None, text=text)
+    result = apply_editor_correction(client, reference, editor=editor, text=text, grobid=arguments.get("grobid"),
+                                     assessment=arguments.get("assessment"), note=note, now=now(), store=store,
+                                     text_source=text_source, paper=paper)
     return {"ok": True, **result}
