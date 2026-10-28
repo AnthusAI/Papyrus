@@ -211,3 +211,35 @@ def step_no_posts(context):
 @then("the story is still waiting to be decided")
 def step_waiting(context):
     assert [d["routing"] for d in tw.discs(context.table_)] == ["collected"]
+
+
+@given('Tavily returns an arXiv HTML page titled "1 Introduction" and an ordinary article')
+def step_arxiv_results(context):
+    context.web_rows = [{"url": "https://arxiv.org/html/2610.35725v1", "title": "1 Introduction"},
+                        {"url": "https://example.org/a", "title": "A story"}]
+
+
+@when("the results become items")
+def step_results_become_items(context):
+    from papyrus_content.monitoring_web import parse_results, with_paper_titles
+
+    context.arxiv_asked = []
+
+    def lookup(ids):
+        context.arxiv_asked.append(ids)
+        return {"2610.35725": "The Watchtower Imperative"}
+
+    items = parse_results(QUERY, context.web_rows)
+    context.web_titled = with_paper_titles(items, lookup)
+    context.web_unreached = with_paper_titles(items, lambda ids: {})
+
+
+@then("the arXiv item carries the paper's own title from arXiv in one request, and the article keeps its title")
+def step_arxiv_titled(context):
+    assert [item.title for item in context.web_titled] == ["The Watchtower Imperative", "A story"]
+    assert context.arxiv_asked == [["2610.35725"]]
+
+
+@then("if arXiv cannot be reached the search engine's title stands")
+def step_arxiv_unreached(context):
+    assert [item.title for item in context.web_unreached] == ["1 Introduction", "A story"]

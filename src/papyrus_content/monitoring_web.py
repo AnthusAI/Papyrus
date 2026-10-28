@@ -14,13 +14,17 @@ Imports stay light on purpose: stdlib, `link_search` (stdlib) and `monitoring` /
 """
 from __future__ import annotations
 
+import dataclasses
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import hashlib
 import json
+import re
 from typing import Callable
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
+from xml.etree import ElementTree
 
 from .link_search import TAVILY_ENDPOINT, SearchUnavailable, TavilySearch
 from .monitoring import SourceItem, canonical_url
@@ -122,6 +126,48 @@ def parse_results(query: str, results: list, query_id: str = "") -> list[SourceI
     return items
 
 
+ARXIV_API = "https://export.arxiv.org/api/query"
+_ARXIV_PATH = re.compile(r"^/(?:abs|pdf|html)/([a-z\-]+(?:\.[A-Z]{2})?/\d{7}|\d{4}\.\d{4,5})(?:v\d+)?(?:\.pdf)?/?$")
+_ATOM = "{http://www.w3.org/2005/Atom}"
+
+
+def arxiv_paper_id(url: str) -> str | None:
+    parts = urlsplit(url)
+    if not (parts.hostname or "").lower().endswith("arxiv.org"):
+        return None
+    match = _ARXIV_PATH.match(parts.path)
+    return match.group(1) if match else None
+
+
+def arxiv_titles(ids: list[str]) -> dict[str, str]:
+    """Paper titles from arXiv's own API, by id, in one request. Empty on any failure: the search engine's title then stands."""
+    if not ids:
+        return {}
+    request = Request(f"{ARXIV_API}?{urlencode({'id_list': ','.join(ids), 'max_results': len(ids)})}",
+                      headers={"User-Agent": "papyrus-monitoring"})
+    try:
+        with urlopen(request, timeout=TIMEOUT_SECONDS) as response:   # noqa: S310 - fixed https endpoint
+            feed = ElementTree.fromstring(response.read(MAX_RESPONSE_BYTES))
+    except (HTTPError, URLError, TimeoutError, ElementTree.ParseError, OSError):
+        return {}
+    titles = {}
+    for entry in feed.findall(f"{_ATOM}entry"):
+        found = arxiv_paper_id(entry.findtext(f"{_ATOM}id") or "")
+        title = " ".join((entry.findtext(f"{_ATOM}title") or "").split())
+        if found and title:
+            titles[found] = title[:1000]
+    return titles
+
+
+def with_paper_titles(items: list[SourceItem], lookup: Callable[[list[str]], dict[str, str]]) -> list[SourceItem]:
+    """arXiv's HTML pages are titled after their first section ("1 Introduction"), so the search engine reports that. An arXiv
+    result takes the paper's own title from arXiv instead."""
+    ids = {item.canonical_url: arxiv_paper_id(item.canonical_url) for item in items}
+    titles = lookup(sorted({paper for paper in ids.values() if paper}))
+    return [dataclasses.replace(item, title=titles[ids[item.canonical_url]]) if titles.get(ids[item.canonical_url] or "") else item
+            for item in items]
+
+
 def _day(moment: float) -> date:
     return datetime.fromtimestamp(moment, timezone.utc).date()
 
@@ -165,7 +211,8 @@ def searchable(record: dict) -> bool:
 
 
 def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dict], dict] | None,
-             known: Callable[[SourceItem], bool], stats: dict) -> dict:
+             known: Callable[[SourceItem], bool], stats: dict,
+             paper_titles: Callable[[list[str]], dict[str, str]] = arxiv_titles) -> dict:
     """All of a monitor's searchable queries as one feed (see `monitoring_paging.read_feed`). The cursor is self-contained
     (JSON): the pass's end time, the current query with its date window and the windows still to read, and the queries after
     it (each with its window), so a resumed pass needs nothing but the cursor. `stats[queryId]` collects what each query's
@@ -209,7 +256,7 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
 
     def items(rows):
         query_id, text, results = rows
-        return parse_results(text, results, query_id), False
+        return with_paper_titles(parse_results(text, results, query_id), paper_titles), False
 
     return {"key": "web", "fetch_page": fetch_page, "items": items, "stop_at_seen": False, "known": known}
 
