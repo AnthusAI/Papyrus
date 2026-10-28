@@ -20,7 +20,8 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-MODULES = ("__init__.py", "monitoring.py", "monitoring_cloud.py", "monitoring_huggingface.py")
+# The collector zip holds the import closure of these roots (computed, so a new module is never left out).
+COLLECTOR_ROOTS = ("monitoring_cloud", "monitoring", "monitoring_huggingface")
 ACCOUNT = "712236451410"
 OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring.zip"
 ROUTER_OUT = Path(__file__).resolve().parent / "dist" / "papyrus-monitoring-router.zip"
@@ -35,7 +36,7 @@ ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/papyrus-p
 def build(out: Path = OUT) -> str:
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name in sorted(MODULES):
+        for name in ["__init__.py", *(f"{module}.py" for module in package_modules(COLLECTOR_ROOTS))]:
             info = zipfile.ZipInfo(f"papyrus_content/{name}", date_time=(1980, 1, 1, 0, 0, 0))
             info.external_attr = 0o644 << 16
             info.compress_type = zipfile.ZIP_DEFLATED
