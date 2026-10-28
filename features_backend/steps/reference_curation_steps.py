@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from unittest import mock
 
 from behave import given, then, when
 
@@ -16,7 +17,7 @@ for path in (REPO_ROOT / "src", REPO_ROOT / "procedures" / "newsroom" / "tests")
 from curation_support import (  # noqa: E402
     NOW, MemoryClient, Grobid, Summarizer, article_html, page, paper_pdf, reference, services as build_services,
 )
-from papyrus_content import reference_curation as curation  # noqa: E402
+from papyrus_content import reference_curation as curation, youtube_transcript  # noqa: E402
 from papyrus_content.reference_curation_store import CurationError, apply_editor_correction, correct_reference_capture  # noqa: E402
 from pdf_fixtures import make_pdf  # noqa: E402
 
@@ -382,3 +383,59 @@ def _(context):
 def _(context):
     assert len(context.refusals) == 3 and all(len(message) > 20 for message in context.refusals), context.refusals
     assert card(context)["current"]["textSortKey"] == "curation-text" and card(context).get("edits") == []
+
+
+VIDEO_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+VIDEO_DESCRIPTION = "The speaker explains steerable feeds."
+VIDEO_TRANSCRIPT = "Today we talk about feeds. Editors steer the algorithm and the feed learns what they want."
+
+
+def _transcript(context, outcome):
+    patcher = mock.patch.object(youtube_transcript, "fetch_transcript", return_value=outcome)
+    patcher.start()
+    context.add_cleanup(patcher.stop)
+
+
+@given("the Reference is a YouTube video whose page only has a short description")
+def _(context):
+    context.ref = reference(sourceUri=VIDEO_URL)
+    context.client = MemoryClient([context.ref])
+    context.pages = {VIDEO_URL: page(f"<html><head><title>Talk</title><meta property='og:description' content='{VIDEO_DESCRIPTION}'></head><body></body></html>")}
+    context.services = None
+
+
+@given("YouTube gives the transcript of the video")
+def _(context):
+    _transcript(context, (VIDEO_TRANSCRIPT, None))
+
+
+@given("YouTube blocks the request for the transcript")
+def _(context):
+    _transcript(context, (None, "blocked"))
+
+
+@given("the video has no transcript")
+def _(context):
+    _transcript(context, (None, "no_transcript"))
+
+
+@then("the card's text is the video's transcript and not the short description")
+def _(context):
+    assert svc(context).store.text(context.ref, "curation-text") == VIDEO_TRANSCRIPT
+
+
+@then("the card's text is the video's short description")
+def _(context):
+    assert svc(context).store.text(context.ref, "curation-text") == VIDEO_DESCRIPTION
+
+
+@then("the capture records that the text came from the YouTube transcript")
+def _(context):
+    capture = card(context)["capture"]
+    assert capture["textVia"] == "youtube_transcript" and "textReason" not in capture
+
+
+@then('the capture records that the text came from the video description because the transcript was "{reason}"')
+def _(context, reason):
+    capture = card(context)["capture"]
+    assert capture["textVia"] == "youtube_description" and capture["textReason"] == reason

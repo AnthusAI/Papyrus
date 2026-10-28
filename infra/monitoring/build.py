@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import ast
 import hashlib
+import importlib
 from pathlib import Path
 import subprocess
 import sys
@@ -30,6 +31,10 @@ PACKAGE = ROOT / "src" / "papyrus_content"
 ROUTER_ROOTS = ("monitoring_router", "monitoring_intake", "editorial_context", "graphql_authoring", "graphql_http")
 # Imported lazily on paths the router never runs; they need packages the Lambda does not have.
 ROUTER_EXCLUDED = frozenset({"web_structured_metadata", "biblicus_runner"})
+# Pure-Python packages copied into the worker zips (the Lambda runtime has boto3/botocore only): PyYAML, then youtube-transcript-api and
+# everything it imports. Compiled extensions are left out; each package runs in its pure-Python mode.
+VENDORED = ("yaml", "youtube_transcript_api", "defusedxml", "requests", "urllib3", "idna", "certifi", "charset_normalizer")
+VENDORED_DATA = frozenset({".py", ".pem"})
 ROUTER_DATA = ("corpora/papyrus-semantic-relation-types.yml", "corpora/papyrus-publication-doctrine.yml")
 
 
@@ -93,20 +98,23 @@ def _add(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
 
 
 def build_package(out: Path, roots) -> str:
-    """Worker zip: package modules, the two YAML data files they read, and pure-Python PyYAML.
+    """Worker zip: package modules, the two YAML data files they read, and the pure-Python VENDORED packages.
 
     The Lambda runtime has boto3/botocore only. PyYAML is copied without its C extension, so it
     runs in its pure-Python mode on arm64. PAPYRUS_ROOT=/var/task makes `corpora/` resolve.
     """
-    import yaml
 
     out.parent.mkdir(parents=True, exist_ok=True)
     entries = {f"papyrus_content/{name}.py": (PACKAGE / f"{name}.py").read_bytes() for name in package_modules(roots)}
     entries["papyrus_content/__init__.py"] = (PACKAGE / "__init__.py").read_bytes()
     for relative in ROUTER_DATA:
         entries[relative] = (ROOT / relative).read_bytes()
-    for path in Path(yaml.__file__).parent.glob("*.py"):
-        entries[f"yaml/{path.name}"] = path.read_bytes()
+    for name in VENDORED:
+        root = Path(importlib.import_module(name).__file__).parent
+        for path in root.rglob("*"):
+            relative = path.relative_to(root)
+            if path.suffix in VENDORED_DATA and "test" not in relative.parts and "__pycache__" not in relative.parts:
+                entries[f"{name}/{relative.as_posix()}"] = path.read_bytes()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
         for name in sorted(entries):
             _add(archive, name, entries[name])

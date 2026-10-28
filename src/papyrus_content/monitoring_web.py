@@ -233,8 +233,9 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
         start, end = stack.pop()
         payload = {"query": current["text"], "topic": config["topic"], "search_depth": "basic", "include_answer": False,
                    "max_results": TAVILY_PAGE_LIMIT}
-        if start:
-            payload.update(start_date=start, end_date=end)
+        if start:   # Tavily refuses a range that starts and ends on one day, so a one-day window also asks the day before
+            first = (date.fromisoformat(start) - timedelta(days=1)).isoformat() if start == end else start
+            payload.update(start_date=first, end_date=end)
         response = fetch(payload)
         results = response["results"]
         used = stats.setdefault(current["id"], {"requests": 0, "resultsReturned": 0, "credits": 0, "windows": []})

@@ -39,6 +39,33 @@ def step_narrower(context):
     assert len(context.tavily.calls) > 1 and all(c["start_date"] <= c["end_date"] for c in context.tavily.calls)
 
 
+@given("a web monitor for anth-us with one approved query last searched yesterday")
+def step_busy_day_monitor(context):
+    context.table_, context.tavily = tw.web_table(), tw.FakeTavily()
+    tw.set_high_water(context.table_, QUERY, NOW - DAY)
+
+
+@given("Tavily holds thirty matching articles from today")
+def step_thirty_today(context):
+    context.tavily.articles = [tw.article(n, tw.day(0)) for n in range(30)]
+
+
+@then("the monitor narrowed the dates down to a single day")
+def step_single_day(context):
+    first, *narrower = context.tavily.calls   # today alone is asked as yesterday to today
+    assert first["start_date"] == tw.day(-2) and any(c["start_date"] == tw.day(-1) and c["end_date"] == tw.day(0) for c in narrower)
+
+
+@then("no range Tavily was asked starts and ends on the same day, which Tavily refuses")
+def step_no_single_day(context):
+    assert all(c["start_date"] < c["end_date"] for c in context.tavily.calls)
+
+
+@then("today's articles are recorded")
+def step_today_recorded(context):
+    assert context.result["new"] >= 20
+
+
 @given("a web monitor for anth-us whose query completed a pass on 21 October")
 def step_completed(context):
     context.table_, context.tavily = tw.web_table(), tw.FakeTavily(tw.article(1, tw.day(-1)))
