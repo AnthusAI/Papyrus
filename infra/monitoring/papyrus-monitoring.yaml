@@ -295,6 +295,26 @@ Resources:
         DeadLetterConfig:
           Arn: !GetAtt ScheduleDeadLetterQueue.Arn
 
+  WebCollectSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-collect
+      Description: >-
+        Run every web-search monitor (web-<publication>) whose stored next-due time has passed, the longest-overdue first, sharing
+        one pass's read time. A monitor that is disabled, not yet seeded or not due is skipped.
+      ScheduleExpression: rate(5 minutes)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt CollectorFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"sourceType":"web-search","monitorIds":["web-anth-us","web-p-apyr-us","web-threat-intelligence","web-data-parade","web-pilobol-us","web-shipped","web-distinctive"]}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 3
+        DeadLetterConfig:
+          Arn: !GetAtt ScheduleDeadLetterQueue.Arn
+
   CollectorErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -873,6 +893,132 @@ Resources:
         Arn: !GetAtt RouterFunction.Arn
         RoleArn: !GetAtt RouterScheduleRole.Arn
         Input: '{"monitorId":"huggingface"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebAnthUsRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-anth-us-route
+      Description: Run the web-anth-us router hourly at minute 3; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(3 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-anth-us"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebPApyrUsRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-p-apyr-us-route
+      Description: Run the web-p-apyr-us router hourly at minute 10; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(10 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-p-apyr-us"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebThreatIntelligenceRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-threat-intelligence-route
+      Description: Run the web-threat-intelligence router hourly at minute 20; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(20 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-threat-intelligence"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebDataParadeRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-data-parade-route
+      Description: Run the web-data-parade router hourly at minute 27; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(27 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-data-parade"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebPilobolUsRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-pilobol-us-route
+      Description: Run the web-pilobol-us router hourly at minute 33; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(33 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-pilobol-us"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebShippedRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-shipped-route
+      Description: Run the web-shipped router hourly at minute 47; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(47 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-shipped"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 600
+          MaximumRetryAttempts: 1
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
+  WebDistinctiveRouteSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-web-distinctive-route
+      Description: Run the web-distinctive router hourly at minute 57; it enriches and, unless holdDecisions is set, routes in the mode stored in the table.
+      ScheduleExpression: cron(57 * * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"monitorId":"web-distinctive"}'
         RetryPolicy:
           MaximumEventAgeInSeconds: 600
           MaximumRetryAttempts: 1

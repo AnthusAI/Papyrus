@@ -53,6 +53,8 @@ class ReferenceIntake:
         d = item.details
         if not d:
             return ""
+        if "query" in d:    # a web-search result
+            return f" Found by the web search \u201c{d['query']}\u201d."
         parts = [d.get("pipelineTag"), f"license {d['license']}" if d.get("license") else None,
                  f"{d['likes']} likes", "built on " + ", ".join(b["modelId"] for b in d["baseModels"][:3]) if d.get("baseModels") else None]
         text = "; ".join(p for p in parts if p)
