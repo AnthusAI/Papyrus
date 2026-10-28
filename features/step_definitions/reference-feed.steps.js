@@ -166,3 +166,12 @@ for (const text of [
   "a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is",
   "only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network",
 ]) Then(text, function () { assert.match(this.frameableResult, /source frameable check: ok/); });
+
+// Paging: scripts/test-newsroom-all-pages.ts drives the loader the feed uses with three overlapping pages and a looping token.
+Given("a newsroom with more References than one page of the backend's list holds", function () { this.pagingResult = ""; });
+When("the editor opens the References feed", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
+for (const then of [
+  "the feed reads page after page until the backend says there are no more",
+  "each Reference appears once even when two pages overlap",
+  "a page token that repeats stops the read with a message instead of looping",
+]) Then(then, function () { assert.match(this.pagingResult, /newsroom all-pages: ok/); });

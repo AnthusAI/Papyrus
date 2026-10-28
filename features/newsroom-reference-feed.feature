@@ -168,3 +168,10 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the newsroom checks whether it may show that page in a frame
     Then a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is
     And only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network
+
+  Scenario: The feed holds every Reference, not just the first page the backend returns
+    Given a newsroom with more References than one page of the backend's list holds
+    When the editor opens the References feed
+    Then the feed reads page after page until the backend says there are no more
+    And each Reference appears once even when two pages overlap
+    And a page token that repeats stops the read with a message instead of looping

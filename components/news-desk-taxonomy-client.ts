@@ -1,6 +1,7 @@
 "use client";
 
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
+import { loadAllPages } from "../lib/newsroom-all-pages";
 import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
@@ -1651,20 +1652,24 @@ export async function loadEditorReferencesData(): Promise<{
         referenceAttachments,
       };
     }
-    const referencePage = await loadNewsroomReferencePage();
     return {
-      references: referencePage.items,
+      references: await loadAllNewsroomReferences(),
       referenceAttachments,
     };
   }
-  const [referencePage, referenceAttachments] = await Promise.all([
-    loadNewsroomReferencePage(),
+  const [references, referenceAttachments] = await Promise.all([
+    loadAllNewsroomReferences(),
     listUserPoolModel<ReferenceAttachmentRecord>("ReferenceAttachment"),
   ]);
   return {
-    references: referencePage.items,
+    references,
     referenceAttachments: referenceAttachments.sort((left, right) => left.sortKey.localeCompare(right.sortKey)),
   };
+}
+
+/** Every reference, page by page: the References feed ranks the whole set, so stopping at the first page hid most of it. */
+function loadAllNewsroomReferences(): Promise<ReferenceRecord[]> {
+  return loadAllPages((nextToken) => loadNewsroomReferencePage({ nextToken }));
 }
 
 export function normalizeNewsroomReferencePageOrder(value?: string | null): NewsroomReferencePageOrder {
