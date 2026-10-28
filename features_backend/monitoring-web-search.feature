@@ -13,6 +13,14 @@ Feature: Web-search monitors find new references for each publication through Ta
     Then all seventy articles are recorded
     And the monitor asked Tavily for narrower date ranges until no range filled a page
 
+  Scenario: A busy single day is still asked as a range Tavily accepts
+    Given a web monitor for anth-us with one approved query last searched yesterday
+    And Tavily holds thirty matching articles from today
+    When the web monitor collects
+    Then the monitor narrowed the dates down to a single day
+    And no range Tavily was asked starts and ends on the same day, which Tavily refuses
+    And today's articles are recorded
+
   Scenario: An arXiv paper is titled by arXiv, not by its first section heading
     Given Tavily returns an arXiv HTML page titled "1 Introduction" and an ordinary article
     When the results become items
