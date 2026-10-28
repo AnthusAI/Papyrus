@@ -312,7 +312,7 @@ open weights). Sampled from the live Hub on 2026-10-25: it receives about 3,600 
 Recommended `shipped-huggingface-router.json` (a watchlist name that does not exist on the Hub just returns nothing):
 
 ```json
-{"mode": "dry-run", "decisions": "direct", "feedback": false,
+{"mode": "dry-run", "decisions": "direct",
  "rule": {"authors": ["Qwen", "meta-llama", "google", "microsoft", "mistralai", "deepseek-ai", "nvidia", "openai", "allenai",
                       "HuggingFaceTB", "ibm-granite", "moonshotai", "zai-org", "MiniMaxAI", "CohereLabs", "LiquidAI", "openbmb",
                       "hexgrad", "ResembleAI", "canopylabs", "SparkAudio", "fishaudio", "kyutai", "nari-labs"],
@@ -579,7 +579,7 @@ aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk"
 `docs/monitoring-router-config.example.json`; seeded with `infra/monitoring/seed_router_config.py`.
 
 ```json
-{"mode": "dry-run|live", "feedback": false, "enabled": true,
+{"mode": "dry-run|live", "enabled": true,
  "publications": [{"publicationId": "...", "site": "...", "appsyncEndpoint": "https://<id>.appsync-api.<region>.amazonaws.com/graphql",
                    "corpusId": "knowledge-corpus-<publicationId> (default)"}],
  "cyclotron": {"endpoint": "https://<id>.execute-api.<region>.amazonaws.com", "accountId": "...", "runId": "...",
@@ -639,8 +639,9 @@ onto each delivered Reference) -> the post-delivery `papyrus.reference.curate` p
   decision proceeds. Any other outcome is final at once. An unexpected bug is recorded on the row (`errors`) and also proceeds.
   Lambda time is the only other bound: with less than `MIN_REMAINING_SECONDS` left, enrichment continues next run (nothing is
   posted for that item meanwhile). Finished stages are never repeated.
-- **The decide payload.** `item.values` = `{title, url, source, sourceItemUrl, summary, body, text}` where `body` is the full
-  captured text and `text = title + "\n" + url + "\n\n" + summary + "\n\n" + body`. A part that does not exist (no summary,
+- **The decide payload.** `item.values` = `{title, url, source, sourceItemUrl, summary, text}` where
+  `text = title + "\n" + url + "\n\n" + summary + "\n\n" + <full captured text>`. The captured text travels only inside `text`
+  (Cyclotron reads only `text`; a separate `body` value would send the article twice and is refused). A part that does not exist (no summary,
   no capture) is left out, and `text` falls back to `title\nurl`, the previous shape. The router sets no length limit of its own;
   Cyclotron applies its own input policy.
 - **Delivery copy.** After a Reference is delivered, `copy_curation` writes the item's curation onto it in the shape #797 uses: a
@@ -688,7 +689,7 @@ the runner.
 
 ## Feedback
 
-Only when `mode` is `live` **and** `feedback` is `true`. For each `DELIV#` row still pending
+Always, when `mode` is `live` and the monitor's decisions come from Cyclotron (there is no feedback switch; a `feedback` field left in a stored config is ignored and logged as retired; `direct` and `hold` monitors have nothing to correct). For each `DELIV#` row still pending
 (all of them, rotated to the back as they are checked) the router reads the Reference. `pending` is ignored. `accepted` maps to
 `include` and `rejected` to `exclude` for that publication's output. The editor comes from
 `curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
@@ -758,11 +759,11 @@ its signed GET.
 
 ## Operating the router
 
-- Seed: `seed_router_config.py --table TABLE --file router.json` (starts as `dry-run`, `feedback: false`).
+- Seed: `seed_router_config.py --table TABLE --file router.json` (starts as `dry-run`).
 - **Flip to live** (data change, no deploy): `seed_router_config.py --table TABLE --set mode=live`.
   Dry-run receipts are harmless; `dry-run-validated` items are processed as live items.
-- **Enable feedback** (after the Cyclotron operators approve the editor claim): `--set feedback=true`.
-  Disable with `feedback=false`; back to dry-run with `mode=dry-run`; stop entirely with `enabled=false`
+- **Feedback** needs no setting: editors' Accept/Reject is always sent for Cyclotron-decided monitors in live mode.
+  Back to dry-run with `mode=dry-run` (feedback stops with it); stop entirely with `enabled=false`
   or `ScheduleState=DISABLED`.
 - Reconcile an `uncertain` item: check Cyclotron for its `requestId` (in `ROUTE#...`.`jobs`, or `combinedJob` for a combined request), then
   delete that `jobs` entry or `combinedJob` or set the discovery back to `routing=collected` with
@@ -779,7 +780,7 @@ Editors and admins read this pipeline in the newsroom at **Administration, Monit
 collector and router runs, the collected queue with each item's routing state, what the shared
 Cyclotron judged relevant to the viewing publication (with confidence, where the Cyclotron reports
 one) and whether it reached that publication's References queue (with a link), the router mode
-(live or dry run, feedback on or off) and observed decision counts.
+(live or dry run) and whether editor feedback is sent and observed decision counts.
 
 The page covers only the monitors whose `CONFIG#router` `publications` include the viewing site's
 publication (found by its AppSync endpoint). Other monitors are named in a collapsed "Not routed to

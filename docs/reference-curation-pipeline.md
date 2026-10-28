@@ -126,7 +126,7 @@ and editors rate exactly what was decided, with no second revision:
 ```
 collector discovers (title, URL)
   -> router ENRICH, once per item  (capture -> signals -> summary -> GROBID if configured)   [ENRICH# row + S3]
-  -> router DECIDE on item.values {title, url, source, sourceItemUrl, summary, body, text}
+  -> router DECIDE on item.values {title, url, source, sourceItemUrl, summary, text}
   -> router DELIVER: a pending Reference per included publication, with the item's curation COPIED onto it
   -> (async) papyrus.reference.curate  only fills per-site gaps (none expected)
 ```
@@ -139,7 +139,7 @@ collector discovers (title, URL)
   bodies on each delivered Reference version, so section 3 below describes what the newsroom panel shows, and
   `plan_stages` finds the Reference `already_curated`. A Reference whose item was captured transiently-failed, or a paper while
   GROBID was not configured, is exactly what the procedure may still fill in (typed skips stay skips unless a service appears).
-* **Decide payload.** `summary` is the card's summary text; `body` is the full captured text; `text` is
+* **Decide payload.** `summary` is the card's summary text; the full captured text goes only inside `text`, never as its own value; `text` is
   `title \n url \n\n summary \n\n body` (absent parts left out). The router sets no length limit of its own and always sends the whole body; the stored capture and the copy on the Reference stay whole too.
 * **Never wait forever.** One attempt, transient failures retried on later runs (three attempts in all), then the decision
   proceeds with whatever exists. A capture failure is a typed status, not a stop.

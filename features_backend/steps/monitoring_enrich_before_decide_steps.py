@@ -83,18 +83,18 @@ def step_status_reason(context, status, reason):
 @then("every decision request was sent after the enrichment finished")
 def step_after(context):
     assert context.table_.items[ROW]["final"] is True and context.cyclotron.posts()
-    assert context.table_.items[ROW]["completedAt"] and all(v["body"] for v in values(context))
+    assert context.table_.items[ROW]["completedAt"] and all(v["text"] for v in values(context))
 
 
-@then("each decision request carries the summary and the full captured text")
+@then("each decision request carries the summary and the full captured text inside its text")
 def step_payload(context):
-    assert values(context) and all(v["summary"] == te.SUMMARY and v["body"] == context.article for v in values(context))
+    assert values(context) and all(v["summary"] == te.SUMMARY and "body" not in v and v["text"].endswith(context.article) for v in values(context))
 
 
 @then("the request text is the title, the address, the summary and the captured text")
 def step_text(context):
     for v in values(context):
-        assert v["text"] == f"{v['title']}\n{v['url']}\n\n{v['summary']}\n\n{v['body']}"
+        assert v["text"] == f"{v['title']}\n{v['url']}\n\n{v['summary']}\n\n{context.article}"
 
 
 @then('every delivered Reference has a "{status}" curation card holding the summary the lab was given')
@@ -107,7 +107,7 @@ def step_card(context, status):
 @then("every delivered Reference holds the same captured text the lab was given")
 def step_copy(context):
     for store, reference in zip(context.stores, context.references):
-        assert store.text(reference, "curation-text") == values(context)[0]["body"]
+        assert store.text(reference, "curation-text") == context.article
 
 
 @then("the post-delivery curation has nothing left to do")
@@ -135,9 +135,9 @@ def step_waiting(context):
     assert row["final"] is False and row["nextAttemptAt"] > 2000
 
 
-@then("every decision request carries the whole body and the matching text")
+@then("every decision request carries the whole body once, inside its text")
 def step_whole_body(context):
-    assert values(context) and all(v["body"] == context.article and v["text"].endswith(context.article) and v["summary"] == te.SUMMARY
+    assert values(context) and all("body" not in v and v["text"].endswith(context.article) and v["summary"] == te.SUMMARY
                                    for v in values(context))
 
 

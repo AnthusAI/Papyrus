@@ -7,7 +7,7 @@ Feature: The Monitoring page shows the automated research pipeline to editors
     When an editor of "anth-us" opens the monitoring overview
     Then the feed "hn" is watched on a 15 minute schedule and is enabled
     And the recent runs list the newest first with new, unchanged and error counts
-    And the router is live with feedback on
+    And the router is live and sends editor feedback
     And usage reports 2 decisions today and 3 recorded decisions in inspected history without quotas
     And the queue shows only relevance for "anth-us"
     And the item "Quantum paper on arXiv" is relevant with confidence 0.91 and reached the References queue

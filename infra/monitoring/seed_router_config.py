@@ -3,10 +3,10 @@
 
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --file router.json [--replace]
   AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set mode=live
-  AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set feedback=true
+  AWS_PROFILE=papyrus-production python3 infra/monitoring/seed_router_config.py --table TABLE --set enabled=false
 `--file` is a JSON document of the shape in docs/monitoring-cloud.md (example:
 docs/monitoring-router-config.example.json). `--set` changes one top-level field of the stored
-item (mode, feedback, enabled). Every write is validated with the Lambda's own
+item (mode, enabled; editor feedback is not config: it is always sent for Cyclotron-decided live monitors). Every write is validated with the Lambda's own
 validator, so a config the router would refuse is never stored. Each publication may set `criteriaSince`
 (fallback only, used when a criteria fingerprint is unknown: earliest binding revision whose criteria match the
 current ones; default = current revision; otherwise the criteriaFingerprint comparison decides): editor feedback
@@ -26,13 +26,13 @@ ACCOUNT = "712236451410"
 
 
 def coerce(key: str, value: str):
-    if key in ("feedback", "enabled"):
+    if key == "enabled":
         if value not in ("true", "false"):
             raise ValueError(f"{key} must be true or false")
         return value == "true"
     if key == "mode":
         return value
-    raise ValueError(f"--set supports mode, feedback and enabled, not {key}")
+    raise ValueError(f"--set supports mode and enabled, not {key}")
 
 
 def main() -> int:
@@ -59,7 +59,7 @@ def main() -> int:
         except table.meta.client.exceptions.ConditionalCheckFailedException:
             print("Router config already exists; pass --replace to overwrite", file=sys.stderr)
             return 1
-        print(f"Seeded {key['pk']} {key['sk']} (mode {item['mode']}, feedback {item.get('feedback') is True})")
+        print(f"Seeded {key['pk']} {key['sk']} (mode {item['mode']})")
         return 0
     stored = table.get_item(Key=key, ConsistentRead=True).get("Item")
     if not stored:

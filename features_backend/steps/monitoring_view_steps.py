@@ -107,7 +107,7 @@ def runs_listed(context):
     assert context.overview["routerRuns"][0]["stoppedBy"] == "request_ceiling_reached"
 
 
-@then("the router is live with feedback on")
+@then("the router is live and sends editor feedback")
 def router_state(context):
     router = context.overview["router"]
     assert router["mode"] == "live" and router["feedback"] is True and router["enabled"] is True
