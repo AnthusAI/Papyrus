@@ -12,9 +12,14 @@ queries (`papyrus monitors web-queries`) are reviewed first.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from .monitoring_web import DEFAULT_INTERVAL_SECONDS, TAVILY_SOURCE_URL, WEB_SEARCH
 
-SHARED_CYCLOTRON = ("anth-us", "p-apyr-us", "threat-intelligence", "data-parade", "pilobol-us", "shipped")
+#: Which publications have a web monitor, and which of them have no Cyclotron yet: configuration, not code.
+_PUBLICATIONS = json.loads((Path(__file__).resolve().parents[2] / "config" / "web-monitors.json").read_text())
+SHARED_CYCLOTRON = tuple(_PUBLICATIONS["sharedCyclotron"])
 DISTINCTIVE = "distinctive"
 WEB_PUBLICATIONS = (*SHARED_CYCLOTRON, DISTINCTIVE)
 DISTINCTIVE_ENTRY = {   # as in the TTAB router config, without that monitor's procedure trigger and key
