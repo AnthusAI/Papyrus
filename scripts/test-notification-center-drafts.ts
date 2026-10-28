@@ -36,7 +36,7 @@ function browserBundle(): Promise<string> {
         contents: path === "monitoring"
           ? "export const loadMonitoringPage = async () => ({ state: 'unavailable' }); export const loadMonitoringEmailSubmission = async () => ({ state: 'unavailable' }); export const decideMonitoringEmailSubmission = async () => ({ state: 'unavailable' });"
           : path === "taxonomy"
-          ? "export const loadModelPayloadsForOwner = async () => []; export const loadStoragePathText = async () => ''; export const loadReferenceAttachmentsForLineageId = async () => []; export const loadStoragePathUrl = async () => ({ url: null });"
+          ? "export const loadModelPayloadsForOwner = async () => []; export const loadStoragePathText = async () => ''; export const loadReferenceAttachmentsForLineageId = async () => []; export const loadStoragePathUrl = async () => ({ url: null }); export const uploadModelPayloadForOwner = async () => ({ id: 'upload' });"
           : path === "navigation"
           ? "export const usePathname = () => window.location.pathname; export const useRouter = () => ({ push(href) { window.pushed = href; } });"
           : path === "link"
