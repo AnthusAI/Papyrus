@@ -76,7 +76,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given a source home page that declares its icons
     When the newsroom looks for that source's icon
     Then it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons
-    And it falls back to /favicon.ico only when that is more than an empty placeholder
+    And it falls back to the site's favicon.ico only when that is more than an empty placeholder
     And only real host names that resolve to public addresses are ever fetched
 
   Scenario: The page shows its shell and card skeletons at once, never a checking screen

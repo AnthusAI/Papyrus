@@ -155,7 +155,7 @@ Given("a source home page that declares its icons", function () { this.iconResul
 When("the newsroom looks for that source's icon", async function () { this.iconResult = await run("scripts/test-source-icon.ts"); });
 for (const text of [
   "it prefers the touch icon, then the largest declared size, and ignores single-colour mask icons",
-  "it falls back to /favicon.ico only when that is more than an empty placeholder",
+  "it falls back to the site's favicon.ico only when that is more than an empty placeholder",
   "only real host names that resolve to public addresses are ever fetched",
 ]) Then(text, function () { assert.match(this.iconResult, /source icon check: ok/); });
 

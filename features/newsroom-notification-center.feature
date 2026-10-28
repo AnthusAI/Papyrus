@@ -65,7 +65,7 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
   Scenario: The open item is in the address, so it can be linked and reopened
     Given an isolated Notification Center with a batch of three AI drafts
     When the editor opens a Reference, and later follows a link to it, and a link to an item that is no longer waiting
-    Then opening an item shows /needs-me/<its id> in the address, and closing it on a phone returns the address to the overview
+    Then opening an item shows its needs-me address with its id, and closing it on a phone returns the address to the overview
     And a link to an item opens the feed with that item in the detail pane, on a desktop and on a phone
     And a link to an item that is not waiting any more says so, with no empty pane
     And signing in from a deep link comes back to that link, not to the overview
