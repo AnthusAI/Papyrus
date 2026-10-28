@@ -1,6 +1,5 @@
 "use client";
 
-import { newsroomHref } from "../lib/newsroom-base-path";
 import Link from "next/link";
 import { SITE_BRAND } from "../lib/site-brand";
 import type { NewsDeskShellState } from "../lib/news-desk-session";
@@ -39,7 +38,8 @@ export function NewsDeskAccessGate({ initialTab, shell, showSectionTabs = false 
           <p className="m-0 text-sm text-foreground">{formatAccessActionDetail(shell)}</p>
           {shell?.phase === "signedOut" || shell?.phase === "error" ? (
             <div className="news-desk-access-panel__auth">
-              <ReaderAuthControl postAuthPath={newsroomHref()} showIdentity />
+              {/* No fixed return path: sign-in comes back to the page that asked, so a deep link survives it. */}
+              <ReaderAuthControl showIdentity />
             </div>
           ) : null}
         </div>

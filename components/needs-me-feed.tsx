@@ -5,6 +5,7 @@ import {
   Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -20,6 +21,8 @@ import { cannotMoveReason } from "../lib/review-drafts";
 import type { CyclotronEntry } from "../lib/review-requests";
 import { referenceReasonCode, REFERENCE_REJECTION_REASON_CODES, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { formatFeedAge } from "../lib/reference-preview";
+import { buildNeedsMeItemPath, parseNeedsMeItemIdFromNewsroomPathname } from "../lib/newsroom-index-filters";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import type { FeedFreshness } from "../lib/reference-feed-ranking";
 import type { RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
@@ -301,7 +304,10 @@ export function NeedsMeView({
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [filter, setFilter] = useState<NeedsMeFilter>(initialFilter);
-  const [selectedId, setSelectedId] = useState("");
+  // The open item lives in the address (`/needs-me/<id>`), so it can be linked, bookmarked and reopened with Back.
+  const pathname = usePathname() ?? (typeof window === "undefined" ? null : window.location.pathname);
+  const routeId = useMemo(() => parseNeedsMeItemIdFromNewsroomPathname(pathname) ?? "", [pathname]);
+  const [selectedId, setSelectedId] = useState(routeId);
   const [caughtUp, setCaughtUp] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [recipeOpen, setRecipeOpen] = useState(false);
@@ -357,21 +363,37 @@ export function NeedsMeView({
   const previousId = caughtUp ? queue[queue.length - 1] ?? null : selectedIndex > 0 ? queue[selectedIndex - 1] : null;
   const nextId = selectedIndex >= 0 && selectedIndex < queue.length - 1 ? queue[selectedIndex + 1] : null;
 
+  const showInAddress = (id: string, mode: "push" | "replace") => {
+    if (demo || typeof window === "undefined") return;
+    const next = id ? buildNeedsMeItemPath(id) : getNewsroomNavHref("/newsroom");
+    if (`${window.location.pathname}${window.location.search}` === next) return;
+    if (mode === "push") window.history.pushState(null, "", next);
+    else window.history.replaceState(null, "", next);
+  };
   const select = (item: NeedsMeEntry) => {
     setCaughtUp(false);
     setSelectedId(item.id);
     if (isMobile) setSheetOpen(true);
+    showInAddress(item.id, "push");
     onOpened?.(item);
   };
   const goNext = () => {
-    if (nextId) { setCaughtUp(false); setSelectedId(nextId); setScrollTarget({ id: nextId, nonce: Date.now() }); const next = byId.get(nextId); if (next) onOpened?.(next); }
-    else if (!caughtUp) { setCaughtUp(true); setSelectedId(""); }
+    if (nextId) { setCaughtUp(false); setSelectedId(nextId); showInAddress(nextId, "replace"); setScrollTarget({ id: nextId, nonce: Date.now() }); const next = byId.get(nextId); if (next) onOpened?.(next); }
+    else if (!caughtUp) { setCaughtUp(true); setSelectedId(""); showInAddress("", "replace"); }
   };
   const goPrevious = () => {
-    if (previousId) { setCaughtUp(false); setSelectedId(previousId); setScrollTarget({ id: previousId, nonce: Date.now() }); }
+    if (previousId) { setCaughtUp(false); setSelectedId(previousId); showInAddress(previousId, "replace"); setScrollTarget({ id: previousId, nonce: Date.now() }); }
   };
   const gestures = useQueueGestures({ onNext: goNext, onPrevious: goPrevious });
-  const closeDetail = () => { setCaughtUp(false); setSheetOpen(false); setSelectedId(""); };
+  const closeDetail = () => { setCaughtUp(false); setSheetOpen(false); setSelectedId(""); showInAddress("", "replace"); };
+
+  // Back and Forward (and a link opened in place) follow the address.
+  useEffect(() => {
+    setSelectedId(routeId);
+    if (routeId) { setCaughtUp(false); if (isMobile) setSheetOpen(true); }
+  }, [routeId, isMobile]);
+  // A linked item that is not waiting any more (decided, or not yours) says so once everything is read, instead of an empty pane.
+  const linkedGone = Boolean(routeId) && settled && !byId.has(routeId);
 
   // Previous / Next scrolls the feed to the same card, smoothly. Selecting a card by clicking it never scrolls.
   useEffect(() => {
@@ -412,6 +434,7 @@ export function NeedsMeView({
             <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>
           </div>
           <ShapingStrip stats={shaping} />
+          {linkedGone ? <Note data-needs-me-link-gone role="status">The item in this link is not waiting for you any more: it was decided, or it is not yours to decide.</Note> : null}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div aria-label="Show" className="inline-flex max-w-full overflow-x-auto rounded-full bg-[var(--feed-card)] p-1" data-notification-filters role="group">
               {NEEDS_ME_FILTERS.map((key) => {

@@ -424,6 +424,31 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
+  /** The open item is in the address: selecting one shows /needs-me/<id>, a link to it opens it, closing returns to the overview. */
+  async deepLink() {
+    await run("?mixed=1", [1440, 375], async (page, width) => {
+      const card = page.locator('[data-feed-card="reference-a"]');
+      await card.waitFor();
+      assert.ok(!page.url().includes("/needs-me/"), "the overview address names no item");
+      await openDetail(page, card);
+      assert.ok(new URL(page.url()).pathname.endsWith("/needs-me/reference-a"), `selecting shows the item in the address at ${width}px: ${page.url()}`);
+      if (width < 768) {   // the phone sheet closes, and the address goes back to the overview
+        await page.keyboard.press("Escape");
+        await page.waitForFunction(() => !location.pathname.includes("/needs-me/"));
+      }
+    });
+    await run("/needs-me/reference-a?mixed=1", [1440, 375], async (page, width) => {
+      const pane = page.locator('[data-needs-me-detail-type="reference"]').last();
+      await pane.waitFor({ timeout: 15_000 });
+      assert.ok((await pane.innerText()).includes("ReadyArt"), `a link opens that item at ${width}px`);
+      assert.equal(await page.locator("[data-needs-me-link-gone]").count(), 0);
+    });
+    await run("/needs-me/no-such-item?mixed=1", [1440], async (page) => {
+      await page.locator("[data-needs-me-link-gone]").waitFor({ timeout: 15_000 });
+      assert.equal(await page.locator("[data-needs-me-detail-shell]").isVisible(), false, "no empty pane for a link to an item that is not waiting");
+    });
+  },
+
   /** A held email is decided with the same Accept and Reject, and the reason travels with it. */
   async email() {
     await run("?mixed=1", [1440], async (page) => {
