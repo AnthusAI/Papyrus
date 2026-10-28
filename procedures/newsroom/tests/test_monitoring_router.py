@@ -1562,6 +1562,39 @@ def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table
     assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
 
 
+def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(table):
+    store, cyclotron = combined_setup(table)
+    go(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert {j["via"] for j in route["jobs"].values()} == {"decisions"}
+    assert not [c for c in cyclotron.calls if c[0] == "GET"]          # no GET on /machine/publications/*/commands/*
+
+
+def test_a_combined_job_entry_without_a_receipt_is_polled_via_decisions_not_commands(table):
+    store, cyclotron = combined_setup(table)
+    leave_job_pending(table, store, cyclotron)
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    job_id = route["combinedJob"]["jobId"]
+    route["jobs"] = {"anth-us": {"requestId": "r", "postedAt": 1500, "jobId": job_id, "via": "decisions"}}
+    del route["combinedJob"]
+    cfg = router_config()
+    cfg["publications"] = cfg["publications"][:1]          # one publication: the per-publication path handles it
+    table.put_item(cfg)
+    cyclotron.pending_polls, cyclotron.calls, cyclotron.combined_calls = 0, [], []
+    go(table, store, cyclotron, now=2100)
+    assert not [c for c in cyclotron.calls if c[0] == "GET" and job_id in c[1]]
+    assert any(c[0] == "GET" and c[1].endswith(job_id) for c in cyclotron.combined_calls)
+
+
+def test_job_via_infers_decisions_for_legacy_entries_matching_the_combined_job():
+    from papyrus_content.monitoring_router import job_via
+    route = {"combinedJob": {"jobId": "cjob-0"}}
+    assert job_via(route, {"jobId": "cjob-0"}) == "decisions"
+    assert job_via(route, {"jobId": "job-x"}) == "publication"
+    assert job_via({}, {"jobId": "cjob-0"}) == "publication"
+    assert job_via(route, {"jobId": "cjob-0", "via": "publication"}) == "publication"
+
+
 def test_a_404_on_a_stored_combined_job_reposts_once_in_the_same_run(table):
     store, cyclotron = combined_setup(table)
     stale_combined_job(table, store, cyclotron, runId="run-1", bindingRevision="1")

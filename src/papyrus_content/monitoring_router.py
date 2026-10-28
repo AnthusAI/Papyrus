@@ -349,6 +349,18 @@ def validate_router_publications(raw: dict) -> list[dict]:
     return publications
 
 
+VIA_DECISIONS, VIA_PUBLICATION = "decisions", "publication"
+
+
+def job_via(route: dict, job: dict) -> str:
+    """Which route a stored job was posted to. Entries stored before `via` existed are combined jobs when their jobId
+    is the route's combined job; anything else was posted per publication."""
+    if job.get("via") in (VIA_DECISIONS, VIA_PUBLICATION):
+        return job["via"]
+    combined = (route.get("combinedJob") or {}).get("jobId")
+    return VIA_DECISIONS if combined and job.get("jobId") == combined else VIA_PUBLICATION
+
+
 def criteria_unchanged(stored: str, since: str) -> bool:
     """True when a vote stored under binding revision `stored` was judged against criteria that still hold, given the
     earliest matching revision `since`. Integer revisions compare numerically; anything else must match exactly."""
@@ -1528,7 +1540,7 @@ class Router:
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)))
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                                              "publications": list(built["body"]["payload"]["bindings"]),
-                                             **self.posted_under()}
+                                             "via": VIA_DECISIONS, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
@@ -1602,7 +1614,7 @@ class Router:
                 if not isinstance(entry, dict) or not entry.get("decision"):
                     raise self.cyclotron.classify_entry(entry)
                 jobs[pub_id] = {"requestId": stored["requestId"], "postedAt": int(stored["postedAt"]),
-                                "jobId": stored["jobId"], **self.posted_under(),
+                                "jobId": stored["jobId"], "via": VIA_DECISIONS, **self.posted_under(),
                                 "checked": checked_decision(entry, publication, self.config, item_id)}
                 self.note_ready(pub_id)
             except BindingNotReady as error:
@@ -1631,7 +1643,8 @@ class Router:
         elif not job:
             if not self.post_allowed:
                 raise NotPosting()
-            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now), **self.posted_under()}
+            jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
+                            "via": VIA_PUBLICATION, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
@@ -1660,7 +1673,11 @@ class Router:
         if not self.job_due(jobs[pub_id]):
             raise JobRunning()   # still inside its own backoff: no call to the lab
         try:
-            response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
+            if job_via(route, jobs[pub_id]) == VIA_DECISIONS:
+                # a combined job lives behind GET /machine/decisions/{jobId}; the per-publication route would 404 it
+                response = self.poll_combined_entry(pub_id, jobs[pub_id]["jobId"])
+            else:
+                response = self.cyclotron.poll(pub_id, jobs[pub_id]["jobId"], wait=not self.nowait)
         except JobRunning:
             self.note_still_running(jobs[pub_id], route)
             raise
@@ -1691,6 +1708,16 @@ class Router:
         jobs[pub_id]["checked"] = checked_decision(response, publication, self.config, item_id)
         self.job_done(jobs[pub_id])
         self.save(route)
+
+    def poll_combined_entry(self, pub_id: str, job_id: str) -> dict:
+        """One publication's receipt out of a combined job, polled through the route the job was posted to."""
+        response = self.cyclotron.poll_combined(job_id, wait=not self.nowait)
+        entry = (response.get("publications") or {}).get(pub_id)
+        if entry is None:
+            raise ItemInvalid("combined receipt has no entry for this publication")
+        if not isinstance(entry, dict) or not entry.get("decision"):
+            raise self.cyclotron.classify_entry(entry)
+        return entry
 
     def check_rule(self, disc: dict) -> None:
         """A direct monitor's optional `rule`, run on the structured fields the collector stored."""

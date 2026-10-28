@@ -130,3 +130,14 @@ Feature: The router asks Cyclotron once per story for every publication
     Then the first story is an error
     And the run is complete rather than stopped
 
+
+  Scenario: A combined job is only ever polled on the route it was posted to
+    When the router sweeps the collected story
+    Then every stored job of the story is marked as posted to the decisions route
+    And no job of the story was polled on a per-publication route
+
+  Scenario: A job stored before routes were recorded is polled on the decisions route when it is the combined job
+    Given a story whose combined job was stored without a recorded route
+    When the router sweeps the collected story again
+    Then the earlier run's job is polled
+    And no job of the story was polled on a per-publication route

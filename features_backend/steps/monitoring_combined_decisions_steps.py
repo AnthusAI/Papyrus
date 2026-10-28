@@ -361,3 +361,22 @@ def step_every_conflict(context):
 @then("the router posts the story exactly twice")
 def step_twice(context):
     assert len(posted_ids(context)) == 2
+
+
+@then("every stored job of the story is marked as posted to the decisions route")
+def step_via(context):
+    assert {j["via"] for j in route_of(context)["jobs"].values()} == {"decisions"}
+
+
+@then("no job of the story was polled on a per-publication route")
+def step_no_commands(context):
+    assert not [c for c in context.cyclotron.calls if c[0] == "GET"], context.cyclotron.calls
+
+
+@given("a story whose combined job was stored without a recorded route")
+def step_legacy(context):
+    tr.leave_job_pending(context.table_, context.store, context.cyclotron)
+    job = route_of(context)["combinedJob"]
+    job.pop("via", None)
+    context.old_job = job["jobId"]
+    context.cyclotron.pending_polls, context.cyclotron.combined_calls = 0, []
