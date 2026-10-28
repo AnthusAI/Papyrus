@@ -152,7 +152,7 @@ Resources:
       OwnershipControls:
         Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
       Tags:
-        - { Key: purpose, Value: "item enrichment: captured article text, GROBID output (private; read by the router only)" }
+        - { Key: purpose, Value: "item enrichment - captured article text and GROBID output - private to the router" }
 
   CollectorLogGroup:
     Type: AWS::Logs::LogGroup
