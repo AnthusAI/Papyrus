@@ -12,6 +12,7 @@ import {
   takeFeedOrderSnapshot,
   partitionReferenceFeed,
 } from "../lib/reference-feed-ranking";
+import { withoutSiteName } from "../lib/newsroom-references";
 import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
 import { captureLine, captureStatus, curationCardOf, completenessFlags, captureStatusesByLineage, countWords, structuredRows, teaserWords, DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
 import { clearSavedNewsroomDisplay, loadFeedSnapshot, loadSessionDisplay, saveFeedSnapshot, saveSessionDisplay, SESSION_DISPLAY_TTL_MS } from "../lib/reference-feed-cache";
@@ -177,6 +178,16 @@ test("Sections: Top predictions are the Accepts at least half as strong as the b
   assert.deepEqual(groups.map((group) => [group.key, ids(group.items)]), [["top", ["a", "b"]], ["more", ["c", "d"]], ["least", ["e", "f"]]]);
   assert.deepEqual(groupFeedItems(partitionReferenceFeed([reference("x")], undefined, { now: NOW }).feed).map((group) => group.key), ["more"], "no prediction at all is one plain section");
   assert.deepEqual(groupFeedItems([]), []);
+});
+
+test("A title drops the site name tacked on its end, and only that", () => {
+  assert.equal(withoutSiteName("Auditing employment algorithms for discrimination | Brookings", "www.brookings.edu"), "Auditing employment algorithms for discrimination");
+  assert.equal(withoutSiteName("How an algorithm denied food to the poor | Poverty and Development | Al Jazeera", "www.aljazeera.com"), "How an algorithm denied food to the poor", "with a pipe the section name goes too");
+  assert.equal(withoutSiteName("Welfare system fuels mass surveillance – report - Amnesty International", "www.amnesty.org"), "Welfare system fuels mass surveillance – report", "only the shortest segment naming the site");
+  assert.equal(withoutSiteName("GitHub - foo/bar: a tool", "github.com"), "GitHub - foo/bar: a tool", "a site name at the start stays");
+  assert.equal(withoutSiteName("Malicious AI Models Undermine Supply-Chain Security", "cacm.acm.org"), "Malicious AI Models Undermine Supply-Chain Security");
+  assert.equal(withoutSiteName("Brookings", "brookings.edu"), "Brookings", "never an empty title");
+  assert.equal(withoutSiteName("A | B", null), "A | B");
 });
 
 test("A dek is dropped when it adds nothing to the headline or the picture", () => {

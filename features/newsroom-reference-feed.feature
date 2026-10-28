@@ -17,6 +17,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then the order runs from the strongest Accept, through the item with no prediction, to the strongest Reject
     And the first card is the large lead card, and the grid has one column on a phone and three or more on a desktop
     And every card shows its title, dek, source, age, the Cyclotron's Accept or Reject with its confidence and icon, and large Accept and Reject buttons
+    And a title shows without the site name a page tacks on its end, such as " | Brookings" or " | Poverty and Development | Al Jazeera"
     And nothing scrolls sideways and there are no drop-downs
 
   Scenario: Age fades a prediction toward not sure, at a pace learned from the editor's own accepts
