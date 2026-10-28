@@ -366,7 +366,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         const bar = page.locator("[data-review-queue-bar]:visible");
         await bar.waitFor();
         assert.equal(await barText(page), "1 of 3");
-        await page.waitForFunction(`(() => { const b=[...document.querySelectorAll("[data-review-queue-bar]")].find((e)=>e.offsetParent); const r=b.getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.top > innerHeight * 0.4; })()`);
+        await page.waitForFunction(`(() => { const b=[...document.querySelectorAll("[data-review-queue-bar]")].find((e)=>e.getBoundingClientRect().width>0); const r=b.getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.top > innerHeight * 0.4; })()`);
         const box = (await bar.boundingBox())!;
         assert.ok(box.y + box.height <= 900 + 1 && box.y > 400, `the bar sits at the bottom, within thumb reach (y=${box.y} h=${box.height})`);
         const next = bar.getByRole("button", { name: "Next", exact: true });

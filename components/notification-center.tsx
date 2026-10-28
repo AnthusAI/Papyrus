@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import type { EmailDecisionResult, MonitoringEmailDetails, MonitoringEmailSummary } from "../lib/monitoring-overview";
 import { proposalReceiptMessage, stateLabel, type ProposalReceipt } from "../lib/proposals-admin";
@@ -116,6 +116,8 @@ type ContainerProps = {
   /** A real-data preview (see scripts/export-notification-center-fixture.py); the invented sample otherwise. */
   fixture?: NotificationFixture | null;
   api?: NotificationApi;
+  /** Other page sections, shown at the end of the feed's own scroll. */
+  below?: ReactNode;
 };
 
 const REFRESH_MILLISECONDS = 60_000;
@@ -138,7 +140,7 @@ const EMAIL_REFUSALS: Record<string, string> = {
 
 export function NotificationCenter({
   references, decisions, humanCuratedReferenceLineageIds = NO_VISIT, previews = NO_PREVIEWS, referencesLoading = false, predictionLoading = false, referenceDisabledReason = null,
-  onRateReference, referenceAttachments = NO_ATTACHMENTS, onCorrectCapture, actorLabel, demo, fixture = null, api: liveOverride = liveApi,
+  onRateReference, referenceAttachments = NO_ATTACHMENTS, onCorrectCapture, actorLabel, demo, fixture = null, api: liveOverride = liveApi, below,
 }: ContainerProps) {
   const api = demo ? demoApi : liveOverride;
   const [loadState, setLoadState] = useState<NotificationLoadState>("loading");
@@ -433,7 +435,7 @@ export function NotificationCenter({
 
   return (
     <NeedsMeView
-      captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} freshness={freshness} legacyAuto={legacyAuto}
+      below={below} captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} freshness={freshness} legacyAuto={legacyAuto}
       loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} missingDraftCount={missingCount} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
       onRetryDrafts={() => void loadDraftsFor(requests)} predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}

@@ -100,30 +100,8 @@ export function NewsroomOpsOverview({
   const rotatingDesks = useMemo(() => desks.filter(desk => newsroomDeskKind(desk) === "rotating"), [desks]);
   const rateDisabled = disabledReason ?? (showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null);
 
-  return (
-    <div
-      className="space-y-12 font-sans"
-      data-news-desk-section="overview"
-      data-newsroom-ops-home="true"
-    >
-      <div className="space-y-12" data-newsroom-overview-feeds>
-        <div data-newsroom-overview-notifications>
-          <NotificationCenter
-            actorLabel={actorLabel}
-            decisions={shownDecisions}
-            demo={demo}
-            fixture={notificationFixture}
-            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
-            onCorrectCapture={onCorrectCapture}
-            onRateReference={rateReference}
-            referenceAttachments={referenceAttachments}
-            predictionLoading={predictionState === "loading"}
-            previews={previews}
-            referenceDisabledReason={rateDisabled}
-            references={canonicalReferences}
-            referencesLoading={loading && !canonicalReferences.length}
-          />
-        </div>
+  const below = (
+    <div className="space-y-12 pt-6" data-newsroom-overview-below>
         {attentionAssignments.length ? (
           <section aria-label="Open assignments" className="space-y-3">
             <h2 className="text-sm font-medium text-muted-foreground">Open assignments</h2>
@@ -198,6 +176,34 @@ export function NewsroomOpsOverview({
             </div> : null}
           </section>
         ) : null}
+    </div>
+  );
+
+  return (
+    <div
+      className="h-full font-sans"
+      data-news-desk-section="overview"
+      data-newsroom-ops-home="true"
+    >
+      <div className="h-full" data-newsroom-overview-feeds>
+        <div className="h-full" data-newsroom-overview-notifications>
+          <NotificationCenter
+            below={below}
+            actorLabel={actorLabel}
+            decisions={shownDecisions}
+            demo={demo}
+            fixture={notificationFixture}
+            humanCuratedReferenceLineageIds={humanCuratedReferenceLineageIds}
+            onCorrectCapture={onCorrectCapture}
+            onRateReference={rateReference}
+            referenceAttachments={referenceAttachments}
+            predictionLoading={predictionState === "loading"}
+            previews={previews}
+            referenceDisabledReason={rateDisabled}
+            references={canonicalReferences}
+            referencesLoading={loading && !canonicalReferences.length}
+          />
+        </div>
       </div>
     </div>
   );

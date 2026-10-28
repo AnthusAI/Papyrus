@@ -138,7 +138,7 @@ function Fixture() {
   if (params.has("overview")) {
     return <NewsroomOpsOverview assignments={[]} decisions={new Map([["reference-a", decision]])} newsroomSections={[]} references={references} onReview={async (reference, action, options) => { window.calls.push({ type: "rate", id: reference.lineageId, action, options }); }} />;
   }
-  return <NotificationCenter actorLabel="Ed Itor" api={api} decisions={new Map()} demo={false} humanCuratedReferenceLineageIds={new Set()} references={[]} />;
+  return <NotificationCenter actorLabel="Ed Itor" api={api} below={params.has("tall") ? <div data-below style={{ height: 1500 }}>Other sections of the page</div> : null} decisions={new Map()} demo={false} humanCuratedReferenceLineageIds={new Set()} references={[]} />;
 }
 createRoot(document.getElementById("root")).render(<Fixture />);
 ` },
@@ -148,11 +148,11 @@ createRoot(document.getElementById("root")).render(<Fixture />);
 
 const fixtureCss = "body{margin:0;font:16px sans-serif}button,textarea{font:inherit}";
 
-export async function setup(options = "", width = 1440) {
+export async function setup(options = "", width = 1440, height = 900) {
   const script = await browserBundle();
   const tailwind = await compiledTailwind();
   const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
-  const page = await browser.newPage({ viewport: { width, height: 900 } });
+  const page = await browser.newPage({ viewport: { width, height } });
   page.setDefaultTimeout(4000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -577,6 +577,55 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.waitForFunction(() => (window as unknown as { calls: { type: string; note?: string }[] }).calls.filter((call) => call.type === "rate").length === 2);
       assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.action, call.note ?? ""]), [["accept", ""], ["accept", "Exactly on topic."]]);
     });
+  },
+
+  /** Previous / Next sits in the bottom-right corner of the viewport and stays there: whatever the page or the feed has scrolled, and whatever sits below the feed. */
+  async queueBar() {
+    const corner = async (page: Page) => page.evaluate(() => {
+      const rect = ([...document.querySelectorAll("[data-review-queue-bar]")].find((entry) => entry.getBoundingClientRect().width > 0) as HTMLElement).getBoundingClientRect();
+      return { right: rect.right, bottom: rect.bottom, innerWidth: window.innerWidth, innerHeight: window.innerHeight, height: rect.height };
+    });
+    for (const [width, height] of [[1440, 900], [1440, 1300], [1024, 768]] as const) {
+      const { browser, page, errors } = await setup("?only-batch=1&tall=1", width, height);
+      try {
+        await draft(page, "proposal-1").waitFor();
+        await openDetail(page, card(page, "rr-soft-2#proposal-1"));
+        const check = async (when: string) => {
+          const now = await corner(page);
+          assert.ok(Math.abs(now.right - now.innerWidth) <= 2, `${width}x${height} ${when}: bar right ${now.right} equals viewport right ${now.innerWidth}`);
+          assert.ok(Math.abs(now.bottom - now.innerHeight) <= 2, `${width}x${height} ${when}: bar bottom ${now.bottom} equals viewport bottom ${now.innerHeight}`);
+        };
+        await check("at rest");
+        await page.evaluate(() => { window.scrollTo(0, 99999); for (const node of document.querySelectorAll("[data-needs-me-scroll]")) node.scrollTop = 99999; });
+        await page.waitForTimeout(200);
+        await check("after scrolling the page and the feed");
+        assert.equal(await page.locator("[data-review-queue-bar]").locator("visible=true").count(), 1, "one bar");
+        assert.equal(await page.locator('[data-review-queue-bar] [aria-label="Next"]').isVisible(), true, "Next is reachable");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+    // Phone: the bar is the fixed bottom of the sheet, flush with the bottom of the viewport.
+    const { browser, page, errors } = await setup("?only-batch=1&tall=1", 390, 844);
+    try {
+      await draft(page, "proposal-1").waitFor();
+      await openDetail(page, card(page, "rr-soft-2#proposal-1"));
+      const bar = () => page.evaluate(() => {
+        const node = [...document.querySelectorAll("[data-review-queue-bar]")].find((entry) => entry.getBoundingClientRect().width > 0) as HTMLElement;
+        const rect = node.getBoundingClientRect();
+        let fixed = false;
+        for (let element: HTMLElement | null = node; element; element = element.parentElement) if (getComputedStyle(element).position === "fixed") fixed = true;
+        return { bottom: rect.bottom, right: rect.right, fixed, innerHeight: window.innerHeight, innerWidth: window.innerWidth };
+      });
+      await page.waitForTimeout(800); // the sheet slides up
+      for (const when of ["at rest", "after scrolling"]) {
+        const now = await bar();
+        assert.ok(now.fixed, `${when}: the phone bar is fixed`);
+        assert.ok(Math.abs(now.bottom - now.innerHeight) <= 2, `${when}: phone bar bottom ${now.bottom} equals ${now.innerHeight}`);
+        assert.ok(Math.abs(now.right - now.innerWidth) <= 2, `${when}: spans to the right edge`);
+        await page.evaluate(() => window.scrollTo(0, 99999));
+      }
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
   },
 };
 

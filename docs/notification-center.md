@@ -77,6 +77,8 @@ What that means for every entry:
 
 **What "Not this kind" does.** `steering_for(raised_by="idea-pipeline")` returns the answer, and `ideas synthesize` shows it to the model as reviewer feedback on its next run (`read_steering`, `mark_applied`). Trend-story and monitor-story runs raise their batches as `idea-pipeline` too but do not read steering back, so for those batches the answer is stored and visible but only the next story-idea synthesis run sees it.
 
+**Layout and corners.** The feed and the detail fill the viewport's height and scroll on their own; the other sections of the home (open assignments, sections) sit at the end of the feed's own scroll, so they never push anything up. On a wide screen the Previous / Next bar is fixed to the bottom-right corner of the viewport (the detail column's width); on a phone it is the fixed bottom of the sheet. Every corner radius of the feed layer comes from four tokens in `components/newsroom-organizer.css` (`--feed-radius-xl` 12px, `-lg` 10px, `-md` 8px, `-pill` 8px), so the roundness is tuned in one place.
+
 ## The reason, in any order
 
 Ryan, 2026-10-27: "I rated the three stories and one recorded only the label and not the explanation, and the UI did not let me update the explanation." Every decision surface now behaves like the References feed (PR #798): the label and the explanation can be given in either order, the explanation can be changed whenever the item is reopened, and nothing typed is ever lost.

@@ -43,6 +43,8 @@ const scenarios = [
     ["each note is saved onto the existing answer, the choice and the person who answered stay as they were, and the card shows the note"]],
   ["reasonOthers", "the editor rejects a held email and then writes its reason, and accepts a Reference and then writes its reason",
     ["the held email's decision is sent again with the reason so the recorded reason changes, the Reference's rating is saved again with its note, and each reopens showing its reason"]],
+  ["queueBar", "the editor opens a draft at 1440 by 900, 1440 by 1300 and 1024 by 768 and scrolls the page and the feed, and again on a phone",
+    ["the Previous and Next bar's bottom-right corner is the viewport's bottom-right corner, other sections below the feed never push it up, and on a phone it is the fixed bottom of the sheet"]],
   ["email", "the editor rejects a held email with a Why written in its detail pane",
     ["the email is rejected with that reason, its card shows the answer, and nothing else is changed"]],
 ];

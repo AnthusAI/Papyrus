@@ -284,6 +284,8 @@ export type NeedsMeViewProps = {
   onRetryDrafts?: () => void;
   onOpened?: (item: NeedsMeEntry) => void;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
+  /** Other sections of the page (open assignments, sections). They scroll inside the feed, below the cards, so the feed and the detail keep the viewport's full height. */
+  below?: ReactNode;
 };
 
 function Note({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) {
@@ -293,7 +295,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
   loadState, entries, freshness, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
-  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onRetryDrafts, onOpened, loadEmail,
+  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onRetryDrafts, onOpened, loadEmail, below,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -398,12 +400,12 @@ export function NeedsMeView({
     </div>
   );
   const queueBar = queue.length || caughtUp ? (
-    <ReviewQueueBar caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={selectedIndex >= 0 ? selectedIndex + 1 : null} total={queue.length} />
+    <ReviewQueueBar anchored caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={selectedIndex >= 0 ? selectedIndex + 1 : null} total={queue.length} />
   ) : null;
 
   return (
-    <div className="@container flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
-      <div className="min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
+    <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
+      <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
           <div className="space-y-1.5">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
@@ -537,11 +539,12 @@ export function NeedsMeView({
             <RecentDecisions entries={recent} />
           </section>
         ) : null}
+        {below}
       </div>
 
       <aside
         aria-label="Detail"
-        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
+        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]"
         data-feed-flat=""
         data-needs-me-detail-shell
         data-detail-open={selected ? "true" : "false"}
@@ -559,7 +562,7 @@ export function NeedsMeView({
 
       {isMobile ? (
         <Sheet onOpenChange={(open) => { if (!open) closeDetail(); else setSheetOpen(true); }} open={(sheetOpen && Boolean(selected)) || caughtUp}>
-          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
+          <SheetContent className="gap-0 rounded-t-[length:var(--feed-radius-xl)] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
             <SheetHeader className="px-4 py-3"><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
             {selected ? (
               <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>

@@ -92,6 +92,11 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     When the editor rejects a held email and then writes its reason, and accepts a Reference and then writes its reason
     Then the held email's decision is sent again with the reason so the recorded reason changes, the Reference's rating is saved again with its note, and each reopens showing its reason
 
+  Scenario: Previous and Next stay in the bottom-right corner of the screen
+    Given an isolated Notification Center with a batch of three AI drafts
+    When the editor opens a draft at 1440 by 900, 1440 by 1300 and 1024 by 768 and scrolls the page and the feed, and again on a phone
+    Then the Previous and Next bar's bottom-right corner is the viewport's bottom-right corner, other sections below the feed never push it up, and on a phone it is the fixed bottom of the sheet
+
   Scenario: Drafts is reachable under Editorial work
     Given the organizer navigation
     When the editor looks at Editorial work
