@@ -33,6 +33,7 @@ const scenarios = [
       "the pills count what waits for each type and a pill narrows the feed to that one type",
       "that Reference is not in the feed, it is listed under Decided automatically with an Overrule button, and the \"You're shaping this\" strip counts the week's decisions and agreements",
       "each opens in the one detail pane with a body that fits its type, a held email's text is inert and its links are not clickable, and a Reference shows our captured record",
+      "before anything is selected there is no Detail pane and the feed has the whole width",
       "nothing is moved, answered, rated or decided, and each card says what happens if it is left alone"]],
   ["reasonDraft", "the editor accepts a draft and then writes its Why, writes a Why and then rejects another, closes the request, and changes a Why afterwards",
     ["the Why box stays open and editable after the vote, a Why written after the vote is saved onto it with a Saved tick, and a Why written first goes with the vote",

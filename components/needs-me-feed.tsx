@@ -542,9 +542,10 @@ export function NeedsMeView({
         {below}
       </div>
 
+      {/* The pane appears once something is selected (or when the queue is done); until then the feed has the whole width. */}
       <aside
         aria-label="Detail"
-        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]"
+        className={cn("hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:h-full", (selected || caughtUp) && "md:flex", " md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]")}
         data-feed-flat=""
         data-needs-me-detail-shell
         data-detail-open={selected ? "true" : "false"}
@@ -552,9 +553,7 @@ export function NeedsMeView({
         <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-1 pt-3"><span className="text-sm font-medium text-foreground">Detail</span></div>
         <div className="flex min-h-0 flex-1 flex-col" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
           <ScrollArea className="min-h-0 flex-1">
-            {isMobile ? null : selected ? <div key={selected.id}>{detailBody(selected)}</div> : caughtUp ? caughtUpPanel : (
-              <p className="p-4 text-sm text-muted-foreground" data-needs-me-detail-empty>Select an item to read it here and decide.</p>
-            )}
+            {isMobile ? null : selected ? <div key={selected.id}>{detailBody(selected)}</div> : caughtUp ? caughtUpPanel : null}
           </ScrollArea>
         </div>
         {queueBar}

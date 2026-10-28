@@ -60,6 +60,7 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Given an isolated Notification Center with a batch of three AI drafts
     When the editor opens a hard gate, a draft, a held email and a Reference
     Then each opens in the one detail pane with a body that fits its type, a held email's text is inert and its links are not clickable, and a Reference shows our captured record
+    And before anything is selected there is no Detail pane and the feed has the whole width
 
   Scenario: Ignoring an item leaves the default
     Given an isolated Notification Center with a batch of three AI drafts

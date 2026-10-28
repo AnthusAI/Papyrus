@@ -398,8 +398,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator('[data-notification-filter="all"]').click();
       assert.ok((await page.locator("[data-needs-me-card]").count()) >= 6);
 
-      // The same detail pane opens for every type, with a body that fits it.
+      // The same detail pane opens for every type, with a body that fits it. Until something is selected there is no pane at all.
       const shell = page.locator("[data-needs-me-detail-shell]");
+      assert.equal(await shell.isVisible(), false, `no empty Detail pane before a selection at ${width}px`);
       for (const [selector, type, expected] of [
         ['[data-needs-me-card="stage_review"]', "stage_review", ["Hard gate", "Accept this ruling summary"]],
         ['[data-review-draft="proposal-1"]', "draft", ["Sparse attention goes open", "Citations"]],
