@@ -9,3 +9,10 @@ Feature: Reference review remains reachable on a laptop screen
     Given an explicitly configured local reference demo
     When the editor opens the full newsroom at 1280 by 720
     Then a reference row is visible inside the list viewport and pending feedback is reachable
+
+  Scenario: The feed, the detail pane and the rating grid fill the viewport compactly
+    Given an explicitly configured local reference demo
+    When the editor opens the References page at four desktop sizes
+    Then the feed scroller and the Detail pane both end at the bottom of the viewport
+    And the confidence bar sits midway between the Cyclotron row and the You row on a card and in the Detail pane
+    And the space under a card's You buttons is no larger than the card's side padding

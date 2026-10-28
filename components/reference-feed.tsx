@@ -293,7 +293,7 @@ export function FeedCard({
         </span>
       </button>
 
-      <div className="relative bg-[var(--feed-footer)] p-3" data-feed-actions>
+      <div className="relative bg-[var(--feed-footer)] px-4 pb-4 pt-3" data-feed-actions>
         <RatingGrid
           answer={chosen}
           decided={answer}
@@ -303,6 +303,7 @@ export function FeedCard({
           note={reasonLabel ? `Reason: ${reasonLabel}` : null}
           onChoose={(choice) => { if (!disabledReason) store.choose(item.lineageId, choice); }}
           prediction={decision ? predictionFromDecision(decision) : predictionLoading ? { state: "loading" } : { state: "none" }}
+          statusOverlay
         />
         {rating.askReason ? (
           // Covers the footer rather than adding to it, so asking for a reason never pushes the cards below it down.
