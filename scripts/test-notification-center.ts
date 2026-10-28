@@ -6,10 +6,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ReferenceRecord } from "../lib/category-repository";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { FIXTURE_DRAFTS, FIXTURE_REVIEW_REQUESTS } from "../lib/review-fixture";
-import { draftView } from "../lib/review-drafts";
+import { batchAnswer, draftReasonUpdate, draftView } from "../lib/review-drafts";
 import { buildNotificationItems, draftPicture, previewsBySourceAddress, recentDecisions, requestCaption } from "../lib/notification-feed";
 import {
-  answerUpdate, cyclotronAutoDecided, cyclotronHeldForReview, isDue, nextText, normalizeReviewRow, sectionReviews,
+  answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, cyclotronHeldForReview, isDue, nextText, normalizeReviewRow, sectionReviews,
   steeringText, subjectHref, subjectLabel, summarize, summaryText, timeoutUpdate, type ReviewRequest,
 } from "../lib/review-requests";
 
@@ -191,6 +191,35 @@ async function main() {
   const overview = readFileSync(new URL("../components/newsroom-ops-overview.tsx", import.meta.url), "utf8");
   assert.ok(!overview.includes("newsroom-overview-feed-frame") && !/Needs attention/.test(overview), "the framed, scrolling feed and the duplicate Needs attention list are gone");
   assert.ok(!/\b(Core |Rotating )?Desks\b|\b(Core|Rotating) desks\b/.test(overview), "the home has no desk heading");
+
+  // A Why added after the decision changes the Why and nothing else: the choice, the steer, who and when stay, and the closed answer's words follow.
+  {
+    const batch = FIXTURE_REVIEW_REQUESTS.find((entry) => entry.id === "rr-soft-2")!;
+    const views = Object.fromEntries(FIXTURE_DRAFTS.filter((row) => ["proposal-1", "proposal-2", "proposal-3"].includes(row.id)).map((row) => [row.id, draftView(row)]));
+    const by = { by: "Ed Itor", at: "2026-10-24T09:00:00Z" };
+    const decided = (id: string, choice: "accept" | "reject", why: string | null) => ({ choice, title: views[id]!.headline, why, notThisKind: false, ...by });
+    const open = { ...batch, links: [{ type: "proposal", id: "proposal-1", decision: decided("proposal-1", "accept", null) }, { type: "proposal", id: "proposal-2" }, { type: "proposal", id: "proposal-3" }] } as ReviewRequest;
+    const reopened = draftReasonUpdate(open, "proposal-1", { ...decided("proposal-1", "accept", null), why: "  Well sourced.  " }, "Ed Itor", NOW);
+    assert.equal(JSON.parse(String(reopened.links)).find((link: { id: string }) => link.id === "proposal-1").decision.why, "Well sourced.", "the Why is trimmed and stored on the draft's link");
+    assert.equal("answer" in reopened, false, "an open request has no answer to rewrite");
+    assert.equal("state" in reopened, false, "the state is never touched");
+    assert.equal(JSON.parse(String(reopened.history)).at(-1).event, "reason_edited");
+    const closing = batchAnswer({ ...open, links: open.links.map((link, index) => ({ ...link, decision: decided(`proposal-${index + 1}`, index === 1 ? "reject" : "accept", index === 1 ? "Too thin." : null) })) } as ReviewRequest, views, by)!;
+    const closed = applyReviewUpdate({ ...open, links: closing.links!, state: "answered", answer: { decision: closing.decision, feedback: closing.feedback ?? null, steer: closing.steer ?? null, by: "Ed Itor", at: by.at, drafts: closing.drafts } }, {}) as ReviewRequest;
+    const later = applyReviewUpdate(closed, draftReasonUpdate(closed, "proposal-2", { ...decided("proposal-2", "reject", "Too thin."), why: "Too thin, and old." }, "Ed Itor", NOW));
+    assert.match(later.answer!.feedback!, /Rejected ".*": Too thin, and old\./, "the closed answer's sentence follows the new Why");
+    assert.equal(later.answer!.decision, closed.answer!.decision, "the decision is untouched");
+    assert.deepEqual(later.answer!.drafts!.map((entry) => entry.choice), closed.answer!.drafts!.map((entry) => entry.choice), "so are the choices");
+    const cleared = applyReviewUpdate(later, draftReasonUpdate(later, "proposal-2", { ...decided("proposal-2", "reject", null), why: "" }, "Ed Itor", NOW));
+    assert.equal(cleared.links.find((link) => link.id === "proposal-2")!.decision!.why, null, "a cleared Why is stored as none");
+
+    // A request's own note: needs an answer, changes only the feedback.
+    const gate = FIXTURE_REVIEW_REQUESTS.find((entry) => entry.id === "rr-hard-1")!;
+    assert.throws(() => answerReasonUpdate(gate, "x", "Ed Itor", NOW), /no answer yet/, "an unanswered request has nothing to add a note to");
+    const answered = applyReviewUpdate(gate, answerUpdate(gate, { decision: "approve" }, "Ed Itor", NOW));
+    const noted = applyReviewUpdate(answered, answerReasonUpdate(answered, " Safe to proceed. ", "Ed Itor", NOW));
+    assert.deepEqual([noted.answer!.decision, noted.answer!.feedback, noted.answer!.by, noted.state], ["approve", "Safe to proceed.", "Ed Itor", "answered"]);
+  }
 
   console.log("notification center: ok");
 }

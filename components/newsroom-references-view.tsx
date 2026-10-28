@@ -649,7 +649,7 @@ export function NewsroomReferencesView({
     </div>
   );
   const queueBar = queue.length || caughtUp ? (
-    <ReviewQueueBar caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={queuePosition} total={queue.length} />
+    <ReviewQueueBar anchored caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={queuePosition} total={queue.length} />
   ) : null;
 
   const emptyLabel = canonicalReferences.length
@@ -873,7 +873,7 @@ export function NewsroomReferencesView({
 
       <div
         className={cn(
-          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]",
+          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]",
         )}
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
@@ -927,7 +927,7 @@ export function NewsroomReferencesView({
           }}
           open={(mobileDetailOpen && Boolean(selectedReference)) || caughtUp}
         >
-          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" side="bottom" {...themeAttributes}>
+          <SheetContent className="gap-0 rounded-t-[length:var(--feed-radius-xl)] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" side="bottom" {...themeAttributes}>
             <SheetHeader className="border-b border-border px-4 py-3">
               <SheetTitle className="text-left text-base">Reference</SheetTitle>
             </SheetHeader>

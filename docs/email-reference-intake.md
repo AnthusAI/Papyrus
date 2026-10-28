@@ -237,7 +237,7 @@ decide a message; they are displayed as untrusted provenance only. Links in a he
 expired message are inert text; resolving a redirect or adding References from them is refused.
 
 Accepting is a one-message override. It does not enroll the sender or change how future mail is
-treated. A decision cannot be changed once recorded.
+treated. The decision itself (Accept or Reject) cannot be changed once recorded. Its reason can: the editor may give the label and the explanation in either order, so the same decision sent again with a different reason rewrites the reason on the `EMAILACTION#` row (plus `reasonEditedAt`), for as long as the receiver has not applied the decision (a row the receiver has written an `outcome` on is never rewritten, and the receipt keeps the reason it was applied with). A repeat with no reason, or the same one, changes nothing, and the opposite decision is still refused.
 
 ### Holding the two refused receipts (operator step)
 

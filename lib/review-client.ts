@@ -149,6 +149,22 @@ export async function saveDraftDecision(request: ReviewRequest, draftId: string,
   return normalizeReviewRow(result.data.updateReviewRequest);
 }
 
+/**
+ * Changes only the Why of an already decided draft or answered request (see `draftReasonUpdate` and `answerReasonUpdate`). The condition is that the
+ * request is still in the state it was read in, so a change cannot overwrite a request that closed or timed out meanwhile.
+ */
+export async function saveReviewReason(request: ReviewRequest, update: Record<string, unknown>): Promise<ReviewRequest> {
+  const result = await run(
+    `mutation Reason($input: UpdateReviewRequestInput!, $condition: ModelReviewRequestConditionInput) { updateReviewRequest(input: $input, condition: $condition) { ${FIELDS} } }`,
+    { input: update, condition: { state: { eq: request.state } } },
+  );
+  if (result.errors?.some((entry) => /conditional/i.test(`${entry.errorType ?? ""} ${entry.message ?? ""}`))) {
+    throw new Error("This request changed while you were writing. Your note is kept here; refresh, then save it again.");
+  }
+  if (result.errors?.length || !result.data?.updateReviewRequest) throw new Error("Your note could not be saved. It is kept here; keep typing or tap away to try again.");
+  return normalizeReviewRow(result.data.updateReviewRequest);
+}
+
 export type DraftLoad = { drafts: Record<string, DraftView>; missing: string[]; failed: string[] };
 
 /**

@@ -36,6 +36,8 @@ update requests; admins also delete. Neither is readable by guests or the identi
 
 The audit trail lives on the request. A line on the *item's* own trail (the story's history) is a follow-up.
 
+An answer's note (and a draft's Why, kept on its link and in the answer's `drafts`) can be changed after the answer without reopening the request: the console writes it with the condition that the request is still in the state it read, and adds a `reason_edited` history entry. See [the reason, in any order](notification-center.md#the-reason-in-any-order).
+
 ## The deadline mechanism: checked on read
 
 v0 has no scheduled function. `expire_due` marks every open soft review that has a deadline and whose deadline has passed as `timed_out`. It runs whenever the

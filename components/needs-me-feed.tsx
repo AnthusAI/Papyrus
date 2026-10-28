@@ -24,7 +24,7 @@ import type { FeedFreshness } from "../lib/reference-feed-ranking";
 import type { RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
-import { FlagFooter, decidedChoiceOf, isReferenceLike } from "./needs-me-shared";
+import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
 import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SourceMark } from "./reference-feed";
 import { predictionFromDecision, ReviewQueueBar, useQueueGestures, type CardPrediction, type ReviewChoice } from "./reference-review-card";
@@ -102,6 +102,9 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
   const feedback = rating.feedback.phase === "idle" && decided ? { phase: "saved" as const } : rating.feedback;
   const reason = item.payload.kind === "reference" ? rating.reasonCode : null;
   const reasonLabel = decided === "reject" && reason ? REASON_LABELS[reason] : null;
+  // A decided item shows the Why it was given (clipped; the whole text is edited in the detail pane).
+  const why = !refLike && locked ? rating.note?.trim() ?? "" : "";
+  const whyLine = why ? `Why: ${why.length > 90 ? `${why.slice(0, 89).trimEnd()}\u2026` : why}` : null;
   const time = item.payload.kind === "reference" ? item.payload.displayTime ?? item.createdAt : item.createdAt;
   const age = formatFeedAge(time, now);
   const picture = item.image || item.host ? <FeedImage host={item.host} lead={false} name={item.source} src={item.image} /> : <TypeTile type={item.type} />;
@@ -169,7 +172,7 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
             disabled={Boolean(disabledReason) || locked}
             disabledReason={disabledReason}
             feedback={feedback}
-            note={reasonLabel ? `Reason: ${reasonLabel}` : locked ? "Decided here." : null}
+            note={reasonLabel ? `Reason: ${reasonLabel}` : locked ? whyLine ?? "Decided here." : null}
             onChoose={(choice) => { if (!disabledReason && !locked) ratings.choose(item.id, choice); }}
             prediction={cardPrediction(item, predictionLoading)}
             showPrediction={refLike}
@@ -247,7 +250,7 @@ export function NeedsMeRecipe({ freshness, threshold }: { freshness: FeedFreshne
 // --- the view -----------------------------------------------------------------------------------------------------------
 
 export type NeedsMeLoadState = "loading" | "ready" | "forbidden" | "unavailable";
-const NO_EXTRAS: DecisionExtras = { why: "", notThisKind: false };
+const NO_EXTRAS: DecisionExtras = { notThisKind: false };
 const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
 
 export type NeedsMeViewProps = {
@@ -276,9 +279,13 @@ export type NeedsMeViewProps = {
   captureTeaserLine?: number;
   onCorrectCapture?: CorrectCaptureAction;
   onDecide: (item: NeedsMeEntry, decision: NeedsMeDecision) => Promise<void>;
+  /** Changes only the Why of an item that is already decided (an AI draft, a review request, a held email). Throws a sentence when it cannot. */
+  onEditReason?: (item: NeedsMeEntry, why: string) => Promise<void>;
   onRetryDrafts?: () => void;
   onOpened?: (item: NeedsMeEntry) => void;
   loadEmail?: (receiptId: string) => Promise<MonitoringEmailDetails>;
+  /** Other sections of the page (open assignments, sections). They scroll inside the feed, below the cards, so the feed and the detail keep the viewport's full height. */
+  below?: ReactNode;
 };
 
 function Note({ children, ...rest }: { children: ReactNode } & Record<string, unknown>) {
@@ -288,7 +295,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
   loadState, entries, freshness, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
-  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onRetryDrafts, onOpened, loadEmail,
+  referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onRetryDrafts, onOpened, loadEmail, below,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
@@ -319,13 +326,22 @@ export function NeedsMeView({
       const item = latest.current.byId.get(id);
       if (!item) throw new Error("This item is no longer in the list.");
       const typed = latest.current.extras[id] ?? NO_EXTRAS;
-      const referenceLike = isReferenceLike(item);
-      await onDecide(item, { choice, reasonCode: detail.reasonCode, why: referenceLike ? detail.note : typed.why.trim(), notThisKind: choice === "reject" && typed.notThisKind });
+      await onDecide(item, { choice, reasonCode: detail.reasonCode, why: detail.note, notThisKind: choice === "reject" && typed.notThisKind });
     },
-    saved: (id) => { const item = latest.current.byId.get(id); return item ? decidedChoiceOf(item) : null; },
+    // The Why of an AI draft, a review request or a held email is typed in either order and edited after the decision, onto that decision.
+    sticky: (id) => { const item = latest.current.byId.get(id); return item ? !isReferenceLike(item) : false; },
+    saveNote: async (id, note) => {
+      const item = latest.current.byId.get(id);
+      if (!item) throw new Error("This item is no longer in the list.");
+      if (!onEditReason) throw new Error("A reason cannot be changed here.");
+      await onEditReason(item, note);
+    },
+    // An acknowledged flag counts as an Accept: it is decided, and only its note can change.
+    saved: (id) => { const item = latest.current.byId.get(id); return item ? decidedChoiceOf(item) ?? (item.decisionState === "acknowledged" ? "accept" : null) : null; },
     seed: (id) => {
       const item = latest.current.byId.get(id);
-      if (!item || item.payload.kind !== "reference") return { note: "", reasonCode: null };
+      if (!item) return { note: "", reasonCode: null };
+      if (item.payload.kind !== "reference") return { note: recordedAnswer(item).why ?? "", reasonCode: null };
       const { reference } = item.payload;
       const pending = normalizeReferenceCurationStatus(reference.curationStatus) === "pending";
       return { note: pending ? "" : reference.curationStatusReason ?? "", reasonCode: referenceReasonCode(reference) ?? null };
@@ -384,12 +400,12 @@ export function NeedsMeView({
     </div>
   );
   const queueBar = queue.length || caughtUp ? (
-    <ReviewQueueBar caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={selectedIndex >= 0 ? selectedIndex + 1 : null} total={queue.length} />
+    <ReviewQueueBar anchored caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={selectedIndex >= 0 ? selectedIndex + 1 : null} total={queue.length} />
   ) : null;
 
   return (
-    <div className="@container flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
-      <div className="min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
+    <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
+      <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
           <div className="space-y-1.5">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
@@ -523,11 +539,12 @@ export function NeedsMeView({
             <RecentDecisions entries={recent} />
           </section>
         ) : null}
+        {below}
       </div>
 
       <aside
         aria-label="Detail"
-        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] lg:w-[min(100%,28rem)]"
+        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]"
         data-feed-flat=""
         data-needs-me-detail-shell
         data-detail-open={selected ? "true" : "false"}
@@ -545,7 +562,7 @@ export function NeedsMeView({
 
       {isMobile ? (
         <Sheet onOpenChange={(open) => { if (!open) closeDetail(); else setSheetOpen(true); }} open={(sheetOpen && Boolean(selected)) || caughtUp}>
-          <SheetContent className="gap-0 rounded-t-[24px] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
+          <SheetContent className="gap-0 rounded-t-[length:var(--feed-radius-xl)] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" initialFocus={false} side="bottom" {...themeAttributes}>
             <SheetHeader className="px-4 py-3"><SheetTitle className="text-left text-base">{selected ? NEEDS_ME_TYPE_LABELS[selected.type] : "Detail"}</SheetTitle></SheetHeader>
             {selected ? (
               <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>

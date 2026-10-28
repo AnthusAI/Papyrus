@@ -80,6 +80,8 @@ class FakeTable:
         key, existing = (Item["pk"], Item["sk"]), self.items.get((Item["pk"], Item["sk"]))
         if ConditionExpression == "attribute_not_exists(pk)" and existing:
             raise Conditional()
+        if ConditionExpression == "attribute_exists(pk) AND attribute_not_exists(outcome)" and (not existing or "outcome" in existing):
+            raise Conditional()
         if ConditionExpression == "attribute_not_exists(pk) OR expiresAt < :now" and existing:
             if not existing["expiresAt"] < ExpressionAttributeValues[":now"]:
                 raise Conditional()

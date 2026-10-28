@@ -108,6 +108,31 @@ export function answerUpdate(request: ReviewRequest, input: AnswerInput, by: str
   };
 }
 
+/**
+ * The update that changes only the note of a request that already has an answer (a hard gate, a stage review, an acknowledged flag).
+ * The decision, the steering signal, who answered and when stay as they were. Applied with the condition that the state is unchanged,
+ * so it cannot overwrite a request that timed out or was withdrawn in the meantime.
+ */
+export function answerReasonUpdate(request: ReviewRequest, why: string, editor: string, now: Date): Record<string, unknown> {
+  if (!request.answer) throw new Error("This request has no answer yet; answer it first.");
+  const at = now.toISOString();
+  const answer: ReviewAnswer = { ...request.answer, feedback: why.trim() || null };
+  const history = [...request.history, { at, event: "reason_edited", by: editor, note: request.answer.decision }].slice(-MAX_HISTORY);
+  return { id: request.id, answer: JSON.stringify(answer), updatedAt: at, history: JSON.stringify(history) };
+}
+
+/** A request with a stored update applied in memory, for the demo and the fixtures; the live data API returns the saved row instead. */
+export function applyReviewUpdate(request: ReviewRequest, update: Record<string, unknown>): ReviewRequest {
+  return {
+    ...request,
+    ...(typeof update.state === "string" ? { state: update.state as ReviewState } : {}),
+    ...(update.answer ? { answer: JSON.parse(String(update.answer)) } : {}),
+    ...(update.links ? { links: JSON.parse(String(update.links)) } : {}),
+    history: update.history ? JSON.parse(String(update.history)) : request.history,
+    updatedAt: String(update.updatedAt ?? request.updatedAt),
+  };
+}
+
 // --- words ------------------------------------------------------------------------------------------------
 
 export function formatWhen(iso: string | null | undefined): string {

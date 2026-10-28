@@ -270,7 +270,10 @@ export function ReviewQueueBar({
   onPrevious,
   position,
   total,
+  anchored = false,
 }: {
+  /** On a wide screen, pin the bar to the bottom-right corner of the viewport (the detail column's width), whatever scrolls. A sheet's own bar is not anchored. */
+  anchored?: boolean;
   caughtUp?: boolean;
   onNext: () => void;
   onPrevious: () => void;
@@ -282,7 +285,8 @@ export function ReviewQueueBar({
   return (
     <nav
       aria-label="Review queue"
-      className="sticky bottom-0 z-10 flex shrink-0 items-center gap-2 border-t border-border bg-card px-3 py-2"
+      className={cn("sticky bottom-0 z-10 flex shrink-0 items-center gap-2 bg-[var(--feed-card)] px-3 py-2", anchored && "md:fixed md:bottom-0 md:right-0 md:w-[calc(24rem+1rem)] md:pr-7 lg:w-[calc(28rem+1rem)]")}
+      data-review-queue-anchored={anchored || undefined}
       data-review-queue-bar
     >
       <Button

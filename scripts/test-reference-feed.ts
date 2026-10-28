@@ -176,11 +176,11 @@ const scenarios: Record<string, () => Promise<void>> = {
       }));
       assert.deepEqual(offenders, [], "no border, outline or rule");
       const radius = (selector: string) => page.locator(selector).first().evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
-      assert.ok((await radius("[data-feed-card]")) >= 16, "cards are about 16 to 20px round");
-      assert.ok((await radius("[data-review-choice=accept]")) >= 12, "pills are round");
-      assert.ok((await radius("[data-cyclotron-choice]")) >= 12);
+      assert.ok((await radius("[data-feed-card]")) >= 8, "cards are about 8 to 10px round (the --feed-radius tokens)");
+      assert.ok((await radius("[data-review-choice=accept]")) >= 6, "buttons are rounded rectangles");
+      assert.ok((await radius("[data-cyclotron-choice]")) >= 6);
       assert.ok((await radius("[data-confidence-bar]")) >= 4);
-      assert.ok((await radius("[data-feed-tab-button=feed]")) >= 12);
+      assert.ok((await radius("[data-feed-tab-button=feed]")) >= 6);
       // The image is full-bleed across the top of the card: as wide as the card, starting at its top edge.
       const box = (await card(page, "mid-accept").boundingBox())!;
       const image = (await card(page, "mid-accept").locator("[data-feed-image]").boundingBox())!;

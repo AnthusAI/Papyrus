@@ -68,7 +68,7 @@ What that means for every entry:
 2. **One decision vocabulary: Accept or Reject.** Each open request offers Accept and Reject (a flag offers Acknowledge, stored as the decision `acknowledge`; nothing is accepted), an optional full-width "Why?" box, and, as a reason to reject, one chip: "Not this kind of thing" (for a draft, "Not this kind of story"). The chip is stored as the steer `not_this_kind`, and the step that raised the request reads it back (`steering_for`, see the hook below). Stored decisions keep their old names (`approve`, `reject`, `feedback`); the page says Accepted and Rejected.
 3. **AI drafts are shown in place.** A review request whose links are proposals (a trend story batch, a monitor story batch, an idea batch, or one proposal as the subject) shows each draft: headline, dek, section, evidence (the signals it rests on, or the monitor that found it), the cited sources with links, and "Open the full draft in Proposals" (the Proposals panel opens on it, `?proposal=<id>`). Each draft has its own Accept and Reject:
    * **Accept** moves the Proposal to `approved` (a draft walks `in_steering`, `editor_review`, `approved`, one `transitionProposal` call each, as the panel's own buttons do). **Reject** moves it to `declined`. A draft on hold says so and does not move. A refused move is said in words and nothing is recorded.
-   * The Why and the chip are read when the editor taps Accept or Reject, so write them first. The Why is kept on the request, never sent as the Proposal's (public) transition reason.
+   * The Why and the chip are never sent as the Proposal's (public) transition reason; the Why is kept on the request. The Why can come before or after the vote (see [the reason, in any order](#the-reason-in-any-order)); the chip is read when the editor taps Reject.
    * Each decision is recorded on the request's link (`links[].decision`). When every draft that can be opened is decided, the request closes itself (answered): all Accept is `approve`, all Reject is `reject`, a mix is `feedback` with a note naming each draft; the answer carries `drafts` and `steer: not_this_kind` when any rejection used the chip. Drafts decided in Proposals instead also close the request. A draft that is not a Proposal on this site (an idea kept only as JSON) cannot be opened; if none can be, the request itself takes Accept or Reject.
 4. **Glanceable.** A summary line leads the page: "N waiting for you · N AI drafts to review · N other reviews open · N recently decided by the system". Waiting counts hard gates plus Cyclotron items held for review. AI drafts counts drafts not yet decided in open draft reviews.
 5. **Deleted stories are marked.** A card whose "About: story ..." points at a story that no longer exists shows the id with "(story deleted)".
@@ -76,6 +76,27 @@ What that means for every entry:
 7. **Words and icons, never colour alone** (Ryan is colourblind), and Lucide icons only.
 
 **What "Not this kind" does.** `steering_for(raised_by="idea-pipeline")` returns the answer, and `ideas synthesize` shows it to the model as reviewer feedback on its next run (`read_steering`, `mark_applied`). Trend-story and monitor-story runs raise their batches as `idea-pipeline` too but do not read steering back, so for those batches the answer is stored and visible but only the next story-idea synthesis run sees it.
+
+**Layout and corners.** The feed and the detail fill the viewport's height and scroll on their own; the other sections of the home (open assignments, sections) sit at the end of the feed's own scroll, so they never push anything up. On a wide screen the Previous / Next bar is fixed to the bottom-right corner of the viewport (the detail column's width); on a phone it is the fixed bottom of the sheet. Every corner radius of the feed layer comes from four tokens in `components/newsroom-organizer.css` (`--feed-radius-xl` 12px, `-lg` 10px, `-md` 8px, `-pill` 8px), so the roundness is tuned in one place.
+
+## The reason, in any order
+
+Ryan, 2026-10-27: "I rated the three stories and one recorded only the label and not the explanation, and the UI did not let me update the explanation." Every decision surface now behaves like the References feed (PR #798): the label and the explanation can be given in either order, the explanation can be changed whenever the item is reopened, and nothing typed is ever lost.
+
+* **The Why? box is always there**, empty or holding the saved reason, whether the item is open or decided. The Accept or Reject of an AI draft, a review request or a held email is final here (a draft's Proposal has moved, a request has closed, an email is queued), so a decided item shows its choice and keeps only the Why editable.
+* **Reason, then vote:** the vote carries the Why that was typed. **Vote, then reason:** the Why is saved onto that decision after a short pause (1.2 seconds without typing) or when the box loses focus. Changing the vote of a Reference keeps its reason (#798). One shared rating store (`components/use-reference-ratings.ts`) serves the card and the detail pane, so either shows what the other saved.
+* **Saved tick, errors in words, no lost text.** The status line under the box says "Saving…", then "Saved" with a tick, or says in words why it could not save ("Your note could not be saved. It is kept here; keep typing or tap away to try again."). The typed text stays in the store until it is saved; tapping away, the next pause, or leaving the page tries again.
+* **Reopening shows the saved reason**, in the box in the detail pane and as a clipped "Why: ..." line on the card.
+
+Which operation saves a later edit:
+
+| Item | Operation | What changes |
+| --- | --- | --- |
+| AI draft (Proposal) | `saveReviewReason` (`updateReviewRequest`, condition: state unchanged) with `draftReasonUpdate` | `links[].decision.why` for the draft; once the request has closed, also `answer.drafts[].why` and the `answer.feedback` sentence the idea pipeline reads back. The choice, the chip, who and when stay. A history entry `reason_edited` is added. The Proposal itself is never touched: `editProposal` only pins, holds and excludes votes, and a `transitionProposal` reason is public, so a private note is not written there. |
+| Hard gate, stage review, flag (acknowledged) | `saveReviewReason` with `answerReasonUpdate` | `answer.feedback`. The decision, the steer, who and when stay. |
+| Held email | `monitoringDecideEmailSubmission` again, with the same decision and the new reason | The Monitoring view rewrites the decision row's `reason` (and `reasonEditedAt`) until the receiver has applied the decision. Afterwards the receipt keeps the reason it was applied with, the page says so in words, and no row is written. A repeat with no reason changes nothing. |
+| Reference, incomplete capture | the References review (`onRateReference`) with the same choice and the new note (#798) | `curationStatusReason` on the existing rating. |
+
 
 ## What the page shows in v0, in order
 
