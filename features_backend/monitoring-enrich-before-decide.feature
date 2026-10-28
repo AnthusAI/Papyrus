@@ -42,10 +42,8 @@ Feature: A collected item is curated before it is decided and before an editor r
     Then each decision request carries only the title and the address
     And the story's enrichment ended "capture_failed" because the capture failed as "timeout"
 
-  Scenario: A very long source is cut only to fit the lab's current command limit
-    Given the article is far longer than the lab accepts in one command
+  Scenario: A very long source is sent whole
+    Given the article is far longer than any size the router once cut to
     When the enriching router runs
-    Then every decision request fits the lab's command limit
-    And only the body of the request was cut
-    And the story's discovery records that its body was cut for the lab limit
-    And the captured text kept for the editors is whole
+    Then every decision request carries the whole body and the matching text
+    And the story's discovery records no cut

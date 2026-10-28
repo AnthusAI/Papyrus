@@ -527,6 +527,11 @@ publication with `output`, `positiveLabel`, `negativeLabel`). The validator refu
 Cyclotron origins and non-AppSync publication endpoints, so credentials cannot be pointed elsewhere
 by a data edit. A publication that is not in `publications` is never called.
 
+`holdDecisions` (boolean, default `false`): when `true`, route and collect runs make no `POST /machine/decisions` and no
+per-publication `decide` POST. Enrichment still runs so items are ready, stored jobs are still polled, and the feedback pass
+(editor votes) still runs, including `{"task":"feedback"}`. The receipt records `stoppedBy: "decisions_held"`. `enabled: false`
+still means do nothing at all.
+
 Editor feedback is sent under the publication's *current* `cyclotron.bindingRevision`, never the revision stored
 when the item was decided (the lab refuses a stale one with 409 "publication binding changed"; the router logs the
 body and asks again next run). Feedback is tied to the criteria the editor judged. Cyclotron puts a
@@ -570,11 +575,6 @@ onto each delivered Reference) -> the post-delivery `papyrus.reference.curate` p
   captured text and `text = title + "\n" + url + "\n\n" + summary + "\n\n" + body`. A part that does not exist (no summary,
   no capture) is left out, and `text` falls back to `title\nurl`, the previous shape. The router sets no length limit of its own;
   Cyclotron applies its own input policy.
-- **Temporary lab limit.** The lab refuses a decision command over 65,536 bytes of JSON (409 `request_conflict`, "bounded
-  credential-free command required"). Until it stores item values separately, the router keeps each command under
-  `MAX_REQUEST_BYTES` (60,000): if the serialized command would exceed it, only `body` (and so `text`) is cut to the longest prefix
-  that fits, and `bodyTruncatedForLabLimit: true` is set on the DISC row. Nothing else is ever truncated. Remove this when
-  Cyclotron stores item values separately.
 - **Delivery copy.** After a Reference is delivered, `copy_curation` writes the item's curation onto it in the shape #797 uses: a
   `curation` `ReferenceAttachment` card (`origin.kind = "item-enrichment"`) and `ModelAttachment` bodies `curation-text`
   (and `curation-grobid`, `curation-grobid-tei` for papers), plus `summary` in the Reference's `metadata.json`. The text is the
