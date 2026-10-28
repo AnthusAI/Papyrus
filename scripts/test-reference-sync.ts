@@ -336,7 +336,10 @@ const scenarios: Record<string, () => Promise<void>> = {
   async previous_next_selects() {
     const { browser, page, errors } = await setup(1440);
     try {
+      await card(page, "r1").waitFor();
+      assert.equal(await page.locator("[data-newsroom-list-detail-shell]").isVisible(), false, "no empty Detail pane before a reference is selected");
       await open(page, "r1");
+      assert.equal(await page.locator("[data-newsroom-list-detail-shell]").isVisible(), true, "the pane appears with the selection");
       assert.equal(await page.locator("[data-feed-selected]").getAttribute("data-feed-card"), "r1", "opening from the grid selects the card");
       assert.equal(await card(page, "r1").locator("[data-feed-selected-bar]").count(), 1, "with a left accent bar");
       const style = await card(page, "r1").evaluate((el) => { const c = getComputedStyle(el); return { border: c.borderTopWidth, outline: c.outlineStyle }; });

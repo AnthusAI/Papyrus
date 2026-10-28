@@ -129,6 +129,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor opens a card and steps through the queue with Next and Previous
     Then the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline
     And opening a card from the grid selects it too
+    And before any card is selected there is no Detail pane and the feed has the whole width
 
   Scenario: The grid stays put while the editor selects, rates and the data refreshes
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction

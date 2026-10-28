@@ -107,6 +107,7 @@ const syncOutcomes = [
   ["previous_next_selects", [
     "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a left accent bar and no outline",
     "opening a card from the grid selects it too",
+    "before any card is selected there is no Detail pane and the feed has the whole width",
   ]],
 ];
 for (const [name, texts] of syncOutcomes) {
