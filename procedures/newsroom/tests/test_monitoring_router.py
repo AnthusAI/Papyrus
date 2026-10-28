@@ -828,7 +828,26 @@ def test_collector_zip_is_independent_of_the_router():
         import build
     finally:
         sys.path.pop(0)
-    assert build.MODULES == ("__init__.py", "monitoring.py", "monitoring_cloud.py", "monitoring_huggingface.py")
+    collector = build.package_modules(build.COLLECTOR_ROOTS)
+    assert "monitoring_router" not in collector
+    assert {"monitoring", "monitoring_cloud", "monitoring_huggingface", "monitoring_paging"} <= set(collector)
+
+
+def test_collector_zip_imports_everything_it_needs(tmp_path):
+    """The collector zip is the import closure of its roots, so a module added to monitoring_cloud is never left out."""
+    sys.path.insert(0, str(ROOT / "infra" / "monitoring"))
+    try:
+        import build
+    finally:
+        sys.path.pop(0)
+    import subprocess
+    import zipfile
+    out = tmp_path / "collector.zip"
+    build.build(out)
+    zipfile.ZipFile(out).extractall(tmp_path / "unzipped")
+    result = subprocess.run([sys.executable, "-I", "-c", "import papyrus_content.monitoring_cloud"],
+                            cwd=tmp_path / "unzipped", capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
     assert "web_structured_metadata" not in build.router_modules() and "monitoring_router" in build.router_modules()
 
 
