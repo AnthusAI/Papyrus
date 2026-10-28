@@ -218,6 +218,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
 
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -503,6 +504,27 @@ Resources:
     Properties:
       Description: Lets the router read the one SSM parameter that holds the Tavily key for link search.
       Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadTavilyKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+          - Sid: DecryptTavilyKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorTavilyKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasTavilyKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Tavily key for link search.
+      Roles: [!Ref CollectorRole]
       PolicyDocument:
         Version: "2012-10-17"
         Statement:

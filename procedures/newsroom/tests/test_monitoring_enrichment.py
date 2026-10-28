@@ -344,3 +344,15 @@ def test_the_router_gets_the_tavily_key_parameter_and_may_read_and_decrypt_only_
     read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
     assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
     assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])
+
+
+def test_the_collector_gets_the_same_tavily_key_grants_for_web_search():
+    from test_monitoring_router import _template
+    template = _template()
+    env = template["Resources"]["CollectorFunction"]["Properties"]["Environment"]["Variables"]
+    assert "PAPYRUS_TAVILY_KEY_PARAMETER" in env
+    policy = template["Resources"]["CollectorTavilyKeyPolicy"]
+    assert policy["Condition"] == "HasTavilyKey" and policy["Properties"]["Roles"] == [("Ref", "CollectorRole")]
+    read, decrypt = policy["Properties"]["PolicyDocument"]["Statement"]
+    assert read["Action"] == "ssm:GetParameter" and "TavilyKeyParameter" in json.dumps(read["Resource"]) and "*" not in json.dumps(read["Resource"])
+    assert decrypt["Action"] == "kms:Decrypt" and "kms:ViaService" in json.dumps(decrypt["Condition"])
