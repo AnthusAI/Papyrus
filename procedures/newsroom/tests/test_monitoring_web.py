@@ -6,11 +6,11 @@ import pytest
 
 from papyrus_content.monitoring_cloud import DynamoStore, _validate_config, run_collection, run_web_collections
 from papyrus_content.monitoring_paging import RateLimited
-from papyrus_content.monitoring_router import RouterStore, run_router, validate_router_config
+from papyrus_content.monitoring_router import CyclotronClient, RouterStore, run_router, validate_router_config
 from papyrus_content.monitoring_web import TAVILY_PAGE_LIMIT, canonical_url, parse_results, url_hash
 from papyrus_content.monitoring_web_publications import (WEB_PUBLICATIONS, monitor_config, monitor_id, router_config)
 
-from test_monitoring_router import FakeTable, router_config as hn_router_config
+from test_monitoring_router import FakeCyclotron, FakeTable, router_config as hn_router_config
 
 DAY = 86400
 NOW = 1792540800   # 2026-10-21T00:00:00Z
@@ -333,6 +333,22 @@ def test_the_distinctive_router_collects_and_never_decides():
     assert [d["routing"] for d in discs(table, "web-distinctive")] == ["collected"]
 
 
+def test_a_cyclotron_bound_web_router_holds_decisions_and_posts_nothing():
+    table = web_table()
+    collect(table, FakeTavily(article(1, day(-1))))
+    config = router_config("anth-us", hn_router())
+    table.put_item(config)
+    lab = FakeCyclotron()
+    client = CyclotronClient(validate_router_config(config), sign=lambda m, u, b: {}, http=lab.http, sleep=lambda s: None, clock=lambda: 0)
+    delivered = []
+
+    result = run_router(RouterStore(table), MONITOR, now=NOW + 10, cyclotron=client, deliver=lambda *a: delivered.append(a),
+                        appsync=lambda endpoint: object(), context_receipt=lambda c, p: {"contextHash": None, "reason": "test"})
+
+    assert result["stoppedBy"] == "decisions_held" and lab.posts() == [] and delivered == []
+    assert [d["routing"] for d in discs(table)] == ["collected"]
+
+
 def test_the_monitoring_template_schedules_web_collection_and_one_router_per_publication():
     import yaml
     from pathlib import Path
@@ -348,3 +364,42 @@ def test_the_monitoring_template_schedules_web_collection_and_one_router_per_pub
 
     assert collect_input == {"sourceType": "web-search", "monitorIds": [monitor_id(p) for p in WEB_PUBLICATIONS]}
     assert routes == {monitor_id(p) for p in WEB_PUBLICATIONS}
+
+
+# --- query drafting ----------------------------------------------------------------------------------------------------------
+
+def test_queries_are_drafted_from_mission_policy_and_criteria_and_retried_once_when_the_model_misbehaves(tmp_path):
+    from papyrus_content import monitoring_web_queries as wq
+
+    (tmp_path / "anth-us-relevance.json").write_text(json.dumps({"question": "Should this source become a reference?"}))
+    answers = iter(["not json", json.dumps([f"query {n}" for n in range(9)])])
+    prompts = []
+
+    def ask(message):
+        prompts.append(message)
+        return next(answers)
+
+    pack = {"entries": [{"scope": "publication", "kind": "mission", "text": "Show the work."},
+                        {"scope": "publication", "kind": "policy", "text": "Cite primary sources."}], "contextHash": "h"}
+    publications = wq.router_publications(hn_router())
+
+    proposal = wq.propose("anth-us", publications, ask, criteria_dir=tmp_path, client_factory=lambda endpoint: object(),
+                          resolve=lambda client, **kw: pack)
+
+    assert proposal["queries"] == [f"query {n}" for n in range(9)] and proposal["monitorId"] == "web-anth-us"
+    assert proposal["basedOn"] == {"mission": True, "policy": True, "criteria": True, "contextHash": "h"}
+    assert len(prompts) == 2 and "Show the work." in prompts[1] and "Should this source become a reference?" in prompts[1]
+
+
+@pytest.mark.parametrize("answer", [json.dumps(["only one"]), json.dumps([f"q{n}" for n in range(16)]), json.dumps({"a": 1})])
+def test_a_proposal_outside_eight_to_fifteen_queries_is_refused(answer):
+    from papyrus_content import monitoring_web_queries as wq
+
+    with pytest.raises(ValueError):
+        wq.parse_queries(answer)
+
+
+def test_without_local_criteria_the_proposal_says_so(tmp_path):
+    from papyrus_content import monitoring_web_queries as wq
+
+    assert wq.criteria_text("distinctive", tmp_path) is None
