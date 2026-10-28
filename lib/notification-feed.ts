@@ -12,10 +12,6 @@ import { draftDecisionOf, type DraftView } from "./review-drafts";
 import { draftIdsOf, isDraftReview, proposalHref, sectionReviews, type DraftDecision, type ReviewRequest } from "./review-requests";
 import { getNewsroomNavHref } from "./newsroom-nav";
 
-export type NotificationFilter = "all" | "drafts" | "references" | "other";
-export const NOTIFICATION_FILTERS: readonly NotificationFilter[] = ["all", "drafts", "references", "other"];
-export const FILTER_LABELS: Record<NotificationFilter, string> = { all: "All", drafts: "Drafts", references: "References", other: "Other" };
-
 export type DraftItem = {
   kind: "draft";
   /** `<request id>#<draft id>`. */
@@ -36,10 +32,7 @@ export type NotificationItems = {
   reviews: RequestItem[];
   /** For your information: flags. */
   flags: RequestItem[];
-  counts: NotificationCounts;
 };
-
-export type NotificationCounts = { drafts: number; references: number; other: number };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
@@ -85,7 +78,6 @@ export function buildNotificationItems(input: {
   draftsState: "loading" | "ready" | "failed";
   /** Draft keys and request ids decided in this visit. */
   stay: ReadonlySet<string>;
-  referenceCount: number;
 }): NotificationItems {
   const sections = sectionReviews(input.requests);
   const closedHere = input.requests.filter((request) => request.state !== "open" && input.stay.has(request.id));
@@ -119,37 +111,7 @@ export function buildNotificationItems(input: {
     drafts: draftItems,
     reviews: [...new Map(reviews.map((item) => [item.key, item])).values()],
     flags: [...new Map(flags.map((item) => [item.key, item])).values()],
-    counts: {
-      drafts: draftItems.filter((item) => !item.decision).length,
-      references: input.referenceCount,
-      other: [...reviews, ...flags].filter((item) => item.request.state === "open").length,
-    },
   };
-}
-
-function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
-
-/** "3 drafts and 12 references waiting for you"; "All caught up" when nothing waits. */
-export function waitingText(counts: NotificationCounts): string {
-  const parts = [
-    counts.drafts ? plural(counts.drafts, "draft") : null,
-    counts.references ? plural(counts.references, "reference") : null,
-    counts.other ? plural(counts.other, "other item") : null,
-  ].filter((part): part is string => part !== null);
-  if (!parts.length) return "All caught up";
-  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-  return `${list} waiting for you`;
-}
-
-export function filterCount(filter: NotificationFilter, counts: NotificationCounts): number {
-  return filter === "all" ? counts.drafts + counts.references + counts.other : counts[filter];
-}
-
-/** Which sections a filter shows. */
-export function showsSection(filter: NotificationFilter, section: "drafts" | "references" | "other"): boolean {
-  return filter === "all" || filter === section;
 }
 
 // --- sources, pictures ----------------------------------------------------------------------------------------

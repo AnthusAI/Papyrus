@@ -8,26 +8,53 @@ The Notification Center is the CMS console home: the first page an editor sees a
 
 ## What the page looks like now ("What needs me?")
 
-The page is a feed of flat, rounded cards in the style of the References feed (no borders or lines; tones come from the brand). A short header
-says what waits ("3 drafts and 12 references waiting for you"), and pills narrow the page: All, Drafts, References, Other.
+The page is one feed that mixes everything that may need a person, in the shape of the References page: flat, rounded cards (no borders or
+lines; tones come from the brand), a detail pane beside the feed (a bottom sheet on a phone) with Previous and Next, and the shared Accept / Reject
+grid on every card. An editor on the overview should see the same components and patterns as on the References page (Ryan, 2026-10-27).
 
-* **Drafts.** Every AI draft is its own card: the cited source's picture, headline, dek, section, the evidence line, source chips (favicon and
-  domain), a caption "from Monitor stories run · Oct 27" and "Open full draft", then the shared Accept / Reject grid (no Cyclotron row, a draft has
-  no prediction) with an optional full-width Why?. Reject is one tap; a quiet "Not this kind of story" chip beside the Why? box, when on, is the steering signal. A request that covers several drafts is never shown as a batch; it closes itself when its last draft is decided. A card decided
-  in this visit stays in place showing its answer.
-* **References.** The References feed's own cards (best bets first, a screenful at a time), rated in place through the References review; a card opens the
-  References queue.
-* **Other.** Hard gates and other soft reviews are cards with Accept / Reject; flags are slim cards with Acknowledge and an optional note.
-* **Decided automatically (N)** is a collapsed footer listing what the Cyclotron decided on its own confidence, read only.
-* **All caught up** when nothing waits, with the last few things you decided ("Recently decided" is always shown under the cards).
-* **Loading.** Skeleton cards at once; a return visit paints the last view (saved in this browser, display only, dropped on sign-out) marked "Showing your
-  last view while it updates", and answering waits for the live read. The References reads start as soon as the session is confirmed, as on the References page.
+**What is in the feed.** One model, `NeedsMeItem` (`lib/needs-me-ranking.ts`), with an adapter per source (`lib/needs-me-items.ts`):
 
-The model is `lib/notification-feed.ts`; the cards are `components/notification-cards.tsx`. The earlier "Needs attention" list, the Cyclotron "held" list and the unread badges are gone from the page. The nav item is "Needs me".
+| Type | Pill | What it reads | Decided by |
+|---|---|---|---|
+| `reference` | References | A pending Reference, the Cyclotron's decision on it (label, confidence), its preview picture | The References review (`onReview`): Accept, or Reject with a reason code |
+| `incomplete_capture` | Captures | The same Reference when a capture was attempted and came up short: thin text, or a curation card that records no text (`lib/reference-capture.ts`). A Reference nobody has tried to capture is not listed. | The same review; the detail also has "Paste or correct the text" |
+| `draft` | Drafts | One AI draft (Proposal) inside an open draft review: headline, dek, body, evidence, cited sources | Accept walks the Proposal to `approved`, Reject to `declined`, and the request records it |
+| `stage_review` | Stories | An open hard gate or soft review that is not about drafts: reason, ask, deadline, the subject story's title and opening paragraphs | `answerReviewRequest`: approve or reject, with an optional Why |
+| `held_email` | Email | An email submission held for review (Monitoring's own list): subject, sender facts, SPF/DKIM/DMARC verdicts, inert text, links as text | `decideMonitoringEmailSubmission`: Accept releases it, Reject discards it |
+| `flag` | Other | An open flag | Acknowledge |
+| `concept_proposal` | Other | A proposed taxonomy concept or a reader's proposal | **Stub**: typed, returns nothing yet |
 
-Preview with real data: `scripts/export-notification-center-fixture.py` (read-only, IAM, strips people) beside `scripts/export-reference-feed-fixture.py`, then
-`PAPYRUS_FEED_FIXTURE=... PAPYRUS_NOTIFICATION_FIXTURE=... npm run dev:preview`; `scripts/capture-notification-center-shots.mjs` takes the screenshots.
-The sections below describe the model and the rules, which still hold; the table of sections is the earlier layout.
+**Order.** Hard gates first, oldest first. Then the interim *value of your input*: `uncertainty x importance x freshness`.
+Uncertainty is `1 - |2P - 1|` with P the Cyclotron's probability that you would Accept (a coin toss is 1, a certainty 0), and 0.5 when the item has no
+prediction. Importance is the item's own priority (a relevance score, or a story or section priority); no source supplies one yet, so it is 1. Freshness is the
+References feed's `exp(-age / tau)`, with tau learned from the age of the References you accepted (none with fewer than 10 examples). The result is interleaved so that no
+more than two items of one type sit in a row while another type waits. The scoring lives in one module behind the `AttentionModel` interface; a future Cyclotron "attention"
+decision replaces `interimAttention` and nothing else changes.
+
+**Confident items do not ask for you.** An open item with a prediction whose uncertainty is below the learned threshold goes to **Decided automatically**, collapsed, with an
+Overrule button that opens it in the detail pane. The threshold is the median uncertainty of the predictions you have confirmed (the Reference you accepted or rejected agreed with the
+Cyclotron); with fewer than 10 confirmed predictions there is no threshold and nothing is skipped. A hard gate, an item the Cyclotron or the raising step asked a person about
+(`reviewRecommended`, every draft, review and email), and an item with no prediction are never skipped. This iteration shows the Cyclotron's suggestion and lets you
+overrule it; it does not yet write the suggestion back as the decision.
+
+**One order per visit.** The order is taken once when every source has been read, and then left alone: selecting, deciding, a refresh or the cached view never re-rank it. A card you decide
+stays where it is, showing the answer. Items that arrive later wait behind an "N new items: show" pill (the same rule as the References feed).
+
+**Pills** (All, References, Drafts, Stories, Email, Captures, Other) count what waits and narrow the feed to one type. **"You're shaping this"** is a slim strip: this calendar week (Monday, UTC),
+how many decisions you made, how many References you rated in agreement with the Cyclotron and how many you overruled. **"How this is ordered"** opens the recipe in plain words with this
+site's learned numbers.
+
+**If you ignore an item** its default stands, and the card says so in words ("Closes on ... if nobody answers. The drafts stay in Proposals.", "Held privately; nothing is routed unless you accept
+it.", "It stays pending with the Cyclotron's suggestion: Accept 82%."). Only a hard gate says "Waiting for you."
+
+**Loading.** Skeleton cards at once; a return visit paints the last view (saved in this browser, display only, dropped on sign-out) marked "Showing your last view while it updates", and answering waits for the live
+read. Held email is not in the saved copy; it joins when read.
+
+The model is `lib/needs-me-ranking.ts` (scoring, order, threshold, snapshot, counts, the strip) and `lib/needs-me-items.ts` (adapters); the view is `components/needs-me-feed.tsx` (cards, pills, strip, detail
+shell), `components/needs-me-detail.tsx` (one body per type) and `components/needs-me-shared.tsx`; `components/notification-center.tsx` loads the sources and routes each decision to its action. Review-request
+wording and the draft model stay in `lib/notification-feed.ts` and `lib/review-requests.ts`. Preview with real data: `scripts/export-notification-center-fixture.py` (read-only, IAM, strips people) beside
+`scripts/export-reference-feed-fixture.py`, then `PAPYRUS_FEED_FIXTURE=... PAPYRUS_NOTIFICATION_FIXTURE=... npm run dev:preview`; `scripts/capture-notification-center-shots.mjs` takes the screenshots.
+The sections below describe the review-request rules, which still hold; the table of sections is the earlier layout.
 
 ## The principle (Ryan, 2026-10-23)
 
@@ -70,7 +97,7 @@ correction-to-ground-truth path.
 
 ## Code
 
-* `components/notification-center.tsx`: the view (`NotificationCenterView`, pure) and the container that loads, answers and marks read.
+* `components/notification-center.tsx`: the container that loads, answers and marks read; the view is `components/needs-me-feed.tsx` (`NeedsMeView`, pure).
 * `lib/review-requests.ts`: sections, ordering, summary, the words, the answer and timeout updates (shared by the page and its tests).
 * `lib/review-client.ts`: the GraphQL calls; every change carries the condition `state = open`.
 * `components/newsroom-ops-overview.tsx` mounts it above the existing destinations.
@@ -80,4 +107,4 @@ correction-to-ground-truth path.
 
 **Drafts** is an Editorial work navigation item that opens the Proposals panel (`/newsroom/administration/proposals`), so drafts are reachable outside Administration.
 
-Tests: `scripts/test-notification-center.ts` (model and words), `scripts/test-notification-center-drafts.ts` (browser, 375 and 1440 px, fake data API), `features/newsroom-notification-center.feature` (`npm run test:notification-center`).
+Tests: `scripts/test-needs-me-ranking.ts` (score, order, threshold, snapshot, adapters), `scripts/test-notification-center.ts` (review-request model and words, the rendered page), `scripts/test-notification-center-drafts.ts` (browser, 375 and 1440 px, fake data API), `features/newsroom-notification-center.feature` (`npm run test:notification-center`).

@@ -28,6 +28,8 @@ export type DraftView = {
   kindLabel: string;
   headline: string;
   dek: string | null;
+  /** The draft's own words: the body without its Sources and Signals lists (those are shown as chips) or its closing "Section:" line. */
+  bodyText: string;
   section: string | null;
   /** The evidence in words: the signals it rests on, or the monitor that found its source. */
   evidence: string[];
@@ -104,6 +106,19 @@ function evidenceLines(row: DraftRow): string[] {
   return lines;
 }
 
+/** The prose of a draft: every line except the Sources and Signals cited lists and the closing "Section: ..." line. */
+export function draftBodyText(body: string): string {
+  const kept: string[] = [];
+  let skipping = false;
+  for (const line of body.split(/\r?\n/)) {
+    const text = line.trim();
+    if (/^#{1,6}\s/.test(text)) skipping = /^##\s+(Sources?|Signals cited)\s*$/i.test(text);
+    if (skipping || /^Section:\s.*Drafted by AI/i.test(text)) continue;
+    kept.push(line);
+  }
+  return kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function draftChoiceOf(state: string): DraftChoice | null {
   return state === "approved" ? "accept" : state === "declined" ? "reject" : null;
 }
@@ -119,6 +134,7 @@ export function draftView(row: DraftRow, demo = false): DraftView {
     kindLabel: KIND_WORDS[row.kind] ?? row.kind,
     headline: row.title,
     dek: row.summary?.trim() || null,
+    bodyText: draftBodyText(body),
     section,
     evidence: evidenceLines(row),
     sources: sources.slice(0, MAXIMUM_SOURCES),

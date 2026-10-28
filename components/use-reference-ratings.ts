@@ -41,15 +41,17 @@ export type RatingController = {
  * A Reject needs a reason code (the backend refuses one without), so it waits as `pending` until one is chosen; a typed reason is
  * kept in the store until it is saved and is never dropped by a failed save.
  */
-export function useRatingStore({ save, saved, seed }: {
+export function useRatingStore({ save, saved, seed, needsReason }: {
   save: RatingSave;
   saved: (id: string) => ReviewChoice | null;
   seed: (id: string) => { note: string; reasonCode: ReferenceRejectionReasonCode | null };
+  /** Whether a Reject on this item must wait for a reason code. Default yes (a Reference); an AI draft or an email asks nothing. */
+  needsReason?: (id: string) => boolean;
 }): RatingController {
   const [items, setItems] = useState<Record<string, ItemRating>>({});
   const itemsRef = useRef(items);
-  const latest = useRef({ save, saved, seed });
-  latest.current = { save, saved, seed };
+  const latest = useRef({ save, saved, seed, needsReason });
+  latest.current = { save, saved, seed, needsReason };
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const inFlight = useRef<Set<string>>(new Set());
   const dirty = useRef<Set<string>>(new Set());
@@ -75,7 +77,7 @@ export function useRatingStore({ save, saved, seed }: {
 
   const commit = useCallback(async (id: string, choice: ReviewChoice) => {
     const { note, reasonCode } = values(id);
-    if (choice === "reject" && !reasonCode) { patch(id, { pending: "reject", askReason: true }); return; }
+    if (choice === "reject" && !reasonCode && (latest.current.needsReason?.(id) ?? true)) { patch(id, { pending: "reject", askReason: true }); return; }
     if (inFlight.current.has(id)) { dirty.current.add(id); return; }
     inFlight.current.add(id);
     dirty.current.delete(id);

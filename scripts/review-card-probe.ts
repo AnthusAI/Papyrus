@@ -1,4 +1,4 @@
-// Renders one Notification Center review card from JSON on argv and prints its text. Used by features_backend/review-card.feature.
+// Renders the Needs me detail for one review request from JSON on argv and prints its text. Used by features_backend/review-card.feature.
 import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -7,11 +7,20 @@ import type { ReviewRequest } from "../lib/review-requests";
 (globalThis as { React?: typeof React }).React = React;
 
 const input = JSON.parse(process.argv[2] ?? "{}") as { request: ReviewRequest; deletedStories?: string[]; storyTitles?: Record<string, string> };
+const ratings = {
+  get: () => ({ pending: null, askReason: false, feedback: { phase: "idle" as const } }),
+  choose: () => undefined, setReason: () => undefined, setNote: () => undefined, commitNote: () => undefined, cancelReason: () => undefined,
+};
 async function main() {
-  const { NotificationCenterView } = await import("../components/notification-center");
-  const html = renderToStaticMarkup(createElement(NotificationCenterView, {
-    loadState: "ready", requests: [input.request], stay: new Set([input.request.id]),
-    storyTitles: input.storyTitles ?? {}, deletedStories: new Set(input.deletedStories ?? []),
+  const { buildNeedsMeItems } = await import("../lib/needs-me-items");
+  const { RequestBody } = await import("../components/needs-me-bodies");
+  const [item] = buildNeedsMeItems({
+    references: [], decisions: undefined, previews: new Map(), captures: undefined, visitRated: new Set(), requests: [input.request], drafts: {}, missingDrafts: new Set(),
+    draftsState: "ready", stay: new Set([input.request.id]), bySource: new Map(), storyTitles: input.storyTitles ?? {}, storyExcerpts: {},
+    deletedStories: new Set(input.deletedStories ?? []), emails: [], emailsDecided: new Map(),
+  });
+  const html = renderToStaticMarkup(createElement(RequestBody, {
+    item, payload: item.payload as never, ratings, extras: { why: "", notThisKind: false }, onExtras: () => undefined, disabledReason: null, attachments: [], demo: false, predictionLoading: false,
   }));
   process.stdout.write(html.replace(/<[^>]+>/g, " ").replace(/&quot;/g, '"').replace(/&amp;/g, "&").replace(/\s+/g, " "));
 }
