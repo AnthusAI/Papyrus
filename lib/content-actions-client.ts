@@ -35,12 +35,14 @@ export type CorrectReferenceCaptureInput = {
   referenceId: string;
   /** The full corrected or pasted text. */
   text?: string;
+  /** The id of a PDF the editor uploaded to this Reference (a ModelAttachment); the server reads its text. Sent instead of `text`. */
+  pdfAttachmentId?: string;
   grobid?: Record<string, unknown>;
   /** Required with text; alone it is just a label on the capture. */
   assessment?: CaptureAssessment;
   note?: string;
 };
-export type CorrectReferenceCaptureResult = { ok: true; referenceId: string; status: string; edits: unknown[]; label: unknown; summaryStale: boolean };
+export type CorrectReferenceCaptureResult = { ok: true; referenceId: string; status: string; edits: Array<{ sortKey?: string; via?: string }>; label: unknown; summaryStale: boolean };
 
 export class ContentActionFailure extends Error {
   readonly errors: ContentActionError[];

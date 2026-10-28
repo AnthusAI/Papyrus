@@ -1,7 +1,7 @@
 "use client";
 
-import { FileCheckIcon, FileClockIcon, FileWarningIcon, FileXIcon, Loader2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { FileCheckIcon, FileClockIcon, FileUpIcon, FileWarningIcon, FileXIcon, Loader2Icon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { captureLine, type CaptureAssessment, type CaptureState, type CaptureStatus } from "../lib/reference-capture";
 import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
@@ -42,6 +42,87 @@ const ASSESSMENTS: Array<{ key: CaptureAssessment; label: string; hint: string }
   { key: "incorrect", label: "Incorrect", hint: "This is not the right text." },
 ];
 
+/** The editor's verdict on the machine capture; asked the same way whether they paste text or upload a PDF. */
+function AssessmentChoice({ value, onChange }: { value: CaptureAssessment | null; onChange: (value: CaptureAssessment) => void }) {
+  return (
+    <div aria-label="Was the capture complete?" className="flex flex-wrap gap-2" role="group">
+      {ASSESSMENTS.map((option) => (
+        <button
+          aria-pressed={value === option.key}
+          className={cn("inline-flex min-h-9 items-center rounded-full px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", value === option.key ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "bg-[var(--feed-card)]")}
+          data-capture-assessment={option.key}
+          key={option.key}
+          onClick={() => onChange(option.key)}
+          title={option.hint}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** "Upload a PDF": the editor's verdict, then the PDF they downloaded themselves; the server reads its text. */
+function PdfUploadForm({ capture, onDone, onCancel }: { capture: CaptureView; onDone: () => void; onCancel: () => void }) {
+  const [assessment, setAssessment] = useState<CaptureAssessment | null>(null);
+  const [note, setNote] = useState("");
+  const [phase, setPhase] = useState<"idle" | "uploading" | "reading" | "error">("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const reason = !assessment ? "Say whether the capture was complete, incomplete or incorrect, then choose the PDF." : null;
+  const busy = phase === "uploading" || phase === "reading";
+  async function upload(file: File) {
+    if (!assessment || !capture.uploadPdf) return;
+    setMessage(null);
+    try {
+      await capture.uploadPdf({ file, assessment, ...(note.trim() ? { note: note.trim() } : {}) }, (step) => setPhase(step));
+      onDone();
+    } catch (failure) {
+      setPhase("error");
+      setMessage(failure instanceof Error ? failure.message : "The PDF could not be uploaded.");
+    }
+  }
+  return (
+    <div className="space-y-3 rounded-2xl bg-[var(--feed-control)] p-3" data-capture-upload-form>
+      <p className="text-sm font-medium">Upload the PDF you downloaded. Its text replaces the capture, and the capture is kept.</p>
+      <AssessmentChoice onChange={setAssessment} value={assessment} />
+      <label className="block text-sm font-medium">
+        Note (optional)
+        <AutoGrowTextarea aria-label="Note about the capture (optional)" className="mt-1 block min-h-16 w-full rounded-2xl bg-[var(--feed-card)] p-3 text-sm font-normal" onChange={(event) => setNote(event.target.value)} value={note} />
+      </label>
+      <input
+        accept="application/pdf"
+        aria-label="PDF file"
+        className="hidden"
+        data-capture-upload-input
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void upload(file);
+        }}
+        ref={input}
+        type="file"
+      />
+      {reason && !busy ? <p className="text-xs text-muted-foreground" data-capture-upload-reason>{reason}</p> : null}
+      {busy ? <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" data-capture-upload-status role="status"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />{phase === "uploading" ? "Uploading the PDF…" : "Reading the text from the PDF…"}</p> : null}
+      {phase === "error" ? <p className="text-xs text-destructive" data-capture-upload-error role="alert">{message}</p> : null}
+      <div className="flex gap-2">
+        <button
+          aria-disabled={reason || busy ? true : undefined}
+          className={cn("inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--primary-foreground)] outline-none focus-visible:ring-2 focus-visible:ring-ring", (reason || busy) && "opacity-60")}
+          data-capture-upload-choose
+          onClick={() => { if (!reason && !busy) input.current?.click(); }}
+          type="button"
+        >
+          <FileUpIcon aria-hidden="true" className="size-4" />Choose the PDF
+        </button>
+        <button className="inline-flex min-h-9 items-center rounded-full bg-[var(--feed-card)] px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring" disabled={busy} onClick={onCancel} type="button">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 /** "Paste or correct the text": an editor's own text and verdict on the capture, saved with `correctReferenceCapture`. */
 function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () => void }) {
   const [text, setText] = useState(capture.text ?? "");
@@ -77,21 +158,7 @@ function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () 
           value={text}
         />
       </label>
-      <div aria-label="Was the capture complete?" className="flex flex-wrap gap-2" role="group">
-        {ASSESSMENTS.map((option) => (
-          <button
-            aria-pressed={assessment === option.key}
-            className={cn("inline-flex min-h-9 items-center rounded-full px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", assessment === option.key ? "bg-[var(--primary)] text-[var(--primary-foreground)]" : "bg-[var(--feed-card)]")}
-            data-capture-assessment={option.key}
-            key={option.key}
-            onClick={() => setAssessment(option.key)}
-            title={option.hint}
-            type="button"
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <AssessmentChoice onChange={setAssessment} value={assessment} />
       <label className="block text-sm font-medium">
         Note (optional)
         <AutoGrowTextarea aria-label="Note about the capture (optional)" className="mt-1 block min-h-16 w-full rounded-2xl bg-[var(--feed-card)] p-3 text-sm font-normal" onChange={(event) => setNote(event.target.value)} value={note} />
@@ -123,6 +190,7 @@ export function ReferenceCapturePanel({ capture, showSummary = true, startEditin
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(startEditing && Boolean(capture.correct));
+  const [uploading, setUploading] = useState(false);
   const [savedNote, setSavedNote] = useState(false);
   const line = captureLine(capture.status);
   const Icon = ICON[line.state];
@@ -145,6 +213,7 @@ export function ReferenceCapturePanel({ capture, showSummary = true, startEditin
       {capture.loading ? <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Reading the stored text…</p> : null}
       {capture.error ? <p className="text-xs text-destructive" role="alert">The stored text could not be read. {capture.error}</p> : null}
       {/* While the editor is open it holds the text, so the read-only copy steps aside: the text is never shown twice. */}
+      {text && capture.fromPdf ? <p className="text-xs font-medium" data-capture-from-pdf>Text from a PDF you uploaded</p> : null}
       {text && !editing ? (
         <div className="space-y-2">
           {/* No scroll box of its own: on a phone a swipe here scrolls the page. "Show all" grows it in place. */}
@@ -175,15 +244,24 @@ export function ReferenceCapturePanel({ capture, showSummary = true, startEditin
           ))}
         </dl>
       ) : null}
-      {capture.correct ? (
-        editing ? <CorrectionForm capture={capture} onDone={() => { setEditing(false); setSavedNote(true); }} /> : (
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="inline-flex min-h-9 items-center rounded-full bg-[var(--feed-control)] px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring" data-capture-correct onClick={() => { setSavedNote(false); setEditing(true); }} type="button">
-              Paste or correct the text
-            </button>
-            {savedNote ? <span className="text-xs text-muted-foreground" data-capture-correction-saved role="status">Saved. Your verdict trains the completeness check.</span> : null}
-          </div>
-        )
+      {capture.correct || capture.uploadPdf ? (
+        editing && capture.correct ? <CorrectionForm capture={capture} onDone={() => { setEditing(false); setSavedNote(true); }} />
+          : uploading && capture.uploadPdf ? <PdfUploadForm capture={capture} onCancel={() => setUploading(false)} onDone={() => { setUploading(false); setSavedNote(true); }} />
+          : (
+            <div className="flex flex-wrap items-center gap-2">
+              {capture.correct ? (
+                <button className="inline-flex min-h-9 items-center rounded-full bg-[var(--feed-control)] px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring" data-capture-correct onClick={() => { setSavedNote(false); setEditing(true); }} type="button">
+                  Paste or correct the text
+                </button>
+              ) : null}
+              {capture.uploadPdf ? (
+                <button className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[var(--feed-control)] px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring" data-capture-upload onClick={() => { setSavedNote(false); setUploading(true); }} type="button">
+                  <FileUpIcon aria-hidden="true" className="size-4" />Upload a PDF
+                </button>
+              ) : null}
+              {savedNote ? <span className="text-xs text-muted-foreground" data-capture-correction-saved role="status">Saved. Your verdict trains the completeness check.</span> : null}
+            </div>
+          )
       ) : null}
     </section>
   );

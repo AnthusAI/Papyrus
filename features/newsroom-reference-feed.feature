@@ -152,6 +152,12 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run
     And a verdict alone is saved as just a label, and nothing can be saved without a verdict
 
+  Scenario: An editor uploads the PDF they downloaded when the source sits behind a bot wall
+    Given a Reference with no captured text
+    When the editor chooses Upload a PDF, marks the capture incomplete and chooses a PDF, at 375 and 1440 pixels
+    Then the PDF is stored as an attachment of the Reference, correctReferenceCapture receives its id and the verdict, and the record shows the new text with the line "Text from a PDF you uploaded"
+    And a refusal from the server and a failed upload each show in words, and no upload button appears without the correction action
+
   Scenario: On a phone, a swipe anywhere in the detail scrolls the page, never a box inside it
     Given References where one has full stored text, one only a teaser, and one nothing but its link
     When the editor opens the full-text one at 375 pixels and shows all of the captured text

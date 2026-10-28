@@ -111,6 +111,20 @@ class MemoryStore(AttachmentStore):
         body = self.read(reference, sort_key)
         return body.decode("utf-8") if body is not None else None
 
+    def upload(self, reference_id, body: bytes, *, name="curation-upload-pdf-1", media_type="application/pdf", owner_kind="reference"):
+        """An editor's upload as the two-step upload leaves it: a ModelAttachment row and its stored bytes. Returns the attachment id."""
+        attachment_id = model_attachment_id(owner_kind, reference_id, "curation-upload-pdf", name)
+        self.bodies[attachment_id] = body
+        self.client.tables["ModelAttachment"][attachment_id] = {"id": attachment_id, "ownerKind": owner_kind, "ownerId": reference_id,
+            "role": "curation-upload-pdf", "sortKey": name, "filename": "paper.pdf", "mediaType": media_type, "byteSize": len(body)}
+        return attachment_id
+
+    def get_attachment(self, attachment_id):
+        return self.client.get_record("ModelAttachment", attachment_id)
+
+    def download(self, attachment):
+        return self.bodies.get(attachment["id"])
+
 
 def reference(name="r1", **fields):
     return {"id": f"{name}-v1", "lineageId": name, "versionNumber": 1, "versionState": "current", "corpusId": "knowledge-corpus-site",

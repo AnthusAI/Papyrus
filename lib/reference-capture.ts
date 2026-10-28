@@ -23,7 +23,7 @@ export type CurationCard = {
   editedSignals: Record<string, unknown> | null;
   summary: { status?: string; text?: string; stale?: boolean; reason?: string } | null;
   grobid: { status?: string; reason?: string; title?: string; authorCount?: number; hasAbstract?: boolean; sectionCount?: number; referenceCount?: number; fieldsSortKey?: string } | null;
-  current: { textSortKey?: string; grobidSortKey?: string } | null;
+  current: { textSortKey?: string; grobidSortKey?: string; textVia?: string } | null;
   labels: Array<{ kind?: string; assessment?: string; labeledAt?: string }>;
 };
 
