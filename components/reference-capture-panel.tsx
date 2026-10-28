@@ -4,6 +4,7 @@ import { FileCheckIcon, FileClockIcon, FileWarningIcon, FileXIcon, Loader2Icon }
 import { useEffect, useState } from "react";
 import { captureLine, type CaptureAssessment, type CaptureState, type CaptureStatus } from "../lib/reference-capture";
 import { cn } from "@/lib/utils";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import type { CaptureView } from "./reference-capture-client";
 
 const ICON = { full: FileCheckIcon, thin: FileWarningIcon, none: FileXIcon, running: FileClockIcon } as const;
@@ -66,7 +67,7 @@ function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () 
     <div className="space-y-3 rounded-2xl bg-[var(--feed-control)] p-3" data-capture-correction>
       <label className="block text-sm font-medium">
         The text
-        <textarea
+        <AutoGrowTextarea
           aria-label="Captured text"
           className="mt-1 block min-h-40 w-full rounded-2xl bg-[var(--feed-card)] p-3 text-sm font-normal"
           data-capture-correction-text
@@ -92,7 +93,7 @@ function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () 
       </div>
       <label className="block text-sm font-medium">
         Note (optional)
-        <textarea aria-label="Note about the capture (optional)" className="mt-1 block min-h-16 w-full rounded-2xl bg-[var(--feed-card)] p-3 text-sm font-normal" onChange={(event) => setNote(event.target.value)} value={note} />
+        <AutoGrowTextarea aria-label="Note about the capture (optional)" className="mt-1 block min-h-16 w-full rounded-2xl bg-[var(--feed-card)] p-3 text-sm font-normal" onChange={(event) => setNote(event.target.value)} value={note} />
       </label>
       {reason ? <p className="text-xs text-muted-foreground" data-capture-correction-reason>{reason}</p> : null}
       {phase === "error" ? <p className="text-xs text-destructive" role="alert">{message}</p> : null}
@@ -113,7 +114,12 @@ function CorrectionForm({ capture, onDone }: { capture: CaptureView; onDone: () 
 }
 
 /** Our captured record of a Reference: what we stored of its content, said plainly, above the live source preview. */
-export function ReferenceCapturePanel({ capture, startEditing = false }: { capture: CaptureView; startEditing?: boolean }) {
+export function ReferenceCapturePanel({ capture, showSummary = true, startEditing = false }: {
+  capture: CaptureView;
+  /** False where the summary is already shown above the rating, with the title. */
+  showSummary?: boolean;
+  startEditing?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(startEditing && Boolean(capture.correct));
   const [savedNote, setSavedNote] = useState(false);
@@ -137,9 +143,11 @@ export function ReferenceCapturePanel({ capture, startEditing = false }: { captu
       </div>
       {capture.loading ? <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status"><Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Reading the stored text…</p> : null}
       {capture.error ? <p className="text-xs text-destructive" role="alert">The stored text could not be read. {capture.error}</p> : null}
-      {text ? (
+      {/* While the editor is open it holds the text, so the read-only copy steps aside: the text is never shown twice. */}
+      {text && !editing ? (
         <div className="space-y-2">
-          <div className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-[var(--feed-control)] p-3 text-sm leading-relaxed" data-capture-text tabIndex={0}>
+          {/* No scroll box of its own: on a phone a swipe here scrolls the page. "Show all" grows it in place. */}
+          <div className="whitespace-pre-wrap rounded-2xl bg-[var(--feed-control)] p-3 text-sm leading-relaxed" data-capture-text>
             {expanded || !long ? text : `${text.slice(0, PREVIEW_CHARACTERS)}…`}
           </div>
           {long ? (
@@ -149,7 +157,7 @@ export function ReferenceCapturePanel({ capture, startEditing = false }: { captu
           ) : null}
         </div>
       ) : null}
-      {capture.summary ? (
+      {showSummary && capture.summary ? (
         <div className="space-y-1" data-capture-summary>
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Summary{capture.summaryStale ? " (out of date: the text was replaced)" : ""}</h4>
           <p className="text-sm">{capture.summary}</p>

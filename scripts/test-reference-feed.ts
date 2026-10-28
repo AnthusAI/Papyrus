@@ -233,6 +233,20 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok(/lucide-x\b/.test((await icon("strong-reject", "")) ?? ""), "an X on a predicted Reject");
       assert.equal(await page.locator('[data-feed-card="strong-accept"] [data-cyclotron-choice=reject] svg').count(), 0);
       assert.equal(await page.locator("[data-feed-card] [data-review-row=cyclotron] [data-verdict]").count(), 0, "no verdict before a vote");
+      // Nothing spills out of a cell at any card width the feed uses, down to a narrow card: the confidence wraps instead.
+      for (const width of [240, 280, 360]) {
+        const spills = await page.locator('[data-feed-card="strong-accept"] [data-rating-grid]').evaluate((grid, cardWidth) => {
+          (grid as HTMLElement).style.width = `${cardWidth}px`;
+          const cells = [...grid.querySelectorAll("[data-cyclotron-choice], [data-review-choice]")] as HTMLElement[];
+          const found = cells.filter((cell) => [...cell.querySelectorAll("*")].some((child) => {
+            const outer = cell.getBoundingClientRect(); const inner = child.getBoundingClientRect();
+            return inner.left < outer.left - 0.5 || inner.right > outer.right + 0.5;
+          })).map((cell) => cell.getAttribute("data-cyclotron-choice") ?? cell.getAttribute("data-review-choice"));
+          (grid as HTMLElement).style.width = "";
+          return found;
+        }, width);
+        assert.deepEqual(spills, [], `at a ${width}px grid every icon, word and percentage fits inside its cell`);
+      }
     });
   },
 

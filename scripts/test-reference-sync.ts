@@ -117,6 +117,8 @@ async function setup(width: number, options = "") {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
+    // Only site1 lets itself be framed; every other source refuses, as most news sites do.
+    if (url.pathname === "/api/newsroom/source-frameable") return route.fulfill({ contentType: "application/json", body: JSON.stringify({ frameable: (url.searchParams.get("url") ?? "").includes("site1.") }) });
     return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>body{margin:0;font:16px sans-serif}button,textarea{font:inherit}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/newsroom/references${options}`);
@@ -160,7 +162,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.equal(await panel.locator("[data-capture-label]").innerText(), "Full text captured");
         assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("Curated article body."), "the curation-text body is shown");
         assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("912 words"));
-        assert.ok((await panel.locator("[data-capture-summary]").innerText()).includes("Curated summary of the article."), "the card's own summary wins over metadata.json");
+        assert.ok((await review(page).locator("[data-review-summary]").innerText()).includes("Curated summary of the article."), "the card's own summary wins over metadata.json, shown with the title");
         const rows = await panel.locator("[data-capture-structured]").innerText();
         assert.ok(rows.includes("Curated paper") && rows.includes("Ada L.") && rows.includes("A curated abstract.") && rows.includes("3 sections") && rows.includes("2 cited works"), "the GROBID fields");
         await closeDetail(page, width);
@@ -278,14 +280,23 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.deepEqual((await requests(page))[0], { id: "r3", action: "accept", note: "Typed before voting.", reasonCode: null }, "the vote carries the reason");
         await closeDetail(page, width);
         assert.ok((await card(page, "r3").locator("[data-predicted]").innerText()).includes("Match"));
-        // A Reject needs a reason code: with a typed note and no code, the vote waits, and the note stays.
+        // A typed reason is a reason: a Reject with words and no reason button saves at once, filed under "other".
         await open(page, "r6");
         await review(page).getByLabel(WHY, { exact: true }).fill("Not our beat.");
         await review(page).locator("[data-review-choice=reject]").click();
-        assert.equal((await requests(page)).length, 1, "a Reject waits for its reason code");
-        await review(page).locator("[data-review-reason=out_of_scope]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2);
-        assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: "out_of_scope" });
+        assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: "other" }, "a typed reason saves the Reject");
+        await closeDetail(page, width);
+        // With no reason at all, a Reject waits for one and saves nothing.
+        await open(page, "r7");
+        await review(page).locator("[data-review-choice=reject]").click();
+        assert.ok(await review(page).getByText("Choose a reason, or say why above, to save your Reject.").isVisible());
+        assert.equal((await requests(page)).length, 2, "a Reject with no reason waits");
+        await review(page).locator("[data-review-reason=out_of_scope]").click();
+        await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 3);
+        assert.deepEqual((await requests(page))[2], { id: "r7", action: "reject", note: null, reasonCode: "out_of_scope" });
+        await closeDetail(page, width);
+        await open(page, "r6");
         // A failed save keeps what was typed.
         await page.evaluate(() => { (window as unknown as { fixtureFailNext: boolean }).fixtureFailNext = true; });
         await review(page).getByLabel(WHY, { exact: true }).fill("Second thoughts that must not vanish.");
@@ -306,7 +317,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.equal(await card(page, "r4").locator("[data-review-reasons]").count(), 1, "the card asks for a reason");
         await open(page, "r4");
         assert.equal(await review(page).locator("[data-review-choice=reject]").getAttribute("aria-pressed"), "true", "the detail pane shows the waiting Reject");
-        assert.ok(await review(page).getByText("Choose a reason to save your Reject.").isVisible());
+        assert.ok(await review(page).getByText("Choose a reason, or say why above, to save your Reject.").isVisible());
         await review(page).locator("[data-review-reason=duplicate]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 1);
         await closeDetail(page, width);
@@ -367,10 +378,19 @@ const scenarios: Record<string, () => Promise<void>> = {
         await panel.locator("[data-capture-text]").waitFor();
         assert.ok((await panel.locator("[data-capture-text]").innerText()).includes("Captured article."), "the stored text is shown");
         assert.ok((await panel.locator("[data-capture-words]").innerText()).includes("602 words"), "with its word count");
-        assert.ok((await panel.locator("[data-capture-summary]").innerText()).includes("A stored summary of the full article."), "and the summary");
+        assert.ok((await review(page).locator("[data-review-summary]").innerText()).includes("A stored summary of the full article."), "the summary is shown with the title");
+        assert.equal(await panel.locator("[data-capture-summary]").count(), 0, "and not repeated in the record");
         assert.ok((await panel.locator("[data-capture-structured]").innerText()).includes("Parsed paper title"), "and the structured extraction");
-        const order = await page.evaluate(() => { const nodes = [...document.querySelectorAll("[data-capture-panel], [aria-label='Source preview']")].filter((el) => (el as HTMLElement).offsetParent); return nodes.map((el) => el.getAttribute("data-capture-panel") ? "capture" : "source"); });
-        assert.deepEqual(order, ["capture", "source"], "our record sits above the source preview");
+        // A source that allows framing shows its live preview right under its link, above the summary and the rating.
+        await review(page).locator("[data-news-desk-reference-source-preview=html]").waitFor();
+        const order = await page.evaluate(() => [...document.querySelectorAll("[data-review-card] header a[target=_blank], [data-news-desk-reference-source-preview], [data-review-summary], [data-capture-panel]")]
+          .filter((el) => (el as HTMLElement).offsetParent).map((el) => el.hasAttribute("data-news-desk-reference-source-preview") ? "preview" : el.hasAttribute("data-review-summary") ? "summary" : el.hasAttribute("data-capture-panel") ? "capture" : "link"));
+        assert.deepEqual(order, ["link", "preview", "summary", "capture"], "the preview sits under the link, our record after the rating");
+        assert.equal(await page.getByText("Source preview", { exact: true }).count(), 0, "no heading of its own");
+        // Top to bottom: title, summary, the rating, then our record.
+        const top = await page.evaluate(() => ["[data-review-card] h2", "[data-review-summary]", "[data-review-card] [data-review-choice=accept]", "[data-capture-panel]"]
+          .map((selector) => Math.round(([...document.querySelectorAll(selector)].find((el) => (el as HTMLElement).offsetParent) as HTMLElement).getBoundingClientRect().top)));
+        assert.deepEqual([...top].sort((a, b) => a - b), top, `title, summary, rating, record in that order: ${top.join(", ")}`);
         await closeDetail(page, width);
 
         await open(page, "r2");
@@ -378,6 +398,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         await thin.locator("[data-capture-text]").waitFor();
         assert.equal(await thin.getAttribute("data-capture-panel"), "thin");
         assert.match(await thin.locator("[data-capture-label]").innerText(), /^Only 63 words — may be a teaser or paywalled$/);
+        await page.waitForTimeout(300);
+        assert.equal(await review(page).locator("[data-news-desk-reference-source-preview]").count(), 0, "a source that refuses framing shows no preview and no empty box");
         await closeDetail(page, width);
 
         await open(page, "r3");
@@ -391,6 +413,31 @@ const scenarios: Record<string, () => Promise<void>> = {
     }
   },
 };
+
+Object.assign(scenarios, {
+  /** On a phone nothing in the detail scrolls inside itself: the captured text and the text boxes grow, and a swipe moves the page. */
+  async phone_scroll() {
+    const { browser, page, errors } = await setup(375);
+    try {
+      await open(page, "r1");
+      const panel = page.locator("[data-capture-panel]:visible");
+      await panel.locator("[data-capture-text]").waitFor();
+      const toggle = panel.locator("[data-capture-toggle]");
+      if (await toggle.count()) await toggle.click();
+      await review(page).getByLabel(WHY, { exact: true }).fill(Array.from({ length: 12 }, (_, line) => `Line ${line + 1} of a long reason.`).join("\n"));
+      const boxes = await page.evaluate(() => [...document.querySelectorAll("[data-capture-text], textarea")].filter((el) => (el as HTMLElement).offsetParent).map((el) => {
+        const style = getComputedStyle(el);
+        return { overflow: style.overflowY, scrolls: el.scrollHeight > el.clientHeight + 1 };
+      }));
+      assert.ok(boxes.length >= 2, "the captured text and the Why box are on screen");
+      for (const box of boxes) {
+        assert.ok(!["auto", "scroll"].includes(box.overflow), `no inner scroll box (${box.overflow})`);
+        assert.equal(box.scrolls, false, "every box is as tall as its text");
+      }
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  },
+});
 
 /** A click that does not scroll the page first (Playwright's own click scrolls the target into view, which would hide a real jump). */
 const domClick = (locator: ReturnType<Page["locator"]>) => locator.evaluate((el) => (el as HTMLElement).click());

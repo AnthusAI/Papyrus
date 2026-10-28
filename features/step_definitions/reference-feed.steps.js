@@ -33,6 +33,7 @@ const outcomes = [
   ]],
   ["grid", [
     "the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels",
+    "on a card as narrow as 240 pixels every icon, word and percentage fits inside its cell, the confidence wrapping onto its own line",
     "a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one",
     "the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction",
     "before a vote the predicted cell is neutral with a Check or X icon",
@@ -66,6 +67,7 @@ const outcomes = [
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
+  "the editor opens the full-text one at 375 pixels and shows all of the captured text",
   "the editor chooses Paste or correct the text, pastes the article and marks the capture complete",
   "the editor accepts on the grid card and then types a reason in the detail pane",
   "the editor types a reason in the detail pane before voting, then votes",
@@ -84,13 +86,17 @@ const syncOutcomes = [
     "a verdict alone is saved as just a label, and nothing can be saved without a verdict",
   ]],
   ["capture_status", [
-    'the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction',
+    "the title comes first, then the source's own blurb when it has one, the link, the badges and the summary, then Accept and Reject with the Why box",
+    "the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise",
+    "our captured record and the import details come after the rating",
+    'the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there',
     'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',
     "each state has its own Lucide icon as well as its words, and the record sits above the source preview",
     "every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened",
   ]],
   ["vote_then_reason", ["the pane shows the vote, the green match state, and the reason is saved onto the same decision after a pause or on blur, with a Saved tick in both places"]],
-  ["reason_then_vote", ["the vote carries the reason, a Reject waits for its reason code, and a failed save keeps what was typed"]],
+  ["reason_then_vote", ['the vote carries the reason, a Reject with a typed reason saves at once under "Other", a Reject with no reason at all waits for one, and a failed save keeps what was typed']],
+  ["phone_scroll", ["the captured text and every text box grow to fit their text, none of them scrolls inside itself, and the page scrolls past them"]],
   ["card_and_detail_agree", ["both show the Reject, the card shows the reason and the red or green match state with its icon"]],
   ["grid_stays_put", [
     "every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels",
@@ -132,3 +138,11 @@ Then("the pictures are lazy, in a fixed frame and requested with no referrer", a
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("the page header, the tabs and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
 Then("the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out", async function () { assert.match(await ranking(), /The saved copy and the session display survive a return visit/); });
+
+// The framing check itself: scripts/test-source-frameable.ts covers the header rules and the address guard.
+Given("a source page and the headers it sends", function () { this.frameableResult = ""; });
+When("the newsroom checks whether it may show that page in a frame", async function () { this.frameableResult = await run("scripts/test-source-frameable.ts"); });
+for (const text of [
+  "a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is",
+  "only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network",
+]) Then(text, function () { assert.match(this.frameableResult, /source frameable check: ok/); });

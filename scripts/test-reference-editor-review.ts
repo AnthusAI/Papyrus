@@ -227,14 +227,18 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "A useful source for the publication.");
       await page.reload(); await detail(page).waitFor();
       assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "A useful source for the publication.");
-      // Switching to Reject needs a reason chip; it says so in words and saves on the chip tap.
+      // Switching to Reject with a Why already written saves at once: a typed reason is a reason (filed as "other").
       const before = await requestCount(page);
       await you(page, "reject").click();
-      await detail(page).getByText("Choose a reason to save your Reject.").waitFor();
       assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true", "the tapped answer shows as selected at once");
-      assert.equal(await requestCount(page), before, "nothing is sent until a reason is chosen");
-      await reasonChip(page, "out_of_scope").click();
       await settle(page); await status(page, "rejected");
+      assert.ok(await requestCount(page) > before, "the Reject is sent without waiting for a chip");
+      assert.equal(await detail(page).getByText("Choose a reason, or say why above, to save your Reject.").count(), 0, "nothing asks for a reason");
+      // A chip still refines the reason: a second save, sent once the first one lands.
+      const sent = await requestCount(page);
+      await reasonChip(page, "out_of_scope").click();
+      await settle(page); await page.waitForFunction((count) => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length > count, sent); await settle(page);
+      await status(page, "rejected");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
       assert.equal(await reasonChip(page, "out_of_scope").getAttribute("aria-pressed"), "true");
       assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true");
@@ -264,9 +268,10 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       await detail(page).getByLabel(WHY, { exact: true }).fill("The source addresses a different audience.");
-      await you(page, "reject").click();
-      await reasonChip(page, "out_of_scope").click();
-      await settle(page); await status(page, "rejected");
+      await you(page, "reject").click();   // with a Why typed, this saves at once (as "other")
+      await reasonChip(page, "out_of_scope").click();   // and the chip refines it once that lands
+      await settle(page); await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2); await settle(page);
+      await status(page, "rejected");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
       assert.equal(await reasonChip(page, "out_of_scope").getAttribute("aria-pressed"), "true", "reason is loaded from the persisted curation Message");
       assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "The source addresses a different audience.");
