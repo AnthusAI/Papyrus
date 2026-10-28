@@ -1137,7 +1137,7 @@ class Router:
                  cyclotron: CyclotronClient | None, appsync: Callable[[str], Any], deliver=deliver_reference,
                  context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                  start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=(),
-                 enricher: Enricher | None = None):
+                 enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False):
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
         self.rung = {j for j in rung_job_ids if j}   # jobs a Decision Ready doorbell named: asked about despite their backoff
         self._fresh: set = set()     # jobs posted by this run: checked at once, their backoff starts with the next run
@@ -1155,7 +1155,8 @@ class Router:
         self.active_publications = None
         self.nowait = False        # live Cyclotron sweeps post and check once; the collect window does the waiting
         self.post_allowed = True   # the collector sets this False: it never sends a new POST
-        self.holding = config.get("holdDecisions") is True   # CONFIG#router holdDecisions: no decide POST; enrichment, polling and feedback still run
+        self.holding = config.get("holdDecisions") is True and not hold_override   # CONFIG#router holdDecisions: no decide POST; enrichment, polling and feedback still run. hold_override (event holdOverride=false) lifts it for this invocation only
+        self.max_decisions, self.posted, self.capped = max_decisions, [], False   # canary: at most max_decisions new decide POSTs this run (combined or per publication); `posted` is what was sent
         self.combined_unavailable = False   # a 404 from POST /machine/decisions, remembered for the run
         self.counts = {"examined": 0, "dryRunValidated": 0, "decided": 0, "delivered": 0, "routed": 0,
                        "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
@@ -1665,11 +1666,15 @@ class Router:
         if not stored:
             if not self.post_allowed or self.holding:
                 return todo   # the collector sends nothing; stored per-publication jobs are still polled
+            if self.max_decisions is not None and len(self.posted) >= self.max_decisions:
+                self.capped = True
+                return todo   # the per-publication path stops at the same cap
             built = build_combined_request(self.config, todo, disc, int(route.get("attempt", 0)), enrichment=self.inputs_for(disc))
             stored = route["combinedJob"] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                                              "publications": list(built["body"]["payload"]["bindings"]),
                                              "via": VIA_DECISIONS, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
+            self.posted.append(sent := {"requestId": stored["requestId"], "jobId": None, "sourceId": disc["sourceId"]})
             try:
                 job_id, response = self.cyclotron.post_combined(built["body"])
             except ItemUncertain:
@@ -1684,6 +1689,7 @@ class Router:
                 return self.decide_combined(todo, disc, route, item_id, True)
             except (CombinedUnavailable, BindingNotReady) as reason:
                 del route["combinedJob"]   # nothing was started
+                self.posted.remove(sent)   # not a decision: the cap is not spent on a 404 or a pending binding
                 self.save(route)
                 self.combined_unavailable = self.combined_unavailable or isinstance(reason, CombinedUnavailable)
                 return todo
@@ -1692,7 +1698,7 @@ class Router:
                 self.save(route)
                 raise
             if job_id:
-                stored["jobId"] = job_id
+                stored["jobId"] = sent["jobId"] = job_id
                 self._fresh.add(job_id)
                 self.save(route)
         if response is None:
@@ -1771,9 +1777,13 @@ class Router:
         elif not job:
             if not self.post_allowed or self.holding:
                 raise NotPosting()
+            if self.max_decisions is not None and len(self.posted) >= self.max_decisions:
+                self.capped = True
+                raise NotPosting()
             jobs[pub_id] = {"requestId": built["body"]["requestId"], "postedAt": int(self.now),
                             "via": VIA_PUBLICATION, **self.posted_under()}
             self.save(route)   # recorded BEFORE sending: an interrupted run must not POST again
+            self.posted.append(sent := {"requestId": jobs[pub_id]["requestId"], "jobId": None, "sourceId": disc["sourceId"]})
             try:
                 job_id, immediate = self.cyclotron.post(pub_id, built["body"])
             except ItemUncertain:
@@ -1791,7 +1801,7 @@ class Router:
                 self.save(route)
                 raise
             if job_id:
-                jobs[pub_id]["jobId"] = job_id
+                jobs[pub_id]["jobId"] = sent["jobId"] = job_id
                 self._fresh.add(job_id)
                 self.save(route)
             else:
@@ -2151,6 +2161,8 @@ class Router:
         self.counts["awaiting"] = len(awaiting)
         if errors and status == "complete":
             status = "partial"
+        if self.capped and stopped is None:
+            status, stopped = "stopped", "max_decisions"   # the canary's cap was reached: later stories were not posted
         if awaiting and stopped is None:
             status, stopped = AWAITING, AWAITING   # jobs are still running at the lab; the collector delivers them
         if self.holding and stopped is None:
@@ -2377,7 +2389,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
                start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
-               rung_job_ids=(), enricher: Enricher | None = None) -> dict:
+               rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
+               hold_override: bool = False) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2395,7 +2408,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
             cyclotron = (cyclotron_factory or (lambda c: CyclotronClient(c, sign=sigv4_signer(c, assume_invoker(c)))))(config)
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
-                        start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher)
+                        start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
+                        max_decisions=max_decisions, hold_override=hold_override)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references") else router.feedback()
@@ -2403,12 +2417,12 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
                   "feedback": feedback, "errors": outcome.get("errors", []),
-                  "waitingForClassifier": outcome.get("waitingForClassifier", [])}
+                  "waitingForClassifier": outcome.get("waitingForClassifier", []), "posted": router.posted}
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
             "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback,
-            "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"],
+            "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "posted": router.posted,
             **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
     finally:
@@ -2479,7 +2493,11 @@ def handler(event, context):
         return handle_decision_ready(store, event, lambda monitor_id, job_id=None: run_router(
             store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter,
             rung_job_ids=[job_id], enricher=enricher))
+    cap = event.get("maxDecisions")
+    if "maxDecisions" in event and (not isinstance(cap, int) or isinstance(cap, bool) or cap < 1):
+        raise ValueError("maxDecisions must be a positive integer")
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
-                        cognito=cognito, start_procedure=starter, enricher=enricher)
+                        cognito=cognito, start_procedure=starter, enricher=enricher, max_decisions=cap,
+                        hold_override=event.get("holdOverride") is False)   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier", "posted")}
