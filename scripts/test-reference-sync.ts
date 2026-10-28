@@ -117,6 +117,8 @@ async function setup(width: number, options = "") {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
+    // Only site1 lets itself be framed; every other source refuses, as most news sites do.
+    if (url.pathname === "/api/newsroom/source-frameable") return route.fulfill({ contentType: "application/json", body: JSON.stringify({ frameable: (url.searchParams.get("url") ?? "").includes("site1.") }) });
     return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>body{margin:0;font:16px sans-serif}button,textarea{font:inherit}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/newsroom/references${options}`);
@@ -379,8 +381,12 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.ok((await review(page).locator("[data-review-summary]").innerText()).includes("A stored summary of the full article."), "the summary is shown with the title");
         assert.equal(await panel.locator("[data-capture-summary]").count(), 0, "and not repeated in the record");
         assert.ok((await panel.locator("[data-capture-structured]").innerText()).includes("Parsed paper title"), "and the structured extraction");
-        const order = await page.evaluate(() => { const nodes = [...document.querySelectorAll("[data-capture-panel], [aria-label='Source preview']")].filter((el) => (el as HTMLElement).offsetParent); return nodes.map((el) => el.getAttribute("data-capture-panel") ? "capture" : "source"); });
-        assert.deepEqual(order, ["capture", "source"], "our record sits above the source preview");
+        // A source that allows framing shows its live preview right under its link, above the summary and the rating.
+        await review(page).locator("[data-news-desk-reference-source-preview=html]").waitFor();
+        const order = await page.evaluate(() => [...document.querySelectorAll("[data-review-card] header a[target=_blank], [data-news-desk-reference-source-preview], [data-review-summary], [data-capture-panel]")]
+          .filter((el) => (el as HTMLElement).offsetParent).map((el) => el.hasAttribute("data-news-desk-reference-source-preview") ? "preview" : el.hasAttribute("data-review-summary") ? "summary" : el.hasAttribute("data-capture-panel") ? "capture" : "link"));
+        assert.deepEqual(order, ["link", "preview", "summary", "capture"], "the preview sits under the link, our record after the rating");
+        assert.equal(await page.getByText("Source preview", { exact: true }).count(), 0, "no heading of its own");
         // Top to bottom: title, summary, the rating, then our record.
         const top = await page.evaluate(() => ["[data-review-card] h2", "[data-review-summary]", "[data-review-card] [data-review-choice=accept]", "[data-capture-panel]"]
           .map((selector) => Math.round(([...document.querySelectorAll(selector)].find((el) => (el as HTMLElement).offsetParent) as HTMLElement).getBoundingClientRect().top)));
@@ -392,6 +398,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         await thin.locator("[data-capture-text]").waitFor();
         assert.equal(await thin.getAttribute("data-capture-panel"), "thin");
         assert.match(await thin.locator("[data-capture-label]").innerText(), /^Only 63 words — may be a teaser or paywalled$/);
+        await page.waitForTimeout(300);
+        assert.equal(await review(page).locator("[data-news-desk-reference-source-preview]").count(), 0, "a source that refuses framing shows no preview and no empty box");
         await closeDetail(page, width);
 
         await open(page, "r3");

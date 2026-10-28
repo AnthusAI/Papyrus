@@ -87,7 +87,8 @@ const syncOutcomes = [
   ]],
   ["capture_status", [
     "the title comes first, then the source's own blurb when it has one, the link, the badges and the summary, then Accept and Reject with the Why box",
-    "our captured record, the source preview and the import details come after the rating",
+    "the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise",
+    "our captured record and the import details come after the rating",
     'the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there',
     'the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing',
     "each state has its own Lucide icon as well as its words, and the record sits above the source preview",
@@ -137,3 +138,11 @@ Then("the pictures are lazy, in a fixed frame and requested with no referrer", a
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("the page header, the tabs and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
 Then("the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out", async function () { assert.match(await ranking(), /The saved copy and the session display survive a return visit/); });
+
+// The framing check itself: scripts/test-source-frameable.ts covers the header rules and the address guard.
+Given("a source page and the headers it sends", function () { this.frameableResult = ""; });
+When("the newsroom checks whether it may show that page in a frame", async function () { this.frameableResult = await run("scripts/test-source-frameable.ts"); });
+for (const text of [
+  "a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is",
+  "only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network",
+]) Then(text, function () { assert.match(this.frameableResult, /source frameable check: ok/); });

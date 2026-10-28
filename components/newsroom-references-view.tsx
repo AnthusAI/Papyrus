@@ -279,6 +279,7 @@ function ReferenceDetailPanel({
           onArchive={status === "archived" ? undefined : async () => { await onReview("archive"); }}
           onDecide={decide}
           prediction={cardPrediction(decision, predictionState)}
+          sourcePreview={<ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />}
           summary={capture.summary ?? summaryOf(reference)}
           title={referenceDisplayTitle(reference)}
           titleHref={url}
@@ -307,11 +308,6 @@ function ReferenceDetailPanel({
         <Separator />
 
         <ReferenceCapturePanel capture={capture} showSummary={false} />
-
-        <section aria-label="Source preview" className="space-y-2">
-          <h3 className="text-sm font-medium text-foreground">Source preview</h3>
-          <ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />
-        </section>
 
         <dl className="grid gap-3 text-sm">
           <div>

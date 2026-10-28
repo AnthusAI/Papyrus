@@ -140,6 +140,7 @@ export function ReviewCard({
   itemId,
   meta,
   onArchive,
+  sourcePreview,
   onDecide,
   prediction,
   summary,
@@ -164,6 +165,8 @@ export function ReviewCard({
   onArchive?: () => Promise<void> | void;
   onDecide: (choice: ReviewChoice, decision: ReviewCardDecision) => Promise<void> | void;
   prediction: CardPrediction;
+  /** The live preview of the source, shown under its link. It renders nothing when there is none. */
+  sourcePreview?: ReactNode;
   summary?: string | null;
   title: string;
   titleHref?: string | null;
@@ -209,6 +212,7 @@ export function ReviewCard({
             <ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" />
           </a>
         ) : null}
+        {sourcePreview}
         {meta}
         {summary ? (
           <div className="space-y-1 pt-1" data-review-summary>

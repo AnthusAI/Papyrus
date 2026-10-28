@@ -92,7 +92,8 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given References where one has full stored text, one only a teaser, and one nothing but its link
     When the editor opens each of them
     Then the title comes first, then the source's own blurb when it has one, the link, the badges and the summary, then Accept and Reject with the Why box
-    And our captured record, the source preview and the import details come after the rating
+    And the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise
+    And our captured record and the import details come after the rating
     And the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there
     And the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing
     And each state has its own Lucide icon as well as its words, and the record sits above the source preview
@@ -143,3 +144,9 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given References where one has full stored text, one only a teaser, and one nothing but its link
     When the editor opens the full-text one at 375 pixels and shows all of the captured text
     Then the captured text and every text box grow to fit their text, none of them scrolls inside itself, and the page scrolls past them
+
+  Scenario: The newsroom asks a source page whether it may be framed before it shows a live preview
+    Given a source page and the headers it sends
+    When the newsroom checks whether it may show that page in a frame
+    Then a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is
+    And only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network

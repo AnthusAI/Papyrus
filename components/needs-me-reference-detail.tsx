@@ -49,6 +49,7 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
         onDecide={async () => undefined}
         prediction={cardPrediction(item, predictionLoading)}
         ratings={ratings}
+        sourcePreview={<ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />}
         summary={summary}
         title={referenceDisplayTitle(reference)}
         titleHref={url}
@@ -58,10 +59,6 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
       <DefaultOutcome item={item} />
       {incomplete ? <p className="text-sm text-muted-foreground" data-needs-me-capture-note>The captured text looks cut off or missing. Read it below. If it is incomplete, choose Paste or correct the text and say whether the capture was complete, or rate the Reference as it is.</p> : null}
       <ReferenceCapturePanel capture={capture} showSummary={false} />
-      <section aria-label="Source preview" className="space-y-2">
-        <h3 className="text-sm font-medium text-foreground">Source preview</h3>
-        <ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />
-      </section>
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div>
           <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Imported</dt>
