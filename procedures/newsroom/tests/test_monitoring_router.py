@@ -698,6 +698,62 @@ def test_held_decisions_send_no_decide_request_and_say_so_in_the_receipt(table):
     assert receipt["stoppedBy"] == "decisions_held"
 
 
+def test_max_decisions_counts_combined_posts_across_stories_and_reports_them(table3):
+    store, cyclotron = setup_router(table3)
+    cyclotron.combined_enabled = True
+    result = go(table3, store, cyclotron, max_decisions=1)
+    combined = [c for c in cyclotron.combined_calls if c[0] == "POST"]
+    assert len(combined) == 1 and cyclotron.posts() == []
+    assert result["stoppedBy"] == "max_decisions" and len(result["posted"]) == 1
+    sent = result["posted"][0]
+    assert sent["requestId"] == combined[0][2]["requestId"] and sent["jobId"] and sent["sourceId"] == "101"
+    receipt = [v for k, v in table3.items.items() if k[1].startswith("ROUTERUN#")][0]
+    assert receipt["stoppedBy"] == "max_decisions" and receipt["posted"] == result["posted"]
+
+
+def test_max_decisions_counts_per_publication_posts_together(table3):
+    store, cyclotron = setup_router(table3)   # no combined endpoint: three publications per story, one POST each
+    result = go(table3, store, cyclotron, max_decisions=2)
+    assert len(cyclotron.posts()) == 2 and result["stoppedBy"] == "max_decisions"
+    assert [p["requestId"] for p in result["posted"]] == [c[2]["requestId"] for c in cyclotron.posts()]
+    assert all(p["jobId"] and p["sourceId"] for p in result["posted"])
+
+
+def test_hold_override_posts_while_config_holds_and_never_changes_config(table):
+    store, cyclotron = setup_router(table, holdDecisions=True)
+    result = go(table, store, cyclotron, hold_override=True, max_decisions=1)
+    assert len(cyclotron.posts()) == 1 and result["stoppedBy"] != "decisions_held" and len(result["posted"]) == 1
+    assert table.items[("MONITOR#hn", "CONFIG#router")]["holdDecisions"] is True
+    again = go(table, store, cyclotron, now=3000)
+    assert again["stoppedBy"] == "decisions_held" and len(cyclotron.posts()) == 1
+
+
+def test_without_the_canary_keys_a_run_is_unchanged(table3):
+    store, cyclotron = setup_router(table3)
+    result = go(table3, store, cyclotron)
+    assert len(cyclotron.posts()) == 9 and result["stoppedBy"] != "max_decisions"
+    held = collected_table(ONE_FEED)
+    held_store, held_lab = setup_router(held, holdDecisions=True)
+    assert go(held, held_store, held_lab)["stoppedBy"] == "decisions_held" and held_lab.posts() == []
+
+
+def test_the_handler_passes_the_canary_keys_and_rejects_a_bad_cap(monkeypatch):
+    import sys, types
+    from papyrus_content import monitoring_router as mr
+    seen = {}
+    monkeypatch.setitem(sys.modules, "boto3", types.SimpleNamespace(resource=lambda n: types.SimpleNamespace(Table=lambda t: None), client=lambda n: None))
+    monkeypatch.setenv("TABLE_NAME", "t")
+    monkeypatch.setattr(mr, "RouterStore", lambda t: None)
+    monkeypatch.setattr(mr, "run_router", lambda store, monitor, **kw: seen.update(kw) or {"runId": "r", "status": "complete", "posted": [{"requestId": "q", "jobId": "j", "sourceId": "s"}]})
+    out = mr.handler({"maxDecisions": 1, "holdOverride": False}, None)
+    assert seen["max_decisions"] == 1 and seen["hold_override"] is True and out["posted"][0]["jobId"] == "j"
+    mr.handler({"holdOverride": True}, None)
+    assert seen["max_decisions"] is None and seen["hold_override"] is False
+    for bad in (0, -1, "2", True, 1.5):
+        with pytest.raises(ValueError):
+            mr.handler({"maxDecisions": bad}, None)
+
+
 def test_a_disabled_router_still_does_nothing_even_when_decisions_are_held(table):
     store, cyclotron = setup_router(table, holdDecisions=True, enabled=False)
     assert go(table, store, cyclotron)["status"] == "disabled" and cyclotron.posts() == []
@@ -1608,6 +1664,43 @@ def test_a_combined_job_that_fails_again_after_the_repost_errors_the_story(table
     cyclotron.combined_poll_override = (200, {"status": "failed"})
     go(table, store, cyclotron, now=2100)
     assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+
+
+def test_a_reconciled_combined_job_is_reposted_once_under_a_new_id(table):
+    store, cyclotron = combined_setup(table)
+    old = stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_queue = [(409, {"code": "reconciliation_required"})]
+    result = go(table, store, cyclotron, now=2100)
+    assert result["status"] == "complete" and routing_of(table)["DISC#101#000001"] == "routed"
+    ids = post_ids(cyclotron)
+    assert len(ids) == 1 and ids[0] != "stale-request-id-0"
+    assert any(c[0] == "GET" and c[1].endswith(old) for c in cyclotron.combined_calls)
+
+
+def test_a_second_reconciliation_required_is_not_reposted_again(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_override = (409, {"code": "reconciliation_required"})
+    go(table, store, cyclotron, now=2100)
+    assert len(post_ids(cyclotron)) == 1 and routing_of(table)["DISC#101#000001"] == "error"
+    assert "combinedJob" not in table.items[("MONITOR#hn", "ROUTE#101#000001")]
+
+
+def test_another_409_on_a_combined_poll_still_backs_off_without_a_repost(table):
+    store, cyclotron = combined_setup(table)
+    stale_combined_job(table, store, cyclotron)
+    cyclotron.combined_poll_override = (409, {"code": "something_else"})
+    go(table, store, cyclotron, now=2100)
+    assert post_ids(cyclotron) == [] and routing_of(table)["DISC#101#000001"] == "collected"
+
+
+def test_a_reconciled_single_publication_job_is_reposted_once_and_a_repeat_errors_the_story(table):
+    store, cyclotron = setup_router(table)
+    cyclotron.poll_override["p-apyr-us"] = (409, {"code": "reconciliation_required"})
+    go(table, store, cyclotron)
+    ids = [c[2]["requestId"] for c in cyclotron.calls if c[0] == "POST" and "/p-apyr-us/" in c[1] and c[2]["payload"]["item"]["id"] == "hn-101"]
+    assert len(ids) == 2 and ids[0] != ids[1]
+    assert routing_of(table)["DISC#101#000001"] == "error"
 
 
 def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(table):

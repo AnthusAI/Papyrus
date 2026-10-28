@@ -1,5 +1,6 @@
 "use client";
 
+import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
 import { CheckIcon, CircleCheckIcon, CircleXIcon, ExternalLinkIcon, FileSearchIcon, Loader2Icon, LockIcon, MailIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
@@ -95,9 +96,9 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
 
   return (
     <section aria-label="Your decision" className="space-y-3 rounded-[20px] bg-[var(--feed-footer)] p-3" data-needs-me-decision {...(locked ? {} : { "data-review-controls": "" })}>
-      <textarea
+      <AutoGrowTextarea
         aria-label="Why? (optional)"
-        className="block min-h-20 w-full resize-y rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="block min-h-20 w-full rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
         data-needs-me-why
         onBlur={() => { if (!disabledReason) ratings.commitNote(item.id); }}
         onChange={(event) => ratings.setNote(item.id, event.target.value)}

@@ -2,11 +2,12 @@
 
 import { referenceDisplayTitle, referenceLineageId, formatReferenceListDate } from "../lib/newsroom-references";
 import { referenceMetadataField } from "../lib/reference-display";
+import { referenceDek, referencePreviewsByLineage } from "../lib/reference-preview";
 import { DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
 import { referenceReasonCode, normalizeReferenceCurationStatus } from "../lib/reference-policy";
 import type { ReferenceRecord } from "../lib/category-repository";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
-import { DefaultOutcome, type DetailProps } from "./needs-me-bodies";
+import { DefaultOutcome, Heading, type DetailProps } from "./needs-me-bodies";
 import { decidedChoiceOf } from "./needs-me-shared";
 import { predictionFromDecision, ReviewCard, type CardPrediction } from "./reference-review-card";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
@@ -20,7 +21,10 @@ function cardPrediction(item: NeedsMeEntry, predictionLoading: boolean): CardPre
   return predictionLoading ? { state: "loading" } : { state: "none" };
 }
 
-/** A Reference, or a Reference whose capture may be cut off: the References detail's own pieces, in the same order. */
+/**
+ * A Reference, or a Reference whose capture may be cut off: the References detail's own pieces, in the same order. What the item is
+ * comes first (title, blurb, link, badges, summary), then the rating, then what was captured and how well.
+ */
 export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEntry["payload"], { kind: "reference" }> }) {
   const { item, payload, ratings, disabledReason, attachments, captureTeaserLine = DEFAULT_TEASER_WORDS, onCorrectCapture, predictionLoading } = props;
   const reference: ReferenceRecord = payload.reference;
@@ -29,26 +33,23 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
   const previewAttachments = useReferencePreviewAttachments(reference, attachments);
   const capture = useReferenceCapture(reference, previewAttachments, captureTeaserLine, onCorrectCapture);
   const url = reference.sourceUri?.trim() && /^https?:\/\//i.test(reference.sourceUri.trim()) ? reference.sourceUri.trim() : null;
-  const summary = referenceMetadataField(null, reference.metadata, "summary");
+  const summary = capture.summary ?? referenceMetadataField(null, reference.metadata, "summary");
+  const dek = referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId));
   const incomplete = item.type === "incomplete_capture";
-  const capturePanel = <ReferenceCapturePanel capture={capture} startEditing={incomplete} />;
   return (
     <div className="space-y-4" data-reference-curation-status={status} data-news-desk-reference-detail={lineageId}>
-      {incomplete ? (
-        <div className="space-y-2" data-needs-me-capture-first>
-          <p className="text-sm text-muted-foreground">The captured text looks cut off or missing. Paste the full text below and say whether the capture was complete, or rate the Reference as it is.</p>
-          {capturePanel}
-        </div>
-      ) : null}
       <ReviewCard
         decided={decidedChoiceOf(item)}
         disabledReason={disabledReason}
         initialNote={status === "pending" ? "" : reference.curationStatusReason ?? ""}
         initialReason={referenceReasonCode(reference) ?? null}
+        dek={dek}
         itemId={item.id}
+        meta={<Heading item={item} />}
         onDecide={async () => undefined}
         prediction={cardPrediction(item, predictionLoading)}
         ratings={ratings}
+        sourcePreview={<ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />}
         summary={summary}
         title={referenceDisplayTitle(reference)}
         titleHref={url}
@@ -56,11 +57,8 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
         {payload.decision ? <div data-reference-relevance-decision={lineageId}><ReferenceSuggestionProvenance decision={payload.decision} /></div> : null}
       </ReviewCard>
       <DefaultOutcome item={item} />
-      {incomplete ? null : capturePanel}
-      <section aria-label="Source preview" className="space-y-2">
-        <h3 className="text-sm font-medium text-foreground">Source preview</h3>
-        <ReferenceSourcePreview attachments={previewAttachments} sourceUri={reference.sourceUri} />
-      </section>
+      {incomplete ? <p className="text-sm text-muted-foreground" data-needs-me-capture-note>The captured text looks cut off or missing. Read it below. If it is incomplete, choose Paste or correct the text and say whether the capture was complete, or rate the Reference as it is.</p> : null}
+      <ReferenceCapturePanel capture={capture} showSummary={false} />
       <dl className="grid grid-cols-2 gap-3 text-sm">
         <div>
           <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Imported</dt>

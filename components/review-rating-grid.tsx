@@ -13,6 +13,8 @@ import type { CardPrediction, ReviewChoice } from "./reference-review-card";
  * Feedback is never colour alone: before you answer the predicted cell is neutral-accent with a check or cross; after, it turns
  * green with a CircleCheck (Match) or red with a CircleX (Miss), and the confidence bar tints the same way. Your chosen button is
  * filled. Flat tones and rounded shapes only, no borders.
+ * The grid sizes itself to its own width (a container query), not the window's: on a narrow card the label column shrinks to its
+ * word, the padding tightens, and the confidence wraps under "Accept" instead of spilling out of its cell.
  */
 
 export type RatingFeedback = { phase: "idle" | "saving" | "saved" | "error"; message?: string };
@@ -81,9 +83,8 @@ export function RatingGrid({
   return (
     <div
       className={cn(
-        "grid gap-x-2 gap-y-2",
-        showPrediction ? "grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)]" : "grid-cols-2",
-        showPrediction && size === "large" && "grid-cols-[5rem_minmax(0,1fr)_minmax(0,1fr)]",
+        "@container/rating grid gap-x-2 gap-y-2",
+        showPrediction ? "grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] @max-[17rem]/rating:gap-x-1.5" : "grid-cols-2",
       )}
       data-rating-grid
     >
@@ -95,7 +96,7 @@ export function RatingGrid({
           return (
             <span
               className={cn(
-                "flex flex-col items-center justify-center rounded-[16px] px-2 py-1.5 text-center",
+                "flex min-w-0 flex-col items-center justify-center rounded-[16px] px-2 py-1.5 text-center @max-[17rem]/rating:px-1",
                 cell,
                 !predicted && "bg-[var(--feed-control)]/45 text-muted-foreground",
                 predicted && !verdict && "bg-[var(--feed-control)] font-semibold text-[var(--primary)]",
@@ -106,12 +107,21 @@ export function RatingGrid({
               data-verdict={predicted && verdict ? verdict : undefined}
               key={choice}
             >
-              <span className="inline-flex items-center gap-1.5">
-                {Icon ? <Icon aria-hidden="true" className="size-4 shrink-0" /> : null}
-                {WORD[choice]}
-                {predicted && confidenceText ? <small className="text-xs font-normal opacity-80">{confidenceText}</small> : null}
+              {/* Wraps rather than overflows: when the cell is narrow, the confidence moves onto its own line. */}
+              <span className="flex max-w-full flex-wrap items-center justify-center gap-x-1.5 leading-tight">
+                <span className="inline-flex items-center gap-1">
+                  {Icon ? <Icon aria-hidden="true" className="size-4 shrink-0" /> : null}
+                  {WORD[choice]}
+                </span>
+                {/* The confidence and the verdict share one line, so a vote never makes the cell (or the card) taller. */}
+                {predicted && (confidenceText || verdict) ? (
+                  <small className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
+                    {confidenceText ? <span className="font-normal opacity-80" data-cyclotron-confidence>{confidenceText}</span> : null}
+                    {confidenceText && verdict ? <span aria-hidden="true" className="opacity-60">·</span> : null}
+                    {verdict ? <span className="font-medium" data-verdict-word>{verdict === "match" ? "Match" : "Miss"}</span> : null}
+                  </small>
+                ) : null}
               </span>
-              {predicted && verdict ? <small className="text-xs font-medium" data-verdict-word>{verdict === "match" ? "Match" : "Miss"}</small> : null}
               {predicted && verdict ? <span className="sr-only">{verdict === "match" ? ", matches your answer" : ", differs from your answer"}</span> : null}
             </span>
           );
@@ -151,7 +161,7 @@ export function RatingGrid({
               aria-disabled={disabled ? true : undefined}
               aria-pressed={on}
               className={cn(
-                "inline-flex items-center justify-center gap-1.5 rounded-[16px] px-2 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                "inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[16px] px-2 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @max-[17rem]/rating:gap-1 @max-[17rem]/rating:px-1",
                 cell,
                 on ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)] text-foreground hover:bg-[var(--feed-control)]/70",
                 disabled && !on && "opacity-60",

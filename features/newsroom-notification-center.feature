@@ -101,3 +101,9 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Given the organizer navigation
     When the editor looks at Editorial work
     Then Drafts opens the Proposals panel
+
+  Scenario: While the session is checked, the page shows the feed's own skeleton, not an older outlined one
+    Given the newsroom is still checking the editor's session
+    When the Notification Center or another newsroom page is loading
+    Then the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule
+    And when the feed loads it replaces the skeleton in place, in the same shapes

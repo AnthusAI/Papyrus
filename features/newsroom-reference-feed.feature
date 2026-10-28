@@ -38,6 +38,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens the feed at 375 and 1440 pixels
     Then the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels
+    And on a card as narrow as 240 pixels every icon, word and percentage fits inside its cell, the confidence wrapping onto its own line
     And a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one
     And the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction
     And before a vote the predicted cell is neutral with a Check or X icon
@@ -87,10 +88,13 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then it explains best bets first, confidence, fading toward not sure, Earlier and why a rated card stays put
     And it says how many accepted examples have been learned from, or how many more are needed
 
-  Scenario: The detail pane shows our captured record above the source preview, so the editor can see whether the item was really captured
+  Scenario: The detail pane reads top to bottom: what the item is, then the rating, then what was captured
     Given References where one has full stored text, one only a teaser, and one nothing but its link
     When the editor opens each of them
-    Then the record says "Full text captured" with the stored text, its word count, the summary and any structured extraction
+    Then the title comes first, then the source's own blurb when it has one, the link, the badges and the summary, then Accept and Reject with the Why box
+    And the source's live preview sits right under its link only when the source allows being shown in a frame, with no heading and no empty box otherwise
+    And our captured record and the import details come after the rating
+    And the record says "Full text captured" with the stored text, its word count and any structured extraction, and the summary is not repeated there
     And the record says "Only 63 words — may be a teaser or paywalled" for the teaser, and "No text captured" for the one with nothing
     And each state has its own Lucide icon as well as its words, and the record sits above the source preview
     And every grid card carries a small badge saying Full text, how many words, or No text, before the item is opened
@@ -103,7 +107,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   Scenario: A reason, then a vote, ends up as one decision that carries the reason, and a typed reason is never lost
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor types a reason in the detail pane before voting, then votes
-    Then the vote carries the reason, a Reject waits for its reason code, and a failed save keeps what was typed
+    Then the vote carries the reason, a Reject with a typed reason saves at once under "Other", a Reject with no reason at all waits for one, and a failed save keeps what was typed
 
   Scenario: A reason chosen in the pane shows on the card, and a Reject waiting for its reason is waiting in both
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -135,3 +139,14 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     When the editor chooses Paste or correct the text, pastes the article and marks the capture complete
     Then correctReferenceCapture receives the text and the verdict, the record shows the new text and the verdict, and the summary is marked as awaiting the next run
     And a verdict alone is saved as just a label, and nothing can be saved without a verdict
+
+  Scenario: On a phone, a swipe anywhere in the detail scrolls the page, never a box inside it
+    Given References where one has full stored text, one only a teaser, and one nothing but its link
+    When the editor opens the full-text one at 375 pixels and shows all of the captured text
+    Then the captured text and every text box grow to fit their text, none of them scrolls inside itself, and the page scrolls past them
+
+  Scenario: The newsroom asks a source page whether it may be framed before it shows a live preview
+    Given a source page and the headers it sends
+    When the newsroom checks whether it may show that page in a frame
+    Then a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is
+    And only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network

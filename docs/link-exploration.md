@@ -29,6 +29,29 @@ result.ok, result.url, result.text, result.via, result.failure
    `invalid_url`, `not_public`, `dns`, `timeout`, `connection`, `tls`, `loop`, `http_4xx`, `http_5xx`, `blocked`, `too_large`,
    `unreadable`, `unsafe_destination`, `no_query`, `search_unavailable`, `search_error`, `no_match`. A reason never contains an address.
 
+## Thin landing pages: follow the page's own full-text link
+
+Capture (`reference_capture.capture_source`, used by the monitoring router's enrichment and by reference curation) reads the fetched
+HTML first. A journal or article-view page often fronts a PDF and carries only a meta description, so the page is **thin** when its
+main-content text is no longer than its own meta description (no word or character cap). A thin page follows its own full-text link,
+found in this order, and takes the text of the first one that is a readable PDF with more words than the page:
+
+1. `<meta name="citation_pdf_url">` (also followed on a page that is not thin: it is the page's own declaration of its full text);
+2. `<link rel="alternate" type="application/pdf">`;
+3. anchors on the page's own site to a `.pdf`, then anchors on its own site labelled "PDF" or "full text".
+
+No publisher is named. The PDF goes through the existing PDF path (`pdf_text`, page by page); GROBID still runs afterward on the
+PDF bytes only where `BIBLICUS_GROBID_URL` is configured and the source looks like a paper. If no link yields a readable PDF, the
+page's own text stays. The capture records where the text came from: `via` (`citation_pdf_url`, `alternate_pdf`, `linked_pdf`,
+`full_text_link`) and `fullTextUrl` (the PDF's address; absent when the text is the page's own) on the router's enrichment row and
+on the curation card's `capture`.
+
+## Short-body statistic
+
+`shortBodies` counts captured bodies shorter than 500 characters (`SHORT_BODY_CHARACTERS`): in the monitoring router's counts (per
+item enriched in the run) and in the curation backfill counts. It is a report, never a gate: nothing is refused or retried because
+of it, and a failed capture (no body) is counted under its own failure instead.
+
 ## Safety and limits
 
 - Public http and https only. A private, loopback, link-local, credentialed or single-label address is refused (`not_public`) before any

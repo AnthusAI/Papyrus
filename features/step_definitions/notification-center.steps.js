@@ -70,3 +70,11 @@ When("the editor looks at Editorial work", { timeout: 60_000 }, async function (
 Then("Drafts opens the Proposals panel", function () {
   assert.ok(this.notificationResult.includes("PASS"));
 });
+
+// The access gate's loading state: scripts/test-newsroom-loading.ts renders the skeleton and checks the gate uses it.
+Given("the newsroom is still checking the editor's session", function () { this.loadingResult = ""; });
+When("the Notification Center or another newsroom page is loading", async function () {
+  this.loadingResult = (await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-newsroom-loading.ts"], { cwd: path.resolve(__dirname, "../..") })).stdout;
+});
+Then("the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });
+Then("when the feed loads it replaces the skeleton in place, in the same shapes", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });

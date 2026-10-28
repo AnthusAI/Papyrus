@@ -39,6 +39,7 @@ for (const [name, outcome] of [
   ["selection", "changing status filters preserves the selected reference and its unsaved explanation"],
   ["feedback", "tapping the selected answer again never unselects it or sends another write"],
   ["revision_from_message", "live feedback updates refresh an untouched card while preserving an unsaved draft"],
+  ["revision_from_message", "a reason chip tapped while a Reject is still saving is saved right after it, without losing the typed explanation"],
   ["predictions", "accepting by tap or by the A key keeps the editor's chosen Section"],
   ["predictions", "the Cyclotron's matching or differing answer is marked with a check or cross as well as colour"],
   ["queue", "swiping left or right and the arrow keys move through the queue"],
