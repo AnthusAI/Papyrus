@@ -92,6 +92,13 @@ Parameters:
     Description: >-
       Name of the SSM SecureString holding the OpenAI key for item enrichment summaries (gpt-6-luna). The router role may read only
       this parameter. Empty leaves summaries as the typed skip openai_not_configured.
+  TavilyKeyParameter:
+    Type: String
+    Default: /papyrus/shared/tavily-api-key
+    AllowedPattern: "^$|^/[A-Za-z0-9_.\\-/]{1,1010}$"
+    Description: >-
+      Name of the SSM SecureString holding the Tavily key for link-exploration search (environment variable
+      PAPYRUS_TAVILY_KEY_PARAMETER). The role may read only this parameter and decrypt through SSM. Empty disables search.
   EnrichmentGrobidUrl:
     Type: String
     Default: ""
@@ -104,6 +111,7 @@ Conditions:
   HasProcedureRunner: !Not [!Equals [!Ref ProcedureRunnerFunctionName, ""]]
   HasEditorUserPools: !Not [!Equals [!Join ["", !Ref EditorUserPoolArns], ""]]
   HasEnrichmentKey: !Not [!Equals [!Ref EnrichmentOpenAiKeyParameter, ""]]
+  HasTavilyKey: !Not [!Equals [!Ref TavilyKeyParameter, ""]]
   HasEnrichmentGrobid: !Not [!Equals [!Ref EnrichmentGrobidUrl, ""]]
 
 Resources:
@@ -210,6 +218,7 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref MonitoringTable
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
 
   ScheduleDeadLetterQueue:
     Type: AWS::SQS::Queue
@@ -446,6 +455,7 @@ Resources:
           PROCEDURE_RUNNER_FUNCTION: !If [HasProcedureRunner, !Ref ProcedureRunnerFunctionName, !Ref AWS::NoValue]
           ENRICHMENT_BUCKET: !Ref EnrichmentBucket
           ENRICHMENT_OPENAI_KEY_PARAMETER: !If [HasEnrichmentKey, !Ref EnrichmentOpenAiKeyParameter, !Ref AWS::NoValue]
+          PAPYRUS_TAVILY_KEY_PARAMETER: !If [HasTavilyKey, !Ref TavilyKeyParameter, !Ref AWS::NoValue]
           BIBLICUS_GROBID_URL: !If [HasEnrichmentGrobid, !Ref EnrichmentGrobidUrl, !Ref AWS::NoValue]
 
   RouterEnrichmentStoragePolicy:
@@ -487,6 +497,48 @@ Resources:
             Effect: Allow
             Action: ssm:GetParameter
             Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${EnrichmentOpenAiKeyParameter}"
+
+  RouterTavilyKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasTavilyKey
+    Properties:
+      Description: Lets the router read the one SSM parameter that holds the Tavily key for link search.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadTavilyKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+          - Sid: DecryptTavilyKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  CollectorTavilyKeyPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasTavilyKey
+    Properties:
+      Description: Lets the collector read the one SSM parameter that holds the Tavily key for link search.
+      Roles: [!Ref CollectorRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ReadTavilyKey
+            Effect: Allow
+            Action: ssm:GetParameter
+            Resource: !Sub "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${TavilyKeyParameter}"
+          - Sid: DecryptTavilyKey
+            Effect: Allow
+            Action: kms:Decrypt
+            Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+            Condition:
+              StringEquals:
+                kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   RouterProcedureRunnerPolicy:
     Type: AWS::IAM::ManagedPolicy
