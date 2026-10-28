@@ -60,6 +60,15 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Given an isolated Notification Center with a batch of three AI drafts
     When the editor opens a hard gate, a draft, a held email and a Reference
     Then each opens in the one detail pane with a body that fits its type, a held email's text is inert and its links are not clickable, and a Reference shows our captured record
+    And before anything is selected there is no Detail pane and the feed has the whole width
+
+  Scenario: The open item is in the address, so it can be linked and reopened
+    Given an isolated Notification Center with a batch of three AI drafts
+    When the editor opens a Reference, and later follows a link to it, and a link to an item that is no longer waiting
+    Then opening an item shows /needs-me/<its id> in the address, and closing it on a phone returns the address to the overview
+    And a link to an item opens the feed with that item in the detail pane, on a desktop and on a phone
+    And a link to an item that is not waiting any more says so, with no empty pane
+    And signing in from a deep link comes back to that link, not to the overview
 
   Scenario: Ignoring an item leaves the default
     Given an isolated Notification Center with a batch of three AI drafts
@@ -107,3 +116,10 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     When the Notification Center or another newsroom page is loading
     Then the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule
     And when the feed loads it replaces the skeleton in place, in the same shapes
+
+  Scenario: The newsroom's own bar and menus are flat, and a phone's bar has nothing cut off
+    Given the newsroom shell at 375 and 1440 pixels
+    When the editor looks at the top bar, the sidebar, the account button and the bottom navigation
+    Then none of them has a border, an outline or a rule, and the controls are tone fills in rounded rectangles
+    And the bar has one search field and no second search button
+    And on a phone the bar shows the search field and the account button only, with no cut-off page title, because the page's own heading names it and Settings is in the account menu

@@ -5,6 +5,7 @@ import {
   Loader2Icon, LockIcon, MailIcon, NewspaperIcon, SlidersHorizontalIcon, Undo2Icon, type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -20,13 +21,15 @@ import { cannotMoveReason } from "../lib/review-drafts";
 import type { CyclotronEntry } from "../lib/review-requests";
 import { referenceReasonCode, REFERENCE_REJECTION_REASON_CODES, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { formatFeedAge } from "../lib/reference-preview";
+import { buildNeedsMeItemPath, parseNeedsMeItemIdFromNewsroomPathname } from "../lib/newsroom-index-filters";
+import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import type { FeedFreshness } from "../lib/reference-feed-ranking";
 import type { RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
 import { FlagFooter, decidedChoiceOf, isReferenceLike, recordedAnswer } from "./needs-me-shared";
 import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
-import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SourceMark } from "./reference-feed";
+import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SELECTED_RING, SourceMark } from "./reference-feed";
 import { predictionFromDecision, ReviewQueueBar, useQueueGestures, type CardPrediction, type ReviewChoice } from "./reference-review-card";
 import type { CorrectCaptureAction } from "./reference-capture-client";
 import { RatingGrid } from "./review-rating-grid";
@@ -118,18 +121,18 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
       aria-labelledby={titleId}
       className={cn(
         "relative flex flex-col overflow-hidden rounded-[20px] text-card-foreground transition-[background-color,box-shadow] duration-200",
-        selected ? "bg-[var(--feed-control)] shadow-xl" : "bg-[var(--feed-card)]",
+        selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)]",
       )}
       data-feed-card={item.id}
       data-feed-rated={decided ?? undefined}
       data-feed-selected={selected || undefined}
+      style={selected ? SELECTED_RING : undefined}
       data-needs-me-card={item.type}
       data-needs-me-state={item.decisionState}
       data-newsroom-card-id={item.id}
       data-review-draft={draftId}
       data-review-request={requestId}
     >
-      {selected ? <span aria-hidden="true" className="absolute inset-y-0 left-0 z-10 w-1.5 bg-[var(--primary)]" data-feed-selected-bar /> : null}
       <button
         aria-label={`Open: ${item.title}`}
         className="flex flex-1 flex-col text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
@@ -301,7 +304,10 @@ export function NeedsMeView({
   const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
   const isMobile = useMediaQuery("(max-width: 767px)");
   const [filter, setFilter] = useState<NeedsMeFilter>(initialFilter);
-  const [selectedId, setSelectedId] = useState("");
+  // The open item lives in the address (`/needs-me/<id>`), so it can be linked, bookmarked and reopened with Back.
+  const pathname = usePathname() ?? (typeof window === "undefined" ? null : window.location.pathname);
+  const routeId = useMemo(() => parseNeedsMeItemIdFromNewsroomPathname(pathname) ?? "", [pathname]);
+  const [selectedId, setSelectedId] = useState(routeId);
   const [caughtUp, setCaughtUp] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [recipeOpen, setRecipeOpen] = useState(false);
@@ -357,21 +363,37 @@ export function NeedsMeView({
   const previousId = caughtUp ? queue[queue.length - 1] ?? null : selectedIndex > 0 ? queue[selectedIndex - 1] : null;
   const nextId = selectedIndex >= 0 && selectedIndex < queue.length - 1 ? queue[selectedIndex + 1] : null;
 
+  const showInAddress = (id: string, mode: "push" | "replace") => {
+    if (demo || typeof window === "undefined") return;
+    const next = id ? buildNeedsMeItemPath(id) : getNewsroomNavHref("/newsroom");
+    if (`${window.location.pathname}${window.location.search}` === next) return;
+    if (mode === "push") window.history.pushState(null, "", next);
+    else window.history.replaceState(null, "", next);
+  };
   const select = (item: NeedsMeEntry) => {
     setCaughtUp(false);
     setSelectedId(item.id);
     if (isMobile) setSheetOpen(true);
+    showInAddress(item.id, "push");
     onOpened?.(item);
   };
   const goNext = () => {
-    if (nextId) { setCaughtUp(false); setSelectedId(nextId); setScrollTarget({ id: nextId, nonce: Date.now() }); const next = byId.get(nextId); if (next) onOpened?.(next); }
-    else if (!caughtUp) { setCaughtUp(true); setSelectedId(""); }
+    if (nextId) { setCaughtUp(false); setSelectedId(nextId); showInAddress(nextId, "replace"); setScrollTarget({ id: nextId, nonce: Date.now() }); const next = byId.get(nextId); if (next) onOpened?.(next); }
+    else if (!caughtUp) { setCaughtUp(true); setSelectedId(""); showInAddress("", "replace"); }
   };
   const goPrevious = () => {
-    if (previousId) { setCaughtUp(false); setSelectedId(previousId); setScrollTarget({ id: previousId, nonce: Date.now() }); }
+    if (previousId) { setCaughtUp(false); setSelectedId(previousId); showInAddress(previousId, "replace"); setScrollTarget({ id: previousId, nonce: Date.now() }); }
   };
   const gestures = useQueueGestures({ onNext: goNext, onPrevious: goPrevious });
-  const closeDetail = () => { setCaughtUp(false); setSheetOpen(false); setSelectedId(""); };
+  const closeDetail = () => { setCaughtUp(false); setSheetOpen(false); setSelectedId(""); showInAddress("", "replace"); };
+
+  // Back and Forward (and a link opened in place) follow the address.
+  useEffect(() => {
+    setSelectedId(routeId);
+    if (routeId) { setCaughtUp(false); if (isMobile) setSheetOpen(true); }
+  }, [routeId, isMobile]);
+  // A linked item that is not waiting any more (decided, or not yours) says so once everything is read, instead of an empty pane.
+  const linkedGone = Boolean(routeId) && settled && !byId.has(routeId);
 
   // Previous / Next scrolls the feed to the same card, smoothly. Selecting a card by clicking it never scrolls.
   useEffect(() => {
@@ -404,14 +426,15 @@ export function NeedsMeView({
   ) : null;
 
   return (
-    <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-detail-reserved="true" data-notification-center {...FEED_SURFACE_PROPS}>
-      <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto md:pr-1" data-needs-me-main data-needs-me-scroll>
+    <div className="flex flex-col gap-5 md:h-full md:flex-row md:items-stretch" data-notification-center {...FEED_SURFACE_PROPS}>
+      <div className="@container min-w-0 flex-1 space-y-6 pb-6 md:min-h-0 md:overflow-y-auto px-1.5 pt-1.5 md:pr-2.5" data-needs-me-main data-needs-me-scroll>
         <header className="space-y-4">
           <div className="space-y-1.5">
             <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl" data-notification-title>What needs me?</h1>
             <p className="text-lg text-muted-foreground" data-notification-summary role="status">{waitingTextFor(counts)}</p>
           </div>
           <ShapingStrip stats={shaping} />
+          {linkedGone ? <Note data-needs-me-link-gone role="status">The item in this link is not waiting for you any more: it was decided, or it is not yours to decide.</Note> : null}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div aria-label="Show" className="inline-flex max-w-full overflow-x-auto rounded-full bg-[var(--feed-card)] p-1" data-notification-filters role="group">
               {NEEDS_ME_FILTERS.map((key) => {
@@ -542,9 +565,10 @@ export function NeedsMeView({
         {below}
       </div>
 
+      {/* The pane appears once something is selected (or when the queue is done); until then the feed has the whole width. */}
       <aside
         aria-label="Detail"
-        className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:h-full md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]"
+        className={cn("hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:h-full", (selected || caughtUp) && "md:flex", " md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]")}
         data-feed-flat=""
         data-needs-me-detail-shell
         data-detail-open={selected ? "true" : "false"}
@@ -552,9 +576,7 @@ export function NeedsMeView({
         <div className="flex shrink-0 items-center justify-between gap-2 px-4 pb-1 pt-3"><span className="text-sm font-medium text-foreground">Detail</span></div>
         <div className="flex min-h-0 flex-1 flex-col" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
           <ScrollArea className="min-h-0 flex-1">
-            {isMobile ? null : selected ? <div key={selected.id}>{detailBody(selected)}</div> : caughtUp ? caughtUpPanel : (
-              <p className="p-4 text-sm text-muted-foreground" data-needs-me-detail-empty>Select an item to read it here and decide.</p>
-            )}
+            {isMobile ? null : selected ? <div key={selected.id}>{detailBody(selected)}</div> : caughtUp ? caughtUpPanel : null}
           </ScrollArea>
         </div>
         {queueBar}

@@ -9,7 +9,7 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -661,7 +661,6 @@ export function NewsroomReferencesView({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[100dvh] md:flex-row"
-      data-detail-reserved={view === "feed" ? "true" : undefined}
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
@@ -762,8 +761,9 @@ export function NewsroomReferencesView({
               </button>
             </div>
           ) : null}
+          {/* 6px of room on every side, so a selected card's 4px ring (drawn outside the card) is never cut off by the scroller. */}
           <ScrollArea className="min-h-0 flex-1 [overflow-anchor:none]" data-reference-feed-scroll>
-            <div className="pb-6 pr-1">
+            <div className="px-1.5 pb-6 pt-1.5 pr-2.5">
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
                 loading={previewSkeleton || (loading && !references.length)}
@@ -871,7 +871,9 @@ export function NewsroomReferencesView({
 
       <div
         className={cn(
-          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:flex md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]",
+          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]",
+          // The pane appears once a reference is selected (or when the queue is done); until then the feed has the whole width.
+          (selectedReference || caughtUp) && "md:flex",
         )}
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
@@ -907,11 +909,7 @@ export function NewsroomReferencesView({
               previewAttachments={previewAttachments}
               reference={selectedReference}
             />
-          ) : caughtUp ? caughtUpPanel : (
-            <CardContent className="p-4 text-sm text-muted-foreground">
-              Select a reference to inspect curation details.
-            </CardContent>
-          )}
+          ) : caughtUp ? caughtUpPanel : null}
         </ScrollArea>
         </div>
         {queueBar}

@@ -1,6 +1,5 @@
 "use client";
 
-import { SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "../lib/utils";
@@ -177,27 +176,6 @@ export function NewsroomOpsShell({ activeTab, appTitle, backHref = "/", backLabe
         </SheetContent>
       </Sheet>} />}
   </div>;
-}
-
-export function NewsroomOpsSearchButton({
-  disabled,
-  onPress,
-}: {
-  disabled?: boolean;
-  onPress?: () => void;
-}) {
-  return (
-    <Button
-      aria-label="Search knowledge base"
-      disabled={disabled}
-      onClick={onPress}
-      size="icon-sm"
-      type="button"
-      variant="outline"
-    >
-      <SearchIcon className="size-4" />
-    </Button>
-  );
 }
 
 export function NewsroomOpsStatusBanner({

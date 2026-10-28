@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
@@ -33,7 +34,12 @@ const scenarios = [
       "the pills count what waits for each type and a pill narrows the feed to that one type",
       "that Reference is not in the feed, it is listed under Decided automatically with an Overrule button, and the \"You're shaping this\" strip counts the week's decisions and agreements",
       "each opens in the one detail pane with a body that fits its type, a held email's text is inert and its links are not clickable, and a Reference shows our captured record",
+      "before anything is selected there is no Detail pane and the feed has the whole width",
       "nothing is moved, answered, rated or decided, and each card says what happens if it is left alone"]],
+  ["deepLink", "the editor opens a Reference, and later follows a link to it, and a link to an item that is no longer waiting",
+    ["opening an item shows /needs-me/<its id> in the address, and closing it on a phone returns the address to the overview",
+      "a link to an item opens the feed with that item in the detail pane, on a desktop and on a phone",
+      "a link to an item that is not waiting any more says so, with no empty pane"]],
   ["reasonDraft", "the editor accepts a draft and then writes its Why, writes a Why and then rejects another, closes the request, and changes a Why afterwards",
     ["the Why box stays open and editable after the vote, a Why written after the vote is saved onto it with a Saved tick, and a Why written first goes with the vote",
       "a reopened draft and its card show the saved reason, and changing a Why after the request closed rewrites the answer's words without touching the choices or moving a Proposal"]],
@@ -77,4 +83,19 @@ When("the Notification Center or another newsroom page is loading", async functi
   this.loadingResult = (await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-newsroom-loading.ts"], { cwd: path.resolve(__dirname, "../..") })).stdout;
 });
 Then("the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });
+Given("the newsroom shell at 375 and 1440 pixels", function () { this.chromeResult = ""; });
+When("the editor looks at the top bar, the sidebar, the account button and the bottom navigation", async function () { this.chromeResult = await run("scripts/test-newsroom-chrome.ts"); });
+for (const text of [
+  "none of them has a border, an outline or a rule, and the controls are tone fills in rounded rectangles",
+  "the bar has one search field and no second search button",
+  "on a phone the bar shows the search field and the account button only, with no cut-off page title, because the page's own heading names it and Settings is in the account menu",
+]) Then(text, function () { assert.match(this.chromeResult, /newsroom chrome: ok/); });
 Then("when the feed loads it replaces the skeleton in place, in the same shapes", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });
+
+// Sign-in keeps the deep link: the access gate passes no fixed return path, so the page that asked is stored and loaded after sign-in.
+Then("signing in from a deep link comes back to that link, not to the overview", function () {
+  const gate = fs.readFileSync(path.join(root, "components/newsroom-access-gate.tsx"), "utf8");
+  const control = fs.readFileSync(path.join(root, "components/reader-auth-control.tsx"), "utf8");
+  assert.match(gate, /<ReaderAuthControl showIdentity \/>/);
+  assert.match(control, /window\.location\.replace\(nextPath\)/);
+});

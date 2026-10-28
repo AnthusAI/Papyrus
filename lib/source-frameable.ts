@@ -47,23 +47,31 @@ export async function publicHttpUrl(raw: string): Promise<URL | null> {
   }
 }
 
-/** Asks the page itself. Anything that fails (bad address, error status, timeout, too many redirects) counts as not frameable. */
-export async function checkSourceFrameable(raw: string, { timeoutMs = 5000, maxRedirects = 4 } = {}): Promise<boolean> {
+/** GETs a public address, following up to `maxRedirects` redirects and checking every hop with publicHttpUrl. Null on any failure. */
+export async function fetchPublic(raw: string, { accept, timeoutMs = 5000, maxRedirects = 4 }: { accept: string; timeoutMs?: number; maxRedirects?: number }): Promise<Response | null> {
   let next = await publicHttpUrl(raw);
   for (let hop = 0; next && hop <= maxRedirects; hop += 1) {
     let response: Response;
     try {
-      response = await fetch(next, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(timeoutMs), headers: { accept: "text/html" } });
+      response = await fetch(next, { method: "GET", redirect: "manual", signal: AbortSignal.timeout(timeoutMs), headers: { accept } });
     } catch {
-      return false;
+      return null;
     }
-    void response.body?.cancel();
     const location = response.headers.get("location");
     if (response.status >= 300 && response.status < 400 && location) {
+      void response.body?.cancel();
       next = await publicHttpUrl(new URL(location, next).toString());
       continue;
     }
-    return response.ok && frameableFromHeaders(response.headers);
+    return response;
   }
-  return false;
+  return null;
+}
+
+/** Asks the page itself. Anything that fails (bad address, error status, timeout, too many redirects) counts as not frameable. */
+export async function checkSourceFrameable(raw: string, options: { timeoutMs?: number; maxRedirects?: number } = {}): Promise<boolean> {
+  const response = await fetchPublic(raw, { accept: "text/html", ...options });
+  if (!response) return false;
+  void response.body?.cancel();
+  return response.ok && frameableFromHeaders(response.headers);
 }
