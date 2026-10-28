@@ -8,7 +8,8 @@
 docs/monitoring-router-config.example.json). `--set` changes one top-level field of the stored
 item (mode, feedback, enabled). Every write is validated with the Lambda's own
 validator, so a config the router would refuse is never stored. Each publication may set `criteriaSince`
-(earliest binding revision whose criteria match the current ones; default = current revision): editor feedback
+(fallback only, used when a criteria fingerprint is unknown: earliest binding revision whose criteria match the
+current ones; default = current revision; otherwise the criteriaFingerprint comparison decides): editor feedback
 stored under an older revision is dropped as stale, otherwise it is sent under the current revision. Asserts the AWS account.
 """
 import argparse
