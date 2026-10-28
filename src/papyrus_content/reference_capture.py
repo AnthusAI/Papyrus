@@ -23,13 +23,13 @@ from html.parser import HTMLParser
 from typing import Any
 
 from papyrus_content import pdf_text
-from papyrus_content.ideas.source_text import main_pdf_link
 from papyrus_content.link_exploration import Context, Exploration, Response, explore
 
 # Capture failures that say the network or the server had a bad moment, not that the source is unreadable. A later run retries them.
 TRANSIENT_CAPTURE_FAILURES = frozenset({"timeout", "connection", "http_5xx", "dns"})
-# A page whose extracted text is shorter than this is probably a wrapper around a PDF or a script-built page.
-THIN_PAGE_WORDS = 120
+# Bodies shorter than this many characters are COUNTED (``shortBodies``) so a thin capture shows up in the stats. It is a report
+# threshold, never a gate: nothing is refused, retried or flagged because of it.
+SHORT_BODY_CHARACTERS = 500
 
 SCHOLARLY_HOSTS = (
     "arxiv.org", "biorxiv.org", "medrxiv.org", "openreview.net", "aclanthology.org", "proceedings.mlr.press", "papers.nips.cc",
@@ -65,11 +65,12 @@ class Capture:
     source_kind: str | None = None          # "html" or "pdf"
     content_type: str | None = None
     destination_url: str | None = None
-    via: str | None = None                  # "direct", or "citation_pdf_url" / "linked_pdf" / "arxiv_pdf" when a PDF was followed
+    via: str | None = None                  # "direct", or "citation_pdf_url" / "alternate_pdf" / "linked_pdf" / "full_text_link" / "arxiv_pdf" when a PDF was followed
     pdf_bytes: bytes | None = field(default=None, repr=False)
     signals: dict[str, Any] = field(default_factory=dict)
     paper: dict[str, Any] = field(default_factory=dict)
     page: dict[str, Any] = field(default_factory=dict)   # what the page declares about itself (title, description, site name)
+    full_text_url: str | None = None        # the address the text actually came from when it is not the page itself (the PDF the page links)
 
     @property
     def transient(self) -> bool:
@@ -346,6 +347,82 @@ def detect_paper(source_url: str, destination_url: str | None, *, metas: dict[st
     return {"isPaper": bool(basis), "basis": basis, **identifiers}
 
 
+# --- the page's own full-text link -------------------------------------------------------------------------------------
+
+
+class _FullTextLinks(HTMLParser):
+    """`<link rel="alternate" type="application/pdf">` and every anchor with its visible label."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.alternates: list[str] = []
+        self.anchors: list[tuple[str, str]] = []
+        self._href: str | None = None
+        self._label: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        fields = {name: value or "" for name, value in attrs}
+        if tag == "link" and fields.get("href") and "alternate" in fields.get("rel", "").lower().split() and "pdf" in fields.get("type", "").lower():
+            self.alternates.append(fields["href"])
+        elif tag == "a" and fields.get("href"):
+            self._href, self._label = fields["href"], [fields.get("title", ""), fields.get("aria-label", "")]
+
+    def handle_data(self, data: str) -> None:
+        if self._href is not None:
+            self._label.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self._href is not None:
+            self.anchors.append((self._href, re.sub(r"\s+", " ", " ".join(self._label)).strip()))
+            self._href = None
+
+
+FULL_TEXT_LABEL = re.compile(r"\bpdf\b|\bfull[\s-]?text\b", re.I)
+PDF_PATH = re.compile(r"\.pdf($|[?#])", re.I)
+
+
+def full_text_links(html: str, base_url: str, metas: dict[str, str]) -> list[tuple[str, str]]:
+    """The page's own links to its full text as (absolute address, ``via``), best signal first and each address once:
+
+    1. ``<meta name="citation_pdf_url">`` (``citation_pdf_url``);
+    2. ``<link rel="alternate" type="application/pdf">`` (``alternate_pdf``);
+    3. anchors on the page's own site to a ``.pdf`` (``linked_pdf``), then anchors on its own site labelled "PDF" or "full text"
+       (``full_text_link``).
+
+    No publisher is named anywhere; these are the standard signals journals already publish for indexers.
+    """
+    parser = _FullTextLinks()
+    try:
+        parser.feed(html)
+    except Exception:  # noqa: BLE001 - a page that breaks the parser links nothing
+        return []
+    host = urllib.parse.urlsplit(base_url).hostname
+    found: list[tuple[str, str]] = []
+
+    def add(href: str, via: str, *, same_site: bool) -> None:
+        if not href or href.startswith(("#", "javascript:", "mailto:")):
+            return
+        absolute = urllib.parse.urldefrag(urllib.parse.urljoin(base_url, href))[0]
+        if urllib.parse.urlsplit(absolute).scheme not in {"http", "https"} or absolute == urllib.parse.urldefrag(base_url)[0]:
+            return
+        if same_site and urllib.parse.urlsplit(absolute).hostname != host:
+            return
+        if all(absolute != known for known, _ in found):
+            found.append((absolute, via))
+
+    if metas.get("citation_pdf_url"):
+        add(metas["citation_pdf_url"], "citation_pdf_url", same_site=False)
+    for href in parser.alternates:
+        add(href, "alternate_pdf", same_site=False)
+    for href, _ in parser.anchors:
+        if PDF_PATH.search(href):
+            add(href, "linked_pdf", same_site=True)
+    for href, label in parser.anchors:
+        if FULL_TEXT_LABEL.search(label):
+            add(href, "full_text_link", same_site=True)
+    return found
+
+
 # --- capture ---------------------------------------------------------------------------------------------------------
 
 
@@ -417,19 +494,17 @@ def capture_source(source_url: str, *, title: str = "", explorer: Explorer = exp
                                           ("description", description), ("siteName", metas.get("og:site_name"))) if value}
     text = parsed["text"]
     via, pdf_bytes = "direct", None
-    linked_url = None
-    pdf_meta = metas.get("citation_pdf_url")
-    if pdf_meta:
-        linked_url, via_kind = urllib.parse.urljoin(destination, pdf_meta), "citation_pdf_url"
-    elif _words(text) < THIN_PAGE_WORDS:
-        linked_url, via_kind = main_pdf_link(html, destination), "linked_pdf"
-    else:
-        via_kind = ""
-    if linked_url:
+    # Thin is read off the page itself: its main-content text is no longer than what its own meta description already says, so the
+    # page is a blurb in front of the article (a journal landing page that fronts a PDF). There is no word or character cap.
+    thin = _words(text) <= _words(description)
+    for linked_url, via_kind in full_text_links(html, destination, metas):
+        if via_kind != "citation_pdf_url" and not thin:
+            continue    # a full page of text is the article; only the page's own declared PDF replaces it regardless
         linked, _ = _fetch(explorer, linked_url, context)
         if linked is not None and linked.response is not None and _is_pdf(linked.response, linked.url or linked_url):
             pdf_capture = _pdf_capture(linked, via_kind)
-            if pdf_capture.ok and (pdf_meta or _words(pdf_capture.text) > _words(text)):
+            if pdf_capture.ok and (via_kind == "citation_pdf_url" or _words(pdf_capture.text) > _words(text)):
+                pdf_capture.full_text_url = linked.url or linked_url
                 pdf_capture.paper = detect_paper(source_url, destination, metas=metas, text=pdf_capture.text)
                 pdf_capture.page = page
                 pdf_capture.signals["pageWordCount"] = _words(text)

@@ -65,6 +65,7 @@ from .email_submission_authorization import (
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
+from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_huggingface import hf_accepts, validate_rule
 
 CONTRACT_VERSION = "cyclotron-publication/v1"
@@ -1162,7 +1163,7 @@ class Router:
                        "refused": 0, "uncertain": 0, "awaiting": 0, "error": 0, "backedOff": 0, "deliveryFailed": 0, "skippedNotReady": 0,
                        "parked": 0, "backfilled": 0, "proceduresStarted": 0, "procedureStartFailed": 0,
                        "procedureNotTriggered": 0, "procedureSkipped": 0, "procedureDeferred": 0, "procedureRetried": 0,
-                       "enriched": 0, "enrichmentWaiting": 0, "curationCopied": 0, "curationCopyFailed": 0}
+                       "enriched": 0, "enrichmentWaiting": 0, "curationCopied": 0, "curationCopyFailed": 0, "shortBodies": 0}
         self._parks: dict = {}
         self._automation_rows: dict = {}
 
@@ -1330,7 +1331,10 @@ class Router:
             self.counts["enrichmentWaiting"] += 1
             raise EnrichmentPending()
         self.counts["enriched"] += 1
-        return self.inputs_for(disc)
+        inputs = self.inputs_for(disc)
+        body_length = len((inputs or {}).get("body") or "")
+        self.counts["shortBodies"] += 0 < body_length < SHORT_BODY_CHARACTERS   # a statistic, not a gate
+        return inputs
 
     def copy_curation(self, publication: dict, disc: dict, result: dict) -> str | None:
         """Give the delivered Reference the item's curation (the card and bodies the editor sees). Never fails the delivery: a
