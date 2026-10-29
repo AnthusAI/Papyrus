@@ -35,7 +35,7 @@ def load_job(name):
 def step_items(context):
     rows, incoming, relations, context.eh_titles = [], {}, {}, {}
     for number, row in enumerate(context.table, start=1):
-        item = reference(number, status="pending", days_ago=float(row["days ago"]), title=row["title"])
+        item = reference(number, status="accepted", days_ago=float(row["days ago"]), title=row["title"])
         item["sourceUri"] = row["address"]
         rows.append(item)
         context.eh_titles[row["title"]] = row["address"]

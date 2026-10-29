@@ -1355,7 +1355,7 @@ def lab(table, monkeypatch):
 def test_delivery_writes_one_current_relation_with_the_lab_metadata(lab):
     lab.cyclotron.confidence = {("hn-101", "anth-us"): 0.91234}
     lab.cyclotron.labels = {("hn-101", "p-apyr-us"): "exclude"}
-    result = lab.run()
+    result = lab.run(task="route")
     assert result["status"] == "complete" and result["counts"]["delivered"] == 2 and result["counts"]["deliveryFailed"] == 0
     client = lab.clients["anth-us"]
     (relation,) = client.relations()
@@ -1437,7 +1437,7 @@ def test_a_sweep_relation_for_the_reference_is_superseded_by_the_lab_decision(la
 
 
 def test_the_relation_adds_a_bounded_number_of_operations_and_no_cyclotron_calls(lab):
-    lab.run()
+    lab.run(task="route")
     client = lab.clients["anth-us"]
     reads = [op for op in client.ops if op[0] == "index"]
     assert len(reads) == 1                                     # one query per delivered item, no whole-table list for relations
@@ -2518,3 +2518,15 @@ def test_feedback_falls_back_to_criteria_since_when_a_fingerprint_is_unknown(tab
     set_fingerprints(table, None, "c-2")           # a vote stored before fingerprints existed
     refs = {"reference-anth-us-101": ref("accepted", "user:s")}
     assert feedback_run(table, store, cyclotron, refs)["feedback"]["skipped"] == 1
+
+
+def test_auto_accept_grant_covers_every_publication_api_including_distinctive():
+    # Rule acceptance (TTAB on Distinctive) and model acceptance both update the Reference; every publication's API needs the two fields.
+    policy = _template()["Resources"]["RouterAutoAcceptPolicy"]["Properties"]
+    assert policy["Roles"] == [("Ref", "RouterRole")]
+    (statement,) = policy["PolicyDocument"]["Statement"]
+    resources = [r[1] for r in statement["Resource"]]
+    apis = {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
+    assert {r.split("apis/")[1].split("/")[0] for r in resources} == apis
+    assert {r.rsplit("/", 1)[1] for r in resources} == {"listReferencesByCurationStatusKeyAndUpdatedAt", "updateReference"}
+    assert len(resources) == 2 * len(apis) and "*" not in "".join(resources)

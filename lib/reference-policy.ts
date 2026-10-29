@@ -30,6 +30,18 @@ export function normalizeReferenceCurationStatus(value: unknown, defaultStatus: 
   return "pending";
 }
 
+/** The curation actor the router writes when the Cyclotron accepts a confident, unvoted Reference on its own (src/papyrus_content/auto_accept.py). Not a person. */
+export const AUTO_ACCEPT_ACTOR = "auto:cyclotron";
+
+/** The actor for a Reference a monitor with a fixed delivery rule accepted on delivery: the rule match is the acceptance. */
+export const AUTO_ACCEPT_RULE_ACTOR = "auto:rule";
+
+/** True while a Reference stands accepted automatically, by the Cyclotron's confidence or by a monitor's rule. An editor's later Accept or Reject replaces the actor, so this is false from then on. */
+export function isAutoAccepted(reference: { curationStatus?: unknown; curationStatusUpdatedBy?: unknown }): boolean {
+  const actor = String(reference.curationStatusUpdatedBy ?? "").trim();
+  return normalizeReferenceCurationStatus(reference.curationStatus) === "accepted" && (actor === AUTO_ACCEPT_ACTOR || actor === AUTO_ACCEPT_RULE_ACTOR);
+}
+
 export function referenceCurationStatusForAction(action: "accept" | "reject" | "reopen" | "archive"): ReferenceCurationStatus {
   if (action === "accept") return "accepted";
   if (action === "reject") return "rejected";

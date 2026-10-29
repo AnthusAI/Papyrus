@@ -268,6 +268,7 @@ PORTED_COMMANDS = frozenset(
         "references:reject",
         "references:request-delegation",
         "references:list-predictions",
+        "references:auto-accept",
         "references:review-classification",
         "references:label",
         "references:unlabel",
@@ -322,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "items:link-references",
         "stories:save-version",
         "stories:versions",
         "stories:link-reference",
@@ -569,6 +571,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_review_curation(flags)
     elif route == "references:list-predictions":
         references_list_predictions(flags)
+    elif route == "references:auto-accept":
+        from .references_commands import references_auto_accept
+        references_auto_accept(flags)
     elif route == "references:review-classification":
         references_review_classification(flags)
     elif route == "references:label":
@@ -699,6 +704,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "items:link-references":
+        from .items_commands import items_link_references
+
+        items_link_references(flags)
     elif route == "stories:save-version":
         stories_save_version(flags)
     elif route == "stories:versions":

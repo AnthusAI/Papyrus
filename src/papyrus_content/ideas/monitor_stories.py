@@ -7,8 +7,8 @@ writing about and drafts one short story per item. Nothing in it names a source.
 
 The flow is read, rank, fetch, one model call per item, a deterministic citation check, then a ``story_draft`` Proposal in state ``draft``.
 
-* **Read.** Every Reference (``--since`` is an optional filter, with no default), pending or accepted (a rejected one is never read), that a monitor delivered, that no
-  item carries yet (promoted) and that no earlier draft cites. A Reference the relevance Cyclotron judged *not* relevant is left out.
+* **Read.** Every *accepted* Reference (accepted by an editor or automatically; ``--status accepted,pending`` adds pending ones, a rejected one is never read; ``--since`` is an optional filter, with no default) that a monitor delivered, that no
+  item carries yet (promoted) and that no earlier draft cites. Pending References left out are counted as ``notAccepted``. A Reference the relevance Cyclotron judged *not* relevant is left out.
 * **Rank.** The Cyclotron's verdict is the source-agnostic signal: the ``relevance_decision_is`` relation of the Reference holds the label and
   the score (the probability of the positive label). Judged relevant comes before not judged, and a higher score before a lower one, the score
   times a freshness weight ``exp(-age / tau)`` where ``tau`` is learned from this site's own editors (``learn_freshness``): there is no cutoff, an old
@@ -53,7 +53,7 @@ from .store import JsonStore, ProposalStore
 DEFAULT_LIMIT = 3
 MINIMUM_FRESHNESS_EXAMPLES = 10  # fewer accepted examples than this and there is no freshness weight: nothing is guessed
 ATTEMPT_FACTOR = 2  # a draft that fails the check may be replaced by the next ranked item, up to this many attempts per story wanted
-STATUSES = ["pending", "accepted"]
+DEFAULT_STATUSES = ["accepted"]  # only a Reference an editor accepted, or the automatic acceptance did (docs/idea-pipeline.md#monitor-stories); `--status accepted,pending` reads pending ones too
 POSITIVE_LABEL = "include"  # used only when the decision does not name its positive label
 #: The one place the ranking looks at a source's own numbers, and only to break a tie between items the Cyclotron scored the same.
 SECONDARY_SIGNALS = ("likes", "downloads")
@@ -119,6 +119,7 @@ class MonitoredItem:
     details: dict[str, Any] = field(default_factory=dict)
     verdict: dict[str, Any] | None = None  # the Cyclotron's: label, score, confidence, classifier, positiveLabel
     curated_at: str | None = None  # when an editor last set the curation status
+    curated_by: str | None = None  # who: a person, or ``auto:cyclotron`` for an automatic acceptance
 
     @property
     def relevant(self) -> bool | None:
@@ -177,15 +178,18 @@ def automated_monitor_ids(client: Any) -> tuple[set[str], str | None]:
 
 def collect_monitored_items(
     client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset(), excluded_hosts: Iterable[str] = (),
-    automated_monitors: Iterable[str] = (),
+    automated_monitors: Iterable[str] = (), statuses: Iterable[str] = DEFAULT_STATUSES,
 ) -> tuple[list[MonitoredItem], dict[str, int]]:
     """Every monitored Reference of ``site`` (all of them, or only those that arrived inside ``since`` when it is given), each with the monitor,
     the stored details and the Cyclotron's verdict. One indexed query per Reference for its provenance and one more for its decision; the
     decision is not read for a Reference in ``drafted`` (it is never a candidate again). A Reference whose ``sourceUri`` host is one of
     ``excluded_hosts`` (or a subdomain) is never read further, never a candidate, and is counted as ``excludedHost``. A Reference delivered by a monitor in ``automated_monitors`` (one an
     enabled Automation of the site already handles) is never a candidate either, and is counted as ``handledByAutomation``."""
-    rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], list(STATUSES), now - parse_window(since) if since else None)
-    counts = {"inWindow": len(rows), "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0}
+    statuses = list(dict.fromkeys(statuses))
+    window = now - parse_window(since) if since else None
+    rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
+    not_accepted = 0 if "pending" in statuses else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
+    counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0}
     automated = set(automated_monitors)
     excluded_hosts = normalize_hosts(excluded_hosts)
     items: list[MonitoredItem] = []
@@ -208,6 +212,7 @@ def collect_monitored_items(
             status=str(row.get("curationStatus") or "pending"), details=_details_from_relations(incoming),
             verdict=None if lineage in drafted else relevance_of(relations_of(client, row)),
             curated_at=str(row.get("curationStatusUpdatedAt") or "") or None,
+            curated_by=str(row.get("curationStatusUpdatedBy") or "") or None,
         )
         if item.relevant is False:
             counts["judgedNotRelevant"] += 1
@@ -228,8 +233,8 @@ def learn_freshness(items: list[MonitoredItem]) -> dict[str, Any] | None:
     """How quickly this site's editors act on what monitors find, from their own decisions: the age at curation (``curationStatusUpdatedAt`` minus
     the arrival) of the monitored References they ACCEPTED. For an exponential ``exp(-age / tau)`` the median age is ``tau * ln 2``, so
     ``tau = median / ln 2``; the median keeps a few very late or instant decisions from moving it. None (no weight at all) when fewer than
-    ``MINIMUM_FRESHNESS_EXAMPLES`` accepted items have a positive age: a constant is never guessed."""
-    ages = sorted(age for item in items if item.status == "accepted" for age in [age_days(item.arrived_at, item.curated_at)] if age is not None and age > 0)
+    ``MINIMUM_FRESHNESS_EXAMPLES`` accepted items (an editor's, not an automatic acceptance) have a positive age: a constant is never guessed."""
+    ages = sorted(age for item in items if item.status == "accepted" and not (item.curated_by or "").startswith("auto:") for age in [age_days(item.arrived_at, item.curated_at)] if age is not None and age > 0)
     if len(ages) < MINIMUM_FRESHNESS_EXAMPLES:
         return None
     middle = len(ages) // 2
@@ -486,6 +491,7 @@ def draft_monitor_stories(
     corpus_key: str | None = None,
     excluded_hosts: Iterable[str] = (),
     explorer: Explorer | None = None,
+    statuses: Iterable[str] = DEFAULT_STATUSES,
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
     moment = now or datetime.now(timezone.utc)
@@ -493,14 +499,14 @@ def draft_monitor_stories(
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else ("proposals" if proposal_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit,
-        "excludedSourceHosts": list(normalize_hosts(excluded_hosts)),
+        "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
     proposals = proposal_store.story_drafts() if proposal_store else []
     already = drafted_lineage_ids(proposals, stored)
     automated, automation_error = automated_monitor_ids(client)
     items, counts = collect_monitored_items(
-        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated,
+        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, statuses=statuses,
     )
     run["automatedMonitors"] = sorted(automated)
     if automation_error:
@@ -593,7 +599,7 @@ def render_report(run: dict[str, Any]) -> str:
         f"Run `{run['runId']}`, " + (f"items that arrived in the last {run['window']['since']}" if run["window"]["since"] else "every undrafted monitored item") + f". Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
         "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
-        f"- Monitored items read: {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (never drafted here): {inputs.get('handledByAutomation', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
+        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (never drafted here): {inputs.get('handledByAutomation', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} (limit {run['limit']}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",

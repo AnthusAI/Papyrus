@@ -253,6 +253,32 @@ def references_list_predictions(flags: list[str]) -> None:
         print("references\tlist-predictions\t0")
 
 
+def references_auto_accept(flags: list[str]) -> None:
+    """``papyrus references auto-accept --site KEY [--dry-run]``: the router's automatic acceptance (src/papyrus_content/auto_accept.py) against one site."""
+    from .auto_accept import validate_auto_accept, run_auto_accept
+    options = parse_options(flags)
+    site = normalize_string(options.get("site"))
+    if not site:
+        raise ValueError("references auto-accept needs --site KEY.")
+    policy_input: dict[str, Any] = {}
+    for flag, key in (("precision", "precision"), ("latency-quantile", "latencyQuantile")):
+        if options.get(flag) is not None:
+            try:
+                policy_input[key] = float(options[flag])
+            except ValueError as error:
+                raise ValueError(f"--{flag} must be a number above 0 and below 1.") from error
+    policy = validate_auto_accept(site, policy_input)
+    corpus_key = normalize_string(options.get("corpus-key")) or site
+    publication = {"publicationId": site, "corpusId": f"knowledge-corpus-{corpus_key}",
+                   "positiveLabel": normalize_string(options.get("positive-label")) or "include"}
+    client, _ = create_authoring_client()
+    result = run_auto_accept(client, publication, policy, now=datetime.now(timezone.utc), dry_run=bool(options.get("dry-run")))
+    print(json.dumps({"autoAccept": result["status"], **result}))
+    from .auto_accept import run_rule_backfill
+    backfill = run_rule_backfill(client, publication, now=datetime.now(timezone.utc), dry_run=bool(options.get("dry-run")))
+    print(json.dumps({"autoAccept": "rule-backfill", **backfill}))
+
+
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-reviewed-feed-key")
@@ -543,7 +569,7 @@ def references_promote(flags: list[str]) -> None:
     if not apply:
         return
     outcome = promote_record(client, record, section=section, actor=normalize_string(options.get("actor-label")) or "papyrus-cli")
-    print(f"references\tpromote\t{record.reference_id}\t{outcome['itemId']}\t{'draft' if outcome['created'] else 'unchanged: already promoted'}\t{outcome['section']}/{outcome['slug']}")
+    print(f"references\tpromote\t{record.reference_id}\t{outcome['itemId']}\t{'draft' if outcome['created'] else 'unchanged: already promoted'}\t{outcome['section']}/{outcome['slug']}\tbased on {','.join(outcome['linked'])}")
 
 
 def references_unlabel(flags: list[str]) -> None:

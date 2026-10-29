@@ -76,15 +76,18 @@ def papyrus_curate_reference(reference_id: str, force: bool = False) -> dict:
     return curate_reference_by_id(reference_id, force=force)
 
 
-def papyrus_create_story(title: str, section: str, author_label: str, stage: str = "reporting", summary: str = "") -> dict:
+def papyrus_create_story(title: str, section: str, author_label: str, stage: str = "reporting", summary: str = "", based_on_references: str = "") -> dict:
     """Create a story (a new item lineage) in a section at the idea, assignment or reporting stage.
+    Pass the Reference ids the story is based on, comma separated, in based_on_references: each is linked to the story.
     Returns its lineage id and first version id."""
 
     from papyrus_content.graphql_authoring import create_authoring_client
-    from papyrus_content.story_reporting import create_story
+    from papyrus_content.story_reporting import create_story, link_reference_to_story
 
     client, _ = create_authoring_client()
     item = create_story(client, title=title, section_key=section or None, stage=stage, summary=summary or None, actor=author_label)
+    for reference_id in [value.strip() for value in based_on_references.split(",") if value.strip()]:
+        link_reference_to_story(client, item["lineageId"], reference_id, role="based_on", actor=author_label)
     return {"lineageId": item["lineageId"], "versionId": item["id"], "stage": item.get("stage")}
 
 
@@ -107,7 +110,7 @@ def papyrus_save_story_version(story: str, body_markus: str, reason: str, author
 
 
 def papyrus_link_story_reference(story: str, reference: str, role: str, author_label: str, note: str = "", citation_key: str = "") -> dict:
-    """Attach a reference to a story as consulted (used in reporting) or cited (appears in the article)."""
+    """Attach a reference to a story as consulted (used in reporting), cited (appears in the article) or based_on (the story is made from it)."""
 
     from papyrus_content.graphql_authoring import create_authoring_client
     from papyrus_content.story_reporting import link_reference_to_story

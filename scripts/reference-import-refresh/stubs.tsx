@@ -8,3 +8,4 @@ export const loadStoragePathUrl = async () => { throw new Error("storage disconn
 export const loadStoragePathText = async () => ({ text: null, error: null });
 export const loadModelPayloadsForOwner = async () => [];
 export const uploadModelPayloadForOwner = async () => ({ id: "upload" });
+export const configureAmplifyClient = () => {};

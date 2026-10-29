@@ -1,0 +1,25 @@
+{
+  "id": "PPY-8eb1f179-73bb-4ff1-8baf-1f7a2b4d2e17",
+  "title": "Every creation path links its Reference and seeds its own body",
+  "description": "",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:51:11.424500Z",
+  "updated_at": "2026-10-29T10:51:11.424529Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

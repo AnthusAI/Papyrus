@@ -68,3 +68,28 @@ Feature: The router sends feedback for references curated by people, including i
     When an editor accepts a reference in the newsroom UI
     And the feedback task runs
     Then one feedback was sent to Cyclotron with the label include
+
+  Scenario: An automatic acceptance is not sent to Cyclotron as an editor's label
+    When the Cyclotron accepts a reference automatically
+    And the feedback task runs
+    Then no feedback was sent to Cyclotron that was accepted
+    And the automatic acceptance stays queued as not a human curation
+
+  Scenario: A later editor Reject of an automatically accepted reference is sent as feedback
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor rejects that reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label exclude
+    And the editor subject sent does not contain an email address
+
+  Scenario: A later editor Accept of an automatically accepted reference is sent as feedback
+    Given the Cyclotron accepted a reference automatically and the feedback task ran
+    When an editor accepts that reference in the newsroom UI
+    And the feedback task runs
+    Then one feedback was sent to Cyclotron with the label include
+
+  Scenario: An acceptance by a monitor's rule is not sent to Cyclotron either
+    When a monitor's rule accepts a reference automatically
+    And the feedback task runs
+    Then no feedback was sent to Cyclotron that was accepted
+    And the automatic acceptance stays queued as not a human curation

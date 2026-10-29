@@ -61,6 +61,7 @@ became:
 
 * `consulted`: found or reviewed during reporting. It may or may not appear in the article.
 * `cited`: it is a citation in the article. Give the Markus citation key so the link and the text agree.
+* `based_on`: the story is made from this Reference. Every path that makes a story from a Reference writes it, and a later `consulted` or `cited` link never replaces it ([core rules](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules)).
 
 ```bash
 papyrus stories link-reference --story <lineage> --reference <reference id> \

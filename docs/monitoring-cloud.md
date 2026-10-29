@@ -581,7 +581,8 @@ aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk"
 ```json
 {"mode": "dry-run|live", "enabled": true,
  "publications": [{"publicationId": "...", "site": "...", "appsyncEndpoint": "https://<id>.appsync-api.<region>.amazonaws.com/graphql",
-                   "corpusId": "knowledge-corpus-<publicationId> (default)"}],
+                   "corpusId": "knowledge-corpus-<publicationId> (default)",
+                   "autoAccept": {"enabled": true, "precision": 0.9, "latencyQuantile": 0.9}}],
  "cyclotron": {"endpoint": "https://<id>.execute-api.<region>.amazonaws.com", "accountId": "...", "runId": "...",
                "bindingRevision": "1", "roleArn": "arn:aws:iam::<account>:role/<machine invoker>", "pollSeconds": 45}}
 ```
@@ -702,6 +703,38 @@ free text and must never be an email address, so the subject sent with the confi
 `requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt)`, so repeats are
 idempotent; the item revision and output come from the stored decision receipt.
 
+## Automatic acceptance
+
+A pending Reference that nobody voted on is accepted by the router itself, per publication, on every run that does feedback (after it; the `auto-accept` task runs
+only this pass). It is **on for every publication** and runs only in `live` mode for monitors whose decisions come from Cyclotron. The publication's router entry
+may carry
+
+```json
+"autoAccept": {"enabled": true, "precision": 0.9, "latencyQuantile": 0.9}
+```
+
+All three keys are optional; with no block, or with `{}`, it runs with those defaults, and `{"enabled": false}` turns it off. `precision` and `latencyQuantile` are numbers above 0 and below 1, unknown keys are refused
+(`validate_router_publications`). Code: `src/papyrus_content/auto_accept.py`; spec: `features_backend/reference-automatic-acceptance.feature`.
+
+* **Threshold, learned per publication.** Each human vote on a Reference (accepted or rejected, actor a person) whose Cyclotron verdict is the positive label pairs the verdict's
+  `confidence` (stored on the `relevance_decision_is` relation; its `score` when a decision has no confidence) with accepted or rejected. The threshold `t` is the smallest
+  confidence such that, among those votes with confidence at or above `t`, the Wilson 95% lower bound of the accept rate is at least `precision`. If no `t` qualifies (too few votes, or votes that
+  disagree) nothing is accepted and the reason is logged. Automatic acceptances are not votes and never teach the threshold.
+* **Delay, learned per publication.** The nearest-rank `latencyQuantile` of the time from a Reference's `createdAt` to a human vote, over all the publication's human votes. Without any vote, nothing is accepted.
+* **Write.** `curationStatus=accepted`, `curationStatusKey`, `reviewedFeedKey`, `curationStatusUpdatedAt`, `curationStatusUpdatedBy="auto:cyclotron"` and a `curationStatusReason` naming the confidence, the
+  threshold, the estimated accept rate, its lower bound, the number of votes and the delay; plus a `reference_curation` Message whose `actorKind` is `cyclotron` (never a human label). A Reference an editor
+  touched (any person as the last actor) is left alone.
+* **Feedback.** `auto:cyclotron` is not a person, so [Feedback](#feedback) skips it. An editor who later Rejects or re-Accepts the Reference replaces the actor, and that vote is sent like any other.
+* **Monitors that deliver by a fixed rule** (`decisions: "direct"`, such as TTAB for Distinctive) have no confidence: the rule match is the acceptance. A newly delivered Reference is set to accepted on delivery with
+  `curationStatusUpdatedBy="auto:rule"` and a reason naming the monitor and the rule. Same switch (`autoAccept.enabled`), same Message (`actorKind` `rule`), never sent to Cyclotron, an editor can still Reject it.
+  `papyrus references auto-accept --site KEY [--dry-run]` applies it to deliveries that already exist (the dry run lists them), and also runs the confidence pass; the monitors it treats as rule monitors are those whose provenance says `machineDecision.system = "direct"`
+  or whose deliveries in the corpus carry no Cyclotron verdict at all.
+* **The newsroom** shows "Accepted automatically" (and "(by rule)") with a Lucide icon on the feed card, the list row and the detail, apart from an editor's accept.
+* **Log.** One JSON line per publication per run: `{"autoAccept": "ran|skipped|failed|dry-run", "publicationId", "targetPrecision", "latencyQuantile", "threshold", "estimatedPrecision", "precisionLowerBound", "votes", "delaySeconds", "latencySamples", "candidates", "accepted", "reason"}`;
+  the same under `autoAccept` in the run result and receipt. A rule acceptance logs `{"autoAccept": "rule", "publicationId", "monitorId", "referenceId", "accepted"}`.
+* **Cost.** Reading the votes is one indexed query per voted Reference, and per waiting Reference for candidates, bounded by the run's remaining time (it stops with a logged reason, never fails the run).
+* **IAM.** It needs `listReferencesByCurationStatusKeyAndUpdatedAt` and `updateReference` on each publication's API (`RouterAutoAcceptPolicy`); without them the pass logs `failed` and the run goes on.
+
 ## IAM (role `RouterRole`)
 
 | Statement | Why |
@@ -714,8 +747,7 @@ idempotent; the item revision and output come from the stored decision receipt.
 
 The field list was captured by running the real intake and editorial-context code against a
 recording client. `updateReferenceAttachment` is there because a second HN item for an
-existing URL re-points the shared source attachment. There are no deletes, no other updates (a
-Reference is never updated), no wildcard resources, no admin. The provenance upload uses the
+existing URL re-points the shared source attachment. There are no deletes, and the only Reference update is the automatic acceptance in `RouterAutoAcceptPolicy` (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), no wildcard resources, no admin. The provenance upload uses the
 presigned URL AppSync returns, so the role needs no S3 permission.
 
 Limits: Python 3.13 arm64, 512 MB, 600 s timeout, retry 0 on async invocation, dead-letter queue,

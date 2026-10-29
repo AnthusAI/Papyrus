@@ -243,7 +243,7 @@ delivers pending `Reference`s into the site's canonical knowledge corpus (`knowl
 structured `details`. Most of what arrives is never written about. This command picks the few most worth a story and files one cited draft for each.
 It is the same for every monitor: no source is named in the code, so a new site with any monitoring source uses it by configuration alone.
 
-1. **Read.** Every Reference of the site, however old (there is no default window; `--since` is an optional filter and the cloud step passes none; the index is paged to the end), pending or accepted (a rejected one is never read),
+1. **Read.** Every Reference of the site, however old (there is no default window; `--since` is an optional filter and the cloud step passes none; the index is paged to the end), **accepted** (by an editor, or automatically: [automatic acceptance](monitoring-cloud.md#automatic-acceptance)). Pending References are left out and counted as `notAccepted` in the run record; `--status accepted,pending` reads them too, and a rejected one is never read. The cloud step uses the default,
    that a monitor delivered (a Reference with no `monitorId` provenance is not a monitored item), that no item carries yet (a promoted record,
    [monitoring-cloud.md](monitoring-cloud.md#promoting-a-record-to-an-item)) and that no earlier draft cites. A Reference the relevance Cyclotron judged *not*
    relevant is left out. The run record counts each kind left out. Reading costs two indexed queries per Reference (its provenance, then its decision; the decision is skipped for a Reference an earlier draft already cites) on one connection, so a corpus of a few thousand References takes minutes, not seconds.
@@ -286,6 +286,7 @@ It is the same for every monitor: no source is named in the code, so a new site 
 
 ```bash
 papyrus ideas monitor-stories --site <site> --dry-run
+papyrus ideas monitor-stories --site <site> --status accepted,pending --dry-run   # also the pending ones (default: accepted only)
 papyrus ideas monitor-stories --site <site> --limit 3 --store proposals --report monitor-stories.md
 # a site whose References live in a corpus of another name (knowledge-corpus-<key>):
 papyrus ideas monitor-stories --site <site> --corpus-key <key> --dry-run
@@ -301,6 +302,15 @@ problems, `modelCalls` (the usage of each call, for the ledger) and the cost. Th
 
 Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
 so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
+
+## Turning a draft into a story
+
+A `story_draft` Proposal that an editor (or an automation) accepts becomes a draft story at the copywriting stage with
+`story_from_story_draft` (`src/papyrus_content/story_from_reference.py`). The story's body is the draft's own cited text, never the
+source page's text, and the story is linked to every Reference the draft names in its `reference:` targets, as `based_on`
+(`semantic-relation-type-uses-evidence`, by lineage ids). A body that repeats 12 or more consecutive words of a Reference's captured
+text is refused. A `post` also gets the Reference's preview image, credited to its site. These are core rules of the automated
+newsroom: [Stories based on a Reference](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules).
 
 ## Excluded source hosts
 
@@ -344,8 +354,9 @@ Notes from running v0 by hand, for PPY-433383 (run contract) and PPY-93faf2 (loc
   machine, or a Lambda, would not see them unless it uses the Proposal store.
 - **The run ledger is a local JSON file,** not a `ProcedureRun` record, so the console cannot list these runs yet.
 - **The OpenAI key comes from the operator's environment.** Cloud runtimes read per-site SSM parameters; the local one does not.
-- **Monitors deliver `pending` references,** and only accepted ones are evidence, so an unattended pipeline reads nothing until
-  someone accepts references or a site adopts an auto-accept policy. `--status accepted,pending` is the v0 workaround.
+- **Monitors deliver `pending` references,** and only accepted ones are evidence. Monitor stories read only accepted References by default, so an
+  unattended pipeline waits for an editor, or for the router's [automatic acceptance](monitoring-cloud.md#automatic-acceptance) (on by default, learned per
+  publication). `--status accepted,pending` reads the pending ones too.
 
 ## Running without a cloud backend
 

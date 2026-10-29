@@ -3,8 +3,8 @@
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
-import { createLocalPreviewReportingTrail } from "../lib/local-preview-seed";
-import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
+import { createLocalPreviewReportingTrail, createLocalPreviewStoriesForReference } from "../lib/local-preview-seed";
+import { EMPTY_STORY_REPORTING_TRAIL, referencesByRole, siteNameOf, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
 import { configureAmplifyClient } from "./amplify-client-provider";
 
 type GraphqlResponse = { data?: Record<string, { items?: Record<string, unknown>[] | null; nextToken?: string | null } | null> | null; errors?: { message?: string }[] | null };
@@ -48,9 +48,44 @@ async function getReference(client: GraphqlClient, referenceId: string): Promise
   }
 }
 
+function relationRole(value: unknown): TrailReference["role"] {
+  return value === "based_on" ? "based_on" : value === "cited" ? "cited" : "consulted";
+}
+
+/** The Reference's preview image address and site name, from its `preview` attachment (nothing is downloaded). */
+async function getPreview(client: GraphqlClient, referenceLineageId: string): Promise<{ imageUrl: string | null; siteName: string | null }> {
+  try {
+    const rows = await listAll(client, "listReferenceAttachmentsByReferenceLineageAndSortKey", "id role sourceUri filename metadata", ", $referenceLineageId: ID!", ", referenceLineageId: $referenceLineageId", { referenceLineageId });
+    const preview = rows.find(row => row.role === "preview");
+    const address = text(preview?.sourceUri);
+    return { imageUrl: address && /^https?:\/\//i.test(address) ? address : null, siteName: text(parseMetadata(preview?.metadata).siteName) ?? text(preview?.filename) };
+  } catch {
+    return { imageUrl: null, siteName: null };
+  }
+}
+
+/** The stories whose `uses_evidence` link names this Reference, each with its working title and stage. */
+export async function loadStoriesBasedOnReference(referenceLineageId: string, demo = false): Promise<ReferenceStory[]> {
+  if (demo || isLocalPreviewEnabled()) return createLocalPreviewStoriesForReference(referenceLineageId);
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as GraphqlClient;
+  const relations = await listAll(client, "listSemanticRelationsByObjectState", "id predicate subjectKind subjectId subjectLineageId metadata", ", $objectStateKey: String!", ", objectStateKey: $objectStateKey", { objectStateKey: `reference#${referenceLineageId}#current` });
+  const stories = relations.filter(relation => relation.predicate === "uses_evidence" && relation.subjectKind === "item");
+  const rows = await Promise.all(stories.map(async relation => {
+    const lineageId = String(relation.subjectLineageId ?? relation.subjectId);
+    const versions = await listAll(client, "listItemsByLineageAndVersion", "id versionNumber versionState stage headline title", ", $lineageId: ID!", ", lineageId: $lineageId", { lineageId }).catch(() => []);
+    const current = versions.find(version => version.versionState === "current") ?? versions.sort((left, right) => Number(right.versionNumber ?? 0) - Number(left.versionNumber ?? 0))[0];
+    return {
+      relationId: String(relation.id), itemId: String(current?.id ?? relation.subjectId), lineageId, title: text(current?.headline) ?? text(current?.title), stage: text(current?.stage),
+      role: relationRole(parseMetadata(relation.metadata).role),
+    } satisfies ReferenceStory;
+  }));
+  return rows;
+}
+
 /** Reads the whole reporting trail of one story from the backend; the local preview serves a snapshot instead. */
-export async function loadStoryReportingTrail(lineageId: string, itemId: string): Promise<StoryReportingTrail> {
-  if (isLocalPreviewEnabled()) return createLocalPreviewReportingTrail(lineageId);
+export async function loadStoryReportingTrail(lineageId: string, itemId: string, demo = false): Promise<StoryReportingTrail> {
+  if (demo || isLocalPreviewEnabled()) return createLocalPreviewReportingTrail(lineageId);
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as GraphqlClient;
   const [versionRows, assignmentRows, attachmentRows, relationRows] = await Promise.all([
@@ -77,15 +112,17 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string)
     return { id: String(row.id), title: text(row.title), threadKind: text(row.threadKind), summary: text(row.summary), messages: messageRows.map(message => ({ id: String(message.id), sequenceNumber: typeof message.sequenceNumber === "number" ? message.sequenceNumber : null, messageKind: text(message.messageKind), authorLabel: text(message.authorLabel), summary: text(message.summary), content: text(message.content), createdAt: String(message.createdAt ?? "") })) };
   }));
   const referenceRelations = relationRows.filter(relation => relation.predicate === "uses_evidence" && relation.subjectLineageId === lineageId && relation.objectKind === "reference");
-  const references: TrailReference[] = await Promise.all(referenceRelations.map(async relation => {
+  const references: TrailReference[] = referencesByRole(await Promise.all(referenceRelations.map(async relation => {
     const metadata = parseMetadata(relation.metadata);
     const referenceRow = await getReference(client, String(relation.objectId));
+    const preview = await getPreview(client, text(relation.objectLineageId) ?? String(relation.objectId));
+    const sourceUri = text(referenceRow?.sourceUri);
     return {
       relationId: String(relation.id), predicate: String(relation.predicate ?? ""), referenceId: String(relation.objectId), referenceLineageId: text(relation.objectLineageId),
-      title: text(referenceRow?.title), sourceUri: text(referenceRow?.sourceUri),
-      role: metadata.role === "cited" ? "cited" as const : "consulted" as const, note: text(metadata.note), citationKey: text(metadata.citationKey), addedBy: text(metadata.addedBy), addedAt: text(metadata.addedAt),
+      title: text(referenceRow?.title), sourceUri, siteName: siteNameOf(sourceUri, preview.siteName), previewImageUrl: preview.imageUrl,
+      role: relationRole(metadata.role), note: text(metadata.note), citationKey: text(metadata.citationKey), addedBy: text(metadata.addedBy), addedAt: text(metadata.addedAt),
     };
-  }));
+  })));
   const attachments: TrailAttachment[] = attachmentRows.map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
   return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments };
 }

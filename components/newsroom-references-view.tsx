@@ -39,9 +39,11 @@ import {
   type ReferenceCurationAction,
   type ReferenceStatusFilter,
 } from "../lib/newsroom-references";
-import { normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
+import { AutoAcceptedBadge } from "./auto-accepted-badge";
+import { isAutoAccepted, normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
+import { ReferenceStories } from "./reference-stories";
 import { useReferencePreviewAttachments } from "./use-reference-preview-attachments";
 import { useMediaQuery } from "./use-media-query";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
@@ -196,6 +198,7 @@ function ReferenceDetailPanel({
   countsAsTrainingLabel,
   delegated,
   decision,
+  demo = false,
   disabled,
   onReview,
   predictionState = "ready",
@@ -234,7 +237,8 @@ function ReferenceDetailPanel({
 }) {
   const lineageId = referenceLineageId(reference);
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
-  const sourceNote = status === "pending" ? "" : reference.curationStatusReason ?? "";
+  const auto = isAutoAccepted(reference);
+  const sourceNote = status === "pending" || auto ? "" : reference.curationStatusReason ?? "";
   const sourceReason = reviewReason ?? referenceReasonCode(reference) ?? null;
   const [chosenSectionId, setChosenSectionId] = useState<string | null>(reviewSectionId ?? null);
   const sectionEdited = useRef(false);
@@ -272,6 +276,7 @@ function ReferenceDetailPanel({
           meta={(
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
+              {auto ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}
               {reference.corpusId ? <Badge variant="secondary">{reference.corpusId}</Badge> : null}
             </div>
           )}
@@ -306,6 +311,8 @@ function ReferenceDetailPanel({
         </ReviewCard>
 
         <Separator />
+
+        <ReferenceStories demo={demo} referenceLineageId={lineageId} />
 
         <ReferenceCapturePanel capture={capture} showSummary={false} />
 
@@ -845,6 +852,7 @@ export function NewsroomReferencesView({
                     <Badge variant={referenceStatusBadgeVariant(status)}>{referenceStatusLabel(status)}</Badge>
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">{formatReferenceListDate(reference)}</p>
+                  {isAutoAccepted(reference) ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} className="mt-1" reason={reference.curationStatusReason} /> : null}
                   {decision ? (
                     <div className="flex flex-wrap items-center gap-2" data-reference-relevance-row={lineageId}>
                       <ReferenceSuggestionRowLine decision={decision} referenceLineageId={lineageId} />

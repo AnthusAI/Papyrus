@@ -83,7 +83,7 @@ class MonitorClient(FakeClient):
         return super().graphql(query, variables)
 
 
-def world(count=4, *, details=None, verdicts=None, monitor="hn", status="pending", **options):
+def world(count=4, *, details=None, verdicts=None, monitor="hn", status="accepted", **options):
     """``count`` monitored References r1..rN, each judged by ``verdicts[number]`` (a score, a (label, score) pair, or None for no verdict)."""
     rows = [reference(number, status=status, days_ago=number) for number in range(1, count + 1)]
     incoming = {row["lineageId"]: [provenance(row, monitor, (details or {}).get(number))] for number, row in enumerate(rows, start=1)}
