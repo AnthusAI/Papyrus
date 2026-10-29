@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "3d91354f-5a4d-4e7d-bb59-ef8d45f5f6c2",
+  "issue_id": "PPY-675ee21a-9453-4b78-aced-e08c237088ad",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:51:11.812Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document on p.apyr.us",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Claude Code"
+    }
+  }
+}

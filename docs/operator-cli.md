@@ -127,7 +127,9 @@ page heights, section splits, or image variant scores.
 
 ## Creating stories and discovering commands
 
-`papyrus stories create --title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment]` mints a content item at the chosen stage (default `idea`) without opening an Assignment; `--with-assignment` also opens the `reporting.candidate` Assignment on it (the same path as `papyrus reporting create`). `reporting create`, `research create` and the `run` commands resolve the corpus from the backend's canonical publication corpus when `--corpus-key` is omitted (`papyrus publication init` creates it on a fresh backend).
+`papyrus items link-references --site KEY [--role consulted|cited|based_on] [--json] [--dry-run]` links the stories whose text already links to a Reference's address to that Reference (see [Stories based on a Reference](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules)); it writes unless `--dry-run`.
+
+`papyrus stories create --title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference ID ...] [--with-assignment]` mints a content item at the chosen stage (default `idea`) without opening an Assignment (each `--reference` is a Reference the story is based on, linked `based_on`); `--with-assignment` also opens the `reporting.candidate` Assignment on it (the same path as `papyrus reporting create`). `reporting create`, `research create` and the `run` commands resolve the corpus from the backend's canonical publication corpus when `--corpus-key` is omitted (`papyrus publication init` creates it on a fresh backend).
 
 Every command group prints its own subcommands for `papyrus <group>` and `papyrus <group> --help`.
 

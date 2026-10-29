@@ -64,6 +64,20 @@ class FakeClient:
         self.requests["index"] += 1
         return self._relations_by("subjectStateKey", state)
 
+    INDEXES = {
+        "itemsByLineageAndVersion": ("Item", "lineageId"),
+        "referencesByLineageAndVersion": ("Reference", "lineageId"),
+        "referenceAttachmentsByReferenceLineageAndSortKey": ("ReferenceAttachment", "referenceLineageId"),
+    }
+
+    def list_by_index(self, index_name, key, **_kwargs):
+        self.requests["index"] += 1
+        model, field = self.INDEXES[index_name]
+        return copy.deepcopy([row for row in self.rows.get(model, {}).values() if row.get(field) == key])
+
+    def list_reference_attachments_by_lineage(self, reference_lineage_id):
+        return self.list_by_index("referenceAttachmentsByReferenceLineageAndSortKey", reference_lineage_id)
+
 
 def published_row(name: str, published_at: str, entities=(), tags=()):
     front_matter = {"title": name, "entities": [{"kind": kind, "name": entity} for kind, entity in entities], "tags": list(tags)}

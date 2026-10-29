@@ -42,6 +42,7 @@ import {
 import { normalizeReferenceCurationStatus, referenceReasonCode, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
+import { ReferenceStories } from "./reference-stories";
 import { useReferencePreviewAttachments } from "./use-reference-preview-attachments";
 import { useMediaQuery } from "./use-media-query";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
@@ -196,6 +197,7 @@ function ReferenceDetailPanel({
   countsAsTrainingLabel,
   delegated,
   decision,
+  demo = false,
   disabled,
   onReview,
   predictionState = "ready",
@@ -306,6 +308,8 @@ function ReferenceDetailPanel({
         </ReviewCard>
 
         <Separator />
+
+        <ReferenceStories demo={demo} referenceLineageId={lineageId} />
 
         <ReferenceCapturePanel capture={capture} showSummary={false} />
 

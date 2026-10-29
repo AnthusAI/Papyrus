@@ -5,8 +5,10 @@ A story keeps four kinds of reporting records, all addressed by its lineage id a
 * Draft versions: one ``Item`` row per version, ``<lineage>-v<n>``. The row whose ``versionState`` is ``current`` is the
   working record (saving a draft or publishing a version makes that row current); the published record is the one the
   lineage's ``PublishedItem`` points at. Neither is chosen by the highest ``versionNumber``.
-* References: one ``SemanticRelation`` with predicate ``uses_evidence`` per story and reference. Its metadata ``role``
-  says whether the reference was ``consulted`` during reporting or is ``cited`` in the article.
+* References: one ``SemanticRelation`` with predicate ``uses_evidence`` per story and reference, linked by lineage ids so it
+  survives new versions of either side. Its metadata ``role`` says whether the story is ``based_on`` the reference (the
+  reference it was made from, written by every path that makes a story from a reference), whether the reference was
+  ``consulted`` during reporting, or is ``cited`` in the article. ``based_on`` is never downgraded by a later link.
 * Messages: one ``MessageThread`` of kind ``story_reporting`` per story, anchored at the lineage, holding ordered
   ``Message`` rows with author, time and kind.
 * Assignments: ``Assignment.itemLineageId`` (unchanged).
@@ -37,7 +39,8 @@ from .record_helpers import compact_dict, to_aws_json
 STORY_THREAD_KIND = "story_reporting"
 STORY_MESSAGE_KINDS = ("note", "research_packet", "reporting_context_packet", "draft_note", "editor_note")
 STORY_REFERENCE_PREDICATE = "uses_evidence"
-STORY_REFERENCE_ROLES = ("consulted", "cited")
+BASED_ON_ROLE = "based_on"
+STORY_REFERENCE_ROLES = ("consulted", "cited", BASED_ON_ROLE)
 STORY_REFERENCE_RELATION_FIELDS = {
     "relationTypeId": "semantic-relation-type-uses-evidence",
     "relationTypeKey": STORY_REFERENCE_PREDICATE,
@@ -291,6 +294,8 @@ def link_reference_to_story(
     previous_metadata = {}
     if existing and isinstance(existing.get("metadata"), str):
         previous_metadata = json.loads(existing["metadata"] or "{}")
+    if previous_metadata.get("role") == BASED_ON_ROLE:
+        role = BASED_ON_ROLE  # the strongest statement about a reference is never weakened by a later citation
     metadata = {
         **previous_metadata,
         "kind": "story.reference",
@@ -334,6 +339,18 @@ def link_reference_to_story(
     }
     outcome = client.upsert("SemanticRelation", record)
     return {"relationId": relation_id, "role": role, "outcome": outcome, "referenceLineageId": reference_lineage_id}
+
+
+def stories_based_on_reference(client, reference_lineage_id: str) -> list[dict[str, Any]]:
+    """The stories (by lineage id) whose ``uses_evidence`` link names this reference, each with its role."""
+    relations = client.list_semantic_relations_by_object_state(f"reference#{reference_lineage_id}#current")
+    rows: list[dict[str, Any]] = []
+    for relation in relations:
+        if relation.get("predicate") != STORY_REFERENCE_PREDICATE or relation.get("subjectKind") != "item":
+            continue
+        metadata = json.loads(relation["metadata"]) if isinstance(relation.get("metadata"), str) and relation["metadata"] else {}
+        rows.append({"relationId": relation["id"], "storyLineageId": relation.get("subjectLineageId"), "role": metadata.get("role", "consulted")})
+    return rows
 
 
 def story_references(client, lineage_id: str) -> list[dict[str, Any]]:

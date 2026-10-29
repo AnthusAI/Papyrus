@@ -152,6 +152,7 @@ def build_copywriting_run_plan(
             "versionNumber": item_version["versionNumber"],
             "previousVersionId": item_version.get("previousVersionId"),
             "createsDraftItem": True,
+            "basedOnReferenceIds": list(private_editorial_metadata.get("acceptedReferenceIds") or []),
             "createsEditionItem": False,
             "recordCount": len(records),
         },

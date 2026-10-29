@@ -46,7 +46,7 @@ def test_a_record_becomes_a_draft_article_with_its_source_link_facts_and_entitie
     client = delivered()
     record = record_in(client)
     outcome = promote_record(client, record, section="models", actor=ACTOR, now="2026-10-19T12:00:00Z")
-    assert outcome == {"itemId": "item-models-org-tuned", "slug": "org-tuned", "section": "models", "created": True}
+    assert outcome == {"itemId": "item-models-org-tuned", "slug": "org-tuned", "section": "models", "created": True, "linked": ["lineage-org--tuned"]}
     item = client.get_record("Item", "item-models-org-tuned")
     assert (item["status"], item["type"], item["section"], item["title"]) == ("draft", "article", "models", "org/tuned")
     assert client.get_record("PublishedItem", "published-item-models-org-tuned") is None  # nothing is published

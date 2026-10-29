@@ -1,0 +1,25 @@
+{
+  "id": "PPY-675ee21a-9453-4b78-aced-e08c237088ad",
+  "title": "Document on p.apyr.us",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:51:11.812755Z",
+  "updated_at": "2026-10-29T10:51:11.812796Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5",
+    "name": "Claude Code"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

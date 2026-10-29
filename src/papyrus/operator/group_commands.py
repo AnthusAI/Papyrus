@@ -33,12 +33,13 @@ SECTIONS_COMMANDS = {
 }
 PROCEDURES_COMMANDS = ("seed-required", "register", "execute-tactus", "policy")
 OPS_GROUPS = ("content", "corpora", "categories", "relations", "messages")
-CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages", "reader": "reader", "proposals": "proposals", "ideas": "ideas"}
+CONTENT_GROUPS_BY_PAPYRUS_GROUP = {"stories": "stories", "editions": "editions", "batch": "batch", "videos": "videos", "analysis": "analysis", "messages": "messages", "reader": "reader", "proposals": "proposals", "ideas": "ideas", "items": "items"}
 
 # Usage lines for commands whose flags are worth showing in group help.
 COMMAND_USAGE = {
   ("procedures", "register"): "--file PATH.tac --key PROCEDURE_KEY [--root DIR] [--title TEXT] [--description TEXT] [--dry-run] [--json]",
-  ("stories", "create"): "--title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--with-assignment] [--dry-run]",
+  ("stories", "create"): "--title TEXT [--section KEY] [--stage idea|assignment|reporting] [--summary TEXT] [--brief TEXT] [--reference ID ...] [--with-assignment] [--dry-run]",
+  ("items", "link-references"): "--site KEY [--role consulted|cited|based_on] [--json] [--dry-run]",
   ("stories", "move"): "--story LINEAGE --stage STAGE [--reason TEXT] [--author-label NAME] [--dry-run]",
   ("stories", "save-version"): "--story LINEAGE --body-file FILE --reason TEXT --author-label NAME [--stage STAGE | --advance]",
   ("messages", "list"): "--kind form_submission [--status open|handled|all] [--form ID] [--limit N] [--json]",

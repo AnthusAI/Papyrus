@@ -13,6 +13,10 @@ INDEX_MODELS = {
     "mediaAssetsByItemAndSortKey": "MediaAsset",
     "publishedMediaAssetsByItemAndSortKey": "PublishedMediaAsset",
     "modelAttachmentsByOwnerRoleAndSortKey": "ModelAttachment",
+    "referenceAttachmentsByReferenceLineageAndSortKey": "ReferenceAttachment",
+    "semanticRelationsBySubjectState": "SemanticRelation",
+    "semanticRelationsByObjectState": "SemanticRelation",
+    "referencesByLineageAndVersion": "Reference",
 }
 
 
@@ -65,6 +69,15 @@ class FakeAuthoringClient:
         partition_key = INDEX_DEFINITIONS[index_name]["partitionKey"]
         model_name = INDEX_MODELS[index_name]
         return [copy.deepcopy(row) for row in self._table(model_name).values() if row.get(partition_key) == key_value]
+
+    def list_reference_attachments_by_lineage(self, reference_lineage_id: str) -> list[dict[str, Any]]:
+        return self.list_by_index("referenceAttachmentsByReferenceLineageAndSortKey", reference_lineage_id)
+
+    def list_semantic_relations_by_subject_state(self, key: str) -> list[dict[str, Any]]:
+        return self.list_by_index("semanticRelationsBySubjectState", key)
+
+    def list_semantic_relations_by_object_state(self, key: str) -> list[dict[str, Any]]:
+        return self.list_by_index("semanticRelationsByObjectState", key)
 
     def recent_procedure_runs(self, procedure_key: str, limit: int = 25) -> list[dict[str, Any]]:
         self.calls.append(("recent_procedure_runs", "ProcedureRun", procedure_key))

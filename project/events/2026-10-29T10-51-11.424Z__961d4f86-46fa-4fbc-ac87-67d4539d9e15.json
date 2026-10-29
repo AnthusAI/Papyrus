@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "961d4f86-46fa-4fbc-ac87-67d4539d9e15",
+  "issue_id": "PPY-8eb1f179-73bb-4ff1-8baf-1f7a2b4d2e17",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:51:11.424Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every creation path links its Reference and seeds its own body",
+    "description": "",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5",
+      "name": "Claude Code"
+    }
+  }
+}

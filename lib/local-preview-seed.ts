@@ -2,7 +2,7 @@ import type { AssignmentRecord, MessageRecord, ReferenceRecord, SemanticRelation
 import { SHADOW_AGREEMENT_SCHEMA, type ShadowAgreement } from "./cyclotron-suggestions";
 import type { EditableArticle } from "./newsroom-articles";
 import type { MediaAssetRecord } from "./newsroom-media";
-import { EMPTY_STORY_REPORTING_TRAIL, type StoryReportingTrail, type TrailVersion } from "./story-reporting-trail";
+import { EMPTY_STORY_REPORTING_TRAIL, type ReferenceStory, type StoryReportingTrail, type TrailReference, type TrailVersion } from "./story-reporting-trail";
 import { contentItemStageKeys, type ContentItemVersionRecord } from "./content-item-lifecycle";
 import { getContentItemStageDefinitions } from "./site-brand";
 import { LOCAL_PREVIEW_TENANTS, getLocalPreviewTenantId } from "./local-preview-tenant";
@@ -159,9 +159,31 @@ export function lineageForPreviewVersion(versionId: string): string | null {
   return previewLineageByVersionId.get(versionId) ?? null;
 }
 
+/** The demo story that is based on a demo Reference, so the story view and the Reference view can show the link without a backend. */
+const PREVIEW_BASED_ON = {
+  storyLineageId: "demo-article-published",
+  storyTitle: "Harbor Cranes Return",
+  referenceLineageId: "reference-knowledge-corpus-demo-source-history-002",
+};
+const PREVIEW_IMAGE = "data:image/svg+xml;utf8," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="72"><rect width="96" height="72" fill="#cbd5c0"/></svg>');
+
+function previewBasedOnReference(): TrailReference {
+  return {
+    relationId: "preview-story-reference-relation", predicate: "uses_evidence", referenceId: "reference-knowledge-corpus-demo-source-history-002", referenceLineageId: PREVIEW_BASED_ON.referenceLineageId,
+    title: "Foundation Model Scaling Retrospective", sourceUri: "https://history.example.org/scaling-retrospective", siteName: "history.example.org", previewImageUrl: PREVIEW_IMAGE,
+    role: "based_on", note: null, citationKey: null, addedBy: "papyrus-cli", addedAt: isoTimestampHoursBeforeBase(30),
+  };
+}
+
 export function createLocalPreviewReportingTrail(lineageId: string): StoryReportingTrail {
   const saved = previewSavedVersions.get(lineageId) ?? [];
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved };
+  const references = lineageId === PREVIEW_BASED_ON.storyLineageId ? [previewBasedOnReference()] : [];
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions: saved, references };
+}
+
+export function createLocalPreviewStoriesForReference(referenceLineageId: string): ReferenceStory[] {
+  if (referenceLineageId !== PREVIEW_BASED_ON.referenceLineageId) return [];
+  return [{ relationId: "preview-story-reference-relation", itemId: PREVIEW_BASED_ON.storyLineageId, lineageId: PREVIEW_BASED_ON.storyLineageId, title: PREVIEW_BASED_ON.storyTitle, stage: "copywriting", role: "based_on" }];
 }
 
 export function createLocalPreviewMediaAssets(_itemId: string): MediaAssetRecord[] {

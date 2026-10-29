@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "49e11b6e-0427-4008-a288-c27b58bfd575",
+  "issue_id": "PPY-d9090fa8-2170-48d7-84c5-4aff10126b06",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:51:07.137Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Stories based on a Reference carry the link and their own text",
+    "description": "Core automated-newsroom rule: a story based on a Reference has (1) a stored association to the Reference (uses_evidence, role based_on, by lineage ids) shown in the story view, and (2) its own text (never a copy of the Reference text); posts may seed the image from the Reference preview.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5"
+    }
+  }
+}

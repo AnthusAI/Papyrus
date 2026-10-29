@@ -314,6 +314,48 @@ Nothing here changes a model or a stored shape. To turn it on for a site:
    exists, papers get text, signals and a summary, and the typed skip `grobid_not_configured`; run the backfill from a
    machine with `--start-grobid` (Docker) to fill in papers.
 
+## 6a. Stories based on a Reference (core rules)
+
+A Reference is where a story can start. Whichever path makes a story from one, two rules hold. They are part of the automated
+newsroom process, not a convention of one command. Executable specs: `features_backend/story-from-reference.feature` (the process),
+`features/newsroom-story-references.feature` (the newsroom views); tests: `procedures/newsroom/tests/test_story_from_reference.py`.
+Code: `src/papyrus_content/story_from_reference.py`.
+
+1. **The story is linked to the Reference.** One `SemanticRelation`, predicate `uses_evidence` (relation type
+   `semantic-relation-type-uses-evidence`), from the story's lineage to the Reference's lineage, with metadata role `based_on`. The
+   link is by lineage ids, so it survives new versions of the story and of the Reference. A story can be based on several References.
+   `consulted` and `cited` stay the roles for References read during reporting and cited in the text; a later link never weakens
+   `based_on`. The newsroom story view (References) lists each Reference with its title, site, preview image, a link that opens it
+   and a link to the original page, marked "Based on" in words and with an icon. The Reference view lists the stories based on it.
+2. **The story has its own content.** The body is seeded from our words: the cited body of the story draft, or a brief for the
+   copywriter. It is never the Reference's captured or extracted text, and it goes through the copywriting and copy-editing stages.
+   **The copy guard** refuses to save a seeded body that shares `COPIED_RUN_WORDS` (12) or more consecutive words, ignoring case,
+   punctuation and web addresses, with any captured text (`extracted_text` attachment) of a Reference it is based on
+   (`StoryCopiedFromReference`; nothing is written). If the captured text cannot be read on the machine, the result says
+   `copyCheck: unchecked` instead of passing silently. A short quotation is fine.
+
+The image is the one thing a story may take. A `post` (`SEEDED_IMAGE_ITEM_TYPES`) gets the Reference's preview image (the
+`preview` `ReferenceAttachment`, sort key `002-preview`) as a first line `::image{src="<preview address>" alt="<Reference title>"
+credit="Image: <site>"}` in its `bodyMarkus`, and `seededImage: {hosted: false}` in its front matter. The address stays remote and
+credited: we do not copy a third party's picture into our media (rights, and a stale copy) and we do not hide where it came from.
+The illustration stage replaces it, or hosts a licensed copy as a `MediaAsset`. Other types get no image, and neither get a post
+whose Reference declared none.
+
+Paths that make a story from a Reference, and what each writes:
+
+| Path | Body | Image | Link |
+| --- | --- | --- | --- |
+| `papyrus references promote` (monitor record to a draft article) | a stub of the record's own facts | none (article) | `based_on` |
+| `story_from_story_draft` (an approved `story_draft` Proposal) | the draft's own cited body | post only | `based_on` for each `reference:` target |
+| `papyrus stories create --reference ID` and the Tactus `papyrus_create_story(based_on_references=...)` | the story's summary, as before | none | `based_on` |
+| `papyrus assignments run-copywriting` (reporting packet to draft) | the packet's own facts, copy-checked | none | `based_on` for the packet's accepted References |
+
+Stories made before this rule: `papyrus items link-references --site KEY [--role consulted|cited|based_on] [--dry-run]` finds each
+story whose body (or front matter `sources`) links to the `sourceUri` of a Reference of the site, comparing addresses without
+tracking parameters, fragment, `www.` and trailing slash. A story that matches one Reference is `based_on` it; one that matches
+several cites them. Safe to repeat. No UI action makes a story from a Reference yet; when one does, it calls
+`create_story_from_references`.
+
 ## 7. Not done here
 
 * Whether a capture is complete: a Cyclotron classifier trained on `card.labels`.
