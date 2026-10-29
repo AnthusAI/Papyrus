@@ -344,10 +344,10 @@ const scenarios: Record<string, () => Promise<void>> = {
     await run("?overview=1", [375, 1440], async (page, width) => {
       const refCard = page.locator('[data-feed-card="reference-a"]');
       await refCard.waitFor();
-      assert.equal(await refCard.locator('[data-cyclotron-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
+      assert.equal(await refCard.locator('[data-review-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
       assert.ok((await refCard.innerText()).includes("82%"), "with its confidence");
       assert.match(await page.locator("[data-notification-summary]").innerText(), /\b2 references\b.*waiting for you/, "the header counts References");
-      assert.equal(await page.locator('[data-feed-card="reference-b"] [data-cyclotron-state="none"]').count(), 1, "no invented suggestion");
+      assert.equal(await page.locator('[data-feed-card="reference-b"] [data-prediction-state="none"]').count(), 1, "no invented suggestion");
       const pane = await openDetail(page, refCard);
       assert.ok((await pane.innerText()).includes("ReadyArt: text-generation model"), "a card opens the same detail the References page has");
       assert.equal(await pane.locator("[data-capture-panel]").count(), 1, "with our captured record");

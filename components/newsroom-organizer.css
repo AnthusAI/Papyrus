@@ -444,6 +444,12 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-cyclotron-choice] { border-radius: var(--feed-radius-pill) !important; }
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-review-queue-bar] { background: var(--feed-footer) !important; }
+/* The decision control keeps one corner across its segments and its reason field, and its predicted segment
+   keeps its tones apart: the flat rules above give every unpressed button the same control fill, which would
+   leave the predicted side and an untouched side looking identical. */
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-decision-control] :is(button, textarea) { border-radius: var(--feed-radius-md) !important; }
+[data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-decision-control] [data-review-choice][data-state="idle"] { background: color-mix(in oklab, var(--feed-control) 45%, transparent) !important; }
+
 /* The rating grid keeps its own rounded rectangles in the borderless panes (not the pill shape the flat rules give other buttons). */
 [data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat][data-feed-flat] [data-rating-grid] :is(button, [data-cyclotron-choice]) { border-radius: var(--feed-radius-md) !important; }
 

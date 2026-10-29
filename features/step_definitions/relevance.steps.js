@@ -7,40 +7,41 @@ function requirePage(world) {
 }
 
 const youRow = (world) => requirePage(world).locator("[data-review-row='you']:visible").first();
-const cyclotronRow = (world) => requirePage(world).locator("[data-review-row='cyclotron']:visible").first();
+const control = (world) => requirePage(world).locator("[data-decision-control]:visible").first();
 
-Then("the Cyclotron row should highlight {string} at {string}", async function (choice, confidence) {
-  const predicted = cyclotronRow(this).locator("[data-predicted]");
+Then("the prediction marks {string} and the bar says {string}", async function (choice, confidence) {
+  const predicted = control(this).locator("[data-review-choice][data-predicted]");
   await predicted.waitFor({ state: "visible", timeout: 10_000 });
-  const text = (await predicted.innerText()).replace(/\s+/g, " ").trim();
-  assert.equal(text, `${choice} ${confidence}`);
+  // The side is marked on the button; the confidence is printed in the bar and on no button.
+  assert.match((await predicted.innerText()).replace(/\s+/g, " ").trim(), new RegExp(`^${choice} predicted$`, "i"));
+  assert.equal(await control(this).locator("[data-confidence-value]").innerText(), confidence);
 });
 
-Then("the You row should offer Accept and Reject", async function () {
+Then("the control offers Accept and Reject", async function () {
   await youRow(this).getByRole("button", { name: "Accept", exact: true }).waitFor({ state: "visible" });
   await youRow(this).getByRole("button", { name: "Reject", exact: true }).waitFor({ state: "visible" });
 });
 
-When("I tap You Reject", async function () {
+When("I tap Reject", async function () {
   await youRow(this).getByRole("button", { name: "Reject", exact: true }).click();
 });
 
 Then("the card asks for a reason in words", async function () {
-  await requirePage(this).getByText("Choose a reason to save your Reject.").waitFor({ state: "visible" });
+  await requirePage(this).getByText(/A reason is needed to record Reject/).waitFor({ state: "visible" });
 });
 
-When("I explain {string} and choose the reason {string}", async function (explanation, reason) {
+When("I explain {string} and record it", async function (explanation) {
   const page = requirePage(this);
-  await page.getByLabel("Why? (optional)").fill(explanation);
-  await page.locator("[data-review-reasons]").getByRole("button", { name: reason, exact: true }).click();
+  await page.locator("[data-decision-control] [data-review-reason] textarea").first().fill(explanation);
+  await page.locator("[data-review-record]").first().click();
 });
 
-Then("the Cyclotron row should mark its answer as differing", async function () {
-  await cyclotronRow(this).locator("[data-verdict='miss'] svg").waitFor({ state: "visible", timeout: 10_000 });
+Then("the prediction's marker shows the answer differs from it", async function () {
+  await control(this).locator("[data-prediction-mark][data-verdict='miss'] svg").waitFor({ state: "visible", timeout: 10_000 });
 });
 
-Then("the Cyclotron row should say there is no prediction", async function () {
-  await cyclotronRow(this).getByText("No prediction", { exact: true }).waitFor({ state: "visible" });
+Then("the control should say there is no prediction", async function () {
+  await control(this).locator("[data-prediction-caption]").getByText(/^no prediction$/i).waitFor({ state: "visible" });
 });
 
 Then("the reference detail should show the status {string}", async function (status) {

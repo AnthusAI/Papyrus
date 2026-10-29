@@ -29,26 +29,29 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
 
   Scenario: A rated card stays in place, shows whether the Cyclotron matched, and is under Rated on the next visit
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
-    When the editor accepts a card, then rejects it with a reason, and rejects a card the Cyclotron expected to be rejected
+    When the editor accepts a card, then rejects it with a written reason, and rejects a card that was predicted Reject
     Then each rated card stays in its place and shows Saved
-    And the Cyclotron's chip says Match with a check or Miss with a cross, in words and an icon as well as colour
-    And Rejecting asks for a reason in words and changes nothing until one is chosen
+    And the answered button says Confirmed or Overturned, in words and a marker as well as colour
+    And Rejecting asks for a written reason in words and changes nothing until one is given
+    And while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded
     And the Rated tab lists the most recent answer first, and the next visit lists the answered cards there
 
-  Scenario: The rating area is one grid, with each of your buttons directly under the matching Cyclotron cell
+  Scenario: The decision is one control: a prediction above one pair of buttons, with the reason under them
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens the feed at 375 and 1440 pixels
-    Then the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels
-    And on a card as narrow as 240 pixels every icon, word and percentage fits inside its cell, the confidence wrapping onto its own line
-    And a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one
+    Then the prediction bar, the Accept and Reject buttons and the reason field are all the same width, on a card and in the review card, at 375 and 1440 pixels
+    And there is no second row of prediction cells: the predicted side is marked on the button itself
+    And the confidence bar is centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one
     And the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction
-    And before a vote the predicted cell is neutral with a Check or X icon
+    And the confidence is printed in the bar and on no button, moving beside the fill when the fill is too short to hold it
+    And before an answer the predicted button carries its own tone and says Predicted, with no border anywhere
 
-  Scenario: After a vote the prediction turns green with a CircleCheck for a match or red with a CircleX for a miss
+  Scenario: After an answer the prediction's own marker and bar carry the verdict, and the answer stays neutral
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
-    When the editor votes with the Cyclotron's side and against it
-    Then the matching prediction cell is green with a CircleCheck and says Match, and the confidence bar is green
-    And the differing prediction cell is red with a CircleX and says Miss, and the confidence bar is red
+    When the editor answers with the predicted side and against it
+    Then the chosen button says Confirmed when it agrees with the prediction and Overturned when it does not
+    And the marker on the predicted side and the confidence bar turn green for a confirmation and red for an overturn
+    And the chosen button itself is never tinted by the verdict: it is the same fill either way
     And the chosen button is filled and the other is quiet, and tapping the chosen one does not unselect it
 
   Scenario: Unrated items past their freshness move to Earlier at the bottom and can still be rated

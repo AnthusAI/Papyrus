@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import type { ReviewChoice } from "./reference-review-card";
-import type { RatingFeedback } from "./review-rating-grid";
+import type { RatingFeedback } from "./decision-control";
 
 /** How long after the last keystroke a typed reason is saved on its own. */
 export const NOTE_AUTOSAVE_MS = 1200;

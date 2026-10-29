@@ -159,11 +159,14 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await first.innerText()).includes("A one line dek for strong-accept."), "the one-line dek");
       assert.ok((await first.locator("[data-feed-source]").innerText()).includes("strong accept"), "the source name");
       assert.ok((await first.locator("time").innerText()).length > 0, "its age");
-      const chip = first.locator("[data-predicted]");
-      assert.equal((await chip.innerText()).replace(/\s+/g, " ").trim(), "Accept 96%");
-      assert.equal(await chip.locator("svg").count(), 1, "a Lucide icon, never colour alone");
-      assert.equal((await card(page, "strong-reject").locator("[data-predicted]").innerText()).replace(/\s+/g, " ").trim(), "Reject 94%");
-      assert.equal(await card(page, "no-prediction").locator("[data-cyclotron-state=none]").innerText(), "No prediction");
+      // The prediction: its side marked on the button, its confidence in the bar.
+      const marked = first.locator("[data-review-choice][data-predicted]");
+      assert.equal((await marked.innerText()).replace(/\s+/g, " ").trim().toLowerCase(), "accept predicted");
+      assert.ok((await marked.locator("svg").count()) >= 1, "a Lucide icon, never colour alone");
+      assert.equal(await first.locator("[data-confidence-value]").innerText(), "96%", "the confidence is in the bar");
+      assert.equal((await card(page, "strong-reject").locator("[data-review-choice][data-predicted]").innerText()).replace(/\s+/g, " ").trim().toLowerCase(), "reject predicted");
+      assert.equal(await card(page, "strong-reject").locator("[data-confidence-value]").innerText(), "94%");
+      assert.match(await card(page, "no-prediction").locator("[data-prediction-caption]").innerText(), /^no prediction$/i);
       for (const choice of ["accept", "reject"]) {
         const box = (await first.locator(`[data-review-choice=${choice}]`).boundingBox())!;
         assert.ok(box.height >= 36 && box.width >= 60, `a tap-sized ${choice} button`);
@@ -188,7 +191,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const radius = (selector: string) => page.locator(selector).first().evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius));
       assert.ok((await radius("[data-feed-card]")) >= 8, "cards are about 8 to 10px round (the --feed-radius tokens)");
       assert.ok((await radius("[data-review-choice=accept]")) >= 6, "buttons are rounded rectangles");
-      assert.ok((await radius("[data-cyclotron-choice]")) >= 6);
+      assert.ok((await radius("[data-review-choice][data-predicted]")) >= 6);
       assert.ok((await radius("[data-confidence-bar]")) >= 4);
       assert.ok((await radius("[data-feed-tab-button=feed]")) >= 6);
       // The image is full-bleed across the top of the card: as wide as the card, starting at its top edge.
@@ -207,24 +210,30 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** One grid: Cyclotron cells and the You buttons share their columns exactly; the confidence bar is centred and points toward the leaning side. */
+  /** One control: the prediction bar, the two buttons and the reason field share one column, and the predicted side is marked on the button itself. */
   async grid() {
     await run("", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
       const box = async (selector: string) => (await page.locator(selector).first().boundingBox())!;
       for (const id of ["strong-accept", "strong-reject", "no-prediction"]) {
         const base = `[data-feed-card="${id}"]`;
-        for (const choice of ["accept", "reject"]) {
-          const cell = await box(`${base} [data-review-row=cyclotron] [data-cyclotron-choice=${choice}]`);
-          const button = await box(`${base} [data-review-row=you] [data-review-choice=${choice}]`);
-          assert.ok(Math.abs(cell.x - button.x) < 0.5 && Math.abs(cell.width - button.width) < 0.5, `${id}: the ${choice} button sits exactly under its Cyclotron cell`);
+        const row = await box(`${base} [data-review-row=you]`);
+        // One column: the bar, the pair of buttons and the reason field start and end together.
+        for (const [name, part] of [["the bar", await box(`${base} [data-confidence-bar]`)], ["the reason field", await box(`${base} [data-review-reason] textarea`)]] as const) {
+          assert.ok(Math.abs(part.x - row.x) < 0.5 && Math.abs(part.width - row.width) < 0.5, `${id}: ${name} is the same width as the buttons`);
         }
-        const accept = await box(`${base} [data-review-row=cyclotron] [data-cyclotron-choice=accept]`);
-        const reject = await box(`${base} [data-review-row=cyclotron] [data-cyclotron-choice=reject]`);
-        const bar = await box(`${base} [data-confidence-bar]`);
-        assert.ok(Math.abs(bar.x - accept.x) < 0.5 && Math.abs(bar.x + bar.width - (reject.x + reject.width)) < 0.5, `${id}: the bar spans both columns`);
-        assert.ok(accept.x < reject.x && accept.y === reject.y, "Accept is the left column, Reject the right, on one row");
+        const accept = await box(`${base} [data-review-choice=accept]`);
+        const reject = await box(`${base} [data-review-choice=reject]`);
+        assert.ok(accept.x < reject.x && accept.y === reject.y, "Accept is the left button, Reject the right, on one row");
+        assert.ok(Math.abs(accept.width - reject.width) < 0.5, `${id}: the two buttons are the same width`);
       }
+      // There is no second row of prediction cells: the prediction lives on the button and in the bar.
+      assert.equal(await page.locator("[data-review-row=cyclotron], [data-cyclotron-choice]").count(), 0, "no prediction row");
+      const predicted = card(page, "strong-accept").locator("[data-review-choice][data-predicted]");
+      assert.equal(await predicted.getAttribute("data-review-choice"), "accept", "the predicted side is marked on the button");
+      assert.equal(await predicted.getAttribute("data-state"), "predicted");
+      assert.ok(/predicted/i.test(await predicted.innerText()), "and says so in words (the label is uppercased in CSS)");
+      assert.equal(await card(page, "strong-accept").locator("[data-review-choice=reject][data-predicted]").count(), 0);
       const fill = async (id: string) => page.locator(`[data-feed-card="${id}"] [data-confidence-fill]`).evaluate((el) => {
         const bar = el.parentElement!.getBoundingClientRect(); const rect = el.getBoundingClientRect();
         return { centre: bar.x + bar.width / 2, left: rect.x, right: rect.x + rect.width, share: rect.width / bar.width };
@@ -237,30 +246,33 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok(Math.abs(against.share - 0.44) < 0.02, "0.06 gives 44%");
       assert.equal(await page.locator('[data-feed-card="no-prediction"] [data-confidence-fill]').count(), 0, "no prediction: an empty bar");
       assert.equal(await page.locator('[data-feed-card="no-prediction"] [data-confidence-bar]').getAttribute("data-confidence-direction"), "none");
-      // Before a vote the predicted cell is neutral with a check or cross; the other cell has no icon.
-      const icon = (id: string, which: string) => page.locator(`[data-feed-card="${id}"] [data-predicted] svg`).evaluate((el) => el.getAttribute("class"));
-      assert.ok(/lucide-check\b/.test((await icon("strong-accept", "")) ?? ""), "a Check on a predicted Accept");
-      assert.ok(/lucide-x\b/.test((await icon("strong-reject", "")) ?? ""), "an X on a predicted Reject");
-      assert.equal(await page.locator('[data-feed-card="strong-accept"] [data-cyclotron-choice=reject] svg').count(), 0);
-      assert.equal(await page.locator("[data-feed-card] [data-review-row=cyclotron] [data-verdict]").count(), 0, "no verdict before a vote");
-      // Nothing spills out of a cell at any card width the feed uses, down to a narrow card: the confidence wraps instead.
+      assert.match(await card(page, "no-prediction").locator("[data-prediction-caption]").innerText(), /^no prediction$/i, "and says so above the empty bar");
+      // The confidence is printed in the bar and on no button.
+      assert.equal(await card(page, "strong-accept").locator("[data-confidence-fill] [data-confidence-value]").innerText(), "96%");
+      for (const choice of ["accept", "reject"]) {
+        assert.ok(!/%/.test(await card(page, "strong-accept").locator(`[data-review-choice=${choice}]`).innerText()), `no percentage on the ${choice} button`);
+      }
+      // A fill too short to hold its number keeps the number beside it instead (0.62 the other way is a 12% fill).
+      assert.equal(await card(page, "weak-reject").locator("[data-confidence-fill] [data-confidence-value]").count(), 0, "a narrow fill holds no number");
+      assert.equal(await card(page, "weak-reject").locator("[data-confidence-bar] > [data-confidence-value]").innerText(), "62%", "the number sits beside the fill");
+      assert.equal(await page.locator("[data-feed-card] [data-review-choice] [data-verdict]").count(), 0, "no verdict before an answer");
+      // Nothing spills out of a button at any card width the feed uses, down to a narrow card.
       for (const width of [240, 280, 360]) {
-        const spills = await page.locator('[data-feed-card="strong-accept"] [data-rating-grid]').evaluate((grid, cardWidth) => {
-          (grid as HTMLElement).style.width = `${cardWidth}px`;
-          const cells = [...grid.querySelectorAll("[data-cyclotron-choice], [data-review-choice]")] as HTMLElement[];
-          const found = cells.filter((cell) => [...cell.querySelectorAll("*")].some((child) => {
+        const spills = await page.locator('[data-feed-card="strong-accept"] [data-decision-control]').evaluate((control, cardWidth) => {
+          (control as HTMLElement).style.width = `${cardWidth}px`;
+          const found = ([...control.querySelectorAll("[data-review-choice]")] as HTMLElement[]).filter((cell) => [...cell.querySelectorAll("*")].some((child) => {
             const outer = cell.getBoundingClientRect(); const inner = child.getBoundingClientRect();
             return inner.left < outer.left - 0.5 || inner.right > outer.right + 0.5;
-          })).map((cell) => cell.getAttribute("data-cyclotron-choice") ?? cell.getAttribute("data-review-choice"));
-          (grid as HTMLElement).style.width = "";
+          })).map((cell) => cell.getAttribute("data-review-choice"));
+          (control as HTMLElement).style.width = "";
           return found;
         }, width);
-        assert.deepEqual(spills, [], `at a ${width}px grid every icon, word and percentage fits inside its cell`);
+        assert.deepEqual(spills, [], `at a ${width}px control every icon and word fits inside its button`);
       }
     });
   },
 
-  /** After a vote: green and CircleCheck for a match, red and CircleX for a miss, with the words, and the bar tints the same way. */
+  /** After an answer: the prediction's marker and the bar carry the verdict; the answer itself never changes colour. */
   async verdict() {
     await run("", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
@@ -269,32 +281,33 @@ const scenarios: Record<string, () => Promise<void>> = {
         const context = canvas.getContext("2d")!; context.fillStyle = "#000"; context.fillStyle = getComputedStyle(el)[prop as "color"]; context.fillRect(0, 0, 1, 1);
         const [r, g, b] = context.getImageData(0, 0, 1, 1).data; return { r, g, b };
       }, property);
+      // A confirmation: answer with the predicted side.
       await card(page, "strong-accept").locator("[data-review-choice=accept]").click();
-      await card(page, "strong-accept").locator("[data-verdict=match]").waitFor();
-      const matchCell = '[data-feed-card="strong-accept"] [data-verdict=match]';
-      const cellColour = await rgb(matchCell, "color");
-      assert.ok(cellColour.g > cellColour.r && cellColour.g >= cellColour.b - 40, "a match is green: " + JSON.stringify(cellColour));
-      assert.ok(/lucide-circle-check/.test((await page.locator(`${matchCell} svg`).getAttribute("class")) ?? ""), "with a CircleCheck");
-      assert.ok((await page.locator(matchCell).innerText()).includes("Match"));
+      await card(page, "strong-accept").locator("[data-prediction-mark][data-verdict=match]").waitFor();
+      assert.ok(/confirmed/i.test(await card(page, "strong-accept").locator("[data-review-choice=accept]").innerText()), "the answer says Confirmed");
+      const markMatch = await rgb('[data-feed-card="strong-accept"] [data-prediction-mark][data-verdict=match]', "color");
+      assert.ok(markMatch.g > markMatch.r && markMatch.g > markMatch.b, "the prediction's marker is green: " + JSON.stringify(markMatch));
       const barMatch = await rgb('[data-feed-card="strong-accept"] [data-confidence-fill]', "backgroundColor");
       assert.ok(barMatch.g > barMatch.r, "the bar turns green too: " + JSON.stringify(barMatch));
-      // A miss: vote Accept on a card the Cyclotron expected to be Rejected.
+      // An overturn: answer Accept on a card predicted Reject.
       await card(page, "strong-reject").locator("[data-review-choice=accept]").click();
-      await card(page, "strong-reject").locator("[data-verdict=miss]").waitFor();
-      const missCell = '[data-feed-card="strong-reject"] [data-verdict=miss]';
-      const red = await rgb(missCell, "color");
-      assert.ok(red.r > red.g && red.r > red.b, "a miss is red: " + JSON.stringify(red));
-      assert.ok(/lucide-circle-x/.test((await page.locator(`${missCell} svg`).getAttribute("class")) ?? ""), "with a CircleX");
-      assert.ok((await page.locator(missCell).innerText()).includes("Miss"));
+      await card(page, "strong-reject").locator("[data-prediction-mark][data-verdict=miss]").waitFor();
+      assert.ok(/overturned/i.test(await card(page, "strong-reject").locator("[data-review-choice=accept]").innerText()), "the answer says Overturned");
+      const markMiss = await rgb('[data-feed-card="strong-reject"] [data-prediction-mark][data-verdict=miss]', "color");
+      assert.ok(markMiss.r > markMiss.g && markMiss.r > markMiss.b, "the marker is red: " + JSON.stringify(markMiss));
       const barMiss = await rgb('[data-feed-card="strong-reject"] [data-confidence-fill]', "backgroundColor");
       assert.ok(barMiss.r > barMiss.g, "the bar turns red too: " + JSON.stringify(barMiss));
-      // Your chosen button is filled and the other quiet; tapping the other switches, and the chosen one never unselects itself.
+      // The marker stays on the side the prediction picked, which is the losing side after an overturn.
+      assert.equal(await card(page, "strong-reject").locator("[data-review-choice=reject][data-predicted] [data-prediction-mark]").count(), 1, "the marker stays on the predicted side");
+      // The editor's own answer is never tinted by the verdict: the same fill confirms and overturns.
+      const chosen = (id: string) => rgb(`[data-feed-card="${id}"] [data-review-choice=accept]`, "backgroundColor");
+      assert.deepEqual(await chosen("strong-accept"), await chosen("strong-reject"), "a confirmed answer and an overturned one are the same colour");
+      // Your chosen button is filled and the other quiet; tapping the chosen one never unselects it.
       const pressed = (id: string, choice: string) => card(page, id).locator(`[data-review-choice=${choice}]`).getAttribute("aria-pressed");
       assert.equal(await pressed("strong-accept", "accept"), "true");
       assert.equal(await pressed("strong-accept", "reject"), "false");
       await card(page, "strong-accept").locator("[data-review-choice=accept]").click();
       assert.equal(await pressed("strong-accept", "accept"), "true", "tapping the chosen answer does not unselect it");
-      // The chosen button carries the accent fill and heavier type; the other is the quiet tone (the theme tokens are not loaded in this harness).
       const classes = (choice: string) => card(page, "strong-accept").locator(`[data-review-choice=${choice}]`).getAttribute("class");
       assert.ok(/bg-\[var\(--primary\)\]/.test((await classes("accept")) ?? "") && /font-semibold/.test((await classes("accept")) ?? ""), "the chosen button is filled");
       assert.ok(!/bg-\[var\(--primary\)\]/.test((await classes("reject")) ?? ""), "the other is quiet");
@@ -362,41 +375,43 @@ const scenarios: Record<string, () => Promise<void>> = {
       await cards(page).first().waitFor();
       const before = await order(page);
       await card(page, "mid-accept").locator("[data-review-choice=accept]").click();
-      await card(page, "mid-accept").locator("[data-verdict=match]").waitFor();
+      await card(page, "mid-accept").locator("[data-prediction-mark][data-verdict=match]").waitFor();
       assert.deepEqual(await order(page), before, "the rated card stays in place");
       assert.equal(await card(page, "mid-accept").getAttribute("data-feed-rated"), "accept");
-      assert.ok((await card(page, "mid-accept").locator("[data-predicted]").innerText()).includes("Match"), "match is said in words");
-      assert.equal(await card(page, "mid-accept").locator("[data-predicted] svg").count(), 1, "with its icon");
-      assert.ok((await card(page, "mid-accept").locator("[data-feed-saved]").innerText()).includes("Saved"));
+      assert.ok(/confirmed/i.test(await card(page, "mid-accept").locator("[data-review-choice=accept]").innerText()), "the answer says Confirmed");
+      assert.equal(await card(page, "mid-accept").locator("[data-prediction-mark] svg").count(), 1, "with its marker, never colour alone");
+      assert.ok((await card(page, "mid-accept").locator("[data-feed-saved]").innerText()).includes("Recorded"));
       assert.equal(await card(page, "mid-accept").locator("[data-review-choice=accept]").getAttribute("aria-pressed"), "true");
       assert.equal(await page.locator("[data-feed-tab-button=rated] [data-feed-tab-count]").innerText(), "1");
 
-      // The other choice is the undo: Reject asks for a reason, then the Cyclotron's Accept is a miss.
+      // The other choice is the undo: Reject waits for a written reason, and nothing changes until one is given.
       await card(page, "mid-accept").locator("[data-review-choice=reject]").click();
-      assert.equal(await card(page, "mid-accept").locator("[data-review-reasons]").count(), 1, "a reason is asked for in words");
-      assert.equal(await card(page, "mid-accept").getAttribute("data-feed-rated"), "accept", "nothing changes until a reason is chosen");
-      await card(page, "mid-accept").locator("[data-review-reason=duplicate]").click();
-      await card(page, "mid-accept").locator("[data-verdict=miss]").waitFor();
-      assert.ok((await card(page, "mid-accept").locator("[data-predicted]").innerText()).includes("Miss"));
+      assert.equal(await card(page, "mid-accept").locator("[data-review-record]").count(), 1, "a reason is asked for in words");
+      assert.ok((await card(page, "mid-accept").locator("[data-feed-saved]").innerText()).includes("A reason is needed"));
+      assert.ok(/needs a reason/i.test(await card(page, "mid-accept").locator("[data-review-choice=reject]").innerText()), "the staged button says what is missing, not that it is unrecorded");
+      assert.equal(await card(page, "mid-accept").getAttribute("data-feed-rated"), "accept", "nothing changes until a reason is written");
+      await card(page, "mid-accept").locator("[data-review-reason] textarea").fill("The same study, already in the corpus.");
+      await card(page, "mid-accept").locator("[data-review-record]").click();
+      await card(page, "mid-accept").locator("[data-prediction-mark][data-verdict=miss]").waitFor();
+      assert.ok(/overturned/i.test(await card(page, "mid-accept").locator("[data-review-choice=reject]").innerText()));
       assert.deepEqual(await order(page), before);
       const calls = await page.evaluate(() => (window as unknown as { calls: unknown[] }).calls);
       assert.deepEqual(calls, [
         { type: "rate", id: "mid-accept", choice: "accept", reasonCode: null },
-        { type: "rate", id: "mid-accept", choice: "reject", reasonCode: "duplicate" },
-      ]);
+        { type: "rate", id: "mid-accept", choice: "reject", reasonCode: "other" },
+      ], "a written reason files the rejection under other, which the policy already accepts");
 
-      // A Reject the Cyclotron expected is a match; a reason can be cancelled without a change.
+      // A Reject that was predicted is a confirmation, and it also needs its reason in words.
       await card(page, "strong-reject").locator("[data-review-choice=reject]").click();
-      await card(page, "strong-reject").getByRole("button", { name: "Cancel" }).click();
-      assert.equal(await card(page, "strong-reject").locator("[data-review-reasons]").count(), 0);
-      await card(page, "strong-reject").locator("[data-review-choice=reject]").click();
-      await card(page, "strong-reject").locator("[data-review-reason=out_of_scope]").click();
-      await card(page, "strong-reject").locator("[data-verdict=match]").waitFor();
+      assert.equal(await card(page, "strong-reject").locator("[data-review-record]").count(), 1);
+      await card(page, "strong-reject").locator("[data-review-reason] textarea").fill("Out of scope for this desk.");
+      await card(page, "strong-reject").locator("[data-review-record]").click();
+      await card(page, "strong-reject").locator("[data-prediction-mark][data-verdict=match]").waitFor();
 
       await page.locator("[data-feed-tab-button=rated]").click();
       assert.deepEqual(await order(page), ["strong-reject", "mid-accept"], "Rated lists the most recent answer first");
       await page.locator("[data-feed-tab-button=feed]").click();
-      await card(page, "weak-reject").locator(".text-xs.font-medium, [data-cyclotron-choice]").first().waitFor();
+      await card(page, "weak-reject").locator("[data-review-choice=accept]").first().waitFor();
       await card(page, "strong-accept").locator("[data-feed-open]").click();
       assert.deepEqual((await page.evaluate(() => (window as unknown as { calls: Array<{ type: string; id: string }> }).calls)).at(-1), { type: "open", id: "strong-accept" }, "the card body opens the review");
     });

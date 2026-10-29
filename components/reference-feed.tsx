@@ -20,7 +20,7 @@ import { referenceDisplayTitle } from "../lib/newsroom-references";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
-import { RatingGrid } from "./review-rating-grid";
+import { DecisionControl } from "./decision-control";
 import { CaptureBadge } from "./reference-capture-panel";
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
@@ -312,31 +312,22 @@ export function FeedCard({
       </button>
 
       <div className="relative bg-[var(--feed-footer)] px-4 pb-4 pt-3" data-feed-actions>
-        <RatingGrid
+        <DecisionControl
           answer={chosen}
           decided={answer}
           disabled={Boolean(disabledReason)}
           disabledReason={disabledReason}
           feedback={feedback}
+          needsReason={rating.askReason}
           note={reasonLabel ? `Reason: ${reasonLabel}` : null}
           onChoose={(choice) => { if (!disabledReason) store.choose(item.lineageId, choice); }}
+          onReasonChange={(text) => store.setNote(item.lineageId, text)}
+          onReasonCommit={() => { if (!disabledReason) store.commitNote(item.lineageId); }}
           prediction={decision ? predictionFromDecision(decision) : predictionLoading ? { state: "loading" } : { state: "none" }}
+          reason={rating.note ?? ""}
+          reasonRequiredFor="reject"
           statusOverlay
         />
-        {rating.askReason ? (
-          // Covers the footer rather than adding to it, so asking for a reason never pushes the cards below it down.
-          <div className="absolute inset-0 z-10 flex flex-col justify-center space-y-2 bg-[var(--feed-footer)] p-3" data-review-reasons>
-            <p className="text-xs font-medium">Reason for rejecting. Choose one to save your Reject.</p>
-            <div className="flex flex-wrap gap-1.5">
-              {REFERENCE_REJECTION_REASON_CODES.map((code) => (
-                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason={code} key={code} onClick={() => store.setReason(item.lineageId, code)} type="button">
-                  {REASON_LABELS[code]}
-                </button>
-              ))}
-              <button className={cn(PILL, "min-h-8 px-3 text-xs text-muted-foreground")} onClick={() => store.cancelReason(item.lineageId)} type="button">Cancel</button>
-            </div>
-          </div>
-        ) : null}
       </div>
     </article>
   );

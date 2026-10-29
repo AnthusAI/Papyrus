@@ -9,7 +9,7 @@ import { cannotMoveReason, type DraftChoice } from "../lib/review-drafts";
 import { answerWords, formatWhen, modeLabel, nextText, steeringText, subjectHref, subjectLabel, type ReviewRequest } from "../lib/review-requests";
 import type { ReferencePreview } from "../lib/reference-preview";
 import { FEED_SURFACE_PROPS, FeedImage, PILL, SourceMark } from "./reference-feed";
-import { RatingGrid } from "./review-rating-grid";
+import { DecisionControl } from "./decision-control";
 
 /** What the editor typed with an answer. */
 export type DecisionExtras = { why: string; notThisKind: boolean };
@@ -109,9 +109,9 @@ function DecisionFooter({ busy, decision, disabledReason, error, kind, lockedNot
       {locked ? (
         <>
           <DecidedLine choice={decision.choice} notThisKind={decision.notThisKind} why={decision.why} />
-          <RatingGrid
+          <DecisionControl
             answer={decision.choice} disabled disabledReason={null} feedback={{ phase: "saved" }} onChoose={() => undefined}
-            prediction={{ state: "none" }} showPrediction={false} surface="footer"
+            prediction={{ state: "none" }} showPrediction={false} showReason={false} surface="footer"
           />
           <p className="text-xs text-muted-foreground" data-review-disabled-reason>{lockedNote}</p>
         </>
@@ -132,7 +132,7 @@ function DecisionFooter({ busy, decision, disabledReason, error, kind, lockedNot
             </button>
             <span className="text-xs text-muted-foreground">Optional. Counts if you reject.</span>
           </div>
-          <RatingGrid
+          <DecisionControl
             answer={busy ? pending : null}
             disabled={Boolean(disabledReason)}
             disabledReason={disabledReason}
@@ -140,6 +140,7 @@ function DecisionFooter({ busy, decision, disabledReason, error, kind, lockedNot
             onChoose={choose}
             prediction={{ state: "none" }}
             showPrediction={false}
+            showReason={false}
             surface="footer"
           />
         </>

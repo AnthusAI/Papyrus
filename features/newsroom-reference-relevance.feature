@@ -8,18 +8,18 @@ Feature: Editors review the relevance cyclotron's decisions in the References ta
   @brand-agnostic
   Scenario: An editor sees the Cyclotron's answer next to their own
     Given I open the newsroom path "/newsroom/references/reference-knowledge-corpus-demo-source-history-002?demo=1" at 1280 by 900
-    Then the Cyclotron row should highlight "Accept" at "82%"
-    And the You row should offer Accept and Reject
+    Then the prediction marks "Accept" and the bar says "82%"
+    And the control offers Accept and Reject
     And no browser console errors should occur
 
   @brand-agnostic
   Scenario: Rejecting needs one of the existing reasons and rejects the reference
     Given I open the newsroom path "/newsroom/references/reference-knowledge-corpus-demo-source-history-002?demo=1" at 1280 by 900
-    When I tap You Reject
+    When I tap Reject
     Then the card asks for a reason in words
-    When I explain "Not our beat." and choose the reason "Out of scope"
+    When I explain "Not our beat." and record it
     Then the reference detail should show the status "Rejected"
-    And the Cyclotron row should mark its answer as differing
+    And the prediction's marker shows the answer differs from it
     And no browser console errors should occur
 
   @brand-agnostic
@@ -41,4 +41,4 @@ Feature: Editors review the relevance cyclotron's decisions in the References ta
     Given I open the references newsroom at 1280 by 900
     When I open reference "reference-knowledge-corpus-demo-source-history-001"
     Then the reference detail should render the curation cluster
-    And the Cyclotron row should say there is no prediction
+    And the control should say there is no prediction

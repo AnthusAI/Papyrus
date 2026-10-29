@@ -8,7 +8,7 @@ Feature: An editor reviews references even when a prediction is unavailable
   Scenario: Select a pending reference on desktop and mobile
     Given an isolated inbox of synthetic pending references
     When the editor selects a pending reference on desktop and mobile
-    Then its review card has a Cyclotron row that says there is no prediction and a You row with Accept and Reject
+    Then its review card says there is no prediction, and offers Accept and Reject
     And browser Back restores the previous reference and then clears the detail at the inbox
     And changing status filters preserves the selected reference and its unsaved explanation
 
@@ -33,7 +33,7 @@ Feature: An editor reviews references even when a prediction is unavailable
   Scenario: Distinguish publication and Section predictions without invented confidence
     Given an isolated inbox of synthetic pending references
     When the editor opens a reference with publication and Section predictions
-    Then the Cyclotron row highlights its Accept or Reject with its confidence and never invents one
+    Then the predicted side is marked and the bar carries its confidence, and never invents one
     And accepting by tap or by the A key keeps the editor's chosen Section
     And the Cyclotron's matching or differing answer is marked with a check or cross as well as colour
     And the human answer is final and replaces the Cyclotron's
@@ -46,7 +46,7 @@ Feature: An editor reviews references even when a prediction is unavailable
   Scenario: Loading predictions does not block editorial review
     Given an isolated inbox of synthetic pending references
     When the editor opens a reference while predictions are loading
-    Then the Cyclotron row says Loading and the controls stay usable
+    Then the control says it is reading the prediction and stays usable
 
   Scenario: A person without editing permission can inspect but cannot review
     Given an isolated inbox of synthetic pending references
@@ -63,7 +63,7 @@ Feature: An editor reviews references even when a prediction is unavailable
   Scenario: The review card is the same on a phone and a desktop
     Given an isolated inbox of synthetic pending references
     When the editor opens a reference at 375 and 1440 pixels
-    Then the Cyclotron row sits above the You row and the Why box spans the card
+    Then the prediction bar sits above the buttons, and the buttons and the reason field span the card
     And every icon is a Lucide icon and nothing scrolls sideways
 
   Scenario: An empty inbox explains that no references have been imported
