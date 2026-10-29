@@ -138,6 +138,52 @@ def test_config_validation():
             _validate_config({**base, **bad})
 
 
+def test_domain_filters_are_validated_as_bare_domains():
+    base = monitor_config("distinctive", enabled=True)
+    assert _validate_config({**base, "excludeDomains": ["Facebook.com", "facebook.com", "x.com"]})["excludeDomains"] == ["facebook.com", "x.com"]
+    for bad in ("facebook.com", ["https://facebook.com/page"], ["facebook"], [""]):
+        with pytest.raises(ValueError):
+            _validate_config({**base, "excludeDomains": bad})
+    with pytest.raises(ValueError):
+        query_record(MONITOR, "q", "r", origin="editor", created_by="x", now_iso="2026-10-20T00:00:00Z", exclude_domains=["a/b.com"])
+
+
+def test_a_querys_domain_filters_and_the_monitors_are_sent_to_tavily():
+    table = web_table("ai agents", "open models", excludeDomains=["facebook.com"])
+    narrow = queries_of(table)["ai agents"]
+    table.put_item({**narrow, "excludeDomains": ["linkedin.com", "facebook.com"], "includeDomains": ["law360.com"]})
+    tavily = FakeTavily(article(1, day(-1), "ai agents"), article(2, day(-1), "open models"))
+
+    collect(table, tavily)
+
+    asked = {c["query"]: c for c in tavily.calls}
+    assert asked["ai agents"]["exclude_domains"] == ["facebook.com", "linkedin.com"]
+    assert asked["ai agents"]["include_domains"] == ["law360.com"]
+    assert asked["open models"]["exclude_domains"] == ["facebook.com"] and "include_domains" not in asked["open models"]
+
+
+def test_a_query_without_domain_filters_sends_none():
+    tavily = FakeTavily(article(1, day(-1)))
+    collect(web_table(), tavily)
+    assert all("exclude_domains" not in c and "include_domains" not in c for c in tavily.calls)
+
+
+@pytest.mark.parametrize("status", [432, 433])
+def test_an_exhausted_tavily_plan_is_reported_as_such_not_as_a_bare_http_code(status, monkeypatch):
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    from papyrus_content import monitoring_web
+
+    def refuse(request, timeout=0):
+        raise HTTPError(request.full_url, status, "limit", {}, BytesIO(b"{}"))
+
+    monkeypatch.setattr(monitoring_web, "urlopen", refuse)
+    monkeypatch.setattr(monitoring_web._tavily, "api_key", lambda: "test-key")
+    with pytest.raises(ValueError, match="plan usage limit reached"):
+        monitoring_web.tavily_fetch({"query": "q"})
+
+
 # --- query records ---------------------------------------------------------------------------------------------------------
 
 def test_a_query_record_has_a_stable_id_origin_creator_approval_status_and_history():

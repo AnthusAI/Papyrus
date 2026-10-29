@@ -108,6 +108,12 @@ router's is: `TAVILY_API_KEY`, or the SSM SecureString named in `PAPYRUS_TAVILY_
 **Queries are records** (`MONITOR#web-<id>` / `QUERY#<id>`): `text`, `rationale`, `origin` (`drafted` or `editor`), `createdBy`,
 `createdAt`, `approvedBy`/`approvedAt`, `status` (`active`, `paused`, `retired`), `highWater` and an append-only `history`. Only an
 approved, active query is searched. `papyrus monitors web-queries` drafts them and `seed_web_monitors.py` stores them.
+A query may also carry `excludeDomains` and `includeDomains` (bare domains such as `example.org`), and the monitor's `CONFIG`
+may carry `excludeDomains` that apply to all its queries; they are sent to Tavily as `exclude_domains` / `include_domains`
+(use them to keep social networks, job boards and similar out of a query's results). To add queries to a monitor that already
+runs, seed a `--queries-file` without `--replace`: existing items stay, only new queries are written; a query in the file may
+set `origin`, `createdBy` and the domain lists. Tavily answers HTTP 432 or 433 when the plan's credits are used up; the run then
+fails with "Tavily plan usage limit reached" until the plan is upgraded or renews.
 
 **Recency is each query's high-water mark.** `highWater` is the start time of the last pass that read that query to its end
 without an error. A pass searches from the day before it to today, so Tavily's date bounds can never lose the boundary day (the

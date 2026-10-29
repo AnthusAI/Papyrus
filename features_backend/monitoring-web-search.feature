@@ -78,3 +78,13 @@ Feature: Web-search monitors find new references for each publication through Ta
     When the web router runs
     Then no decision request was sent to the Cyclotron
     And the story is still waiting to be decided
+
+  Scenario: A query can leave out the domains that only produce junk
+    Given a web monitor for anth-us with one approved query that excludes facebook.com and the monitor excludes instagram.com
+    When the web monitor collects
+    Then Tavily was told to exclude both domains for that query
+
+  Scenario: An exhausted Tavily plan says so
+    Given Tavily refuses a search because the plan's usage limit is reached
+    When the web monitor searches
+    Then the run fails with a message that the plan usage limit was reached

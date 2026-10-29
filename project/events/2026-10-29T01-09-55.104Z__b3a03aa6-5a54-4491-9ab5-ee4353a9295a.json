@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "b3a03aa6-5a54-4491-9ab5-ee4353a9295a",
+  "issue_id": "PPY-c871a72e-6a47-4872-aead-38593a83180d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T01:09:55.104Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Web-search monitors: domain filters per query, clear Tavily plan-limit failure (Distinctive Mark trial)",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "monitoring"
+    ]
+  }
+}
