@@ -1,6 +1,6 @@
 "use client";
 
-import { InfoIcon, Loader2Icon } from "lucide-react";
+import { InfoIcon, Loader2Icon, MessageSquareIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
@@ -25,6 +25,7 @@ import { CaptureBadge } from "./reference-capture-panel";
 import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import type { CaptureStatus } from "../lib/reference-capture";
+import { messageCountLabel } from "../lib/conversation";
 
 /**
  * Flat surfaces, no borders: the page tone, a card tone one step away from it, a footer tone, and a control tone for chips and
@@ -56,6 +57,8 @@ export type ReferenceFeedProps = {
   disabledReason?: string | null;
   /** True while the first read is in flight: cards are skeletons. */
   loading?: boolean;
+  /** How many Messages each Reference has, by lineage id. A card with none shows no count. */
+  messageCounts?: ReadonlyMap<string, number>;
   now: number;
   onOpen: (lineageId: string) => void;
   onRate: (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => Promise<void> | void;
@@ -201,6 +204,7 @@ export function FeedImage({ host, lead, name, src }: { host: string | null; lead
 
 export function FeedCard({
   capture,
+  messageCount = 0,
   decision,
   disabledReason,
   item,
@@ -216,6 +220,8 @@ export function FeedCard({
 }: {
   /** Optional: the capture badge. */
   capture?: CaptureStatus | undefined;
+  /** Optional: how many Messages this Reference has. */
+  messageCount?: number;
   decision: RelevanceDecisionView | undefined;
   disabledReason: string | null;
   item: FeedItem;
@@ -294,6 +300,12 @@ export function FeedCard({
               {host}
             </span>
             {capture ? <CaptureBadge status={capture} /> : null}
+            {messageCount > 0 ? (
+              <span aria-label={messageCountLabel(messageCount)} className="inline-flex items-center gap-1 tabular-nums" data-feed-message-count={messageCount} role="img">
+                <MessageSquareIcon aria-hidden="true" className="size-3.5" />
+                {messageCount}
+              </span>
+            ) : null}
             {isAutoAccepted(reference) ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}
           </span>
         </span>
@@ -398,6 +410,7 @@ export function SectionHeading({ children, id }: { children: ReactNode; id: stri
 export function ReferenceFeed({
   disabledReason = null,
   loading = false,
+  messageCounts,
   now,
   onOpen,
   onRate,
@@ -426,6 +439,7 @@ export function ReferenceFeed({
       item={item}
       key={item.lineageId}
       lead={lead}
+      messageCount={messageCounts?.get(item.lineageId)}
       now={now}
       onOpen={() => onOpen(item.lineageId)}
       onRate={async (reference, choice, reasonCode) => { onVisitRated(item.lineageId); await onRate(reference, choice, reasonCode); }}
