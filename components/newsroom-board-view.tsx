@@ -31,6 +31,7 @@ import type { ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { useOptionalNewsDeskClient } from "./news-desk-client-provider";
 import { NewsDeskAccessGate } from "./newsroom-access-gate";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
+import { NewsroomBoardSkeleton } from "./newsroom-board-skeleton";
 import { NewsroomArticleEditor } from "./newsroom-article-editor";
 import { NewsroomAssignmentDetail } from "./newsroom-assignment-detail";
 import { NewsroomOpsShell, NewsroomOpsStatusBanner } from "./newsroom-ops-shell";
@@ -174,12 +175,7 @@ export function NewsroomBoardView({ subject, deskId }: { subject: NewsroomBoardS
       {error && <NewsroomOpsStatusBanner tone="error">{error}</NewsroomOpsStatusBanner>}
       {subject === "desk" && <IssueTypeFilter config={config} value={typeFilter} onChange={setTypeFilter} name="Record type" className="organizer-board-type-filter" />}
       <div className="organizer-board-body" data-detail-open={Boolean(issue)} ref={boardBodyRef} onScrollCapture={handleBoardScroll}>
-        {loading && !issues.length ? <div aria-label="Loading board records" className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3" role="status">
-          {Array.from({ length: 3 }, (_, column) => <div className="min-h-64 space-y-3 rounded-xl border bg-card p-4" key={column}>
-            <div className="h-4 w-1/2 rounded bg-muted" />
-            {Array.from({ length: 2 }, (_, row) => <div className="h-24 rounded-lg border bg-background p-3" key={row}><div className="h-4 w-3/4 rounded bg-muted" /><div className="mt-3 h-3 w-1/2 rounded bg-muted" /></div>)}
-          </div>)}
-        </div> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
+        {loading && !issues.length ? <NewsroomBoardSkeleton /> : <IssueCollection issues={issues} config={config} query={{ type: subject === "desk" ? issueTypeFromFilter(typeFilter) : boardType }} view={view}
           motion={lowMotion ? STATIC_MOTION : undefined}
           collapsedColumns={columnState.collapsedColumns} onToggleCollapse={columnState.toggleColumn} initialScroll="start"
           selectedIssueId={selected} detailOpen={Boolean(issue)} onSelectIssue={item => setSelected(item.id)} ariaLabel={pageTitle}
