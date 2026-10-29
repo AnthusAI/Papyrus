@@ -1,9 +1,10 @@
 "use client";
 
+import { BookmarkIcon, ExternalLinkIcon, GlobeIcon, LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import { storyMessageFeed, storyReportingTrailIsEmpty, type StoryReportingTrail, type TrailReference } from "../lib/story-reporting-trail";
+import { referenceRoleLabel, storyMessageFeed, storyReportingTrailIsEmpty, type StoryReportingTrail, type TrailReference } from "../lib/story-reporting-trail";
 import { loadStoryReportingTrail } from "./story-reporting-trail-client";
 
 const timestampFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -15,17 +16,26 @@ function formatTimestamp(value: string | null | undefined): string {
 }
 
 function ReferenceSummary({ citedKeys, demo, focused, reference }: { citedKeys: readonly string[]; demo: boolean; focused: boolean; reference: TrailReference }) {
-  return <>
-    <div className="story-trail-row">
-      <strong>{reference.title ?? reference.referenceId}</strong>
-      <span className="story-trail-chip" data-story-trail-reference-role={reference.role}>{reference.role === "cited" ? "Cited" : "Consulted"}</span>
-      {reference.citationKey && citedKeys.includes(reference.citationKey) && <span className="story-trail-chip">In the text</span>}
+  const basedOn = reference.role === "based_on";
+  const RoleIcon = basedOn ? LinkIcon : BookmarkIcon;
+  return <div className="story-trail-reference" data-story-trail-reference-card={reference.referenceId}>
+    {/* eslint-disable-next-line @next/next/no-img-element -- the preview is shown from its own site, never copied or optimised here */}
+    {reference.previewImageUrl && <img alt="" className="story-trail-reference-image" data-story-trail-reference-image loading="lazy" referrerPolicy="no-referrer" src={reference.previewImageUrl} />}
+    <div className="story-trail-reference-text">
+      <div className="story-trail-row">
+        <strong data-story-trail-reference-title>{reference.title ?? reference.referenceId}</strong>
+        <span className="story-trail-role" data-story-trail-reference-role={reference.role}><RoleIcon aria-hidden="true" size={13} />{referenceRoleLabel(reference.role)}</span>
+        {reference.citationKey && citedKeys.includes(reference.citationKey) && <span className="story-trail-role">In the text</span>}
+      </div>
+      {reference.siteName && <div className="story-trail-meta" data-story-trail-reference-site><GlobeIcon aria-hidden="true" size={13} /> {reference.siteName}</div>}
+      <div className="story-trail-meta">{[reference.addedBy && `added by ${reference.addedBy}`, formatTimestamp(reference.addedAt), reference.citationKey && `citation key ${reference.citationKey}`].filter(Boolean).join(" · ")}</div>
+      {reference.note && <p data-story-trail-reference-summary={focused ? "focused" : undefined}>{reference.note}</p>}
+      <div className="story-trail-reference-links">
+        {reference.referenceLineageId && <Link data-story-trail-open-reference={reference.referenceLineageId} href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.referenceLineageId)}`, demo)}><BookmarkIcon aria-hidden="true" size={14} /> Open the Reference</Link>}
+        {reference.sourceUri && <a href={reference.sourceUri} rel="noreferrer" target="_blank"><ExternalLinkIcon aria-hidden="true" size={14} /> Open the source page</a>}
+      </div>
     </div>
-    <div className="story-trail-meta">{[reference.addedBy && `added by ${reference.addedBy}`, formatTimestamp(reference.addedAt), reference.citationKey && `citation key ${reference.citationKey}`].filter(Boolean).join(" · ")}</div>
-    {reference.note && <p data-story-trail-reference-summary={focused ? "focused" : undefined}>{reference.note}</p>}
-    {reference.sourceUri && <div className="story-trail-meta">{reference.sourceUri}</div>}
-    {reference.referenceLineageId && <Link href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(reference.referenceLineageId)}`, demo)}>Open the full reference page</Link>}
-  </>;
+  </div>;
 }
 
 function TrailSection({ count, children, title }: { count: number; children: React.ReactNode; title: string }) {
@@ -46,16 +56,17 @@ export function StoryReportingTrailView({ citedKeys = [], demo = false, focusedR
   useEffect(() => {
     let cancelled = false;
     setTrail(null); setError(null);
-    loadStoryReportingTrail(lineageId || itemId, itemId)
+    loadStoryReportingTrail(lineageId || itemId, itemId, demo)
       .then(loaded => { if (!cancelled) setTrail(loaded); })
       .catch((reason: unknown) => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Could not load the reporting trail."); });
     return () => { cancelled = true; };
-  }, [itemId, lineageId]);
+  }, [demo, itemId, lineageId]);
   if (error) return <p role="alert" className="story-trail-empty">{error}</p>;
   if (!trail) return <p className="story-trail-empty">Loading the reporting trail…</p>;
   const messageFeed = storyMessageFeed(trail);
   if (view === "references") return <div className="story-trail" data-story-trail data-story-trail-view="references">
     <TrailSection count={trail.references.length} title="References">
+      {trail.references.some(reference => reference.role === "based_on") && <p className="story-trail-meta" data-story-trail-based-on-note>The text of this story is our own. It is based on the Reference marked Based on, and is written and edited here, never copied from it.</p>}
       <ul className="story-trail-list" data-story-references-list>
         {trail.references.map(reference => <li data-story-reference-entry={reference.referenceId} data-story-reference-focused={reference.referenceId === focusedReferenceId ? "true" : undefined} key={reference.relationId} ref={reference.referenceId === focusedReferenceId ? node => node?.scrollIntoView({ block: "nearest" }) : undefined}>
           <ReferenceSummary citedKeys={citedKeys} demo={demo} focused={reference.referenceId === focusedReferenceId} reference={reference} />

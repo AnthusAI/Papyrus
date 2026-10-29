@@ -303,6 +303,15 @@ problems, `modelCalls` (the usage of each call, for the ledger) and the cost. Th
 Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
 so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
 
+## Turning a draft into a story
+
+A `story_draft` Proposal that an editor (or an automation) accepts becomes a draft story at the copywriting stage with
+`story_from_story_draft` (`src/papyrus_content/story_from_reference.py`). The story's body is the draft's own cited text, never the
+source page's text, and the story is linked to every Reference the draft names in its `reference:` targets, as `based_on`
+(`semantic-relation-type-uses-evidence`, by lineage ids). A body that repeats 12 or more consecutive words of a Reference's captured
+text is refused. A `post` also gets the Reference's preview image, credited to its site. These are core rules of the automated
+newsroom: [Stories based on a Reference](reference-curation-pipeline.md#6a-stories-based-on-a-reference-core-rules).
+
 ## Excluded source hosts
 
 A site can list source hosts that must never be cited in an AI draft, for example a competing publication. In the site file:

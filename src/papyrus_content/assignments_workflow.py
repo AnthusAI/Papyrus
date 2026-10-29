@@ -2535,8 +2535,15 @@ def run_copywriting_assignment(
     )
     changes = build_record_changes_tolerating_optional_models(client, plan["records"])
     apply = resolve_mutation_apply(options, "assignments run-copywriting")
+    from .story_from_reference import check_body_against_references, current_reference
+    from .story_reporting import BASED_ON, link_reference_to_story
+
+    based_on = [reference for reference in (current_reference(client, reference_id) for reference_id in plan["summary"].get("basedOnReferenceIds") or []) if reference]
+    check_body_against_references(client, str(plan["draftItem"].get("body") or ""), based_on)  # the draft is our own text, never the sources'
     if apply:
         apply_record_changes(client, changes)
+        for reference in based_on:  # the story is linked to the References its reporting packet rests on
+            link_reference_to_story(client, plan["draftItem"]["lineageId"], reference["id"], role=BASED_ON, actor=actor_label)
     print(f"copywriting\tmode\t{'apply' if apply else 'dry-run'}")
     print(f"copywriting\tassignment\t{assignment_id}")
     print(f"copywriting\tdraft-item\t{plan['summary']['draftItemId']}")

@@ -569,7 +569,7 @@ def references_promote(flags: list[str]) -> None:
     if not apply:
         return
     outcome = promote_record(client, record, section=section, actor=normalize_string(options.get("actor-label")) or "papyrus-cli")
-    print(f"references\tpromote\t{record.reference_id}\t{outcome['itemId']}\t{'draft' if outcome['created'] else 'unchanged: already promoted'}\t{outcome['section']}/{outcome['slug']}")
+    print(f"references\tpromote\t{record.reference_id}\t{outcome['itemId']}\t{'draft' if outcome['created'] else 'unchanged: already promoted'}\t{outcome['section']}/{outcome['slug']}\tbased on {','.join(outcome['linked'])}")
 
 
 def references_unlabel(flags: list[str]) -> None:

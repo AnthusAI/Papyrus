@@ -63,8 +63,12 @@ export type TrailReference = {
   referenceLineageId: string | null;
   title: string | null;
   sourceUri: string | null;
-  /** consulted: read during reporting; cited: a citation in the article. */
-  role: "consulted" | "cited";
+  /** based_on: the story is made from this Reference; consulted: read during reporting; cited: a citation in the article. */
+  role: "based_on" | "consulted" | "cited";
+  /** The site that published the Reference (its preview's site name, else the host of its address). */
+  siteName: string | null;
+  /** The Reference's preview image address. It is shown from its own site, never copied. */
+  previewImageUrl: string | null;
   note: string | null;
   citationKey: string | null;
   addedBy: string | null;
@@ -103,4 +107,31 @@ export function storyMessageFeed(trail: StoryReportingTrail): StoryFeedEntry[] {
   const references: StoryFeedEntry[] = trail.references.filter(reference => reference.addedAt).map(reference => ({ entryKind: "reference" as const, id: `reference-${reference.relationId}`, createdAt: reference.addedAt as string, reference }));
   const sequenceOf = (entry: StoryFeedEntry) => (entry.entryKind === "message" ? entry.sequenceNumber ?? 0 : 0);
   return [...messages, ...references].sort((left, right) => right.createdAt.localeCompare(left.createdAt) || sequenceOf(right) - sequenceOf(left));
+}
+
+const ROLE_ORDER = { based_on: 0, cited: 1, consulted: 2 } as const;
+
+/** The References of a story, the ones it is based on first. */
+export function referencesByRole(references: readonly TrailReference[]): TrailReference[] {
+  return [...references].sort((left, right) => ROLE_ORDER[left.role] - ROLE_ORDER[right.role]);
+}
+
+export function referenceRoleLabel(role: TrailReference["role"]): string {
+  return role === "based_on" ? "Based on" : role === "cited" ? "Cited" : "Consulted";
+}
+
+/** A story that a Reference supports, as the Reference view lists it. */
+export type ReferenceStory = {
+  relationId: string;
+  itemId: string;
+  lineageId: string;
+  title: string | null;
+  stage: string | null;
+  role: TrailReference["role"];
+};
+
+export function siteNameOf(sourceUri: string | null | undefined, preferred?: string | null): string | null {
+  if (preferred) return preferred;
+  if (!sourceUri) return null;
+  try { return new URL(sourceUri).hostname.replace(/^www\./, ""); } catch { return null; }
 }

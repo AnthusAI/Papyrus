@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from .graphql_authoring import create_authoring_client
-from .options import normalize_string, parse_options, resolve_mutation_apply
+from .options import normalize_string, parse_options, parse_repeated_option, resolve_mutation_apply
 from .story_reporting import (
     STAGE_MOVES_KEY,
     STORY_MESSAGE_KINDS,
@@ -101,7 +101,7 @@ def stories_repair_versions(flags: list[str]) -> None:
 
 
 def stories_link_reference(flags: list[str]) -> None:
-    """papyrus stories link-reference --story <lineage> --reference <reference id> --role consulted|cited --author-label <name> [--note <text>] [--citation-key <key>]"""
+    """papyrus stories link-reference --story <lineage> --reference <reference id> --role consulted|cited|based_on --author-label <name> [--note <text>] [--citation-key <key>]"""
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "stories link-reference")
     lineage_id = _required_option(options, "story")
@@ -222,8 +222,11 @@ def stories_set_slug(flags: list[str]) -> None:
 
 
 def stories_create(flags: list[str]) -> None:
-    """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--with-assignment]"""
+    """papyrus stories create --title <text> [--section <key>] [--stage idea|assignment|reporting] [--summary <text>] [--brief <text>] [--reference <reference id> ...] [--with-assignment]
+
+    Each ``--reference`` is the Reference the story is based on: it is linked ``based_on`` (docs/reference-curation-pipeline.md)."""
     options = parse_options(flags)
+    reference_ids = parse_repeated_option(flags, "reference")
     apply = resolve_mutation_apply(options, "stories create")
     title = _required_option(options, "title")
     stage = normalize_string(options.get("stage")) or "idea"
@@ -241,6 +244,9 @@ def stories_create(flags: list[str]) -> None:
     item = create_story(client, title=title, section_key=section_key, stage=stage, summary=summary, actor=actor)
     lineage_id = item["lineageId"]
     print(f"stories\tcreate\tcreated\t{item['id']}")
+    for reference_id in reference_ids:
+        linked = link_reference_to_story(client, lineage_id, reference_id, role="based_on", actor=actor)
+        print(f"stories\tcreate\tbased on\t{linked['referenceLineageId']}")
     from .story_triggers import deliver_from_environment
 
     deliver_from_environment(client, lineage_id)   # a story created at a stage has entered it

@@ -323,6 +323,7 @@ PORTED_COMMANDS = frozenset(
         "assignments:story-cycle-output",
         "assignments:orphan-research-packets",
         "assignments:backfill-section-indexes",
+        "items:link-references",
         "stories:save-version",
         "stories:versions",
         "stories:link-reference",
@@ -703,6 +704,10 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         assignments_orphan_research_packets(flags)
     elif route == "assignments:backfill-section-indexes":
         assignments_backfill_section_indexes(flags)
+    elif route == "items:link-references":
+        from .items_commands import items_link_references
+
+        items_link_references(flags)
     elif route == "stories:save-version":
         stories_save_version(flags)
     elif route == "stories:versions":

@@ -4,7 +4,8 @@ A monitor record (a delivered Hugging Face Hub model, say) counts in the Knowled
 who finds one worth a story promotes it: ``papyrus references promote <reference id> --section <section>`` saves a **draft**
 article in that section. It carries the source link, the structured facts and the entities the Hub's fields name, and it says
 in its body that it is a stub for an editor to write. Nothing is published, the Reference's curation state is not changed,
-and promoting twice is a no-op, so the editor's text is never overwritten.
+and promoting twice is a no-op, so the editor's text is never overwritten. The draft is linked to the record's Reference
+(``based_on``, docs/reference-curation-pipeline.md#stories-based-on-a-reference); its body is the stub below, never the Reference's text.
 
 ``suggest`` picks the records most worth a look for the weekly run's one soft review request: the newest records in the
 window ranked by what the Hub itself shows (likes, then downloads), without any model. A record already promoted is not
@@ -18,11 +19,9 @@ from collections.abc import Iterable
 from datetime import date, timedelta
 from typing import Any
 
-import yaml
-
 from .knowledge_snapshot.monitor_records import MonitorRecord, record_entities, record_summary
 from .knowledge_snapshot.weeks import parse_day
-from .publishing import ItemFields, item_id_for, save_item
+from .publishing import item_id_for
 from .record_helpers import slugify
 
 SECTION = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -77,18 +76,23 @@ def body(record: MonitorRecord) -> str:
     return "\n\n".join(lines) + "\n"
 
 
-def promote_record(client: Any, record: MonitorRecord, *, section: str, actor: str, now: str | None = None) -> dict[str, Any]:
-    """Save the draft item for a record, or report the one already saved. Returns ``itemId``, ``slug`` and ``created``."""
+def promote_record(client: Any, record: MonitorRecord, *, section: str, actor: str, now: str | None = None, source_text_reader: Any = None) -> dict[str, Any]:
+    """Save the draft item for a record, or report the one already saved, and link it to the record's Reference (``based_on``).
+
+    The body is a stub made from the record's own facts: the Reference's captured text is never used. Returns ``itemId``, ``slug``,
+    ``section``, ``created`` and ``linked`` (the Reference lineage ids)."""
+    from .story_from_reference import create_story_from_references
+
     section = validate_section(section)
     slug, item_id = promotion_slug(record), promotion_item_id(record, section)
-    if client.get_record("Item", item_id) is not None:
-        return {"itemId": item_id, "slug": slug, "section": section, "created": False}
-    fields = ItemFields(
-        type=ITEM_TYPE, slug=slug, section=section, front_matter_yaml=yaml.safe_dump(front_matter(record), sort_keys=False, allow_unicode=True, width=1000),
-        body_markus=body(record), aliases=[], id=item_id,
+    reference = client.get_record("Reference", record.reference_id)
+    if reference is None:
+        raise ValueError(f"Reference {record.reference_id} was not found.")
+    result = create_story_from_references(
+        client, references=[reference], section=section, slug=slug, title=record.model_id, actor=actor, body_markus=body(record), item_type=ITEM_TYPE,
+        front_matter=front_matter(record), item_id=item_id, source_text_reader=source_text_reader, now=now,
     )
-    save_item(client, fields, actor=actor, now=now)
-    return {"itemId": item_id, "slug": slug, "section": section, "created": True}
+    return {"itemId": item_id, "slug": slug, "section": section, "created": result["created"], "linked": result["linked"]}
 
 
 def promoted_reference_ids(client: Any, records: Iterable[MonitorRecord]) -> set[str]:
