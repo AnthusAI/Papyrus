@@ -49,6 +49,13 @@ def step_automation(context, monitor):
     context.eh_client.automations = [{"id": f"example.{monitor}", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": monitor, "publicationId": "example"}})}]
 
 
+@given('a story written by the automation is based on "{title}"')
+def step_story_based_on(context, title):
+    row = next(r for r in context.eh_client.references if r["title"] == title)
+    context.eh_client.incoming[row["lineageId"]].append({"predicate": "uses_evidence", "relationState": "current", "subjectKind": "item", "objectKind": "reference",
+                                                         "objectLineageId": row["lineageId"], "metadata": json.dumps({"role": "based_on"})})
+
+
 def draft(context, hosts):
     with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
         context.eh_model = StoryModel()
@@ -75,12 +82,19 @@ def step_not_drafted(context, title):
     assert not [request for request in context.eh_model.requests if address in request["input"]]
 
 
+@then('a monitor story was drafted from "{title}"')
+def step_drafted(context, title):
+    address = context.eh_titles[title]
+    assert [d for d in context.eh_run["drafts"] if d["citedItems"][0]["url"] == address], context.eh_run["drafts"]
+
+
 @then("the monitor story run counted {count:d} item as excluded host")
 def step_counted(context, count):
     assert context.eh_run["inputs"]["excludedHost"] == count, context.eh_run["inputs"]
 
 
 @then("the monitor story run counted {count:d} item as handled by an automation")
+@then("the monitor story run counted {count:d} items as handled by an automation")
 def step_handled(context, count):
     assert context.eh_run["inputs"]["handledByAutomation"] == count, context.eh_run["inputs"]
 
