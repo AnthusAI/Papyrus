@@ -84,9 +84,9 @@ try {
     await page.waitForTimeout(600);
     await accept.locator("[data-feed-open]").click();
     await review(page).waitFor();
-    await review(page).getByLabel("Why? (optional)", { exact: true }).fill("Squarely in our beat, and well sourced.");
+    await review(page).locator("[data-review-reason] textarea").fill("Squarely in our beat, and well sourced.");
     await page.waitForTimeout(2200);
-    await review(page).getByLabel("Why? (optional)", { exact: true }).evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await review(page).locator("[data-review-reason] textarea").evaluate((element) => element.scrollIntoView({ block: "center" }));
     await page.screenshot({ path: name("sync-vote-then-reason") });
     console.log(name("sync-vote-then-reason"));
     if (phone) { await page.keyboard.press("Escape"); await page.waitForTimeout(500); await accept.evaluate((element) => element.scrollIntoView({ block: "center" })); await page.screenshot({ path: name("sync-card-after-pane-reason") }); console.log(name("sync-card-after-pane-reason")); }

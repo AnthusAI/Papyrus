@@ -398,8 +398,8 @@ const scenarios: Record<string, () => Promise<void>> = {
       const calls = await page.evaluate(() => (window as unknown as { calls: unknown[] }).calls);
       assert.deepEqual(calls, [
         { type: "rate", id: "mid-accept", choice: "accept", reasonCode: null },
-        { type: "rate", id: "mid-accept", choice: "reject", reasonCode: "other" },
-      ], "a written reason files the rejection under other, which the policy already accepts");
+        { type: "rate", id: "mid-accept", choice: "reject", reasonCode: null },
+      ], "a written reason carries no code the editor did not pick: the backend reads the words for it");
 
       // A Reject that was predicted is a confirmation, and it also needs its reason in words.
       await card(page, "strong-reject").locator("[data-review-choice=reject]").click();

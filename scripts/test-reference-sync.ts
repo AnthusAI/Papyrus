@@ -145,7 +145,8 @@ const rgbOf = (locator: ReturnType<Page["locator"]>, property: "color" | "backgr
   const context = canvas.getContext("2d")!; context.fillStyle = "#000"; context.fillStyle = getComputedStyle(el)[prop as "color"]; context.fillRect(0, 0, 1, 1);
   const [r, g, b] = context.getImageData(0, 0, 1, 1).data; return { r, g, b };
 }, property);
-const WHY = "Why? (optional)";
+/** The reason field, now inside the decision control rather than a labelled box on the card. */
+const WHY = "[data-review-reason] textarea";
 
 const scenarios: Record<string, () => Promise<void>> = {
   /** The curation card is read first (status, words, signals, summary, GROBID fields, the curation-text body); extracted_text is the fallback. */
@@ -297,11 +298,12 @@ const scenarios: Record<string, () => Promise<void>> = {
       const { browser, page, errors } = await setup(width);
       try {
         await card(page, "r1").locator("[data-review-choice=accept]").click();
-        await card(page, "r1").locator("[data-verdict=match]").waitFor();
+        await card(page, "r1").locator("[data-prediction-mark][data-verdict=match]").waitFor();
         await open(page, "r1");
         assert.equal(await review(page).locator("[data-review-choice=accept]").getAttribute("aria-pressed"), "true", "the detail pane shows the vote made on the card");
-        assert.ok((await review(page).locator("[data-predicted]").innerText()).includes("Match"), "and its green match state");
-        await review(page).getByLabel(WHY, { exact: true }).fill("Exactly the audience we serve.");
+        assert.ok(/confirmed/i.test(await review(page).locator("[data-review-choice][data-predicted]").innerText()), "and the answer says it confirms the prediction");
+        assert.equal(await review(page).locator("[data-prediction-mark][data-verdict=match]").count(), 1, "with the verdict on the prediction's own marker");
+        await review(page).locator(WHY).fill("Exactly the audience we serve.");
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2, undefined, { timeout: 4000 });
         assert.deepEqual((await requests(page))[1], { id: "r1", action: "accept", note: "Exactly the audience we serve.", reasonCode: null }, "the reason is saved onto the decision, after a pause");
         await review(page).locator("[data-review-saved]").waitFor();
@@ -311,8 +313,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         // On blur the reason saves at once.
         await card(page, "r2").locator("[data-review-choice=accept]").click();
         await open(page, "r2");
-        await review(page).getByLabel(WHY, { exact: true }).fill("Quick note.");
-        await review(page).getByLabel(WHY, { exact: true }).blur();
+        await review(page).locator(WHY).fill("Quick note.");
+        await review(page).locator(WHY).blur();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 4, undefined, { timeout: 800 });
         assert.equal(((await requests(page))[3] as { note: string }).note, "Quick note.");
         assert.deepEqual(errors, []);
@@ -326,7 +328,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const { browser, page, errors } = await setup(width);
       try {
         await open(page, "r3");
-        const why = review(page).getByLabel(WHY, { exact: true });
+        const why = review(page).locator(WHY);
         await why.fill("Typed before voting.");
         await page.waitForTimeout(1600);
         assert.equal((await requests(page)).length, 0, "nothing is saved onto a decision that does not exist yet");
@@ -338,7 +340,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         // A typed reason is a reason: a Reject with words and no reason button saves at once. The words go
         // with it and no code is invented for them -- the curation Lambda reads them for the code they name.
         await open(page, "r6");
-        await review(page).getByLabel(WHY, { exact: true }).fill("Not our beat.");
+        await review(page).locator(WHY).fill("Not our beat.");
         await review(page).locator("[data-review-choice=reject]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2);
         assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: null }, "a typed reason saves the Reject");
@@ -355,10 +357,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         await open(page, "r6");
         // A failed save keeps what was typed.
         await page.evaluate(() => { (window as unknown as { fixtureFailNext: boolean }).fixtureFailNext = true; });
-        await review(page).getByLabel(WHY, { exact: true }).fill("Second thoughts that must not vanish.");
-        await review(page).getByLabel(WHY, { exact: true }).blur();
+        await review(page).locator(WHY).fill("Second thoughts that must not vanish.");
+        await review(page).locator(WHY).blur();
         await review(page).getByRole("alert").waitFor();
-        assert.equal(await review(page).getByLabel(WHY, { exact: true }).inputValue(), "Second thoughts that must not vanish.", "a typed reason is never lost");
+        assert.equal(await review(page).locator(WHY).inputValue(), "Second thoughts that must not vanish.", "a typed reason is never lost");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     }
@@ -496,7 +498,7 @@ Object.assign(scenarios, {
       await panel.locator("[data-capture-text]").waitFor();
       const toggle = panel.locator("[data-capture-toggle]");
       if (await toggle.count()) await toggle.click();
-      await review(page).getByLabel(WHY, { exact: true }).fill(Array.from({ length: 12 }, (_, line) => `Line ${line + 1} of a long reason.`).join("\n"));
+      await review(page).locator(WHY).fill(Array.from({ length: 12 }, (_, line) => `Line ${line + 1} of a long reason.`).join("\n"));
       const boxes = await page.evaluate(() => [...document.querySelectorAll("[data-capture-text], textarea")].filter((el) => (el as HTMLElement).offsetParent).map((el) => {
         const style = getComputedStyle(el);
         return { overflow: style.overflowY, scrolls: el.scrollHeight > el.clientHeight + 1 };
