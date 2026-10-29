@@ -1,0 +1,254 @@
+/* Papyrus shared primitives. Every value resolves to a token from tokens.json. */
+
+.ppy-btn {
+  align-items: center;
+  background: transparent;
+  border: var(--stroke-hairline) solid transparent;
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  gap: var(--space-1\.5);
+  height: var(--control-md);
+  justify-content: center;
+  line-height: 20px;
+  padding: 0 var(--space-2\.5);
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+
+.ppy-btn:focus-visible {
+  border-color: var(--ring-strong);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.ppy-btn:active:not(:disabled) {
+  transform: translateY(var(--space-0\.5));
+}
+
+.ppy-btn:disabled {
+  cursor: default;
+  opacity: var(--opacity-disabled);
+  pointer-events: none;
+}
+
+.ppy-btn--default {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.ppy-btn--outline {
+  background: var(--paper);
+  border-color: var(--border);
+  color: var(--ink);
+}
+
+.ppy-btn--outline:hover {
+  background: var(--surface-muted);
+  color: var(--ink-strong);
+}
+
+.ppy-btn--secondary {
+  background: var(--surface-muted);
+  color: var(--ink);
+}
+
+.ppy-btn--secondary:hover {
+  background: var(--surface-accent);
+  color: var(--ink-strong);
+}
+
+.ppy-btn--ghost:hover {
+  background: var(--surface-muted);
+  color: var(--ink-strong);
+}
+
+.ppy-btn--destructive {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger-text);
+}
+
+.ppy-btn--destructive:hover {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.ppy-btn--destructive:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 var(--stroke-focus) color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.ppy-btn--link {
+  color: var(--ink-strong);
+  height: auto;
+  padding: 0;
+  text-underline-offset: 4px;
+}
+
+.ppy-btn--link:hover {
+  text-decoration: underline;
+}
+
+.ppy-btn--xs {
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  gap: var(--space-1);
+  height: var(--control-xs);
+  padding: 0 var(--space-2);
+}
+
+.ppy-btn--sm {
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  gap: var(--space-1);
+  height: var(--control-sm);
+  padding: 0 var(--space-2\.5);
+}
+
+.ppy-btn--lg {
+  height: var(--control-lg);
+}
+
+.ppy-btn[aria-pressed="true"] {
+  background: var(--surface-accent);
+  color: var(--ink-strong);
+}
+
+.ppy-eyebrow {
+  color: var(--ink-muted);
+  display: block;
+  font-family: var(--font-label);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 14px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.ppy-eyebrow--section {
+  color: var(--ink-strong);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ppy-eyebrow--byline {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  line-height: 16px;
+}
+
+.ppy-eyebrow--meta {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.ppy-eyebrow--alarm {
+  color: var(--danger-text);
+}
+
+.ppy-panel {
+  background: var(--surface);
+  box-sizing: border-box;
+  color: var(--ink);
+  display: block;
+  font-family: var(--font-sans);
+  padding: var(--space-4);
+}
+
+.ppy-panel--paper {
+  background: var(--paper);
+  border: 0;
+  border-top: var(--stroke-rule) solid var(--rule);
+  border-radius: var(--radius-none);
+  font-family: var(--font-reader);
+  padding: var(--space-3) 0 var(--space-4);
+}
+
+.ppy-panel--chrome {
+  border: var(--stroke-hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.ppy-panel--quiet {
+  background: var(--surface-muted);
+  border: var(--stroke-hairline) solid transparent;
+  border-radius: var(--radius-lg);
+}
+
+.ppy-panel--lifted {
+  background: var(--surface);
+  border: var(--stroke-hairline) solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--paper-drop);
+}
+
+.ppy-panel--pad-tight {
+  padding: var(--space-3);
+}
+
+.ppy-panel--pad-loose {
+  padding: var(--space-5);
+}
+
+.ppy-panel__title {
+  color: var(--ink-strong);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  margin: 0 0 var(--space-2);
+}
+
+.ppy-panel--paper .ppy-panel__title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 26px;
+}
+
+.ppy-rule {
+  background: var(--rule);
+  border: 0;
+  display: block;
+  flex: none;
+  margin: 0;
+}
+
+.ppy-rule--horizontal {
+  height: var(--stroke-hairline);
+  width: 100%;
+}
+
+.ppy-rule--horizontal.ppy-rule--section {
+  height: var(--stroke-rule);
+}
+
+.ppy-rule--vertical {
+  align-self: stretch;
+  width: var(--stroke-hairline);
+}
+
+.ppy-rule--vertical.ppy-rule--section {
+  width: var(--stroke-rule);
+}
+
+.ppy-rule--soft {
+  opacity: var(--opacity-rule-soft);
+}
+
+.ppy-rule-label {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.ppy-rule-label > .ppy-rule {
+  flex: 1;
+}

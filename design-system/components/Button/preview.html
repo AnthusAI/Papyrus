@@ -1,0 +1,30 @@
+<!-- @dsCard group="Chrome" height=176 subtitle="Variants and sizes" -->
+<div id="root" style="padding:20px;background:var(--paper)"></div>
+<script>
+  const { Button } = window.Papyrus;
+  const React = window.React;
+  const h = React.createElement;
+  const row = { display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap", marginBottom: "14px" };
+
+  function Demo() {
+    return h("div", null, [
+      h("div", { style: row, key: "v" }, [
+        h(Button, { key: 1 }, "Publish edition"),
+        h(Button, { variant: "secondary", key: 2 }, "Save draft"),
+        h(Button, { variant: "outline", key: 3 }, "Preview"),
+        h(Button, { variant: "ghost", key: 4 }, "Cancel"),
+        h(Button, { variant: "destructive", key: 5 }, "Kill story"),
+        h(Button, { variant: "link", key: 6 }, "View assignment")
+      ]),
+      h("div", { style: row, key: "s" }, [
+        h(Button, { size: "xs", variant: "secondary", key: 1 }, "xs"),
+        h(Button, { size: "sm", variant: "secondary", key: 2 }, "sm"),
+        h(Button, { variant: "secondary", key: 3 }, "default"),
+        h(Button, { size: "lg", key: 4 }, "lg"),
+        h(Button, { disabled: true, variant: "outline", key: 5 }, "Disabled")
+      ])
+    ]);
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(h(Demo));
+</script>
