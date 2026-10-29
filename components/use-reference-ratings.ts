@@ -118,6 +118,9 @@ export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNot
     if (inFlight.current.has(id)) { dirty.current.add(id); return; }
     inFlight.current.add(id);
     dirty.current.delete(id);
+    // The note goes out with this save, so its own pending autosave has nothing left to send.
+    dirty.current.delete(`note:${id}`);
+    clearTimeout(timers.current[id]);
     const started = itemsRef.current[id] ?? EMPTY;
     patch(id, { pending: choice, askReason: false, feedback: { phase: "saving" } });
     try {
