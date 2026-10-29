@@ -2518,3 +2518,15 @@ def test_feedback_falls_back_to_criteria_since_when_a_fingerprint_is_unknown(tab
     set_fingerprints(table, None, "c-2")           # a vote stored before fingerprints existed
     refs = {"reference-anth-us-101": ref("accepted", "user:s")}
     assert feedback_run(table, store, cyclotron, refs)["feedback"]["skipped"] == 1
+
+
+def test_auto_accept_grant_covers_every_publication_api_including_distinctive():
+    # Rule acceptance (TTAB on Distinctive) and model acceptance both update the Reference; every publication's API needs the two fields.
+    policy = _template()["Resources"]["RouterAutoAcceptPolicy"]["Properties"]
+    assert policy["Roles"] == [("Ref", "RouterRole")]
+    (statement,) = policy["PolicyDocument"]["Statement"]
+    resources = [r[1] for r in statement["Resource"]]
+    apis = {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
+    assert {r.split("apis/")[1].split("/")[0] for r in resources} == apis
+    assert {r.rsplit("/", 1)[1] for r in resources} == {"listReferencesByCurationStatusKeyAndUpdatedAt", "updateReference"}
+    assert len(resources) == 2 * len(apis) and "*" not in "".join(resources)
