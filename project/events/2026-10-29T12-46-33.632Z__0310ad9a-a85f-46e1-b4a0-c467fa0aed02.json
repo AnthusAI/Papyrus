@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "0310ad9a-a85f-46e1-b4a0-c467fa0aed02",
+  "issue_id": "PPY-5533e0cc-c376-4442-835f-b7fd135ac2fa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T12:46:33.632Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document daily drafts and automatic acceptance on p.apyr.us",
+    "description": "Every Papyrus feature epic ends with a p.apyr.us docs task. Document, on the product site, the daily story drafts (monitor-stories router task, 07:30 UTC schedule, monitorStories opt-out, private story_draft Proposals with one soft review per run) and automatic acceptance (accepted References feed the drafts). Story: PPY-5ac03b.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5"
+    }
+  }
+}

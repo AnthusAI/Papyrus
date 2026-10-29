@@ -27,10 +27,13 @@ Nothing here publishes or transitions a Proposal. Approving the copy is an edito
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from collections.abc import Callable, Iterable
@@ -178,13 +181,18 @@ def automated_monitor_ids(client: Any) -> tuple[set[str], str | None]:
 
 def collect_monitored_items(
     client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset(), excluded_hosts: Iterable[str] = (),
-    automated_monitors: Iterable[str] = (), statuses: Iterable[str] = DEFAULT_STATUSES,
+    automated_monitors: Iterable[str] = (), statuses: Iterable[str] = DEFAULT_STATUSES, workers: int = 1,
+    out_of_time: Callable[[], bool] | None = None,
 ) -> tuple[list[MonitoredItem], dict[str, int]]:
     """Every monitored Reference of ``site`` (all of them, or only those that arrived inside ``since`` when it is given), each with the monitor,
     the stored details and the Cyclotron's verdict. One indexed query per Reference for its provenance and one more for its decision; the
     decision is not read for a Reference in ``drafted`` (it is never a candidate again). A Reference whose ``sourceUri`` host is one of
     ``excluded_hosts`` (or a subdomain) is never read further, never a candidate, and is counted as ``excludedHost``. A Reference delivered by a monitor in ``automated_monitors`` (one an
-    enabled Automation of the site already handles) is never a candidate either, and is counted as ``handledByAutomation``."""
+    enabled Automation of the site already handles) is never a candidate either, and is counted as ``handledByAutomation``.
+
+    With ``workers`` above 1 the References are read that many at a time, each worker on its own connection (a site with thousands of accepted
+    References needs two queries each: read one after the other, a daily run would spend its whole time budget reading). If ``out_of_time()``
+    turns true the rest are left unread and ``readStopped`` is set in the counts."""
     statuses = list(dict.fromkeys(statuses))
     window = now - parse_window(since) if since else None
     rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
@@ -192,32 +200,55 @@ def collect_monitored_items(
     counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0}
     automated = set(automated_monitors)
     excluded_hosts = normalize_hosts(excluded_hosts)
-    items: list[MonitoredItem] = []
-    for row in sorted(rows, key=lambda entry: str(entry["id"])):
+    local = threading.local()
+
+    def connection() -> Any:
+        """The client for this worker thread: the given one when reading sequentially, otherwise a copy with a connection of its own."""
+        if workers <= 1:
+            return client
+        if not hasattr(local, "client"):
+            local.client = copy.copy(client)
+            if hasattr(local.client, "_connection"):
+                local.client._connection = None
+        return local.client
+
+    def read(row: dict[str, Any]) -> tuple[str, MonitoredItem | None]:
+        if out_of_time is not None and workers > 1 and out_of_time():
+            return "readStopped", None
         if is_excluded(row.get("sourceUri"), excluded_hosts):
-            counts["excludedHost"] += 1
-            continue
+            return "excludedHost", None
+        reader = connection()
         lineage = row.get("lineageId") or row["id"]
-        incoming = list(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
+        incoming = list(reader.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
         monitor = monitor_of(incoming)
         if monitor is None or not row.get("sourceUri"):
-            counts["notMonitored"] += 1
-            continue
+            return "notMonitored", None
         if monitor in automated:
-            counts["handledByAutomation"] += 1
-            continue
+            return "handledByAutomation", None
         item = MonitoredItem(
             reference_id=row["id"], lineage_id=lineage, title=str(row.get("title") or row["sourceUri"]).strip(), url=str(row["sourceUri"]),
             arrived_at=str(row.get("createdAt") or ""), published_at=str(row.get("sourcePublishedAt") or "") or None, monitor_id=monitor,
             status=str(row.get("curationStatus") or "pending"), details=_details_from_relations(incoming),
-            verdict=None if lineage in drafted else relevance_of(relations_of(client, row)),
+            verdict=None if lineage in drafted else relevance_of(relations_of(reader, row)),
             curated_at=str(row.get("curationStatusUpdatedAt") or "") or None,
             curated_by=str(row.get("curationStatusUpdatedBy") or "") or None,
         )
-        if item.relevant is False:
-            counts["judgedNotRelevant"] += 1
-            continue
-        items.append(item)
+        return ("judgedNotRelevant", None) if item.relevant is False else ("item", item)
+
+    ordered = sorted(rows, key=lambda entry: str(entry["id"]))
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            outcomes = list(pool.map(read, ordered))
+    else:
+        outcomes = [read(row) for row in ordered]
+    items: list[MonitoredItem] = []
+    for kind, item in outcomes:
+        if kind == "item":
+            items.append(item)
+        elif kind == "readStopped":
+            counts["readStopped"] = counts.get("readStopped", 0) + 1
+        else:
+            counts[kind] += 1
     return items, counts
 
 
@@ -481,7 +512,7 @@ def draft_monitor_stories(
     proposal_store: ProposalStore | None = None,
     review_client: Any = None,
     model: str = synthesis.DEFAULT_MODEL,
-    limit: int = DEFAULT_LIMIT,
+    limit: int | None = DEFAULT_LIMIT,
     since: str | None = None,
     threshold: float = dedupe.DEFAULT_THRESHOLD,
     maximum_cost_usd: float = DEFAULT_MAXIMUM_COST_USD,
@@ -492,13 +523,20 @@ def draft_monitor_stories(
     excluded_hosts: Iterable[str] = (),
     explorer: Explorer | None = None,
     statuses: Iterable[str] = DEFAULT_STATUSES,
+    out_of_time: Callable[[], bool] | None = None,
+    read_workers: int = 1,
 ) -> dict[str, Any]:
-    """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing."""
+    """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
+
+    ``limit=None`` drafts every candidate (the daily router task, docs/monitoring-cloud.md#monitor-stories): the run then stops only for a real
+    constraint, and ``stoppedBy`` names it: ``time`` (``out_of_time()`` turned true between two items; the rest is picked up by the next run),
+    ``cost`` (``maximum_cost_usd``) or ``file_error`` (a draft could not be filed: the run stops rather than spend on drafts that cannot be kept).
+    Each draft is filed as soon as it is kept, so a run that stops early loses nothing it paid for."""
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
         "store": "dry-run" if dry_run else ("proposals" if proposal_store else "json"), "dryRun": dry_run, "private": True,
-        "window": {"since": since, "until": iso(moment)}, "limit": limit,
+        "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
     stored = [idea for idea in (json_store.ideas() if json_store else []) if idea.get("origin") == "monitor"]
@@ -507,7 +545,10 @@ def draft_monitor_stories(
     automated, automation_error = automated_monitor_ids(client)
     items, counts = collect_monitored_items(
         client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, statuses=statuses,
+        workers=read_workers, out_of_time=out_of_time,
     )
+    if counts.get("readStopped"):
+        run["stoppedBy"] = "time"   # the time ran out while reading: what was read is drafted if any time is left, the rest waits for the next run
     run["automatedMonitors"] = sorted(automated)
     if automation_error:
         run["automationLookupError"] = automation_error
@@ -518,14 +559,18 @@ def draft_monitor_stories(
     candidates = rank([item for item in items if item.lineage_id not in already and item.reference_id not in promoted], freshness, moment)
     counts["candidates"] = len(candidates)
     run["inputs"] = counts
-    run["ranking"] = [{"rank": number, **item.as_dict()} for number, item in enumerate(candidates[: limit * ATTEMPT_FACTOR], start=1)]
+    attempt_cap = None if limit is None else limit * ATTEMPT_FACTOR
+    run["ranking"] = [{"rank": number, **item.as_dict()} for number, item in enumerate(candidates[:attempt_cap], start=1)]
     run.update(attempted=0, invalid=[], skipped=[], duplicates=[], drafts=[], modelCalls=[], usage=None)
     documents = comparison_documents(context, [*stored], proposals, [])
     sections = [section["title"] for section in context.get("sections", [])]
     spent = 0.0
     kept: list[dict[str, Any]] = []
     for item in candidates:
-        if len(kept) >= limit or run["attempted"] >= limit * ATTEMPT_FACTOR:
+        if limit is not None and (len(kept) >= limit or run["attempted"] >= attempt_cap):
+            break
+        if out_of_time is not None and out_of_time():
+            run["stoppedBy"] = "time"
             break
         exploration = explorer(item) if explorer else None
         page_text = exploration.text if exploration else read_source_text(item.url, fetch)
@@ -544,6 +589,7 @@ def draft_monitor_stories(
         estimate = synthesis.estimate_cost_usd(model, size, MAXIMUM_OUTPUT_TOKENS)
         if estimate is not None and spent + estimate > maximum_cost_usd:
             run["stoppedForCost"] = f"The next call is estimated at ${estimate:.4f}; ${spent:.4f} is spent of --max-cost-usd ${maximum_cost_usd:.2f}."
+            run["stoppedBy"] = "cost"
             break
         run["attempted"] += 1
         try:
@@ -562,14 +608,21 @@ def draft_monitor_stories(
         similar, dropped = dedupe.split_duplicates([built], [*documents, *(dedupe.Document("draft", k["ideaId"], k["title"], k["angle"]) for k in kept)], threshold)
         run["duplicates"] += [{**row, "referenceId": item.reference_id} for row in dropped]
         kept += similar
+        for record in similar:
+            if not dry_run:
+                try:
+                    if proposal_store:
+                        record["proposalId"] = proposal_store.file_story_draft(record)
+                    if json_store:
+                        json_store.save_idea(record)
+                except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for drafts that cannot be kept
+                    run["fileError"] = f"{type(error).__name__}: {error}"[:300]
+                    run["stoppedBy"] = "file_error"
+                    break
+            run["drafts"].append(record)
+        if run["stoppedBy"] == "file_error":
+            break
     run["usage"] = _usage(model, run["modelCalls"])
-    for record in kept:
-        if not dry_run:
-            if proposal_store:
-                record["proposalId"] = proposal_store.file_story_draft(record)
-            if json_store:
-                json_store.save_idea(record)
-        run["drafts"].append(record)
     run["ideasCreated"] = 0 if dry_run else len(run["drafts"])
     if dry_run:
         run["review"] = {"status": "skipped", "requested": False, "ideas": len(run["drafts"]), "note": "Dry run: nothing was filed, so no review was requested."}
@@ -600,7 +653,7 @@ def render_report(run: dict[str, Any]) -> str:
         "",
         "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
         f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (never drafted here): {inputs.get('handledByAutomation', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
-        f"- Drafts attempted: {run['attempted']} (limit {run['limit']}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
+        f"- Drafts attempted: {run['attempted']} ({'no limit' if run['limit'] is None else 'limit ' + str(run['limit'])}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",
     ]
