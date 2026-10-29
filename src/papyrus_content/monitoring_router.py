@@ -68,6 +68,7 @@ from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
 from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_huggingface import hf_accepts, validate_rule
+from .monitoring_stories import lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
 
 CONTRACT_VERSION = "cyclotron-publication/v1"
 ROUTER_CONFIG_SK = "CONFIG#router"
@@ -357,6 +358,7 @@ def validate_router_publications(raw: dict) -> list[dict]:
             "negativeLabel": str(entry.get("negativeLabel") or "exclude"),
             "procedureTriggers": validate_procedure_triggers(publication_id, entry),
             "autoAccept": validate_auto_accept(publication_id, entry.get("autoAccept")),
+            "monitorStories": validate_monitor_stories(publication_id, entry.get("monitorStories")),
             "openaiKeyParameter": entry.get("openaiKeyParameter")})
     if not publications:
         raise ValueError("router needs at least one publication")
@@ -1150,7 +1152,9 @@ class Router:
                  context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                  start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=(),
                  enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False,
-                 previewer: Callable[..., Any] | None = None):
+                 previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
+                 story_drafter: Callable[..., dict] = draft_publication_stories):
+        self.story_transport, self.story_drafter = story_transport, story_drafter   # the model transport and the per-publication drafting of the daily monitor-stories task
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
         self.rung = {j for j in rung_job_ids if j}   # jobs a Decision Ready doorbell named: asked about despite their backoff
         self._fresh: set = set()     # jobs posted by this run: checked at once, their backoff starts with the next run
@@ -2352,6 +2356,59 @@ class Router:
             print(json.dumps({"autoAccept": result["status"], **result}))
         return results
 
+    def monitor_stories(self) -> dict:
+        """Daily, per publication: a cited story draft for every accepted, monitored, not yet drafted Reference (src/papyrus_content/monitoring_stories.py).
+        On unless the publication's `monitorStories` says `enabled: false`; live mode only. Bounded only by the Lambda's remaining time (shared
+        equally by the publications still to run, so none starves another; a publication the time stopped gets another turn while time is
+        left), a model-spend backstop and a filing error. One JSON log line per publication, after the last pass."""
+        results: dict = {}
+        if self.config["mode"] != "live":
+            return results   # dry-run mode never writes to a publication
+        empty = {"drafted": 0, "candidates": 0, "notAccepted": 0, "skipped": 0, "stoppedBy": None}
+        queue = []
+        for publication in self.publications.values():
+            pid = publication["publicationId"]
+            if not (publication.get("monitorStories") or {}).get("enabled", True):
+                results[pid] = {"publicationId": pid, "status": "disabled", **empty}
+            elif self.story_transport is None:
+                results[pid] = {"publicationId": pid, "status": "skipped", "reason": "openai_not_configured", **empty}
+            else:
+                queue.append(publication)
+        passes = 0
+        while queue:
+            again = []
+            for index, publication in enumerate(queue):
+                pid = publication["publicationId"]
+                if self.time_left() < MIN_REMAINING_SECONDS:
+                    results.setdefault(pid, {"publicationId": pid, "status": "skipped", "reason": "time budget", **empty, "stoppedBy": "time"})
+                    continue
+                # This publication may use an equal share of the time left for the publications still to run in this pass; what it
+                # leaves passes on to the next, and a publication the time stopped comes round again in the next pass.
+                share = (self.time_left() - MIN_REMAINING_SECONDS) / (len(queue) - index)
+                stop_at = max(self.time_left() - share, MIN_REMAINING_SECONDS)
+                try:
+                    result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
+                                                now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
+                                                out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at)
+                except Exception as error:  # noqa: BLE001 - never fails the run
+                    result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
+                earlier = results.get(pid)
+                if earlier:   # a later pass: the totals add up, the candidates are those the run started with, the rest is the latest pass's
+                    for key in ("drafted", "attempted", "failedTheCheck", "duplicates", "skipped"):
+                        result[key] = result.get(key, 0) + earlier.get(key, 0)
+                    result["costUsd"] = round((result.get("costUsd") or 0) + (earlier.get("costUsd") or 0), 6)
+                    for key in ("candidates", "notAccepted", "notMonitored", "handledByAutomation"):
+                        if key in earlier:
+                            result[key] = earlier[key]
+                results[pid] = result
+                if result["stoppedBy"] == "time" and result["status"] != "failed" and result["drafted"] > (earlier or {}).get("drafted", 0):
+                    again.append(publication)
+            passes += 1
+            queue = again if self.time_left() >= 2 * MIN_REMAINING_SECONDS else []
+        for result in results.values():
+            print(json.dumps({"monitorStories": result["status"], "monitorId": self.monitor_id, **result}))
+        return results
+
     def rotate(self, row: dict, note: str):
         """Move a checked row to the back of the queue so one stuck row cannot starve the rest."""
         row = {**row, "lastCheckedAt": _iso(self.now), "lastNote": note[:300],
@@ -2466,7 +2523,8 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
                start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
                rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
-               hold_override: bool = False, previewer: Callable[..., Any] | None = None) -> dict:
+               hold_override: bool = False, previewer: Callable[..., Any] | None = None, story_transport: Callable | None = None,
+               story_drafter: Callable[..., dict] = draft_publication_stories) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2485,20 +2543,23 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
-                        max_decisions=max_decisions, hold_override=hold_override, previewer=previewer)
+                        max_decisions=max_decisions, hold_override=hold_override, previewer=previewer,
+                        story_transport=story_transport, story_drafter=story_drafter)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
-                   {"status": "skipped"} if task in ("feedback", "auto-accept") else router.collect() if task == "collect" else router.sweep())
-        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept") else router.feedback()
-        auto_accepted = {} if task in ("route", "collect", "email-references", "feedback") else router.auto_accept()
+                   {"status": "skipped"} if task in ("feedback", "auto-accept", "monitor-stories") else router.collect() if task == "collect" else router.sweep())
+        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept", "monitor-stories") else router.feedback()
+        auto_accepted = {} if task in ("route", "collect", "email-references", "feedback", "monitor-stories") else router.auto_accept()
+        monitor_stories = router.monitor_stories() if task == "monitor-stories" else {}
         paused_until = router.settle_lab_backoff()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
-                  "feedback": feedback, "autoAccept": auto_accepted, "errors": outcome.get("errors", []),
+                  "feedback": feedback, "autoAccept": auto_accepted, "monitorStories": monitor_stories, "errors": outcome.get("errors", []),
                   "waitingForClassifier": outcome.get("waitingForClassifier", []), "posted": router.posted}
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
             "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback, "autoAccept": decimalize(auto_accepted),
+            "monitorStories": decimalize(monitor_stories),
             "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "posted": router.posted,
             **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
@@ -2557,7 +2618,7 @@ def handle_decision_ready(store, event, collect: Callable[..., dict]) -> dict:
 
 
 def handler(event, context):
-    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"}` limits the pass (operator debugging)."""
+    """EventBridge Scheduler entry point. `{"task": "route"|"collect"|"feedback"|"monitor-stories"}` limits the pass (operator debugging)."""
     import boto3  # provided by the Lambda runtime
 
     event = event if isinstance(event, dict) else {}
@@ -2571,11 +2632,14 @@ def handler(event, context):
         return handle_decision_ready(store, event, lambda monitor_id, job_id=None: run_router(
             store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter,
             rung_job_ids=[job_id], enricher=enricher, previewer=attach_preview))
+    # The model key is read from SSM only for the daily monitor-stories task; every other invocation leaves it alone.
+    story_transport = lambda_story_transport() if event.get("task") == "monitor-stories" else None
     cap = event.get("maxDecisions")
     if "maxDecisions" in event and (not isinstance(cap, int) or isinstance(cap, bool) or cap < 1):
         raise ValueError("maxDecisions must be a positive integer")
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
                         cognito=cognito, start_procedure=starter, enricher=enricher, previewer=attach_preview, max_decisions=cap,
+                        story_transport=story_transport,
                         hold_override=event.get("holdOverride") is False)   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "waitingForClassifier", "posted")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "monitorStories", "waitingForClassifier", "posted")}

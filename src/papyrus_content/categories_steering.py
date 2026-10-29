@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 import yaml
 
-from .biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner
 from .env import resolve_corpora_file
 from .ids import (
     category_lineage_id_for,
@@ -68,6 +67,8 @@ def load_steering_bundle_from_biblicus(
     if not classifier:
         raise ValueError("--classifier is required when --bundle is omitted.")
     from biblicus.steering import SteeringExportBundle
+
+    from .biblicus_runner import BiblicusCommandError, BiblicusOutputError, BiblicusRunner   # lazy: the router Lambda's zip imports this module but has no Biblicus
 
     arguments = ["steering", "export", "--corpus", corpus, "--classifier", classifier]
     if topic_governance_snapshot:
