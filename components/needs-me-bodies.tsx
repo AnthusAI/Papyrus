@@ -96,16 +96,6 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
 
   return (
     <section aria-label="Your decision" className="space-y-3 rounded-[20px] bg-[var(--feed-footer)] p-3" data-needs-me-decision {...(locked ? {} : { "data-review-controls": "" })}>
-      <AutoGrowTextarea
-        aria-label="Why? (optional)"
-        className="block min-h-20 w-full rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        data-needs-me-why
-        onBlur={() => { if (!disabledReason) ratings.commitNote(item.id); }}
-        onChange={(event) => ratings.setNote(item.id, event.target.value)}
-        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : "Why? Optional. Your note teaches the AI."}
-        value={note}
-      />
-      {locked ? <ReasonStatus feedback={rating.feedback} hasReason={Boolean(recorded.why)} unsaved={unsaved} /> : null}
       {locked ? (
         <>
           {item.decisionState === "acknowledged"
@@ -149,6 +139,16 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
           )}
         </>
       )}
+      <AutoGrowTextarea
+        aria-label="Why? (optional)"
+        className="block min-h-20 w-full rounded-[16px] bg-[var(--feed-control)] p-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        data-needs-me-why
+        onBlur={() => { if (!disabledReason) ratings.commitNote(item.id); }}
+        onChange={(event) => ratings.setNote(item.id, event.target.value)}
+        placeholder={flag ? "Why? Optional. Tell the step what to do differently." : "Why? Optional. Your note teaches the AI."}
+        value={note}
+      />
+      {locked ? <ReasonStatus feedback={rating.feedback} hasReason={Boolean(recorded.why)} unsaved={unsaved} /> : null}
     </section>
   );
 }

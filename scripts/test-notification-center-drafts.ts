@@ -223,6 +223,10 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await pane.locator('a[href="https://example.org/sparse-attention"]').count(), 1, "a citation chip links to its address");
       assert.equal(await pane.locator("[data-draft-open]").getAttribute("href"), "/newsroom/administration/proposals?proposal=proposal-1");
       assert.equal(await pane.getByLabel("Why? (optional)").count(), 1, "the optional Why box is in the detail");
+      // With no prediction, Accept and Reject keep the place they have on a Reference: first, with the Why box under them.
+      const buttonsTop = (await pane.locator('[data-needs-me-decision] [data-review-row="you"]').boundingBox())?.y ?? Infinity;
+      const whyTop = (await pane.locator("[data-needs-me-why]").boundingBox())?.y ?? -Infinity;
+      assert.ok(buttonsTop < whyTop, "Accept and Reject come before the Why box, as on a Reference");
       const monitor = await draft(page, "proposal-2").innerText();
       assert.ok(monitor.includes("Proposed Story"), "the monitor story is a draft card too");
     });

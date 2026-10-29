@@ -16,6 +16,7 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Then every draft card shows its type, headline, dek and what happens if it is left alone, with Accept and Reject and no prediction row
     And the header counts drafts, nothing scrolls sideways, no card has a border, and the retired Approve, Steer and Agree wording is gone
     And opening a draft shows its headline, section, evidence, citations, a link to the full Proposed Story in Proposals and a Why box
+    And with no prediction, Accept and Reject sit where they do on a Reference, above the Why box
 
   Scenario: Accept approves the Proposal, Reject declines it, and the request closes itself
     Given an isolated Notification Center with a batch of three AI drafts
