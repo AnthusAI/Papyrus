@@ -39,8 +39,8 @@ from .record_helpers import compact_dict, to_aws_json
 STORY_THREAD_KIND = "story_reporting"
 STORY_MESSAGE_KINDS = ("note", "research_packet", "reporting_context_packet", "draft_note", "editor_note")
 STORY_REFERENCE_PREDICATE = "uses_evidence"
-BASED_ON_ROLE = "based_on"
-STORY_REFERENCE_ROLES = ("consulted", "cited", BASED_ON_ROLE)
+BASED_ON = "based_on"
+STORY_REFERENCE_ROLES = ("consulted", "cited", BASED_ON)
 STORY_REFERENCE_RELATION_FIELDS = {
     "relationTypeId": "semantic-relation-type-uses-evidence",
     "relationTypeKey": STORY_REFERENCE_PREDICATE,
@@ -294,8 +294,8 @@ def link_reference_to_story(
     previous_metadata = {}
     if existing and isinstance(existing.get("metadata"), str):
         previous_metadata = json.loads(existing["metadata"] or "{}")
-    if previous_metadata.get("role") == BASED_ON_ROLE:
-        role = BASED_ON_ROLE  # the strongest statement about a reference is never weakened by a later citation
+    if previous_metadata.get("role") == BASED_ON:
+        role = BASED_ON  # the strongest statement about a reference is never weakened by a later citation
     metadata = {
         **previous_metadata,
         "kind": "story.reference",

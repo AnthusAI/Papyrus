@@ -29,7 +29,7 @@ from .link_exploration import canonical_url
 from .publishing import ItemFields, item_id_for, save_item
 from .record_helpers import slugify
 from .reference_images import PREVIEW_ROLE
-from .story_reporting import BASED_ON_ROLE, current_reference, link_reference_to_story, story_references
+from .story_reporting import BASED_ON, current_reference, link_reference_to_story, story_references
 
 #: The item types whose image is seeded from the Reference's preview image.
 SEEDED_IMAGE_ITEM_TYPES = ("post",)
@@ -245,7 +245,7 @@ def create_story_from_references(
     lineage_id = existing.get("lineageId") or story_id
     linked = []
     for row in rows:
-        result = link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON_ROLE, actor=actor, now=now)
+        result = link_reference_to_story(client, lineage_id, row["id"], role=BASED_ON, actor=actor, now=now)
         linked.append(result["referenceLineageId"])
     return {"itemId": story_id, "lineageId": lineage_id, "created": created, "linked": linked, "image": image if created else "kept", "copyCheck": copy_check if created else "not applicable"}
 
@@ -380,7 +380,7 @@ def plan_reference_links(client: Any, *, role: str | None = None) -> list[dict[s
             continue
         lineage_id = str(item.get("lineageId") or item["id"])
         linked = {row["referenceLineageId"] for row in story_references(client, lineage_id)}
-        chosen = role or (BASED_ON_ROLE if len(matches) == 1 else "cited")
+        chosen = role or (BASED_ON if len(matches) == 1 else "cited")
         for reference, address in matches:
             reference_lineage = str(reference.get("lineageId") or reference["id"])
             plan.append({
