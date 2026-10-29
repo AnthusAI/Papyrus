@@ -711,6 +711,10 @@ def _create_find_process_direct_citations(
     if apply:
         apply_record_changes(client, changes)
         update_newsroom_summary_after_reference_registration(client, changes, plan)
+        from papyrus_content.reference_images import attach_preview
+        for change in changes:   # newly created References only; never raises
+            if change.get("modelName") == "Reference" and change.get("action") == "create":
+                attach_preview(client, change["expected"])
         applied_reference_ids = {
             str(change["expected"].get("id") or "")
             for change in changes

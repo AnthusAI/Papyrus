@@ -89,3 +89,83 @@ def test_a_dry_run_reads_and_counts_but_writes_nothing_and_the_corpus_and_limit_
 def test_references_without_a_web_address_are_not_considered():
     client = FakeClient([reference("a", sourceUri="s3://bucket/file.pdf"), reference("b", versionState="superseded")])
     assert enrich_reference_previews(client, explorer=explorer({}), now=lambda: NOW)["considered"] == 0
+
+
+# --- attach_preview: the automatic run when a Reference is created -------------------------------------------------------------------------
+
+
+import io  # noqa: E402
+from contextlib import redirect_stdout  # noqa: E402
+
+from papyrus_content.reference_images import attach_preview, exploration_from_preview  # noqa: E402
+
+
+class StoreClient:
+    def __init__(self, attachments=(), fail_with=None):
+        self.rows = {row["id"]: row for row in attachments}
+        self.fail_with = fail_with
+
+    def get_record(self, model, record_id):
+        assert model == "ReferenceAttachment"
+        return self.rows.get(record_id)
+
+    def upsert(self, model, row):
+        if self.fail_with:
+            raise self.fail_with
+        self.rows[row["id"]] = row
+        return "created"
+
+
+def attach(client, ref, **kwargs):
+    lines = []
+    outcome = attach_preview(client, ref, now=lambda: NOW, log=lines.append, **kwargs)
+    return outcome, [json.loads(line) for line in lines]
+
+
+def test_a_new_reference_gets_its_preview_with_the_image_and_one_log_line():
+    client, fake = StoreClient(), explorer({"https://a.example.org/a": found("https://a.example.org/a", image_url="https://cdn.example.org/a.jpg")})
+    outcome, logs = attach(client, reference("a"), explorer=fake)
+    (row,) = client.rows.values()
+    assert outcome == "written" and row["sourceUri"] == "https://cdn.example.org/a.jpg" and row["role"] == PREVIEW_ROLE
+    assert logs == [{"referencePreview": "written", "referenceId": "a-v1", "withImage": True, "reused": False}]
+    assert fake.asked[0][1] == {"want_text": False, "use_search": False}
+
+
+def test_a_page_without_an_image_gets_a_checked_row():
+    client = StoreClient()
+    outcome, logs = attach(client, reference("a"), explorer=explorer({"https://a.example.org/a": Exploration(True, "https://a.example.org/a", via="direct")}))
+    (row,) = client.rows.values()
+    assert outcome == "written" and row["sourceUri"] is None and "checkedAt" in json.loads(row["metadata"])
+    assert logs[0]["withImage"] is False
+
+
+def test_a_reference_that_already_has_a_preview_is_not_fetched_again():
+    ref = reference("a")
+    existing = preview_attachment(ref, found("https://a.example.org/a", image_url="https://cdn.example.org/a.jpg"), NOW)
+    client, fake = StoreClient([existing]), explorer({})
+    outcome, logs = attach(client, ref, explorer=fake)
+    assert outcome == "exists" and fake.asked == [] and logs == []
+
+
+def test_an_exploration_the_caller_already_has_is_used_without_a_fetch():
+    client, fake = StoreClient(), explorer({})
+    outcome, logs = attach(client, reference("a"), exploration=exploration_from_preview("https://a.example.org/a", {"imageUrl": "https://cdn.example.org/a.jpg", "siteName": "A"}), explorer=fake)
+    assert outcome == "written" and fake.asked == [] and logs[0]["reused"] is True
+    assert next(iter(client.rows.values()))["filename"] == "A"
+
+
+def test_a_failure_is_logged_and_swallowed_whatever_it_is():
+    for client, fake in ((StoreClient(), explorer({})),                                                      # page not readable
+                         (StoreClient(fail_with=RuntimeError("AppSync down")), explorer({"https://a.example.org/a": found("https://a.example.org/a", image_url="https://c.example.org/x.jpg")})),
+                         (object(), explorer({})),                                                           # a client with no such methods
+                         (StoreClient(), lambda *a, **k: (_ for _ in ()).throw(TimeoutError("slow")))):
+        outcome, logs = attach(client, reference("a"), explorer=fake)
+        assert outcome == "failed" and logs[0]["referencePreview"] == "failed" and logs[0]["referenceId"] == "a-v1" and logs[0]["reason"]
+        assert not getattr(client, "rows", None)
+
+
+def test_the_default_logger_prints_one_json_line():
+    out = io.StringIO()
+    with redirect_stdout(out):
+        attach_preview(StoreClient(), reference("a"), explorer=explorer({}), now=lambda: NOW)
+    assert json.loads(out.getvalue())["referencePreview"] == "failed"

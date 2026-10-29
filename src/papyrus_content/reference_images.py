@@ -7,6 +7,9 @@ image address (nothing is downloaded or copied: the browser loads it straight fr
 holds ``{description, siteName, title, imageUrl, fetchedAt}``. The newsroom already loads every attachment with the References,
 so cards need no extra request.
 
+New References get this automatically when they are created (``attach_preview``, called by the monitoring router after delivery, by
+the user/agent URL intake and by email-submission registration); this command is the backfill and refresh tool.
+
 Idempotent: a Reference that already has a preview attachment is skipped unless ``--refresh``. A page that declares no image and no
 description is recorded as checked (an attachment with only ``checkedAt``) so it is not fetched again on every run.
 """
@@ -20,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from .ids import hash_short
-from .link_exploration import Exploration, explore
+from .link_exploration import Exploration, PageMetadata, explore
 from .options import normalize_string, parse_options, resolve_mutation_apply
 
 PREVIEW_ROLE = "preview"
@@ -36,6 +39,11 @@ def _http_address(value: Any) -> str | None:
     return text if text and text.lower().startswith(("http://", "https://")) else None
 
 
+def preview_attachment_id(reference: dict[str, Any]) -> str:
+    version_key = "reference#" + str(reference["id"])
+    return f"reference-attachment-{hash_short([version_key, PREVIEW_ROLE, PREVIEW_SORT_KEY])}"
+
+
 def preview_attachment(reference: dict[str, Any], exploration: Exploration, now: datetime) -> dict[str, Any]:
     """The ``ReferenceAttachment`` row for one Reference's preview. A page with no metadata still yields a "checked" row."""
     version_key = f"reference#{reference['id']}"
@@ -44,7 +52,7 @@ def preview_attachment(reference: dict[str, Any], exploration: Exploration, now:
     guessed = mimetypes.guess_type(urllib.parse.urlsplit(image).path)[0] if image else None
     stamp = _iso(now)
     return {
-        "id": f"reference-attachment-{hash_short([version_key, PREVIEW_ROLE, PREVIEW_SORT_KEY])}",
+        "id": preview_attachment_id(reference),
         "referenceId": reference["id"],
         "referenceLineageId": reference.get("lineageId") or reference["id"],
         "referenceVersionNumber": reference.get("versionNumber"),
@@ -57,6 +65,54 @@ def preview_attachment(reference: dict[str, Any], exploration: Exploration, now:
         "importedAt": stamp,
         "metadata": json.dumps({**metadata, "checkedAt": stamp, "via": "link_exploration"}, sort_keys=True),
     }
+
+
+def exploration_from_preview(url: str, preview: dict[str, Any]) -> Exploration:
+    """An ``Exploration`` rebuilt from page metadata an earlier capture already read (``Capture.preview``), so no second fetch is needed."""
+    return Exploration(True, url, via="direct", metadata=PageMetadata(
+        image_url=preview.get("imageUrl"), description=preview.get("description"),
+        site_name=preview.get("siteName"), title=preview.get("title")))
+
+
+def attach_preview(
+    client: Any,
+    reference: dict[str, Any],
+    *,
+    exploration: Exploration | None = None,
+    explorer: Callable[..., Exploration] | None = None,
+    now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    log: Callable[[str], None] = print,
+) -> str:
+    """Write the preview attachment for one newly created Reference. Idempotent, and NEVER raises.
+
+    Skips when the Reference version already has a preview. Uses ``exploration`` when the caller already read the page (curation's
+    capture), else fetches once. A page with no image still gets its "checked" row. Logs one JSON line and returns
+    ``written``, ``exists`` or ``failed``; creating the Reference must never depend on this.
+    """
+    reference_id = reference.get("id") if isinstance(reference, dict) else None
+    try:
+        if client.get_record("ReferenceAttachment", preview_attachment_id(reference)):
+            return "exists"
+        found = exploration
+        if found is None:
+            address = _http_address(reference.get("sourceUri"))
+            if address is None:
+                raise ValueError("no web address")
+            found = (explorer or explore)(address, want_text=False, use_search=False)
+        if not found.ok and not (found.metadata and found.metadata.as_dict()):
+            raise RuntimeError(f"page not readable: {found.failure or 'unknown'}")
+        row = preview_attachment(reference, found, now())
+        client.upsert("ReferenceAttachment", row)
+        log(json.dumps({"referencePreview": "written", "referenceId": reference_id, "withImage": bool(row["sourceUri"]),
+                        "reused": exploration is not None}, sort_keys=True))
+        return "written"
+    except Exception as error:  # noqa: BLE001 - a preview is decoration; it must never block or fail the Reference
+        try:
+            log(json.dumps({"referencePreview": "failed", "referenceId": reference_id,
+                            "reason": f"{type(error).__name__}: {str(error)[:200]}"}, sort_keys=True))
+        except Exception:  # noqa: BLE001
+            pass
+        return "failed"
 
 
 def enrich_reference_previews(
