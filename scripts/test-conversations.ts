@@ -69,7 +69,7 @@ const COUNTS = new Map([["with-messages", 3], ["one-message", 1]]);
 function Detail() {
   const [count, setCount] = useState(null);
   return <div className="max-w-xl space-y-4" data-fixture-detail>
-    <ReviewCard decided={null} itemId={REFERENCE.lineageId} onDecide={async () => undefined} prediction={{ state: "none" }} title={REFERENCE.title} dek="A one line dek for the Reference.">
+    <ReviewCard decided={null} itemId={REFERENCE.lineageId} onDecide={async () => undefined} prediction={{ state: "ready", choice: "accept", confidence: 0.96 }} title={REFERENCE.title} dek="A one line dek for the Reference.">
       <ReferenceConversation lineageId={REFERENCE.lineageId} onCount={(_id, n) => { window.reportedCount = n; setCount(n); }} referenceId={REFERENCE.id} title={REFERENCE.title} />
     </ReviewCard>
     <p data-fixture-count>{count === null ? "" : count}</p>
@@ -88,7 +88,7 @@ createRoot(document.getElementById("root")).render(<ConversationStoreProvider st
 }
 
 // The tones the newsroom stylesheet mixes from the publication theme, as plain colours here.
-const fixtureCss = "body{margin:0;font:16px sans-serif;background:#f4f1ea;color:#1c1c1c;--feed-card:#fbf9f4;--feed-control:#e8e3d8;--feed-footer:#f0ece2;--feed-radius-lg:12px;--feed-radius-pill:999px;--primary:#46560f;--primary-foreground:#fff}button,textarea{font:inherit}";
+const fixtureCss = "body{margin:0;font:16px sans-serif;background:#f4f1ea;color:#1c1c1c;--feed-card:#fbf9f4;--feed-control:#e8e3d8;--feed-footer:#f0ece2;--feed-radius-xl:12px;--feed-radius-lg:10px;--feed-radius-md:8px;--feed-radius-pill:8px;--feed-quiet:.6;--foreground-muted:#6b6b6b;--feed-verdict-match-fill:#059669;--feed-verdict-miss-fill:#dc2626;--primary:#46560f;--primary-foreground:#fff}button,textarea{font:inherit}";
 
 async function setup(options = "", width = 1440) {
   const script = await browserBundle();
