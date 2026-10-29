@@ -50,6 +50,8 @@ import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./referen
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
+import { ReferenceConversation } from "./reference-conversation";
+import { useReferenceMessageCounts } from "./use-conversation";
 import { captureStatusesByLineage } from "../lib/reference-capture";
 import { applyFeedOrderSnapshot, partitionReferenceFeed, takeFeedOrderSnapshot, type FeedOrderSnapshot, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
@@ -200,6 +202,7 @@ function ReferenceDetailPanel({
   decision,
   demo = false,
   disabled,
+  onMessageCount,
   onReview,
   predictionState = "ready",
   reviewReason,
@@ -223,6 +226,7 @@ function ReferenceDetailPanel({
   decision?: RelevanceDecisionView;
   demo?: boolean;
   disabled?: boolean;
+  onMessageCount?: (lineageId: string, count: number) => void;
   onRelevanceReview?: (curation: RelevanceCuration) => Promise<void> | void;
   onReview: (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => Promise<void> | void;
   predictionState?: PredictionState;
@@ -308,6 +312,7 @@ function ReferenceDetailPanel({
             </details>
           ) : null}
           {delegated ? <DelegatedCurationNote delegated={delegated} referenceLineageId={lineageId} /> : countsAsTrainingLabel ? <CountsAsTrainingLabelNote referenceLineageId={lineageId} /> : null}
+          <ReferenceConversation disabledReason={disabled ? "Editor access is required to write messages." : null} lineageId={lineageId} onCount={onMessageCount} referenceId={reference.id} title={referenceDisplayTitle(reference)} />
         </ReviewCard>
 
         <Separator />
@@ -445,6 +450,7 @@ export function NewsroomReferencesView({
   const [view, setView] = useState<ReferenceView>("feed");
   const [addOpen, setAddOpen] = useState(false);
   const [feedTab, setFeedTab] = useState<ReferenceFeedTabKey>("feed");
+  const { counts: messageCounts, setCount: setMessageCount } = useReferenceMessageCounts(!loading);
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(() => new Set());
   const [mountedAt] = useState(() => Date.now());
   const markVisitRated = useCallback((lineageId: string) => {
@@ -774,6 +780,7 @@ export function NewsroomReferencesView({
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
                 loading={previewSkeleton || (loading && !references.length)}
+                messageCounts={messageCounts}
                 now={mountedAt}
                 onOpen={selectReference}
                 onRate={rateFromFeed}
@@ -909,6 +916,7 @@ export function NewsroomReferencesView({
               decision={decisions?.get(referenceLineageId(selectedReference))}
               demo={demo}
               disabled={disabled}
+              onMessageCount={setMessageCount}
               onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
               onReview={runReview}
               sectionAgreement={sectionAgreement}
@@ -952,6 +960,7 @@ export function NewsroomReferencesView({
                   demo={demo}
                   disabled={disabled}
                   onClose={closeDetail}
+                  onMessageCount={setMessageCount}
                   onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
                   onReview={runReview}
                   sectionAgreement={sectionAgreement}

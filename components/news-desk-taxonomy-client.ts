@@ -10,6 +10,7 @@ import { createLocalPreviewRealPublishedVersions, createLocalPreviewAssignments,
 import { generateClient } from "aws-amplify/data";
 import { testEditorOverrideAllowed } from "../lib/test-editor-override";
 import { downloadData, getUrl } from "aws-amplify/storage";
+import { fetchAuthSession } from "aws-amplify/auth";
 import type { Schema } from "../amplify/data/resource";
 import type { NewsDeskAppendix, NewsDeskCategoryTreeNode } from "../lib/content-types";
 import { createEmptyCategorySteeringDashboard } from "../lib/category-dashboard";
@@ -45,7 +46,19 @@ import type {
   SemanticRelationRecord,
   UserDirectoryEntry,
 } from "../lib/category-repository";
-import { relationTypeKey } from "../lib/semantic-graph";
+import { relationTypeKey, semanticStateKey, semanticVersionKey } from "../lib/semantic-graph";
+import {
+  CONVERSATION_FEED_KEY,
+  REFERENCE_CONVERSATION_KIND,
+  conversationAnchorKey,
+  conversationMessageId,
+  conversationThreadId,
+  conversationThreadKind,
+  createWithSequenceRetry,
+  findOrCreateThread,
+  type ConversationAnchor,
+  type ConversationMessage,
+} from "../lib/conversation";
 import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
@@ -100,6 +113,23 @@ const LIST_MESSAGE_THREADS_BY_KIND_AND_UPDATED_AT_QUERY = `
       }
       nextToken
     }
+  }
+`;
+
+const LIST_MESSAGE_THREADS_BY_ANCHOR_AND_UPDATED_AT_QUERY = `
+  query ListMessageThreadsByAnchorAndUpdatedAt($primaryAnchorKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
+    listMessageThreadsByAnchorAndUpdatedAt(primaryAnchorKey: $primaryAnchorKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
+      items {
+        id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey
+      }
+      nextToken
+    }
+  }
+`;
+
+const CREATE_SEMANTIC_RELATION_MUTATION = `
+  mutation CreateSemanticRelation($input: CreateSemanticRelationInput!) {
+    createSemanticRelation(input: $input) { id }
   }
 `;
 
@@ -1388,49 +1418,23 @@ export async function createSectionForumThreadRecord(input: {
   return { created: true, thread: normalizeThreadRecord(response.createMessageThread ?? thread) };
 }
 
-export async function appendForumThreadMessageRecord(input: {
-  threadId: string;
-  summary: string;
-  content: string;
-  role?: string;
-  authorLabel?: string;
-  parentMessageId?: string | null;
-  metadata?: Record<string, unknown>;
-}): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
-  const threadId = String(input.threadId || "").trim();
-  const summary = String(input.summary || "").trim();
-  const content = String(input.content || "").trim();
-  if (!threadId) throw new Error("threadId is required");
-  if (!summary) throw new Error("summary is required");
-  if (!content) throw new Error("content is required");
-  const thread = await getMessageThreadRecord(threadId);
-  const existing = await listMessagesByThreadId(threadId, 1000);
-  const nextSequence = Math.max(0, ...existing.map((message) => Number(message.sequenceNumber || 0))) + 1;
-  const now = new Date().toISOString();
-  const message: MessageRecord = {
-    id: `message-forum-${safeForumId(threadId)}-${String(nextSequence).padStart(4, "0")}`,
-    messageKind: "forum_post",
-    messageDomain: "edition_coordination",
-    status: "active",
-    summary,
-    source: "newsroom.forum",
-    authorLabel: input.authorLabel?.trim() || "editor",
-    threadId,
-    parentMessageId: input.parentMessageId?.trim() || null,
-    sequenceNumber: nextSequence,
-    role: input.role || "human",
-    messageType: "forum_message",
-    content,
-    metadata: input.metadata ?? {},
-    createdAt: now,
-    updatedAt: now,
-    newsroomFeedKey: "messages",
-  };
-  const created = await runGraphql<{ createMessage?: MessageRecord | null }>(
-    CREATE_MESSAGE_MUTATION,
-    { input: message },
-  );
-  const createdMessage = normalizeMessageRecord(created.createMessage ?? message);
+/**
+ * Appends one Message to a thread: the next sequence number, the Message, then the thread's count and last Message. The Message id
+ * derives from the sequence number, so a create that loses a race for the number collides and retries with the next one.
+ */
+async function appendMessageToThread(thread: MessageThreadRecord, build: (sequenceNumber: number, now: string) => MessageRecord): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
+  const threadId = thread.id;
+  let now = new Date().toISOString();
+  let built: MessageRecord | null = null;
+  const { created } = await createWithSequenceRetry({
+    list: () => listMessagesByThreadId(threadId, 1000),
+    create: (sequenceNumber) => {
+      now = new Date().toISOString();
+      built = build(sequenceNumber, now);
+      return runGraphql<{ createMessage?: MessageRecord | null }>(CREATE_MESSAGE_MUTATION, { input: built });
+    },
+  });
+  const createdMessage = normalizeMessageRecord(created.createMessage ?? built!);
   const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(
     UPDATE_MESSAGE_THREAD_MUTATION,
     {
@@ -1447,6 +1451,218 @@ export async function appendForumThreadMessageRecord(input: {
     thread: normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, updatedAt: now }),
     message: createdMessage,
   };
+}
+
+export async function appendForumThreadMessageRecord(input: {
+  threadId: string;
+  summary: string;
+  content: string;
+  role?: string;
+  authorLabel?: string;
+  parentMessageId?: string | null;
+  metadata?: Record<string, unknown>;
+}): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
+  const threadId = String(input.threadId || "").trim();
+  const summary = String(input.summary || "").trim();
+  const content = String(input.content || "").trim();
+  if (!threadId) throw new Error("threadId is required");
+  if (!summary) throw new Error("summary is required");
+  if (!content) throw new Error("content is required");
+  const thread = await getMessageThreadRecord(threadId);
+  return appendMessageToThread(thread, (sequenceNumber, now) => ({
+    id: `message-forum-${safeForumId(threadId)}-${String(sequenceNumber).padStart(4, "0")}`,
+    messageKind: "forum_post",
+    messageDomain: "edition_coordination",
+    status: "active",
+    summary,
+    source: "newsroom.forum",
+    authorLabel: input.authorLabel?.trim() || "editor",
+    threadId,
+    parentMessageId: input.parentMessageId?.trim() || null,
+    sequenceNumber,
+    role: input.role || "human",
+    messageType: "forum_message",
+    content,
+    metadata: input.metadata ?? {},
+    createdAt: now,
+    updatedAt: now,
+    newsroomFeedKey: "messages",
+  }));
+}
+
+type ConversationAuthor = { sub: string | null; label: string };
+
+async function currentConversationAuthor(): Promise<ConversationAuthor> {
+  const snapshot = await loadReaderSessionSnapshot();
+  let sub: string | null = null;
+  try {
+    const session = await fetchAuthSession();
+    const claim = session.tokens?.idToken?.payload?.sub ?? session.tokens?.accessToken?.payload?.sub;
+    sub = typeof claim === "string" && claim ? claim : null;
+  } catch {
+    sub = null;
+  }
+  return { sub, label: snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor" };
+}
+
+async function findConversationThread(anchorKey: string): Promise<MessageThreadRecord | null> {
+  type Response = { listMessageThreadsByAnchorAndUpdatedAt?: { items?: Array<MessageThreadRecord | null> | null } | null };
+  const response = await runGraphql<Response>(LIST_MESSAGE_THREADS_BY_ANCHOR_AND_UPDATED_AT_QUERY, {
+    primaryAnchorKey: anchorKey,
+    sortDirection: "DESC",
+    limit: 10,
+  });
+  const found = (response.listMessageThreadsByAnchorAndUpdatedAt?.items ?? []).filter(Boolean) as MessageThreadRecord[];
+  const thread = found.find((entry) => entry.status !== "deleted") ?? null;
+  return thread ? normalizeThreadRecord(thread) : null;
+}
+
+/** The one conversation for an anchor: found by its anchor key, created when there is none. Concurrent first posts share the thread. */
+export async function ensureConversationThread(anchor: ConversationAnchor, author?: ConversationAuthor): Promise<MessageThreadRecord> {
+  const anchorKey = conversationAnchorKey(anchor);
+  if (!anchorKey) throw new Error("An unattached conversation starts its own thread.");
+  return findOrCreateThread({
+    find: () => findConversationThread(anchorKey),
+    create: async () => {
+      const now = new Date().toISOString();
+      const lineageId = anchor.lineageId!.trim();
+      const thread: MessageThreadRecord = {
+        id: conversationThreadId(anchor),
+        threadKind: conversationThreadKind(anchor),
+        status: "active",
+        title: anchor.title?.trim() || lineageId,
+        primaryAnchorKind: anchor.kind,
+        primaryAnchorId: lineageId,
+        primaryAnchorLineageId: lineageId,
+        primaryAnchorKey: anchorKey,
+        createdBySub: author?.sub ?? null,
+        createdByLabel: author?.label ?? "editor",
+        messageCount: 0,
+        lastMessageId: null,
+        lastMessageAt: null,
+        metadata: JSON.stringify({ anchorKind: anchor.kind, anchorLineageId: lineageId }),
+        createdAt: now,
+        updatedAt: now,
+        newsroomFeedKey: CONVERSATION_FEED_KEY,
+      };
+      const response = await runGraphql<{ createMessageThread?: MessageThreadRecord | null }>(CREATE_MESSAGE_THREAD_MUTATION, { input: thread });
+      return normalizeThreadRecord(response.createMessageThread ?? thread);
+    },
+  });
+}
+
+function toConversationMessage(record: MessageRecord): ConversationMessage {
+  return {
+    id: record.id,
+    parentMessageId: record.parentMessageId ?? null,
+    authorLabel: record.authorLabel ?? "",
+    content: record.content ?? record.body ?? "",
+    createdAt: record.createdAt,
+    sequenceNumber: Number(record.sequenceNumber ?? 0),
+  };
+}
+
+/** Every Message in the anchor's conversation, oldest first. An anchor with no conversation yet has none. */
+export async function loadConversationMessages(anchor: ConversationAnchor): Promise<ConversationMessage[]> {
+  const anchorKey = conversationAnchorKey(anchor);
+  if (!anchorKey) return [];
+  const thread = await findConversationThread(anchorKey);
+  if (!thread) return [];
+  const records = await listMessagesByThreadId(thread.id, 500);
+  return records.filter((record) => record.status !== "deleted").map(toConversationMessage);
+}
+
+/** How many Messages each Reference has, from the Reference conversation threads alone (no query per card). Keyed by lineage id. */
+export async function loadReferenceConversationCounts(): Promise<Map<string, number>> {
+  const threads = await listMessageThreadsByKind(REFERENCE_CONVERSATION_KIND, 500);
+  const counts = new Map<string, number>();
+  for (const thread of threads) {
+    const lineageId = thread.primaryAnchorLineageId;
+    if (lineageId && thread.status !== "deleted" && (thread.messageCount ?? 0) > 0) counts.set(lineageId, thread.messageCount ?? 0);
+  }
+  return counts;
+}
+
+/**
+ * Writes a Message into the anchor's conversation (finding or creating the thread), and a `comment` relation from the Message to
+ * the Reference or Item so the thing's own detail can find it. The relation is secondary: if it fails the Message is still saved.
+ */
+export async function appendConversationMessage(input: {
+  anchor: ConversationAnchor;
+  body: string;
+  parentMessageId?: string | null;
+}): Promise<{ message: ConversationMessage; thread: MessageThreadRecord; relationError: string | null }> {
+  const content = String(input.body || "").trim();
+  if (!content) throw new Error("Write something to post.");
+  const author = await currentConversationAuthor();
+  const thread = await ensureConversationThread(input.anchor, author);
+  const result = await appendMessageToThread(thread, (sequenceNumber, now) => ({
+    id: conversationMessageId(thread.id, sequenceNumber),
+    messageKind: "comment",
+    messageDomain: "commentary",
+    status: "active",
+    summary: content.slice(0, 120),
+    source: "newsroom.conversation",
+    authorSub: author.sub,
+    authorLabel: author.label,
+    threadId: thread.id,
+    parentMessageId: input.parentMessageId?.trim() || null,
+    sequenceNumber,
+    role: "human",
+    messageType: "comment",
+    content,
+    metadata: JSON.stringify({ messageKind: "comment", anchorKey: conversationAnchorKey(input.anchor) }),
+    createdAt: now,
+    updatedAt: now,
+    newsroomFeedKey: CONVERSATION_FEED_KEY,
+  }));
+  let relationError: string | null = null;
+  if (input.anchor.kind !== "none") {
+    try {
+      await createCommentRelation(result.message, input.anchor);
+    } catch (error) {
+      relationError = error instanceof Error ? error.message : "The link to the Reference could not be saved.";
+    }
+  }
+  return { message: toConversationMessage(result.message), thread: result.thread, relationError };
+}
+
+async function createCommentRelation(message: MessageRecord, anchor: ConversationAnchor): Promise<void> {
+  if (anchor.kind === "none") return;
+  const lineageId = anchor.lineageId.trim();
+  const objectId = anchor.id?.trim() || lineageId;
+  const now = message.createdAt;
+  await runGraphql(CREATE_SEMANTIC_RELATION_MUTATION, {
+    input: {
+      id: `semantic-relation-${message.id}-comment`,
+      relationState: "current",
+      predicate: "comment",
+      relationTypeId: "semantic-relation-type-comment",
+      relationTypeKey: "comment",
+      relationDomain: "commentary",
+      subjectKind: "message",
+      subjectId: message.id,
+      subjectLineageId: message.id,
+      subjectVersionNumber: 1,
+      objectKind: anchor.kind,
+      objectId,
+      objectLineageId: lineageId,
+      subjectStateKey: semanticStateKey("message", message.id),
+      objectStateKey: semanticStateKey(anchor.kind, lineageId),
+      objectSubjectStateKey: `${semanticStateKey(anchor.kind, lineageId)}#message`,
+      predicateObjectStateKey: `comment#${semanticStateKey(anchor.kind, lineageId)}`,
+      subjectVersionKey: semanticVersionKey("message", message.id),
+      objectVersionKey: semanticVersionKey(anchor.kind, objectId),
+      score: 1,
+      rank: 1,
+      reviewRecommended: false,
+      importedAt: now,
+      createdAt: now,
+      updatedAt: now,
+      newsroomFeedKey: "semanticRelations",
+      metadata: JSON.stringify({ kind: "conversation.comment", messageKind: "comment" }),
+    },
+  });
 }
 
 export async function deleteForumThreadMessageRecord(input: {

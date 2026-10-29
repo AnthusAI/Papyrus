@@ -101,6 +101,7 @@ import { referencePreviewsByLineage } from "../lib/reference-preview";
 import { NewsroomOpsOverview } from "./newsroom-ops-overview";
 import { NewsroomCurationBootstrap } from "./newsroom-curation-bootstrap";
 import { NewsroomReferencesView } from "./newsroom-references-view";
+import { ConversationProvider } from "./conversation-provider";
 import { NewsroomAssignmentsView } from "./newsroom-assignments-view";
 import { NewsroomTopicsView } from "./newsroom-topics-view";
 import { MarkdownContext } from "./markdown-context";
@@ -3049,7 +3050,7 @@ function NewsDeskDashboard({
       : formatDeskSectionHeadline(activeTab);
 
   return (
-    <>
+    <ConversationProvider authorLabel={authState.label} demo={Boolean(dashboard.isDemo)}>
       <NewsroomOpsShell
         activeTab={activeTab}
         appTitle={SITE_BRAND.appTitle}
@@ -3286,7 +3287,7 @@ function NewsDeskDashboard({
         </div>
       </NewsroomOpsShell>
       {topBarSearchControl.dialog}
-    </>
+    </ConversationProvider>
   );
 }
 
