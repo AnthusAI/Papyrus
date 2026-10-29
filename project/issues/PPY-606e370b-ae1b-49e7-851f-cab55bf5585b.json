@@ -1,0 +1,20 @@
+{
+  "id": "PPY-606e370b-ae1b-49e7-851f-cab55bf5585b",
+  "title": "Document the learning loop on p.apyr.us",
+  "description": "A p.apyr.us feature page: editors' votes train the site's Cyclotron, how a candidate version is checked against held-out votes, and what an editor sees.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:21:35.364645Z",
+  "updated_at": "2026-10-29T10:21:35.364679Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

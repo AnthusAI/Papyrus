@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+  "title": "Every Cyclotron-fed site learns from its editors' votes",
+  "description": "Ryan, 2026-10-29: editor feedback being incorporated into the Cyclotron that feeds the site should be a standard feature of every Papyrus site that uses Cyclotron.\n\nToday the loop is open. Papyrus sends every human accept/reject on a Cyclotron-decided Reference to the site's Cyclotron publication as a feedback operation (router feedback_one), and Cyclotron stores it as a human label. But the hosted standing run is prediction-only: its optimizer is disabled and priming refuses items the run has decided, so votes never change decisions. On 2026-10-29, Ryan's 13 Anth.us votes were recorded and had no effect.\n\nDone when, for every site with a Cyclotron publication and with configuration only:\n- votes are turned into a new reviewed context version by a retraining round: examples come from voted items, never an item for its own decision, and agreement is checked on held-out votes;\n- a candidate becomes live only if it beats the current version on held-out votes;\n- editors can see in the newsroom what their votes did: votes recorded, last round, agreement before and after, and what is live.\n\nRetraining itself is Cyclotron's work (Cyclotron docs/lab-observatory.md, Retraining, steps 2-3). Papyrus owns sending votes, which already happens, and showing the result.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:21:35.119111Z",
+  "updated_at": "2026-10-29T10:21:35.119206Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

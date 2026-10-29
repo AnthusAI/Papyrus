@@ -1,0 +1,20 @@
+{
+  "id": "PPY-bedb2c18-39a3-4556-a51e-e08185136591",
+  "title": "Newsroom shows what editors' votes did",
+  "description": "Per publication, show votes sent, votes recorded by Cyclotron, the last retraining round, held-out agreement before and after, and which version is live. If Cyclotron asks for a human to promote a candidate, show it as a review request using the standard Accept/Reject vocabulary. Read from the router's FB# receipts and Cyclotron's round status. Gherkin specs required. Lucide icons only, no borders, and never colour alone.",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:21:35.284334Z",
+  "updated_at": "2026-10-29T10:21:35.284362Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
