@@ -48,6 +48,11 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
+  messagesPage: {
+    paths: ["features/newsroom-messages-page.feature"],
+    require: ["features/step_definitions/messages-page.steps.js"],
+    format: ["summary"],
+  },
   cliLoginDiscovery: {
     paths: ["features/cli-login-discovery.feature"],
     require: ["features/step_definitions/cli-login-discovery.steps.js"],
