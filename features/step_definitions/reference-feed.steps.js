@@ -21,6 +21,7 @@ for (const given of [
   "the References are still loading",
   "this browser saved the last feed it showed",
   "the feed is open",
+  "a Reference the Cyclotron accepted automatically, one a monitor's rule accepted, and another that an editor accepted",
 ]) Given(given, function () { this.feedResult = ""; });
 
 // Each outcome runs the named browser scenario in scripts/test-reference-feed.ts (every one covers 375 and 1440 pixels).
@@ -49,6 +50,10 @@ const outcomes = [
     "the feed has the sections Top predictions, More for you and Least likely in large type with no lines between them",
     "on a phone the first card's picture is on the first screen",
   ]],
+  ["auto", [
+    "the automatically accepted card says Accepted automatically with a Lucide icon, one accepted by a monitor's rule says so too, and the editor's accept carries no such mark",
+    "both read as accepted, and the editor can still change either",
+  ]],
   ["popover", [
     "it explains best bets first, confidence, fading toward not sure, Earlier and why a rated card stays put",
     "it says how many accepted examples have been learned from, or how many more are needed",
@@ -65,6 +70,7 @@ const outcomes = [
   ]],
 ];
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
+When("the editor opens the Rated tab at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
   "the editor opens the full-text one at 375 pixels and shows all of the captured text",

@@ -37,7 +37,7 @@ USAGE = (
     "  papyrus ideas trends --site KEY --snapshot PATH|URL [--store json|proposals] [--dry-run] [--max 3] [--trend-config FILE] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (--snapshot: a weekly archive entry history/<asOf>.json, an index.json, or the _data/knowledge/ directory or address)\n"
-    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
+    "  papyrus ideas monitor-stories --site KEY [--corpus-key KEY (default: the site key)] [--limit 3] [--since 7d (optional; default: every undrafted item)] [--status accepted[,pending] (default: accepted only)] [--store json|proposals] [--dry-run] [--model gpt-6-luna]\n"
     "      [--dedupe-threshold 0.5] [--max-cost-usd 0.50] [--story-days 90] [--exclude-host HOST ...] [--out DIR] [--report FILE] [--json]\n"
     "      (drafts one cited story for each of the top --limit items the site's monitors found, ranked by the relevance Cyclotron's verdict)\n"
     "Ideas are private: JSON files under --out (default ~/.papyrus/ideas/KEY), or draft story_draft Proposals with --store proposals."
@@ -266,6 +266,7 @@ def monitor_stories_command(flags: list[str]) -> None:
     since = normalize_string(options.get("since")) or None
     if since:
         parse_window(since)
+    statuses = digest_module.parse_statuses(normalize_string(options.get("status")))
     json_store = JsonStore(_root(options, site))
     client, _ = create_authoring_client()
     now = datetime.now(timezone.utc)
@@ -292,6 +293,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         explorer=monitor_stories.explore_item,
         corpus_key=normalize_string(options.get("corpus-key")),
         excluded_hosts=_excluded_hosts(flags),
+        statuses=statuses,
     )
     report = normalize_string(options.get("report"))
     if report:
@@ -303,7 +305,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\tmonitor-stories\t{run['runId']}\t{run['store']}")
-    print(f"items\tread {inputs['inWindow']}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
+    print(f"items\tstatuses {','.join(run['statuses'])}\tread {inputs['inWindow']}\tpending not read {inputs.get('notAccepted', 0)}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
     fresh = run["freshness"]
     print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")

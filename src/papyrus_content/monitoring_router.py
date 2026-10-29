@@ -62,6 +62,7 @@ from .email_submission_authorization import (
     EditorLookupUnavailable,
     publication_ids_for_editor,
 )
+from .auto_accept import accept_by_rule, run_auto_accept, validate_auto_accept
 from .monitoring import SOURCE_TYPES, Monitor, SourceItem, _iso
 from .monitoring_cloud import ConditionFailed, DynamoStore, pk
 from .monitoring_enrichment import Enricher, copy_curation, decision_inputs, enrich_item, enrich_sk, new_row
@@ -355,6 +356,7 @@ def validate_router_publications(raw: dict) -> list[dict]:
             "positiveLabel": str(entry.get("positiveLabel") or "include"),
             "negativeLabel": str(entry.get("negativeLabel") or "exclude"),
             "procedureTriggers": validate_procedure_triggers(publication_id, entry),
+            "autoAccept": validate_auto_accept(publication_id, entry.get("autoAccept")),
             "openaiKeyParameter": entry.get("openaiKeyParameter")})
     if not publications:
         raise ValueError("router needs at least one publication")
@@ -1917,6 +1919,7 @@ class Router:
                 if copied:
                     state["curationCopy"] = copied
                 self.attach_preview(publication, disc, result)   # never raises, never touches the delivery
+                self.accept_by_rule(publication, result)   # never raises, never touches the delivery
                 if not disc.get("editorSelectedReference"):
                     self.start_procedures(publication, disc, result)
             except Exception as error:
@@ -1927,6 +1930,23 @@ class Router:
                 self.counts["deliveryFailed"] += 1
             self.save(route)   # per publication, so a later crash keeps earlier progress
         return all_delivered
+
+    def accept_by_rule(self, publication: dict, result: dict):
+        """A monitor that delivers by a fixed rule (`decisions: "direct"`) has no confidence: a NEWLY delivered Reference is accepted on delivery,
+        by `auto:rule`, unless the publication's `autoAccept` says `enabled: false`. Never sent to the Cyclotron; an editor can still Reject it."""
+        policy = publication.get("autoAccept")
+        if self.config.get("decisions") != "direct" or not policy or not policy["enabled"] or result.get("referenceReused"):
+            return
+        try:
+            client = self.client(publication)
+            reference = client.get_record("Reference", result["referenceId"])
+            accepted = bool(reference) and accept_by_rule(client, reference, monitor_id=self.monitor_id, rule=self.config.get("rule"),
+                                                          now=_iso(self.now))
+            print(json.dumps({"autoAccept": "rule", "publicationId": publication["publicationId"], "monitorId": self.monitor_id,
+                              "referenceId": result["referenceId"], "accepted": accepted}))
+        except Exception as error:  # noqa: BLE001 - the Reference is already delivered
+            print(json.dumps({"autoAccept": "failed", "publicationId": publication["publicationId"], "mode": "rule",
+                              "referenceId": result.get("referenceId"), "reason": short(error)[:200]}))
 
     def attach_preview(self, publication: dict, disc: dict, result: dict):
         """Give a NEWLY created Reference its link-preview attachment. A reused Reference is left alone. The page metadata the
@@ -2310,6 +2330,28 @@ class Router:
             result[outcome] += 1
         return result
 
+    def auto_accept(self) -> dict:
+        """Per publication: accept confident pending References nobody voted on (src/papyrus_content/auto_accept.py). On unless the
+        publication's `autoAccept` says `enabled: false`; live mode only. One JSON log line per publication."""
+        results: dict = {}
+        if self.config["mode"] != "live" or self.config["decisions"] != "cyclotron":
+            return results   # a rule monitor has no confidence; its deliveries are accepted on delivery (accept_by_rule)
+        for publication in self.publications.values():
+            policy = publication.get("autoAccept")
+            if not policy or not policy["enabled"]:
+                continue
+            if self.time_left() < MIN_REMAINING_SECONDS:
+                result = {"publicationId": publication["publicationId"], "status": "skipped", "reason": "time budget"}
+            else:
+                try:
+                    result = run_auto_accept(self.client(publication), publication, policy, now=datetime.fromtimestamp(self.now, timezone.utc),
+                                             out_of_time=lambda: self.time_left() < MIN_REMAINING_SECONDS)
+                except Exception as error:  # noqa: BLE001 - never fails the run
+                    result = {"publicationId": publication["publicationId"], "status": "failed", "reason": short(error)}
+            results[publication["publicationId"]] = result
+            print(json.dumps({"autoAccept": result["status"], **result}))
+        return results
+
     def rotate(self, row: dict, note: str):
         """Move a checked row to the back of the queue so one stuck row cannot starve the rest."""
         row = {**row, "lastCheckedAt": _iso(self.now), "lastNote": note[:300],
@@ -2445,17 +2487,18 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
                         max_decisions=max_decisions, hold_override=hold_override, previewer=previewer)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
-                   {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep())
-        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references") else router.feedback()
+                   {"status": "skipped"} if task in ("feedback", "auto-accept") else router.collect() if task == "collect" else router.sweep())
+        feedback = {"status": "skipped"} if task in ("route", "collect", "email-references", "auto-accept") else router.feedback()
+        auto_accepted = {} if task in ("route", "collect", "email-references", "feedback") else router.auto_accept()
         paused_until = router.settle_lab_backoff()
         result = {"monitorId": monitor_id, "runId": run_id, "mode": config["mode"], "startedAt": _iso(now),
                   "status": outcome["status"], "stoppedBy": outcome.get("stoppedBy"), "counts": router.counts,
-                  "feedback": feedback, "errors": outcome.get("errors", []),
+                  "feedback": feedback, "autoAccept": auto_accepted, "errors": outcome.get("errors", []),
                   "waitingForClassifier": outcome.get("waitingForClassifier", []), "posted": router.posted}
         store.put_receipt(monitor_id, {
             "pk": pk(monitor_id), "sk": f"ROUTERUN#{result['startedAt']}#{run_id}", "runId": run_id,
             "startedAt": result["startedAt"], "mode": config["mode"], "status": result["status"],
-            "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback,
+            "stoppedBy": result["stoppedBy"], "counts": router.counts, "feedback": feedback, "autoAccept": decimalize(auto_accepted),
             "errors": result["errors"], "waitingForClassifier": result["waitingForClassifier"], "posted": router.posted,
             **({"labBackoffUntil": _iso(paused_until)} if paused_until else {}), "ttl": int(now + RECEIPT_TTL_SECONDS)})
         return result
@@ -2535,4 +2578,4 @@ def handler(event, context):
                         cognito=cognito, start_procedure=starter, enricher=enricher, previewer=attach_preview, max_decisions=cap,
                         hold_override=event.get("holdOverride") is False)   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
-    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier", "posted")}
+    return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "autoAccept", "waitingForClassifier", "posted")}
