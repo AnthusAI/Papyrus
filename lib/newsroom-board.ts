@@ -1,4 +1,4 @@
-import type { KanbanConfig, KanbanIssue } from "@kanbus/ui";
+import type { KanbanConfig, KanbanIssue, KanbanSortFieldRule } from "@kanbus/ui";
 import type { AssignmentRecord } from "./category-repository";
 import {
   ASSIGNMENT_PHASE_STAGE_KEYS,
@@ -118,11 +118,19 @@ export function assignmentColumnOrder(statusesPresentOnBoard: readonly string[])
   return [...ASSIGNMENT_STATUSES_BEFORE_OTHERS, ...otherStatuses, ...ASSIGNMENT_STATUSES_AFTER_OTHERS];
 }
 
+/**
+ * Kanbus's default column order is oldest-created first, and our content items carry no `created_at`, so without this every
+ * column listed its cards by id. Newest first by `updated_at`: it is the order the stage pages load in, and the only time a
+ * paged content item has (each save is a new version, so `createdAt` is the last edit, not the story's start).
+ */
+export const NEWEST_FIRST: KanbanSortFieldRule[] = [{ field: "updated_at", direction: "desc" }];
+
 function boardConfigForType(type: string, columns: readonly { key: string; name: string; collapsed?: boolean }[]): KanbanConfig {
   const statuses = columns.map(column => ({ ...column, category: "native" }));
   return {
     hierarchy: [], types: [type], statuses,
     categories: [{ name: "native" }], priorities: {}, type_colors: {},
+    sort_order: Object.fromEntries(statuses.map(status => [status.key, [...NEWEST_FIRST]])),
     workflows: { [type]: Object.fromEntries(statuses.map(status => [status.key, []])) },
   };
 }
@@ -165,6 +173,7 @@ export function deskBoardConfig(issues: readonly NativeBoardIssue[]): KanbanConf
     statuses: [...storiesConfig.statuses, ...assignmentsConfig.statuses],
     categories: storiesConfig.categories,
     workflows: { ...storiesConfig.workflows, ...assignmentsConfig.workflows },
+    sort_order: { ...assignmentsConfig.sort_order, ...storiesConfig.sort_order },
   };
 }
 

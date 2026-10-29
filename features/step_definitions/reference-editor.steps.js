@@ -19,6 +19,7 @@ const behaviors = [
   ["readonly", "a person without editing permission selects a reference", "the card says in words that editor access is required and no tap sends a request"],
   ["queue", "the editor works through the pending queue at 375 and 1440 pixels", "a bottom bar shows Previous, the position and Next with one URL per item"],
   ["card_layout", "the editor opens a reference at 375 and 1440 pixels", "the prediction bar sits above the buttons, and the buttons and the reason field span the card"],
+  ["responsive_detail", "the editor opens a reference at 375, 768, 834, 1024 and 1440 pixels", "at 375, 768 and 834 the detail takes the feed's place at the full width with a Back control that returns to the feed"],
   ["empty", "the editor opens an inbox with no imported references", "the inbox explains the empty state without rendering reference rows"],
 ];
 
@@ -45,6 +46,8 @@ for (const [name, outcome] of [
   ["queue", "swiping left or right and the arrow keys move through the queue"],
   ["queue", "after the last item the page says All caught up"],
   ["card_layout", "every icon is a Lucide icon and nothing scrolls sideways"],
+  ["responsive_detail", "at 1024 and 1440 the detail is a pane of 24 to 28rem to the right of the feed, with no Back control"],
+  ["responsive_detail", "at every width nothing scrolls sideways and the detail is in the page, not a sheet over it"],
   ["predictions", "the human answer is final and replaces the Cyclotron's"],
 ]) {
   Then(outcome, function () {

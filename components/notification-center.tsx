@@ -290,9 +290,9 @@ export function NotificationCenter({
     resolving.current.add(request.id);
     try {
       const view = drafts[draftId];
-      if (!view) throw new Error("This draft has not loaded yet.");
+      if (!view) throw new Error("This Proposed Story has not loaded yet.");
       const path = choice === "accept" ? acceptPath(view.state) : rejectPath(view.state);
-      if (!path) throw new Error(`This draft is ${stateLabel(view.state, false).toLowerCase()} and cannot be ${choice === "accept" ? "accepted" : "rejected"} from here. Open it in Proposals.`);
+      if (!path) throw new Error(`This Proposed Story is ${stateLabel(view.state, false).toLowerCase()} and cannot be ${choice === "accept" ? "accepted" : "rejected"} from here. Open it in Proposals.`);
       const receipt = await api.transitionProposalPath(draftId, path);
       if (receipt.status !== "ok") throw new Error(proposalReceiptMessage(receipt));
       const decided: DraftView = { ...view, state: choice === "accept" ? "approved" : "declined", decided: choice };
@@ -307,7 +307,7 @@ export function NotificationCenter({
         setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
         if (closing) await markRead(request.id);
       } catch (failure) {
-        throw new Error(`The draft was ${choice === "accept" ? "accepted" : "rejected"} in Proposals, but this request could not record it. ${failure instanceof Error ? failure.message : ""}`.trim());
+        throw new Error(`The Proposed Story was ${choice === "accept" ? "accepted" : "rejected"} in Proposals, but this request could not record it. ${failure instanceof Error ? failure.message : ""}`.trim());
       }
     } catch (failure) {
       if (!demo) void loadDraftsFor([request]);
@@ -375,7 +375,7 @@ export function NotificationCenter({
       const request = latest.current.requests.find((entry) => entry.id === payload.item.request.id) ?? payload.item.request;
       const view = latest.current.drafts[payload.item.draftId];
       const decision = draftDecisionOf(request.links.find((link) => link.id === payload.item.draftId), view, { by: actorLabel, at: now.toISOString() });
-      if (!decision) throw new Error("This draft has not been decided yet.");
+      if (!decision) throw new Error("This Proposed Story has not been decided yet.");
       store(await api.saveReviewReason(request, draftReasonUpdate(request, payload.item.draftId, { ...decision, title: decision.title ?? view?.headline, why }, actorLabel, now)));
     } else if (payload.kind === "request") {
       const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;

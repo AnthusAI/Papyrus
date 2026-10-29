@@ -486,17 +486,17 @@ export function NeedsMeView({
           <div className="flex flex-col items-center gap-2 rounded-[20px] bg-[var(--feed-card)] px-6 py-12 text-center" data-notification-caught-up>
             <CircleCheckBigIcon aria-hidden="true" className="size-10 text-primary" />
             <h2 className="text-2xl font-bold tracking-tight">All caught up</h2>
-            <p className="max-w-md text-sm text-muted-foreground">Nothing needs you right now. New drafts, references, emails and reviews will appear here as they arrive.</p>
+            <p className="max-w-md text-sm text-muted-foreground">Nothing needs you right now. New Proposed Stories, references, emails and reviews will appear here as they arrive.</p>
           </div>
         ) : null}
 
         {draftsFailed ? (
           <Note role="alert">
-            <p>The drafts could not be loaded right now.</p>
+            <p>The Proposed Stories could not be loaded right now.</p>
             <button className={cn(PILL, "mt-3 bg-[var(--feed-control)] text-foreground")} onClick={onRetryDrafts} type="button">Try again</button>
           </Note>
         ) : null}
-        {missingDraftCount ? <p className="text-sm text-muted-foreground" data-needs-me-missing-drafts>{missingDraftCount} of these drafts {missingDraftCount === 1 ? "is" : "are"} not in Proposals on this site, so they cannot be opened here.</p> : null}
+        {missingDraftCount ? <p className="text-sm text-muted-foreground" data-needs-me-missing-drafts>{missingDraftCount} of these Proposed Stories {missingDraftCount === 1 ? "is" : "are"} not in Proposals on this site, so they cannot be opened here.</p> : null}
 
         {referencesLoading && !placed.feed.length ? (
           <NotificationSkeleton count={3} bare />

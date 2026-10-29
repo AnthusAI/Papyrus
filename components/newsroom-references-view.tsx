@@ -4,7 +4,7 @@ import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
 import { ReferenceCurationControls, useReferenceImport } from "./reference-curation-controls";
 
-import { ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
+import { ArrowLeftIcon, ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +13,6 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
@@ -45,7 +41,6 @@ import { newsroomListRowClassName } from "../lib/newsroom-list-selection";
 import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceStories } from "./reference-stories";
 import { useReferencePreviewAttachments } from "./use-reference-preview-attachments";
-import { useMediaQuery } from "./use-media-query";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
@@ -58,8 +53,6 @@ import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from 
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
 import { cn } from "@/lib/utils";
-import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
-import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
 import {
   ReviewCard,
   predictionFromDecision,
@@ -405,12 +398,8 @@ export function NewsroomReferencesView({
   savedCopy = null,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
-  // The portaled mobile sheet sits outside the newsroom root, so it carries the theme attributes itself (same as useNewsroomThemeAttributes).
-  const themeMode = useResolvedPapyrusTheme();
-  const themeAttributes = { "data-kanbus-theme": getKanbusTheme(SITE_BRAND), "data-color-mode": themeMode };
   const sessionImport = useReferenceImport(disabled);
   const [importedCount, setImportedCount] = useState(0);
-  const isMobileDetail = useMediaQuery("(max-width: 767px)");
   const pathnameLineageId = useMemo(
     () => parseReferenceLineageIdFromNewsroomPathname(pathname),
     [pathname],
@@ -498,7 +487,6 @@ export function NewsroomReferencesView({
   );
   const filters = decisions?.size ? [NEEDS_REVIEW_FILTER, ...STATUS_FILTERS] : STATUS_FILTERS;
   const [selectedLineageId, setSelectedLineageId] = useState(routeLineageId);
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(Boolean(routeLineageId) && isMobileDetail);
 
   const filteredReferences = useMemo(
     () => statusFilter === "needs_review"
@@ -551,18 +539,11 @@ export function NewsroomReferencesView({
 
   useEffect(() => {
     setSelectedLineageId(routeLineageId);
-    if (isMobileDetail) setMobileDetailOpen(Boolean(routeLineageId));
-  }, [isMobileDetail, routeLineageId]);
-
-  useEffect(() => {
-    if (isMobileDetail) return;
-    setMobileDetailOpen(false);
-  }, [isMobileDetail]);
+  }, [routeLineageId]);
 
   const selectReference = (lineageId: string) => {
     setCaughtUp(false);
     setSelectedLineageId(lineageId);
-    if (isMobileDetail) setMobileDetailOpen(true);
     if (typeof window !== "undefined") {
       const nextPath = buildReferenceDetailPath(lineageId, demo);
       if (`${window.location.pathname}${window.location.search}` !== nextPath) {
@@ -587,7 +568,6 @@ export function NewsroomReferencesView({
 
   const closeDetail = () => {
     setCaughtUp(false);
-    setMobileDetailOpen(false);
     setSelectedLineageId("");
     if (typeof window !== "undefined") {
       const indexPath = getNewsroomNavHref("/newsroom/references", demo);
@@ -667,17 +647,20 @@ export function NewsroomReferencesView({
     ? "No references match this filter."
     : "No private references imported yet.";
 
-  // The grid must not move when a detail opens, so in the feed the detail pane's place is reserved all the time (from the md breakpoint
-  // up): opening it changes nothing, and the grid's column count follows the width it has beside that place, never the selection. Below
-  // md the detail is a sheet over the grid. There is no overlay mode: an overlay would hide the cards Previous / Next scrolls to.
+  // Two layouts, chosen by the viewport, never by the selection. From the `lg` breakpoint (1024px, an iPad in landscape) the detail is a
+  // pane to the right of the feed, and the grid's column count follows the width it has beside that pane. Below it (phones and a tablet in
+  // portrait) there is one column: the feed, or, once a reference is open, its detail in the feed's place at the full width with a Back
+  // control. There is no overlay: an overlay would hide the cards Previous / Next scrolls to.
+  const detailOpen = Boolean(selectedReference) || caughtUp;
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col gap-4 md:max-h-[100dvh] md:flex-row"
+      className="flex min-h-0 flex-1 flex-col gap-4 lg:max-h-[100dvh] lg:flex-row"
+      data-reference-layout={detailOpen ? "detail" : "feed"}
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 md:overflow-hidden">
+      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:flex lg:overflow-hidden", detailOpen && "max-lg:hidden")} data-reference-feed-column>
         <div className="flex shrink-0 items-center justify-between gap-3" {...FEED_SURFACE_PROPS}>
           <div className="min-w-0 space-y-0.5">
             <h2 className="text-2xl font-bold tracking-tight">References</h2>
@@ -886,9 +869,9 @@ export function NewsroomReferencesView({
 
       <div
         className={cn(
-          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] md:w-[min(100%,24rem)] md:pb-16 lg:w-[min(100%,28rem)]",
-          // The pane appears once a reference is selected (or when the queue is done); until then the feed has the whole width.
-          (selectedReference || caughtUp) && "md:flex",
+          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] lg:w-[min(100%,24rem)] lg:pb-16 xl:w-[min(100%,28rem)]",
+          // The detail appears once a reference is selected (or when the queue is done); until then the feed has the whole width.
+          detailOpen && "flex",
         )}
         data-newsroom-list-detail-shell
         data-news-desk-section="references"
@@ -897,6 +880,10 @@ export function NewsroomReferencesView({
         {...FEED_SURFACE_PROPS}
       >
         <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-3 pb-1">
+          <Button className="-ml-2 lg:hidden" data-reference-back onClick={closeDetail} size="sm" type="button" variant="ghost">
+            <ArrowLeftIcon aria-hidden="true" />
+            References
+          </Button>
           <span className="text-sm font-medium text-foreground">Detail</span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
@@ -931,50 +918,6 @@ export function NewsroomReferencesView({
         {queueBar}
       </div>
 
-      {isMobileDetail ? (
-        <Sheet
-          onOpenChange={(open) => {
-            if (!open) closeDetail();
-            else setMobileDetailOpen(true);
-          }}
-          open={(mobileDetailOpen && Boolean(selectedReference)) || caughtUp}
-        >
-          <SheetContent className="gap-0 rounded-t-[length:var(--feed-radius-xl)] bg-[var(--feed-card)] p-0" data-feed-flat="" data-feed-surface="" side="bottom" {...themeAttributes}>
-            <SheetHeader className="border-b border-border px-4 py-3">
-              <SheetTitle className="text-left text-base">Reference</SheetTitle>
-            </SheetHeader>
-            {selectedReference ? (
-              <div className="min-w-0" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}><ScrollArea className="max-h-[70dvh]">
-                <ReferenceDetailPanel
-                  key={referenceLineageId(selectedReference)}
-                  captureTeaserLine={teaserLine}
-              correctCapture={onCorrectCapture}
-                  ratings={ratings}
-                  sectionChoices={sectionChoices}
-                  predictionState={predictionState}
-              reviewReason={reviewReasons?.get(referenceLineageId(selectedReference))}
-              reviewSectionId={reviewSectionIds?.get(referenceLineageId(selectedReference))}
-                  countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}
-              delegated={delegatedCurations?.get(referenceLineageId(selectedReference))}
-                  decision={decisions?.get(referenceLineageId(selectedReference))}
-                  demo={demo}
-                  disabled={disabled}
-                  onClose={closeDetail}
-                  onMessageCount={setMessageCount}
-                  onRelevanceReview={onRelevanceReview ? (curation) => onRelevanceReview(selectedReference, curation) : undefined}
-                  onReview={runReview}
-                  sectionAgreement={sectionAgreement}
-                  sectionSuggestion={sectionSuggestions?.get(referenceLineageId(selectedReference))}
-                  sections={sections}
-                  previewAttachments={previewAttachments}
-                  reference={selectedReference}
-                />
-              </ScrollArea></div>
-            ) : caughtUp ? caughtUpPanel : null}
-            {queueBar}
-          </SheetContent>
-        </Sheet>
-      ) : null}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import {
 
 const FILTERS: Array<{ key: ProposalFilter; label: string }> = [
   { key: "open", label: "Open" },
-  { key: "draft", label: "Drafts" },
+  { key: "draft", label: "Proposed" },
   { key: "in_steering", label: "In steering" },
   { key: "editor_review", label: "Editor review" },
   { key: "decided", label: "Decided" },
@@ -42,8 +42,8 @@ export function ProposalsView(props: ProposalsViewProps) {
   const shown = filterProposals(sorted, props.filter);
   return (
     <section aria-labelledby="newsroom-proposals-title" data-news-desk-admin-panel="proposals">
-      <h3 id="newsroom-proposals-title">Proposals</h3>
-      <p>Story drafts and other changes that AI proposes. Editors pin, hold and decide them. Only editors and admins can see this.</p>
+      <h3 id="newsroom-proposals-title">Proposed Stories</h3>
+      <p>Proposed Stories and other changes that AI proposes. Editors pin, hold and decide them. Only editors and admins can see this.</p>
       <p role="tablist" aria-label="Proposal views">
         {FILTERS.filter((entry) => props.readers || entry.key !== "in_steering").map((entry) => (
           <span key={entry.key}>
@@ -73,7 +73,7 @@ export function ProposalsView(props: ProposalsViewProps) {
                 {row.summary ? <p>{row.summary}</p> : null}
                 {row.body ? (
                   <details open={props.focusId === row.id || undefined}>
-                    <summary>Read the draft</summary>
+                    <summary>Read the Proposed Story</summary>
                     <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{row.body}</pre>
                   </details>
                 ) : null}

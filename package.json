@@ -70,6 +70,7 @@
     "test:infra-site-config": "tsx scripts/test-infra-site-config.ts",
     "test:prospectus-site-identity": "tsx scripts/test-prospectus-site-identity.ts",
     "test:messages-page": "tsx --test scripts/test-conversation-feed.ts && tsx scripts/test-messages-page.ts && cucumber-js --profile messagesPage",
+    "test:newsroom-ux-review": "tsx scripts/test-newsroom-ux-review.ts && cucumber-js --profile newsroomUxReview",
     "test:conversations": "tsx --test scripts/test-conversation-lib.ts && tsx scripts/test-conversations.ts && cucumber-js --profile conversations",
     "test:reference-feed": "tsx scripts/test-newsroom-all-pages.ts && tsx scripts/test-reference-feed-ranking.ts && tsx scripts/test-reference-feed.ts && tsx scripts/test-reference-sync.ts && cucumber-js --profile referenceFeed",
     "export:reference-feed-fixture": "python3 scripts/export-reference-feed-fixture.py",

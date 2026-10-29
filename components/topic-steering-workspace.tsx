@@ -4409,8 +4409,8 @@ function AdministrationDeskView({
                 data-active={administrationPanel === "proposals" || undefined}
                 onClick={() => onPanelChange("proposals")}
               >
-                <strong>Proposals</strong>
-                <span>Story drafts and changes that AI proposes</span>
+                <strong>Proposed Stories</strong>
+                <span>Proposed Stories and changes that AI proposes</span>
               </Link>
               {readerPluginEnabled() ? (
                 <Link

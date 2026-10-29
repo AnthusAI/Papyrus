@@ -66,6 +66,13 @@ Feature: An editor reviews references even when a prediction is unavailable
     Then the prediction bar sits above the buttons, and the buttons and the reason field span the card
     And every icon is a Lucide icon and nothing scrolls sideways
 
+  Scenario: The detail is full width up to a tablet in portrait and a side pane from a tablet in landscape
+    Given an isolated inbox of synthetic pending references
+    When the editor opens a reference at 375, 768, 834, 1024 and 1440 pixels
+    Then at 375, 768 and 834 the detail takes the feed's place at the full width with a Back control that returns to the feed
+    And at 1024 and 1440 the detail is a pane of 24 to 28rem to the right of the feed, with no Back control
+    And at every width nothing scrolls sideways and the detail is in the page, not a sheet over it
+
   Scenario: An empty inbox explains that no references have been imported
     Given an isolated inbox of synthetic pending references
     When the editor opens an inbox with no imported references

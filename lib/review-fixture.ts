@@ -18,7 +18,7 @@ export const FIXTURE_REVIEW_REQUESTS: ReviewRequest[] = [
     history: [], appliedIn: null, updatedAt: "2026-10-23T07:00:00Z",
   },
   {
-    id: "rr-soft-1", subject: { type: "proposal", id: "proposal-9" }, mode: "soft_review", reason: "A trend story draft is ready",
+    id: "rr-soft-1", subject: { type: "proposal", id: "proposal-9" }, mode: "soft_review", reason: "A trend Proposed Story is ready",
     ask: null, raisedBy: "trend-pipeline", raisedAt: "2026-10-22T07:00:00Z", deadline: "2026-10-25T07:00:00Z", state: "open", answer: null,
     links: [], history: [], appliedIn: null, updatedAt: "2026-10-22T07:00:00Z",
   },

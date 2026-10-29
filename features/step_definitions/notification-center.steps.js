@@ -15,7 +15,7 @@ const scenarios = [
   ["content", "the editor opens the Notification Center at 375 and 1440 pixels",
     ["every draft card shows its type, headline, dek and what happens if it is left alone, with Accept and Reject and no prediction row",
       "the header counts drafts, nothing scrolls sideways, no card has a border, and the retired Approve, Steer and Agree wording is gone",
-      "opening a draft shows its headline, section, evidence, citations, a link to the full draft in Proposals and a Why box"]],
+      "opening a draft shows its headline, section, evidence, citations, a link to the full Proposed Story in Proposals and a Why box"]],
   ["decide", "the editor accepts one draft, rejects one with a Why and the \"Not this kind of story\" chip written in the detail pane, and accepts the last",
     ["each Proposal is moved to approved or declined, decided cards stay in place showing their answer, and the request stays open until the last draft is decided",
       "the request closes with every decision recorded, \"not this kind\" as its one steering signal, and the page says \"All caught up\" and lists what was decided"]],
@@ -26,7 +26,7 @@ const scenarios = [
   ["closing", "the drafts were already decided in Proposals, or none or only some of them can be opened here",
     ["the request closes itself, takes Accept or Reject on the request, or lets the openable drafts finish it",
       "a failed load offers Try again"]],
-  ["references", "the editor looks at pending References and uses the Drafts and References pills at 375 and 1440 pixels",
+  ["references", "the editor looks at pending References and uses the Proposed Stories and References pills at 375 and 1440 pixels",
     ["each Reference card marks the predicted Accept or Reject with its confidence, or says there is no prediction",
       "a card opens the same detail pane the References page has, a rating is saved through the References review, and an empty pill says so"]],
   ["mixed", "the editor opens a feed that mixes a hard gate, drafts, References and a held email at 375 and 1440 pixels",
@@ -73,7 +73,7 @@ When("the editor opens and reads items without deciding them", { timeout: 240_00
 When("the editor looks at Editorial work", { timeout: 60_000 }, async function () {
   this.notificationResult = await run("scripts/test-newsroom-organizer-nav.ts");
 });
-Then("Drafts opens the Proposals panel", function () {
+Then("Proposed Stories opens the Proposals panel", function () {
   assert.ok(this.notificationResult.includes("PASS"));
 });
 

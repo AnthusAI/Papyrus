@@ -35,7 +35,7 @@ export const NEEDS_ME_TYPES: readonly NeedsMeType[] = ["reference", "draft", "st
 export type NeedsMeFilter = "all" | "references" | "drafts" | "stories" | "email" | "captures" | "other";
 export const NEEDS_ME_FILTERS: readonly NeedsMeFilter[] = ["all", "references", "drafts", "stories", "email", "captures", "other"];
 export const NEEDS_ME_FILTER_LABELS: Record<NeedsMeFilter, string> = {
-  all: "All", references: "References", drafts: "Drafts", stories: "Stories", email: "Email", captures: "Captures", other: "Other",
+  all: "All", references: "References", drafts: "Proposed Stories", stories: "Stories", email: "Email", captures: "Captures", other: "Other",
 };
 
 const FILTER_OF: Record<NeedsMeType, Exclude<NeedsMeFilter, "all">> = {
@@ -52,7 +52,7 @@ export function matchesFilter(item: Pick<NeedsMeItem, "type">, filter: NeedsMeFi
 
 /** The words for a type, used on the card and in the detail pane. */
 export const NEEDS_ME_TYPE_LABELS: Record<NeedsMeType, string> = {
-  reference: "Reference", draft: "AI draft", stage_review: "Story review", held_email: "Held email", incomplete_capture: "Capture check", concept_proposal: "Concept proposal", flag: "For your information",
+  reference: "Reference", draft: "Proposed Story", stage_review: "Story review", held_email: "Held email", incomplete_capture: "Capture check", concept_proposal: "Concept proposal", flag: "For your information",
 };
 
 export type NeedsMePrediction = {

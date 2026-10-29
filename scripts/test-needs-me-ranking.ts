@@ -112,7 +112,7 @@ const everything: NeedsMeItem[] = [
 ];
 assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, drafts: 1, stories: 1, email: 1, captures: 1, other: 2 });
 assert.deepEqual(everything.filter((entry) => matchesFilter(entry, "other")).map((entry) => entry.id), ["7", "8"]);
-assert.equal(waitingTextFor(countNeedsMe(everything)), "1 draft, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
+assert.equal(waitingTextFor(countNeedsMe(everything)), "1 Proposed Story, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
 assert.equal(waitingTextFor(countNeedsMe([])), "All caught up");
 
 // This week is a calendar week (Monday, UTC), and agreement counts only References that had a prediction.

@@ -164,7 +164,7 @@ export function DraftBody(props: DetailProps & { payload: Extract<NeedsMeEntry["
   const { item: draft } = payload;
   const view = draft.view;
   if (!view) {
-    return <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" role="status"><Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Loading the draft…</p>;
+    return <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground" role="status"><Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Loading the Proposed Story…</p>;
   }
   return (
     <div className="space-y-4" data-draft-detail={draft.draftId}>
@@ -196,16 +196,16 @@ export function DraftBody(props: DetailProps & { payload: Extract<NeedsMeEntry["
                 </li>
               );
             })}
-            {view.moreSources ? <li className="self-center text-xs text-muted-foreground">and {view.moreSources} more in the full draft</li> : null}
+            {view.moreSources ? <li className="self-center text-xs text-muted-foreground">and {view.moreSources} more in the full Proposed Story</li> : null}
           </ul>
         </section>
       ) : null}
       <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span data-draft-caption>{requestCaption(draft.request)}</span>
-        <Link className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline" data-draft-open href={view.href}>Open full draft<ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" /></Link>
+        <Link className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline" data-draft-open href={view.href}>Open full Proposed Story<ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" /></Link>
       </p>
       <DefaultOutcome item={item} />
-      <DecisionPanel {...props} lockedNote={<>To change it, <Link className="text-primary underline underline-offset-4" href={view.href}>open the draft in Proposals</Link>.</>} />
+      <DecisionPanel {...props} lockedNote={<>To change it, <Link className="text-primary underline underline-offset-4" href={view.href}>open the Proposed Story in Proposals</Link>.</>} />
     </div>
   );
 }
