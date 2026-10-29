@@ -202,6 +202,58 @@ export function FeedImage({ host, lead, name, src }: { host: string | null; lead
   );
 }
 
+/**
+ * The standard Reference header: its picture, source, headline, dek and age. The feed card wraps it in the button that opens the
+ * Reference, and the Messages page shows it under a conversation as the thing the conversation is about. No decision controls.
+ */
+export function ReferenceCardHeader({ capture, lead = false, messageCount = 0, now, preview, reference, titleId }: {
+  capture?: CaptureStatus | undefined;
+  lead?: boolean;
+  messageCount?: number;
+  now: number;
+  preview: ReferencePreview | undefined;
+  reference: ReferenceRecord;
+  titleId?: string;
+}) {
+  const host = referenceSourceHost(reference);
+  const site = preview?.siteName ?? host ?? "Unknown source";
+  const title = referenceDisplayTitle(reference);
+  const dek = referenceDek(reference, preview);
+  const showDek = dekAddsInformation(title, dek, preview?.imageUrl ?? null);
+  const time = referenceDisplayTime(reference);
+  const age = formatFeedAge(time, now);
+  return (
+    <>
+        <FeedImage host={host} lead={lead} name={site} src={preview?.imageUrl ?? null} />
+        <span className={cn("flex flex-1 flex-col gap-2.5", lead ? "p-5 @[36rem]:p-7" : "p-5")}>
+          <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground" data-feed-source>
+            <SourceMark host={host} />
+            <span className="truncate">{site}</span>
+          </span>
+          <span className={cn("font-bold leading-[1.15] tracking-tight text-foreground", lead ? "line-clamp-3 text-2xl @[36rem]:text-3xl @[60rem]:text-4xl" : "line-clamp-3 text-xl")} data-feed-title id={titleId}>
+            {title}
+          </span>
+          {showDek ? <span className={cn("text-muted-foreground", lead ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")} data-feed-dek>{dek}</span> : null}
+          <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-muted-foreground">
+            <span>
+              {age ? <time dateTime={new Date(time ?? now).toISOString()} title={new Date(time ?? now).toLocaleString()}>{age}</time> : null}
+              {age && host ? <span aria-hidden="true"> · </span> : null}
+              {host}
+            </span>
+            {capture ? <CaptureBadge status={capture} /> : null}
+            {messageCount > 0 ? (
+              <span aria-label={messageCountLabel(messageCount)} className="inline-flex items-center gap-1 tabular-nums" data-feed-message-count={messageCount} role="img">
+                <MessageSquareIcon aria-hidden="true" className="size-3.5" />
+                {messageCount}
+              </span>
+            ) : null}
+            {isAutoAccepted(reference) ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}
+          </span>
+        </span>
+    </>
+  );
+}
+
 export function FeedCard({
   capture,
   messageCount = 0,
@@ -283,32 +335,7 @@ export function FeedCard({
         onClick={onOpen}
         type="button"
       >
-        <FeedImage host={host} lead={lead} name={site} src={preview?.imageUrl ?? null} />
-        <span className={cn("flex flex-1 flex-col gap-2.5", lead ? "p-5 @[36rem]:p-7" : "p-5")}>
-          <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground" data-feed-source>
-            <SourceMark host={host} />
-            <span className="truncate">{site}</span>
-          </span>
-          <span className={cn("font-bold leading-[1.15] tracking-tight text-foreground", lead ? "line-clamp-3 text-2xl @[36rem]:text-3xl @[60rem]:text-4xl" : "line-clamp-3 text-xl")} data-feed-title id={titleId}>
-            {title}
-          </span>
-          {showDek ? <span className={cn("text-muted-foreground", lead ? "line-clamp-3 text-base" : "line-clamp-2 text-sm")} data-feed-dek>{dek}</span> : null}
-          <span className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-xs text-muted-foreground">
-            <span>
-              {age ? <time dateTime={new Date(time ?? now).toISOString()} title={new Date(time ?? now).toLocaleString()}>{age}</time> : null}
-              {age && host ? <span aria-hidden="true"> · </span> : null}
-              {host}
-            </span>
-            {capture ? <CaptureBadge status={capture} /> : null}
-            {messageCount > 0 ? (
-              <span aria-label={messageCountLabel(messageCount)} className="inline-flex items-center gap-1 tabular-nums" data-feed-message-count={messageCount} role="img">
-                <MessageSquareIcon aria-hidden="true" className="size-3.5" />
-                {messageCount}
-              </span>
-            ) : null}
-            {isAutoAccepted(reference) ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}
-          </span>
-        </span>
+        <ReferenceCardHeader capture={capture} lead={lead} messageCount={messageCount} now={now} preview={preview} reference={reference} titleId={titleId} />
       </button>
 
       <div className="relative bg-[var(--feed-footer)] px-4 pb-4 pt-3" data-feed-actions>

@@ -1,7 +1,8 @@
 "use client";
 
-import { Loader2Icon, MessageSquarePlusIcon, ReplyIcon, TriangleAlertIcon, CornerDownRightIcon } from "lucide-react";
+import { Loader2Icon, MessageSquarePlusIcon, MessagesSquareIcon, ReplyIcon, TriangleAlertIcon, CornerDownRightIcon } from "lucide-react";
 import { useMemo, useState } from "react";
+import { latestMessages } from "../lib/conversation-feed";
 import { buildConversationTree, conversationAge, conversationAuthorName, type ConversationMessage } from "../lib/conversation";
 import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
@@ -17,7 +18,7 @@ const PILL_QUIET = cn(PILL, "text-muted-foreground hover:bg-[var(--feed-control)
  * A box for writing a Message. The text clears the moment you post, so the Message shows at once; if the save fails the text comes
  * back (unless you have typed something new) with the reason, and nothing you wrote is lost.
  */
-function Composer({ autoFocus = false, buttonLabel, disabledReason, icon, label, onCancel, onSubmit, placeholder }: {
+export function Composer({ autoFocus = false, buttonLabel, disabledReason, icon, label, onCancel, onSubmit, placeholder }: {
   autoFocus?: boolean;
   buttonLabel: string;
   disabledReason?: string | null;
@@ -115,24 +116,31 @@ function MessageBody({ answers, message, now, onReply, replying, tone }: {
  * The Messages of one conversation, replies nested one level under their top-level Message, and a box to add another. It knows
  * nothing about where the Messages come from: the caller loads them and saves a post.
  */
-export function ConversationThread({ disabledReason = null, error = null, heading = "Messages", messages, now, onPost, onRetry, state = "ready" }: {
+export function ConversationThread({ disabledReason = null, error = null, heading = "Messages", hideHeading = false, latest, messages, now, onPost, onRetry, state = "ready" }: {
   disabledReason?: string | null;
   error?: string | null;
   heading?: string;
+  /** Keep the heading for screen readers only (the Messages page labels the card itself). */
+  hideHeading?: boolean;
+  /** Show only the newest this-many top-level messages (with their replies), and say how many are held back. */
+  latest?: number;
   messages: ReadonlyArray<ConversationMessage>;
   now: number;
   onPost: (body: string, parentMessageId: string | null) => Promise<void>;
   onRetry?: () => void;
   state?: ConversationState;
 }) {
-  const tree = useMemo(() => buildConversationTree(messages), [messages]);
+  const fullTree = useMemo(() => buildConversationTree(messages), [messages]);
+  const [showAll, setShowAll] = useState(false);
+  const { shown: tree, hidden: hiddenRoots } = latestMessages(fullTree, latest ?? Number.MAX_SAFE_INTEGER, showAll);
+  const hiddenCount = hiddenRoots ? messages.length - tree.reduce((sum, root) => sum + 1 + root.replies.length, 0) : 0;
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const authorOf = (id: string) => conversationAuthorName(messages.find((message) => message.id === id)?.authorLabel);
   const toggleReply = (id: string) => setReplyingTo((current) => (current === id ? null : id));
 
   return (
     <section aria-label={heading} className="space-y-3" data-conversation-thread>
-      <h3 className={cn(LABEL, "text-muted-foreground")}>{heading}</h3>
+      <h3 className={cn(LABEL, "text-muted-foreground", hideHeading && "sr-only")}>{heading}</h3>
       {state === "loading" ? <p className="flex items-center gap-1.5 text-sm text-muted-foreground" data-conversation-loading><Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Loading messages</p> : null}
       {state === "error" ? (
         <p className="flex flex-wrap items-center gap-2 text-sm text-destructive" role="alert">
@@ -142,6 +150,12 @@ export function ConversationThread({ disabledReason = null, error = null, headin
         </p>
       ) : null}
       {state === "ready" && !tree.length ? <p className="text-sm text-muted-foreground" data-conversation-empty>No messages yet. Write down what this made you think.</p> : null}
+      {hiddenCount > 0 ? (
+        <button className={cn(PILL_QUIET, "w-full bg-[var(--feed-control)]/45")} data-conversation-show-all onClick={() => setShowAll(true)} type="button">
+          <MessagesSquareIcon aria-hidden="true" className="size-4" />
+          Show all {messages.length} messages
+        </button>
+      ) : null}
       <ul className="space-y-3">
         {tree.map((root) => (
           <li className="space-y-2" key={root.message.id}>
