@@ -32,7 +32,7 @@ import { NotificationSkeleton, RecentDecisions } from "./notification-cards";
 import { FEED_GRID, FEED_SURFACE_PROPS, FeedImage, PILL, REASON_LABELS, SELECTED_RING, SourceMark } from "./reference-feed";
 import { predictionFromDecision, ReviewQueueBar, useQueueGestures, type CardPrediction, type ReviewChoice } from "./reference-review-card";
 import type { CorrectCaptureAction } from "./reference-capture-client";
-import { RatingGrid } from "./review-rating-grid";
+import { DecisionControl } from "./decision-control";
 import { useMediaQuery } from "./use-media-query";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { useResolvedPapyrusTheme } from "./use-resolved-papyrus-theme";
@@ -169,30 +169,24 @@ export function NeedsMeCard({ item, now, onOpen, predictionLoading, ratings, sel
         {flag ? (
           <FlagFooter busy={rating.feedback.phase === "saving"} disabledReason={disabledReason} done={item.decisionState === "acknowledged"} error={rating.feedback.phase === "error" ? rating.feedback.message ?? null : null} onAcknowledge={() => ratings.choose(item.id, "accept")} />
         ) : (
-          <RatingGrid
+          <DecisionControl
             answer={chosen}
             decided={decided}
             disabled={Boolean(disabledReason) || locked}
             disabledReason={disabledReason}
             feedback={feedback}
+            needsReason={refLike && rating.askReason}
             note={reasonLabel ? `Reason: ${reasonLabel}` : locked ? whyLine ?? "Decided here." : null}
             onChoose={(choice) => { if (!disabledReason && !locked) ratings.choose(item.id, choice); }}
+            onReasonChange={(text) => ratings.setNote(item.id, text)}
+            onReasonCommit={() => { if (!disabledReason && !locked) ratings.commitNote(item.id); }}
             prediction={cardPrediction(item, predictionLoading)}
+            reason={rating.note ?? ""}
+            reasonRequiredFor={refLike ? "reject" : null}
             showPrediction={refLike}
+            showReason={refLike}
           />
         )}
-        {refLike && rating.askReason ? (
-          // Covers the footer rather than adding to it, so asking for a reason never pushes the cards below it down.
-          <div className="absolute inset-0 z-10 flex flex-col justify-center space-y-2 bg-[var(--feed-footer)] p-3" data-review-reasons>
-            <p className="text-xs font-medium">Reason for rejecting. Choose one to save your Reject.</p>
-            <div className="flex flex-wrap gap-1.5">
-              {REFERENCE_REJECTION_REASON_CODES.map((code) => (
-                <button className={cn(PILL, "min-h-8 bg-[var(--feed-control)] px-3 text-xs")} data-review-reason={code} key={code} onClick={() => ratings.setReason(item.id, code)} type="button">{REASON_LABELS[code]}</button>
-              ))}
-              <button className={cn(PILL, "min-h-8 px-3 text-xs text-muted-foreground")} onClick={() => ratings.cancelReason(item.id)} type="button">Cancel</button>
-            </div>
-          </div>
-        ) : null}
       </div>
     </article>
   );

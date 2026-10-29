@@ -39,10 +39,10 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Then the request closes itself, takes Accept or Reject on the request, or lets the openable drafts finish it
     And a failed load offers Try again
 
-  Scenario: References keep the Cyclotron row and the pills narrow the feed
+  Scenario: References keep their prediction and the pills narrow the feed
     Given an isolated Notification Center with a batch of three AI drafts
     When the editor looks at pending References and uses the Drafts and References pills at 375 and 1440 pixels
-    Then each Reference card shows the Cyclotron's Accept or Reject with its confidence, or says there is no prediction
+    Then each Reference card marks the predicted Accept or Reject with its confidence, or says there is no prediction
     And a card opens the same detail pane the References page has, a rating is saved through the References review, and an empty pill says so
 
   Scenario: Hard gates come first, types are mixed, and the pills count and filter

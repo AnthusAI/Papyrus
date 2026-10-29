@@ -9,16 +9,16 @@ Given("an isolated inbox of synthetic pending references", function () {
 });
 
 const behaviors = [
-  ["selection", "the editor selects a pending reference on desktop and mobile", "its review card has a Cyclotron row that says there is no prediction and a You row with Accept and Reject"],
+  ["selection", "the editor selects a pending reference on desktop and mobile", "its review card says there is no prediction, and offers Accept and Reject"],
   ["feedback", "the editor accepts, adds a Why note, and later rejects by choosing a reason chip", "the answers, the reason and the Why note survive a fresh page load"],
   ["recovery", "the editor double taps Accept and the save fails before a retry succeeds", "only one request is sent per attempt and the failed attempt says so in words and keeps the Why note"],
   ["revision_from_message", "the editor reloads a rejected reference and clears its saved explanation", "the reason from review history remains selected and the cleared explanation survives another reload"],
-  ["predictions", "the editor opens a reference with publication and Section predictions", "the Cyclotron row highlights its Accept or Reject with its confidence and never invents one"],
+  ["predictions", "the editor opens a reference with publication and Section predictions", "the predicted side is marked and the bar carries its confidence, and never invents one"],
   ["prediction_failure", "the editor retries a failed prediction read", "the error is distinct from an absent prediction"],
-  ["prediction_loading", "the editor opens a reference while predictions are loading", "the Cyclotron row says Loading and the controls stay usable"],
+  ["prediction_loading", "the editor opens a reference while predictions are loading", "the control says it is reading the prediction and stays usable"],
   ["readonly", "a person without editing permission selects a reference", "the card says in words that editor access is required and no tap sends a request"],
   ["queue", "the editor works through the pending queue at 375 and 1440 pixels", "a bottom bar shows Previous, the position and Next with one URL per item"],
-  ["card_layout", "the editor opens a reference at 375 and 1440 pixels", "the Cyclotron row sits above the You row and the Why box spans the card"],
+  ["card_layout", "the editor opens a reference at 375 and 1440 pixels", "the prediction bar sits above the buttons, and the buttons and the reason field span the card"],
   ["empty", "the editor opens an inbox with no imported references", "the inbox explains the empty state without rendering reference rows"],
 ];
 
@@ -74,7 +74,7 @@ When("the editor opens the References page at four desktop sizes", { timeout: 30
 });
 for (const step of [
   "the feed scroller and the Detail pane both end at the bottom of the viewport",
-  "the confidence bar sits midway between the Cyclotron row and the You row on a card and in the Detail pane",
+  "the confidence bar sits above the buttons on a card and in the Detail pane",
   "the space under a card's You buttons is no larger than the card's side padding",
 ]) {
   Then(step, function () {

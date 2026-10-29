@@ -78,7 +78,7 @@ try {
 
     // Sync: vote on the card, then a reason in the pane (both show Saved); a Reject on the card, its reason chosen in the pane.
     ({ context, page } = await newPage());
-    const accept = page.locator("[data-feed-card]:not([data-feed-rated]):has([data-predicted][data-cyclotron-choice=accept])").first();
+    const accept = page.locator("[data-feed-card]:not([data-feed-rated]):has([data-review-choice=accept][data-predicted])").first();
     await accept.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await accept.locator("[data-review-choice=accept]").click();
     await page.waitForTimeout(600);
@@ -90,7 +90,7 @@ try {
     await page.screenshot({ path: name("sync-vote-then-reason") });
     console.log(name("sync-vote-then-reason"));
     if (phone) { await page.keyboard.press("Escape"); await page.waitForTimeout(500); await accept.evaluate((element) => element.scrollIntoView({ block: "center" })); await page.screenshot({ path: name("sync-card-after-pane-reason") }); console.log(name("sync-card-after-pane-reason")); }
-    const reject = page.locator("[data-feed-card]:not([data-feed-rated]):has([data-predicted][data-cyclotron-choice=accept])").nth(1);
+    const reject = page.locator("[data-feed-card]:not([data-feed-rated]):has([data-review-choice=accept][data-predicted])").nth(1);
     await reject.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await reject.locator("[data-review-choice=reject]").click();
     await reject.locator("[data-feed-open]").click();

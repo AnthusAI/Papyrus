@@ -293,8 +293,9 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup("?decision=1");
     try {
       await selectA(page);
-      const cyclotron = detail(page).locator('[data-review-row="cyclotron"]');
-      assert.equal(await cyclotron.locator('[data-predicted]').innerText().then((t) => t.replace(/\s+/g, " ").trim()), "Accept 79%");
+      const cyclotron = detail(page).locator("[data-decision-control]");
+      assert.match(await cyclotron.locator("[data-review-choice][data-predicted]").innerText().then((t) => t.replace(/\s+/g, " ").trim()), /^accept predicted$/i);
+      assert.equal(await cyclotron.locator("[data-confidence-value]").innerText(), "79%", "the confidence is in the bar");
       assert.equal(await cyclotron.locator("[data-verdict]").count(), 0, "no verdict before the human answers");
       await you(page, "accept").click(); await settle(page); await status(page, "accepted");
       const match = cyclotron.locator('[data-verdict="match"]');
@@ -333,8 +334,8 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       await page.getByText(/Loading predictions/i).waitFor();
-      await detail(page).locator('[data-cyclotron-state="loading"]').waitFor();
-      assert.match(await detail(page).locator('[data-cyclotron-state="loading"]').innerText(), /Loading…/);
+      await detail(page).locator('[data-prediction-state="loading"]').waitFor();
+      assert.match(await detail(page).locator("[data-prediction-caption]").innerText(), /reading the prediction/i);
       assert.equal(await you(page, "accept").getAttribute("aria-disabled"), null);
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
@@ -346,7 +347,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.getByText(/Predictions unavailable/i).waitFor();
       assert.ok(!/No prediction$/m.test(await detail(page).innerText()), "failed reads are not reported as missing data");
       await page.getByRole("button", { name: "Retry predictions", exact: true }).click();
-      await detail(page).locator('[data-cyclotron-state="none"]').waitFor();
+      await detail(page).locator('[data-prediction-state="none"]').waitFor();
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -419,22 +420,27 @@ const scenarios: Record<string, () => Promise<void>> = {
         const rows = await page.evaluate(`(() => {
           const panel = [...document.querySelectorAll("[data-review-card]")].find((e) => e.offsetParent);
           const top = (sel) => panel.querySelector(sel).getBoundingClientRect().top;
-          return { root: panel.getBoundingClientRect().width, cyclotron: top('[data-review-row="cyclotron"]'), you: top('[data-review-row="you"]'), why: panel.querySelector("textarea").getBoundingClientRect().width, scrollX: document.documentElement.scrollWidth - innerWidth };
+          return { root: panel.getBoundingClientRect().width, cyclotron: top("[data-confidence-bar]"), you: top('[data-review-row="you"]'), why: panel.querySelector("textarea").getBoundingClientRect().width, scrollX: document.documentElement.scrollWidth - innerWidth };
         })()`) as { root: number; cyclotron: number; you: number; why: number; scrollX: number };
-        assert.ok(rows.cyclotron < rows.you, "the Cyclotron row sits above the You row");
+        assert.ok(rows.cyclotron < rows.you, "the prediction bar sits above the buttons");
         assert.ok(rows.why >= rows.root - 2, "the Why textarea spans the card");
         assert.ok(rows.scrollX <= 0, "no horizontal page scroll");
-        // One grid: each You button sits exactly under its Cyclotron cell, and the confidence bar spans both columns.
-        const grid = await page.evaluate(`(() => {
+        // One control: the bar above the two buttons, and the buttons and the reason field in the same column.
+        const control = await page.evaluate(`(() => {
           const panel = [...document.querySelectorAll("[data-review-card]")].find((e) => e.offsetParent);
           const box = (sel) => { const r = panel.querySelector(sel).getBoundingClientRect(); return { x: r.x, w: r.width, y: r.y }; };
-          return { ca: box('[data-review-row="cyclotron"] [data-cyclotron-choice="accept"]'), cr: box('[data-review-row="cyclotron"] [data-cyclotron-choice="reject"]'),
-            ya: box('[data-review-row="you"] [data-review-choice="accept"]'), yr: box('[data-review-row="you"] [data-review-choice="reject"]'), bar: box("[data-confidence-bar]") };
-        })()`) as Record<"ca" | "cr" | "ya" | "yr" | "bar", { x: number; w: number; y: number }>;
-        assert.ok(Math.abs(grid.ca.x - grid.ya.x) < 0.5 && Math.abs(grid.ca.w - grid.ya.w) < 0.5, "Accept sits exactly under Accept");
-        assert.ok(Math.abs(grid.cr.x - grid.yr.x) < 0.5 && Math.abs(grid.cr.w - grid.yr.w) < 0.5, "Reject sits exactly under Reject");
-        assert.ok(Math.abs(grid.bar.x - grid.ca.x) < 0.5 && Math.abs(grid.bar.x + grid.bar.w - (grid.cr.x + grid.cr.w)) < 0.5, "the bar spans both columns");
-        assert.ok(grid.ca.y < grid.bar.y && grid.bar.y < grid.ya.y, "Cyclotron cells, then the bar, then your buttons");
+          return { bar: box("[data-confidence-bar]"), accept: box('[data-review-choice="accept"]'), reject: box('[data-review-choice="reject"]'),
+            field: box("[data-review-reason] textarea") };
+        })()`) as Record<"bar" | "accept" | "reject" | "field", { x: number; w: number; y: number }>;
+        assert.ok(control.bar.y < control.accept.y, "the prediction bar sits above the buttons");
+        assert.ok(control.accept.y === control.reject.y && control.accept.x < control.reject.x, "Accept left, Reject right, on one row");
+        assert.ok(Math.abs(control.accept.w - control.reject.w) < 0.5, "the two buttons are the same width");
+        const left = control.accept.x;
+        const right = control.reject.x + control.reject.w;
+        for (const [name, part] of [["the bar", control.bar], ["the reason field", control.field]] as const) {
+          assert.ok(Math.abs(part.x - left) < 0.5 && Math.abs(part.x + part.w - right) < 0.5, `${name} spans the same column as the buttons`);
+        }
+        assert.ok(control.field.y > control.accept.y, "the reason field sits under the buttons");
         for (const icon of await page.locator("[data-review-card] button svg, [data-review-queue-bar] svg").all()) assert.ok(await icon.evaluate((svg) => svg.classList.contains("lucide") || [...svg.classList].some((c) => c.startsWith("lucide"))), "icons are Lucide");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }

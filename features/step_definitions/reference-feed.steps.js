@@ -33,15 +33,17 @@ const outcomes = [
     "nothing scrolls sideways and there are no drop-downs",
   ]],
   ["grid", [
-    "the Cyclotron row and the You row share the label, Accept and Reject columns exactly, on a card and in the review card, at 375 and 1440 pixels",
-    "on a card as narrow as 240 pixels every icon, word and percentage fits inside its cell, the confidence wrapping onto its own line",
-    "a confidence bar spans both columns, centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one",
+    "the prediction bar, the Accept and Reject buttons and the reason field are all the same width, on a card and in the review card, at 375 and 1440 pixels",
+    "there is no second row of prediction cells: the predicted side is marked on the button itself",
+    "the confidence bar is centred at 50%, filling toward Accept for an Accept-leaning prediction and toward Reject for a Reject-leaning one",
     "the fill's length is the prediction's distance from 50% doubled, and with no prediction the bar is empty and says No prediction",
-    "before a vote the predicted cell is neutral with a Check or X icon",
+    "the confidence is printed in the bar and on no button, moving beside the fill when the fill is too short to hold it",
+    "before an answer the predicted button carries its own tone and says Predicted, with no border anywhere",
   ]],
   ["verdict", [
-    "the matching prediction cell is green with a CircleCheck and says Match, and the confidence bar is green",
-    "the differing prediction cell is red with a CircleX and says Miss, and the confidence bar is red",
+    "the chosen button says Confirmed when it agrees with the prediction and Overturned when it does not",
+    "the marker on the predicted side and the confidence bar turn green for a confirmation and red for an overturn",
+    "the chosen button itself is never tinted by the verdict: it is the same fill either way",
     "the chosen button is filled and the other is quiet, and tapping the chosen one does not unselect it",
   ]],
   ["design", [
@@ -64,8 +66,9 @@ const outcomes = [
   ]],
   ["lifecycle", [
     "each rated card stays in its place and shows Saved",
-    "the Cyclotron's chip says Match with a check or Miss with a cross, in words and an icon as well as colour",
-    "Rejecting asks for a reason in words and changes nothing until one is chosen",
+    "the answered button says Confirmed or Overturned, in words and a marker as well as colour",
+    "Rejecting asks for a written reason in words and changes nothing until one is given",
+    "while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded",
     "the Rated tab lists the most recent answer first, and the next visit lists the answered cards there",
   ]],
 ];
@@ -126,8 +129,8 @@ for (const [name, texts] of syncOutcomes) {
     Then(text, { timeout: 300_000 }, async function () { assert.ok((await sync(name)).includes(`Reference sync scenario passed: ${name}`)); });
   }
 }
-When("the editor accepts a card, then rejects it with a reason, and rejects a card the Cyclotron expected to be rejected", function () { this.feedResult = ""; });
-When("the editor votes with the Cyclotron's side and against it", function () { this.feedResult = ""; });
+When("the editor accepts a card, then rejects it with a written reason, and rejects a card that was predicted Reject", function () { this.feedResult = ""; });
+When("the editor answers with the predicted side and against it", function () { this.feedResult = ""; });
 When("the editor opens how this feed is ranked", function () { this.feedResult = ""; });
 When("the editor opens the References page while the session is still being confirmed", function () { this.feedResult = ""; });
 for (const [name, texts] of outcomes) {

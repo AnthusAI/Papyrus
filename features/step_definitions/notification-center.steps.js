@@ -27,7 +27,7 @@ const scenarios = [
     ["the request closes itself, takes Accept or Reject on the request, or lets the openable drafts finish it",
       "a failed load offers Try again"]],
   ["references", "the editor looks at pending References and uses the Drafts and References pills at 375 and 1440 pixels",
-    ["each Reference card shows the Cyclotron's Accept or Reject with its confidence, or says there is no prediction",
+    ["each Reference card marks the predicted Accept or Reject with its confidence, or says there is no prediction",
       "a card opens the same detail pane the References page has, a rating is saved through the References review, and an empty pill says so"]],
   ["mixed", "the editor opens a feed that mixes a hard gate, drafts, References and a held email at 375 and 1440 pixels",
     ["the hard gate is the first card and says it is a hard gate, and no third card of one type follows two of the same while another type waits",

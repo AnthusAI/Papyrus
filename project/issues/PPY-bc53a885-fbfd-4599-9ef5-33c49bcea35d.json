@@ -1,0 +1,25 @@
+{
+  "id": "PPY-bc53a885-fbfd-4599-9ef5-33c49bcea35d",
+  "title": "Redesign the review rating grid against the Papyrus design system",
+  "description": "As an editor reviewing references, I want the rating grid to speak the shared Papyrus design language, so that the Cyclotron/You comparison reads and re-skins the same way on every site that reuses it.\n\nScope:\n- Take every tone, corner and opacity from named feed tokens; no literal palette values in the component.\n- Verdict tones (Match/Miss) move into the feed layer in light and dark. Tailwind's dark: variant is .dark-scoped and never fires in this app, so the old dark: colours were dead code and a Match cell rendered dark-green ink on a dark card.\n- Focus ring 3px.\n- A switched-off grid never votes, whatever the caller passes.\n- Keep the flat, borderless, tone-separated feed language, the container-query behaviour and the green/red verdict contract the executable specs assert.\n\nDefinition of Done: review-rating-grid.tsx holds no literal colour or corner; dark verdicts resolve through [data-color-mode=dark]; the reference-feed verdict, grid, design, refusal, lifecycle and layout scenarios pass; the grid is documented in the Papyrus design system.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T19:41:11.827374Z",
+  "updated_at": "2026-10-29T19:41:16.768812Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Opus 5",
+    "name": "Claude Code desktop session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

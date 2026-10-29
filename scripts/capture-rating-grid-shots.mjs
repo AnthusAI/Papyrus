@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Screenshots of the rating grid (Cyclotron row, confidence bar, You row) on feed cards and in the review card, from the local preview.
+ * Screenshots of the decision control (prediction bar, the two buttons, the reason field) on feed cards and in the review card, from the local preview.
  *   PAPYRUS_PREVIEW_URL=http://127.0.0.1:3003 PAPYRUS_FEED_SHOTS_DIR=<dir> node scripts/capture-rating-grid-shots.mjs
  * The Reject-leaning cards use the preview-only, labelled synthetic Rejects (?feedSynthRejects=6): real data has none yet.
  */
@@ -33,8 +33,8 @@ try {
       await locator.screenshot({ path: file });
       console.log(file);
     };
-    const accept = page.locator('[data-feed-card]:has([data-predicted][data-cyclotron-choice="accept"])').first();
-    const reject = page.locator('[data-feed-card]:has([data-predicted][data-cyclotron-choice="reject"])').first();
+    const accept = page.locator('[data-feed-card]:has([data-review-choice="accept"][data-predicted])').first();
+    const reject = page.locator('[data-feed-card]:has([data-review-choice="reject"][data-predicted])').first();
     await shoot(accept, "card-accept-leaning");
     await shoot(reject, "card-reject-leaning-synthetic");
     await accept.locator('[data-review-choice="accept"]').click();
@@ -47,14 +47,14 @@ try {
     // The same grid in the review card: open an unrated Accept-leaning and an unrated Reject-leaning card.
     const review = () => page.locator("[data-review-card]").locator("visible=true").first();
     const open = async (selector) => { await page.locator(selector).first().locator("[data-feed-open]").click(); await review().waitFor(); await page.waitForTimeout(700); };
-    await open('[data-feed-card]:not([data-feed-rated]):has([data-predicted][data-cyclotron-choice="accept"])');
+    await open('[data-feed-card]:not([data-feed-rated]):has([data-review-choice="accept"][data-predicted])');
     await shoot(review(), "detail-accept-leaning");
     await review().locator('[data-review-choice="accept"]').click();
     await page.waitForTimeout(900);
     await shoot(review(), "detail-after-match");
     await page.keyboard.press("Escape");
     await page.waitForTimeout(500);
-    await open('[data-feed-card]:not([data-feed-rated]):has([data-predicted][data-cyclotron-choice="reject"])');
+    await open('[data-feed-card]:not([data-feed-rated]):has([data-review-choice="reject"][data-predicted])');
     await shoot(review(), "detail-reject-leaning-synthetic");
     await review().locator('[data-review-choice="accept"]').click();
     await page.waitForTimeout(900);
