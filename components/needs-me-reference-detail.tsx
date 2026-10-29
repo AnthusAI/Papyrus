@@ -4,7 +4,8 @@ import { referenceDisplayTitle, referenceLineageId, formatReferenceListDate } fr
 import { referenceMetadataField } from "../lib/reference-display";
 import { referenceDek, referencePreviewsByLineage } from "../lib/reference-preview";
 import { DEFAULT_TEASER_WORDS } from "../lib/reference-capture";
-import { referenceReasonCode, normalizeReferenceCurationStatus } from "../lib/reference-policy";
+import { isAutoAccepted, referenceReasonCode, normalizeReferenceCurationStatus } from "../lib/reference-policy";
+import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import type { ReferenceRecord } from "../lib/category-repository";
 import type { NeedsMeEntry } from "../lib/needs-me-items";
 import { DefaultOutcome, Heading, type DetailProps } from "./needs-me-bodies";
@@ -36,16 +37,17 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
   const summary = capture.summary ?? referenceMetadataField(null, reference.metadata, "summary");
   const dek = referenceDek(reference, referencePreviewsByLineage(previewAttachments).get(lineageId));
   const incomplete = item.type === "incomplete_capture";
+  const auto = isAutoAccepted(reference);
   return (
     <div className="space-y-4" data-reference-curation-status={status} data-news-desk-reference-detail={lineageId}>
       <ReviewCard
         decided={decidedChoiceOf(item)}
         disabledReason={disabledReason}
-        initialNote={status === "pending" ? "" : reference.curationStatusReason ?? ""}
+        initialNote={status === "pending" || auto ? "" : reference.curationStatusReason ?? ""}
         initialReason={referenceReasonCode(reference) ?? null}
         dek={dek}
         itemId={item.id}
-        meta={<Heading item={item} />}
+        meta={<><Heading item={item} />{auto ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}</>}
         onDecide={async () => undefined}
         prediction={cardPrediction(item, predictionLoading)}
         ratings={ratings}

@@ -62,7 +62,8 @@ def step_items(context):
     for number, row in enumerate(context.table, start=1):
         number = len(held.rows) + 1
         days = float(row["days ago"])
-        status = (row.get("status") or "pending").strip() if "status" in row.headings else "pending"
+        status = (row.get("status") or "accepted").strip() if "status" in row.headings else "accepted"
+        by = (row.get("accepted by") or "").strip() if "accepted by" in row.headings else ""
         item = reference(number, status=status, days_ago=days, title=row["title"], corpus=getattr(held, "corpus", CORPUS))
         details = {}
         if "likes" in row.headings and row["likes"].strip():
@@ -72,6 +73,8 @@ def step_items(context):
         if "days to accept" in row.headings and row["days to accept"].strip():
             created = datetime.fromisoformat(item["createdAt"].replace("Z", "+00:00"))
             item["curationStatusUpdatedAt"] = (created + timedelta(days=float(row["days to accept"]))).isoformat().replace("+00:00", "Z")
+        if by:
+            item["curationStatusUpdatedBy"] = by
         held.rows.append(item)
         held.numbers[row["title"]] = number
         held.incoming[item["lineageId"]] = [provenance(item, row["monitor"].strip(), details or None)]
@@ -84,7 +87,7 @@ def step_items(context):
 @given("a Reference that no monitor delivered arrived {days:d} day ago")
 def step_unmonitored(context, days):
     held = state(context)
-    item = reference(len(held.rows) + 1, status="pending", days_ago=days, title="Added by hand")
+    item = reference(len(held.rows) + 1, status="accepted", days_ago=days, title="Added by hand")
     held.rows.append(item)
     held.incoming[item["lineageId"]] = []
 
@@ -176,6 +179,11 @@ def run_drafts(context, *, limit=monitor_stories.DEFAULT_LIMIT, dry_run=False, p
         )
     held.runs.append(run)
     return run
+
+
+@when('the operator drafts monitor stories reading the statuses "{statuses}"')
+def step_statuses(context, statuses):
+    run_drafts(context, statuses=statuses.split(","))
 
 
 @when("the operator drafts monitor stories with the default limit")
@@ -418,3 +426,13 @@ def step_stopped(context):
 @then("the operator is told the command needs OPENAI_API_KEY")
 def step_key(context):
     assert state(context).error and "OPENAI_API_KEY" in state(context).error
+
+
+@then("the run record counts {count:d} pending item that was not read because it was not accepted")
+def step_not_accepted(context, count):
+    assert last(context)["inputs"]["notAccepted"] == count, last(context)["inputs"]
+
+
+@then("the run record counts {count:d} pending items that were not read because they were not accepted")
+def step_not_accepted_plural(context, count):
+    step_not_accepted(context, count)

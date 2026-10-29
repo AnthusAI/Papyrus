@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "event_id": "a607a953-15dc-4604-bc8b-136aa337a8ad",
+  "issue_id": "PPY-ad264d06-231b-4eb4-8fb1-c8ab24431911",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-29T10:38:53.687Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Auto-accept confident unvoted References after a learned delay; monitor stories draft only from accepted",
+    "description": "Ryan (owner): (1) papyrus ideas monitor-stories reads only accepted References by default (--status accepted[,pending] overrides). (2) The router accepts a pending Reference automatically when its Cyclotron verdict is positive, its confidence reaches a threshold learned per publication (Wilson 95% lower bound of the editors' accept rate >= target precision), and nobody voted within a delay learned from editor vote latency (q-quantile). Writes curationStatusUpdatedBy auto:cyclotron, never sent to Cyclotron as a human label; the newsroom shows Accepted automatically with an icon. Config autoAccept on router publications; off when absent.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "Claude Sonnet 5.5"
+    }
+  }
+}

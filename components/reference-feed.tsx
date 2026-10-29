@@ -3,7 +3,7 @@
 import { InfoIcon, Loader2Icon } from "lucide-react";
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
-import { REFERENCE_REJECTION_REASON_CODES, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
+import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import {
   referenceDisplayTime,
   groupFeedItems,
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { predictionFromDecision, type ReviewChoice } from "./reference-review-card";
 import { RatingGrid } from "./review-rating-grid";
 import { CaptureBadge } from "./reference-capture-panel";
+import { AutoAcceptedBadge } from "./auto-accepted-badge";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import type { CaptureStatus } from "../lib/reference-capture";
 
@@ -293,6 +294,7 @@ export function FeedCard({
               {host}
             </span>
             {capture ? <CaptureBadge status={capture} /> : null}
+            {isAutoAccepted(reference) ? <AutoAcceptedBadge actor={reference.curationStatusUpdatedBy} reason={reference.curationStatusReason} /> : null}
           </span>
         </span>
       </button>

@@ -15,7 +15,7 @@
  */
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
-import { normalizeReferenceCurationStatus } from "./reference-policy";
+import { isAutoAccepted, normalizeReferenceCurationStatus } from "./reference-policy";
 import { referenceLineageId } from "./newsroom-references";
 
 /** Fewer accepted examples than this and there is no freshness weight: a constant is never guessed. */
@@ -60,6 +60,7 @@ export function learnFreshness(references: ReferenceRecord[], ignore: ReadonlySe
   const ages: number[] = [];
   for (const reference of references) {
     if (normalizeReferenceCurationStatus(reference.curationStatus) !== "accepted" || ignore.has(referenceLineageId(reference))) continue;
+    if (isAutoAccepted(reference)) continue; // an automatic acceptance happens after the editors' usual time, so it says nothing about how fast they act
     const arrived = referenceArrivalTime(reference);
     const decided = timeOf(reference.curationStatusUpdatedAt);
     if (arrived === null || decided === null) continue;

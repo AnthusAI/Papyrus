@@ -43,19 +43,49 @@ Feature: A site writes about the items its monitors find
     When the operator drafts monitor stories with the default limit
     Then 0 stories are drafted
 
-  Scenario: Only monitored, current, wanted items are candidates
+  Scenario: Only monitored, current, accepted items are candidates
     Given the monitors of the site delivered these items:
       | monitor | title                  | verdict       | days ago | status   |
       | hn      | Pending and recent     | include 0.80  | 1        | pending  |
       | hn      | Accepted and recent    | include 0.70  | 2        | accepted |
       | hn      | Rejected by an editor  | include 0.99  | 1        | rejected |
-      | hn      | Old but still wanted   | include 0.99  | 30       | pending  |
-      | hn      | Judged not relevant    | exclude 0.05  | 1        | pending  |
+      | hn      | Old but still wanted   | include 0.99  | 30       | accepted |
+      | hn      | Judged not relevant    | exclude 0.05  | 1        | accepted |
     And a Reference that no monitor delivered arrived 1 day ago
     And every linked page can be read
     When the operator drafts monitor stories with the default limit
-    Then the three stories drafted are "Old but still wanted", "Pending and recent" and "Accepted and recent"
+    Then the stories drafted are "Old but still wanted" and "Accepted and recent"
     And the run record counts 1 item judged not relevant and 1 that no monitor delivered
+    And the run record counts 1 pending item that was not read because it was not accepted
+
+  Scenario: Pending items are not written about by default, however confident the Cyclotron is
+    Given the monitors of the site delivered these items:
+      | monitor | title                | verdict      | days ago | status  |
+      | hn      | Sure but unreviewed  | include 0.99 | 1        | pending |
+      | hn      | Also unreviewed      | include 0.95 | 2        | pending |
+    And every linked page can be read
+    When the operator drafts monitor stories with the default limit
+    Then 0 stories are drafted
+    And the run record counts 2 pending items that were not read because they were not accepted
+
+  Scenario: An item the Cyclotron accepted automatically is drafted like one an editor accepted
+    Given the monitors of the site delivered these items:
+      | monitor | title                 | verdict      | days ago | status   | accepted by    |
+      | hn      | Accepted by the system | include 0.97 | 3        | accepted | auto:cyclotron |
+    And every linked page can be read
+    When the operator drafts monitor stories with the default limit
+    Then the stories drafted are "Accepted by the system"
+
+  Scenario: The status option brings pending items back in
+    Given the monitors of the site delivered these items:
+      | monitor | title                  | verdict      | days ago | status   |
+      | hn      | Pending and recent     | include 0.80 | 1        | pending  |
+      | hn      | Accepted and recent    | include 0.70 | 2        | accepted |
+      | hn      | Rejected by an editor  | include 0.99 | 1        | rejected |
+    And every linked page can be read
+    When the operator drafts monitor stories reading the statuses "accepted,pending"
+    Then the stories drafted are "Pending and recent" and "Accepted and recent"
+    And the run record counts 0 pending items that were not read because they were not accepted
 
   Scenario: There is no default window, so an old, highly relevant item is still considered
     Given the monitors of the site delivered these items:
@@ -89,8 +119,8 @@ Feature: A site writes about the items its monitors find
       | hn      | Accepted 8           | include 0.10 | 20       | accepted | 2              |
       | hn      | Accepted 9           | include 0.10 | 20       | accepted | 2              |
       | hn      | Accepted 10          | include 0.10 | 20       | accepted | 2              |
-      | hn      | Old and relevant     | include 0.90 | 40       | pending  |                |
-      | hn      | Fresh and decent     | include 0.60 | 1        | pending  |                |
+      | hn      | Old and relevant     | include 0.90 | 40       | accepted |                |
+      | hn      | Fresh and decent     | include 0.60 | 1        | accepted |                |
     And every linked page can be read
     When the operator drafts monitor stories as a dry run with a limit of 1
     Then the stories drafted are "Fresh and decent"
@@ -101,8 +131,8 @@ Feature: A site writes about the items its monitors find
       | monitor | title                | verdict      | days ago | status   | days to accept |
       | hn      | Accepted 1           | include 0.10 | 20       | accepted | 2              |
       | hn      | Accepted 2           | include 0.10 | 20       | accepted | 2              |
-      | hn      | Old and relevant     | include 0.90 | 40       | pending  |                |
-      | hn      | Fresh and decent     | include 0.60 | 1        | pending  |                |
+      | hn      | Old and relevant     | include 0.90 | 40       | accepted |                |
+      | hn      | Fresh and decent     | include 0.60 | 1        | accepted |                |
     And every linked page can be read
     When the operator drafts monitor stories with a limit of 1
     Then the stories drafted are "Old and relevant"

@@ -40,7 +40,13 @@ const decision = (label, confidence) => ({ decisionRelationId: "r", decisionId: 
   classes: ["include", "exclude"], positiveLabel: "include", question: null, reviewControl: "thumbs", cyclotronId: "c", decidedAt: null, provenance: null });
 const make = (id, fields = {}) => ({ id: id + "-v1", lineageId: id, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: id, title: "Title of " + id, sourceUri: "https://" + id + ".example.org/story", curationStatus: "pending", createdAt: ago(0.4), sourcePublishedAt: ago(0.4), ...fields });
 const learned = params.has("tau") ? Array.from({ length: 10 }, (_, index) => make("learned-" + index, { curationStatus: "accepted", createdAt: ago(6), sourcePublishedAt: ago(6), curationStatusUpdatedAt: ago(5) })) : [];
+const auto = params.has("auto") ? [
+  make("auto-accepted", { curationStatus: "accepted", curationStatusUpdatedBy: "auto:cyclotron", curationStatusUpdatedAt: ago(0.1), curationStatusReason: "Accepted automatically by the Cyclotron: it was 96.0% sure." }),
+  make("rule-accepted", { curationStatus: "accepted", curationStatusUpdatedBy: "auto:rule", curationStatusUpdatedAt: ago(0.15), curationStatusReason: "Accepted automatically by the ttab monitor's rule." }),
+  make("editor-accepted", { curationStatus: "accepted", curationStatusUpdatedBy: "editor@example.test", curationStatusUpdatedAt: ago(0.2) }),
+] : [];
 const FIXTURE = [
+  ...auto,
   make("strong-accept"), make("mid-accept"), make("no-prediction"), make("weak-reject"), make("broken-image"), make("strong-reject"),
   ...(params.has("tau") ? [make("aged-out", { createdAt: ago(9), sourcePublishedAt: ago(9) })] : []),
   ...learned,
@@ -330,6 +336,23 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok(marks.length > 0 && marks.every((src) => src.startsWith("/api/newsroom/source-icon?host=")), "every source icon is asked of the newsroom");
       await page.waitForFunction(() => !document.querySelector('[data-feed-card="broken-image"] [data-feed-image-fallback] [data-feed-source-mark] img'));
       assert.match(await fallback.locator("[data-feed-source-mark]").innerText(), /^\S$/, "a source with no icon shows its first letter");
+    });
+  },
+
+  /** A Reference the Cyclotron accepted on its own says so in words with an icon, and an editor's accept does not. */
+  async auto() {
+    await run("?auto", [375, 1440], async (page) => {
+      await page.locator("[data-feed-tab-button=rated]").click();
+      await card(page, "auto-accepted").waitFor();
+      const badge = card(page, "auto-accepted").locator("[data-auto-accepted]");
+      assert.equal(await badge.count(), 1, "the automatically accepted card carries the badge");
+      assert.ok((await badge.innerText()).includes("Accepted automatically"), "in words");
+      assert.equal(await badge.locator("svg").count(), 1, "with a Lucide icon");
+      const byRule = card(page, "rule-accepted").locator("[data-auto-accepted=rule]");
+      assert.equal(await byRule.count(), 1, "a rule monitor's delivery carries the badge too");
+      assert.ok((await byRule.innerText()).includes("Accepted automatically (by rule)"), "and says it was by rule");
+      assert.equal(await card(page, "editor-accepted").locator("[data-auto-accepted]").count(), 0, "an editor's accept is not marked");
+      assert.equal(await card(page, "auto-accepted").getAttribute("data-feed-rated"), "accept", "it still reads as accepted, and the editor can change it");
     });
   },
 

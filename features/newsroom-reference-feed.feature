@@ -91,6 +91,12 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And answering is switched off with the reason in words, and a saved copy never answers on its own
     And the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out
 
+  Scenario: A Reference accepted automatically, by the Cyclotron or by a monitor's rule, says so, in words and an icon, apart from an editor's accept
+    Given a Reference the Cyclotron accepted automatically, one a monitor's rule accepted, and another that an editor accepted
+    When the editor opens the Rated tab at 375 and 1440 pixels
+    Then the automatically accepted card says Accepted automatically with a Lucide icon, one accepted by a monitor's rule says so too, and the editor's accept carries no such mark
+    And both read as accepted, and the editor can still change either
+
   Scenario: The ranking is explained in plain words with this site's own numbers
     Given the feed is open
     When the editor opens how this feed is ranked

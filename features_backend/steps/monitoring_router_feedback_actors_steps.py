@@ -119,3 +119,42 @@ def step_no_switch(context):
 @given("the stored router config still says feedback is false")
 def step_old_switch(context):
     context.table_.put_item(tr.router_config(feedback=False))
+
+
+@when("the Cyclotron accepts a reference automatically")
+def step_auto(context):
+    context.references["reference-anth-us-101"] = tr.ref("accepted", "auto:cyclotron")
+
+
+@given("the Cyclotron accepted a reference automatically and the feedback task ran")
+def step_auto_ran(context):
+    context.references["reference-anth-us-101"] = tr.ref("accepted", "auto:cyclotron")
+    context.result = tr.feedback_run(context.table_, context.store, context.cyclotron, context.references)
+
+
+@when("an editor rejects that reference in the newsroom UI")
+def step_editor_rejects(context):
+    context.references["reference-anth-us-101"] = tr.ref("rejected", "editor@example.test", at="2026-10-22T01:00:00Z")
+
+
+@when("an editor accepts that reference in the newsroom UI")
+def step_editor_reaccepts(context):
+    context.references["reference-anth-us-101"] = tr.ref("accepted", "editor@example.test", at="2026-10-22T01:00:00Z")
+
+
+@then("one feedback was sent to Cyclotron with the label exclude")
+def step_sent_exclude(context):
+    sent = feedback_posts(context)
+    assert len(sent) == 1 and sent[0]["payload"]["label"] == "exclude", sent
+
+
+@then("the automatic acceptance stays queued as not a human curation")
+def step_auto_queued(context):
+    assert context.result["feedback"]["skipped"] == 1
+    row = context.table_.items[("MONITOR#hn", "DELIV#anth-us#reference-anth-us-101")]
+    assert row["gsi1pk"] == "FEEDBACK#hn#pending" and "not a human" in row["lastNote"], row
+
+
+@when("a monitor's rule accepts a reference automatically")
+def step_rule(context):
+    context.references["reference-anth-us-101"] = tr.ref("accepted", "auto:rule")
