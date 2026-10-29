@@ -967,7 +967,7 @@ def test_router_role_is_least_privilege():
     assert {r.split("apis/")[1].split("/")[0] for r in distinctive_resources} == {"${DistinctiveApiId}"}
     assert {r.rsplit("/", 1)[1] for r in distinctive_resources} == fields and "*" not in "".join(distinctive_resources)
     # Lab decisions are written as relevance_decision_is relations (a SemanticNode per label; the old relation is superseded).
-    # Only the cyclotron-decided publications get those grants; Distinctive is a `direct` monitor with no machine decision.
+    # Every cyclotron-decided publication gets those grants, Distinctive too: its web monitor has its own Cyclotron (the TTAB monitor stays `direct`).
     relations = _template()["Resources"]["RouterDecisionRelationPolicy"]["Properties"]
     assert relations["Roles"] == [("Ref", "RouterRole")]
     (relation_statement,) = relations["PolicyDocument"]["Statement"]
@@ -975,7 +975,8 @@ def test_router_role_is_least_privilege():
     assert relation_statement["Action"] == "appsync:GraphQL" and "*" not in "".join(relation_resources)
     assert {r.rsplit("/", 1)[1] for r in relation_resources} == {
         "getSemanticNode", "listSemanticRelationsBySubjectState", "createSemanticNode", "updateSemanticRelation"}
-    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}"}
+    assert {r.split("apis/")[1].split("/")[0] for r in relation_resources} == {"${AnthUsApiId}", "${PapyrusApiId}", "${ThreatIntelApiId}", "${DataParadeApiId}", "${PilobolusApiId}", "${ShippedApiId}", "${DistinctiveApiId}"}
+    assert len(relation_resources) == 4 * 7
     assert len(json.dumps(statements).replace(" ", "")) < 9_500    # IAM inline policy limit is 10,240 characters
     assert all(a != "dynamodb:Scan" for a in by_sid["MonitoringTable"]["Action"])
 
