@@ -211,6 +211,75 @@ def test_an_item_already_posted_unenriched_is_not_changed_by_a_later_enrichment(
     assert enrich.capture.calls == [] and len(cyclotron.posts()) == len(PUBS)
 
 
+# --- delivery attaches the link preview ---------------------------------------------------------------------------------------------------
+
+
+def test_the_capture_records_the_pages_link_preview_metadata():
+    from papyrus_content.reference_capture import capture_source
+    from curation_support import article_html, page
+    from papyrus_content.link_exploration import Exploration, PageMetadata
+
+    html = article_html()
+
+    def explorer(url, context=None, **kwargs):
+        return Exploration(True, url, None, "direct", response=page(html), metadata=PageMetadata(image_url="https://cdn.example.org/i.jpg", site_name="News"))
+
+    captured = capture_source("https://news.example.org/r1", explorer=explorer)
+    assert captured.preview == {"imageUrl": "https://cdn.example.org/i.jpg", "siteName": "News"}
+
+
+def preview_router(monkeypatch, table, capture):
+    import functools
+    from papyrus_content.link_exploration import Exploration
+    from papyrus_content.reference_images import attach_preview
+
+    references = [{"id": f"reference-{p}-101", "lineageId": f"reference-{p}-101", "versionNumber": 1,
+                   "sourceUri": "https://example.org/alpha"} for p in PUBS]
+    client, asked = MemoryClient(references), []
+    monkeypatch.setattr(me, "AttachmentStore", lambda c: MemoryStore(c))
+
+    def offline(url, **kwargs):
+        asked.append(url)
+        return Exploration(False, None, failure="offline")
+
+    store, cyclotron = setup_router(table)
+    result = go(table, store, cyclotron, enricher=enricher(capture), appsync=lambda endpoint: client,
+                previewer=functools.partial(attach_preview, explorer=offline, log=lambda line: None))
+    return client, asked, result
+
+
+def test_delivery_attaches_the_preview_the_capture_already_read_without_fetching_again(monkeypatch, table):
+    capture = good()
+    capture.preview = {"imageUrl": "https://cdn.example.org/alpha.jpg", "description": "Dek."}
+    client, asked, result = preview_router(monkeypatch, table, capture)
+    previews = [row for row in client.tables["ReferenceAttachment"].values() if row["role"] == "preview"]
+    assert len(previews) == len(PUBS) and asked == []
+    assert {row["sourceUri"] for row in previews} == {"https://cdn.example.org/alpha.jpg"}
+
+
+def test_delivery_fetches_the_page_once_when_the_capture_has_no_preview_and_a_failure_does_not_fail_delivery(monkeypatch, table):
+    client, asked, result = preview_router(monkeypatch, table, good())
+    assert len(asked) == len(PUBS) and result["counts"]["delivered"] == len(PUBS) and result["counts"]["deliveryFailed"] == 0
+    assert not [row for row in client.tables["ReferenceAttachment"].values() if row["role"] == "preview"]
+
+
+def test_a_reused_reference_gets_no_preview(monkeypatch, table):
+    from test_monitoring_router import Delivery as Base
+
+    class Reusing(Base):
+        def __call__(self, *args):
+            return {**super().__call__(*args), "referenceReused": True}
+
+    capture = good()
+    capture.preview = {"imageUrl": "https://cdn.example.org/alpha.jpg"}
+    references = [{"id": f"reference-{p}-101", "lineageId": f"reference-{p}-101", "versionNumber": 1, "sourceUri": "https://example.org/alpha"} for p in PUBS]
+    client, asked = MemoryClient(references), []
+    from papyrus_content.reference_images import attach_preview
+    store, cyclotron = setup_router(table)
+    go(table, store, cyclotron, enricher=enricher(capture), appsync=lambda endpoint: client, deliver=Reusing(), previewer=lambda *a, **k: asked.append(a))
+    assert asked == []
+
+
 # --- delivery copies the curation ------------------------------------------------------------------------------------------------------
 
 

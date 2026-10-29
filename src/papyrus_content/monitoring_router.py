@@ -1147,7 +1147,8 @@ class Router:
                  cyclotron: CyclotronClient | None, appsync: Callable[[str], Any], deliver=deliver_reference,
                  context_receipt=editorial_context_receipt, time_left: Callable[[], float] = lambda: 1e9,
                  start_procedure: Callable[[dict], None] | None = None, cognito=None, rung_job_ids=(),
-                 enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False):
+                 enricher: Enricher | None = None, max_decisions: int | None = None, hold_override: bool = False,
+                 previewer: Callable[..., Any] | None = None):
         self.store, self.config, self.monitor_id, self.now, self.run_id = store, config, monitor_id, now, run_id
         self.rung = {j for j in rung_job_ids if j}   # jobs a Decision Ready doorbell named: asked about despite their backoff
         self._fresh: set = set()     # jobs posted by this run: checked at once, their backoff starts with the next run
@@ -1155,6 +1156,7 @@ class Router:
         self._lab_state = None
         self.start_procedure = start_procedure
         self.cognito = cognito
+        self.previewer = previewer   # reference_images.attach_preview in the Lambda; None leaves new References without a preview
         self.enricher = enricher     # item enrichment (capture, summary, GROBID) before the decision; None leaves items as discovered
         self._enriched: dict = {}
         self.cyclotron, self.appsync_factory, self.deliver = cyclotron, appsync, deliver
@@ -1914,6 +1916,7 @@ class Router:
                 copied = self.copy_curation(publication, disc, result)   # before the procedure, so it only fills gaps
                 if copied:
                     state["curationCopy"] = copied
+                self.attach_preview(publication, disc, result)   # never raises, never touches the delivery
                 if not disc.get("editorSelectedReference"):
                     self.start_procedures(publication, disc, result)
             except Exception as error:
@@ -1924,6 +1927,24 @@ class Router:
                 self.counts["deliveryFailed"] += 1
             self.save(route)   # per publication, so a later crash keeps earlier progress
         return all_delivered
+
+    def attach_preview(self, publication: dict, disc: dict, result: dict):
+        """Give a NEWLY created Reference its link-preview attachment. A reused Reference is left alone. The page metadata the
+        item's enrichment capture already read is reused (no second fetch); without it the helper fetches the page once.
+        Swallows every failure: the Reference is already delivered."""
+        if self.previewer is None or result.get("referenceReused"):
+            return
+        try:
+            client = self.client(publication)
+            reference = client.get_record("Reference", result["referenceId"])
+            preview = None
+            row = self.store.get_any(self.monitor_id, enrich_sk(disc)) if self.enricher is not None else None
+            if row and isinstance((row.get("curation") or {}).get("preview"), dict):
+                from .reference_images import exploration_from_preview
+                preview = exploration_from_preview(str(reference["sourceUri"]), row["curation"]["preview"])
+            self.previewer(client, reference, exploration=preview)
+        except Exception as error:  # noqa: BLE001
+            print(json.dumps({"referencePreview": "failed", "referenceId": result.get("referenceId"), "reason": short(error)[:200]}))
 
     def record_delivery(self, publication: dict, disc: dict, route: dict, result: dict):
         decision = route["decision"]
@@ -2403,7 +2424,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
                cyclotron_factory: Callable[[dict], CyclotronClient] | None = None,
                start_procedure: Callable[[dict], None] | None = None, cognito=None, source_ids=None,
                rung_job_ids=(), enricher: Enricher | None = None, max_decisions: int | None = None,
-               hold_override: bool = False) -> dict:
+               hold_override: bool = False, previewer: Callable[..., Any] | None = None) -> dict:
     now = time.time() if now is None else now
     owner, run_id = owner or uuid.uuid4().hex, run_id or uuid.uuid4().hex
     raw = store.get_router_config(monitor_id)
@@ -2422,7 +2443,7 @@ def run_router(store, monitor_id: str = "hn", *, now: float | None = None, owner
         router = Router(store, config, monitor_id=monitor_id, now=now, run_id=run_id, cyclotron=cyclotron,
                         appsync=appsync, deliver=deliver, context_receipt=context_receipt, time_left=time_left,
                         start_procedure=start_procedure, cognito=cognito, rung_job_ids=rung_job_ids, enricher=enricher,
-                        max_decisions=max_decisions, hold_override=hold_override)
+                        max_decisions=max_decisions, hold_override=hold_override, previewer=previewer)
         outcome = (router.selected_references(source_ids) if task == "email-references" else
                    {"status": "skipped"} if task == "feedback" else router.collect() if task == "collect" else router.sweep())
         feedback = {"status": "skipped"} if task in ("route", "collect", "email-references") else router.feedback()
@@ -2502,15 +2523,16 @@ def handler(event, context):
     cognito, starter = boto3.client("cognito-idp"), lambda_procedure_starter(os.environ.get("PROCEDURE_RUNNER_FUNCTION"))
     from .monitoring_enrichment import lambda_enricher
     enricher = lambda_enricher()   # None unless the stack set ENRICHMENT_BUCKET
+    from .reference_images import attach_preview
     if is_decision_event(event):
         return handle_decision_ready(store, event, lambda monitor_id, job_id=None: run_router(
             store, monitor_id, task="collect", time_left=remaining, cognito=cognito, start_procedure=starter,
-            rung_job_ids=[job_id], enricher=enricher))
+            rung_job_ids=[job_id], enricher=enricher, previewer=attach_preview))
     cap = event.get("maxDecisions")
     if "maxDecisions" in event and (not isinstance(cap, int) or isinstance(cap, bool) or cap < 1):
         raise ValueError("maxDecisions must be a positive integer")
     result = run_router(store, str(event.get("monitorId") or "hn"), task=event.get("task"), time_left=remaining, source_ids=event.get("sourceIds"),
-                        cognito=cognito, start_procedure=starter, enricher=enricher, max_decisions=cap,
+                        cognito=cognito, start_procedure=starter, enricher=enricher, previewer=attach_preview, max_decisions=cap,
                         hold_override=event.get("holdOverride") is False)   # only false lifts the hold, and only for this invocation
     print(json.dumps({k: v for k, v in result.items() if k != "errors"} | {"errors": result.get("errors", [])[:3]}))
     return {k: result.get(k) for k in ("runId", "status", "reopened", "mode", "stoppedBy", "counts", "feedback", "waitingForClassifier", "posted")}
