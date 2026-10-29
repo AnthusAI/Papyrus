@@ -157,7 +157,8 @@ async function openSectionPlacement(page: Page) {
   if (!await summary.evaluate((element) => element.parentElement?.hasAttribute("open"))) await summary.click();
 }
 
-const WHY = "Why? (optional)";
+/** The reason field, now inside the decision control rather than a labelled box on the card. */
+const WHY = "[data-review-reason] textarea";
 const you = (page: Page, choice: "accept" | "reject") => detail(page).locator(`[data-review-row="you"] [data-review-choice="${choice}"]`);
 const reasonChip = (page: Page, code: string) => detail(page).locator(`[data-review-reason="${code}"]`);
 async function swipe(page: Page, from: number, to: number) {
@@ -177,7 +178,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       try {
         await selectA(page);
         const text = await detail(page).innerText();
-        assert.match(text, /No prediction/);
+        assert.match(text, /no prediction/i);
         assert.ok(!/Agree|Overrule|agreed/i.test(text), "one vocabulary: Accept and Reject only");
         for (const choice of ["accept", "reject"] as const) {
           assert.equal(await you(page, choice).getAttribute("aria-disabled"), null, "controls are never silently disabled");
@@ -185,10 +186,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         }
         assert.equal(await detail(page).locator("select").count(), 0, "no dropdowns");
         if (width === 1280) {
-          await detail(page).getByLabel(WHY, { exact: true }).fill("Keep my pending draft while filtering.");
+          await detail(page).locator(WHY).fill("Keep my pending draft while filtering.");
           await page.getByRole("tab", { name: /^All/ }).click();
           await detail(page).waitFor();
-          assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "Keep my pending draft while filtering.");
+          assert.equal(await detail(page).locator(WHY).inputValue(), "Keep my pending draft while filtering.");
           await page.getByRole("tab", { name: /^Pending/ }).click();
           await detail(page).waitFor();
           assert.ok(new URL(page.url()).pathname.endsWith("/reference-a"), "filter changes preserve the detail route");
@@ -229,12 +230,12 @@ const scenarios: Record<string, () => Promise<void>> = {
       await you(page, "accept").click();
       assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "true", "tapping the selected answer never unselects it");
       assert.equal(await requestCount(page), 1, "re-tapping the selected answer sends nothing");
-      await panel.getByLabel(WHY, { exact: true }).fill("A useful source for the publication.");
-      await panel.getByLabel(WHY, { exact: true }).blur();
+      await panel.locator(WHY).fill("A useful source for the publication.");
+      await panel.locator(WHY).blur();
       await settle(page);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "A useful source for the publication.");
       await page.reload(); await detail(page).waitFor();
-      assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "A useful source for the publication.");
+      assert.equal(await detail(page).locator(WHY).inputValue(), "A useful source for the publication.");
       // Switching to Reject with a Why already written saves at once: a typed reason is a reason. It carries
       // no code the editor did not pick — the curation Lambda reads the words for the code they name.
       const before = await requestCount(page);
@@ -261,13 +262,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       const panel = detail(page);
-      await panel.getByLabel(WHY, { exact: true }).fill("Keep my explanation on failure.");
+      await panel.locator(WHY).fill("Keep my explanation on failure.");
       await you(page, "accept").dblclick();
       assert.equal(await requestCount(page), 1, "a double click starts one mutation");
       await settle(page, true);
       await panel.getByRole("alert").filter({ hasText: "Fixture write failed" }).waitFor();
       await status(page, "pending");
-      assert.equal(await panel.getByLabel(WHY, { exact: true }).inputValue(), "Keep my explanation on failure.");
+      assert.equal(await panel.locator(WHY).inputValue(), "Keep my explanation on failure.");
       assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "false", "a failed save does not show as the answer");
       await you(page, "accept").click(); await settle(page); await status(page, "accepted");
       assert.equal(await requestCount(page), 2);
@@ -278,25 +279,25 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup();
     try {
       await selectA(page);
-      await detail(page).getByLabel(WHY, { exact: true }).fill("The source addresses a different audience.");
+      await detail(page).locator(WHY).fill("The source addresses a different audience.");
       await you(page, "reject").click();   // with a Why typed, this saves at once, carrying the words and no code
       await reasonChip(page, "out_of_scope").click();   // and the chip refines it once that lands
       await settle(page); await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2); await settle(page);
       await status(page, "rejected");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
       assert.equal(await reasonChip(page, "out_of_scope").getAttribute("aria-pressed"), "true", "reason is loaded from the persisted curation Message");
-      assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "The source addresses a different audience.");
-      await detail(page).getByLabel(WHY, { exact: true }).fill("");
-      await detail(page).getByLabel(WHY, { exact: true }).blur();
+      assert.equal(await detail(page).locator(WHY).inputValue(), "The source addresses a different audience.");
+      await detail(page).locator(WHY).fill("");
+      await detail(page).locator(WHY).blur();
       assert.equal(await requestCount(page), 1, "clearing the note saves without reselecting the persisted reason");
       await settle(page);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === null);
       await page.evaluate(() => (window as unknown as {fixtureRefresh: (note: string, reason: string) => void}).fixtureRefresh("Latest saved explanation.", "policy_exclusion"));
       await page.waitForFunction(() => (document.querySelector('textarea') as HTMLTextAreaElement)?.value === "Latest saved explanation.");
       assert.equal(await reasonChip(page, "policy_exclusion").getAttribute("aria-pressed"), "true", "untouched feedback follows live message updates");
-      await detail(page).getByLabel(WHY, { exact: true }).fill("My unsaved draft.");
+      await detail(page).locator(WHY).fill("My unsaved draft.");
       await page.evaluate(() => (window as unknown as {fixtureRefresh: (note: string, reason: string) => void}).fixtureRefresh("Another editor saved this.", "unavailable"));
-      assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "My unsaved draft.", "live updates preserve a dirty draft");
+      assert.equal(await detail(page).locator(WHY).inputValue(), "My unsaved draft.", "live updates preserve a dirty draft");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -356,7 +357,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       await page.getByText(/Predictions unavailable/i).waitFor();
-      assert.ok(!/No prediction$/m.test(await detail(page).innerText()), "failed reads are not reported as missing data");
+      assert.ok(!/no prediction$/im.test(await detail(page).innerText()), "failed reads are not reported as missing data");
       await page.getByRole("button", { name: "Retry predictions", exact: true }).click();
       await detail(page).locator('[data-prediction-state="none"]').waitFor();
       assert.deepEqual(errors, []);

@@ -26,8 +26,8 @@
   },
   "lastChange": {
     "by": "Ryan",
-    "at": "2026-10-29T20:54:01Z",
+    "at": "2026-10-29T22:26:46Z",
     "via": "Claude Code",
-    "note": "DecisionControl shipped as components/decision-control.tsx; the predicted state is tone, not a dashed edge."
+    "note": "Added ReferenceDetail and StoryDetail: the two composite newsroom panes, with what each gets wrong."
   }
 }

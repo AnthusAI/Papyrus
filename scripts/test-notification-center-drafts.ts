@@ -598,8 +598,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       pane = await openDetail(page, reference);
       await pane.locator('[data-review-choice="accept"]').click();
       await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "rate"));
-      await pane.getByLabel("Why? (optional)").fill("Exactly on topic.");
-      await pane.getByLabel("Why? (optional)").blur();
+      // A Reference's reason lives in the decision control, not in the card's own labelled box.
+      await pane.locator("[data-review-reason] textarea").fill("Exactly on topic.");
+      await pane.locator("[data-review-reason] textarea").blur();
       await page.waitForFunction(() => (window as unknown as { calls: { type: string; note?: string }[] }).calls.filter((call) => call.type === "rate").length === 2);
       assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.action, call.note ?? ""]), [["accept", ""], ["accept", "Exactly on topic."]]);
     });
