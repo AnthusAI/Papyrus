@@ -12,8 +12,13 @@
   "dependencies": [],
   "comments": [],
   "created_at": "2026-10-29T10:21:35.119111Z",
-  "updated_at": "2026-10-29T10:21:35.119206Z",
+  "updated_at": "2026-10-29T10:21:45.603854Z",
   "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Opus 5.5",
+    "name": "Papyrus newsroom session"
+  },
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
