@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils";
 import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
 import type { ConversationState } from "./use-conversation";
 
-/** Flat pill buttons, like the feed's: a tone, never an outline. */
-const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50";
-const PILL_PRIMARY = cn(PILL, "bg-[var(--primary)] text-[var(--primary-foreground)]");
-const PILL_QUIET = cn(PILL, "text-muted-foreground hover:text-foreground");
+/** The decision control's register: caption labels, md corners, a tone and never an outline. */
+const LABEL = "font-[family-name:var(--font-sans)] text-[10px] font-extrabold tracking-[0.07em] uppercase";
+const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-[var(--feed-radius-md,16px)] px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring disabled:opacity-[var(--feed-quiet,0.6)]";
+const PILL_PRIMARY = cn(PILL, "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]");
+const PILL_QUIET = cn(PILL, "text-muted-foreground hover:bg-[var(--feed-control)]/70 hover:text-foreground");
 
 /**
  * A box for writing a Message. The text clears the moment you post, so the Message shows at once; if the save fails the text comes
@@ -50,7 +51,7 @@ function Composer({ autoFocus = false, buttonLabel, disabledReason, icon, label,
       <AutoGrowTextarea
         aria-label={label}
         autoFocus={autoFocus}
-        className="block min-h-16 w-full rounded-[var(--feed-radius-lg,10px)] bg-[var(--feed-control)] p-3 text-base font-normal outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="block min-h-16 w-full rounded-[var(--feed-radius-md,16px)] border-0 bg-[var(--feed-control)] px-3 py-2 text-sm font-normal leading-5 outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring"
         disabled={Boolean(disabledReason)}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(); } }}
@@ -84,7 +85,7 @@ function MessageBody({ answers, message, now, onReply, replying, tone }: {
   tone: "root" | "reply";
 }) {
   return (
-    <div className={cn("space-y-1.5 rounded-[var(--feed-radius-lg,10px)] p-3", tone === "root" ? "bg-[var(--feed-control)]" : "bg-[var(--feed-footer)]")} data-conversation-message={message.id} data-conversation-pending={message.pending || undefined}>
+    <div className={cn("space-y-1.5 rounded-[var(--feed-radius-md,16px)] p-3", tone === "root" ? "bg-[var(--feed-control)]" : "bg-[var(--feed-footer)]")} data-conversation-message={message.id} data-conversation-pending={message.pending || undefined}>
       <p className="flex flex-wrap items-center gap-x-2 text-sm">
         <span className="font-semibold" data-conversation-author>{conversationAuthorName(message.authorLabel)}</span>
         <span className="text-xs text-muted-foreground" data-conversation-age>
@@ -99,7 +100,7 @@ function MessageBody({ answers, message, now, onReply, replying, tone }: {
           In reply to {answers}
         </p>
       ) : null}
-      <p className="whitespace-pre-wrap break-words text-base" data-conversation-content>{message.content}</p>
+      <p className="whitespace-pre-wrap break-words text-sm leading-5" data-conversation-content>{message.content}</p>
       {!message.pending ? (
         <button aria-expanded={replying} className={cn(PILL_QUIET, "-ml-3")} data-conversation-reply={message.id} onClick={onReply} type="button">
           <ReplyIcon aria-hidden="true" className="size-4" />
@@ -131,7 +132,7 @@ export function ConversationThread({ disabledReason = null, error = null, headin
 
   return (
     <section aria-label={heading} className="space-y-3" data-conversation-thread>
-      <h3 className="text-sm font-medium">{heading}</h3>
+      <h3 className={cn(LABEL, "text-muted-foreground")}>{heading}</h3>
       {state === "loading" ? <p className="flex items-center gap-1.5 text-sm text-muted-foreground" data-conversation-loading><Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Loading messages</p> : null}
       {state === "error" ? (
         <p className="flex flex-wrap items-center gap-2 text-sm text-destructive" role="alert">
