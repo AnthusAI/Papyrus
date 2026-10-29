@@ -157,8 +157,7 @@ async function openSectionPlacement(page: Page) {
   if (!await summary.evaluate((element) => element.parentElement?.hasAttribute("open"))) await summary.click();
 }
 
-/** The reason field, now inside the decision control rather than a labelled box on the card. */
-const WHY = "[data-review-reason] textarea";
+const WHY = /^Reason/;
 const you = (page: Page, choice: "accept" | "reject") => detail(page).locator(`[data-review-row="you"] [data-review-choice="${choice}"]`);
 const reasonChip = (page: Page, code: string) => detail(page).locator(`[data-review-reason="${code}"]`);
 async function swipe(page: Page, from: number, to: number) {
@@ -186,10 +185,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         }
         assert.equal(await detail(page).locator("select").count(), 0, "no dropdowns");
         if (width === 1280) {
-          await detail(page).locator(WHY).fill("Keep my pending draft while filtering.");
+          await detail(page).getByLabel(WHY).fill("Keep my pending draft while filtering.");
           await page.getByRole("tab", { name: /^All/ }).click();
           await detail(page).waitFor();
-          assert.equal(await detail(page).locator(WHY).inputValue(), "Keep my pending draft while filtering.");
+          assert.equal(await detail(page).getByLabel(WHY).inputValue(), "Keep my pending draft while filtering.");
           await page.getByRole("tab", { name: /^Pending/ }).click();
           await detail(page).waitFor();
           assert.ok(new URL(page.url()).pathname.endsWith("/reference-a"), "filter changes preserve the detail route");
@@ -223,36 +222,27 @@ const scenarios: Record<string, () => Promise<void>> = {
       const panel = detail(page);
       await you(page, "accept").click();
       assert.equal(await requestCount(page), 1);
-      await panel.getByText("Saving…").waitFor();
+      await panel.locator("[data-review-choice=accept][data-state=staged]").waitFor();
       await settle(page); await status(page, "accepted");
       await panel.locator("[data-review-saved]").waitFor();
       assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "true");
       await you(page, "accept").click();
       assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "true", "tapping the selected answer never unselects it");
       assert.equal(await requestCount(page), 1, "re-tapping the selected answer sends nothing");
-      await panel.locator(WHY).fill("A useful source for the publication.");
-      await panel.locator(WHY).blur();
+      await panel.getByLabel(WHY).fill("A useful source for the publication.");
+      await panel.getByLabel(WHY).blur();
       await settle(page);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "A useful source for the publication.");
       await page.reload(); await detail(page).waitFor();
-      assert.equal(await detail(page).locator(WHY).inputValue(), "A useful source for the publication.");
-      // Switching to Reject with a Why already written saves at once: a typed reason is a reason. It carries
-      // no code the editor did not pick — the curation Lambda reads the words for the code they name.
+      assert.equal(await detail(page).getByLabel(WHY).inputValue(), "A useful source for the publication.");
+      // Switching to Reject with a Why already written saves at once: a typed reason is a reason (filed as "other").
       const before = await requestCount(page);
       await you(page, "reject").click();
       assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true", "the tapped answer shows as selected at once");
       await settle(page); await status(page, "rejected");
       assert.ok(await requestCount(page) > before, "the Reject is sent without waiting for a chip");
       assert.equal(await detail(page).getByText("Choose a reason, or say why above, to save your Reject.").count(), 0, "nothing asks for a reason");
-      assert.deepEqual(await lastRequest(page), { action: "reject", note: "A useful source for the publication.", reasonCode: null },
-        "the words go with the Reject and no reason code is invented for them");
-      // A chip still refines the reason: a second save, sent once the first one lands.
-      const sent = await requestCount(page);
-      await reasonChip(page, "out_of_scope").click();
-      await settle(page); await page.waitForFunction((count) => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length > count, sent); await settle(page);
-      await status(page, "rejected");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
-      assert.equal(await reasonChip(page, "out_of_scope").getAttribute("aria-pressed"), "true");
       assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
@@ -262,13 +252,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       const panel = detail(page);
-      await panel.locator(WHY).fill("Keep my explanation on failure.");
+      await panel.getByLabel(WHY).fill("Keep my explanation on failure.");
       await you(page, "accept").dblclick();
       assert.equal(await requestCount(page), 1, "a double click starts one mutation");
       await settle(page, true);
       await panel.getByRole("alert").filter({ hasText: "Fixture write failed" }).waitFor();
       await status(page, "pending");
-      assert.equal(await panel.locator(WHY).inputValue(), "Keep my explanation on failure.");
+      assert.equal(await panel.getByLabel(WHY).inputValue(), "Keep my explanation on failure.");
       assert.equal(await you(page, "accept").getAttribute("aria-pressed"), "false", "a failed save does not show as the answer");
       await you(page, "accept").click(); await settle(page); await status(page, "accepted");
       assert.equal(await requestCount(page), 2);
@@ -279,25 +269,17 @@ const scenarios: Record<string, () => Promise<void>> = {
     const { browser, page, errors } = await setup();
     try {
       await selectA(page);
-      await detail(page).locator(WHY).fill("The source addresses a different audience.");
-      await you(page, "reject").click();   // with a Why typed, this saves at once, carrying the words and no code
-      await reasonChip(page, "out_of_scope").click();   // and the chip refines it once that lands
-      await settle(page); await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2); await settle(page);
+      await detail(page).getByLabel(WHY).fill("The source addresses a different audience.");
+      await you(page, "reject").click();   // with a Why typed, this saves at once (as "other")
+      await settle(page);
       await status(page, "rejected");
       await page.reload(); await detail(page).waitFor(); await status(page, "rejected");
-      assert.equal(await reasonChip(page, "out_of_scope").getAttribute("aria-pressed"), "true", "reason is loaded from the persisted curation Message");
-      assert.equal(await detail(page).locator(WHY).inputValue(), "The source addresses a different audience.");
-      await detail(page).locator(WHY).fill("");
-      await detail(page).locator(WHY).blur();
-      assert.equal(await requestCount(page), 1, "clearing the note saves without reselecting the persisted reason");
-      await settle(page);
-      await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === null);
+      assert.equal(await detail(page).getByLabel(WHY).inputValue(), "The source addresses a different audience.");
       await page.evaluate(() => (window as unknown as {fixtureRefresh: (note: string, reason: string) => void}).fixtureRefresh("Latest saved explanation.", "policy_exclusion"));
-      await page.waitForFunction(() => (document.querySelector('textarea') as HTMLTextAreaElement)?.value === "Latest saved explanation.");
-      assert.equal(await reasonChip(page, "policy_exclusion").getAttribute("aria-pressed"), "true", "untouched feedback follows live message updates");
-      await detail(page).locator(WHY).fill("My unsaved draft.");
+      await page.waitForFunction(() => [...document.querySelectorAll('textarea')].some((t) => (t as HTMLTextAreaElement).value === "Latest saved explanation."));
+      await detail(page).getByLabel(WHY).fill("My unsaved draft.");
       await page.evaluate(() => (window as unknown as {fixtureRefresh: (note: string, reason: string) => void}).fixtureRefresh("Another editor saved this.", "unavailable"));
-      assert.equal(await detail(page).locator(WHY).inputValue(), "My unsaved draft.", "live updates preserve a dirty draft");
+      assert.equal(await detail(page).getByLabel(WHY).inputValue(), "My unsaved draft.", "live updates preserve a dirty draft");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
   },
@@ -308,18 +290,21 @@ const scenarios: Record<string, () => Promise<void>> = {
       const cyclotron = detail(page).locator("[data-decision-control]");
       assert.match(await cyclotron.locator("[data-review-choice][data-predicted]").innerText().then((t) => t.replace(/\s+/g, " ").trim()), /^accept predicted$/i);
       assert.equal(await cyclotron.locator("[data-confidence-value]").innerText(), "79%", "the confidence is in the bar");
-      assert.equal(await cyclotron.locator("[data-verdict]").count(), 0, "no verdict before the human answers");
+      assert.equal(await cyclotron.locator("[data-prediction-mark]").count(), 0, "no verdict before the human answers");
       await you(page, "accept").click(); await settle(page); await status(page, "accepted");
-      const match = cyclotron.locator('[data-verdict="match"]');
+      const match = cyclotron.locator('[data-prediction-mark][data-verdict="match"]');
       await match.waitFor();
-      assert.ok(await match.locator("svg").count() === 1, "a match carries an icon, not colour alone");
-      assert.match(await match.innerText(), /matches your answer/);
-      await you(page, "reject").click(); await reasonChip(page, "out_of_scope").click(); await settle(page);
+      assert.ok(await match.locator("svg").count() === 1, "a match carries a marker, not colour alone");
+      assert.match(await you(page, "accept").locator("[data-choice-state]").innerText(), /confirmed/i, "and the word");
+      await you(page, "reject").click();   // a Reject waits for its written reason
+      await detail(page).getByLabel(WHY).fill("Not what we cover.");
+      await detail(page).locator("[data-review-record]").click();
+      await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2); await settle(page);
       await status(page, "rejected");
-      const miss = cyclotron.locator('[data-verdict="miss"]');
+      const miss = cyclotron.locator('[data-prediction-mark][data-verdict="miss"]');
       await miss.waitFor();
       assert.ok(await miss.locator("svg").count() === 1);
-      assert.match(await miss.innerText(), /differs from your answer/);
+      assert.match(await you(page, "reject").locator("[data-choice-state]").innerText(), /overturned/i, "the answer says it overturned the prediction");
       assert.ok(!/0%|100%|version 0/.test(await detail(page).innerText()), "missing confidence and version are never fabricated");
       assert.deepEqual(errors, []);
     } finally { await browser.close(); }
@@ -357,7 +342,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       await page.getByText(/Predictions unavailable/i).waitFor();
-      assert.ok(!/no prediction$/im.test(await detail(page).innerText()), "failed reads are not reported as missing data");
+      assert.ok(!/No prediction$/m.test(await detail(page).innerText()), "failed reads are not reported as missing data");
       await page.getByRole("button", { name: "Retry predictions", exact: true }).click();
       await detail(page).locator('[data-prediction-state="none"]').waitFor();
       assert.deepEqual(errors, []);

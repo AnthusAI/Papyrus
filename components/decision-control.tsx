@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { CheckIcon, Loader2Icon, XIcon } from "lucide-react";
 import { UNRECORDED_CONFIDENCE } from "../lib/reference-feed-ranking";
 import { cn } from "@/lib/utils";
+import { AutoGrowTextarea } from "./ui/auto-grow-textarea";
 import type { CardPrediction, ReviewChoice } from "./reference-review-card";
 
 /**
@@ -236,7 +237,7 @@ export function DecisionControl({
           </label>
           {/* Written reasons only. A row of canned answers collects a label the model mostly has already;
               what trains the next prediction is a sentence. */}
-          <textarea
+          <AutoGrowTextarea
             className={cn(
               "w-full rounded-[var(--feed-radius-md,16px)] border-0 bg-[var(--feed-control)] px-3 py-2 text-sm leading-5 text-foreground outline-none transition-[min-height] placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring",
               field,
@@ -245,7 +246,7 @@ export function DecisionControl({
             id={fieldId}
             onBlur={() => { if (!disabled) onReasonCommit?.(); }}
             onChange={(event) => { setReasonDirty(true); onReasonChange?.(event.target.value); }}
-            placeholder="Why? In your own words — this is what the next prediction learns from."
+            placeholder="Why? In your own words…"
             value={reason}
           />
         </div>
