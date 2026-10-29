@@ -11,13 +11,14 @@ from papyrus_content.story_reporting import advance_stage, latest_story_version,
 from procedures.newsroom.tests.test_story_reporting import LINEAGE, NOW, client_with_one_story
 
 
-def test_move_updates_the_item_stage_and_records_it_in_the_trail():
+def test_move_updates_the_item_stage_and_records_it_on_the_version_not_as_a_message():
     client = client_with_one_story()
     result = move_story_stage(client, LINEAGE, "copywriting", actor="agent", reason="draft is ready", now=NOW)
     assert result["changed"] and result["from"] == "reporting"
     assert client.tables["Item"][LINEAGE]["stage"] == "copywriting"
-    message = next(iter(client.tables["Message"].values()))
-    assert "reporting -> copywriting" in message["summary"] and "draft is ready" in message["summary"]
+    assert not client.tables.get("Message")   # Messages come only from people
+    move = json.loads(client.tables["Item"][LINEAGE]["metadata"])["stageMoves"][0]
+    assert (move["from"], move["to"], move["reason"]) == ("reporting", "copywriting", "draft is ready")
 
 
 def test_move_keeps_who_when_and_why_on_the_version_and_keeps_its_other_metadata():

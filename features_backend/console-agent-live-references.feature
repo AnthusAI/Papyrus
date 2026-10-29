@@ -53,13 +53,3 @@ Feature: Live console agent Reference behavior
     And the live console agent smoke result should include no structured errors
     And the live console agent response should equal "reference-quality-tested"
     And the live console agent smoke result should default to model "gpt-5-nano"
-
-  Scenario: The console agent can create and list Reference notes
-    When I run the live console agent smoke scenario "note-reference"
-    Then the live console agent smoke result should include tool call "papyrus.reference.list"
-    And the live console agent smoke result should include tool call "papyrus.reference.note_create"
-    And the live console agent smoke result should include tool call "papyrus.reference.note_list"
-    And the live console agent smoke result should include tool calls in order "papyrus.reference.list" then "papyrus.reference.note_create"
-    And the live console agent smoke result should include no structured errors
-    And the live console agent response should equal "reference-note-tested"
-    And the live console agent smoke result should default to model "gpt-5-nano"

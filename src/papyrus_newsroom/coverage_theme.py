@@ -238,7 +238,6 @@ def signals_trend_report(
     references: list[dict[str, Any]] | None = None,
     semantic_nodes: list[dict[str, Any]] | None = None,
     newsroom_sections: list[dict[str, Any]] | None = None,
-    apply: bool = False,
     now: str = "",
 ) -> dict[str, Any]:
     now = now or _now_iso()
@@ -287,15 +286,7 @@ def signals_trend_report(
             "createsItemOrEditionItem": False,
         },
     }
-    records = build_signal_report_records(report)
-    output = {
-        **report,
-        "records": records,
-        "apply": False,
-    }
-    if apply:
-        output = {**output, **apply_records(records)}
-    return output
+    return report
 
 
 def signals_concept_report(
@@ -312,7 +303,6 @@ def signals_concept_report(
     references: list[dict[str, Any]] | None = None,
     semantic_nodes: list[dict[str, Any]] | None = None,
     semantic_relations: list[dict[str, Any]] | None = None,
-    apply: bool = False,
     now: str = "",
 ) -> dict[str, Any]:
     now = now or _now_iso()
@@ -376,15 +366,7 @@ def signals_concept_report(
             "createsItemOrEditionItem": False,
         },
     }
-    records = build_concept_report_records(report)
-    output = {
-        **report,
-        "records": records,
-        "apply": False,
-    }
-    if apply:
-        output = {**output, **apply_records(records)}
-    return output
+    return report
 
 
 def build_trend_signals(
@@ -514,138 +496,6 @@ def build_concept_reports(
         elif current_type == "pagerank":
             reports.append(_build_concept_pagerank_report(context, limit, pagerank_iterations, pagerank_damping, max_nodes_per_reference))
     return reports
-
-
-def build_signal_report_records(report: dict[str, Any]) -> list[dict[str, Any]]:
-    now = str(report.get("generatedAt") or _now_iso())
-    run_id = str(report["runId"])
-    message_id = f"message-edition-signal-report-{_safe_id(run_id)}"
-    summary = f"Edition signal report: {len(report.get('signals') or [])} ranked knowledge-base signal(s)."
-    message = {
-        "id": message_id,
-        "messageKind": "edition_signal_report",
-        "messageDomain": "edition_planning",
-        "status": "active",
-        "summary": summary,
-        "source": "papyrus knowledge signals trend-report",
-        "importRunId": run_id,
-        "authorLabel": "papyrus",
-        "newsroomFeedKey": "message#edition_signal_report",
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    body = _signal_report_body(report)
-    records = [
-        _record("Message", message),
-        _attachment_record(message_id, "message_body", "message", "message.txt", "text/plain", body, run_id, now),
-        _attachment_record(message_id, "metadata", "metadata", "metadata.json", "application/json", {"kind": "edition.signal_report", **report}, run_id, now),
-    ]
-    for signal in report.get("signals") or []:
-        node = coverage_node_record(
-            coverage_key=signal["coverageKey"],
-            topic=signal["topic"],
-            corpus_key=str(report.get("corpusKey") or ""),
-            category=None,
-            category_set=None,
-            now=now,
-            change_reason="edition-signal-report",
-        )
-        records.append(_record("SemanticNode", node))
-        records.append(_record("SemanticRelation", semantic_relation(
-            predicate="uses_signal",
-            subject_kind="message",
-            subject_id=message_id,
-            object_kind="semanticNode",
-            object_id=node["id"],
-            object_lineage_id=node["lineageId"],
-            object_version_number=node["versionNumber"],
-            rank=signal.get("rank"),
-            import_run_id=run_id,
-            now=now,
-            metadata={"signalId": signal["signalId"], "coverageKey": signal["coverageKey"], "topic": signal["topic"]},
-        )))
-        for rank, reference_id in enumerate(signal.get("sourceReferenceIds") or [], start=1):
-            records.append(_record("SemanticRelation", semantic_relation(
-                predicate="uses_evidence",
-                subject_kind="message",
-                subject_id=message_id,
-                object_kind="reference",
-                object_id=reference_id,
-                object_lineage_id=reference_id,
-                rank=rank,
-                import_run_id=run_id,
-                now=now,
-                metadata={"signalId": signal["signalId"], "coverageKey": signal["coverageKey"]},
-            )))
-    return _dedupe_records(records)
-
-
-def build_concept_report_records(report: dict[str, Any]) -> list[dict[str, Any]]:
-    now = str(report.get("generatedAt") or _now_iso())
-    run_id = str(report["runId"])
-    message_id = f"message-concept-report-{_safe_id(run_id)}"
-    summary = f"Concept analytics report: {len(report.get('reports') or [])} report section(s)."
-    message = {
-        "id": message_id,
-        "messageKind": "concept_report",
-        "messageDomain": "analytics",
-        "status": "active",
-        "summary": summary,
-        "source": "papyrus-newsroom signals concept-report",
-        "importRunId": run_id,
-        "authorLabel": "papyrus-newsroom",
-        "newsroomFeedKey": "message#concept_report",
-        "createdAt": now,
-        "updatedAt": now,
-    }
-    records = [
-        _record("Message", message),
-        _attachment_record(message_id, "message_body", "message", "message.txt", "text/plain", _concept_report_body(report), run_id, now),
-        _attachment_record(message_id, "metadata", "metadata", "metadata.json", "application/json", {"kind": "analytics.concept_report", **report}, run_id, now),
-    ]
-    linked_concept_reports: set[str] = set()
-    linked_references: set[str] = set()
-    for report_section in report.get("reports") or []:
-        for concept in report_section.get("rankedConcepts") or []:
-            concept_id = str(concept.get("conceptId") or "")
-            report_key = f"{concept_id}:{report_section.get('reportType')}"
-            if concept_id and report_key not in linked_concept_reports:
-                linked_concept_reports.add(report_key)
-                records.append(_record("SemanticRelation", semantic_relation(
-                    predicate="uses_signal",
-                    subject_kind="message",
-                    subject_id=message_id,
-                    object_kind="semanticNode",
-                    object_id=concept_id,
-                    object_lineage_id=str(concept.get("conceptLineageId") or concept_id),
-                    rank=concept.get("rank"),
-                    score=concept.get("score"),
-                    import_run_id=run_id,
-                    now=now,
-                    metadata={
-                        "reportType": report_section.get("reportType"),
-                        "displayName": concept.get("displayName"),
-                        "metric": concept.get("metric"),
-                    },
-                )))
-            for reference_id in concept.get("sourceReferenceIds") or []:
-                reference_id = str(reference_id or "")
-                if not reference_id or reference_id in linked_references:
-                    continue
-                linked_references.add(reference_id)
-                records.append(_record("SemanticRelation", semantic_relation(
-                    predicate="uses_evidence",
-                    subject_kind="message",
-                    subject_id=message_id,
-                    object_kind="reference",
-                    object_id=reference_id,
-                    object_lineage_id=reference_id,
-                    rank=len(linked_references),
-                    import_run_id=run_id,
-                    now=now,
-                    metadata={"reportType": report_section.get("reportType")},
-                )))
-    return _dedupe_records(records)
 
 
 def editions_plan(
@@ -5673,46 +5523,6 @@ def load_json_file(path: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise TypeError(f"{path} must contain a JSON object")
     return payload
-
-
-def _signal_report_body(report: dict[str, Any]) -> str:
-    lines = [
-        f"Edition Signal Report: {report.get('date')}",
-        f"Corpus: {report.get('corpusKey')}",
-        "",
-    ]
-    for signal in report.get("signals") or []:
-        lines.extend([
-            f"{signal.get('rank')}. {signal.get('topic')} ({signal.get('coverageKey')})",
-            f"Score: {signal.get('score')}",
-            f"Why now: {signal.get('whyNow')}",
-            f"Accepted references: {signal.get('acceptedEvidenceCount')}",
-            "",
-        ])
-    return "\n".join(lines).strip() + "\n"
-
-
-def _concept_report_body(report: dict[str, Any]) -> str:
-    lines = [
-        "Concept Analytics Report",
-        f"Corpus: {report.get('corpusKey')}",
-        f"Generated: {report.get('generatedAt')}",
-        "",
-    ]
-    for report_section in report.get("reports") or []:
-        lines.extend([
-            str(report_section.get("title") or report_section.get("reportType") or "Report"),
-            f"Metric: {report_section.get('primaryMetric')}",
-            "",
-        ])
-        for concept in report_section.get("rankedConcepts") or []:
-            lines.append(
-                f"{concept.get('rank')}. {concept.get('displayName')} "
-                f"({concept.get('conceptLineageId') or concept.get('conceptId')}) - "
-                f"{concept.get('metric')}: {concept.get('score')}"
-            )
-        lines.append("")
-    return "\n".join(lines).strip() + "\n"
 
 
 def _research_packet_body(packet: dict[str, Any]) -> str:
