@@ -1,0 +1,24 @@
+{
+  "id": "PPY-5ac03baf-0065-4ff4-bee0-0d71ca67e40b",
+  "title": "Daily automated story drafts for every Papyrus site, as router configuration",
+  "description": "The monitoring router gets a monitor-stories task and a daily EventBridge schedule: for each publication it drafts a cited story_draft Proposal for every accepted, not yet drafted, monitored Reference, with one soft review request per publication and run. On by default; monitorStories.enabled false turns a publication off. No fixed cap: bounded by the Lambda's remaining time (shared equally), a model-spend backstop and a filing error. Independent of the knowledge-run stack. Related: PPY-ad264d (auto-accept).",
+  "type": "story",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T12:46:26.949578Z",
+  "updated_at": "2026-10-29T12:46:26.949642Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Sonnet 5.5"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
