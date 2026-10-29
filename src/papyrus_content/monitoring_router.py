@@ -50,11 +50,18 @@ from typing import Any, Callable
 from urllib.parse import quote, urlsplit
 
 from .automation_gate import (
+    GRACE_SECONDS,
+    IN_FLIGHT,
     START_AS_BEFORE,
+    STATUS_DEFERRED,
     Gate,
     decide,
+    effective_timeout,
+    in_flight_count,
+    limits_of,
     manual_prefix,
     matching_automation,
+    parse_json,
     query_prefix,
     trigger_prefix,
 )
@@ -2356,6 +2363,40 @@ class Router:
             print(json.dumps({"autoAccept": result["status"], **result}))
         return results
 
+    def automation_handled_references(self, publication: dict) -> set[str]:
+        """The Reference ids an Automation of this publication has really taken on: a monitor-triggered Automation's trigger rows (and Run now rows)
+        that name a Reference and whose procedure run is recorded as completed, deferred to start, or in flight (begun inside the run's timeout plus grace,
+        so a run whose outcome was never recorded cannot hold a Reference for ever). A started-and-failed, skipped or not-triggered row handles nothing.
+        An Automation merely configured for the monitor contributes nothing. Any failure to read gives the empty set: the Reference is then drafted."""
+        pid = publication["publicationId"]
+        try:
+            rows = self._automation_rows.get(pid)
+            if rows is None:
+                rows = self._automation_rows[pid] = self.client(publication).list_records("Automation")
+        except Exception:
+            return set()
+        handled: set[str] = set()
+        for automation in rows or []:
+            try:
+                trigger = parse_json(automation.get("trigger"), {})
+                config = trigger.get("config") if isinstance(trigger, dict) else None
+                if automation.get("enabled") is False or not (isinstance(trigger, dict) and trigger.get("kind") == "monitor" and isinstance(config, dict)):
+                    continue
+                if config.get("publicationId") not in (None, pid) or not config.get("monitorId") or not automation.get("procedureKey") or not isinstance(automation.get("id"), str):
+                    continue
+                window = effective_timeout(limits_of(automation)) + GRACE_SECONDS
+                found = self.store.query_prefix(config["monitorId"], trigger_prefix(pid, automation["procedureKey"])) \
+                    + self.store.query_prefix(config["monitorId"], manual_prefix(automation["id"]))
+                for row in found:
+                    if not row.get("referenceId"):
+                        continue
+                    status = row.get("status")
+                    if status in ("completed", STATUS_DEFERRED) or (status in IN_FLIGHT and in_flight_count([row], now=self.now, window_seconds=window)):
+                        handled.add(str(row["referenceId"]))
+            except Exception:
+                continue
+        return handled
+
     def monitor_stories(self) -> dict:
         """Daily, per publication: a cited story draft for every accepted, monitored, not yet drafted Reference (src/papyrus_content/monitoring_stories.py).
         On unless the publication's `monitorStories` says `enabled: false`; live mode only. Bounded only by the Lambda's remaining time (shared
@@ -2389,7 +2430,8 @@ class Router:
                 try:
                     result = self.story_drafter(self.client(publication), publication, transport=self.story_transport,
                                                 now=datetime.fromtimestamp(self.now + passes, timezone.utc),   # a pass's run id (and so its review request) is its own
-                                                out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at)
+                                                out_of_time=lambda stop_at=stop_at: self.time_left() < stop_at,
+                                                handled_references=self.automation_handled_references(publication))
                 except Exception as error:  # noqa: BLE001 - never fails the run
                     result = {"publicationId": pid, "status": "failed", "reason": short(error), **empty}
                 earlier = results.get(pid)

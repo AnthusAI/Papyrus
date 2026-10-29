@@ -71,9 +71,11 @@ def lambda_story_transport(environment: dict[str, str] | None = None, *, ssm: An
 
 
 def run_publication(client: Any, publication: dict[str, Any], *, transport: Callable, now: datetime, out_of_time: Callable[[], bool],
-                    fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD) -> dict[str, Any]:
+                    fetch: Any = None, explorer: Any = REAL_EXPLORER, maximum_cost_usd: float = MAXIMUM_COST_USD,
+                    handled_references: Any = ()) -> dict[str, Any]:
     """Drafts one publication's undrafted accepted monitored References and returns its log record (the shape the router prints).
-    ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes."""
+    ``fetch`` and ``explorer`` default to the real page reader and link explorer; tests pass fakes. ``handled_references`` are the ids of the References
+    an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it."""
     from .ideas import monitor_stories
     from .ideas.context import load_context
     from .ideas.store import ProposalStore
@@ -83,7 +85,7 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
         context=load_context(client, now=now), json_store=None, proposal_store=ProposalStore(client), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
-        maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS)
+        maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS, automation_handled=handled_references)
     inputs, usage = run["inputs"], run.get("usage") or {}
     return {
         "publicationId": publication["publicationId"], "status": "stopped" if run["stoppedBy"] else "complete",

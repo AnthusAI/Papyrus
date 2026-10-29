@@ -609,14 +609,38 @@ class ExcludedHostAndAutomationTests(unittest.TestCase):
         self.assertFalse([d for d in run["drafts"] if "ipwatchdog.com" in str(d["citedItems"])])
         self.assertFalse([req for req in model.requests if "ipwatchdog.com" in req["input"]])
 
-    def test_a_monitor_an_enabled_automation_handles_is_left_to_it(self) -> None:
+    TTAB_AUTOMATION = {"id": "distinctive.ttab", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": "ttab", "publicationId": "distinctive"}})}
+
+    def test_a_reference_an_automation_has_a_procedure_run_for_is_left_to_it(self) -> None:
         rows, client = world(2)
         client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab")]
-        client.automations = [{"id": "distinctive.ttab", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": "ttab", "publicationId": "distinctive"}})}]
-        run = draft(client, StoryModel(), fetch=lambda url: PAGE)
+        client.automations = [self.TTAB_AUTOMATION]
+        run = draft(client, StoryModel(), fetch=lambda url: PAGE, automation_handled=[rows[1]["id"]])
         self.assertEqual(run["inputs"]["handledByAutomation"], 1)
         self.assertEqual(run["automatedMonitors"], ["ttab"])
         self.assertEqual({d["monitorId"] for d in run["drafts"]}, {"hn"})
+
+    def test_a_reference_whose_automation_never_ran_is_drafted_like_any_other(self) -> None:
+        rows, client = world(2)
+        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab")]
+        client.automations = [self.TTAB_AUTOMATION]
+        run = draft(client, StoryModel(), fetch=lambda url: PAGE)
+        self.assertEqual(run["inputs"]["handledByAutomation"], 0)
+        self.assertEqual(run["automatedMonitors"], ["ttab"])
+        self.assertEqual({d["monitorId"] for d in run["drafts"]}, {"hn", "ttab"})
+
+    def test_a_reference_with_a_story_based_on_it_is_left_alone_and_counted_by_who_configured_it(self) -> None:
+        rows, client = world(3)
+        story = {"predicate": "uses_evidence", "relationState": "current", "subjectKind": "item", "objectKind": "reference",
+                 "objectLineageId": rows[0]["lineageId"], "metadata": json.dumps({"role": "based_on"})}
+        consulted = {**story, "objectLineageId": rows[2]["lineageId"], "metadata": json.dumps({"role": "consulted"})}
+        client.incoming[rows[0]["lineageId"]].append(story)
+        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab"), {**story, "objectLineageId": rows[1]["lineageId"]}]
+        client.incoming[rows[2]["lineageId"]].append(consulted)
+        client.automations = [self.TTAB_AUTOMATION]
+        items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW, automated_monitors=["ttab"])
+        self.assertEqual([item.lineage_id for item in items], [rows[2]["lineageId"]])   # only a consulted story does not count
+        self.assertEqual((counts["handledByAutomation"], counts["hasStory"]), (1, 1))
 
     def test_a_disabled_automation_or_another_trigger_kind_does_not_hide_a_monitor(self) -> None:
         _, client = world(1)
