@@ -198,6 +198,8 @@ def enrich_item(row: dict[str, Any], disc: dict[str, Any], monitor_id: str, enri
                 capture.update(reason=captured.failure, transient=captured.transient)
             curation["capture"] = {k: v for k, v in capture.items() if v is not None}
             curation.update(signals=captured.signals, paper=captured.paper, page=captured.page)
+            if captured.preview is not None:   # the page's link-preview metadata, so delivery can attach the preview without a second fetch
+                curation["preview"] = captured.preview
         _summary_stage(curation, disc, enricher, text, now)
         _grobid_stage(curation, disc, monitor_id, enricher, captured, row, now)
     except Exception as error:  # noqa: BLE001 - never let one item's bug stop the decision; record it, typed

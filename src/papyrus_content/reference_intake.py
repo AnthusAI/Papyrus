@@ -249,4 +249,6 @@ def find_or_create_source_reference(client, existing: list[dict], *, publication
         ref = _create_once(client, "Reference", proposed)
         _provenance(client, ref, publication)
         existing.append(ref)
+        from .reference_images import attach_preview
+        attach_preview(client, ref)   # new References only; never raises
     return {k: ref.get(k) for k in ("id", "lineageId", "versionNumber", "sourceUri", "curationStatus")}

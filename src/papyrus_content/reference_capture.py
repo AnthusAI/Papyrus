@@ -70,6 +70,7 @@ class Capture:
     signals: dict[str, Any] = field(default_factory=dict)
     paper: dict[str, Any] = field(default_factory=dict)
     page: dict[str, Any] = field(default_factory=dict)   # what the page declares about itself (title, description, site name)
+    preview: dict[str, Any] | None = None   # the page's link-preview metadata (imageUrl, description, siteName, title) read by this same fetch; None when no HTML page was read
     full_text_url: str | None = None        # the address the text actually came from when it is not the page itself (the PDF the page links)
     text_via: str | None = None             # YouTube links only: "youtube_transcript", or "youtube_description" when the transcript was unavailable
     text_reason: str | None = None          # why the transcript was not used: "blocked", "no_transcript", "unavailable", "unreadable", "library_missing"
@@ -515,6 +516,7 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
         return Capture(False, "unsupported_media", content_type=response.headers.get("content-type", "").split(";")[0],
                        destination_url=destination)
     html = _decode(response)
+    preview = found.metadata.as_dict() if found.metadata else {}
     parsed = parse_html(html)
     metas = parsed["metas"]
     description = metas.get("og:description") or metas.get("description") or metas.get("twitter:description") or ""
@@ -535,6 +537,7 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
                 pdf_capture.full_text_url = linked.url or linked_url
                 pdf_capture.paper = detect_paper(source_url, destination, metas=metas, text=pdf_capture.text)
                 pdf_capture.page = page
+                pdf_capture.preview = preview
                 pdf_capture.signals["pageWordCount"] = _words(text)
                 pdf_capture.signals["metaDescriptionWordCount"] = _words(description)
                 return pdf_capture
@@ -542,11 +545,11 @@ def _capture_page(source_url: str, *, title: str = "", explorer: Explorer = expl
         text = _fallback_text(html)
     if not text:
         return Capture(False, "no_text", source_kind="html", content_type="text/html", destination_url=destination, page=page,
-                       paper=detect_paper(source_url, destination, metas=metas),
+                       preview=preview, paper=detect_paper(source_url, destination, metas=metas),
                        signals=completeness_signals("", parsed=parsed, response_truncated=response.truncated, description=description))
     signals = completeness_signals(text, parsed=parsed, response_truncated=response.truncated, description=description)
     return Capture(True, None, text, "html", "text/html", destination, via, pdf_bytes, signals,
-                   detect_paper(source_url, destination, metas=metas, text=text), page)
+                   detect_paper(source_url, destination, metas=metas, text=text), page, preview=preview)
 
 
 def _fallback_text(html: str) -> str:
