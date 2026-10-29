@@ -100,7 +100,7 @@ createRoot(document.getElementById('root')).render(<Fixture/>);
   return bundle;
 }
 
-const fixtureCss = `body{margin:0;font:16px sans-serif}button,textarea,select{font:inherit} [data-newsroom-list-detail-shell]{display:flex} [data-news-desk-reference-detail]{padding:8px} [data-newsroom-card-grid]{display:flex;flex-direction:column} [data-newsroom-list-row]{text-align:left;padding:12px;margin:4px} [data-radix-scroll-area-viewport]{max-height:75vh} [role=dialog]{position:fixed;inset:5vh 0 0;background:white;overflow:auto;z-index:60} @media(max-width:767px){[data-newsroom-list-detail-shell]{display:none}}`;
+const fixtureCss = `body{margin:0;font:16px sans-serif}button,textarea,select{font:inherit} [data-news-desk-reference-detail]{padding:8px} [data-newsroom-card-grid]{display:flex;flex-direction:column} [data-newsroom-list-row]{text-align:left;padding:12px;margin:4px} [data-radix-scroll-area-viewport]{max-height:75vh} [role=dialog]{position:fixed;inset:5vh 0 0;background:white;overflow:auto;z-index:60}`;
 
 async function setup(options = "", width = 1280) {
   const script = await browserBundle();
@@ -439,6 +439,43 @@ const scenarios: Record<string, () => Promise<void>> = {
         }
         assert.ok(control.field.y > control.accept.y, "the reason field sits under the buttons");
         for (const icon of await page.locator("[data-review-card] button svg, [data-review-queue-bar] svg").all()) assert.ok(await icon.evaluate((svg) => svg.classList.contains("lucide") || [...svg.classList].some((c) => c.startsWith("lucide"))), "icons are Lucide");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+  /**
+   * The detail is full width, in the feed's place with a Back control, up to a tablet in portrait (the `lg` breakpoint, 1024px), and a
+   * pane beside the feed from a tablet in landscape up. The viewport decides, never the selection.
+   */
+  async responsive_detail() {
+    for (const width of [375, 768, 834, 1024, 1440]) {
+      const { browser, page, errors } = await setup("?decision=1", width);
+      try {
+        const split = width >= 1024;
+        await selectA(page);
+        const shell = page.locator("[data-newsroom-list-detail-shell]:visible");
+        const feed = page.locator("[data-reference-feed-column]");
+        const shellBox = (await shell.boundingBox())!;
+        const back = page.locator("[data-reference-back]");
+        assert.equal(await page.locator("[data-news-desk-section=references][data-reference-layout]").getAttribute("data-reference-layout"), "detail");
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${width}: nothing scrolls sideways`);
+        assert.equal(await page.locator('[role="dialog"]').count(), 0, `${width}: the detail is in the page, not a sheet over it`);
+        if (split) {
+          assert.equal(await feed.isVisible(), true, `${width}: the feed stays beside the detail`);
+          assert.equal(await back.isVisible(), false, `${width}: no Back control beside the feed`);
+          const feedBox = (await feed.boundingBox())!;
+          assert.ok(shellBox.x >= feedBox.x + feedBox.width - 1, `${width}: the detail sits to the right of the feed`);
+          assert.ok(shellBox.width <= 28 * 16 + 1 && shellBox.width >= 24 * 16 - 1, `${width}: the pane is 24 to 28rem wide, not the page (${shellBox.width})`);
+        } else {
+          assert.equal(await feed.isVisible(), false, `${width}: the feed gives its place to the detail`);
+          assert.ok(shellBox.width >= width - 40, `${width}: the detail is full width (${shellBox.width})`);
+          assert.equal(await back.isVisible(), true, `${width}: a clear Back control`);
+          assert.ok(await detail(page).isVisible(), `${width}: the reference's detail is shown`);
+          await back.click();
+          await feed.waitFor();
+          assert.equal(await shell.count(), 0, `${width}: Back returns to the feed alone`);
+          assert.equal(new URL(page.url()).pathname, "/newsroom/references", `${width}: Back clears the detail address`);
+        }
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     }
