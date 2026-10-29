@@ -303,7 +303,7 @@ problems, `modelCalls` (the usage of each call, for the ledger) and the cost. Th
 **Daily, from the monitoring router.** Every publication the `hn` monitor lists also gets its monitor stories once a day with no knowledge-run stack and no configuration: the router task `monitor-stories`
 ([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)) runs this same code in process, at 07:30 UTC. It drafts **every** accepted, not yet drafted, monitored Reference (no `--limit`), best ranked first,
 and is bounded only by the Lambda's remaining time, a per-run model-spend backstop and a filing error (`stoppedBy` in its log line). The Proposals and the soft review request are the same as the CLI's; a Reference
-is never drafted twice, whichever path drafted it. A publication opts out with `"monitorStories": {"enabled": false}` in its router entry. Distinctive Mark is not scheduled: its TTAB References are drafted by its Automation.
+is never drafted twice, whichever path drafted it. A publication opts out with `"monitorStories": {"enabled": false}` in its router entry. Distinctive Mark has its own schedule; its TTAB References are drafted here unless its Automation has already made, or is making, the story.
 
 Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
 so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
@@ -337,12 +337,15 @@ matches itself and every subdomain (`ipwatchdog.com` matches `www.ipwatchdog.com
 - **The citation check.** Defence in depth: a sentence that cites an excluded item fails with `cites_excluded_source_host:<handle>`, even though no
   excluded item is offered, so the draft is not filed.
 
-### Monitors an automation handles
+### References an automation handles
 
-Monitor stories skip every Reference delivered by a monitor that an **enabled Automation** of the site already handles (an Automation record whose trigger is
-`{"kind": "monitor", "config": {"monitorId": ...}}`, see [automations](automations.md)), so a site that turns monitor stories on does not get a second draft of what
-the automation drafts. They are counted in `inputs.handledByAutomation`; the monitors are listed in the run record's `automatedMonitors`. A disabled Automation
-hides nothing. If the Automation records cannot be read the run goes ahead and records `automationLookupError`.
+Monitor stories skip a Reference only when an **Automation** of the site has really taken it on, so a site that turns monitor stories on does not get a second draft of
+what the automation drafted or is drafting. A Reference counts as handled when a story is already `based_on` it (the `uses_evidence` relation, role `based_on`, read from the relations
+the run already loads for each Reference), or, in the router task, when a monitor-triggered Automation (see [automations](automations.md)) has a procedure run for it that is completed, deferred
+to start, or in flight (begun inside the run's timeout plus its grace period). They are counted in `inputs.handledByAutomation`. An Automation that is merely configured for the monitor
+handles nothing: a Reference it never started a run for, or whose run failed, is drafted like any other. A story based on a Reference from a monitor no Automation is configured for is counted in `inputs.hasStory`.
+The monitors enabled Automations are configured for are listed in the run record's `automatedMonitors`; a disabled Automation hides nothing. If the Automation records cannot be read the run goes
+ahead and records `automationLookupError`. (The weekly knowledge run has no access to the router's trigger rows, so there only the `based_on` story counts.)
 
 ## Friction for the run contract
 

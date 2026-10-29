@@ -59,21 +59,38 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     When the router runs its daily monitor stories
     Then the drafts filed are for References 2 and 4
 
-  Scenario: A TTAB Reference that an Automation handles is skipped
+  Scenario: A TTAB Reference that an Automation is making a story for is skipped
     Given 2 accepted References that the "ttab" monitor delivered
     And 1 accepted Reference that the "hn" monitor delivered
     And an enabled Automation that is triggered by the "ttab" monitor
+    And the Automation has a procedure run in progress for the first "ttab" Reference
     When the router runs its daily monitor stories
-    Then 1 story draft is filed, for the "hn" Reference
-    And the log line for "example-site" says drafted 1, candidates 1, notAccepted 0, skipped 0 and stoppedBy none
+    Then 2 story drafts are filed, one per Reference, each citing its source
+    And the log line for "example-site" says drafted 2, candidates 2, notAccepted 0, skipped 0, stoppedBy none and handledByAutomation 1
 
-  Scenario: Distinctive Mark's web-search finds are drafted while its TTAB rulings stay with its Automation
+  Scenario: A TTAB Reference that an Automation already wrote a story for is skipped
     Given 2 accepted References that the "ttab" monitor delivered
-    And 2 accepted References that the "web-distinctive" monitor delivered
+    And an enabled Automation that is triggered by the "ttab" monitor
+    And the Automation has already written a story based on the first "ttab" Reference
+    When the router runs its daily monitor stories
+    Then 1 story draft is filed, for the "ttab" Reference
+    And the log line for "example-site" says drafted 1, candidates 1, notAccepted 0, skipped 0, stoppedBy none and handledByAutomation 1
+
+  Scenario: A Reference whose Automation never ran is drafted like any other
+    Given 2 accepted References that the "ttab" monitor delivered
     And an enabled Automation that is triggered by the "ttab" monitor
     When the router runs its daily monitor stories
     Then 2 story drafts are filed, one per Reference, each citing its source
-    And the log line for "example-site" says drafted 2, candidates 2, notAccepted 0, skipped 0 and stoppedBy none
+    And the log line for "example-site" says drafted 2, candidates 2, notAccepted 0, skipped 0, stoppedBy none and handledByAutomation 0
+
+  Scenario: Distinctive Mark's web-search finds are drafted and so are its TTAB rulings its Automation has not taken on
+    Given 2 accepted References that the "ttab" monitor delivered
+    And 2 accepted References that the "web-distinctive" monitor delivered
+    And an enabled Automation that is triggered by the "ttab" monitor
+    And the Automation has a procedure run in progress for the first "ttab" Reference
+    When the router runs its daily monitor stories
+    Then 3 story drafts are filed, one per Reference, each citing its source
+    And the log line for "example-site" says drafted 3, candidates 3, notAccepted 0, skipped 0, stoppedBy none and handledByAutomation 1
 
   Scenario: A publication with a backlog does not starve the others
     Given a second publication "other-site" with 2 accepted References that the "hn" monitor delivered

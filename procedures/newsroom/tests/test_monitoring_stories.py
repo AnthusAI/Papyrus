@@ -178,14 +178,43 @@ def test_a_publication_the_time_stopped_gets_another_turn_while_time_is_left_and
     assert len(reviews) == 2 and sum(len(json.loads(r["links"]) if isinstance(r.get("links"), str) else r.get("links") or []) for r in reviews) == 8   # a review per pass, every draft linked
 
 
-def test_a_ttab_reference_an_automation_handles_is_not_drafted():
+TTAB_AUTOMATION = {"id": "automation-ttab", "enabled": True, "procedureKey": "ttab.story", "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": "ttab", "publicationId": PUBLICATION}})}
+
+
+def trigger_row(table, reference, status, **fields):
+    table.put_item({"pk": "MONITOR#ttab", "sk": f"TRIGGER#{PUBLICATION}#ttab.story#src-{reference['id']}", "referenceId": reference["id"], "status": status,
+                    "createdAt": "2026-10-23T11:59:00Z", **fields})
+
+
+def test_a_ttab_reference_an_automation_is_making_a_story_for_is_not_drafted():
+    table, store = router()
+    rows, client = world(4, monitor="ttab")
+    client.incoming[rows[3]["lineageId"]] = [provenance(rows[3], "hn")]
+    client.automations = [TTAB_AUTOMATION]
+    trigger_row(table, rows[0], "running", runId="run-1")
+    trigger_row(table, rows[1], "completed", runId="run-2")
+    _, lines = run_task(store, {PUBLICATION: client}, StoryModel())
+    assert lines[PUBLICATION]["drafted"] == 2 and lines[PUBLICATION]["handledByAutomation"] == 2
+    assert [json.loads(row["evidence"])["source"] for row in client.filed].count("hn monitor: https://www.example4.org/post") == 1
+
+
+def test_a_ttab_reference_whose_automation_never_ran_or_failed_is_drafted_like_any_other():
     table, store = router()
     rows, client = world(3, monitor="ttab")
-    client.incoming[rows[2]["lineageId"]] = [provenance(rows[2], "hn")]
-    client.automations = [{"id": "automation-ttab", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": "ttab"}})}]
+    client.automations = [TTAB_AUTOMATION]   # configured for the monitor, but a run was only ever started for none of them
+    trigger_row(table, rows[0], "failed", runId="run-1", runError="boom")
+    trigger_row(table, rows[1], "startFailed")
+    trigger_row(table, rows[2], "started", startedAt="2026-10-01T00:00:00Z")   # in flight for weeks: its outcome was never recorded
     _, lines = run_task(store, {PUBLICATION: client}, StoryModel())
-    assert lines[PUBLICATION]["drafted"] == 1 and lines[PUBLICATION]["handledByAutomation"] == 2
-    assert [json.loads(row["evidence"])["source"] for row in client.filed] == ["hn monitor: https://www.example3.org/post"]
+    assert lines[PUBLICATION]["drafted"] == 3 and lines[PUBLICATION]["handledByAutomation"] == 0
+
+
+def test_a_ttab_reference_nothing_started_for_is_drafted_with_an_automation_configured():
+    table, store = router()
+    _, client = world(2, monitor="ttab")
+    client.automations = [TTAB_AUTOMATION]
+    _, lines = run_task(store, {PUBLICATION: client}, StoryModel())
+    assert lines[PUBLICATION]["drafted"] == 2 and lines[PUBLICATION]["handledByAutomation"] == 0
 
 
 def test_a_filing_error_stops_the_publication_before_more_money_is_spent_and_the_others_go_on():

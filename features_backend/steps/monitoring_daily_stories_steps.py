@@ -75,8 +75,30 @@ def step_ranked(context, count, monitor, a, b, c, d):
 
 @given('an enabled Automation that is triggered by the "{monitor}" monitor')
 def step_automation(context, monitor):
-    state(context).clients[state(context).publications[0]].automations = [
-        {"id": f"automation-{monitor}", "enabled": True, "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": monitor}})}]
+    held = state(context)
+    publication = held.publications[0]
+    held.clients[publication].automations = [
+        {"id": f"automation-{monitor}", "enabled": True, "procedureKey": f"{monitor}.story",
+         "trigger": json.dumps({"kind": "monitor", "config": {"monitorId": monitor, "publicationId": publication}})}]
+
+
+def first_reference(context, monitor):
+    client = state(context).clients[state(context).publications[0]]
+    return next(row for row in client.references if json.loads(client.incoming[row["lineageId"]][0]["metadata"])["monitorId"] == monitor)
+
+
+@given('the Automation has a procedure run in progress for the first "{monitor}" Reference')
+def step_run_in_progress(context, monitor):
+    row = first_reference(context, monitor)
+    tms.trigger_row(state(context).table, row, "running", runId="run-1")
+
+
+@given('the Automation has already written a story based on the first "{monitor}" Reference')
+def step_story_based_on(context, monitor):
+    row = first_reference(context, monitor)
+    client = state(context).clients[state(context).publications[0]]
+    client.incoming[row["lineageId"]].append({"predicate": "uses_evidence", "relationState": "current", "subjectKind": "item", "objectKind": "reference",
+                                              "objectLineageId": row["lineageId"], "metadata": json.dumps({"role": "based_on"})})
 
 
 @given('a second publication "{publication}" with {count:d} accepted References that the "{monitor}" monitor delivered')
@@ -191,6 +213,11 @@ def check(context, publication, expected):
 @then('the log line for "{publication}" says drafted {drafted:d}, candidates {candidates:d}, notAccepted {not_accepted:d}, skipped {skipped:d} and stoppedBy none')
 def step_line_none(context, publication, drafted, candidates, not_accepted, skipped):
     check(context, publication, {"drafted": drafted, "candidates": candidates, "notAccepted": not_accepted, "skipped": skipped, "stoppedBy": None})
+
+
+@then('the log line for "{publication}" says drafted {drafted:d}, candidates {candidates:d}, notAccepted {not_accepted:d}, skipped {skipped:d}, stoppedBy none and handledByAutomation {handled:d}')
+def step_line_handled(context, publication, drafted, candidates, not_accepted, skipped, handled):
+    check(context, publication, {"drafted": drafted, "candidates": candidates, "notAccepted": not_accepted, "skipped": skipped, "stoppedBy": None, "handledByAutomation": handled})
 
 
 @then('the log line for "{publication}" says drafted {drafted:d}, candidates {candidates:d}, notAccepted {not_accepted:d}, skipped {skipped:d} and stoppedBy "{stopped}"')
