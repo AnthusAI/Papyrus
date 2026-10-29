@@ -114,15 +114,31 @@ async function main() {
   await invoke({ action: "accept", note: "" });
   assert.equal(current().curationStatusReason, null, "clearing a saved explanation is persisted");
   const beforeRejection = writes.length;
-  await assert.rejects(invoke({ action: "reject" }), /reasonCode is required/);
+  await assert.rejects(invoke({ action: "reject" }), /needs a reason/);
+  await assert.rejects(invoke({ action: "reject", note: "   " }), /needs a reason/, "blank words are no reason");
   await assert.rejects(invoke({ action: "reject", reasonCode: "invented" }), /Unsupported reference rejection reason/);
   assert.equal(writes.length, beforeRejection, "invalid rejection cannot partially change status or append feedback");
   const rejected = await invoke({ action: "reject", reasonCode: "duplicate" });
   assert.equal(current().curationStatus, "rejected");
-  assert.equal(current().curationStatusReason, null, "reject requires a reason code, not a written explanation");
+  assert.equal(current().curationStatusReason, null, "a reason code alone needs no written explanation");
   assert.equal(metadata(rejected).reasonCode, "duplicate");
   await invoke({ action: "reject", reasonCode: "out_of_scope", note: "Different coverage." });
   assert.equal(current().curationStatusReason, "Different coverage.");
+
+  // With no reason code sent, the editor's own words are read for the code they name, so the
+  // scope-training negatives keep arriving from the surfaces that ask for words instead of a chip.
+  const written = await invoke({ action: "reject", note: "Out of scope for this publication." });
+  assert.equal(current().curationStatus, "rejected");
+  assert.equal(current().curationStatusReason, "Out of scope for this publication.", "the words are kept verbatim");
+  assert.equal(metadata(written).reasonCode, "out_of_scope");
+  assert.equal(metadata(written).curationReasonCode, "out_of_scope", "both metadata keys carry the read code");
+  assert.equal(metadata(await invoke({ action: "reject", note: "Excluded by our policy on vendor blogs." })).reasonCode, "policy_exclusion");
+  assert.equal(metadata(await invoke({ action: "reject", note: "Already have it, and off our beat anyway." })).reasonCode, "duplicate",
+    "a mechanical reason wins over scope, so no false training negative is recorded");
+  assert.equal(metadata(await invoke({ action: "reject", note: "The editor and I decided against it." })).reasonCode, "other",
+    "words that name no code are filed under \"other\" rather than guessed at");
+  assert.equal(metadata(await invoke({ action: "reject", reasonCode: "duplicate", note: "Out of scope." })).reasonCode, "duplicate",
+    "a reason code the caller chose is never overridden by the words beside it");
 
   const beforeFailure = writes.length;
   failReferenceUpdate = true;

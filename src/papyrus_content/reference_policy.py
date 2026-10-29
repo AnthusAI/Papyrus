@@ -47,7 +47,7 @@ def normalize_reference_rejection_reason_code(value: Any, *, required: bool = Fa
     normalized = normalize_policy_token(value)
     if not normalized:
         if required:
-            raise ValueError("--reason-code is required for rejected references.")
+            raise ValueError("--reason-code or --note is required for rejected references.")
         return None
     if normalized not in REFERENCE_REJECTION_REASON_CODES:
         raise ValueError(

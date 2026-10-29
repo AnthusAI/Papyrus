@@ -24,6 +24,7 @@ import {
   requestDelegation,
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
+import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { claimGroups } from "../../../lib/staff-groups";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
@@ -214,7 +215,15 @@ async function reviewReferenceCuration(
   const referenceId = normalizeRequiredString(event.arguments.referenceId, "referenceId");
   const action = normalizeReferenceCurationAction(event.arguments.action);
   const nextStatus = referenceCurationStatusForAction(action);
-  const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode, action === "reject");
+  const writtenReason = normalizeOptionalString(event.arguments.note);
+  // A rejection needs a reason, and the editor's own sentence is one: with no reason code sent, the
+  // words are read for the code they name, so the scope-training negatives keep arriving from the
+  // surfaces that ask for words instead of a chip. Words that name no code are filed under "other".
+  const reasonCode = normalizeReferenceRejectionReasonCode(event.arguments.reasonCode)
+    ?? (action === "reject" ? rejectionReasonCodeForWrittenReason(writtenReason) : null);
+  if (action === "reject" && !reasonCode) {
+    throw new Error("A rejection needs a reason: say why in your own words, or send a reasonCode.");
+  }
   const reference = await getRequiredRecord(client.models.Reference, referenceId, "Reference");
   const requestedSectionId = normalizeOptionalString(event.arguments.sectionId);
   const sectionRecord = requestedSectionId
@@ -225,7 +234,7 @@ async function reviewReferenceCuration(
   const actorSub = normalizeOptionalString(event.arguments.actorSub) ?? getIdentitySub(event);
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
   const actor = actorLabel ?? actorSub ?? "Papyrus newsroom";
-  const note = normalizeOptionalString(event.arguments.note);
+  const note = writtenReason;
   const referenceLineageId = normalizeOptionalString(reference.lineageId) ?? referenceId;
   const referenceVersionNumber = typeof reference.versionNumber === "number" ? reference.versionNumber : null;
   const referenceTitle = normalizeOptionalString(reference.title) ?? normalizeOptionalString(reference.externalItemId) ?? referenceId;
@@ -2095,12 +2104,10 @@ const REFERENCE_REJECTION_REASON_CODES = new Set([
   "other",
 ]);
 
-function normalizeReferenceRejectionReasonCode(value: unknown, required: boolean): string | null {
+/** A supplied reason code, validated. Whether a rejection has a reason at all is the caller's rule. */
+function normalizeReferenceRejectionReasonCode(value: unknown): string | null {
   const normalized = normalizePolicyToken(value);
-  if (!normalized) {
-    if (required) throw new Error("reasonCode is required when rejecting a reference.");
-    return null;
-  }
+  if (!normalized) return null;
   if (!REFERENCE_REJECTION_REASON_CODES.has(normalized)) {
     throw new Error(`Unsupported reference rejection reason code ${normalized}.`);
   }

@@ -335,12 +335,13 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.deepEqual((await requests(page))[0], { id: "r3", action: "accept", note: "Typed before voting.", reasonCode: null }, "the vote carries the reason");
         await closeDetail(page, width);
         assert.ok((await card(page, "r3").locator("[data-predicted]").innerText()).includes("Match"));
-        // A typed reason is a reason: a Reject with words and no reason button saves at once, filed under "other".
+        // A typed reason is a reason: a Reject with words and no reason button saves at once. The words go
+        // with it and no code is invented for them -- the curation Lambda reads them for the code they name.
         await open(page, "r6");
         await review(page).getByLabel(WHY, { exact: true }).fill("Not our beat.");
         await review(page).locator("[data-review-choice=reject]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2);
-        assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: "other" }, "a typed reason saves the Reject");
+        assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: null }, "a typed reason saves the Reject");
         await closeDetail(page, width);
         // With no reason at all, a Reject waits for one and saves nothing.
         await open(page, "r7");
