@@ -1,0 +1,25 @@
+{
+  "id": "PPY-f5505e4b-ad87-41be-96be-00f6aadb91a0",
+  "title": "Wait for Cyclotron retraining rounds on standing runs",
+  "description": "Dependency on Cyclotron, not Papyrus code: a standing run's accumulated human labels feed a retraining round that produces a candidate context version, evaluates it on held-out votes and promotes it if it is better. Record Cyclotron's API for round status and history here when it exists. Ryan's go for the Cyclotron work happens in the Cyclotron session.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c6aced07-9898-4b25-849b-10013cb69441",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T10:21:35.202815Z",
+  "updated_at": "2026-10-29T10:21:45.669248Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "Claude Opus 5.5",
+    "name": "Papyrus newsroom session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
