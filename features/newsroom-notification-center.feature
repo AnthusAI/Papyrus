@@ -117,6 +117,11 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     Then the loading state is the feed's skeleton of flat tones and rounded cards, with no border, outline or rule
     And when the feed loads it replaces the skeleton in place, in the same shapes
 
+  Scenario: The board's loading columns are flat and rounded too, never the old outlined boxes
+    Given the newsroom is still checking the editor's session
+    When the editor opens the board and its records are still loading
+    Then the board shows three columns of pulsing cards in flat tones and rounded rectangles, with no border, outline or rule
+
   Scenario: The newsroom's own bar and menus are flat, and a phone's bar has nothing cut off
     Given the newsroom shell at 375 and 1440 pixels
     When the editor looks at the top bar, the sidebar, the account button and the bottom navigation

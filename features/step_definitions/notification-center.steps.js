@@ -91,6 +91,10 @@ for (const text of [
   "on a phone the bar shows the search field and the account button only, with no cut-off page title, because the page's own heading names it and Settings is in the account menu",
 ]) Then(text, function () { assert.match(this.chromeResult, /newsroom chrome: ok/); });
 Then("when the feed loads it replaces the skeleton in place, in the same shapes", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });
+When("the editor opens the board and its records are still loading", async function () {
+  this.loadingResult = (await promisify(execFile)(process.execPath, ["--import", "tsx", "scripts/test-newsroom-loading.ts"], { cwd: path.resolve(__dirname, "../..") })).stdout;
+});
+Then("the board shows three columns of pulsing cards in flat tones and rounded rectangles, with no border, outline or rule", function () { assert.match(this.loadingResult, /newsroom loading skeleton: ok/); });
 
 // Sign-in keeps the deep link: the access gate passes no fixed return path, so the page that asked is stored and loaded after sign-in.
 Then("signing in from a deep link comes back to that link, not to the overview", function () {

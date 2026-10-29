@@ -22,5 +22,12 @@ void (async () => {
     assert.doesNotMatch(html, /(^|\s|")border(\s|"|-)/);
     assert.doesNotMatch(html, /Nothing needs attention|No pending references/);
   }
+  // The board's own loading state uses the same flat tones and rounded rectangles, and the board renders it.
+  const { NewsroomBoardSkeleton } = await import("../components/newsroom-board-skeleton");
+  const board = renderToStaticMarkup(React.createElement(NewsroomBoardSkeleton));
+  assert.match(board, /role="status"/);
+  assert.match(board, /data-feed-surface/);
+  assert.doesNotMatch(board, /(^|\s|")border(\s|"|-)/);
+  assert.match(readFileSync("components/newsroom-board-view.tsx", "utf8"), /<NewsroomBoardSkeleton \/>/);
   console.log("newsroom loading skeleton: ok");
 })();
