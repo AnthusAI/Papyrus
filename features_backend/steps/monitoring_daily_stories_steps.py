@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -150,7 +151,7 @@ def step_filed(context, count):
     assert len(rows) == count, len(rows)
     assert len({row["title"] for row in rows}) == count, "a Reference was drafted twice"
     for row in rows:
-        assert json.loads(row["evidence"])["source"].startswith("hn monitor: https://"), row["evidence"]
+        assert re.match(r"[\w-]+ monitor: https://", json.loads(row["evidence"])["source"]), row["evidence"]   # names the monitor that found it
         assert row["kind"] == "story_draft" and "[1]" in row["body"], row["body"]
 
 
