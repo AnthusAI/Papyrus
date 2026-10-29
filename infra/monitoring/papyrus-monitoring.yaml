@@ -942,6 +942,131 @@ Resources:
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
               - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/updateReference"
 
+  RouterMonitorStoriesPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Lets the router's daily monitor-stories task (src/papyrus_content/monitoring_stories.py) draft stories on the first three of the six publications (PapyrusApiId, AnthUsApiId, ThreatIntelApiId): read the accepted
+        References with their provenance and verdicts (the two relation indexes), the site's Items, sections and Automations, and earlier
+        story drafts (listStoryDrafts); file a story_draft Proposal (fileProposal); and raise the one soft review request per run
+        (getReviewRequest, createReviewRequest). Split in two because one managed policy holds at most 6,144 characters; together they cover the
+        six publications the hn monitor lists. The Distinctive API is not listed: that site's decisions are drafted by its own Automation. Hand-run with
+        a change set; a publication with no grant logs a failed run and the others go on.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: MonitorStories
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/fileProposal"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PapyrusApiId}/types/Mutation/fields/fileProposal"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ThreatIntelApiId}/types/Mutation/fields/fileProposal"
+
+  RouterMonitorStoriesSharedSitesPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: >-
+        Lets the router's daily monitor-stories task (src/papyrus_content/monitoring_stories.py) draft stories on the last three (DataParadeApiId, PilobolusApiId, ShippedApiId): read the accepted
+        References with their provenance and verdicts (the two relation indexes), the site's Items, sections and Automations, and earlier
+        story drafts (listStoryDrafts); file a story_draft Proposal (fileProposal); and raise the one soft review request per run
+        (getReviewRequest, createReviewRequest). Split in two because one managed policy holds at most 6,144 characters; together they cover the
+        six publications the hn monitor lists. The Distinctive API is not listed: that site's decisions are drafted by its own Automation. Hand-run with
+        a change set; a publication with no grant logs a failed run and the others go on.
+      Roles: [!Ref RouterRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: MonitorStories
+            Effect: Allow
+            Action: appsync:GraphQL
+            Resource:
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DataParadeApiId}/types/Mutation/fields/fileProposal"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${PilobolusApiId}/types/Mutation/fields/fileProposal"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/getReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/itemBySlug"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listAutomations"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listItems"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listNewsroomSections"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listReferencesByCurationStatusKeyAndUpdatedAt"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listSemanticRelationsByObjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listSemanticRelationsBySubjectState"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Query/fields/listStoryDrafts"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/createReviewRequest"
+              - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${ShippedApiId}/types/Mutation/fields/fileProposal"
+
+  MonitorStoriesSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: papyrus-monitoring-hn-monitor-stories
+      Description: >-
+        Once a day at 07:30 UTC (03:30 US Eastern), draft a cited story for every accepted, not yet drafted, monitored Reference of each
+        publication the hn router lists (task monitor-stories; docs/monitoring-cloud.md#monitor-stories). Bounded by the Lambda's time, not a count.
+        No retry: a second attempt would only repeat the same ranking.
+      ScheduleExpression: cron(30 7 * * ? *)
+      FlexibleTimeWindow: { Mode: "OFF" }
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt RouterFunction.Arn
+        RoleArn: !GetAtt RouterScheduleRole.Arn
+        Input: '{"task":"monitor-stories","monitorId":"hn"}'
+        RetryPolicy:
+          MaximumEventAgeInSeconds: 3600
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt RouterDeadLetterQueue.Arn
+
   TtabRouteSchedule:
     Type: AWS::Scheduler::Schedule
     Properties:

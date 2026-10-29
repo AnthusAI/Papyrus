@@ -49,11 +49,16 @@ def build(out: Path = OUT) -> str:
     return hashlib.sha256(out.read_bytes()).hexdigest()
 
 
-def _module_names(node: ast.ImportFrom) -> list[str]:
-    """In-package modules (as paths like `ideas/synthesis`) one `from ... import` may load: relative (`from .x import y`) and
-    absolute (`from papyrus_content.x import y`, `from papyrus_content import x`) forms, subpackages and their `__init__`."""
-    if node.level == 1:
-        base = (node.module or "").replace(".", "/")
+def _module_names(node: ast.ImportFrom, module: str = "") -> list[str]:
+    """In-package modules (as paths like `ideas/synthesis`) one `from ... import` in `module` may load: relative (`from .x import y`,
+    `from ..x import y`, resolved against the importing module's own package) and absolute (`from papyrus_content.x import y`,
+    `from papyrus_content import x`) forms, subpackages and their `__init__`. `module` is the importing module's path (`ideas/monitor_stories`)."""
+    if node.level >= 1:
+        package = module.split("/")[:-1]
+        keep = len(package) - (node.level - 1)
+        if keep < 0:
+            return []
+        base = "/".join(package[:keep] + [part for part in (node.module or "").split(".") if part])
     elif node.level == 0 and node.module == "papyrus_content":
         base = ""
     elif node.level == 0 and (node.module or "").startswith("papyrus_content."):
@@ -73,16 +78,19 @@ def _module_names(node: ast.ImportFrom) -> list[str]:
 
 
 def package_modules(roots) -> list[str]:
-    """Transitive closure of in-package imports (module level and lazy)."""
+    """Transitive closure of in-package imports (module level and lazy). A module in a subpackage brings the `__init__` of every package
+    above it, as Python imports them first."""
     seen, stack = set(), list(roots)
     while stack:
         name = stack.pop()
         if name in seen or name in ROUTER_EXCLUDED:
             continue
         seen.add(name)
+        parts = name.split("/")
+        stack.extend("/".join(parts[:depth] + ["__init__"]) for depth in range(1, len(parts)) if (PACKAGE / "/".join(parts[:depth]) / "__init__.py").exists())
         for node in ast.walk(ast.parse((PACKAGE / f"{name}.py").read_text())):
             if isinstance(node, ast.ImportFrom):
-                stack.extend(_module_names(node))
+                stack.extend(_module_names(node, name))
     return sorted(seen)
 
 

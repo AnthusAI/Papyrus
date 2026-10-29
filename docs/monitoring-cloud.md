@@ -238,7 +238,7 @@ It saves a **draft** article `item-<section>-<org>-<name>` (type `article`, stat
 
 ### Drafting stories about delivered items
 
-Promotion is a person's choice. For any monitor's items (not only Hub models) `papyrus ideas monitor-stories --site <site>` picks the few most worth a story, ranked by the relevance Cyclotron's `relevance_decision_is` verdict on each Reference, and files one cited `story_draft` Proposal for each, naming the monitor in its provenance. A Reference that was drafted or promoted is never drafted again. The weekly cloud run can run it with one `knowledgeRun.monitorStories` setting. See [idea pipeline: monitor stories](idea-pipeline.md#monitor-stories) and [cloud run: monitor stories](knowledge-cloud-run.md#monitor-stories-optional-off-by-default).
+Promotion is a person's choice. For any monitor's items (not only Hub models) `papyrus ideas monitor-stories --site <site>` (and, every day, the router's [monitor stories task](#monitor-stories-daily)) picks the items most worth a story, ranked by the relevance Cyclotron's `relevance_decision_is` verdict on each Reference, and files one cited `story_draft` Proposal for each, naming the monitor in its provenance. A Reference that was drafted or promoted is never drafted again. The weekly cloud run can run it with one `knowledgeRun.monitorStories` setting. See [idea pipeline: monitor stories](idea-pipeline.md#monitor-stories) and [cloud run: monitor stories](knowledge-cloud-run.md#monitor-stories-optional-off-by-default).
 
 ### Backfill: loading history
 
@@ -582,7 +582,8 @@ aws dynamodb get-item --table-name "$TABLE" --key '{"pk":{"S":"MONITOR#hn"},"sk"
 {"mode": "dry-run|live", "enabled": true,
  "publications": [{"publicationId": "...", "site": "...", "appsyncEndpoint": "https://<id>.appsync-api.<region>.amazonaws.com/graphql",
                    "corpusId": "knowledge-corpus-<publicationId> (default)",
-                   "autoAccept": {"enabled": true, "precision": 0.9, "latencyQuantile": 0.9}}],
+                   "autoAccept": {"enabled": true, "precision": 0.9, "latencyQuantile": 0.9},
+                   "monitorStories": {"enabled": true}}],
  "cyclotron": {"endpoint": "https://<id>.execute-api.<region>.amazonaws.com", "accountId": "...", "runId": "...",
                "bindingRevision": "1", "roleArn": "arn:aws:iam::<account>:role/<machine invoker>", "pollSeconds": 45}}
 ```
@@ -735,6 +736,37 @@ All three keys are optional; with no block, or with `{}`, it runs with those def
 * **Cost.** Reading the votes is one indexed query per voted Reference, and per waiting Reference for candidates, bounded by the run's remaining time (it stops with a logged reason, never fails the run).
 * **IAM.** It needs `listReferencesByCurationStatusKeyAndUpdatedAt` and `updateReference` on each publication's API (`RouterAutoAcceptPolicy`); without them the pass logs `failed` and the run goes on.
 
+## Monitor stories (daily)
+
+Once a day the router drafts a short, cited story for every item the monitors found that an editor (or the [automatic acceptance](#automatic-acceptance)) accepted and that has no draft yet.
+It is the router task `{"task": "monitor-stories", "monitorId": "hn"}`, run by the EventBridge Scheduler schedule `papyrus-monitoring-hn-monitor-stories` at **07:30 UTC** every day (03:30 US
+Eastern, so the drafts wait for the morning's review). It does not depend on the weekly knowledge-run stack, which also re-projects the public site: that is why it lives here, and why
+every publication the `hn` monitor lists gets it, whether or not it has the stack. Code: `src/papyrus_content/monitoring_stories.py` (the task) running the library behind
+`papyrus ideas monitor-stories` ([idea pipeline](idea-pipeline.md#monitor-stories)) in process; spec: `features_backend/monitoring-daily-stories.feature`.
+
+* **On by default, per publication.** The publication's router entry may carry `"monitorStories": {"enabled": false}`; no block, or `{}`, means on. Any other key is refused (`validate_router_publications`).
+* **What a draft is.** A private `story_draft` Proposal that cites its source (every sentence carries the source handle and passes the citation check), filed through the same operator path as the CLI (`fileProposal`), with
+  **one soft review request per publication and pass** ("N new monitor story drafts to review"). Nothing is published; an editor approves the copy. A Reference is never drafted twice (the Proposal's target
+  `entity:reference:<lineage id>` records it, declined drafts included), so the task can run every day and a re-run is harmless.
+* **Which items.** Only `curationStatus == accepted` (by an editor, `auto:cyclotron` or `auto:rule`). Pending ones are counted as `notAccepted` and not read. Items judged not relevant, already drafted, already promoted to an
+  item, from an excluded host, or delivered by a monitor that an enabled Automation of the site handles are left out. Best first: the Cyclotron's score times a freshness weight learned from the site's own editors.
+* **No fixed number.** The old `limit: 3` is not used. The task drafts every candidate, and only a real constraint stops a publication; `stoppedBy` says which:
+  * `time`: the Lambda's remaining time. The publications still to run share what is left equally, so a big backlog cannot starve another publication; what one publication does not use passes on, and a publication
+    the time stopped gets another pass while at least 240 s remain. The rest is picked up by the next day's run, which starts again from the same ranking and skips what is drafted. Each draft is filed as soon as it is kept, so a stop loses nothing paid for. Reads of a publication's References run eight at a time (a site with thousands of accepted References needs two queries each).
+  * `cost`: the model spend of one publication's run reached `MAXIMUM_COST_USD` ($0.50). At `gpt-6-luna` prices (about $0.0007 a draft) the time budget stops a run far below that; it is a backstop against a runaway loop, not a quota.
+  * `file_error`: a draft could not be filed, usually a missing grant. The publication stops after the first failure rather than pay for drafts that cannot be kept; the line carries `fileError`.
+* **Model and key.** `gpt-6-luna` only. The key is the SSM SecureString that `ENRICHMENT_OPENAI_KEY_PARAMETER` names (the one item enrichment uses; `RouterEnrichmentKeyPolicy` already allows reading it), read only for this task. Without it every publication logs
+  `skipped` with `reason: "openai_not_configured"`.
+* **Live mode only.** A router in `dry-run` mode writes to no publication, so the task does nothing.
+* **Log.** One JSON line per publication, after its last pass: `{"monitorStories": "complete|stopped|skipped|disabled|failed", "monitorId", "publicationId", "drafted", "candidates", "notAccepted", "skipped", "stoppedBy", "notMonitored", "attempted", "failedTheCheck", "duplicates", "handledByAutomation", "costUsd", "review"}`
+  (`candidates` and `notAccepted` are what the run found when it started; `skipped` counts items with no text to write from). The same object per publication is under `monitorStories` in the run result and receipt.
+* **Distinctive Mark is not scheduled.** It appears only in the `ttab` and `web-distinctive` monitor configs, not in `hn`, and monitor stories skip its TTAB References anyway (its Automation drafts those, `handledByAutomation`).
+  To give another publication the task, schedule it for a monitor whose router config lists it (and add that publication's API to the two `RouterMonitorStories…Policy` grants).
+* **IAM.** `RouterMonitorStoriesPolicy` and `RouterMonitorStoriesSharedSitesPolicy` (two because one managed policy holds at most 6,144 characters) list, for the six publications of the `hn` monitor, exactly these fields: `fileProposal`, `listStoryDrafts`
+  (earlier drafts, for the dedupe), `createReviewRequest`, `getReviewRequest`, `listReferencesByCurationStatusKeyAndUpdatedAt`, `listSemanticRelationsByObjectState` (provenance), `listSemanticRelationsBySubjectState` (the verdict), `listItems`, `itemBySlug`,
+  `listNewsroomSections` and `listAutomations`. A test (`test_monitoring_stories.py`) records the fields a full run asks for and fails if the grant is not exactly that, on every API.
+* **The router is single-file.** The task holds the `hn` router lock and the function has reserved concurrency 1, so while it runs (up to the 600 s timeout) the other router runs wait; that is once a day, at a quiet hour. A run that finds the lock held returns `locked` and does nothing; the next day's run catches up (no cap means nothing is lost).
+
 ## IAM (role `RouterRole`)
 
 | Statement | Why |
@@ -747,7 +779,7 @@ All three keys are optional; with no block, or with `{}`, it runs with those def
 
 The field list was captured by running the real intake and editorial-context code against a
 recording client. `updateReferenceAttachment` is there because a second HN item for an
-existing URL re-points the shared source attachment. There are no deletes, and the only Reference update is the automatic acceptance in `RouterAutoAcceptPolicy` (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), no wildcard resources, no admin. The provenance upload uses the
+existing URL re-points the shared source attachment. There are no deletes, and the only Reference update is the automatic acceptance in `RouterAutoAcceptPolicy` (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), the daily [monitor stories](#monitor-stories-daily) read and file through `RouterMonitorStoriesPolicy` and `RouterMonitorStoriesSharedSitesPolicy` (eleven fields on each of six APIs, listed there), no wildcard resources, no admin. The provenance upload uses the
 presigned URL AppSync returns, so the role needs no S3 permission.
 
 Limits: Python 3.13 arm64, 512 MB, 600 s timeout, retry 0 on async invocation, dead-letter queue,
@@ -758,10 +790,10 @@ account quota cannot reserve any; the table lease serializes runs anyway). Alarm
 ## Packaging
 
 `python3 infra/monitoring/build.py --router [--upload BUCKET]` builds a separate deterministic zip
-(`papyrus-monitoring/router-<sha256>.zip`, about 245 KB with item enrichment): the in-package import closure of the
-router, the two YAML data files the shared Reference factories read, and pure-Python PyYAML (the
+(`papyrus-monitoring/router-<sha256>.zip`, about 1.1 MB with item enrichment and the monitor-stories drafting): the in-package import closure of the
+router (relative imports are resolved against the importing module's own package, `from ..x` included, and a subpackage module brings the `__init__` of each package above it), the two YAML data files the shared Reference factories read, and pure-Python PyYAML (the
 runtime has boto3/botocore only). `PAPYRUS_ROOT=/var/task` lets the factories find `corpora/`. A test
-imports the extracted zip with a stdlib-only interpreter. The collector zip and its hash are unchanged.
+imports the built zip with a stdlib-only interpreter, including the drafting modules. The collector zip and its hash are unchanged; the email-receiver zip grows with the same closure fix.
 
 ## Decision-ready events
 
@@ -794,6 +826,7 @@ its signed GET.
 - Seed: `seed_router_config.py --table TABLE --file router.json` (starts as `dry-run`).
 - **Flip to live** (data change, no deploy): `seed_router_config.py --table TABLE --set mode=live`.
   Dry-run receipts are harmless; `dry-run-validated` items are processed as live items.
+- **Monitor stories** need no setting either; to run them now, invoke the router with `{"task":"monitor-stories","monitorId":"hn"}`. Turn a publication off with `seed_router_config.py` setting its `monitorStories` to `{"enabled": false}`; stop the schedule with `ScheduleState=DISABLED`.
 - **Feedback** needs no setting: editors' Accept/Reject is always sent for Cyclotron-decided monitors in live mode.
   Back to dry-run with `mode=dry-run` (feedback stops with it); stop entirely with `enabled=false`
   or `ScheduleState=DISABLED`.

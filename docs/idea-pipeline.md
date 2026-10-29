@@ -300,6 +300,11 @@ existing stories and earlier drafts are dropped, as for trends), `--max-cost-usd
 problems, `modelCalls` (the usage of each call, for the ledger) and the cost. The weekly cloud knowledge run can run it after the trend drafts, off by default
 ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-stories-optional-off-by-default)).
 
+**Daily, from the monitoring router.** Every publication the `hn` monitor lists also gets its monitor stories once a day with no knowledge-run stack and no configuration: the router task `monitor-stories`
+([monitoring-cloud.md](monitoring-cloud.md#monitor-stories-daily)) runs this same code in process, at 07:30 UTC. It drafts **every** accepted, not yet drafted, monitored Reference (no `--limit`), best ranked first,
+and is bounded only by the Lambda's remaining time, a per-run model-spend backstop and a filing error (`stoppedBy` in its log line). The Proposals and the soft review request are the same as the CLI's; a Reference
+is never drafted twice, whichever path drafted it. A publication opts out with `"monitorStories": {"enabled": false}` in its router entry. Distinctive Mark is not scheduled: its TTAB References are drafted by its Automation.
+
 Limits: the check proves each sentence points at the source and that its digits come from it; it does not prove the sentence reads the source correctly,
 so an editor reads every draft. Turning an approved draft into a story is a later step; nothing here transitions, approves or publishes a Proposal.
 
