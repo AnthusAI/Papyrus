@@ -26,8 +26,8 @@
   },
   "lastChange": {
     "by": "Ryan",
-    "at": "2026-10-29T19:40:22Z",
+    "at": "2026-10-29T20:54:01Z",
     "via": "Claude Code",
-    "note": "Added the feed register, the verdict tones and the RatingGrid card."
+    "note": "DecisionControl shipped as components/decision-control.tsx; the predicted state is tone, not a dashed edge."
   }
 }
