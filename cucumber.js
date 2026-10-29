@@ -43,6 +43,11 @@ module.exports = {
     require: ["features/step_definitions/reference-feed.steps.js"],
     format: ["summary"],
   },
+  conversations: {
+    paths: ["features/newsroom-conversations.feature"],
+    require: ["features/step_definitions/conversations.steps.js"],
+    format: ["summary"],
+  },
   cliLoginDiscovery: {
     paths: ["features/cli-login-discovery.feature"],
     require: ["features/step_definitions/cli-login-discovery.steps.js"],

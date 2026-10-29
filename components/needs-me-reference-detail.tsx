@@ -11,6 +11,7 @@ import type { NeedsMeEntry } from "../lib/needs-me-items";
 import { DefaultOutcome, Heading, type DetailProps } from "./needs-me-bodies";
 import { decidedChoiceOf } from "./needs-me-shared";
 import { predictionFromDecision, ReviewCard, type CardPrediction } from "./reference-review-card";
+import { ReferenceConversation } from "./reference-conversation";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture } from "./reference-capture-client";
 import { ReferenceSourcePreview } from "./reference-source-preview";
@@ -57,6 +58,7 @@ export function ReferenceBody(props: DetailProps & { payload: Extract<NeedsMeEnt
         titleHref={url}
       >
         {payload.decision ? <div data-reference-relevance-decision={lineageId}><ReferenceSuggestionProvenance decision={payload.decision} /></div> : null}
+        <ReferenceConversation disabledReason={disabledReason ? "Editor access is required to write messages." : null} lineageId={lineageId} referenceId={reference.id} title={referenceDisplayTitle(reference)} />
       </ReviewCard>
       <DefaultOutcome item={item} />
       {incomplete ? <p className="text-sm text-muted-foreground" data-needs-me-capture-note>The captured text looks cut off or missing. Read it below. If it is incomplete, choose Paste or correct the text and say whether the capture was complete, or rate the Reference as it is.</p> : null}

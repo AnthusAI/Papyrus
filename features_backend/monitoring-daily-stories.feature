@@ -67,6 +67,14 @@ Feature: Every day the monitoring router drafts a story for each accepted item i
     Then 1 story draft is filed, for the "hn" Reference
     And the log line for "example-site" says drafted 1, candidates 1, notAccepted 0, skipped 0 and stoppedBy none
 
+  Scenario: Distinctive Mark's web-search finds are drafted while its TTAB rulings stay with its Automation
+    Given 2 accepted References that the "ttab" monitor delivered
+    And 2 accepted References that the "web-distinctive" monitor delivered
+    And an enabled Automation that is triggered by the "ttab" monitor
+    When the router runs its daily monitor stories
+    Then 2 story drafts are filed, one per Reference, each citing its source
+    And the log line for "example-site" says drafted 2, candidates 2, notAccepted 0, skipped 0 and stoppedBy none
+
   Scenario: A publication with a backlog does not starve the others
     Given a second publication "other-site" with 2 accepted References that the "hn" monitor delivered
     And 8 accepted References that the "hn" monitor delivered

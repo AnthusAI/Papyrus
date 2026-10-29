@@ -383,16 +383,16 @@ _template = tr._template
 def test_monitor_stories_grant_covers_every_publication_api_the_hn_monitor_lists():
     resources_of = lambda name: [r[1] for r in _template()["Resources"][name]["Properties"]["PolicyDocument"]["Statement"][0]["Resource"]]   # noqa: E731
     template = _template()["Resources"]
-    halves = ("RouterMonitorStoriesPolicy", "RouterMonitorStoriesSharedSitesPolicy")
+    halves = ("RouterMonitorStoriesPolicy", "RouterMonitorStoriesSharedSitesPolicy", "RouterMonitorStoriesDistinctivePolicy")
     for name in halves:
         assert template[name]["Properties"]["Roles"] == [("Ref", "RouterRole")]
         assert len(template[name]["Properties"]["PolicyDocument"]["Statement"]) == 1
     resources = [r for name in halves for r in resources_of(name)]
-    assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${" + api + "}" for api in PUBLICATION_APIS}   # Distinctive Mark is deliberately absent
+    assert {r.split("apis/")[1].split("/")[0] for r in resources} == {"${" + api + "}" for api in (*PUBLICATION_APIS, "DistinctiveApiId")}
     assert "*" not in "".join(resources)
     needed = used_fields()
     assert {("Mutation", "fileProposal"), ("Query", "listStoryDrafts"), ("Mutation", "createReviewRequest"), ("Query", "getReviewRequest")} <= needed
-    for api in PUBLICATION_APIS:
+    for api in (*PUBLICATION_APIS, "DistinctiveApiId"):
         granted_here = {tuple(r.split("types/")[1].split("/fields/")) for r in resources if f"apis/${{{api}}}/" in r}
         assert granted_here == needed, (api, sorted(needed ^ granted_here))   # explicit, complete and nothing more
         assert needed <= granted_fields(api), (api, sorted(needed - granted_fields(api)))
@@ -415,3 +415,12 @@ def test_every_managed_policy_of_the_router_fits_the_6144_character_limit():
         if resource["Type"] == "AWS::IAM::ManagedPolicy":
             document = json.dumps(measured(resource["Properties"]["PolicyDocument"]), separators=(",", ":"))
             assert len(re.sub(r"\s", "", document)) <= 6144, (name, len(document))
+
+
+def test_distinctive_has_its_own_daily_monitor_stories_schedule():
+    # The hn router does not list Distinctive Mark, so its web monitor runs the same task on its own schedule, at the same hour.
+    resources = _template()["Resources"]
+    hn, distinctive = resources["MonitorStoriesSchedule"]["Properties"], resources["DistinctiveMonitorStoriesSchedule"]["Properties"]
+    assert json.loads(distinctive["Target"]["Input"]) == {"task": "monitor-stories", "monitorId": "web-distinctive"}
+    assert distinctive["ScheduleExpression"] == hn["ScheduleExpression"]
+    assert distinctive["Target"]["RetryPolicy"] == hn["Target"]["RetryPolicy"] == {"MaximumEventAgeInSeconds": 3600, "MaximumRetryAttempts": 0}

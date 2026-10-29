@@ -760,7 +760,7 @@ every publication the `hn` monitor lists gets it, whether or not it has the stac
 * **Live mode only.** A router in `dry-run` mode writes to no publication, so the task does nothing.
 * **Log.** One JSON line per publication, after its last pass: `{"monitorStories": "complete|stopped|skipped|disabled|failed", "monitorId", "publicationId", "drafted", "candidates", "notAccepted", "skipped", "stoppedBy", "notMonitored", "attempted", "failedTheCheck", "duplicates", "handledByAutomation", "costUsd", "review"}`
   (`candidates` and `notAccepted` are what the run found when it started; `skipped` counts items with no text to write from). The same object per publication is under `monitorStories` in the run result and receipt.
-* **Distinctive Mark is not scheduled.** It appears only in the `ttab` and `web-distinctive` monitor configs, not in `hn`, and monitor stories skip its TTAB References anyway (its Automation drafts those, `handledByAutomation`).
+* **Distinctive Mark has its own schedule.** It appears only in the `ttab` and `web-distinctive` monitor configs, not in `hn`, so `papyrus-monitoring-web-distinctive-monitor-stories` runs `{"task": "monitor-stories", "monitorId": "web-distinctive"}` at the same hour, granted by `RouterMonitorStoriesDistinctivePolicy`. Its TTAB References are still skipped (its Automation drafts those, `handledByAutomation`).
   To give another publication the task, schedule it for a monitor whose router config lists it (and add that publication's API to the two `RouterMonitorStories…Policy` grants).
 * **IAM.** `RouterMonitorStoriesPolicy` and `RouterMonitorStoriesSharedSitesPolicy` (two because one managed policy holds at most 6,144 characters) list, for the six publications of the `hn` monitor, exactly these fields: `fileProposal`, `listStoryDrafts`
   (earlier drafts, for the dedupe), `createReviewRequest`, `getReviewRequest`, `listReferencesByCurationStatusKeyAndUpdatedAt`, `listSemanticRelationsByObjectState` (provenance), `listSemanticRelationsBySubjectState` (the verdict), `listItems`, `itemBySlug`,
@@ -779,7 +779,7 @@ every publication the `hn` monitor lists gets it, whether or not it has the stac
 
 The field list was captured by running the real intake and editorial-context code against a
 recording client. `updateReferenceAttachment` is there because a second HN item for an
-existing URL re-points the shared source attachment. There are no deletes, and the only Reference update is the automatic acceptance in `RouterAutoAcceptPolicy` (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), the daily [monitor stories](#monitor-stories-daily) read and file through `RouterMonitorStoriesPolicy` and `RouterMonitorStoriesSharedSitesPolicy` (eleven fields on each of six APIs, listed there), no wildcard resources, no admin. The provenance upload uses the
+existing URL re-points the shared source attachment. There are no deletes, and the only Reference update is the automatic acceptance in `RouterAutoAcceptPolicy` (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), the daily [monitor stories](#monitor-stories-daily) read and file through `RouterMonitorStoriesPolicy`, `RouterMonitorStoriesSharedSitesPolicy` and `RouterMonitorStoriesDistinctivePolicy` (eleven fields on each of seven APIs, listed there), no wildcard resources, no admin. The provenance upload uses the
 presigned URL AppSync returns, so the role needs no S3 permission.
 
 Limits: Python 3.13 arm64, 512 MB, 600 s timeout, retry 0 on async invocation, dead-letter queue,
