@@ -22,6 +22,84 @@ export function isScopeTrainingNegativeReason(code: string): boolean {
   return SCOPE_TRAINING_NEGATIVE_REASON_CODE_SET.has(code);
 }
 
+/**
+ * The phrases an editor writes when they mean one reason code and little else.
+ *
+ * The order matters, and the two scope-training codes come LAST: a sentence
+ * that also names a mechanical reason ("already have it, and off our beat") is
+ * filed under that reason instead. A false scope negative teaches the relevance
+ * classifier something wrong; a missed one only leaves it untaught.
+ *
+ * Each phrase is a whole word or wording, never a fragment, so "slopes" is not
+ * read as "slop". Words that say none of this yield no code at all rather than
+ * the nearest guess.
+ */
+const WRITTEN_REASON_PHRASES: ReadonlyArray<readonly [ReferenceRejectionReasonCode, readonly string[]]> = [
+  ["duplicate", [
+    "duplicate", "duplicates", "duplicated", "duplication", "dupe", "reprint", "reprinted",
+    "already have (it|this|that|the)", "already (got|covered|accepted|registered|ingested|indexed)",
+    "already in (our|the) (corpus|list|feed|knowledge base|library)", "same (source|piece|story) as",
+  ]],
+  ["unavailable", [
+    "paywall", "paywalled", "unavailable", "not available", "no longer (available|online|up|there|reachable)",
+    "behind a (paywall|login|subscription|sign in)", "(dead|broken|404) link", "link is (dead|broken)",
+    "(cannot|cant) (open|read|reach|access|download|retrieve)", "requires a (subscription|login|account|sign in)",
+    "taken down", "timed out", "page is gone",
+  ]],
+  ["provenance", [
+    "provenance", "unattributed", "unverified", "unverifiable", "untraceable",
+    "(cannot|cant) (verify|attribute)", "no (byline|author|citation|attribution|provenance)",
+    "(unknown|unclear|anonymous|missing) (author|source|origin|provenance)", "who wrote it",
+  ]],
+  ["low_quality", [
+    "(low|poor) quality", "poorly (written|sourced|argued|researched|edited)", "badly written", "sloppy",
+    "content farm", "clickbait", "seo (spam|bait|filler)", "slop", "junk", "spam", "no substance", "churnalism",
+  ]],
+  ["policy_exclusion", [
+    "policy exclusion", "(our|house|editorial) policy", "against (our )?policy",
+    "(policy|policies) (excludes?|forbids?|bars?|rules? out|says?)",
+    "(excluded|barred|ruled out|forbidden) by (our )?policy",
+    "we (dont|do not) (cover|run|publish|cite|take)", "not allowed", "disallowed", "prohibited",
+    "blocklist", "blocklisted", "blocked source",
+  ]],
+  ["out_of_scope", [
+    "out of scope", "outside (our|the) (scope|remit|coverage|beat|lane)", "not (in|within) (our|the) scope",
+    "off topic", "nothing to do with", "not (our|the) (beat|subject|topic|area|coverage)",
+    "not relevant", "no longer relevant", "irrelevant", "unrelated", "wrong (beat|subject|topic)",
+  ]],
+];
+
+const WRITTEN_REASON_PATTERNS: ReadonlyArray<readonly [ReferenceRejectionReasonCode, RegExp]> =
+  WRITTEN_REASON_PHRASES.map(([code, phrases]) => [code, new RegExp(`\\b(?:${phrases.join("|")})\\b`)] as const);
+
+/**
+ * The reason code a rejection is filed under when the editor gave none: what
+ * their own words plainly say, else "other".
+ *
+ * Words are a reason — a written sentence is what the editor actually gives
+ * now that there are no reason chips — but "other" is the honest answer for
+ * words that name no policy code, rather than a guess the sentence cannot
+ * support. Blank words are no reason at all, so this yields null and the
+ * caller refuses the rejection.
+ */
+export function rejectionReasonCodeForWrittenReason(writtenReason: unknown): ReferenceRejectionReasonCode | null {
+  const words = normalizeWrittenReason(writtenReason);
+  if (!words) return null;
+  for (const [code, pattern] of WRITTEN_REASON_PATTERNS) {
+    if (pattern.test(words)) return code;
+  }
+  return "other";
+}
+
+/** Lower case, apostrophes dropped ("don't" -> "dont") and every other gap a single space, so phrases match plain prose. */
+function normalizeWrittenReason(value: unknown): string {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/['\u2018\u2019]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function normalizeReferenceCurationStatus(value: unknown, defaultStatus: ReferenceCurationStatus = "pending"): ReferenceCurationStatus {
   const normalized = normalizePolicyToken(value ?? defaultStatus);
   if (normalized === "accepted" || normalized === "accept" || normalized === "ready" || normalized === "trusted") return "accepted";

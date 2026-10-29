@@ -51,6 +51,7 @@
     "test:notification-center": "tsx scripts/test-needs-me-ranking.ts && tsx scripts/test-notification-center.ts && tsx scripts/test-notification-center-drafts.ts && tsx scripts/test-newsroom-organizer-nav.ts && cucumber-js --profile notificationCenter",
     "test:newsroom-nav": "tsx scripts/test-newsroom-nav.ts",
     "test:relevance-decisions": "tsx scripts/test-relevance-decisions.ts",
+    "test:reference-reason-code": "tsx scripts/test-reference-reason-code.ts",
     "test:cyclotron-suggestions": "tsx scripts/test-cyclotron-suggestions.ts",
     "test:site-section-suggestions": "tsx scripts/test-site-section-suggestions.ts",
     "test:curation-delegation": "tsx scripts/test-curation-delegation.ts",

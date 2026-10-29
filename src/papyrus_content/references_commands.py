@@ -89,16 +89,19 @@ def references_review_curation(flags: list[str]) -> None:
         raise ValueError("references review-curation requires --reference <id>.")
     if not options.get("action"):
         raise ValueError("references review-curation requires --action accept|reject|reopen|archive.")
+    note = str(options.get("note") or "")
+    # Words are a reason: a reject with --note needs no --reason-code, because the
+    # curation Lambda reads those words for the code they name.
     reason_code = normalize_reference_rejection_reason_code(
         options.get("reason-code") or options.get("reasonCode"),
-        required=str(options.get("action")).lower() == "reject",
+        required=str(options.get("action")).lower() == "reject" and not note.strip(),
     )
     client, _ = create_authoring_client()
     review = newsroom_reference_actions.review_reference_curation(
         client.graphql,
         reference_id=str(reference_id),
         action=str(options["action"]),
-        note=str(options.get("note") or ""),
+        note=note,
         actor_label=str(options.get("actor") or "Papyrus content CLI"),
         reason_code=reason_code or "",
         section_id=_section_option(options),
@@ -133,13 +136,15 @@ def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
                if not value or value is True]
     if missing:
         raise ValueError(f"references {action} requires {', '.join(missing)}.")
+    note = str(options.get("note") or "")
     reason_code = normalize_reference_rejection_reason_code(
-        options.get("reason-code") or options.get("reasonCode"), required=action == "reject")
+        options.get("reason-code") or options.get("reasonCode"),
+        required=action == "reject" and not note.strip())
     client, _ = create_authoring_client()
     recorded = newsroom_reference_actions.record_delegated_curation(
         client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
         agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
-        instruction=str(options["instruction"]), note=str(options.get("note") or ""),
+        instruction=str(options["instruction"]), note=note,
         reason_code=reason_code or "", section_id=_section_option(options))
     print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
           f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")

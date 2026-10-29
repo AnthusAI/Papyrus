@@ -141,6 +141,14 @@ async function settle(page: Page, fail = false) {
 async function requestCount(page: Page) {
   return page.evaluate(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length);
 }
+/** What the view last asked the curation mutation for: the action and the reason it carries. */
+async function lastRequest(page: Page) {
+  return page.evaluate(() => {
+    const requests = (window as unknown as { fixtureRequests: Array<{ action: string; options: { note?: string; reasonCode?: string | null } }> }).fixtureRequests;
+    const last = requests[requests.length - 1];
+    return { action: last.action, note: last.options.note ?? null, reasonCode: last.options.reasonCode ?? null };
+  });
+}
 async function status(page: Page, expected: string) {
   await page.waitForFunction((value) => document.querySelector('[data-news-desk-reference-detail="reference-a"] [data-reference-curation-status]')?.getAttribute("data-reference-curation-status") === value, expected);
 }
@@ -227,13 +235,16 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.waitForFunction(() => JSON.parse(localStorage.getItem("references") || "[]")[0]?.curationStatusReason === "A useful source for the publication.");
       await page.reload(); await detail(page).waitFor();
       assert.equal(await detail(page).getByLabel(WHY, { exact: true }).inputValue(), "A useful source for the publication.");
-      // Switching to Reject with a Why already written saves at once: a typed reason is a reason (filed as "other").
+      // Switching to Reject with a Why already written saves at once: a typed reason is a reason. It carries
+      // no code the editor did not pick — the curation Lambda reads the words for the code they name.
       const before = await requestCount(page);
       await you(page, "reject").click();
       assert.equal(await you(page, "reject").getAttribute("aria-pressed"), "true", "the tapped answer shows as selected at once");
       await settle(page); await status(page, "rejected");
       assert.ok(await requestCount(page) > before, "the Reject is sent without waiting for a chip");
       assert.equal(await detail(page).getByText("Choose a reason, or say why above, to save your Reject.").count(), 0, "nothing asks for a reason");
+      assert.deepEqual(await lastRequest(page), { action: "reject", note: "A useful source for the publication.", reasonCode: null },
+        "the words go with the Reject and no reason code is invented for them");
       // A chip still refines the reason: a second save, sent once the first one lands.
       const sent = await requestCount(page);
       await reasonChip(page, "out_of_scope").click();
@@ -268,7 +279,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     try {
       await selectA(page);
       await detail(page).getByLabel(WHY, { exact: true }).fill("The source addresses a different audience.");
-      await you(page, "reject").click();   // with a Why typed, this saves at once (as "other")
+      await you(page, "reject").click();   // with a Why typed, this saves at once, carrying the words and no code
       await reasonChip(page, "out_of_scope").click();   // and the chip refines it once that lands
       await settle(page); await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2); await settle(page);
       await status(page, "rejected");
