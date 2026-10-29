@@ -13,6 +13,10 @@ import type { CardPrediction, ReviewChoice } from "./reference-review-card";
  * Feedback is never colour alone: before you answer the predicted cell is neutral-accent with a check or cross; after, it turns
  * green with a CircleCheck (Match) or red with a CircleX (Miss), and the confidence bar tints the same way. Your chosen button is
  * filled. Flat tones and rounded shapes only, no borders.
+ * Every tone, radius and opacity here is a feed token (--feed-card / --feed-footer / --feed-control, --feed-verdict-*,
+ * --feed-radius-*, --feed-quiet), declared in newsroom-organizer.css. The component holds no literal colour or corner: a
+ * publication re-skins the grid by overriding those tokens. Dark mode comes from the feed layer's [data-color-mode="dark"],
+ * not from Tailwind's dark: variant, which is .dark-scoped and never fires in this app.
  * The grid sizes itself to its own width (a container query), not the window's: on a narrow card the label column shrinks to its
  * word, the padding tightens, and the confidence wraps under "Accept" instead of spilling out of its cell.
  */
@@ -32,11 +36,17 @@ export function confidenceFillPercent(probability: number): number {
 
 const WORD: Record<ReviewChoice, string> = { accept: "Accept", reject: "Reject" };
 
+/* The feed layer owns these tones (newsroom-organizer.css), in light and dark; the values after the comma are the
+   last resort for a surface that declares none, so the grid still reads a verdict outside a feed surface. */
 const TONE = {
-  match: "bg-emerald-600/20 text-emerald-900 dark:bg-emerald-400/20 dark:text-emerald-100",
-  miss: "bg-red-600/20 text-red-900 dark:bg-red-400/20 dark:text-red-100",
+  match: "bg-[var(--feed-verdict-match-tint,#05966933)] text-[var(--feed-verdict-match-ink,#064e3b)]",
+  miss: "bg-[var(--feed-verdict-miss-tint,#dc262633)] text-[var(--feed-verdict-miss-ink,#7f1d1d)]",
 } as const;
-const FILL = { match: "bg-emerald-600 dark:bg-emerald-400", miss: "bg-red-600 dark:bg-red-400", neutral: "bg-[var(--primary)]" } as const;
+const FILL = {
+  match: "bg-[var(--feed-verdict-match-fill,#059669)]",
+  miss: "bg-[var(--feed-verdict-miss-fill,#dc2626)]",
+  neutral: "bg-[var(--primary)]",
+} as const;
 
 export function RatingGrid({
   answer,
@@ -96,7 +106,7 @@ export function RatingGrid({
           return (
             <span
               className={cn(
-                "flex min-w-0 flex-col items-center justify-center rounded-[16px] px-2 py-1.5 text-center @max-[17rem]/rating:px-1",
+                "flex min-w-0 flex-col items-center justify-center rounded-[var(--feed-radius-md,16px)] px-2 py-1.5 text-center @max-[17rem]/rating:px-1",
                 cell,
                 !predicted && "bg-[var(--feed-control)]/45 text-muted-foreground",
                 predicted && !verdict && "bg-[var(--feed-control)] font-semibold text-[var(--primary)]",
@@ -117,7 +127,7 @@ export function RatingGrid({
                 {predicted && (confidenceText || verdict) ? (
                   <small className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
                     {confidenceText ? <span className="font-normal opacity-80" data-cyclotron-confidence>{confidenceText}</span> : null}
-                    {confidenceText && verdict ? <span aria-hidden="true" className="opacity-60">·</span> : null}
+                    {confidenceText && verdict ? <span aria-hidden="true" className="opacity-[var(--feed-quiet,0.6)]">·</span> : null}
                     {verdict ? <span className="font-medium" data-verdict-word>{verdict === "match" ? "Match" : "Miss"}</span> : null}
                   </small>
                 ) : null}
@@ -161,17 +171,17 @@ export function RatingGrid({
               aria-disabled={disabled ? true : undefined}
               aria-pressed={on}
               className={cn(
-                "inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[16px] px-2 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring @max-[17rem]/rating:gap-1 @max-[17rem]/rating:px-1",
+                "inline-flex min-w-0 items-center justify-center gap-1.5 rounded-[var(--feed-radius-md,16px)] px-2 font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring @max-[17rem]/rating:gap-1 @max-[17rem]/rating:px-1",
                 cell,
                 on ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)] text-foreground hover:bg-[var(--feed-control)]/70",
-                disabled && !on && "opacity-60",
+                disabled && !on && "opacity-[var(--feed-quiet,0.6)]",
               )}
               data-review-choice={choice}
               key={choice}
-              onClick={() => onChoose(choice)}
+              onClick={() => { if (!disabled) onChoose(choice); }}
               type="button"
             >
-              <Icon aria-hidden="true" className={cn("size-4", !on && "opacity-60")} />
+              <Icon aria-hidden="true" className={cn("size-4", !on && "opacity-[var(--feed-quiet,0.6)]")} />
               {WORD[choice]}
             </button>
           );

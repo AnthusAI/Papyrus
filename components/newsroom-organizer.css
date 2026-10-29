@@ -401,11 +401,29 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
   --feed-radius-lg: 10px;
   --feed-radius-md: 8px;
   --feed-radius-pill: 8px;
+  /* Verdict tones for the rating grid. Hue is never the only signal: the cell also carries a CircleCheck or
+     CircleX and the word Match or Miss. Named here, in the feed layer, because the component must not hold
+     literal palette values and because Tailwind's dark: variant (.dark *) never fires in this app. */
+  --feed-verdict-match-tint: #05966933;
+  --feed-verdict-match-ink: #064e3b;
+  --feed-verdict-match-fill: #059669;
+  --feed-verdict-miss-tint: #dc262633;
+  --feed-verdict-miss-ink: #7f1d1d;
+  --feed-verdict-miss-fill: #dc2626;
+  /* The quiet step for an unpredicted cell and a switched-off button. */
+  --feed-quiet: 0.6;
 }
 [data-kanbus-theme][data-color-mode="dark"] [data-feed-surface], [data-kanbus-theme][data-color-mode="dark"][data-feed-surface] {
   --feed-card: color-mix(in oklab, var(--kb-theme-paper) 94%, var(--kb-theme-ink));
   --feed-footer: color-mix(in oklab, var(--kb-theme-paper) 90%, var(--kb-theme-ink));
   --feed-control: color-mix(in oklab, var(--kb-theme-paper) 80%, var(--kb-theme-ink));
+  /* Dark verdicts lift toward the tint rather than down into it, so the ink reads on a dark card. */
+  --feed-verdict-match-tint: #34d39933;
+  --feed-verdict-match-ink: #d1fae5;
+  --feed-verdict-match-fill: #34d399;
+  --feed-verdict-miss-tint: #f8717133;
+  --feed-verdict-miss-ink: #fee2e2;
+  --feed-verdict-miss-fill: #f87171;
 }
 
 /* Borderless detail pane, Add panel and mobile sheet ([data-feed-flat]): no border, rule or box anywhere inside. Regions are told apart
