@@ -5,12 +5,10 @@
  * What they share is one question: where would a person's answer change the most? In plain words, as the page says them:
  *   1. Hard gates first. Nothing continues until a person decides one, so it leads, oldest first.
  *   2. Then the interim "value of your input" score:
- *        value = uncertainty x importance x freshness
+ *        value = uncertainty x importance
  *      - uncertainty is 1 - |2P - 1|, where P is the Cyclotron's probability that you would Accept. A coin toss (P = 0.5) is 1, a
  *        certainty is 0. An item with no prediction is 0.5: we do not know how unsure we are.
  *      - importance is the item's own priority (a relevance score, or a story or section priority). It is 1 until a source gives one.
- *      - freshness is exp(-age / tau), the weight the References feed already uses; tau is learned from how old the References you
- *        accepted were when you accepted them (reference-feed-ranking.ts). With too few examples there is no decay.
  *   3. Types are interleaved, never more than two of one type in a row while another type is waiting, so a long run of References
  *      does not bury the drafts and emails behind it.
  *   4. Confident items do not ask for you. An item whose uncertainty is below the threshold goes to "Decided automatically", where it
@@ -25,7 +23,7 @@ import type { ReferenceRecord } from "./category-repository";
 import { referenceLineageId } from "./newsroom-references";
 import { normalizeReferenceCurationStatus } from "./reference-policy";
 import type { RelevanceDecisionView } from "./relevance-decisions";
-import { acceptProbability, MINIMUM_FRESHNESS_EXAMPLES, type FeedFreshness } from "./reference-feed-ranking";
+import { acceptProbability } from "./reference-feed-ranking";
 
 export type NeedsMeType = "reference" | "draft" | "stage_review" | "held_email" | "incomplete_capture" | "concept_proposal" | "flag";
 
@@ -109,33 +107,23 @@ export function predictionOf(decision: RelevanceDecisionView | undefined): Needs
   return { label: decision.label === (decision.positiveLabel ?? "include") ? "accept" : "reject", pAccept, confidence: decision.confidence };
 }
 
-const DAY_MILLISECONDS = 86_400_000;
-
-/** exp(-age / tau) at `now`; 1 without a learned tau or an unknown arrival. The References feed's own weight. */
-export function freshnessAt(createdAt: number | null, freshness: FeedFreshness, now: number): number {
-  if (freshness.tauDays === null || createdAt === null) return 1;
-  return Math.exp(-Math.max(now - createdAt, 0) / DAY_MILLISECONDS / freshness.tauDays);
-}
-
-export type AttentionContext = { now: number; freshness: FeedFreshness };
-
 /**
  * The value of this editor's input on one item. Higher is earlier. The interim model below is a formula; a Cyclotron "attention"
  * decision implements the same interface and is passed to `rankNeedsMe` in its place.
  */
 export interface AttentionModel {
   readonly id: string;
-  value(item: NeedsMeItem, context: AttentionContext): number;
+  value(item: NeedsMeItem): number;
 }
 
 export const interimAttention: AttentionModel = {
   id: "interim-value-of-input",
-  value: (item, { now, freshness }) => item.uncertainty * item.importance * freshnessAt(item.createdAt, freshness, now),
+  value: (item) => item.uncertainty * item.importance,
 };
 
 // --- confident items ----------------------------------------------------------------------------------------------------
 
-export const MINIMUM_CONFIRMED_EXAMPLES = MINIMUM_FRESHNESS_EXAMPLES;
+export const MINIMUM_CONFIRMED_EXAMPLES = 10;
 
 export type ConfidenceThreshold = {
   /** Null with fewer than MINIMUM_CONFIRMED_EXAMPLES confirmed predictions: nothing is guessed, nothing is skipped. */
@@ -217,11 +205,10 @@ function newestFirst(left: NeedsMeItem, right: NeedsMeItem): number {
 
 export function rankNeedsMe<P>(
   items: readonly NeedsMeItem<P>[],
-  options: { now: number; freshness: FeedFreshness; threshold: ConfidenceThreshold; attention?: AttentionModel },
+  options: { threshold: ConfidenceThreshold; attention?: AttentionModel },
 ): NeedsMeRanking<P> {
   const attention = options.attention ?? interimAttention;
-  const context: AttentionContext = { now: options.now, freshness: options.freshness };
-  const scores = new Map(items.map((item) => [item.id, attention.value(item, context)]));
+  const scores = new Map(items.map((item) => [item.id, attention.value(item)]));
   const score = (item: NeedsMeItem) => scores.get(item.id) ?? 0;
   const gates = items.filter((item) => item.hardGate).sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0) || left.id.localeCompare(right.id));
   const rest = items.filter((item) => !item.hardGate);

@@ -61,7 +61,7 @@ try {
 
     // Rate: one card the Cyclotron expected to be Accepted (a match) and one it expected to be Rejected (a miss), both answered Accept.
     const { page } = session;
-    await page.locator("[data-feed-tab-button=feed]").scrollIntoViewIfNeeded();
+    await page.locator("[data-feed-sort-button=best]").scrollIntoViewIfNeeded();
     const predictedAccept = page.locator('[data-feed-card]:has([data-review-choice="accept"][data-predicted])').first();
     const predictedReject = page.locator('[data-feed-card]:has([data-review-choice="reject"][data-predicted])').first();
     await predictedAccept.locator('[data-review-choice="accept"]').click();
@@ -80,20 +80,17 @@ try {
     await another.locator('[data-review-choice="reject"]').click();
     await page.waitForTimeout(400);
     await shoot(page, "reject-asks-reason", { clip: await clipOf(another) });
-    await page.locator("[data-feed-tab-button=rated]").scrollIntoViewIfNeeded();
-    await page.locator("[data-feed-tab-button=rated]").click();
+    await page.locator("[data-feed-show-button=all]").scrollIntoViewIfNeeded();
+    await page.locator("[data-feed-show-button=all]").click();
     await page.waitForTimeout(1200);
-    await shoot(page, "rated-tab");
-    await page.locator("[data-feed-tab-button=feed]").click();
+    await shoot(page, "include-rated");
+    await page.locator("[data-feed-show-button=unrated]").click();
     await page.locator("[data-feed-open]").nth(2).click();
     await page.waitForTimeout(1500);
     await shoot(page, "detail-open");
     await session.context.close();
 
-    session = await open("?feedTau=2");
-    await session.page.locator("[data-feed-earlier]").evaluate((element) => element.scrollIntoView({ block: "start" }));
-    await session.page.waitForTimeout(1200);
-    await shoot(session.page, "earlier-section");
+    session = await open("");
     await session.page.locator("[data-feed-ranking-info]").scrollIntoViewIfNeeded();
     await session.page.locator("[data-feed-ranking-info]").click();
     await session.page.waitForTimeout(500);

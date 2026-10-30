@@ -2,7 +2,7 @@
 Feature: The Notification Center answers "What needs me?" with one feed that mixes everything that may need a person
   The console home is a single feed in the style of the References feed: flat tones and rounded cards, no borders or lines. It mixes
   References, Proposed Stories, story reviews, held email, captures that may be cut off, and flags. Hard gates come first. After them the
-  order is the value of the editor's input: how unsure the Cyclotron is, times how much the item matters, times how fresh it is, with
+  order is the value of the editor's input: how unsure the Cyclotron is, times how much the item matters, with no change for age, and with
   no more than two items of one type in a row while another type waits. The order is taken once when the editor arrives and then left
   alone. Pills narrow the feed to one type and count what waits. Items the Cyclotron is confident about do not ask for the editor;
   they wait under "Decided automatically", where they can be overruled. Every card has the References feed's Accept and Reject grid,

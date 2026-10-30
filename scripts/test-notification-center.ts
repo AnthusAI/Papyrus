@@ -159,7 +159,7 @@ async function main() {
   });
   const render = (overrides: Partial<Parameters<typeof NeedsMeView>[0]> = {}, from: Partial<Parameters<typeof buildNeedsMeItems>[0]> = {}) =>
     renderToStaticMarkup(createElement(NeedsMeView, {
-      loadState: "ready", entries: buildNeedsMeItems(sources(from)), freshness: { tauDays: null, medianAgeDays: null, examples: 0 }, threshold: learnConfidenceThreshold([], undefined),
+      loadState: "ready", entries: buildNeedsMeItems(sources(from)), threshold: learnConfidenceThreshold([], undefined),
       now: NOW.getTime(), shaping: { decisions: 0, agreed: 0, overruled: 0 }, recent: [], settled: true, onDecide: async () => undefined, ...overrides,
     }));
   const html = render();

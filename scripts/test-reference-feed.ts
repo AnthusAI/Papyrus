@@ -27,10 +27,11 @@ function browserBundle(): Promise<string> {
     banner: { js: 'window.process = { env: { NODE_ENV: "development" } };' },
     stdin: { resolveDir: root, loader: "tsx", sourcefile: "reference-feed-fixture.tsx", contents: `
 import { createRoot } from "react-dom/client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ReferenceFeed } from "./components/reference-feed";
 import { ReferencesPageLoading } from "./components/references-page-loading";
-import { partitionReferenceFeed } from "./lib/reference-feed-ranking";
+import { useFeedPreferences } from "./components/use-feed-preferences";
+import { applyFeedOrderSnapshot, buildFeedItems, takeFeedOrderSnapshot } from "./lib/reference-feed-ranking";
 
 const params = new URLSearchParams(location.search);
 const NOW = Date.parse("2026-10-27T12:00:00Z");
@@ -38,8 +39,8 @@ const DAY = 86400000;
 const ago = (days) => new Date(NOW - days * DAY).toISOString();
 const decision = (label, confidence) => ({ decisionRelationId: "r", decisionId: "d", label, confidence, version: 1, reviewRecommended: false, reviewReason: null, reviewDetail: null,
   classes: ["include", "exclude"], positiveLabel: "include", question: null, reviewControl: "thumbs", cyclotronId: "c", decidedAt: null, provenance: null });
-const make = (id, fields = {}) => ({ id: id + "-v1", lineageId: id, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: id, title: "Title of " + id, sourceUri: "https://" + id + ".example.org/story", curationStatus: "pending", createdAt: ago(0.4), sourcePublishedAt: ago(0.4), ...fields });
-const learned = params.has("tau") ? Array.from({ length: 10 }, (_, index) => make("learned-" + index, { curationStatus: "accepted", createdAt: ago(6), sourcePublishedAt: ago(6), curationStatusUpdatedAt: ago(5) })) : [];
+let made = 0;
+const make = (id, fields = {}) => ({ id: id + "-v1", lineageId: id, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: id, title: "Title of " + id, sourceUri: "https://" + id + ".example.org/story", curationStatus: "pending", createdAt: ago(0.4 + 0.01 * (made += 1)), sourcePublishedAt: ago(0.4), ...fields });
 const auto = params.has("auto") ? [
   make("auto-accepted", { curationStatus: "accepted", curationStatusUpdatedBy: "auto:cyclotron", curationStatusUpdatedAt: ago(0.1), curationStatusReason: "Accepted automatically by the Cyclotron: it was 96.0% sure." }),
   make("rule-accepted", { curationStatus: "accepted", curationStatusUpdatedBy: "auto:rule", curationStatusUpdatedAt: ago(0.15), curationStatusReason: "Accepted automatically by the ttab monitor's rule." }),
@@ -48,8 +49,7 @@ const auto = params.has("auto") ? [
 const FIXTURE = [
   ...auto,
   make("strong-accept"), make("mid-accept"), make("no-prediction"), make("weak-reject"), make("broken-image"), make("strong-reject"),
-  ...(params.has("tau") ? [make("aged-out", { createdAt: ago(9), sourcePublishedAt: ago(9) })] : []),
-  ...learned,
+  ...(params.has("aged") ? [make("aged-out", { createdAt: ago(400), sourcePublishedAt: ago(400) })] : []),
 ];
 const DECISIONS = new Map([["strong-accept", decision("include", 0.96)], ["mid-accept", decision("include", 0.7)], ["weak-reject", decision("exclude", 0.62)],
   ["broken-image", decision("include", 0.8)], ["strong-reject", decision("exclude", 0.94)], ["aged-out", decision("include", 0.9)]]);
@@ -62,8 +62,12 @@ let tick = 0;
 function Harness() {
   const [references, setReferences] = useState(FIXTURE);
   const [visitRated, setVisitRated] = useState(new Set());
-  const [tab, setTab] = useState("feed");
-  const partition = useMemo(() => partitionReferenceFeed(references, DECISIONS, { now: NOW, visitRated, tauDaysOverride: params.has("tau") ? Number(params.get("tau")) : null }), [references, visitRated]);
+  const { sort, setSort, show, setShow } = useFeedPreferences();
+  const live = useMemo(() => buildFeedItems(references, DECISIONS), [references]);
+  // The same rule as the page: the order is taken once and left alone.
+  const snapshot = useRef(null);
+  if (!snapshot.current) snapshot.current = takeFeedOrderSnapshot(live);
+  const stable = applyFeedOrderSnapshot(snapshot.current, live, sort, show);
   return <ReferenceFeed
     loading={params.has("loading")}
     now={NOW}
@@ -74,11 +78,15 @@ function Harness() {
       setReferences((current) => current.map((item) => item.lineageId === reference.lineageId
         ? { ...item, curationStatus: choice === "accept" ? "accepted" : "rejected", curationStatusUpdatedAt: new Date(NOW + (tick += 1) * 1000).toISOString() } : item));
     }}
-    onTabChange={setTab}
+    onShowChange={setShow}
+    onSortChange={setSort}
     onVisitRated={(id) => setVisitRated((current) => new Set(current).add(id))}
-    partition={partition}
+    items={stable.items}
+    leadId={stable.leadId}
+    ratedCount={live.filter((item) => item.rated).length}
     previews={previews}
-    tab={tab}
+    show={show}
+    sort={sort}
     visitRated={visitRated}
     disabledReason={params.get("disabled")}
   />;
@@ -172,7 +180,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.ok(box.height >= 36 && box.width >= 60, `a tap-sized ${choice} button`);
       }
       assert.equal(await page.locator("select").count(), 0, "no drop-downs");
-      assert.deepEqual(await page.locator('[role=tab]').evaluateAll((tabs) => tabs.map((tab) => tab.textContent!.replace(/\d+$/, "").trim())), ["Feed", "Rated", "Earlier"]);
+      assert.equal(await page.locator("[role=tab], [role=tablist]").count(), 0, "no tabs");
     });
   },
 
@@ -180,7 +188,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   async design() {
     await run("", [375, 1440], async (page, width) => {
       await cards(page).first().waitFor();
-      await page.locator("[data-feed-tab-button=feed]").hover();
+      await page.locator("[data-feed-sort-button=newest]").hover();
       const offenders = await page.locator("[data-reference-feed], [data-reference-feed] *").evaluateAll((elements) => elements.flatMap((element) => {
         const style = getComputedStyle(element);
         const edges = ["Top", "Right", "Bottom", "Left"].some((edge) => parseFloat(style.getPropertyValue(`border-${edge.toLowerCase()}-width`)) > 0 && style.getPropertyValue(`border-${edge.toLowerCase()}-style`) !== "none");
@@ -193,7 +201,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await radius("[data-review-choice=accept]")) >= 6, "buttons are rounded rectangles");
       assert.ok((await radius("[data-review-choice][data-predicted]")) >= 6);
       assert.ok((await radius("[data-confidence-bar]")) >= 4);
-      assert.ok((await radius("[data-feed-tab-button=feed]")) >= 6);
+      assert.ok((await radius("[data-feed-sort-button=best]")) >= 6);
       // The image is full-bleed across the top of the card: as wide as the card, starting at its top edge.
       const box = (await card(page, "mid-accept").boundingBox())!;
       const image = (await card(page, "mid-accept").locator("[data-feed-image]").boundingBox())!;
@@ -356,7 +364,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   /** A Reference the Cyclotron accepted on its own says so in words with an icon, and an editor's accept does not. */
   async auto() {
     await run("?auto", [375, 1440], async (page) => {
-      await page.locator("[data-feed-tab-button=rated]").click();
+      await page.locator("[data-feed-show-button=all]").click();
       await card(page, "auto-accepted").waitFor();
       const badge = card(page, "auto-accepted").locator("[data-auto-accepted]");
       assert.equal(await badge.count(), 1, "the automatically accepted card carries the badge");
@@ -370,7 +378,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
-  /** A rated card stays in place showing the answer, undo is the other choice, then it is under Rated. */
+  /** A rated card stays in place showing the answer, undo is the other choice, then it is hidden under Unrated only on the next visit. */
   async lifecycle() {
     await run("", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
@@ -383,7 +391,6 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await card(page, "mid-accept").locator("[data-prediction-mark] svg").count(), 1, "with its marker, never colour alone");
       assert.ok((await card(page, "mid-accept").locator("[data-feed-saved]").innerText()).includes("Recorded"));
       assert.equal(await card(page, "mid-accept").locator("[data-review-choice=accept]").getAttribute("aria-pressed"), "true");
-      assert.equal(await page.locator("[data-feed-tab-button=rated] [data-feed-tab-count]").innerText(), "1");
 
       // The other choice is the undo: Reject waits for a written reason, and nothing changes until one is given.
       await card(page, "mid-accept").locator("[data-review-choice=reject]").click();
@@ -409,30 +416,69 @@ const scenarios: Record<string, () => Promise<void>> = {
       await card(page, "strong-reject").locator("[data-review-record]").click();
       await card(page, "strong-reject").locator("[data-prediction-mark][data-verdict=match]").waitFor();
 
-      await page.locator("[data-feed-tab-button=rated]").click();
-      assert.deepEqual(await order(page), ["strong-reject", "mid-accept"], "Rated lists the most recent answer first");
-      await page.locator("[data-feed-tab-button=feed]").click();
+      assert.deepEqual(await order(page), before, "both answers stay where they were");
+      await page.locator("[data-feed-show-button=all]").click();
+      assert.deepEqual(await order(page), before, "Include rated adds nothing here: they are already listed");
       await card(page, "weak-reject").locator("[data-review-choice=accept]").first().waitFor();
       await card(page, "strong-accept").locator("[data-feed-open]").click();
       assert.deepEqual((await page.evaluate(() => (window as unknown as { calls: Array<{ type: string; id: string }> }).calls)).at(-1), { type: "open", id: "strong-accept" }, "the card body opens the review");
     });
   },
 
-  /** Unrated items past the learned freshness move to an Earlier section at the bottom, still ratable. */
-  async earlier() {
-    await run("?tau=2", [375, 1440], async (page) => {
+  /** An old unrated item stays in the one list, placed by its original confidence, and can be rated in place. */
+  async aged() {
+    await run("?aged", [375, 1440], async (page) => {
       await cards(page).first().waitFor();
       const feedOrder = await order(page);
-      assert.equal(feedOrder.at(-1), "aged-out", "after everything in the feed");
-      assert.ok(feedOrder.indexOf("strong-reject") < feedOrder.indexOf("aged-out"));
-      assert.equal(await page.locator("[data-feed-earlier] h3").innerText(), "Earlier");
-      assert.equal(await page.locator("[data-feed-earlier] [data-feed-card]").count(), 1);
-      assert.equal(await page.locator("[data-feed-tab-button=earlier] [data-feed-tab-count]").innerText(), "1");
+      assert.deepEqual(feedOrder, ["strong-accept", "aged-out", "broken-image", "mid-accept", "no-prediction", "weak-reject", "strong-reject"], "a year-old 90% Accept still ranks by its original confidence");
+      assert.equal(await page.locator("[data-feed-earlier]").count(), 0, "no separate section");
+      assert.equal(await page.locator("[role=tab]").count(), 0, "no tabs");
+      await page.locator("[data-feed-sort-button=newest]").click();
+      assert.equal((await order(page)).at(-1), "aged-out", "and last by date");
       await card(page, "aged-out").locator("[data-review-choice=accept]").click();
       await card(page, "aged-out").locator("[data-verdict=match]").waitFor();
-      assert.equal(await page.locator("[data-feed-earlier] [data-feed-card]").count(), 1, "rated in place, not removed");
-      await page.locator("[data-feed-tab-button=earlier]").click();
-      assert.deepEqual(await order(page), ["aged-out"]);
+      assert.equal((await order(page)).at(-1), "aged-out", "rated in place, not moved or removed");
+    });
+  },
+
+  /** Best bets by default, Newest by date; Unrated only by default, Include rated adds the answered cards; both choices are remembered. */
+  async sorting() {
+    await run("?auto", [375, 1440], async (page) => {
+      await cards(page).first().waitFor();
+      const pressed = (kind: string, key: string) => page.locator(`[data-feed-${kind}-button=${key}]`).getAttribute("aria-pressed");
+      assert.equal(await pressed("sort", "best"), "true", "Best bets is the default");
+      assert.equal(await pressed("show", "unrated"), "true", "Unrated only is the default");
+      for (const kind of ["sort", "show"]) {
+        for (const button of await page.locator(`[data-feed-${kind}-button]`).all()) {
+          assert.ok((await button.locator("svg").count()) >= 1, "a Lucide icon beside the words");
+          assert.ok((await button.innerText()).trim().length > 0, "and words");
+        }
+      }
+      assert.equal(await page.locator("select").count(), 0, "no drop-downs");
+      assert.equal(await page.locator("[role=tab]").count(), 0, "no tabs");
+      assert.deepEqual(await order(page), ["strong-accept", "broken-image", "mid-accept", "no-prediction", "weak-reject", "strong-reject"], "by confidence, and only unrated cards");
+
+      await page.locator("[data-feed-sort-button=newest]").click();
+      assert.equal(await pressed("sort", "newest"), "true");
+      assert.equal(await pressed("sort", "best"), "false");
+      assert.deepEqual(await order(page), ["strong-accept", "mid-accept", "no-prediction", "weak-reject", "broken-image", "strong-reject"], "newest first, whatever the predictions say");
+
+      await page.locator("[data-feed-show-button=all]").click();
+      assert.equal(await pressed("show", "all"), "true");
+      const all = await order(page);
+      for (const id of ["auto-accepted", "rule-accepted", "editor-accepted"]) assert.ok(all.includes(id), `${id} is listed under Include rated`);
+      assert.equal(all.length, 9);
+      assert.deepEqual(all.slice(0, 3), ["auto-accepted", "rule-accepted", "editor-accepted"], "rated cards sit in the active sort (these three arrived last)");
+      assert.equal(await card(page, "editor-accepted").getAttribute("data-feed-rated"), "accept", "a rated card shows its recorded vote");
+
+      await page.reload();
+      await cards(page).first().waitFor();
+      assert.equal(await pressed("sort", "newest"), "true", "the sort is remembered");
+      assert.equal(await pressed("show", "all"), "true", "and so is Show");
+      assert.equal((await order(page)).length, 9);
+      await page.locator("[data-feed-sort-button=best]").click();
+      await page.locator("[data-feed-show-button=unrated]").click();
+      assert.equal((await order(page)).length, 6);
     });
   },
 
@@ -445,7 +491,8 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await skeleton.getAttribute("aria-label"), "Loading references");
       assert.ok((await skeleton.locator(".animate-pulse").count()) > 10);
       assert.equal(await cards(page).count(), 0);
-      assert.equal(await page.locator('[role=tab]').count(), 3, "the feed's tabs are already on the page");
+      assert.equal(await page.locator("[data-feed-sort-button]").count(), 2, "the feed's controls are already on the page");
+      assert.equal(await page.locator("[data-feed-show-button]").count(), 2);
       assert.ok(!/checking|credentials/i.test(await page.locator("body").innerText()));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
     });
@@ -489,18 +536,13 @@ const scenarios: Record<string, () => Promise<void>> = {
       await button.click();
       const panel = page.locator("[data-feed-ranking-panel]");
       const text = await panel.innerText();
-      for (const expected of ["A feed run by algorithms you control", "Best bets first", "Confidence counts", "toward", "Earlier", "Your answers stay put", "Age does not change the order yet", "of the 10 needed"]) {
+      for (const expected of ["A feed run by algorithms you control", "Best bets", "Newest", "Unrated only", "Include rated", "Your answers stay put", "Age does not change"]) {
         assert.ok(text.includes(expected), `the popover says: ${expected}`);
       }
       const box = (await panel.boundingBox())!;
       assert.ok(box.x >= 0 && box.x + box.width <= (await page.evaluate(() => window.innerWidth)), "inside the screen");
       await page.keyboard.press("Escape");
       assert.equal(await panel.count(), 0);
-    });
-    await run("?tau=2", [1440], async (page) => {
-      await page.getByRole("button", { name: "How this feed is ranked" }).click();
-      const text = await page.locator("[data-feed-ranking-panel]").innerText();
-      assert.ok(text.includes("loses half its pull every") && text.includes("Unrated items older than 6 days"));
     });
   },
 

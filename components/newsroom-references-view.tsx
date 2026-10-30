@@ -42,13 +42,14 @@ import { ReferenceSourcePreview } from "./reference-source-preview";
 import { ReferenceStories } from "./reference-stories";
 import { useReferencePreviewAttachments } from "./use-reference-preview-attachments";
 import { FEED_SURFACE_PROPS, FEED_SURFACE_STYLE, ReferenceFeed } from "./reference-feed";
+import { useFeedPreferences } from "./use-feed-preferences";
 import { ReferenceCapturePanel } from "./reference-capture-panel";
 import { useReferenceCapture, type CorrectCaptureAction } from "./reference-capture-client";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { ReferenceConversation } from "./reference-conversation";
 import { useReferenceMessageCounts } from "./use-conversation";
 import { captureStatusesByLineage } from "../lib/reference-capture";
-import { applyFeedOrderSnapshot, partitionReferenceFeed, takeFeedOrderSnapshot, type FeedOrderSnapshot, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
+import { applyFeedOrderSnapshot, buildFeedItems, feedLeadId, takeFeedOrderSnapshot, visibleFeedItems, type FeedOrderSnapshot } from "../lib/reference-feed-ranking";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
@@ -438,20 +439,13 @@ export function NewsroomReferencesView({
   }, [referenceAttachments, savedCopy, showingSavedCopy]);
   const [view, setView] = useState<ReferenceView>("feed");
   const [addOpen, setAddOpen] = useState(false);
-  const [feedTab, setFeedTab] = useState<ReferenceFeedTabKey>("feed");
+  const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
   const { counts: messageCounts, setCount: setMessageCount } = useReferenceMessageCounts(!loading);
   const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(() => new Set());
   const [mountedAt] = useState(() => Date.now());
   const markVisitRated = useCallback((lineageId: string) => {
     setVisitRated((current) => (current.has(lineageId) ? current : new Set(current).add(lineageId)));
   }, []);
-  // Preview only: ?feedTau=<days> stands in for the learned freshness period, to review the Earlier section on a young corpus.
-  const tauDaysOverride = useMemo(() => {
-    if (typeof window === "undefined" || !isLocalPreviewEnabled()) return null;
-    const requested = Number(new URLSearchParams(window.location.search).get("feedTau"));
-    return Number.isFinite(requested) && requested > 0 ? requested : null;
-  }, []);
-
   // Preview only: ?feedState=loading holds the page in its loading state, to review the card skeletons.
   const previewSkeleton = useMemo(
     () => typeof window !== "undefined" && isLocalPreviewEnabled() && new URLSearchParams(window.location.search).get("feedState") === "loading",
@@ -459,24 +453,24 @@ export function NewsroomReferencesView({
   );
 
   const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const livePartition = useMemo(
-    () => partitionReferenceFeed(canonicalReferences, decisions, { now: mountedAt, visitRated, tauDaysOverride }),
-    [canonicalReferences, decisions, mountedAt, tauDaysOverride, visitRated],
-  );
+  const liveItems = useMemo(() => buildFeedItems(canonicalReferences, decisions), [canonicalReferences, decisions]);
   // The feed's order is taken ONCE per visit, when the feed has loaded (References and predictions), and then left alone. Selecting an
   // item, rating one, a background refresh or a cache revalidation changes cards' content, never their places. Items that arrive later
-  // wait behind a "N new items: show" pill. (The Rated tab is a live list: it is the one place a new answer is meant to appear.)
+  // wait behind a "N new items: show" pill. The same holds for both sorts and for Include rated.
   const orderSnapshot = useRef<FeedOrderSnapshot | null>(null);
   const [, bumpOrder] = useState(0);
   const orderReady = !loading && !showingSavedCopy && !previewSkeleton && predictionState !== "loading" && canonicalReferences.length > 0;
-  if (!orderSnapshot.current && orderReady) orderSnapshot.current = takeFeedOrderSnapshot(livePartition);
-  const stable = orderSnapshot.current ? applyFeedOrderSnapshot(orderSnapshot.current, livePartition) : null;
-  const partition = stable?.partition ?? livePartition;
-  const showNewItems = () => { orderSnapshot.current = takeFeedOrderSnapshot(livePartition); bumpOrder((count) => count + 1); };
+  if (!orderSnapshot.current && orderReady) orderSnapshot.current = takeFeedOrderSnapshot(liveItems);
+  const stable = orderSnapshot.current ? applyFeedOrderSnapshot(orderSnapshot.current, liveItems, feedSort, feedShow) : null;
+  const liveVisible = useMemo(() => visibleFeedItems(liveItems, feedSort, feedShow, visitRated), [liveItems, feedSort, feedShow, visitRated]);
+  const feedItems = stable?.items ?? liveVisible;
+  const feedLead = stable ? stable.leadId : feedLeadId(feedItems);
+  const ratedCount = useMemo(() => liveItems.filter((item) => item.rated).length, [liveItems]);
+  const showNewItems = () => { orderSnapshot.current = takeFeedOrderSnapshot(liveItems); bumpOrder((count) => count + 1); };
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null);
   const feedOrderIds = useMemo(
-    () => (feedTab === "feed" ? [...partition.feed, ...partition.earlier] : feedTab === "rated" ? partition.rated : partition.earlier).map((item) => item.lineageId),
-    [feedTab, partition],
+    () => feedItems.map((item) => item.lineageId),
+    [feedItems],
   );
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
 
@@ -744,7 +738,7 @@ export function NewsroomReferencesView({
 
         {view === "feed" ? (
           <div className="relative flex min-h-0 flex-1 flex-col" {...FEED_SURFACE_PROPS}>
-          {stable && stable.newCount > 0 && feedTab === "feed" ? (
+          {stable && stable.newCount > 0 ? (
             // Floats over the top of the grid, outside the scrolling content: announcing new items never moves a card.
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <button
@@ -767,19 +761,21 @@ export function NewsroomReferencesView({
                 now={mountedAt}
                 onOpen={selectReference}
                 onRate={rateFromFeed}
-                onTabChange={(next) => { setFeedTab(next); setCaughtUp(false); }}
+                onShowChange={(next) => { setFeedShow(next); setCaughtUp(false); }}
+                onSortChange={(next) => { setFeedSort(next); setCaughtUp(false); }}
                 onVisitRated={markVisitRated}
-                partition={partition}
+                items={feedItems}
+                ratedCount={ratedCount}
                 predictionLoading={predictionState === "loading"}
                 previews={previews}
                 captures={showCaptures ? captureStatuses : undefined}
-                groups={stable?.groups}
-                leadId={stable?.leadId}
+                leadId={feedLead}
                 scrollTarget={scrollTarget}
                 ratings={ratings}
                 selectedLineageId={selectedLineageId}
                 stale={showingSavedCopy || (loading && references.length > 0)}
-                tab={feedTab}
+                show={feedShow}
+                sort={feedSort}
                 visitRated={visitRated}
               />
             </div>

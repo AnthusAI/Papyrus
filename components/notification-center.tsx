@@ -9,7 +9,6 @@ import { acceptPath, batchAnswer, draftDecisionOf, draftReasonUpdate, draftView,
 import { previewsBySourceAddress, recentDecisions } from "../lib/notification-feed";
 import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
-import { learnFreshness } from "../lib/reference-feed-ranking";
 import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
 import { buildNeedsMeItems } from "../lib/needs-me-items";
 import { captureStatusesByLineage } from "../lib/reference-capture";
@@ -417,7 +416,6 @@ export function NotificationCenter({
     }),
     [shownReferences, decisions, previews, captures, visitRated, requests, drafts, missingDrafts, draftsState, stay, bySource, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided],
   );
-  const freshness = useMemo(() => learnFreshness(shownReferences, visitRated), [shownReferences, visitRated]);
   const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
   const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
   const shaping = useMemo(
@@ -435,7 +433,7 @@ export function NotificationCenter({
 
   return (
     <NeedsMeView
-      below={below} captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} freshness={freshness} legacyAuto={legacyAuto}
+      below={below} captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} legacyAuto={legacyAuto}
       loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} missingDraftCount={missingCount} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
       onRetryDrafts={() => void loadDraftsFor(requests)} predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}
