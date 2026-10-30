@@ -6,9 +6,8 @@ import * as ddb from "@aws-appsync/utils/dynamodb";
 
 function clean(value) {
   const out = {};
-  const keys = Object.keys(value);
-  for (let index = 0; index < keys.length; index++) {
-    const key = keys[index];
+  // The APPSYNC_JS runtime has no classic for loop and no ++; for...of is supported.
+  for (const key of Object.keys(value)) {
     if (value[key] !== null && value[key] !== undefined) out[key] = value[key];
   }
   return out;

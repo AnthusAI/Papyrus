@@ -17,10 +17,17 @@
       "text": "All 7 site deploys of 5.59.0 failed at BUILD with UnresolvedEntryPathError for ./resolvers/post-message.js: a site loads amplify/data/message-actions from node_modules through tsx, the call-site URL carries ?tsx-namespace=..., and Amplify cannot resolve a relative entry from it. Sites stayed on 5.58.0. Fix: absolute entries via fileURLToPath(new URL(entry, import.meta.url)); test in scripts/test-message-author-enforced.ts plus a scenario in features/message-author-enforced.feature.",
       "created_at": "2026-10-30T13:23:54.591720Z",
       "comment_type": "default"
+    },
+    {
+      "id": "174a2d39-d38f-45ec-8afd-674c88eb6074",
+      "author": "home",
+      "text": "Second cause: 5.60.0 got past the path error, then AppSync refused postMessage's code ('The code contains one or more errors': @aws-appsync/no-for and no-disallowed-unary-operators at post-message.js:10), and Anth.us's backend rolled back (UPDATE_ROLLBACK_COMPLETE; site stayed on 5.58.0). Fix: for...of instead of a classic for loop, checked with aws appsync evaluate-code; scripts/test-appsync-resolvers.ts lints every resolver with @aws-appsync/eslint-plugin base rules (fails on the 5.60.0 file, passes now), plus a scenario in features/message-author-enforced.feature.",
+      "created_at": "2026-10-30T14:50:59.824906Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-30T13:23:54.530535Z",
-  "updated_at": "2026-10-30T13:23:54.648303Z",
+  "updated_at": "2026-10-30T14:50:59.825747Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
