@@ -48,10 +48,17 @@
       "text": "Plan update (Claude, 2026-10-30): Ryan approved factoring the CLI login out into a new public AnthusAI repository: a shared Python library (sign-in with PKCE, remote login, the five secure stores, memory agent, per-key locks, renewal, logout), the broker as one deployable (Lambda function URL, DynamoDB TTL table, the /cli/approve and /cli/callback pages, throttling), and language-neutral protocol specs. Papyrus's existing cli_user_auth code moves into it first, keeping its Keychain service name so Mac sessions survive; Papyrus then uses the released library. Products stay separate (own key namespace, client, discovery and sessions). Design: AnthusAI/Cyclotron docs/shared-cli-auth.md (PR #177), moving to the new repository.",
       "created_at": "2026-10-30T10:44:21.139525Z",
       "comment_type": "default"
+    },
+    {
+      "id": "e6419c43-2c82-494a-a0ae-592fc71b9994",
+      "author": "home",
+      "text": "Current plan (Claude, 2026-10-30). This supersedes the 2026-10-30 plan comment (from AnthusAI/Papyrus#879) and the earlier comments in AnthusAI/Papyrus#882: follow only this one. The design is AnthusAI/cli-login docs/design.md (public, Ryan's decision 2026-10-30), work tracked on that repository's board. Papyrus's part: its CLI login moves into the shared library anthus_cli_login, keeping Keychain SERVICE 'papyrus-newsroom-oauth' and the per-site keys; the new stores, memory agent and locks are built there; then Papyrus depends on a pinned release. The broker: the CLI calls the broker's function URL directly for /start and /poll (throttled per caller, slow_down); Papyrus serves /cli/approve and /cli/callback on each site's own domain with the library's page handlers and invokes the broker's describe, bind, complete and deny by IAM. Live changes per site (Cognito callback URL, broker deploy, pages, IAM grant) need Ryan's approval.",
+      "created_at": "2026-10-30T10:52:37.335698Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-30T09:28:51.580949Z",
-  "updated_at": "2026-10-30T10:44:21.140053Z",
+  "updated_at": "2026-10-30T10:52:37.335999Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
