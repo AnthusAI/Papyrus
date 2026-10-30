@@ -3,7 +3,7 @@
   "title": "Rename Data Parade posts to articles: dataparade.io/articles, /posts redirects",
   "description": "Ryan (2026-10-30): the DataParade client wants \"articles\", not \"posts\". Move the article pages from dataparade.io/posts to dataparade.io/articles on both sites, and ship the landing side through DataParade's new CI/CD pipeline (Ryan chose: add a landing deploy workflow).\n\nOrder, so nothing breaks in between:\n1. dataparade.io CloudFront (domain-edge, account 688128002352): add /articles and /articles/* behaviors to the Papyrus edge, keeping /posts*. By reviewed change set by hand: the pipeline's roles do not cover domain-edge.\n2. AnthusAI/DataParade-newsroom: urls.basePath /articles, a pattern redirect ^/posts/(.*)$ -> /articles/$1 (301), labels Posts -> Articles, tests, docs.\n3. DataParade-io/dataparade: fold the rename into PR #85 (landing nav, footer, home-page feed at /articles/_data/latest.json, next.config redirects, domain-edge template), merge main into it, add a plan/apply landing deploy workflow modeled on deploy-prod.yml, merge, then plan and apply through the pipeline. Note: production landing runs the #85 branch, 226 commits behind main, so the first pipeline deploy also ships main's landing changes.\nDone when dataparade.io/articles/ serves the articles, every old /posts/... URL 301s to /articles/..., the landing home page shows the latest articles, and the landing was deployed by the new workflow.",
   "type": "task",
-  "status": "blocked",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
@@ -34,11 +34,23 @@
         "model": "claude-opus-5-5",
         "name": "DataParade.anth.us implementation"
       }
+    },
+    {
+      "id": "3ad444c3-9148-46e2-b8e4-3c20445b181d",
+      "author": "home",
+      "text": "Live on Papyrus 5.61.1 (Amplify job 30, 2026-10-30 15:51 ET). Checked both dataparade.io and dataparade.anth.us: /posts, /posts/ and /posts/<slug>/ make one 301 hop to /articles/...; all five /articles/<slug>/ return 200 directly (no loop) with dataparade.io/articles canonicals; .md twins 200; /articles/_data/latest.json lists the five /articles URLs; the dataparade.io home page links its cards to /articles/. Reconcile --dry-run: 0 stale items, 0 orphan pages, 0 redirects drift.",
+      "created_at": "2026-10-30T19:56:03.620202Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
     }
   ],
   "created_at": "2026-10-30T15:32:11.465844Z",
-  "updated_at": "2026-10-30T17:35:07.425455Z",
-  "closed_at": null,
+  "updated_at": "2026-10-30T19:56:08.490550Z",
+  "closed_at": "2026-10-30T19:56:08.490506Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
