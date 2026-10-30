@@ -104,7 +104,8 @@ body:has(.newsroom-organizer)>[data-staging-banner]{flex-shrink:0}
 :root.light-theme .newsroom-organizer,:root.light-theme .organizer-menu,:root.light-theme .organizer-account-popup{--org-ink:var(--foreground-strong);--org-muted:var(--foreground)}
 .newsroom-organizer [class~="bg-primary"],.newsroom-organizer [class~="bg-secondary"],.newsroom-organizer [data-slot=button][class*="bg-primary"]{background:transparent !important;color:var(--org-ink) !important;border:1px solid var(--org-ink) !important;font-weight:700}
 .newsroom-organizer [class~="text-primary-foreground"],.newsroom-organizer [class~="text-secondary-foreground"]{color:var(--org-ink) !important}
-.newsroom-organizer [data-selected=true],.newsroom-organizer [aria-current=true]{background:transparent !important;color:var(--org-ink) !important;box-shadow:inset 3px 0 0 var(--org-ink);font-weight:600}
+/* A conversation card wears a ring around its outside instead (components/conversations-view.tsx), so neither it nor its title gets the edge bar. */
+.newsroom-organizer [data-selected=true]:not([data-conversation-card]),.newsroom-organizer [aria-current=true]:not([data-conversation-open]){background:transparent !important;color:var(--org-ink) !important;box-shadow:inset 3px 0 0 var(--org-ink);font-weight:600}
 .newsroom-organizer .news-desk-columns--administration{--administration-gap:16px;--administration-quiet:color-mix(in oklab,var(--org-ink) 64%,var(--org-paper));--administration-strong:var(--org-ink);container-type:inline-size;font-family:var(--kb-theme-ui-font);font-size:14px;line-height:1.5;max-width:1280px}
 .news-desk-columns--administration :is(h2,h3,strong){font-family:var(--kb-theme-title-font);color:var(--administration-strong)}
 .news-desk-columns--administration .category-steering-section--lead>.category-steering-section__header{display:none}

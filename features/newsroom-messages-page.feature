@@ -21,6 +21,11 @@ Feature: The Messages page is a forum
     And each card shows its own title, what it is attached to, its message count, who spoke last and the latest message's first line
     And a card holds no conversation and no messages were read for the page
 
+  Scenario: Inside the newsroom the open thread wears only its ring
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When the editor opens a thread in the grid and in the list inside the newsroom's own stylesheet at 1024 and 1440 pixels
+    Then neither the open card nor its title has a bar along its edge, the card keeps its tone, and the ring is its only mark
+
   Scenario: The editor switches between grid and list and the page remembers
     Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
     When the editor taps List and reloads the page

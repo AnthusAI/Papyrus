@@ -26,7 +26,7 @@ class GraphQLRequestError(RuntimeError):
 
 
 def credential_recovery_guidance() -> str:
-    from .cli_user_auth import user_auth_requested
+    from .user_auth_mode import user_auth_requested
     if user_auth_requested():
         return "Check your newsroom identity/publication permissions with `papyrus auth status`; renew with `papyrus login` if needed."
     profile = os.environ.get("AWS_PROFILE", "").strip() or "<profile>"

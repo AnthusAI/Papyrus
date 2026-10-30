@@ -15,7 +15,7 @@ from unittest import mock
 from papyrus_content import cli
 from papyrus_content.projection.writers import S3PageWriter, body_etag
 
-from papyrus_content.projection.engine import ProjectionContext, project, reconcile
+from papyrus_content.projection.engine import ProjectionContext, project, project_all, reconcile
 from papyrus_content.projection.source import PublishedContentSource
 from papyrus_content.publishing import unpublish_item
 from procedures.newsroom.tests.incremental_site import (
@@ -247,6 +247,20 @@ class ReconcileTests(unittest.TestCase):
             outcome = reconcile(site.context)
             self.assertEqual(outcome.redirects_repaired, 1)
             self.assertEqual(site.redirects.mapping, {"/old/zero": "/articles/seed-0.html"})
+
+    def test_projecting_everything_removes_a_redirect_whose_source_is_now_a_page(self) -> None:
+        # Data Parade, 2026-10-30: a rollback left /articles/x -> /posts/x exact entries; once the pages moved back to
+        # /articles, those entries looped with the /posts -> /articles redirect.
+        with tempfile.TemporaryDirectory() as temporary:
+            site = seeded_site("generic", Path(temporary))
+            site.drafts["item-0"].aliases = ["old/zero"]
+            site.publish("item-0")
+            site.project_item("item-0")
+            site.redirects.mapping["/articles/seed-0.html"] = "/posts/seed-0.html"
+            report = project_all(site.context)
+            self.assertNotIn("/articles/seed-0.html", site.redirects.mapping)
+            self.assertEqual(site.redirects.mapping, {"/old/zero": "/articles/seed-0.html"})
+            self.assertGreaterEqual(report.redirects_deleted, 1)
 
     def test_a_large_drift_is_repaired_by_projecting_everything(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -112,7 +112,10 @@ createRoot(document.getElementById("root")).render(<ConversationsView source={so
 
 const fixtureCss = "body{margin:0;font:16px sans-serif;background:#f4f1ea;color:#1c1c1c;--feed-card:#fbf9f4;--feed-control:#e8e3d8;--feed-footer:#f0ece2;--feed-radius-xl:12px;--feed-radius-lg:10px;--feed-radius-md:8px;--feed-radius-pill:8px;--feed-quiet:.6;--foreground-muted:#6b6b6b;--primary:#46560f;--primary-foreground:#fff}button,textarea{font:inherit}";
 
-async function setup(options = "", width = 1440) {
+// The newsroom shell wraps every page in .newsroom-organizer, whose stylesheet decorates selected and current items.
+const organizerCss = fs.readFileSync(`${root}components/newsroom-organizer.css`, "utf8");
+
+async function setup(options = "", width = 1440, shell = false) {
   const script = await browserBundle();
   const tailwind = await compiledTailwind();
   const browser = await chromium.launch({ args: ["--no-proxy-server"], executablePath: process.env.PAPYRUS_CHROMIUM_PATH || undefined });
@@ -125,15 +128,18 @@ async function setup(options = "", width = 1440) {
     if (url.origin !== origin) return route.abort();
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
     if (url.pathname.startsWith("/api/")) return route.abort();
-    return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>${fixtureCss}</style></head><body><div id="root" class="p-4"></div><script src="/fixture.js"></script></body></html>` });
+    const page = shell
+      ? `<style>${organizerCss}</style><style>${fixtureCss}</style><style>.newsroom-organizer{--org-ink:#1c1c1c;--org-paper:#f4f1ea;--org-accent:#46560f}</style></head><body><div class="newsroom-organizer"><div id="root" class="p-4"></div></div>`
+      : `<style>${fixtureCss}</style></head><body><div id="root" class="p-4"></div>`;
+    return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style>${page}<script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/${options}`);
   return { browser, page, errors };
 }
 
-async function run(options: string, widths: number[], body: (page: Page, width: number) => Promise<void>) {
+async function run(options: string, widths: number[], body: (page: Page, width: number) => Promise<void>, shell = false) {
   for (const width of widths) {
-    const { browser, page, errors } = await setup(options, width);
+    const { browser, page, errors } = await setup(options, width, shell);
     try {
       await body(page, width);
       assert.deepEqual(errors, []);
@@ -168,6 +174,23 @@ async function openThread(page: Page, id: string) {
 }
 
 const scenarios: Record<string, () => Promise<void>> = {
+  /** Inside the newsroom shell the open thread wears only its ring: no bar on the edge of its title, and its card keeps its tone. */
+  async noEdgeMark() {
+    for (const layout of ["grid", "list"]) await run("", WIDE, async (page) => {
+      {
+        await page.locator(`[data-conversation-layout="${layout}"]`).click();
+        await cards(page).first().locator("[data-conversation-open]").click();
+        const chosen = page.locator("[data-conversation-card][data-selected]");
+        await chosen.waitFor();
+        const marks = await chosen.evaluate((card) => [card, ...card.querySelectorAll("*")]
+          .map((element) => ({ name: element.getAttribute("data-conversation-open") !== null ? "title" : element.tagName.toLowerCase(), shadow: getComputedStyle(element).boxShadow }))
+          .filter((entry) => entry.shadow.includes("inset")));
+        assert.deepEqual(marks, [], `${layout}: no inset bar on the open thread or its title`);
+        assert.notEqual(await chosen.evaluate((card) => getComputedStyle(card).backgroundColor), "rgba(0, 0, 0, 0)", `${layout}: the open card keeps its tone`);
+        assert.ok((await chosen.evaluate((card) => getComputedStyle(card).boxShadow)).includes("0px 0px 0px 4px"), `${layout}: and keeps its ring`);
+      }
+    }, true);
+  },
   /** All is the default, in grid mode, with every conversation newest first and no machine records. */
   async all() {
     await run("", [375, 1440], async (page, width) => {

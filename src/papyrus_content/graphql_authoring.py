@@ -654,7 +654,7 @@ class PapyrusGraphQLAuthoringClient:
         headers = self._request_headers(payload)
         body: dict[str, Any] | None = None
         last_error: Exception | None = None
-        from .cli_user_auth import user_auth_requested
+        from .user_auth_mode import user_auth_requested
         # An uncertain user-authenticated mutation must not be submitted again.
         attempts = 1 if user_auth_requested() else 2
         for attempt in range(attempts):

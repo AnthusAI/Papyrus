@@ -26,6 +26,8 @@ from cli_login.locks import key_lock
 from cli_login.oauth import receive_code
 from cli_login.target import https_url as _https
 
+from .user_auth_mode import user_auth_requested  # noqa: F401 (re-exported for the CLI)
+
 # The secure-store namespace. On macOS it is the Keychain service name, so sessions written by earlier
 # CLIs (service `papyrus-newsroom-oauth`, account = the per-site key) are found unchanged.
 NAMESPACE = 'papyrus-newsroom-oauth'
@@ -241,17 +243,6 @@ def config_for_endpoint(endpoint: str) -> AuthConfig:
                         +'. Run `papyrus login <site>` for the site that owns this endpoint, '
                         'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for it instead.')
     return matches[0]
-
-
-def user_auth_requested() -> bool:
-    explicit = os.environ.get('PAPYRUS_GRAPHQL_AUTH', '').strip().lower()
-    if explicit not in ('', 'user', 'iam', 'guest'):
-        raise AuthError('Unknown PAPYRUS_GRAPHQL_AUTH; choose user, iam, or the read-only guest lane explicitly.')
-    if explicit:
-        return explicit == 'user'
-    # Do not create directories just to inspect whether a default session exists.
-    root = Path(os.environ.get('PAPYRUS_CLI_STATE_DIR') or Path.home()/'.config'/'papyrus')
-    return (root/'user-session.json').exists()
 
 
 def _target(config: AuthConfig) -> Target:
