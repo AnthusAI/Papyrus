@@ -15,41 +15,57 @@ for (const given of [
 ]) Given(given, function () {});
 for (const when of [
   "the editor opens the page",
+  "the editor taps List and reloads the page",
+  "the editor looks at the Reference and Story threads",
   "the editor taps References, Stories, Chats and Other in turn",
-  "the editor looks at a Reference conversation",
-  "the editor replies to a message and then adds a message in the card",
-  "the editor writes in the New message box and taps Post",
-  "the editor opens Other",
+  "the editor selects a Reference thread at 375, 768, 834, 1024 and 1440 pixels",
+  "the editor opens an address that names a thread, even one on a later page, or one that does not exist",
+  "the editor taps Rename, changes the title and taps Save",
+  "the editor replies to a message and then adds a message in the open conversation",
+  "the editor writes a message in the New message box and then gives it a title and taps Post",
+  "the editor opens Other and Chats",
   "the editor taps Show more conversations",
-  "the editor looks at the page at 375 and 1440 pixels",
+  "the editor looks at the grid, the list and an open conversation at 375, 1024 and 1440 pixels",
   "streams of conversations are merged and messages are trimmed",
 ]) When(when, function () {});
 
-// Each outcome runs the named browser scenario in scripts/test-messages-page.ts (every one covers 375 and 1440 pixels).
+// Each outcome runs the named browser scenario in scripts/test-messages-page.ts (at the widths the scenario names).
 const outcomes = [
   ["all", [
-    "All is selected and the conversations are in order of their last activity",
-    "the machine record is not listed",
+    "All is selected, the threads are in order of their last activity, and the machine record is not listed",
     "the sections are buttons with icons and there are no drop-downs",
+    "each card shows its own title, what it is attached to, its message count, who spoke last and the latest message's first line",
+    "a card holds no conversation and no messages were read for the page",
   ]],
+  ["layout", [
+    "every thread is one line, the List button is pressed, and the page opens in list again",
+    "the page still works when the browser refuses to store the choice",
+  ]],
+  ["titles", ["each shows the thread's title, with the Reference's headline or the Story's title and stage as a small line below it"]],
   ["sections", [
-    "each shows only its own conversations, with the Story's title, stage and link, and an Open chat button",
-    "the New message box is on All and Other only",
+    "each shows only its own threads and the New message box is on All and Other only",
     "an empty section says so in plain words with an icon",
   ]],
-  ["reference", [
-    "the messages come first and the Reference is below with its picture, headline and dek",
-    "the Reference has no decision controls and opens the Reference",
-    "only the latest messages show until the editor taps Show all with the count",
+  ["detail", [
+    "the address holds the thread and the whole conversation shows with the Reference's header and no decision controls",
+    "at 1024 and 1440 pixels the list stays on the left with the conversation in a pane on the right",
+    "at 375, 768 and 834 pixels the conversation replaces the list at the full width and Back returns to the list and clears the address",
+    "only the open thread's messages were read",
+  ]],
+  ["link", ["the thread opens, or the page says in words that it could not be found"]],
+  ["rename", [
+    "the new title shows in the conversation and in the list",
+    "a refused save says why in words with an icon and keeps the typed text",
   ]],
   ["reply", [
     "the reply is nested under the message and saved in that conversation with its parent",
+    "the thread's card counts the new messages and moves to the top",
     "a refused save takes the message back, says so in words with an icon, and keeps the typed text",
   ]],
-  ["start", ["a new conversation appears first, attached to nothing, and the box clears"]],
-  ["forum", ["the forum thread is a card with its message count and an Open thread link to its own view"]],
+  ["start", ["Post waits for the title and says so in words, and the new thread appears first with that title and attached to nothing"]],
+  ["forum", ["the forum thread links to its own view, the chat opens in the console, and neither opens a pane here"]],
   ["paging", ["the next page follows in order with no conversation twice"]],
-  ["design", ["nothing has a border, an outline or a rule and nothing scrolls sideways"]],
+  ["design", ["nothing has a border, an outline or a rule, nothing scrolls sideways, and lines stay one line beside the pane"]],
 ];
 for (const [scenario, thens] of outcomes) {
   for (const then of thens) Then(then, async function () { assert.ok((await browser(scenario)).includes(`passed: ${scenario}`)); });

@@ -1,19 +1,22 @@
 "use client";
 
-import { BookmarkIcon, ExternalLinkIcon, InboxIcon, Loader2Icon, MessageCircleIcon, MessageSquareTextIcon, MessagesSquareIcon, NewspaperIcon, TriangleAlertIcon } from "lucide-react";
+import { BookmarkIcon, CheckIcon, ChevronRightIcon, ExternalLinkIcon, InboxIcon, LayoutGridIcon, ListIcon, Loader2Icon, MessageCircleIcon, MessageSquareIcon, MessageSquareTextIcon, MessagesSquareIcon, NewspaperIcon, PencilIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageThreadRecord } from "../lib/category-repository";
-import { conversationAge, messageCountLabel, type ConversationMessage } from "../lib/conversation";
+import { conversationAge, conversationAuthorName, conversationPreviewLine, threadLastAuthorLabel, threadMetadataWithLastAuthor, type ConversationMessage } from "../lib/conversation";
+import { referenceDisplayTitle } from "../lib/newsroom-references";
+import { referenceSourceHost } from "../lib/reference-preview";
 import { CONVERSATION_SECTIONS, SECTION_EMPTY_COPY, createMergedThreadStream, sectionOfThreadKind, threadKindsForSection, type ConversationSection } from "../lib/conversation-feed";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
 import { cn } from "@/lib/utils";
 import { Composer, ConversationThread } from "./conversation-thread";
+import { ListDetailLayout } from "./list-detail-layout";
 import type { ConversationReferenceView, ConversationStoryView, ConversationsSource } from "./conversations-source";
 import { FEED_GRID, FEED_SURFACE_PROPS, PILL, ReferenceCardHeader } from "./reference-feed";
 
 const PAGE_SIZE = 12;
-/** A card shows this many of the newest messages; the rest are one button away. */
-const LATEST_MESSAGES = 3;
+const LAYOUT_STORAGE_KEY = "papyrus:messages-layout";
+const THREAD_PARAM = "thread";
 const STALE_AFTER_MS = 60_000;
 const CONSOLE_SELECT_THREAD_EVENT = "papyrus:console-select-thread";
 const LABEL = "font-[family-name:var(--font-sans)] text-[10px] font-extrabold tracking-[0.07em] uppercase";
@@ -33,7 +36,7 @@ function kindLabel(kind: string): KindLabel {
 }
 
 /** One conversation's Messages: loaded once, shown at once when posted, taken back when the save fails. */
-function useThreadMessages(source: ConversationsSource, thread: MessageThreadRecord, seed: ConversationMessage[] | undefined, reloadKey: number) {
+function useThreadMessages(source: ConversationsSource, thread: MessageThreadRecord, seed: ConversationMessage[] | undefined, reloadKey: number, onSaved?: (message: ConversationMessage) => void) {
   const [messages, setMessages] = useState<ConversationMessage[]>(seed ?? []);
   const [state, setState] = useState<"loading" | "ready" | "error">(seed ? "ready" : "loading");
   const [error, setError] = useState<string | null>(null);
@@ -61,26 +64,139 @@ function useThreadMessages(source: ConversationsSource, thread: MessageThreadRec
     try {
       const saved = await source.post({ thread, body, parentMessageId });
       setMessages((current) => current.map((message) => (message.id === pendingId ? saved : message)));
+      onSaved?.(saved);
     } catch (failure) {
       setMessages((current) => current.filter((message) => message.id !== pendingId));
       throw failure instanceof Error ? failure : new Error("Your message could not be saved.");
     }
-  }, [source, thread]);
+  }, [source, thread, onSaved]);
   return { messages, state, error, post, retry: () => setAttempt((current) => current + 1) };
 }
 
-function CardCaption({ kind, now, updatedAt }: { kind: string; now: number; updatedAt: string }) {
-  const { icon: Icon, text } = kindLabel(kind);
+/** Threads that open in the detail here. Forum threads and chats open their own views. */
+function selectableKind(kind: string): boolean {
+  const section = sectionOfThreadKind(kind);
+  return section === "references" || section === "stories" || kind === "conversation";
+}
+
+const CONTROL_FIELD = "block w-full rounded-[var(--feed-radius-md,16px)] border-0 bg-[var(--feed-control)] px-3 py-2 text-sm font-normal leading-5 outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring";
+const PILL_QUIET = cn(PILL, "text-muted-foreground hover:bg-[var(--feed-control)]/70 hover:text-foreground");
+
+function relativeActivity(updatedAt: string, now: number): string {
   const age = conversationAge(updatedAt, now);
+  return !age ? "" : age === "now" ? "just now" : `${age} ago`;
+}
+
+/** What a thread is attached to, as one small line: the Reference's source and headline, or the Story's title and stage. Nothing for an unattached thread. */
+function AttachedLine({ lineageId, references, section, stories }: {
+  lineageId: string;
+  references: ReadonlyMap<string, ConversationReferenceView>;
+  section: ReturnType<typeof sectionOfThreadKind>;
+  stories: ReadonlyMap<string, ConversationStoryView>;
+}) {
+  if (section === "references") {
+    const view = references.get(lineageId);
+    if (!view) return null;
+    const site = view.preview?.siteName ?? referenceSourceHost(view.reference);
+    return (
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" data-conversation-attached="reference">
+        <BookmarkIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="truncate">{site ? `${site} · ` : ""}{referenceDisplayTitle(view.reference)}</span>
+      </span>
+    );
+  }
+  if (section === "stories") {
+    const story = stories.get(lineageId);
+    if (!story) return null;
+    return (
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" data-conversation-attached="story">
+        <NewspaperIcon aria-hidden="true" className="size-3.5 shrink-0" />
+        <span className="truncate">{story.title}{story.stage ? <> · <span data-conversation-stage>Stage: {story.stage}</span></> : null}</span>
+      </span>
+    );
+  }
+  return null;
+}
+
+/**
+ * One conversation as a card (grid) or a line (list). The whole item is one control: a thread opens in the detail, a forum thread
+ * opens its own view, a chat opens in the console. Nothing here reads messages: the title, the attachment, the count and the last
+ * activity all come from the thread record and the batched headers.
+ */
+function ThreadItem({ demo, mode, now, onNavigate, onSelect, references, selected, stories, thread }: {
+  demo: boolean;
+  mode: "grid" | "list";
+  now: number;
+  onNavigate?: (href: string) => void;
+  onSelect: (threadId: string) => void;
+  references: ReadonlyMap<string, ConversationReferenceView>;
+  selected: boolean;
+  stories: ReadonlyMap<string, ConversationStoryView>;
+  thread: MessageThreadRecord;
+}) {
+  const section = sectionOfThreadKind(thread.threadKind);
+  const { icon: KindIcon, text: kindText } = kindLabel(thread.threadKind);
+  const lineageId = thread.primaryAnchorLineageId ?? "";
+  const author = threadLastAuthorLabel(thread.metadata);
+  const when = relativeActivity(thread.lastMessageAt ?? thread.updatedAt, now);
+  const activity = [author ? conversationAuthorName(author) : null, when].filter(Boolean).join(" · ");
+  const preview = (thread.summary ?? "").trim();
+  const count = thread.messageCount ?? 0;
+  const control = "rounded-[var(--feed-radius-lg,10px)] text-left outline-none after:absolute after:inset-0 after:rounded-[20px] focus-visible:after:ring-[3px] focus-visible:after:ring-ring";
+  const opensElsewhere = !selectableKind(thread.threadKind);
+  const titleControl = (() => {
+    if (section === "chats") {
+      return <button className={control} data-conversation-open onClick={() => window.dispatchEvent(new CustomEvent(CONSOLE_SELECT_THREAD_EVENT, { detail: { threadId: thread.id } }))} type="button">{thread.title}</button>;
+    }
+    if (opensElsewhere) {
+      const href = getNewsroomNavHref(`/newsroom/forum/${encodeURIComponent(thread.id)}`, demo);
+      return <a className={control} data-conversation-open href={href} onClick={(event) => { if (onNavigate && !event.metaKey && !event.ctrlKey && event.button === 0) { event.preventDefault(); onNavigate(href); } }}>{thread.title}</a>;
+    }
+    return <button aria-current={selected ? "true" : undefined} className={control} data-conversation-open onClick={() => onSelect(thread.id)} type="button">{thread.title}</button>;
+  })();
+  const tone = selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)] hover:bg-[var(--feed-control)]/60";
+  const countBadge = (
+    <span aria-label={`${count} ${count === 1 ? "message" : "messages"}`} className="inline-flex shrink-0 items-center gap-1 text-sm text-muted-foreground" data-conversation-count>
+      <MessageSquareIcon aria-hidden="true" className="size-4" />
+      {count}
+    </span>
+  );
+  const marker = selected ? (
+    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-foreground" data-conversation-selected><ChevronRightIcon aria-hidden="true" className="size-3.5" />Open</span>
+  ) : opensElsewhere ? (
+    <span className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"><ExternalLinkIcon aria-hidden="true" className="size-3.5" />{section === "chats" ? "Open chat" : "Open thread"}</span>
+  ) : null;
+
+  if (mode === "list") {
+    return (
+      <article className={cn("relative flex min-w-0 items-center gap-3 rounded-[var(--feed-radius-lg,10px)] px-3 py-2.5 transition-colors", tone)} data-conversation-card={thread.id} data-conversation-kind={thread.threadKind} data-conversation-mode="list">
+        <KindIcon aria-label={kindText} className="size-4 shrink-0 text-muted-foreground" role="img" />
+        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold" data-conversation-title>{titleControl}</h3>
+        <span className="hidden min-w-0 max-w-[40%] shrink @[44rem]:flex"><AttachedLine lineageId={lineageId} references={references} section={section} stories={stories} /></span>
+        {countBadge}
+        {activity ? <span className="hidden shrink-0 truncate text-xs text-muted-foreground @[30rem]:inline" data-conversation-activity>{activity}</span> : null}
+        {marker}
+      </article>
+    );
+  }
   return (
-    <p className={cn(LABEL, "flex items-center justify-between gap-2 text-muted-foreground")} data-conversation-caption>
-      <span className="inline-flex items-center gap-1.5"><Icon aria-hidden="true" className="size-3.5" />{text}</span>
-      {age ? <span className="font-medium normal-case tracking-normal" data-conversation-activity>Active {age === "now" ? "now" : `${age} ago`}</span> : null}
-    </p>
+    <article className={cn("relative flex flex-col gap-2 rounded-[20px] p-4 transition-colors", tone)} data-conversation-card={thread.id} data-conversation-kind={thread.threadKind} data-conversation-mode="grid">
+      <p className={cn(LABEL, "flex items-center justify-between gap-2 text-muted-foreground")} data-conversation-caption>
+        <span className="inline-flex items-center gap-1.5"><KindIcon aria-hidden="true" className="size-3.5" />{kindText}</span>
+        {marker}
+      </p>
+      <h3 className="text-base font-semibold leading-snug" data-conversation-title>{titleControl}</h3>
+      <AttachedLine lineageId={lineageId} references={references} section={section} stories={stories} />
+      {preview ? <p className="line-clamp-2 text-sm text-muted-foreground" data-conversation-preview>{preview}</p> : null}
+      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+        {countBadge}
+        {activity ? <span className="min-w-0 truncate text-xs text-muted-foreground" data-conversation-activity>{activity}</span> : null}
+      </p>
+    </article>
   );
 }
 
-/** The Reference a conversation is about, as an attachment under its messages: the standard header, no decision controls. */
+/** The Reference a conversation is about, under its title: the standard header, no decision controls, and a link to the Reference. */
 function ReferenceAttachment({ href, now, onNavigate, thread, view }: { href: string; now: number; onNavigate?: (href: string) => void; thread: MessageThreadRecord; view: ConversationReferenceView | undefined }) {
   const open = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (!onNavigate || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
@@ -89,23 +205,88 @@ function ReferenceAttachment({ href, now, onNavigate, thread, view }: { href: st
   };
   return (
     <a
-      aria-label={`Open the Reference: ${view?.reference.title ?? thread.title}`}
+      aria-label={`Open the Reference: ${view ? referenceDisplayTitle(view.reference) : thread.title}`}
       className="flex flex-col overflow-hidden rounded-[var(--feed-radius-lg,10px)] bg-[var(--feed-footer)] text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
       data-conversation-attachment="reference"
       href={href}
       onClick={open}
     >
       {view ? <ReferenceCardHeader now={now} preview={view.preview} reference={view.reference} /> : (
-        <span className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><BookmarkIcon aria-hidden="true" className="size-4" />{thread.title}<ExternalLinkIcon aria-hidden="true" className="size-4" /></span>
+        <span className="flex items-center gap-2 p-4 text-sm text-muted-foreground"><BookmarkIcon aria-hidden="true" className="size-4" />Open the Reference<ExternalLinkIcon aria-hidden="true" className="size-4" /></span>
       )}
     </a>
   );
 }
 
-function ConversationCard({ demo, now, onNavigate, reloadKey, references, seed, source, stories, thread }: {
+/** The conversation's title, with a Rename button that opens an input in place. A refused save says why and keeps what was typed. */
+function ThreadTitle({ onRename, thread }: { onRename: (title: string) => Promise<void>; thread: MessageThreadRecord }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(thread.title);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const next = draft.trim();
+    if (!next) { setError("A title cannot be empty."); return; }
+    if (next === thread.title) { setEditing(false); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      await onRename(next);
+      setEditing(false);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "The title could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const cancel = () => { setEditing(false); setError(null); setDraft(thread.title); };
+
+  if (!editing) {
+    return (
+      <div className="flex items-start justify-between gap-2" data-conversation-heading>
+        <h2 className="min-w-0 break-words text-xl font-bold leading-snug tracking-tight" data-conversation-detail-title>{thread.title}</h2>
+        <button className={cn(PILL_QUIET, "shrink-0")} data-conversation-rename onClick={() => { setDraft(thread.title); setEditing(true); }} type="button">
+          <PencilIcon aria-hidden="true" className="size-4" />Rename
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2" data-conversation-heading>
+      <input
+        aria-label="Conversation title"
+        autoFocus
+        className={CONTROL_FIELD}
+        data-conversation-rename-input
+        maxLength={120}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void save(); } else if (event.key === "Escape") cancel(); }}
+        value={draft}
+      />
+      {error ? (
+        <p className="flex items-start gap-1.5 text-sm text-destructive" data-conversation-rename-error role="alert">
+          <TriangleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <span>Not renamed: {error} Your text is kept here.</span>
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <button className={cn(PILL, "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]")} data-conversation-rename-save disabled={saving || !draft.trim()} onClick={() => void save()} type="button">
+          {saving ? <Loader2Icon aria-hidden="true" className="size-4 animate-spin" /> : <CheckIcon aria-hidden="true" className="size-4" />}Save
+        </button>
+        <button className={PILL_QUIET} data-conversation-rename-cancel onClick={cancel} type="button"><XIcon aria-hidden="true" className="size-4" />Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+/** One conversation opened: its own title, what it is about, and every message with its replies. Messages are read only now. */
+function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, references, seed, source, stories, thread }: {
   demo: boolean;
   now: number;
   onNavigate?: (href: string) => void;
+  onPosted: (thread: MessageThreadRecord, message: ConversationMessage) => void;
+  onRename: (thread: MessageThreadRecord, title: string) => Promise<void>;
   reloadKey: number;
   references: ReadonlyMap<string, ConversationReferenceView>;
   seed: ConversationMessage[] | undefined;
@@ -115,36 +296,17 @@ function ConversationCard({ demo, now, onNavigate, reloadKey, references, seed, 
 }) {
   const section = sectionOfThreadKind(thread.threadKind);
   const lineageId = thread.primaryAnchorLineageId ?? "";
-  // Forum threads and chats keep their own detail views; every other conversation is read and answered right here.
-  const inline = section === "references" || section === "stories" || thread.threadKind === "conversation";
-  const messages = useThreadMessages(source, thread, seed, reloadKey);
   const story = stories.get(lineageId);
-  const frame = "flex flex-col gap-3 rounded-[20px] bg-[var(--feed-card)] p-4";
-
-  if (!inline) {
-    const isChat = section === "chats";
-    const href = getNewsroomNavHref(`/newsroom/forum/${encodeURIComponent(thread.id)}`, demo);
-    return (
-      <article className={frame} data-conversation-card={thread.id} data-conversation-kind={thread.threadKind}>
-        <CardCaption kind={thread.threadKind} now={now} updatedAt={thread.updatedAt} />
-        <h3 className="text-base font-semibold leading-snug" data-conversation-title>{thread.title}</h3>
-        <p className="text-sm text-muted-foreground">{messageCountLabel(thread.messageCount ?? 0)}</p>
-        {isChat ? (
-          <button className={cn(PILL, "self-start bg-[var(--feed-control)] text-foreground")} data-conversation-open onClick={() => window.dispatchEvent(new CustomEvent(CONSOLE_SELECT_THREAD_EVENT, { detail: { threadId: thread.id } }))} type="button">
-            <MessageCircleIcon aria-hidden="true" className="size-4" />Open chat
-          </button>
-        ) : (
-          <a className={cn(PILL, "self-start bg-[var(--feed-control)] text-foreground")} data-conversation-open href={href} onClick={(event) => { if (onNavigate && !event.metaKey && !event.ctrlKey && event.button === 0) { event.preventDefault(); onNavigate(href); } }}>
-            <MessagesSquareIcon aria-hidden="true" className="size-4" />Open thread
-          </a>
-        )}
-      </article>
-    );
-  }
-
+  const saved = useCallback((message: ConversationMessage) => onPosted(thread, message), [onPosted, thread]);
+  const messages = useThreadMessages(source, thread, seed, reloadKey, saved);
+  const { icon: KindIcon, text: kindText } = kindLabel(thread.threadKind);
   return (
-    <article className={frame} data-conversation-card={thread.id} data-conversation-kind={thread.threadKind}>
-      <CardCaption kind={thread.threadKind} now={now} updatedAt={thread.updatedAt} />
+    <div className="space-y-4" data-conversation-detail={thread.id}>
+      <p className={cn(LABEL, "inline-flex items-center gap-1.5 text-muted-foreground")}><KindIcon aria-hidden="true" className="size-3.5" />{kindText}</p>
+      <ThreadTitle onRename={(title) => onRename(thread, title)} thread={thread} />
+      {section === "references" && lineageId ? (
+        <ReferenceAttachment href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo)} now={now} onNavigate={onNavigate} thread={thread} view={references.get(lineageId)} />
+      ) : null}
       {section === "stories" ? (
         <div className="space-y-1 rounded-[var(--feed-radius-lg,10px)] bg-[var(--feed-footer)] p-3" data-conversation-story>
           <p className="text-base font-semibold leading-snug">{story?.title ?? thread.title}</p>
@@ -160,23 +322,66 @@ function ConversationCard({ demo, now, onNavigate, reloadKey, references, seed, 
         error={messages.error}
         heading={`Messages in ${thread.title}`}
         hideHeading
-        latest={LATEST_MESSAGES}
         messages={messages.messages}
         now={now}
         onPost={messages.post}
         onRetry={messages.retry}
         state={messages.state}
       />
-      {section === "references" && lineageId ? (
-        <ReferenceAttachment href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo)} now={now} onNavigate={onNavigate} thread={thread} view={references.get(lineageId)} />
-      ) : null}
-    </article>
+    </div>
   );
 }
 
+/** The New message box: a required title and the first message. */
+function NewConversation({ onStart }: { onStart: (title: string, body: string) => Promise<void> }) {
+  const [title, setTitle] = useState("");
+  return (
+    <section aria-label="New message" className="max-w-2xl space-y-2 rounded-[20px] bg-[var(--feed-card)] p-4" data-conversation-new>
+      <h2 className={cn(LABEL, "text-muted-foreground")}>New message</h2>
+      <input
+        aria-label="Title"
+        className={CONTROL_FIELD}
+        data-conversation-new-title
+        maxLength={120}
+        onChange={(event) => setTitle(event.target.value)}
+        placeholder="Title (required)"
+        required
+        value={title}
+      />
+      <Composer
+        buttonLabel="Post"
+        icon="post"
+        label="New message"
+        onSubmit={async (body) => { await onStart(title.trim(), body); setTitle(""); }}
+        placeholder="The first message… (a thought that is not about any one Reference or Story)"
+        postBlockedReason={title.trim() ? null : "Add a title to post."}
+      />
+    </section>
+  );
+}
+
+function readLayoutPreference(): "grid" | "list" {
+  try { return window.localStorage.getItem(LAYOUT_STORAGE_KEY) === "list" ? "list" : "grid"; } catch { return "grid"; }
+}
+function writeLayoutPreference(mode: "grid" | "list") {
+  try { window.localStorage.setItem(LAYOUT_STORAGE_KEY, mode); } catch { /* remembered for this visit only */ }
+}
+function readSelectedThread(): string | null {
+  try { return new URLSearchParams(window.location.search).get(THREAD_PARAM) || null; } catch { return null; }
+}
+function writeSelectedThread(threadId: string | null) {
+  try {
+    const url = new URL(window.location.href);
+    if (threadId) url.searchParams.set(THREAD_PARAM, threadId); else url.searchParams.delete(THREAD_PARAM);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch { /* the address stays as it is */ }
+}
+
 /**
- * Every conversation, newest activity first, as cards in a grid. Messages lead each card; the Reference or Story it is about is an
- * attachment under them. Sections are buttons. Reads page by page from the thread indexes: nothing is loaded that is not shown.
+ * Every conversation, newest activity first, like a web forum: each thread is one card (grid) or one line (list) with its own title.
+ * Opening one shows its whole conversation: beside the list from 1024px, in its place (with Back) below it. The address holds the
+ * selection (`?thread=`). Sections are buttons. Reads are one page of thread records plus one batch of headers; messages are read
+ * only for the open thread.
  */
 export function ConversationsView({ demo = false, onNavigate, source }: {
   demo?: boolean;
@@ -185,6 +390,10 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
   source: ConversationsSource;
 }) {
   const [section, setSection] = useState<ConversationSection>("all");
+  const [mode, setMode] = useState<"grid" | "list">("grid");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [fetched, setFetched] = useState<MessageThreadRecord | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [threads, setThreads] = useState<MessageThreadRecord[]>([]);
   const [seeds, setSeeds] = useState<Record<string, ConversationMessage[]>>({});
   const [loading, setLoading] = useState(true);
@@ -205,6 +414,15 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
     if (referenceIds.length) void source.loadReferences(referenceIds).then((loaded) => setReferences((current) => new Map([...current, ...loaded]))).catch(() => undefined);
     if (storyIds.length) void source.loadStories(storyIds).then((loaded) => setStories((current) => new Map([...current, ...loaded]))).catch(() => undefined);
   }, [source]);
+
+  // Preferences and the address are read in the browser only, after the first render.
+  useEffect(() => {
+    setMode(readLayoutPreference());
+    setSelectedId(readSelectedThread());
+    const onPop = () => setSelectedId(readSelectedThread());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   useEffect(() => {
     const mine = ++generation.current;
@@ -234,6 +452,54 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refocus); document.removeEventListener("visibilitychange", refocus); };
   }, []);
 
+  // A linked thread that is not on the pages read so far is read by its id.
+  const inList = selectedId ? threads.find((thread) => thread.id === selectedId) : undefined;
+  useEffect(() => {
+    if (!selectedId || loading || inList || fetched?.id === selectedId) return;
+    let active = true;
+    const dropSelection = (message: string) => { setNotice(message); setSelectedId(null); writeSelectedThread(null); };
+    source.loadThread(selectedId).then((thread) => {
+      if (!active) return;
+      if (thread && selectableKind(thread.threadKind)) { setFetched(thread); enrich([thread]); return; }
+      dropSelection("That conversation could not be found.");
+    }).catch((failure) => {
+      if (active) dropSelection(`That conversation could not be opened. ${failure instanceof Error ? failure.message : ""}`.trim());
+    });
+    return () => { active = false; };
+  }, [enrich, fetched?.id, inList, loading, selectedId, source]);
+
+  const selected = selectedId ? (inList ?? (fetched?.id === selectedId ? fetched : undefined)) : undefined;
+  const openable = selected && selectableKind(selected.threadKind) ? selected : undefined;
+
+  const select = (threadId: string | null) => { setNotice(null); setSelectedId(threadId); writeSelectedThread(threadId); };
+  const chooseMode = (next: "grid" | "list") => { setMode(next); writeLayoutPreference(next); };
+
+  const patchThread = useCallback((id: string, change: (thread: MessageThreadRecord) => MessageThreadRecord, moveToTop = false) => {
+    setFetched((current) => (current?.id === id ? change(current) : current));
+    setThreads((current) => {
+      const index = current.findIndex((thread) => thread.id === id);
+      if (index < 0) return current;
+      const changed = change(current[index]);
+      return moveToTop ? [changed, ...current.filter((_, at) => at !== index)] : current.map((thread, at) => (at === index ? changed : thread));
+    });
+  }, []);
+
+  const onPosted = useCallback((thread: MessageThreadRecord, message: ConversationMessage) => {
+    patchThread(thread.id, (current) => ({
+      ...current,
+      messageCount: (current.messageCount ?? 0) + 1,
+      lastMessageAt: message.createdAt,
+      updatedAt: message.createdAt,
+      summary: conversationPreviewLine(message.content),
+      metadata: threadMetadataWithLastAuthor(current.metadata, source.authorLabel),
+    }), true);
+  }, [patchThread, source.authorLabel]);
+
+  const rename = async (thread: MessageThreadRecord, title: string) => {
+    const saved = await source.rename(thread, title);
+    patchThread(thread.id, (current) => ({ ...current, title: saved.title }));
+  };
+
   const loadMore = async () => {
     if (!stream.current || loadingMore) return;
     const mine = generation.current;
@@ -251,42 +517,60 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
     }
   };
 
-  const startConversation = async (body: string) => {
-    const { thread, message } = await source.start(body);
+  const startConversation = async (title: string, body: string) => {
+    const { thread, message } = await source.start(title, body);
     setSeeds((current) => ({ ...current, [thread.id]: [message] }));
     setThreads((current) => [thread, ...current.filter((entry) => entry.id !== thread.id)]);
   };
 
   const canStart = section === "all" || section === "other";
-  return (
-    <div className="@container space-y-5" data-conversations-view {...FEED_SURFACE_PROPS}>
-      <div aria-label="Conversations" className="flex flex-wrap gap-1.5" data-conversation-sections role="group">
-        {CONVERSATION_SECTIONS.map(({ key, label }) => {
-          const Icon = SECTION_ICONS[key];
-          const on = section === key;
-          return (
+  const list = (
+    <div className="@container space-y-5" data-conversations-list>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div aria-label="Conversations" className="flex flex-wrap gap-1.5" data-conversation-sections role="group">
+          {CONVERSATION_SECTIONS.map(({ key, label }) => {
+            const Icon = SECTION_ICONS[key];
+            const on = section === key;
+            return (
+              <button
+                aria-pressed={on}
+                className={cn(PILL, on ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)]/45 text-muted-foreground hover:bg-[var(--feed-control)]/70 hover:text-foreground")}
+                data-conversation-section={key}
+                key={key}
+                onClick={() => setSection(key)}
+                type="button"
+              >
+                <Icon aria-hidden="true" className="size-4" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div aria-label="Layout" className="flex gap-1.5" data-conversation-layouts role="group">
+          {([["grid", "Grid", LayoutGridIcon], ["list", "List", ListIcon]] as const).map(([key, label, Icon]) => (
             <button
-              aria-pressed={on}
-              className={cn(PILL, on ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)]/45 text-muted-foreground hover:bg-[var(--feed-control)]/70 hover:text-foreground")}
-              data-conversation-section={key}
+              aria-pressed={mode === key}
+              className={cn(PILL, mode === key ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)]/45 text-muted-foreground hover:bg-[var(--feed-control)]/70 hover:text-foreground")}
+              data-conversation-layout={key}
               key={key}
-              onClick={() => setSection(key)}
+              onClick={() => chooseMode(key)}
               type="button"
             >
               <Icon aria-hidden="true" className="size-4" />
               {label}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
 
-      {canStart ? (
-        <section aria-label="New message" className="max-w-2xl space-y-2 rounded-[20px] bg-[var(--feed-card)] p-4" data-conversation-new>
-          <h2 className={cn(LABEL, "text-muted-foreground")}>New message</h2>
-          <Composer buttonLabel="Post" icon="post" label="New message" onSubmit={startConversation} placeholder="New message… (a thought that is not about any one Reference or Story)" />
-        </section>
-      ) : null}
+      {canStart ? <NewConversation onStart={startConversation} /> : null}
 
+      {notice ? (
+        <p className="flex items-start gap-1.5 text-sm text-muted-foreground" data-conversations-notice role="status">
+          <TriangleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <span>{notice}</span>
+        </p>
+      ) : null}
       {loading ? <p className="flex items-center gap-1.5 text-sm text-muted-foreground" data-conversations-loading role="status"><Loader2Icon aria-hidden="true" className="size-4 animate-spin" />Loading conversations</p> : null}
       {error ? (
         <p className="flex items-start gap-1.5 text-sm text-destructive" data-conversations-error role="alert">
@@ -302,9 +586,9 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
       ) : null}
 
       {threads.length ? (
-        <div className={FEED_GRID} data-conversation-grid>
+        <div className={mode === "grid" ? FEED_GRID : "flex flex-col gap-2"} data-conversation-grid={mode === "grid" ? "" : undefined} data-conversation-lines={mode === "list" ? "" : undefined}>
           {threads.map((thread) => (
-            <ConversationCard demo={demo} key={thread.id} now={now} onNavigate={onNavigate} reloadKey={reloadKey} references={references} seed={seeds[thread.id]} source={source} stories={stories} thread={thread} />
+            <ThreadItem demo={demo} key={thread.id} mode={mode} now={now} onNavigate={onNavigate} onSelect={select} references={references} selected={thread.id === openable?.id} stories={stories} thread={thread} />
           ))}
         </div>
       ) : null}
@@ -314,6 +598,20 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
           Show more conversations
         </button>
       ) : null}
+    </div>
+  );
+
+  return (
+    <div data-conversations-view data-conversations-mode={mode} {...FEED_SURFACE_PROPS}>
+      <ListDetailLayout
+        backLabel="Messages"
+        detail={openable ? (
+          <ThreadDetail demo={demo} key={openable.id} now={now} onNavigate={onNavigate} onPosted={onPosted} onRename={rename} reloadKey={reloadKey} references={references} seed={seeds[openable.id]} source={source} stories={stories} thread={openable} />
+        ) : null}
+        list={list}
+        onBack={() => select(null)}
+        open={Boolean(openable)}
+      />
     </div>
   );
 }

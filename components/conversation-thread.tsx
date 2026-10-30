@@ -18,10 +18,12 @@ const PILL_QUIET = cn(PILL, "text-muted-foreground hover:bg-[var(--feed-control)
  * A box for writing a Message. The text clears the moment you post, so the Message shows at once; if the save fails the text comes
  * back (unless you have typed something new) with the reason, and nothing you wrote is lost.
  */
-export function Composer({ autoFocus = false, buttonLabel, disabledReason, icon, label, onCancel, onSubmit, placeholder }: {
+export function Composer({ autoFocus = false, buttonLabel, disabledReason, icon, label, onCancel, onSubmit, placeholder, postBlockedReason }: {
   autoFocus?: boolean;
   buttonLabel: string;
   disabledReason?: string | null;
+  /** Something else the post needs first (a title): the box stays open for writing, the button waits, and the reason is said in words. */
+  postBlockedReason?: string | null;
   icon: "post" | "reply";
   label: string;
   onCancel?: () => void;
@@ -31,11 +33,11 @@ export function Composer({ autoFocus = false, buttonLabel, disabledReason, icon,
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const Icon = icon === "post" ? MessageSquarePlusIcon : ReplyIcon;
-  const canPost = !disabledReason && draft.trim().length > 0;
+  const canPost = !disabledReason && !postBlockedReason && draft.trim().length > 0;
 
   async function submit() {
     const text = draft.trim();
-    if (!text || disabledReason) return;
+    if (!text || disabledReason || postBlockedReason) return;
     setDraft("");
     setError(null);
     try {
@@ -66,6 +68,7 @@ export function Composer({ autoFocus = false, buttonLabel, disabledReason, icon,
         </p>
       ) : null}
       {disabledReason ? <p className="text-sm text-muted-foreground">{disabledReason}</p> : null}
+      {postBlockedReason && draft.trim() ? <p className="text-sm text-muted-foreground" data-conversation-blocked>{postBlockedReason}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <button className={PILL_PRIMARY} data-conversation-post={icon} disabled={!canPost} onClick={() => void submit()} type="button">
           <Icon aria-hidden="true" className="size-4" />
