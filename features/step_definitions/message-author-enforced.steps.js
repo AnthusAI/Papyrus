@@ -21,6 +21,7 @@ for (const when of [
   "an editor and an admin rename a conversation",
   "the rules on Message are read",
   "the function grants and every browser writer are read",
+  "the resolver files are located the way a site's deploy locates them",
 ]) When(when, function () {});
 
 // Each outcome is one test in scripts/test-message-author-enforced.ts.
@@ -36,5 +37,6 @@ const outcomes = [
   ["editors and admins can only read, and the five mutations are offered to the right groups on the right tables", /✔ the schema offers the five mutations/],
   ["the functions keep their grants and the assignment function can still create and update Messages", /✔ machine writers still work/],
   ["the conversation, forum and console chat writers post through postMessage and name no author", /✔ the browser writes only through postMessage/],
+  ["every message resolver is named by an absolute path to a file that exists, wherever the package is installed", /✔ every message resolver is found by an absolute path/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });

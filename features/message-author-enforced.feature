@@ -51,3 +51,8 @@ Feature: The backend stamps a message's author and moderates deletes
     When the function grants and every browser writer are read
     Then the functions keep their grants and the assignment function can still create and update Messages
     And the conversation, forum and console chat writers post through postMessage and name no author
+
+  Scenario: A site that loads the schema from the package can deploy the message resolvers
+    Given the data API schema and its message resolvers
+    When the resolver files are located the way a site's deploy locates them
+    Then every message resolver is named by an absolute path to a file that exists, wherever the package is installed
