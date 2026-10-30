@@ -90,7 +90,7 @@ The full text of the Core Rules that [../AGENTS.md](../AGENTS.md) summarizes. Wh
 - **GraphQL auth split (do not mix):**
   - **Editorial CLI users** may use the configured native Google/Cognito login
     in [CLI login](cli-login.md), under the same server-checked user permissions
-    as the newsroom. Renewable session material belongs only in macOS Keychain;
+    as the newsroom. Renewable session material belongs only in the platform secure store (macOS Keychain, Linux keyring or memory agent, Windows Credential Manager);
     public publication/client selection metadata may be persisted separately.
     Never scrape browser cookies, log tokens, invent grants, use API-key/guest
     authoring, or fall back to a broader IAM identity when user auth fails.

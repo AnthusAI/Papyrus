@@ -1,0 +1,20 @@
+{
+  "id": "PPY-c4e08e5b-584a-44b2-8c0d-0e980c85b24f",
+  "title": "Rename Data Parade posts to articles: dataparade.io/articles, /posts redirects",
+  "description": "Ryan (2026-10-30): the DataParade client wants \"articles\", not \"posts\". Move the article pages from dataparade.io/posts to dataparade.io/articles on both sites, and ship the landing side through DataParade's new CI/CD pipeline (Ryan chose: add a landing deploy workflow).\n\nOrder, so nothing breaks in between:\n1. dataparade.io CloudFront (domain-edge, account 688128002352): add /articles and /articles/* behaviors to the Papyrus edge, keeping /posts*. By reviewed change set by hand: the pipeline's roles do not cover domain-edge.\n2. AnthusAI/DataParade-newsroom: urls.basePath /articles, a pattern redirect ^/posts/(.*)$ -> /articles/$1 (301), labels Posts -> Articles, tests, docs.\n3. DataParade-io/dataparade: fold the rename into PR #85 (landing nav, footer, home-page feed at /articles/_data/latest.json, next.config redirects, domain-edge template), merge main into it, add a plan/apply landing deploy workflow modeled on deploy-prod.yml, merge, then plan and apply through the pipeline. Note: production landing runs the #85 branch, 226 commits behind main, so the first pipeline deploy also ships main's landing changes.\nDone when dataparade.io/articles/ serves the articles, every old /posts/... URL 301s to /articles/..., the landing home page shows the latest articles, and the landing was deployed by the new workflow.",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-30T15:32:11.465844Z",
+  "updated_at": "2026-10-30T15:32:14.511480Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

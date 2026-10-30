@@ -56,3 +56,8 @@ Feature: The backend stamps a message's author and moderates deletes
     Given the data API schema and its message resolvers
     When the resolver files are located the way a site's deploy locates them
     Then every message resolver is named by an absolute path to a file that exists, wherever the package is installed
+
+  Scenario: The message resolvers run on AppSync's JavaScript runtime
+    Given the data API schema and its message resolvers
+    When every resolver is checked with the rules AppSync applies to its JavaScript runtime
+    Then none uses a construct the runtime refuses, such as a classic for loop or ++, so a site's deploy is never rolled back over it

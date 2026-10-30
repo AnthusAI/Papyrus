@@ -1,7 +1,8 @@
 # Native newsroom CLI login
 
 `papyrus login` opens normal Google sign-in through a **reviewed public
-Cognito app client**, then stores the renewable session in macOS Keychain.
+Cognito app client**, then stores the renewable session in the machine's secure
+credential store (see [Supported platforms](#supported-platforms-and-secure-storage)).
 Editorial requests use the same Cognito user-pool authorization as the newsroom;
 AppSync remains responsible for validating the token and enforcing permissions.
 This does not grant an operator role or require personal AWS SSO.
@@ -38,6 +39,44 @@ It compares against the latest PyPI release (a lookup that is skipped with `--of
 and simply reported as unknown when PyPI is unreachable), says whether you are in a
 tool install, a virtualenv or system Python, and checks each signed-in site. It exits
 non-zero when a site needs a new login. It prints no tokens and no account identity.
+
+## Supported platforms and secure storage
+
+Sign-in, renewal, locking and storage come from the shared
+[`cli-login`](https://pypi.org/project/cli-login/) library (pinned to an exact
+version). Papyrus keeps only what is its own: reading a site's
+`/.well-known/papyrus-cli.json`, the registry of signed-in sites, picking the session
+that owns a GraphQL endpoint, and the `login`, `logout`, `whoami` and `auth status`
+commands.
+
+| Platform | Where the session is kept |
+| --- | --- |
+| macOS | Keychain, service `papyrus-newsroom-oauth`, one item per site key (sessions saved by earlier CLIs keep working) |
+| Linux | Secret Service (an unlocked desktop keyring), then the kernel keyring, then the memory agent |
+| Windows | Credential Manager |
+
+There is never a plaintext fallback. If no secure store is usable, `papyrus login`
+fails with the steps to fix it and writes nothing. Set `CLI_LOGIN_STORE` to
+`keychain`, `secret-service`, `kernel-keyring`, `agent` or `credential-manager` to
+choose a store explicitly.
+
+### Cloud machines and containers
+
+A cloud machine usually has no desktop keyring. Start the memory agent once, then sign
+in again:
+
+```sh
+python -m cli_login.stores.agent serve --namespace papyrus-newsroom-oauth --background
+python -m cli_login.stores.agent status --namespace papyrus-newsroom-oauth
+python -m cli_login.stores.agent stop   --namespace papyrus-newsroom-oauth
+```
+
+The agent keeps sessions in memory only, behind a private Unix socket, so they last
+until it stops or the machine restarts; sign in again after that. The agent is not
+available on Windows in this version.
+
+`papyrus login --remote` (approve a sign-in from another device) is not available yet:
+the sites do not publish a sign-in broker, so the flag fails with that message.
 
 ## Sign in by site name
 
@@ -200,18 +239,15 @@ an approved interactive test.
 
 The registry of signed-in sites is stored in a private metadata directory
 (`~/.config/papyrus` by default, override `PAPYRUS_CLI_STATE_DIR`). Renewable
-secrets and subject/label records live in macOS Keychain, scoped by the complete
+secrets and subject/label records live in the secure store, scoped by the complete
 issuer/client/publication/endpoint/callback binding. Short-lived ID tokens are
 in process memory only. There are no token argv, environment variables, repo
 files or plaintext fallback. Child CLI/Tactus processes use the same public
 registry and read their own renewable secret from the OS store.
 
-macOS support uses Apple's Security/CoreFoundation framework through Python's
-standard-library FFI, without new dependency installation. Locked/unavailable
-Keychain fails with a useful error and does not trigger a surprise unlock
-prompt. Other desktop secure-store backends are not implemented in this first
-slice; unsupported hosts fail closed. Python interface tests use synthetic
-store/provider fixtures, never production credentials.
+A locked or unavailable store fails with a useful error and does not trigger a
+surprise unlock prompt. Python interface tests use synthetic store/provider fixtures,
+never production credentials.
 
 Rotation reads and replaces the latest secret under a process-shared file lock;
 lock files contain no token data. Transient provider/network failures retain the
@@ -247,8 +283,8 @@ no IAM escalation, secret-safe errors and honest offline logout. They do not
 prove a live session lasts a day. `elapsed_24h_live_verified: false` explicitly
 keeps that distinction in status output. No real elapsed 24-hour acceptance,
 Google login, Keychain credential read/write or live permission-parity test has
-run. Only Apple framework symbol resolution was checked on M1; complete
-credential-free tests and CI remain the review gate for this PR.
+run. The store backends are tested in the `cli-login` library; complete
+credential-free tests and CI remain the review gate.
 
 Reference implementation: [Apricity cloud CLI](https://github.com/AnthusAI/Apricity/blob/ffe8a023b0418445aa67893a52ae9e173c366d42/crates/apricity-cli/src/cloud.rs#L206).
 OAuth uses the native-app pattern in [RFC8252](https://www.rfc-editor.org/info/rfc8252/).

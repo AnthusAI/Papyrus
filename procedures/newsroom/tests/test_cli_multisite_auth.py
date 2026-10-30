@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 from papyrus_content import cli_doctor
 from papyrus_content.cli_user_auth import (
-    AuthConfig, AuthError, OAuthError, Session, command, config_for_endpoint, discover, load_registry,
+    AuthConfig, AuthError, OAuthError, SiteSession, command, config_for_endpoint, discover, load_registry,
     normalize_site, registered_site, save_selection, selected_headers, selection_path,
 )
 from procedures.newsroom.tests.test_cli_user_auth import MemoryStore, Provider, token
@@ -200,12 +200,12 @@ def test_explicit_config_env_still_selects_one_config(tmp_path, monkeypatch):
 def test_signed_out_site_error_names_the_site_to_log_in_to():
     config = site('a.anth.us')
     with pytest.raises(AuthError, match='papyrus login a.anth.us'):
-        Session(config, store=MemoryStore(), provider=None).headers(config.graphql_endpoint)
+        SiteSession(config, store=MemoryStore(), provider=None).headers(config.graphql_endpoint)
 
 
 def test_revoked_session_error_names_the_site():
     config = site('a.anth.us'); clock = [1000.0]; store = MemoryStore(); provider = Provider(clock)
-    session = Session(config, store=store, provider=provider, clock=lambda: clock[0], receive=lambda *a: 'code')
+    session = SiteSession(config, store=store, provider=provider, clock=lambda: clock[0], receive=lambda *a: 'code')
     session.login(); clock[0] += 4000; provider.failure = OAuthError('invalid_grant')
     with pytest.raises(OAuthError, match='papyrus login a.anth.us'):
         session.headers(config.graphql_endpoint)
@@ -220,7 +220,7 @@ class World:
         for host in ('a.anth.us', 'b.anth.us'):
             config = site(host)
             self.stores[host] = MemoryStore()
-            self.sessions[config.publication] = Session(config, store=self.stores[host], provider=Provider(self.clock),
+            self.sessions[config.publication] = SiteSession(config, store=self.stores[host], provider=Provider(self.clock),
                                                        clock=lambda: self.clock[0],
                                                        receive=lambda *a, h=host: self.logins.append(h) or 'code')
 
@@ -385,7 +385,7 @@ def test_doctor_dispatches_from_the_real_cli(world, capsys, monkeypatch):
 
 def test_busy_callback_port_is_named_and_nothing_is_saved():
     import socket
-    from papyrus_content.cli_user_auth import receive_code
+    from cli_login.oauth import receive_code
     blocker = socket.socket(); blocker.bind(('127.0.0.1', 0)); blocker.listen(1)
     port = blocker.getsockname()[1]
     try:
