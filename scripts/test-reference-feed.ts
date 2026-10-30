@@ -31,7 +31,9 @@ import { useMemo, useRef, useState } from "react";
 import { ReferenceFeed } from "./components/reference-feed";
 import { ReferencesPageLoading } from "./components/references-page-loading";
 import { useFeedPreferences } from "./components/use-feed-preferences";
-import { applyFeedOrderSnapshot, buildFeedItems, takeFeedOrderSnapshot } from "./lib/reference-feed-ranking";
+import { scoreFeedItem } from "./lib/reference-feed-ranking";
+import { createStaticFeedSource } from "./lib/reference-feed-pages";
+import { useReferenceFeedPages } from "./components/use-reference-feed-pages";
 
 const params = new URLSearchParams(location.search);
 const NOW = Date.parse("2026-10-27T12:00:00Z");
@@ -61,33 +63,35 @@ let tick = 0;
 
 function Harness() {
   const [references, setReferences] = useState(FIXTURE);
-  const [visitRated, setVisitRated] = useState(new Set());
   const { sort, setSort, show, setShow } = useFeedPreferences();
-  const live = useMemo(() => buildFeedItems(references, DECISIONS), [references]);
-  // The same rule as the page: the order is taken once and left alone.
-  const snapshot = useRef(null);
-  if (!snapshot.current) snapshot.current = takeFeedOrderSnapshot(live);
-  const stable = applyFeedOrderSnapshot(snapshot.current, live, sort, show);
+  // The same rule as the page: the feed pages through a source, the order is fixed as pages arrive, and a rating changes the card in place.
+  const data = useRef({ references, decisions: DECISIONS });
+  data.current = { references, decisions: DECISIONS };
+  const source = useMemo(() => createStaticFeedSource(() => data.current), []);
+  const { controller, state } = useReferenceFeedPages({ source, sort, show });
+  const items = useMemo(() => state.records.map((record) => scoreFeedItem(record, DECISIONS.get(record.lineageId))), [state.records]);
   return <ReferenceFeed
-    loading={params.has("loading")}
+    loading={params.has("loading") || state.status !== "ready"}
     now={NOW}
     onOpen={(id) => window.calls.push({ type: "open", id })}
     onRate={async (reference, choice, reasonCode) => {
       window.calls.push({ type: "rate", id: reference.lineageId, choice, reasonCode });
       if (params.has("fail")) throw new Error("The backend refused this.");
-      setReferences((current) => current.map((item) => item.lineageId === reference.lineageId
-        ? { ...item, curationStatus: choice === "accept" ? "accepted" : "rejected", curationStatusUpdatedAt: new Date(NOW + (tick += 1) * 1000).toISOString() } : item));
+      const curationStatus = choice === "accept" ? "accepted" : "rejected";
+      const curationStatusUpdatedAt = new Date(NOW + (tick += 1) * 1000).toISOString();
+      setReferences((current) => current.map((item) => item.lineageId === reference.lineageId ? { ...item, curationStatus, curationStatusUpdatedAt } : item));
+      controller.patch(reference.lineageId, { curationStatus, curationStatusUpdatedAt });
     }}
     onShowChange={setShow}
     onSortChange={setSort}
-    onVisitRated={(id) => setVisitRated((current) => new Set(current).add(id))}
-    items={stable.items}
-    leadId={stable.leadId}
-    ratedCount={live.filter((item) => item.rated).length}
+    onVisitRated={(id) => controller.markVisitRated(id)}
+    items={items}
+    leadId={state.leadId}
+    ratedCount={state.records.filter((record) => record.curationStatus !== "pending").length || (state.hasRated ? 1 : 0)}
     previews={previews}
     show={show}
     sort={sort}
-    visitRated={visitRated}
+    visitRated={state.visitRated}
     disabledReason={params.get("disabled")}
   />;
 }

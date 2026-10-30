@@ -284,6 +284,27 @@ def references_auto_accept(flags: list[str]) -> None:
     print(json.dumps({"autoAccept": "rule-backfill", **backfill}))
 
 
+def references_backfill_feed_keys(flags: list[str]) -> None:
+    """``papyrus references backfill-feed-keys --site KEY [--corpus-key KEY] [--positive-label LABEL] [--dry-run]``.
+
+    Sets the keys the References page pages through (src/papyrus_content/reference_feed_backfill.py) from each Reference's status and its
+    current Cyclotron decision. It writes only those fields. ``--dry-run`` prints the counts and writes nothing.
+    """
+    from .reference_feed_backfill import backfill_feed_keys
+    options = parse_options(flags)
+    site = normalize_string(options.get("site"))
+    if not site:
+        raise ValueError("references backfill-feed-keys needs --site KEY.")
+    apply = resolve_mutation_apply(options, "references backfill-feed-keys")
+    corpus_key = normalize_string(options.get("corpus-key")) or site
+    client, _ = create_authoring_client()
+    result = backfill_feed_keys(client, corpus_id=f"knowledge-corpus-{corpus_key}",
+                                positive_label=normalize_string(options.get("positive-label")) or "include", dry_run=not apply,
+                                progress=lambda line: print(f"references\tbackfill-feed-keys\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
+    for key, value in result.items():
+        print(f"references\tbackfill-feed-keys\t{key}\t{value}")
+
+
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
     options = parse_options(flags)
     apply = resolve_mutation_apply(options, "references backfill-reviewed-feed-key")

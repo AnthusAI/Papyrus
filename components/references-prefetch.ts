@@ -46,7 +46,11 @@ export function discardReferencesHeadStart() {
   started.clear();
 }
 
-/** The pages that need the References straight away: the feed itself and the home page, whose Notification Center shows References cards. */
+/**
+ * The pages that need the whole set of References straight away: the home page, whose Notification Center shows References cards.
+ * The References page does not: it reads its own pages (lib/reference-feed-pages.ts) and a head start on the full list would only
+ * download everything it is about to not use.
+ */
 export function wantsReferencesHeadStart(pathname: string): boolean {
-  return /\/newsroom\/references(\/|$)/.test(pathname) || /\/newsroom\/?$/.test(pathname);
+  return /\/newsroom\/?$/.test(pathname);
 }

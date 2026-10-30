@@ -2,6 +2,8 @@
 
 import { loadReferenceReviewDetails } from "../lib/reference-review-details";
 import { loadAllPages } from "../lib/newsroom-all-pages";
+import { createStaticFeedSource, type FeedCompanions, type FeedPage, type FeedPageRequest, type ReferenceFeedSource } from "../lib/reference-feed-pages";
+import { currentRelevanceDecisions } from "../lib/relevance-decisions";
 import { hasEditorRights } from "../lib/staff-groups";
 
 import { isEditorialWorkAssignment } from "../lib/newsroom-assignments";
@@ -1979,6 +1981,126 @@ export async function loadEditorReferencesData(): Promise<{
   return {
     references,
     referenceAttachments: referenceAttachments.sort((left, right) => left.sortKey.localeCompare(right.sortKey)),
+  };
+}
+
+// --- The References feed, one page at a time (docs/reference-feed-indexes.md) ---------------------------------------------------------
+
+const REFERENCE_FEED_FIELDS = `${REFERENCE_RECORD_GRAPHQL_FIELDS} feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey`;
+const REFERENCE_ATTACHMENT_FEED_FIELDS = "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath sourceUri filename mediaType byteSize sha256 etag importRunId importedAt metadata";
+const SEMANTIC_RELATION_FEED_FIELDS = "id relationState predicate relationTypeId relationTypeKey relationDomain subjectKind subjectId subjectLineageId subjectVersionNumber objectKind objectId objectLineageId objectVersionNumber subjectStateKey objectStateKey objectSubjectStateKey predicateObjectStateKey subjectVersionKey objectVersionKey score confidence rank classifierId modelVersion reviewRecommended sourceSnapshotId importRunId importedAt createdAt updatedAt newsroomFeedKey metadata";
+const CURRENT_VERSION_FILTER = { versionState: { eq: "current" } };
+
+function referenceFeedPageQuery(sort: "best" | "newest"): { query: string; field: string } {
+  const field = sort === "newest" ? "listReferencesByFeedStateAndArrival" : "listReferencesByFeedStateAndPrediction";
+  return {
+    field,
+    query: `query ReferenceFeedPage($feedStateKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
+      ${field}(feedStateKey: $feedStateKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) { items { ${REFERENCE_FEED_FIELDS} } nextToken }
+    }`,
+  };
+}
+
+/** One request for the attachments and the relevance decision of every Reference on a page: an aliased field per Reference and kind. */
+function referenceFeedCompanionsQuery(count: number): string {
+  const variables = Array.from({ length: count }, (_, index) => `$l${index}: ID!, $s${index}: String!`).join(", ");
+  const fields = Array.from({ length: count }, (_, index) => `
+      att${index}: listReferenceAttachmentsByReferenceLineageAndSortKey(referenceLineageId: $l${index}, sortDirection: ASC, limit: 50) { items { ${REFERENCE_ATTACHMENT_FEED_FIELDS} } nextToken }
+      rel${index}: listSemanticRelationsBySubjectState(subjectStateKey: $s${index}, limit: 200, filter: { predicate: { eq: "relevance_decision_is" } }) { items { ${SEMANTIC_RELATION_FEED_FIELDS} } nextToken }`).join("");
+  return `query ReferenceFeedCompanions(${variables}) {${fields}\n    }`;
+}
+
+type FeedConnection<T> = { items?: Array<T | null> | null; nextToken?: string | null } | null | undefined;
+
+/**
+ * The References feed read from the two indexes on `Reference`. A page is one request; a page's attachments and decisions are one more.
+ * Nothing here lists the whole table.
+ */
+export function createGraphqlReferenceFeedSource(knownCorpusId: string | null): ReferenceFeedSource {
+  configureAmplifyClient();
+  const testMock = getTestEditorNewsroomMock();
+  if (testMock?.references) {
+    return createStaticFeedSource(() => ({
+      references: testMock.references ?? [],
+      attachments: testMock.referenceAttachments ?? [],
+      decisions: currentRelevanceDecisions(testMock.semanticRelations ?? []),
+    }));
+  }
+  // The publication's canonical corpus: given, or read once (a handful of rows) the first time a page is asked for.
+  let corpus: Promise<string> | null = knownCorpusId ? Promise.resolve(knownCorpusId) : null;
+  const corpusId = (): Promise<string> => (corpus ??= listUserPoolModel<CategorySteeringCorpus>("KnowledgeCorpus").then((corpora) => {
+    const found = selectCanonicalCorpus(corpora);
+    if (!found) throw new Error("This newsroom has no corpus to read References from.");
+    return found.id;
+  }));
+  const feedStateKey = async (stream: FeedPageRequest["stream"]) => `${await corpusId()}#${stream}`;
+  return {
+    async fetchPage(request: FeedPageRequest): Promise<FeedPage> {
+      const { query, field } = referenceFeedPageQuery(request.sort);
+      const data = await runGraphql<Record<string, FeedConnection<ReferenceRecord>>>(query, {
+        feedStateKey: await feedStateKey(request.stream),
+        sortDirection: "DESC",
+        limit: request.limit,
+        nextToken: request.nextToken,
+        filter: CURRENT_VERSION_FILTER,
+      });
+      const connection = data[field];
+      return { items: (connection?.items ?? []).filter(Boolean) as ReferenceRecord[], nextToken: connection?.nextToken ?? null };
+    },
+    async fetchCompanions(references: ReferenceRecord[]): Promise<FeedCompanions> {
+      const lineages = references.map((reference) => reference.lineageId ?? reference.id);
+      if (!lineages.length) return { attachments: [], decisions: new Map() };
+      const variables: Record<string, string> = {};
+      lineages.forEach((lineage, index) => { variables[`l${index}`] = lineage; variables[`s${index}`] = `reference#${lineage}#current`; });
+      const data = await runGraphql<Record<string, FeedConnection<ReferenceAttachmentRecord | SemanticRelationRecord>>>(
+        referenceFeedCompanionsQuery(lineages.length),
+        variables,
+      );
+      const attachments: ReferenceAttachmentRecord[] = [];
+      const relations: SemanticRelationRecord[] = [];
+      for (const [index, lineage] of lineages.entries()) {
+        const attached = data[`att${index}`];
+        attachments.push(...((attached?.items ?? []).filter(Boolean) as ReferenceAttachmentRecord[]));
+        // A Reference with more than one page of attachments or relations is rare; its own loader follows the tokens.
+        if (attached?.nextToken) attachments.push(...(await loadReferenceAttachmentsForLineageId(lineage)).filter((attachment) => !attachments.some((known) => known.id === attachment.id)));
+        const related = data[`rel${index}`];
+        relations.push(...((related?.items ?? []).filter(Boolean) as SemanticRelationRecord[]));
+        if (related?.nextToken) {
+          relations.push(...(await loadSemanticRelationsByState({
+            field: "listSemanticRelationsBySubjectState",
+            keyName: "subjectStateKey",
+            keyValue: `reference#${lineage}#current`,
+            query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
+          })).filter((relation) => !relations.some((known) => known.id === relation.id)));
+        }
+      }
+      return { attachments: attachments.sort((left, right) => left.sortKey.localeCompare(right.sortKey)), decisions: currentRelevanceDecisions(relations) };
+    },
+    fetchReference: (idOrLineageId: string) => loadReferenceRecordByLineageId(idOrLineageId),
+    async countNew({ since, known }): Promise<number> {
+      const field = "listReferencesByFeedStateAndArrival";
+      const query = `query ReferenceFeedArrivals($feedStateKey: String!, $since: ModelStringKeyConditionInput, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
+        ${field}(feedStateKey: $feedStateKey, feedArrivalAt: $since, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) { items { id lineageId } nextToken }
+      }`;
+      let count = 0;
+      let nextToken: string | null = null;
+      do {
+        const data: Record<string, FeedConnection<ReferenceRecord>> = await runGraphql<Record<string, FeedConnection<ReferenceRecord>>>(query, {
+          feedStateKey: await feedStateKey("unrated"), since: { gt: since }, sortDirection: "DESC", limit: 100, nextToken, filter: CURRENT_VERSION_FILTER,
+        });
+        const connection: FeedConnection<ReferenceRecord> = data[field];
+        for (const item of connection?.items ?? []) if (item && !known.has(item.lineageId ?? item.id)) count += 1;
+        nextToken = connection?.nextToken ?? null;
+      } while (nextToken);
+      return count;
+    },
+    async hasRated(): Promise<boolean> {
+      const { query, field } = referenceFeedPageQuery("newest");
+      const data = await runGraphql<Record<string, FeedConnection<ReferenceRecord>>>(query, {
+        feedStateKey: await feedStateKey("rated"), sortDirection: "DESC", limit: 1, nextToken: null, filter: CURRENT_VERSION_FILTER,
+      });
+      return Boolean(data[field]?.items?.some(Boolean)) || Boolean(data[field]?.nextToken);
+    },
   };
 }
 

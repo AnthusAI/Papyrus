@@ -50,7 +50,10 @@ import { useRatingStore, type RatingController } from "./use-reference-ratings";
 import { ReferenceConversation } from "./reference-conversation";
 import { useReferenceMessageCounts } from "./use-conversation";
 import { captureStatusesByLineage } from "../lib/reference-capture";
-import { applyFeedOrderSnapshot, buildFeedItems, feedLeadId, takeFeedOrderSnapshot, visibleFeedItems, type FeedOrderSnapshot } from "../lib/reference-feed-ranking";
+import { buildFeedItems, scoreFeedItem, visibleFeedItems, type FeedItem } from "../lib/reference-feed-ranking";
+import { FEED_PAGE_SIZE, createStaticFeedSource, isRated, type ReferenceFeedSource, type StaticFeedData } from "../lib/reference-feed-pages";
+import { ratedFields } from "../lib/reference-feed-controller";
+import { useReferenceFeedPages } from "./use-reference-feed-pages";
 import { referenceDek, referencePreviewsByLineage, type ReferencePreview } from "../lib/reference-preview";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { chooseSyntheticRejects, withSyntheticRejects } from "../lib/local-preview-synthetic-rejects";
@@ -135,6 +138,13 @@ type NewsroomReferencesViewProps = {
   loading?: boolean;
   /** The last view this browser saved. Shown, read only, until the live read arrives. */
   savedCopy?: { references: ReferenceRecord[]; previews: Array<[string, ReferencePreview]>; decisions: Array<[string, RelevanceDecisionView]> } | null;
+  /**
+   * Where the feed reads its pages from (the two indexes on Reference). Without it the feed pages the `references` it was given, in
+   * memory, the same way: that is the demo, and the harnesses that mount the view with a list.
+   */
+  source?: ReferenceFeedSource;
+  /** Called once the first page and its decisions have loaded, so the host can keep a display copy for the next visit. */
+  onFirstPage?: (snapshot: { references: ReferenceRecord[]; previews: ReadonlyMap<string, ReferencePreview>; decisions: ReadonlyMap<string, RelevanceDecisionView> }) => void;
 };
 
 type ReferenceView = "feed" | "list";
@@ -398,6 +408,8 @@ export function NewsroomReferencesView({
   loading = false,
   onCorrectCapture,
   savedCopy = null,
+  source,
+  onFirstPage,
 }: NewsroomReferencesViewProps) {
   const pathname = usePathname();
   const sessionImport = useReferenceImport(disabled);
@@ -408,12 +420,56 @@ export function NewsroomReferencesView({
   );
   const routeLineageId = pathname ? pathnameLineageId ?? "" : initialReferenceLineageId ?? "";
 
+  // Preview only: ?feedState=loading holds the page in its loading state, to review the card skeletons.
+  const previewSkeleton = useMemo(
+    () => typeof window !== "undefined" && isLocalPreviewEnabled() && new URLSearchParams(window.location.search).get("feedState") === "loading",
+    [],
+  );
+  const [view, setView] = useState<ReferenceView>("feed");
+  const [addOpen, setAddOpen] = useState(false);
+  const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
+
+  // The feed is read one page at a time (lib/reference-feed-pages.ts). In the app `source` reads the two indexes. Without one the feed pages
+  // the References it was given, in memory: the same keys, streams and page size, so there is one code path. The in-memory feed starts
+  // once its list and predictions have arrived, because the order is fixed by the predictions at that moment.
+  const staticData = useRef<StaticFeedData>({ references: liveReferences, decisions: liveDecisions, attachments: referenceAttachments });
+  staticData.current = { references: liveReferences, decisions: liveDecisions, attachments: referenceAttachments };
+  const staticStarted = useRef(false);
+  const staticPredicted = useRef(false);
+  if (!source && liveReferences.length > 0 && !loading) staticStarted.current = true;
+  if (staticStarted.current && predictionState !== "loading") staticPredicted.current = true;
+  // The list shows as soon as it has its References; the visit is taken once more when the first predictions arrive, so the order is theirs.
+  const staticSource = useMemo(() => createStaticFeedSource(() => staticData.current), [staticStarted.current, staticPredicted.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  const feedSource = source ?? staticSource;
+  // The List view has a tab for each answer, so it reads the rated stream as well as the unrated one.
+  const pagedShow = view === "list" ? "all" : feedShow;
+  const { controller, state: feed } = useReferenceFeedPages({
+    source: feedSource,
+    sort: feedSort,
+    show: pagedShow,
+    enabled: !previewSkeleton && (Boolean(source) || staticStarted.current),
+  });
+  useEffect(() => {
+    if (!source) {
+      controller.mergeRecords(liveReferences);
+      void controller.refreshCompanions();
+      // A list held in memory has no focus event to wait for: anything new in it is counted now, and waits behind the pill.
+      void controller.checkNew();
+    }
+  }, [controller, liveDecisions, liveReferences, referenceAttachments, source]);
+
+  const firstReadPending = previewSkeleton || (source ? feed.status === "idle" || feed.status === "loading" : loading || !staticStarted.current);
   // Until the live read arrives, a saved copy of the last view fills the page. It is display only.
-  const showingSavedCopy = loading && !liveReferences.length && Boolean(savedCopy?.references.length);
-  const references = showingSavedCopy ? savedCopy!.references : liveReferences;
+  const showingSavedCopy = firstReadPending && !feed.records.length && Boolean(savedCopy?.references.length);
+  const loadedReferences = useMemo(() => [...feed.records, ...feed.extra], [feed.extra, feed.records]);
+  const references = showingSavedCopy ? savedCopy!.references : loadedReferences;
+  const feedDecisions = useMemo(
+    () => (source ? new Map([...feed.decisions, ...(liveDecisions ?? [])]) : liveDecisions),
+    [feed.decisions, liveDecisions, source],
+  );
   const baseDecisions = useMemo(
-    () => (showingSavedCopy && !liveDecisions?.size ? new Map(savedCopy!.decisions) : liveDecisions),
-    [liveDecisions, savedCopy, showingSavedCopy],
+    () => (showingSavedCopy && !feedDecisions?.size ? new Map(savedCopy!.decisions) : feedDecisions),
+    [feedDecisions, savedCopy, showingSavedCopy],
   );
   // Preview only: ?feedSynthRejects=N makes the N weakest Accept predictions into made-up Rejects (the page says so).
   const synthRejectCount = useMemo(() => {
@@ -434,46 +490,45 @@ export function NewsroomReferencesView({
     [baseDecisions, synthRejectCount],
   );
   const decisions = synthetic?.decisions ?? baseDecisions;
+  const feedAttachments = source ? feed.attachments : referenceAttachments;
   const previews = useMemo(() => {
-    const live = referencePreviewsByLineage(referenceAttachments);
+    const live = referencePreviewsByLineage(feedAttachments);
     return showingSavedCopy && !live.size ? new Map(savedCopy!.previews) : live;
-  }, [referenceAttachments, savedCopy, showingSavedCopy]);
-  const [view, setView] = useState<ReferenceView>("feed");
-  const [addOpen, setAddOpen] = useState(false);
-  const { sort: feedSort, setSort: setFeedSort, show: feedShow, setShow: setFeedShow } = useFeedPreferences();
-  const { counts: messageCounts, setCount: setMessageCount } = useReferenceMessageCounts(!loading);
-  const [visitRated, setVisitRated] = useState<ReadonlySet<string>>(() => new Set());
+  }, [feedAttachments, savedCopy, showingSavedCopy]);
+  const { counts: messageCounts, setCount: setMessageCount } = useReferenceMessageCounts(!firstReadPending);
   const [mountedAt] = useState(() => Date.now());
-  const markVisitRated = useCallback((lineageId: string) => {
-    setVisitRated((current) => (current.has(lineageId) ? current : new Set(current).add(lineageId)));
-  }, []);
-  // Preview only: ?feedState=loading holds the page in its loading state, to review the card skeletons.
-  const previewSkeleton = useMemo(
-    () => typeof window !== "undefined" && isLocalPreviewEnabled() && new URLSearchParams(window.location.search).get("feedState") === "loading",
-    [],
-  );
+  const visitRated = feed.visitRated;
+  const markVisitRated = useCallback((lineageId: string) => controller.markVisitRated(lineageId), [controller]);
 
-  const canonicalReferences = useMemo(() => selectCanonicalReferenceRecords(references), [references]);
-  const liveItems = useMemo(() => buildFeedItems(canonicalReferences, decisions), [canonicalReferences, decisions]);
-  // The feed's order is taken ONCE per visit, when the feed has loaded (References and predictions), and then left alone. Selecting an
-  // item, rating one, a background refresh or a cache revalidation changes cards' content, never their places. Items that arrive later
-  // wait behind a "N new items: show" pill. The same holds for both sorts and for Include rated.
-  const orderSnapshot = useRef<FeedOrderSnapshot | null>(null);
-  const [, bumpOrder] = useState(0);
-  const orderReady = !loading && !showingSavedCopy && !previewSkeleton && predictionState !== "loading" && canonicalReferences.length > 0;
-  if (!orderSnapshot.current && orderReady) orderSnapshot.current = takeFeedOrderSnapshot(liveItems);
-  const stable = orderSnapshot.current ? applyFeedOrderSnapshot(orderSnapshot.current, liveItems, feedSort, feedShow) : null;
-  const liveVisible = useMemo(() => visibleFeedItems(liveItems, feedSort, feedShow, visitRated), [liveItems, feedSort, feedShow, visitRated]);
-  const feedItems = stable?.items ?? liveVisible;
-  const feedLead = stable ? stable.leadId : feedLeadId(feedItems);
-  const ratedCount = useMemo(() => liveItems.filter((item) => item.rated).length, [liveItems]);
-  const showNewItems = () => { orderSnapshot.current = takeFeedOrderSnapshot(liveItems); bumpOrder((count) => count + 1); };
+  const canonicalReferences = references;
+  // Keep a display copy of the first page for the next visit, once, after its predictions have arrived.
+  const savedFirstPage = useRef(false);
+  useEffect(() => {
+    if (!onFirstPage || !source || savedFirstPage.current || feed.status !== "ready" || feed.companionsPending || !feed.records.length) return;
+    savedFirstPage.current = true;
+    onFirstPage({ references: feed.records.slice(0, FEED_PAGE_SIZE), previews, decisions: decisions ?? new Map() });
+  }, [decisions, feed.companionsPending, feed.records, feed.status, onFirstPage, previews, source]);
+  // The cards, in the order the pages arrived. Rating a card changes the card, never its place; the lead was fixed with the first page.
+  const feedItems = useMemo<FeedItem[]>(() => {
+    if (showingSavedCopy) return visibleFeedItems(buildFeedItems(canonicalReferences, decisions), feedSort, feedShow).slice(0, FEED_PAGE_SIZE);
+    return feed.records
+      .filter((record) => normalizeReferenceCurationStatus(record.curationStatus) !== "archived")
+      .map((record) => scoreFeedItem(record, decisions?.get(referenceLineageId(record))));
+  }, [canonicalReferences, decisions, feed.records, feedShow, feedSort, showingSavedCopy]);
+  const feedLead = showingSavedCopy ? feedItems.find((item) => !item.rated)?.lineageId : feed.leadId;
+  const ratedCount = feed.hasRated ? 1 : feed.records.filter(isRated).length;
+  const showNewItems = () => controller.showNew();
   const [scrollTarget, setScrollTarget] = useState<{ id: string; nonce: number } | null>(null);
   const feedOrderIds = useMemo(
     () => feedItems.map((item) => item.lineageId),
     [feedItems],
   );
   const statusCounts = useMemo(() => countReferencesByStatus(canonicalReferences), [canonicalReferences]);
+  // Prediction state: the host's, for the open Reference, and the pages' own for the cards.
+  const feedPredictionState: PredictionState = feed.companionsPending ? "loading" : feed.companionsError ? "error" : "ready";
+  const effectivePredictionState: PredictionState = !source ? predictionState : routeLineageId && predictionState !== "ready" ? predictionState : feedPredictionState;
+  const effectivePredictionError = source && feedPredictionState === "error" && !(routeLineageId && predictionState === "error") ? feed.companionsError : predictionError;
+  const retryPredictions = source && feedPredictionState === "error" ? () => { void controller.refreshCompanions(); } : onRetryPredictions;
 
   const [statusFilter, setStatusFilter] = useState<ReferenceListFilter>(routeLineageId ? "all" : "pending");
   const needsReviewCount = useMemo(
@@ -492,14 +547,22 @@ export function NewsroomReferencesView({
 
   const selectedReference = useMemo(
     () => selectedReferenceRecordByLineage(filteredReferences, selectedLineageId)
-      ?? selectedReferenceRecordByLineage(canonicalReferences, selectedLineageId),
-    [canonicalReferences, filteredReferences, selectedLineageId],
+      ?? selectedReferenceRecordByLineage(canonicalReferences, selectedLineageId)
+      // A list held in memory has the Reference in hand before its first page is read (and in a server render).
+      ?? (source ? null : selectedReferenceRecordByLineage(liveReferences, selectedLineageId)),
+    [canonicalReferences, filteredReferences, liveReferences, selectedLineageId, source],
   );
+  // A link to a Reference that is not in the loaded pages: read that one Reference, not the feed.
+  const requestedDeepLinks = useRef(new Set<string>());
+  useEffect(() => {
+    if (!selectedLineageId || selectedReference || showingSavedCopy || requestedDeepLinks.current.has(selectedLineageId)) return;
+    requestedDeepLinks.current.add(selectedLineageId);
+    void controller.ensureReference(selectedLineageId).catch(() => requestedDeepLinks.current.delete(selectedLineageId));
+  }, [controller, selectedLineageId, selectedReference, showingSavedCopy]);
 
-  const previewAttachments = useReferencePreviewAttachments(selectedReference, referenceAttachments);
+  const previewAttachments = useReferencePreviewAttachments(selectedReference, feedAttachments);
 
-  // The queue is the current list filter. A reference the editor has just decided leaves the filtered
-  // list, but keeps its place in the queue until they move on, so "3 of 29" does not jump under them.
+  // The queue is what is loaded: the feed's cards, or the list's filtered rows. Rating a card leaves it where it is, so "3 of 24+" does not jump.
   const queueRef = useRef<string[]>([]);
   const queue = useMemo(() => {
     const ids = view === "feed" ? [...feedOrderIds] : filteredReferences.map(referenceLineageId);
@@ -515,7 +578,7 @@ export function NewsroomReferencesView({
   const selectedIndex = selectedReference ? queue.indexOf(referenceLineageId(selectedReference)) : -1;
   const queuePosition = selectedIndex >= 0 ? selectedIndex + 1 : null;
   const previousLineageId = caughtUp ? queue[queue.length - 1] ?? null : selectedIndex > 0 ? queue[selectedIndex - 1] : null;
-  const nextLineageId = selectedIndex >= 0 && selectedIndex < queue.length - 1 ? queue[selectedIndex + 1] : null;
+  const nextLineageId = selectedIndex >= 0 ? (selectedIndex < queue.length - 1 ? queue[selectedIndex + 1] : null) : selectedReference ? queue[0] ?? null : null;
   const nextReference = nextLineageId ? selectedReferenceRecordByLineage(canonicalReferences, nextLineageId) : null;
 
   const syncStatusUrl = useCallback((nextStatus: ReferenceListFilter) => {
@@ -547,9 +610,17 @@ export function NewsroomReferencesView({
     }
   };
 
-  const goNext = () => {
-    if (nextLineageId) { selectReference(nextLineageId); setScrollTarget({ id: nextLineageId, nonce: Date.now() }); }
-    else if (queue.length && !caughtUp) {
+  const goNext = async () => {
+    if (nextLineageId) { selectReference(nextLineageId); setScrollTarget({ id: nextLineageId, nonce: Date.now() }); return; }
+    if (feed.hasMore && !caughtUp && selectedReference) {
+      // At the end of what is loaded: read the next page, then go on to its first card.
+      const open = referenceLineageId(selectedReference);
+      await controller.loadMore();
+      const records = controller.getState().records.filter((record) => normalizeReferenceCurationStatus(record.curationStatus) !== "archived");
+      const following = records[records.findIndex((record) => referenceLineageId(record) === open) + 1];
+      if (following) { selectReference(referenceLineageId(following)); setScrollTarget({ id: referenceLineageId(following), nonce: Date.now() }); return; }
+    }
+    if (queue.length && !caughtUp) {
       // Past the last item: say so, rather than showing an empty page.
       setCaughtUp(true);
       setSelectedLineageId("");
@@ -570,15 +641,21 @@ export function NewsroomReferencesView({
     }
   };
 
+  // A saved answer changes the card in place: it keeps its place in the feed, and shows the answer, for the rest of the visit.
+  const reviewAndPatch = async (reference: ReferenceRecord, action: ReferenceCurationAction, options?: ReferenceReviewOptions) => {
+    await onReview(reference, action, options);
+    controller.patch(referenceLineageId(reference), ratedFields(action, options?.note, new Date().toISOString()));
+  };
+
   const runReview = (action: ReferenceCurationAction, options?: ReferenceReviewOptions) => {
     if (!selectedReference) return;
     if (action === "accept" || action === "reject") markVisitRated(referenceLineageId(selectedReference));
-    return onReview(selectedReference, action, options);
+    return reviewAndPatch(selectedReference, action, options);
   };
 
   const rateFromFeed = async (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => {
     const decision = decisions?.get(referenceLineageId(reference));
-    await onReview(reference, choice, {
+    await reviewAndPatch(reference, choice, {
       reasonCode: choice === "reject" ? reasonCode : null,
       ...(decision ? { decisionRelationId: decision.decisionRelationId, shareable: false } : {}),
     });
@@ -586,7 +663,8 @@ export function NewsroomReferencesView({
   // One rating store for the whole view: the grid cards and the detail pane read and write the same state, so a vote or a reason
   // entered in either shows in both. Reason then vote, or vote then reason, both end up on one decision.
   const sectionChoices = useRef<Map<string, string | null>>(new Map());
-  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId);
+  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId)
+    ?? (source ? null : selectedReferenceRecordByLineage(liveReferences, lineageId));
   const ratings = useRatingStore({
     save: async (lineageId, choice, detail) => {
       const reference = referenceById(lineageId);
@@ -594,7 +672,7 @@ export function NewsroomReferencesView({
       markVisitRated(lineageId);
       const decision = decisions?.get(lineageId);
       const sectionId = choice === "accept" ? sectionChoices.current.get(lineageId) : null;
-      await onReview(reference, choice, {
+      await reviewAndPatch(reference, choice, {
         note: detail.note || undefined,
         reasonCode: choice === "reject" ? detail.reasonCode : null,
         ...(sectionId ? { sectionId } : {}),
@@ -615,15 +693,15 @@ export function NewsroomReferencesView({
     },
   });
   const { statuses: captureStatuses, teaserLine } = useMemo(
-    () => captureStatusesByLineage(referenceAttachments, canonicalReferences.map(referenceLineageId)),
-    [canonicalReferences, referenceAttachments],
+    () => captureStatusesByLineage(feedAttachments, canonicalReferences.map(referenceLineageId)),
+    [canonicalReferences, feedAttachments],
   );
   // Preview only: a fixture can carry captured text inline; say so, since production stores none for monitored References.
   const previewCapturedText = useMemo(
-    () => isLocalPreviewEnabled() && referenceAttachments.some((attachment) => attachment.role === "extracted_text" && String(attachment.storagePath ?? "").startsWith("preview://")),
-    [referenceAttachments],
+    () => isLocalPreviewEnabled() && feedAttachments.some((attachment) => attachment.role === "extracted_text" && String(attachment.storagePath ?? "").startsWith("preview://")),
+    [feedAttachments],
   );
-  const showCaptures = !showingSavedCopy && !loading && !previewSkeleton;
+  const showCaptures = !showingSavedCopy && !firstReadPending && !previewSkeleton;
   const feedDisabledReason = disabled
     ? "Editor access is required to change this reference."
     : showingSavedCopy ? "Confirming your sign-in. You can answer in a moment." : null;
@@ -635,7 +713,7 @@ export function NewsroomReferencesView({
     </div>
   );
   const queueBar = queue.length || caughtUp ? (
-    <ReviewQueueBar anchored caughtUp={caughtUp} onNext={goNext} onPrevious={goPrevious} position={queuePosition} total={queue.length} />
+    <ReviewQueueBar anchored caughtUp={caughtUp} more={feed.hasMore} onNext={goNext} onPrevious={goPrevious} position={queuePosition} total={queue.length} />
   ) : null;
 
   const emptyLabel = canonicalReferences.length
@@ -709,12 +787,12 @@ export function NewsroomReferencesView({
             Preview only: the captured text here was fetched live for this preview. In the newsroom record none of these References has stored text yet.
           </p>
         ) : null}
-        {predictionState === "loading" && view === "list" ? <p role="status">Loading predictions…</p> : null}
-        {predictionState === "error" ? (
+        {effectivePredictionState === "loading" && view === "list" ? <p role="status">Loading predictions…</p> : null}
+        {effectivePredictionState === "error" ? (
           <div role="alert" className="space-y-2 rounded-2xl bg-[var(--feed-card)] p-4" {...FEED_SURFACE_PROPS}>
-            <p>Predictions unavailable. {predictionError}</p>
+            <p>Predictions unavailable. {effectivePredictionError}</p>
             <p className="text-sm">You can still review references. Existing suggestions may be out of date.</p>
-            {onRetryPredictions ? <Button onClick={onRetryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
+            {retryPredictions ? <Button onClick={retryPredictions} size="sm" type="button" variant="outline">Retry predictions</Button> : null}
           </div>
         ) : null}
         <div className="shrink-0 overflow-y-auto rounded-[20px] bg-[var(--feed-card)] p-4 text-sm" data-feed-flat="" data-feed-surface="" hidden={!addOpen} id="reference-add-panel" style={{ ...FEED_SURFACE_STYLE, maxHeight: "45dvh", overflowY: "auto" }}>
@@ -739,7 +817,7 @@ export function NewsroomReferencesView({
 
         {view === "feed" ? (
           <div className="relative flex min-h-0 flex-1 flex-col" {...FEED_SURFACE_PROPS}>
-          {stable && stable.newCount > 0 ? (
+          {feed.newCount > 0 ? (
             // Floats over the top of the grid, outside the scrolling content: announcing new items never moves a card.
             <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
               <button
@@ -748,7 +826,7 @@ export function NewsroomReferencesView({
                 onClick={showNewItems}
                 type="button"
               >
-                {stable.newCount} new {stable.newCount === 1 ? "item" : "items"}: show
+                {feed.newCount} new {feed.newCount === 1 ? "item" : "items"}: show
               </button>
             </div>
           ) : null}
@@ -757,7 +835,7 @@ export function NewsroomReferencesView({
             <div className="px-1.5 pb-6 pt-1.5 pr-2.5">
               <ReferenceFeed
                 disabledReason={feedDisabledReason}
-                loading={previewSkeleton || (loading && !references.length)}
+                loading={previewSkeleton || (firstReadPending && !showingSavedCopy)}
                 messageCounts={messageCounts}
                 now={mountedAt}
                 onOpen={selectReference}
@@ -767,17 +845,21 @@ export function NewsroomReferencesView({
                 onVisitRated={markVisitRated}
                 items={feedItems}
                 ratedCount={ratedCount}
-                predictionLoading={predictionState === "loading"}
+                predictionLoading={effectivePredictionState === "loading"}
                 previews={previews}
                 captures={showCaptures ? captureStatuses : undefined}
                 leadId={feedLead}
                 scrollTarget={scrollTarget}
                 ratings={ratings}
                 selectedLineageId={selectedLineageId}
-                stale={showingSavedCopy || (loading && references.length > 0)}
+                stale={showingSavedCopy || (!source && loading && references.length > 0)}
                 show={feedShow}
                 sort={feedSort}
                 visitRated={visitRated}
+                hasMore={!showingSavedCopy && feed.hasMore}
+                loadingMore={feed.loadingMore}
+                loadError={feed.status === "ready" ? feed.error : null}
+                onLoadMore={() => { void (feed.error ? controller.retry() : controller.loadMore()); }}
               />
             </div>
           </ScrollArea>
@@ -805,7 +887,7 @@ export function NewsroomReferencesView({
               return (
                 <TabsTrigger className="text-xs sm:text-sm" key={filter.key} value={filter.key}>
                   {filter.label}
-                  <Badge className="ml-1.5 min-w-5 px-1.5" variant="secondary">{count}</Badge>
+                  <Badge className="ml-1.5 min-w-5 px-1.5" variant="secondary">{count}{feed.hasMore ? "+" : ""}</Badge>
                 </TabsTrigger>
               );
             })}
@@ -858,6 +940,13 @@ export function NewsroomReferencesView({
                 </CardHeader>
               </Card>
             )}
+            {feed.hasMore || feed.loadingMore ? (
+              <div className="flex justify-center py-2">
+                <Button data-feed-load-more disabled={feed.loadingMore} onClick={() => { void controller.loadMore(); }} size="sm" type="button" variant="outline">
+                  {feed.loadingMore ? "Loading more" : "Load more"}
+                </Button>
+              </div>
+            ) : null}
           </div>
         </ScrollArea>
           </>
@@ -893,7 +982,7 @@ export function NewsroomReferencesView({
               correctCapture={onCorrectCapture}
               ratings={ratings}
               sectionChoices={sectionChoices}
-              predictionState={predictionState}
+              predictionState={effectivePredictionState}
               reviewReason={reviewReasons?.get(referenceLineageId(selectedReference))}
               reviewSectionId={reviewSectionIds?.get(referenceLineageId(selectedReference))}
               countsAsTrainingLabel={humanCuratedReferenceLineageIds?.has(referenceLineageId(selectedReference))}

@@ -2049,25 +2049,6 @@ def papyrus_reference_quality_rate(
     )
 
 
-def papyrus_reference_note_create(
-    *,
-    reference_id: str,
-    summary: str,
-    body: str,
-    actor_label: str = "",
-) -> dict[str, Any]:
-    """
-    Canonical note creation action for a reference.
-    """
-    return reference_actions.create_reference_note(
-        execute_graphql,
-        reference_id=reference_id,
-        summary=summary,
-        body=body,
-        actor_label=actor_label,
-    )
-
-
 def papyrus_reference_note_list(reference_lineage_id: str) -> dict[str, Any]:
     """
     List note messages for one reference lineage.

@@ -72,5 +72,7 @@ papyrus messages list --kind form_submission --status all --form contact --json
 papyrus messages handle --message-id form-<id> --note "answered by email"
 ```
 
-The Message model is append-only for editors, so "handled" is recorded as a `form_submission_handled` Message whose
-`parentMessageId` is the submission; `list` hides handled submissions unless `--status handled|all`.
+A submission is a message from a person, so "handled" is recorded on that same Message: `messages handle` sets its `status`
+to `handled` and keeps `handledAt`, `handledBy` and `handledNote` in its metadata. It writes no second Message (Messages come
+only from people). Updating a Message needs operator credentials, because the Message model is append-only for editor
+sessions. `list` hides handled submissions unless `--status handled|all`.

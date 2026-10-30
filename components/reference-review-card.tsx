@@ -162,6 +162,7 @@ export function ReviewQueueBar({
   onPrevious,
   position,
   total,
+  more = false,
   anchored = false,
 }: {
   /** On a wide screen, pin the bar to the bottom-right corner of the viewport (the detail column's width), whatever scrolls. A sheet's own bar is not anchored. */
@@ -172,8 +173,11 @@ export function ReviewQueueBar({
   /** 1-based position, or null when the open item is not in the queue. */
   position: number | null;
   total: number;
+  /** More References can be read beyond the `total` loaded so far: the count says "24+" rather than claiming that is all of them. */
+  more?: boolean;
 }) {
   const atStart = position === 1;
+  const count = more ? `${total}+` : String(total);
   return (
     <nav
       aria-label="Review queue"
@@ -193,7 +197,7 @@ export function ReviewQueueBar({
         Previous
       </Button>
       <span className="min-w-20 text-center text-sm" data-review-queue-position>
-        {caughtUp ? "All caught up" : position ? `${position} of ${total}` : `${total} in list`}
+        {caughtUp ? "All caught up" : position ? `${position} of ${count}` : `${count} in list`}
       </span>
       <Button
         aria-disabled={caughtUp || undefined}

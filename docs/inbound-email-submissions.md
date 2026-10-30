@@ -143,7 +143,7 @@ original submission `Message`.
 | Intake shape | Handling |
 |--------------|----------|
 | **Single URL/DOI, minimal prose** | Deterministic pipeline: create / find / process direct citations |
-| **Multiple URLs** (e.g. forwarded newsletter) | **Console agent** — file relevant references, create **note** Messages where prose discusses a paper (`papyrus.reference.note_create`), skip footer/nav links. HTML-only forwards extract links from anchor `href` attributes (visible text after tag-stripping often has no URLs). |
+| **Multiple URLs** (e.g. forwarded newsletter) | **Console agent** — file relevant references, skip footer/nav links. Agents write no notes: a note is a Message, and Messages come only from people. HTML-only forwards extract links from anchor `href` attributes (visible text after tag-stripping often has no URLs). |
 | **URL + substantial message** | **Console agent** — decide filing vs editorial note vs question vs command (knowledge search, list references, etc.) |
 | **PDF only** (one attachment, no body URL/DOI) | Deterministic: extract DOI/arXiv from PDF (GROBID header when `BIBLICUS_GROBID_URL` is reachable, else PDF-byte heuristics), attach to existing corpus reference or create from identifier, then find/process |
 | **PDF + URL/DOI or multiple PDFs or PDF + long prose** | **Console agent** |

@@ -91,6 +91,14 @@ export function StoryReportingTrailView({ citedKeys = [], demo = false, focusedR
           </li>)}
       </ol>
     </TrailSection>
+    {trail.stageMoves.length > 0 && <TrailSection count={trail.stageMoves.length} title="Stage moves">
+      <ol className="story-trail-list" data-story-trail-stage-moves>
+        {[...trail.stageMoves].reverse().map(move => <li key={`${move.at}-${move.to}`}>
+          <div className="story-trail-row"><strong>{move.from ?? "start"} → {move.to}</strong>{move.by && <span className="story-trail-chip">{move.by}</span>}<span className="story-trail-meta">{formatTimestamp(move.at)}</span></div>
+          {move.reason && <p className="story-trail-meta">{move.reason}</p>}
+        </li>)}
+      </ol>
+    </TrailSection>}
     <TrailSection count={trail.versions.length} title="Draft versions">
       <ol className="story-trail-list">
         {trail.versions.map((version, versionIndex) => <li key={version.id}>

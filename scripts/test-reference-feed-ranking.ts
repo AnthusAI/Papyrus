@@ -4,11 +4,9 @@ import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import {
   acceptProbability,
-  applyFeedOrderSnapshot,
   buildFeedItems,
   feedLeadId,
   orderFeedItems,
-  takeFeedOrderSnapshot,
   visibleFeedItems,
 } from "../lib/reference-feed-ranking";
 import { withoutSiteName } from "../lib/newsroom-references";
@@ -213,37 +211,6 @@ test("Structured extraction (GROBID fields) becomes plain label and value rows",
   const rows = structuredRows([attach("a", "extracted_text_raw", { storagePath: "p", metadata: JSON.stringify({ grobid: { title: "A Paper", authors: ["X. One", "Y. Two"], doi: "10.1/abc", citations: [1, 2, 3] } }) })]);
   assert.deepEqual(rows, [{ label: "Title", value: "A Paper" }, { label: "Authors", value: "X. One, Y. Two" }, { label: "DOI", value: "10.1/abc" }, { label: "Citations", value: "3 cited works" }]);
   assert.deepEqual(structuredRows([attach("a", "source")]), []);
-});
-
-test("The feed order is taken once and kept, in both sorts: new predictions re-rank nothing, new items are counted, not shuffled in", () => {
-  const references = ["a", "b", "c", "d"].map((id, index) => reference(id, { createdAt: ago(0.1 + index * 0.1) }));
-  const first = new Map<string, RelevanceDecisionView>([["a", decision("include", 0.95)], ["b", decision("include", 0.8)], ["c", decision("exclude", 0.9)]]);
-  const snapshot = takeFeedOrderSnapshot(items(references, first));
-  assert.deepEqual(snapshot.best, ["a", "b", "d", "c"]);
-  assert.deepEqual(snapshot.newest, ["a", "b", "c", "d"]);
-  // The predictions change completely, a card is rated, and a new item arrives.
-  const later = new Map<string, RelevanceDecisionView>([["a", decision("exclude", 0.99)], ["b", decision("exclude", 0.9)], ["d", decision("include", 0.99)]]);
-  const rated = [...references.map((item) => (item.lineageId === "b" ? { ...item, curationStatus: "accepted", curationStatusUpdatedAt: ago(0) } : item)), reference("e", { createdAt: ago(0) })];
-  const live = items(rated, later);
-  assert.notDeepEqual(ids(visibleFeedItems(live, "best", "unrated", new Set(["b"]))), snapshot.best, "a live re-rank would have reshuffled the feed");
-  const stable = applyFeedOrderSnapshot(snapshot, live, "best", "unrated");
-  assert.deepEqual(ids(stable.items), ["a", "b", "d", "c"], "the order is the snapshot's: nothing moved, the rated card stayed");
-  assert.equal(stable.leadId, "a");
-  assert.equal(stable.newCount, 1, "the new item is counted for the pill");
-  assert.ok(!ids(stable.items).includes("e"), "and not shuffled in");
-  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").items), ["a", "b", "c", "d"], "Newest keeps its own snapshot order too");
-  const refreshed = applyFeedOrderSnapshot(takeFeedOrderSnapshot(live), live, "newest", "unrated");
-  assert.ok(ids(refreshed.items).includes("e") && refreshed.newCount === 0, "showing the new items takes a fresh snapshot");
-  assert.equal(ids(refreshed.items)[0], "e");
-});
-
-test("Include rated adds answered cards from the snapshot, in the active sort, with no re-rank", () => {
-  const references = [reference("open", { createdAt: ago(1) }), reference("done", { createdAt: ago(0.5), curationStatus: "accepted" }), reference("old", { createdAt: ago(5) })];
-  const live = items(references, new Map([["old", decision("include", 0.9)]]));
-  const snapshot = takeFeedOrderSnapshot(live);
-  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "all").items), ["done", "open", "old"]);
-  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "best", "all").items), ["old", "done", "open"]);
-  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").items), ["open", "old"]);
 });
 
 const curation = (body: Record<string, unknown>) => attach("a", "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", ...body }) });
