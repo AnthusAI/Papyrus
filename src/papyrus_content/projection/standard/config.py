@@ -23,7 +23,7 @@ from .select import Selection, selection_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid",
 )
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
@@ -378,6 +378,7 @@ class StandardSettings:
     forms: tuple[FormSpec, ...] = ()
     agents: AgentSettings = field(default_factory=AgentSettings)
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
+    mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
     wiki: WikiSettings = field(default_factory=WikiSettings)
 
     @property
@@ -770,6 +771,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError(f"pageActions.ai must be a subset of {sorted(AI_DESTINATIONS)}")
     if "{url}" not in page_actions.prompt or len(page_actions.prompt) > 200:
         raise ValueError("pageActions.prompt must contain {url} and stay short: the page body is never sent")
+    mermaid_raw = dict(raw.get("mermaid") or {})
+    _only(mermaid_raw, {"enabled"}, "mermaid")
     wiki_raw = dict(raw.get("wiki") or {})
     _only(wiki_raw, {"types", "suggestForm", "dataLink"}, "wiki")
     wiki_defaults = WikiSettings()
@@ -830,5 +833,6 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         forms=tuple(forms),
         agents=agents,
         page_actions=page_actions,
+        mermaid=bool(mermaid_raw.get("enabled", True)),
         wiki=wiki,
     )

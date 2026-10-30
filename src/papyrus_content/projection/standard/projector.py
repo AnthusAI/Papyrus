@@ -93,6 +93,9 @@ COMPONENTS_CSS_PATH = "css/markus-components.css"
 KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
 ISLANDS_RUNTIME_PATH = "_plugins/papyrus-islands-v1.js"
+MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
+MERMAID_LIBRARY_PATH = "_plugins/mermaid-11.17.2.min.js"   # the vendored library; the loader fetches it from the site's own origin
+MERMAID_BLOCK = '<pre><code class="language-mermaid">'
 ASSET_DIRECTORY = Path(__file__).parent / "assets"
 class StandardMarkusProjector(MarkusSiteProjector):
     def __init__(
@@ -117,6 +120,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
         if standard.page_actions.enabled and standard.agents.markdown:
             files[PAGE_ACTIONS_SCRIPT] = (ASSET_DIRECTORY / "papyrus-page-actions.js").read_bytes()
+        if standard.mermaid:
+            files[MERMAID_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-mermaid.js").read_bytes()
+            files[MERMAID_LIBRARY_PATH] = (ASSET_DIRECTORY / "mermaid.min.js").read_bytes()
         if any(form.endpoint for form in standard.forms):
             files[FORM_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-form.js").read_bytes()
         prerendered_bytes = b""
@@ -1053,6 +1059,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         html_text = render_page(
             title=self._described(page).title, fragment="", active_href=page.path, nav_items=[], chrome=chrome, css_version=self.version
         )
+        if self.standard.mermaid and MERMAID_BLOCK in html_text:  # only a page with a diagram loads the renderer
+            suffix = f"?v={components.esc(self.version)}"
+            loader = (
+                f'<script src="{components.esc(self.policy.path(MERMAID_SCRIPT_PATH))}{suffix}" '
+                f'data-library="{components.esc(self.policy.path(MERMAID_LIBRARY_PATH))}"></script>\n'
+            )
+            html_text = html_text.replace("</body>", loader + "</body>", 1)
         if self.hooks.page_finish is not None:
             html_text = self.hooks.page_finish(html_text, page)
         return html_text.encode("utf-8")
