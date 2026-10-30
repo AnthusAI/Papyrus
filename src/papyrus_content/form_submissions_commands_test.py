@@ -11,6 +11,7 @@ class FakeClient:
     def __init__(self, messages):
         self.messages = messages
         self.created = []
+        self.updated = []
 
     def graphql(self, query, variables):
         rows = [m for m in self.messages if m["messageKind"] == variables["messageKind"]]
@@ -20,9 +21,13 @@ class FakeClient:
         return next((m for m in self.messages if m["id"] == record_id), None)
 
     def create_record(self, model, payload):
+        raise AssertionError("handling a submission must not create a Message")
+
+    def update_record(self, model, payload):
         assert model == "Message"
-        self.created.append(payload)
-        self.messages.append(payload)
+        self.updated.append(payload)
+        row = next(m for m in self.messages if m["id"] == payload["id"])
+        row.update(payload)
 
 
 def submission(message_id, form="contact", created="2026-10-21T12:00:00Z"):
@@ -32,6 +37,7 @@ def submission(message_id, form="contact", created="2026-10-21T12:00:00Z"):
         "messageType": "newsletter_signup" if form == "newsletter" else "form_submission",
         "summary": f"{form} from Ada",
         "authorLabel": "Ada <ada@example.org>",
+        "status": "active",
         "metadata": json.dumps({"formId": form, "page": "/contact/"}),
         "createdAt": created,
     }
@@ -56,13 +62,14 @@ def test_list_requires_a_kind(client):
         commands.messages_list([])
 
 
-def test_handle_appends_an_event_and_hides_the_submission_from_open(client, capsys):
+def test_handle_marks_the_submission_itself_and_writes_no_message(client, capsys):
     commands.messages_handle(["--message-id", "form-1", "--note", "answered by email"])
-    assert len(client.created) == 1
-    event = client.created[0]
-    assert event["messageKind"] == "form_submission_handled"
-    assert event["parentMessageId"] == "form-1"
-    assert event["searchVisibility"] == "private"
+    assert len(client.updated) == 1
+    update = client.updated[0]
+    assert update["id"] == "form-1" and update["status"] == "handled"
+    metadata = json.loads(update["metadata"])
+    assert metadata["formId"] == "contact" and metadata["handledNote"] == "answered by email"
+    assert len(client.messages) == 3   # no new Message
     capsys.readouterr()
     commands.messages_list(["--kind", "form_submission", "--json"])
     open_ids = [row["id"] for row in json.loads(capsys.readouterr().out)["messages"]]
@@ -73,10 +80,10 @@ def test_handle_appends_an_event_and_hides_the_submission_from_open(client, caps
 
 def test_handle_is_idempotent_and_dry_run_writes_nothing(client):
     commands.messages_handle(["--message-id", "form-1", "--dry-run"])
-    assert client.created == []
+    assert client.updated == []
     commands.messages_handle(["--message-id", "form-1"])
     commands.messages_handle(["--message-id", "form-1"])
-    assert len(client.created) == 1
+    assert len(client.updated) == 1
 
 
 def test_handle_rejects_unknown_ids_and_other_kinds(client):

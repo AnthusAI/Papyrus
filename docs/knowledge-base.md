@@ -34,10 +34,9 @@ A report ranks concepts by popularity, by trend over a time window, or by PageRa
 ```bash
 # Trending concepts over the last 30 days. Prints the report and writes nothing.
 papyrus signals concept-report --corpus-key <corpus key> --report-type trending --json
-
-# Same report, saved to the backend as a private Message of kind concept_report.
-papyrus signals concept-report --corpus-key <corpus key> --report-type trending --apply
 ```
+
+The command only prints. It has no `--apply`: Messages come only from people, so a report is never saved as a Message. `papyrus knowledge signals trend-report` behaves the same way.
 
 Options: `--report-type all|popularity|trending|pagerank` (default `all`), `--trend-window-days` (default 30), `--limit` (default 25), `--node-kinds` (default `entity`), `--max-nodes-per-reference`, `--run-id` and `--input` (a fixture file). The report creates no article and no edition item. The command is in `src/papyrus_newsroom/cli.py` and is reached through `papyrus signals`.
 

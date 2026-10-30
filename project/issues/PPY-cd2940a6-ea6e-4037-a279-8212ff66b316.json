@@ -1,0 +1,28 @@
+{
+  "id": "PPY-cd2940a6-ea6e-4037-a279-8212ff66b316",
+  "title": "Stage 1: stop machine Message writers and move readers to the original records",
+  "description": "",
+  "type": "task",
+  "status": "in_progress",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "06fd7dfa-1bb7-449f-97fd-6bf65d732c8e",
+      "author": "home",
+      "text": "PR A (writers that stop): trend-report, concept-report, ontology explanation/profile, story-stage notes, bot trail notes, form_submission_handled, agent reference.note_create. Stage-move trail now reads Item.metadata.stageMoves; bot run notes dropped (claim row / ProcedureRun hold them). CLI story notes record role human.",
+      "created_at": "2026-10-29T23:57:28.601198Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-29T23:51:32.194877Z",
+  "updated_at": "2026-10-29T23:57:28.601446Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

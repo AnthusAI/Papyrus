@@ -11,6 +11,7 @@ const MODEL_NAMES = [
 const REQUIRED_FIELDS: Record<string, string[]> = {
   Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
   PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
   PublishedMediaAsset: ["tenantId"],
   NewsroomSection: ["tenantId"],

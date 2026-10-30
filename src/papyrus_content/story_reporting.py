@@ -237,7 +237,7 @@ MAX_STAGE_MOVES = 20
 
 
 def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason: str | None = None, now: str | None = None) -> dict[str, Any]:
-    """Moves a story to a board stage (the Item stage update a card move makes) and records it in the reporting trail."""
+    """Moves a story to a board stage (the Item stage update a card move makes). The move is recorded on the Item version's metadata (``stageMoves``), never as a Message."""
     require_content_item_stage(stage)
     latest = latest_story_version(client, lineage_id)
     previous = latest.get("stage") or "idea"
@@ -250,9 +250,7 @@ def move_story_stage(client, lineage_id: str, stage: str, *, actor: str, reason:
     moves.append({"at": now, "from": previous, "to": stage, "by": actor, "reason": reason})
     metadata[STAGE_MOVES_KEY] = moves[-MAX_STAGE_MOVES:]
     client.update_record("Item", {"id": latest["id"], "stage": stage, "updatedAt": now, "metadata": to_aws_json(metadata)})
-    summary = f"Stage: {previous} -> {stage}" + (f" ({reason})" if reason else "")
-    message = append_story_message(client, lineage_id, body=summary, summary=summary, author_label=actor, message_kind="note", now=now)
-    return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"], "messageId": message["id"]}
+    return {"changed": True, "stage": stage, "from": previous, "itemId": latest["id"]}
 
 
 def story_reference_relation_id(lineage_id: str, reference_lineage_id: str) -> str:
@@ -409,7 +407,9 @@ def append_story_message(
     version_number: int | None = None,
     now: str | None = None,
 ) -> dict[str, Any]:
-    """Adds one message to the story's reporting thread: ordered, time stamped and attributed."""
+    """Adds one message, written by a person, to the story's reporting thread: ordered, time stamped and attributed.
+
+    Messages come only from people, so the role is always ``human``. A bot or an agent never calls this."""
     if message_kind not in STORY_MESSAGE_KINDS:
         raise ValueError(f"message kind must be one of {', '.join(STORY_MESSAGE_KINDS)}.")
     now = now or utc_now_iso()
@@ -431,7 +431,7 @@ def append_story_message(
         "authorLabel": author_label,
         "threadId": thread["id"],
         "sequenceNumber": sequence_number,
-        "role": "agent",
+        "role": "human",
         "messageType": "text",
         "content": body,
         "responseTarget": "none",
