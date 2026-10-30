@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9edfc937-f52e-4f40-8e3e-b94840a35fa8",
+  "issue_id": "PPY-2ec3627d-ce3a-4d0c-8b89-6ea9e7fdc780",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T20:29:00.194Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us docs page for Mermaid diagrams (and CMS newsroom preview follow-up)",
+    "description": "Document Mermaid support on the p.apyr.us product site, per the document-features rule. Also: the CMS newsroom (components/markus-body-editor.tsx) has no rendered article preview today, so there is nothing to wire; if a preview is added, load the same loader and library.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

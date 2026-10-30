@@ -37,6 +37,7 @@
     "test:kanbus-themes": "tsx scripts/test-kanbus-themes.mts",
     "test:anth-us-brand": "node scripts/test-anth-us-brand.cjs",
     "test:site-brand-registry": "tsx scripts/test-site-brand-registry.ts",
+    "test:mermaid-browser": "tsx --test scripts/test-mermaid-browser.ts",
     "test:package-contents": "node scripts/test-package-contents.mjs",
     "test:newsroom-card-layout": "node scripts/test-newsroom-card-layout.cjs",
     "test:blog-defense-graph": "node publications/threat_intelligence/tests/test-blog-defense-graph.cjs",
