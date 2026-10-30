@@ -7,6 +7,7 @@ import { runInNewContext } from "node:vm";
 import { build } from "esbuild";
 import { Kind, parse, valueFromASTUntyped } from "graphql";
 import { schema } from "../amplify/data/schema";
+import { assertReferenceReviewSaved } from "../lib/reference-review-response";
 
 type RecordValue = Record<string, unknown> & { id: string };
 type CurationResult = { ok: boolean; status: string; reasonCode: string | null };
@@ -113,12 +114,17 @@ async function main() {
   assert.equal(current().curationStatusReason, null, "blank explanation is optional and persists as null");
   assert.equal(voteOnReference().actorKind, "human");
   assert.equal(table("Message").size + table("SemanticRelation").size, 0, "Messages come only from people: a vote writes no Message and no relation");
+  // The newsroom takes the handler's own response as a saved vote: it must not wait for a Message the vote no longer writes.
+  assert.doesNotThrow(() => assertReferenceReviewSaved(accepted, referenceId), "an accept without an explanation is reported as saved");
 
   const explained = await invoke({ action: "accept", note: "  Useful context.  ", decisionRelationId: "prediction-fixture", shareable: false });
   assert.equal(current().curationStatusReason, "Useful context.");
   assert.equal(voteOnReference().decisionRelationId, "prediction-fixture");
   assert.equal(voteOnReference().shareable, false);
   assert.equal(explained.ok, true);
+  assert.doesNotThrow(() => assertReferenceReviewSaved(explained, referenceId), "an accept with an explanation is reported as saved");
+  assert.throws(() => assertReferenceReviewSaved({ ok: true, referenceId: "another-reference" }, referenceId), /did not match/);
+  assert.throws(() => assertReferenceReviewSaved({ ok: false }, referenceId), /was not saved/);
   await invoke({ action: "accept", note: "again" });
   assert.equal(voteOnReference().decisionRelationId, null, "a later vote replaces the details of the earlier one");
   assert.equal(voteOnReference().shareable, null);
