@@ -610,7 +610,8 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
       ) : null}
 
       {threads.length ? (
-        <div className={mode === "grid" ? FEED_GRID : "flex flex-col gap-2"} data-conversation-grid={mode === "grid" ? "" : undefined} data-conversation-lines={mode === "list" ? "" : undefined}>
+        // p-1 leaves room for the selection ring, which sits 4px outside a card and would be cut off at the column's edge.
+        <div className={cn(mode === "grid" ? FEED_GRID : "flex flex-col gap-2", "p-1")} data-conversation-grid={mode === "grid" ? "" : undefined} data-conversation-lines={mode === "list" ? "" : undefined}>
           {threads.map((thread) => (
             <ThreadItem demo={demo} key={thread.id} mode={mode} now={now} onNavigate={onNavigate} onSelect={select} references={references} selected={thread.id === openable?.id} stories={stories} thread={thread} />
           ))}
