@@ -7,44 +7,28 @@ endpoint without token argv/env. Many sites can be signed in at once.
 from __future__ import annotations
 
 import argparse
-import base64
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 import hashlib
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
-import math
 import os
 from pathlib import Path
 import secrets
 import time
-from typing import Any
 import urllib.error
 import urllib.parse
 import urllib.request
-import webbrowser
 
+from cli_login.session import Session
+from cli_login.target import Target
+from cli_login.errors import AuthError, OAuthError  # noqa: F401 (OAuthError is re-exported)
+from cli_login.locks import key_lock
+from cli_login.oauth import receive_code
+from cli_login.target import https_url as _https
 
-class AuthError(ValueError):
-    """Safe operator-facing message; never include provider payloads or secrets."""
-
-
-class OAuthError(AuthError):
-    def __init__(self, code: str, *, transient: bool = False, site: str | None = None):
-        self.code = code
-        self.transient = transient
-        login = 'papyrus login' + (f' {site}' if site else '')
-        super().__init__("Sign-in provider temporarily unavailable; retry later." if transient else
-                         f"Newsroom session expired or was revoked; run `{login}`.")
-
-
-def _https(value: str, label: str, *, origin: bool = False) -> None:
-    if not isinstance(value, str):
-        raise AuthError(f'Invalid {label}: a configured HTTPS URL is required.')
-    parsed = urllib.parse.urlsplit(value)
-    if (parsed.scheme != 'https' or not parsed.hostname or parsed.username or parsed.password
-            or parsed.query or parsed.fragment or (origin and parsed.path not in ('', '/'))):
-        raise AuthError(f'Invalid {label}: a configured HTTPS {"origin" if origin else "URL"} is required.')
+# The secure-store namespace. On macOS it is the Keychain service name, so sessions written by earlier
+# CLIs (service `papyrus-newsroom-oauth`, account = the per-site key) are found unchanged.
+NAMESPACE = 'papyrus-newsroom-oauth'
 
 
 @dataclass(frozen=True)
@@ -129,21 +113,9 @@ def load_config(path: str | Path) -> AuthConfig:
 
 @contextmanager
 def _registry_lock():
-    try:
-        import fcntl
-    except ImportError:
-        raise AuthError('Process-safe user-session locking is currently supported on macOS and Linux.') from None
-    try:
-        fd = os.open(state_dir()/'registry.lock', os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-    except OSError:
-        raise AuthError('Unable to open the private CLI session lock; check directory permissions.') from None
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
+    # The library's per-key lock (POSIX flock, Windows msvcrt); the registry is one more key.
+    with key_lock(state_dir(), 'registry'):
         yield
-    except OSError:
-        raise AuthError('Unable to lock the CLI session registry safely; retry after checking directory permissions.') from None
-    finally:
-        os.close(fd)
 
 
 def load_registry() -> list[AuthConfig]:
@@ -282,268 +254,72 @@ def user_auth_requested() -> bool:
     return (root/'user-session.json').exists()
 
 
-class KeychainStore:
-    SERVICE = 'papyrus-newsroom-oauth'
-
-    def __init__(self, backend=None):
-        if backend is None:
-            try:
-                from .macos_keychain import MacOSKeychain
-                backend = MacOSKeychain()
-            except Exception:
-                raise AuthError('macOS Keychain is unavailable. Use the configured CLI on an unlocked Mac; no plaintext credential fallback is supported.') from None
-        from .macos_keychain import MacOSKeychain
-        if not isinstance(backend, MacOSKeychain):
-            raise AuthError('A supported OS secure credential store is required; plaintext/fallback backends are refused.')
-        self.backend = backend
-
-    def get(self, key):
-        try:
-            return self.backend.get_password(self.SERVICE, key)
-        except Exception:
-            raise AuthError('Unable to read OS secure credential storage; unlock it and retry.') from None
-
-    def set(self, key, value):
-        try:
-            self.backend.set_password(self.SERVICE, key, value)
-        except Exception:
-            raise AuthError('Unable to save the session in OS secure credential storage; unlock it and retry login.') from None
-
-    def delete(self, key):
-        if self.get(key) is None:
-            return
-        try:
-            self.backend.delete_password(self.SERVICE, key)
-        except Exception:
-            raise AuthError('Unable to remove the local OS credential; unlock the secure store and retry logout.') from None
+def _target(config: AuthConfig) -> Target:
+    return Target(issuer=config.issuer, client_id=config.client_id, oauth_domain=config.oauth_domain,
+                  token_endpoint=config.oauth_domain+'/oauth2/token', api_endpoint=config.graphql_endpoint,
+                  key=config.key, namespace=NAMESPACE, callback_uri=config.callback_uri)
 
 
-@contextmanager
-def session_lock(config: AuthConfig):
-    # Rotation must read and replace the current secret under one process-shared lock.
-    try:
-        import fcntl
-    except ImportError:
-        raise AuthError('Process-safe user-session locking is currently supported on macOS and Linux.') from None
-    lock_path = state_dir()/('session-'+config.key+'.lock')
-    try:
-        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-    except OSError:
-        raise AuthError('Unable to open the private CLI session lock; check directory permissions.') from None
-    try:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-        except OSError:
-            raise AuthError('Unable to lock the CLI session safely; retry after checking directory permissions.') from None
-        yield
-    finally:
-        fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+class SiteSession:
+    """One site's signed-in session: the shared `cli_login.Session` plus what only Papyrus knows.
 
+    The library owns the OAuth exchange, token checks, renewal, locking, secure storage and honest logout.
+    This layer names the site in messages and adds the Papyrus-only status fields.
+    """
 
-class HTTPProvider:
-    def post(self, url: str, fields: dict[str, str]) -> dict[str, Any]:
-        _https(url, 'OAuth endpoint')
-        request = urllib.request.Request(url, data=urllib.parse.urlencode(fields).encode(),
-                                         headers={'Content-Type':'application/x-www-form-urlencoded'}, method='POST')
-        try:
-            # Refuse redirects: bearer/refresh secrets may only go to the configured provider.
-            class NoRedirect(urllib.request.HTTPRedirectHandler):
-                def redirect_request(self, *args, **kwargs):
-                    return None
-            opener = urllib.request.build_opener(NoRedirect())
-            with opener.open(request, timeout=20) as response:
-                raw = response.read(1024*1024)
-            return json.loads(raw) if raw else {}
-        except urllib.error.HTTPError as error:
-            try:
-                payload = json.loads(error.read(4096))
-                code = payload.get('error')
-            except (ValueError, AttributeError):
-                code = None
-            if code == 'invalid_grant':
-                raise OAuthError('invalid_grant') from None
-            if error.code == 429 or error.code >= 500:
-                raise OAuthError('temporarily_unavailable', transient=True) from None
-            raise AuthError('OAuth request rejected. Check the registered native client/callback configuration; no provider payload was logged.') from None
-        except (OSError, urllib.error.URLError):
-            raise OAuthError('temporarily_unavailable', transient=True) from None
-        except (ValueError, TypeError):
-            raise AuthError('Sign-in provider returned an invalid response; retry without discarding your session.') from None
-
-
-def receive_code(callback_uri: str, authorization_url: str, state: str, timeout: float) -> str:
-    callback = urllib.parse.urlsplit(callback_uri)
-    outcome: dict[str, str] = {}
-    class Callback(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass  # The request URL contains the authorization code.
-
-        def do_GET(self):
-            parsed = urllib.parse.urlsplit(self.path)
-            query = urllib.parse.parse_qs(parsed.query)
-            valid = (parsed.path == (callback.path or '/') and query.get('state') == [state]
-                     and ((len(query.get('code', [])) == 1 and bool(query['code'][0])) or len(query.get('error', [])) == 1))
-            self.send_response(200 if valid else 400)
-            self.send_header('Content-Type', 'text/plain; charset=utf-8')
-            self.send_header('Cache-Control', 'no-store')
-            self.end_headers()
-            self.wfile.write(b'Papyrus sign-in response received. You may close this page.' if valid else b'Invalid sign-in response.')
-            if valid:
-                outcome.update(code=query.get('code', [''])[0], error='denied' if query.get('error') else '')
-    class CallbackServer(HTTPServer):
-        def get_request(self):
-            connection, address = super().get_request()
-            connection.settimeout(min(5, timeout))
-            return connection, address
-    try:
-        # Preserve the exact registered redirect host in OAuth, but never resolve
-        # it to choose the listening interface or bind to wildcard interfaces.
-        server = CallbackServer(('127.0.0.1', callback.port), Callback)
-    except OSError:
-        raise AuthError(f'Sign-in needs local port {callback.port} for its callback, but it is already in use (for example by a dev server '
-                        'or another login). Stop whatever is using it and run the login again.') from None
-    with server:
-        server.timeout = min(0.25, timeout)
-        if not webbrowser.open(authorization_url):
-            raise AuthError('Could not open the system browser. Run `papyrus login` in an interactive desktop session.')
-        deadline = time.monotonic()+timeout
-        while not outcome and time.monotonic() < deadline:
-            server.handle_request()
-    if not outcome:
-        raise AuthError('Google sign-in timed out. Run `papyrus login` to try again.')
-    if outcome.get('error') or not outcome.get('code'):
-        raise AuthError('Google sign-in was declined. No session was saved.')
-    return outcome['code']
-
-
-class Session:
     def __init__(self, config: AuthConfig, *, store=None, provider=None, clock=time.time, receive=receive_code):
-        self.config = config
-        self.store = store if store is not None else KeychainStore()
-        self.provider = provider if provider is not None else HTTPProvider()
-        self.clock = clock
         self.receive = receive
-        self._token = None
-        self._expires = 0.0
-        self._subject = None
+        self._config = config
+        self._session = Session(_target(config), store=store, provider=provider, clock=clock,
+                                receive=lambda *arguments: self.receive(*arguments), state_dir=state_dir(),
+                                login_command=f'papyrus login {site_host(config)}', identity_provider='Google')
 
-    def _record(self):
-        raw = self.store.get(self.config.key)
-        if raw is None:
-            raise AuthError(f'No newsroom session for {site_host(self.config)}; run `papyrus login {site_host(self.config)}`.')
-        try:
-            record = json.loads(raw)
-            if (not isinstance(record.get('refresh_token'), str) or not record['refresh_token']
-                    or not isinstance(record.get('subject'), str) or not record['subject']
-                    or not isinstance(record.get('label'), str)):
-                raise ValueError()
-            record['created_at'] = float(record['created_at'])
-            if not math.isfinite(record['created_at']):
-                raise ValueError()
-            return record
-        except (KeyError, ValueError, AttributeError, TypeError):
-            raise AuthError(f'Stored newsroom session is invalid; run `papyrus login {site_host(self.config)}` to replace it.') from None
+    @property
+    def config(self) -> AuthConfig:
+        return self._config
 
-    def _consume(self, response, old=None):
-        try:
-            value = response['id_token']
-            claims = json.loads(base64.urlsafe_b64decode(value.split('.')[1]+'==='))
-            expected = self.config
-            if (claims['iss'] != expected.issuer or claims['aud'] != expected.client_id or claims['token_use'] != 'id'
-                    or not claims['sub'] or (old and claims['sub'] != old['subject']) or float(claims['exp']) <= self.clock()):
-                raise ValueError()
-            expires = min(float(claims['exp']), self.clock()+float(response['expires_in']))
-            if not math.isfinite(expires) or not math.isfinite(float(response['expires_in'])) or expires <= self.clock():
-                raise ValueError()
-            refresh = response.get('refresh_token') or (old or {}).get('refresh_token')
-            if not isinstance(refresh, str) or not refresh:
-                raise ValueError()
-        except (KeyError, ValueError, TypeError, IndexError, AttributeError):
-            raise AuthError('Provider token does not match the configured newsroom identity/client. No new session was saved.') from None
-        # Tokens arrive only from the configured TLS token endpoint; the API verifies
-        # JWT signature/claims and permissions. Local decoded claims are display/binding only.
-        record = {'subject':claims['sub'], 'label':str(claims.get('email') or claims['sub']),
-                  'refresh_token':refresh, 'created_at':(old or {}).get('created_at', self.clock())}
-        self.store.set(self.config.key, json.dumps(record))
-        self._token, self._expires = value, expires
-        self._subject = record['subject']
-        return record
+    @config.setter
+    def config(self, config: AuthConfig) -> None:
+        self._config = config
+        self._session.target = _target(config)
+        self._session.login_command = f'papyrus login {site_host(config)}'
+
+    @property
+    def store(self):
+        return self._session.store
+
+    @property
+    def provider(self):
+        return self._session.provider
 
     def login(self):
-        state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(64)
-        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip('=')
-        fields = {'response_type':'code', 'client_id':self.config.client_id, 'redirect_uri':self.config.callback_uri,
-                  'scope':'openid email profile', 'identity_provider':'Google', 'state':state,
-                  'code_challenge':challenge, 'code_challenge_method':'S256'}
-        url = self.config.oauth_domain+'/oauth2/authorize?'+urllib.parse.urlencode(fields)
-        code = self.receive(self.config.callback_uri, url, state, 180.0)
-        with session_lock(self.config):
-            record = self._consume(self.provider.post(self.config.oauth_domain+'/oauth2/token', {
-                'grant_type':'authorization_code', 'client_id':self.config.client_id, 'code':code,
-                'redirect_uri':self.config.callback_uri, 'code_verifier':verifier}))
-        return {'subject':record['subject'], 'label':record['label'], 'publication':self.config.publication}
+        result = self._session.login()
+        return {'subject': result['subject'], 'label': result['label'], 'publication': self.config.publication}
 
     def headers(self, endpoint):
         if endpoint != self.config.graphql_endpoint:
             raise AuthError('GraphQL endpoint does not match the signed-in publication; log in to the site that owns it, '
                             'or set PAPYRUS_GRAPHQL_AUTH=iam to use your AWS credentials for this endpoint instead.')
-        with session_lock(self.config):
-            record = self._record()  # Check even with a cached access token: local logout must win.
-            if self._subject is not None and self._subject != record['subject']:
-                self._token = None  # Another process explicitly signed in as a different person.
-            if not self._token or self._expires <= self.clock()+60:
-                try:
-                    response = self.provider.post(self.config.oauth_domain+'/oauth2/token', {
-                        'grant_type':'refresh_token', 'client_id':self.config.client_id, 'refresh_token':record['refresh_token']})
-                except OAuthError as error:
-                    if error.code == 'invalid_grant':
-                        self.store.delete(self.config.key)
-                        self._token = None
-                    raise OAuthError(error.code, transient=error.transient, site=site_host(self.config)) from None
-                self._consume(response, record)
-            return {'content-type':'application/json', 'Authorization':self._token}
+        return self._session.headers(endpoint)
 
     def status(self):
-        try:
-            record = self._record()
-        except AuthError:
-            # Locked/unavailable stores must remain errors, not fabricated signed-out state.
-            if self.store.get(self.config.key) is not None:
-                raise
-            return {'signed_in':False, 'publication':self.config.publication}
-        return {'signed_in':True, 'subject':record['subject'], 'label':record['label'], 'publication':self.config.publication,
-                'access_expires_at':self._expires or None,
-                'elapsed_session_seconds':max(0, self.clock()-record['created_at']),
-                'configured_refresh_lifetime_seconds':self.config.refresh_lifetime_seconds,
-                'elapsed_24h_live_verified':False}
+        result = self._session.status() | {'publication': self.config.publication}
+        if result['signed_in']:
+            result |= {'configured_refresh_lifetime_seconds': self.config.refresh_lifetime_seconds,
+                       'elapsed_24h_live_verified': False}
+        return result
 
     def logout(self):
-        remote = 'not_needed'
-        with session_lock(self.config):
-            raw = self.store.get(self.config.key)
-            try:
-                if raw:
-                    remote = 'unconfirmed'
-                    record = self._record()
-                    self.provider.post(self.config.oauth_domain+'/oauth2/revoke', {'client_id':self.config.client_id, 'token':record['refresh_token']})
-                    remote = 'confirmed'
-            except AuthError:
-                pass
-            finally:
-                self.store.delete(self.config.key)
-                self._token = None
-                self._expires = 0.0
-        # Keep public binding as a signed-out marker: never silently downgrade to IAM.
-        return {'local_session_removed':True, 'remote_revocation':remote}
+        # Keep the public binding as a signed-out marker: never silently downgrade to IAM.
+        return self._session.logout()
 
 
-_sessions: dict[str, Session] = {}
+_sessions: dict[str, SiteSession] = {}
 
 
 def session_for(config):
     if config.key not in _sessions or _sessions[config.key].config != config:
-        _sessions[config.key] = Session(config)
+        _sessions[config.key] = SiteSession(config)
     return _sessions[config.key]
 
 
@@ -597,6 +373,8 @@ def command(arguments: list[str]) -> int:
         sub.add_argument('--all', action='store_true', help='every site in the registry')
         sub.add_argument('--config')
         sub.add_argument('--publication')
+        if name == 'login':
+            sub.add_argument('--remote', action='store_true', help='sign in from another device (not available yet)')
     auth = commands.add_parser('auth')
     auth.add_argument('operation', choices=['status'])
     auth.add_argument('sites', nargs='*', metavar='site')
@@ -605,6 +383,9 @@ def command(arguments: list[str]) -> int:
     auth.add_argument('--publication')
     args = parser.parse_args(arguments)
     if args.action == 'login':
+        if args.remote:
+            raise AuthError('Remote sign-in (`papyrus login --remote`) is not available yet: the sites do not publish '
+                            'a sign-in broker. Run `papyrus login <site>` on a machine with a browser.')
         def log_in(config):
             result = session_for(config).login()
             save_selection(config)

@@ -14,7 +14,7 @@ from behave import given, when, then
 
 from papyrus_content import cli_doctor
 from papyrus_content.cli_user_auth import (
-    AuthConfig, AuthError, Session, command, load_registry, selected_headers, selection_path,
+    AuthConfig, AuthError, SiteSession, command, load_registry, selected_headers, selection_path,
 )
 from procedures.newsroom.tests.test_cli_multisite_auth import Opener, World, site
 
@@ -48,7 +48,7 @@ def _session(context, config):
     if config.publication not in sessions:
         host = config.publication[len('https://'):]
         context.multisite.stores[host] = _legacy_store(context, host)
-        sessions[config.publication] = Session(config, store=context.multisite.stores[host], provider=sessions[next(iter(sessions))].provider,
+        sessions[config.publication] = SiteSession(config, store=context.multisite.stores[host], provider=sessions[next(iter(sessions))].provider,
                                               clock=lambda: context.multisite.clock[0], receive=lambda *a: 'code')
     return sessions[config.publication]
 
@@ -149,12 +149,12 @@ def legacy(context, host):
     config = site(host)
     selection_path().write_text(json.dumps(asdict(config)))
     legacy_store = _legacy_store(context, host)
-    seeding = Session(config, store=legacy_store, provider=context.multisite.sessions['https://a.anth.us'].provider,
+    seeding = SiteSession(config, store=legacy_store, provider=context.multisite.sessions['https://a.anth.us'].provider,
                       clock=lambda: context.multisite.clock[0], receive=lambda *a: 'code')
     seeding.login()
     context.legacy_stores = {host: legacy_store}
     context.multisite.stores[host] = legacy_store
-    context.multisite.sessions[config.publication] = Session(config, store=legacy_store, provider=seeding.provider,
+    context.multisite.sessions[config.publication] = SiteSession(config, store=legacy_store, provider=seeding.provider,
                                                             clock=lambda: context.multisite.clock[0], receive=lambda *a: context.multisite.logins.append(host))
     context.multisite.logins.clear()
     context.published['b.anth.us'] = {'body': asdict(context.multisite.sessions['https://b.anth.us'].config)}
@@ -223,7 +223,7 @@ def request_unknown(context):
 @when('the site "{host}" publishes the GraphQL endpoint of "{victim}" and the user signs in to it')
 def hijack(context, host, victim):
     config = site(host, graphql_endpoint=site(victim).graphql_endpoint)
-    context.multisite.sessions[config.publication] = Session(config, store=context.multisite.stores['a.anth.us'].__class__(),
+    context.multisite.sessions[config.publication] = SiteSession(config, store=context.multisite.stores['a.anth.us'].__class__(),
                                                             provider=context.multisite.sessions['https://a.anth.us'].provider,
                                                             clock=lambda: context.multisite.clock[0], receive=lambda *a: 'code')
     context.published[host] = {'body': asdict(config)}
@@ -412,7 +412,7 @@ def publishes_with_port(context, host, port):
 @given('another program is already listening on port {port:d}')
 def port_busy(context, port):
     import socket
-    from papyrus_content import cli_user_auth
+    from cli_login import oauth as cli_login_oauth
     blocker = socket.socket()
     blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
     blocker.bind(('127.0.0.1', port))
@@ -420,7 +420,7 @@ def port_busy(context, port):
     context.add_cleanup(blocker.close)
     # Use the real loopback listener rather than the scenario's fake browser step.
     session = context.multisite.sessions['https://a.anth.us']
-    session.receive = lambda uri, url, state, timeout: cli_user_auth.receive_code(uri, url, state, timeout)
+    session.receive = lambda uri, url, state, timeout: cli_login_oauth.receive_code(uri, url, state, timeout)
 
 
 @then('the sign-in fails saying port {port:d} is in use and to stop whatever uses it')

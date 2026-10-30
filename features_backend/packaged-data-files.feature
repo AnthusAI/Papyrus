@@ -25,3 +25,7 @@ Feature: The PyPI wheel carries the data files the commands read at run time
     Then the steering config resolves to the checkout file
     When that checkout file is removed
     Then the steering config resolves to the packaged default
+
+  Scenario: The wheel depends on the exact shared login library release
+    Given the wheel built from this checkout
+    Then the wheel requires cli-login at exactly version 0.1.0, with the Linux extra on Linux

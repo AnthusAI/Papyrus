@@ -96,3 +96,20 @@ def step_resolves_packaged(context):
     from papyrus_content import env
 
     assert env.resolve_corpora_file("corpora/papyrus-steering.yml") == env.packaged_corpora_file("papyrus-steering.yml")
+
+
+@then("the wheel requires cli-login at exactly version 0.1.0, with the Linux extra on Linux")
+def step_requires_cli_login(context):
+    import zipfile
+
+    with zipfile.ZipFile(context.wheel) as archive:
+        name = next(member for member in archive.namelist() if member.endswith(".dist-info/METADATA"))
+        metadata = archive.read(name).decode()
+    requirements = [line.split(": ", 1)[1].replace('"', "'") for line in metadata.splitlines() if line.startswith("Requires-Dist: cli-login")]
+    assert len(requirements) == 2, requirements
+    plain = [line for line in requirements if "[linux]" not in line]
+    linux = [line for line in requirements if "[linux]" in line]
+    assert len(plain) == 1 and len(linux) == 1, requirements
+    for line in requirements:
+        assert "==0.1.0" in line.replace(" ", "").replace("(", "").replace(")", ""), line
+    assert "sys_platform == 'linux'" in linux[0] and "sys_platform != 'linux'" in plain[0], requirements
