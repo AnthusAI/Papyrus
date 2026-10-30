@@ -31,6 +31,20 @@ stored their text on a Reference.
 summary and GROBID fields appeared only when someone ran steps 5-8 by hand, typically after the editor had
 already decided. The editor rated blind.
 
+## A vote is recorded on the Reference
+
+A vote (accept, reject, archive, reopen) used to write a `reference_curation` Message and a `comment` relation.
+Messages come only from people, so the Reference holds it: `curationStatus`, `curationStatusUpdatedBy`,
+`curationStatusUpdatedAt` and `curationStatusReason` (the note), plus the details of the vote in
+`curationActorKind` (`human`, `agent`, `cyclotron`, `rule` or `catalog`), `curationReasonCode`, `curationSectionId`,
+`curationShareable`, `curationDelegation` (JSON: `delegationId`, `relayedBy`, `instruction`) and
+`curationDecisionRelationId`. The writers are the curation Lambda (`reviewReferenceCuration`, `recordDelegatedCuration`),
+`reference_actions.review_reference_curation` (CLI and Tactus), the automatic accept and reject, and a catalog
+registration that rejects. A Reference keeps only its latest vote; the history of earlier votes lives in the
+Cyclotron's feedback. Every reader (the sweep, the proofs, the exports, the review screens) reads these fields; see
+`src/papyrus_content/reference_vote.py`. `papyrus references backfill-vote-details [--dry-run]` copies the latest old
+vote of each Reference from its `reference_curation` Message.
+
 ## 2. Curation before review
 
 ```

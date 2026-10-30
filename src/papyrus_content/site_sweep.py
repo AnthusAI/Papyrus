@@ -32,11 +32,12 @@ from .assignments import active_claim_held_by_different_assignee
 from .catalog import _record, semantic_relation_record
 from .ids import hash_short, knowledge_corpus_id, safe_id
 from .relevance_cyclotron import decision_model_from_environment, optimizer_from_environment
+from .reference_vote import latest_vote
 from .relevance_decisions import human_section_for_review
 from .relevance_shadow import (decisions_remaining_today, live_agreement, shadow_agreement_record, usage_record,
                                utc_day, SHADOW_AGREEMENT_SCHEMA)
 from .relevance_sweep import (REVIEWED_STATUSES, SNAPSHOT_NAME, AssignmentClaimLease, CyclotronClaimed, S3SnapshotStore,
-                              SweepResult, _HeldLease, _apply, _curation_messages, _current, _recorded_usage,
+                              SweepResult, _HeldLease, _apply, _current, _recorded_usage,
                               reference_item)
 from .site_classifier_set import (apply_site_classifier_set, definition_with_classifiers, plan_site_classifier_set,
                                   stored_active_specs)
@@ -220,14 +221,13 @@ def site_provenance(plan, cyclotron, doctrine: Sequence[Mapping[str, Any]]) -> d
 
 
 def _human_section_references(client, corpus_id: str, enabled_section_ids: Sequence[str]):
-    """Each reviewed Reference a person explicitly placed in a Section: (reference, messages, section id)."""
+    """Each reviewed Reference a person explicitly placed in a Section: (reference, section id)."""
     placed = []
     for status in REVIEWED_STATUSES:
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
-            messages = _curation_messages(client, reference["lineageId"])
-            section_id = human_section_for_review(reference, messages, enabled_section_ids)
+            section_id = human_section_for_review(reference, enabled_section_ids)
             if section_id is not None:
-                placed.append((reference, messages, section_id))
+                placed.append((reference, section_id))
     return placed
 
 
@@ -236,8 +236,8 @@ def _live_site_agreement(client, plan, corpus_id: str, enabled_section_ids: Sequ
     """Per-classifier agreement of earlier suggestions with later explicit human Section decisions."""
     outcomes: dict[str, list[tuple[str, str]]] = {spec.id: [] for spec in plan.definition.classifiers}
     placed = _human_section_references(client, corpus_id, enabled_section_ids)
-    for reference, messages, section_id in placed:
-        reviewed_at = str(messages[-1].get("createdAt") or "")
+    for reference, section_id in placed:
+        reviewed_at = str(latest_vote(reference)["createdAt"] or "")
         decisions = current_site_decisions(_site_decision_relations(client, reference["lineageId"]), reference["lineageId"])
         for classifier, human_label in human_labels_for_section(section_id, enabled_section_ids).items():
             relation = decisions.get(classifier)
@@ -283,9 +283,9 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
     from decision_flywheel import Item, LabeledItem
 
     primed = reviewed = 0
-    for reference, messages, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
+    for reference, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
         labels = human_labels_for_section(section_id, enabled_section_ids)
-        latest = messages[-1]
+        latest = latest_vote(reference)
         decisions = current_site_decisions(_site_decision_relations(client, reference["lineageId"]), reference["lineageId"])
         decision_id = _decision_id_of(decisions)
         if decision_id is None:
@@ -297,19 +297,18 @@ def _teach_from_human_sections(client, cyclotron, plan, corpus_id: str, enabled_
             examples = {classifier: values for classifier, values in examples.items() if classifier in cyclotron.specs}
             try:
                 outcome = asyncio.run(cyclotron.add_priming_examples(
-                    examples, added_by=str(latest.get("authorLabel") or "newsroom editor")))
+                    examples, added_by=str(latest["authorLabel"] or "newsroom editor")))
             except ValueError as error:
                 warnings.append(f"{reference['lineageId']}: {error}")
                 continue
             primed += 1 if outcome["added"] else 0
             continue
-        metadata = latest.get("metadata") or {}
         labels = {classifier: label for classifier, label in labels.items()
                   if classifier in cyclotron.specs and classifier in decisions}
         try:
             asyncio.run(cyclotron.review(
                 decision_id, labels=labels, explanation=reference.get("curationStatusReason"),
-                reason_code=metadata.get("reasonCode"), reviewer=latest.get("authorLabel"), review_id=latest["id"]))
+                reason_code=latest["reasonCode"], reviewer=latest["authorLabel"], review_id=latest["id"]))
         except ValueError as error:
             warnings.append(f"{reference['lineageId']}: {error}")
             continue
@@ -327,7 +326,7 @@ def _prime_added_classifiers(client, cyclotron, corpus_id: str, enabled_section_
     from decision_flywheel import Item, LabeledItem
 
     primed = 0
-    for reference, messages, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
+    for reference, section_id in _human_section_references(client, corpus_id, enabled_section_ids):
         labels = {classifier: label for classifier, label in human_labels_for_section(section_id, enabled_section_ids).items()
                   if classifier in added_classifier_ids}
         if not labels:
@@ -339,7 +338,7 @@ def _prime_added_classifiers(client, cyclotron, corpus_id: str, enabled_section_
                     for classifier, label in labels.items()}
         try:
             outcome = asyncio.run(cyclotron.add_priming_examples(
-                examples, added_by=str(messages[-1].get("authorLabel") or "newsroom editor")))
+                examples, added_by=str(latest_vote(reference)["authorLabel"] or "newsroom editor")))
         except ValueError as error:
             warnings.append(f"{reference['lineageId']}: {error}")
             continue

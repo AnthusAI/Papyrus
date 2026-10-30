@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { curationActorKind, referenceCurationMetadata } from "../amplify/functions/shared/reference-curation-metadata";
+import { curationActorKind, referenceVoteFields } from "../amplify/functions/shared/reference-curation-metadata";
 import type { SemanticRelationRecord } from "../lib/category-repository";
 import { awaitsEditorReview, currentRelevanceDecisions } from "../lib/relevance-decisions";
 
@@ -105,35 +105,25 @@ for (const order of [[newer, older], [older, newer]]) {
   assert.equal(currentRelevanceDecisions(order).get("reference-a")!.decisionRelationId, "newer");
 }
 
-// An editor's review records the decision it answered and whether its explanation may be shared.
-assert.deepEqual(referenceCurationMetadata({
-  action: "reject", curationStatus: "rejected", reasonCode: "out_of_scope",
-  referenceId: "reference-a-v1", referenceLineageId: "reference-a",
-  decisionRelationId: "semantic-relation-1", shareable: true,
+// An editor's vote records the decision it answered and whether its explanation may be shared, on the Reference.
+assert.deepEqual(referenceVoteFields({
+  actorKind: "human", reasonCode: "out_of_scope", decisionRelationId: "semantic-relation-1", shareable: true,
 }), {
-  action: "reject", curationStatus: "rejected", reasonCode: "out_of_scope", curationReasonCode: "out_of_scope",
-  referenceId: "reference-a-v1", referenceLineageId: "reference-a",
-  decisionRelationId: "semantic-relation-1", shareable: true,
+  curationActorKind: "human", curationReasonCode: "out_of_scope", curationSectionId: null, curationShareable: true,
+  curationDelegation: null, curationDecisionRelationId: "semantic-relation-1",
 });
 
-// Without a decision the metadata is exactly what it was before.
-assert.deepEqual(referenceCurationMetadata({
-  action: "accept", curationStatus: "accepted", reasonCode: null,
-  referenceId: "reference-a-v1", referenceLineageId: "reference-a",
-}), {
-  action: "accept", curationStatus: "accepted", reasonCode: null, curationReasonCode: null,
-  referenceId: "reference-a-v1", referenceLineageId: "reference-a",
+// Without a decision there is nothing to share, and every field is still present so a new vote clears the last one.
+assert.deepEqual(referenceVoteFields({ actorKind: "human" }), {
+  curationActorKind: "human", curationReasonCode: null, curationSectionId: null, curationShareable: null,
+  curationDelegation: null, curationDecisionRelationId: null,
 });
 
 // Only a user-pool sign-in is a human curation; no argument can claim it.
 assert.equal(curationActorKind({ claims: { sub: "user-1", email: "editor@example.org" } }), "human");
-assert.equal(curationActorKind({ claims: {} }), "service");
-assert.equal(curationActorKind({ userArn: "arn:aws:sts::1:assumed-role/agent" }), "service");
-assert.equal(curationActorKind(null), "service");
-assert.equal(referenceCurationMetadata({
-  action: "accept", curationStatus: "accepted", reasonCode: null,
-  referenceId: "reference-a-v1", referenceLineageId: "reference-a", actorKind: "human",
-}).actorKind, "human");
+assert.equal(curationActorKind({ claims: {} }), "agent");
+assert.equal(curationActorKind({ userArn: "arn:aws:sts::1:assumed-role/agent" }), "agent");
+assert.equal(curationActorKind(null), "agent");
 
 // Needs review: a pending reference with a current suggestion, flagged by the cyclotron or not.
 const suggested = currentRelevanceDecisions([relation({ reviewRecommended: false })]).get("reference-a");

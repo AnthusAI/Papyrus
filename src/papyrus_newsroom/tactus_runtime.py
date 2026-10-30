@@ -330,12 +330,6 @@ API_METHODS: dict[tuple[str, str], Callable[[dict[str, Any]], Any]] = {
         order=args.get("order") or "newest",
         scan_limit=args.get("scan_limit") or args.get("scanLimit") or 1000,
     ),
-    ("reference", "note_create"): lambda args: newsroom.papyrus_reference_note_create(
-        reference_id=args.get("reference_id") or args.get("referenceId") or args.get("id"),
-        summary=args.get("summary") or "",
-        body=args.get("body") or "",
-        actor_label=args.get("actor_label") or args.get("actorLabel") or "",
-    ),
     ("reference", "note_list"): lambda args: newsroom.papyrus_reference_note_list(
         args.get("reference_lineage_id") or args.get("referenceLineageId") or args.get("lineage_id") or args.get("lineageId") or ""
     ),

@@ -11,10 +11,17 @@ const MODEL_NAMES = [
 const REQUIRED_FIELDS: Record<string, string[]> = {
   Item: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
   PublishedItem: ["bodyMarkus", "bodyIr", "aliases", "metadata", "tenantId", "tenantSlug"],
+  Message: ["editedAt", "deletedAt", "deletedBySub"],
   MediaAsset: ["tenantId"],
   PublishedMediaAsset: ["tenantId"],
   NewsroomSection: ["tenantId"],
 };
+
+// Indexes the References page reads through (features_backend/reference-feed-keys.feature): each must exist, with its sort key, in both files.
+const REQUIRED_INDEXES = [
+  'index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction")',
+  'index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival")',
+];
 
 function extractFieldNames(source: string, modelName: string): Set<string> {
   const startPattern = new RegExp(`^  ${modelName}: `, "m");
@@ -53,6 +60,15 @@ for (const modelName of MODEL_NAMES) {
     }
   }
   console.log(`${modelName}: ${first.size} fields in schema.ts, ${second.size} in resource.ts`);
+}
+for (const file of SCHEMA_FILES) {
+  const source = readFileSync(join(process.cwd(), file), "utf8");
+  for (const declaration of REQUIRED_INDEXES) {
+    if (!source.includes(declaration)) {
+      failed = true;
+      console.error(`Reference is missing ${declaration} in ${file}`);
+    }
+  }
 }
 if (failed) {
   process.exit(1);

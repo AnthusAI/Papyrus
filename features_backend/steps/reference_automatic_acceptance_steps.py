@@ -22,6 +22,7 @@ from ideas_fixtures import NOW, reference  # noqa: E402
 from papyrus_content.auto_accept import validate_auto_accept  # noqa: E402
 from papyrus_content.monitoring_cloud import DynamoStore, run_collection  # noqa: E402
 from papyrus_content.monitoring_router import CyclotronClient, run_router, validate_router_config  # noqa: E402
+from papyrus_content.reference_vote import latest_vote  # noqa: E402
 from papyrus_content.relevance_decisions import human_label_for_review  # noqa: E402
 from test_monitor_stories import decision, provenance  # noqa: E402
 
@@ -207,12 +208,13 @@ def step_invalid(context, setting):
     raise AssertionError(f"{setting} was accepted")
 
 
-@then("a curation Message records an automatic accept by the Cyclotron that is not a human label")
+@then("the Reference records an automatic accept by the Cyclotron that is not a human label and no Message is written")
 def step_message(context):
-    (message,) = world(context).client.messages
-    metadata = json.loads(message["metadata"])
-    assert (metadata["actorKind"], metadata["automatic"], metadata["action"]) == ("cyclotron", True, "accept"), metadata
-    assert human_label_for_review(target_row(context), [{"metadata": metadata}], labels=["include", "exclude"]) is None
+    assert not world(context).client.messages
+    row = target_row(context)
+    vote = latest_vote(row)
+    assert (vote["actorKind"], vote["action"]) == ("cyclotron", "accept"), vote
+    assert human_label_for_review(row, labels=["include", "exclude"]) is None
 
 
 # --- monitors that deliver by a fixed rule -----------------------------------------------------------------------------------------
@@ -252,12 +254,13 @@ def step_rule_reason(context, monitor, rule):
     assert f"{monitor} monitor's rule ({rule})" in reason and "no relevance prediction" in reason, reason
 
 
-@then("a curation Message records an automatic accept by the rule that is not a human label")
+@then("the Reference records an automatic accept by the rule that is not a human label and no Message is written")
 def step_rule_message(context):
-    (message,) = world(context).client.messages
-    metadata = json.loads(message["metadata"])
-    assert (metadata["actorKind"], metadata["automatic"], metadata["monitorId"]) == ("rule", True, "hn"), metadata
-    assert human_label_for_review(target_row(context), [{"metadata": metadata}], labels=["include", "exclude"]) is None
+    assert not world(context).client.messages
+    row = target_row(context)
+    vote = latest_vote(row)
+    assert (vote["actorKind"], vote["action"]) == ("rule", "accept"), vote
+    assert human_label_for_review(row, labels=["include", "exclude"]) is None
 
 
 def site_client(context, site):

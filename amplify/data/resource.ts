@@ -267,8 +267,6 @@ const schema = a.schema({
     referenceId: a.id().required(),
     status: a.string().required(),
     reasonCode: a.string(),
-    messageId: a.id(),
-    relationId: a.id(),
   }),
 
   ReferenceQualityActionResult: a.customType({
@@ -1682,11 +1680,26 @@ const schema = a.schema({
       curationStatusUpdatedAt: a.datetime(),
       curationStatusUpdatedBy: a.string(),
       curationStatusReason: a.string(),
+      curationReasonCode: a.string(),
+      curationActorKind: a.string(),
+      curationSectionId: a.string(),
+      curationShareable: a.boolean(),
+      curationDelegation: a.json(),
+      curationDecisionRelationId: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
       discoveredByMonitorId: a.string(),
       discoveryDetails: a.json(),
       discoveryRule: a.json(),
+      // The References page reads the feed through two indexes (docs/reference-feed-indexes.md). `feedStateKey` is
+      // "<corpusId>#unrated" or "<corpusId>#rated" for a current, not archived Reference (null otherwise: it is in no feed).
+      // `predictionSortKey` orders Best bets, `feedArrivalAt` orders Newest. The prediction is the Cyclotron's ORIGINAL
+      // P(accept), written once, and never rewritten by a vote.
+      feedStateKey: a.string(),
+      feedArrivalAt: a.datetime(),
+      predictedAcceptProbability: a.float(),
+      predictionDecidedAt: a.datetime(),
+      predictionSortKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1700,6 +1713,8 @@ const schema = a.schema({
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
       index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
       index("discoveredByMonitorId").sortKeys(["createdAt"]).queryField("listReferencesByMonitorAndCreatedAt"),
+      index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction"),
+      index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),
@@ -1790,6 +1805,9 @@ const schema = a.schema({
       authorSub: a.string(),
       authorUserProfileId: a.id(),
       authorLabel: a.string(),
+      editedAt: a.datetime(),
+      deletedAt: a.datetime(),
+      deletedBySub: a.string(),
       threadId: a.id(),
       parentMessageId: a.id(),
       sequenceNumber: a.integer(),
@@ -1824,8 +1842,12 @@ const schema = a.schema({
       index("searchVisibility").sortKeys(["createdAt"]).name("messagesBySearchVisibilityCreatedAt").queryField("listMessagesBySearchVisibilityAndCreatedAt"),
     ])
     .authorization((allow) => [
-      allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
+      // One rule per group (a group may appear once per model): editors read and add; admins also delete, for moderation.
+      allow.group("editor").to(categoryAppendOnlyOperations),
+      allow.group(adminGroup).to(["read", "create", "delete"]),
       allow.authenticated("identityPool").to(["read", "create", "update"]),
+      // Messages belong to their author: the author edits (and soft-deletes) their own, and only an admin can remove someone else's.
+      allow.ownerDefinedIn("authorSub").identityClaim("sub").to(["read", "update", "delete"]),
     ]),
 
   MessageThread: a

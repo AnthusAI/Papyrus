@@ -41,6 +41,7 @@ from .relevance_priming import (MAX_TRANSIENT_ATTEMPTS, PRIMING_ATTEMPTS_ROLE, P
                                 UNREADABLE_MESSAGE, grobid_is_alive, priming_attempts_record, PRIMING_REQUEST_KIND, ExtractUrl, default_url_extractor,
                                 normalize_priming_url, priming_item_id, priming_label, priming_outcome_record,
                                 readable_engine_refusal)
+from .reference_vote import latest_vote
 from .relevance_decisions import (RELEVANCE_RELATION, curation_was_made_by_a_human, current_relevance_decision, relevance_decision_records,
                                   human_label_for_review, relevance_label_for_review, review_rate_request_id, status_snapshot_record)
 from .relevance_shadow import (USAGE_PAYLOAD_KIND, comparison_of_suggestion_with_human_decision,
@@ -299,6 +300,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                 provenance = {**provenance, "sample": {key: sample[key] for key in (
                     "policy", "seed", "poolFingerprint", "selectionFingerprint") if key in sample}}
             auto_reject_gate = _auto_reject_gate(client, plan, corpus_id, now())
+            predicted: list[tuple[dict[str, Any], dict[str, Any]]] = []
             for reference in pending:
                 if decisions_allowed is not None and result.decided >= decisions_allowed:
                     result.stopped_because = "daily decision cap"
@@ -316,6 +318,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                     positive_label=plan.definition.classifiers[0].positive_label, now=now(), current_relations=current,
                     question=plan.definition.classifiers[0].question, labels=plan.definition.classifiers[0].labels,
                     review_control=plan.review_control, provenance=provenance))
+                predicted.append((reference, decision.to_json()))
                 result.decided += 1
             classifier = plan.definition.classifiers[0].id
             result.status = cyclotron.status(classifier).to_json()
@@ -327,6 +330,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                 records.append(usage_record(plan.definition.id, day=today,
                                             decisions=already_decided_today + result.decided, now=now()))
             _apply(client, records)
+            _record_original_predictions(client, plan, predicted, now())
             if snapshots and snapshot_uri:
                 with tempfile.TemporaryDirectory() as scratch:
                     archive = Path(scratch) / SNAPSHOT_NAME
@@ -337,6 +341,19 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     finally:
         lease.release()
     return result
+
+
+def _record_original_predictions(client, plan, predicted: list[tuple[dict[str, Any], dict[str, Any]]], decided_at: str) -> None:
+    """Write each decided Reference's first prediction onto it (src/papyrus_content/reference_feed_keys.py); a Reference that has one keeps it."""
+    from .reference_feed_keys import original_prediction_fields
+    positive_label = plan.definition.classifiers[0].positive_label
+    for reference, decision in predicted:
+        (_, outcome), = decision["classifiers"].items()
+        current = client.get_record("Reference", reference["id"])
+        fields = original_prediction_fields(current, label=outcome["label"], positive_label=positive_label,
+                                            confidence=outcome.get("confidence"), decided_at=decision.get("createdAt") or decided_at) if current else {}
+        if fields:
+            client.update_record("Reference", {"id": reference["id"], **fields})
 
 
 def _sampled(client, pending: list[dict[str, Any]], corpus_id: str, size: int | None, seed: str | None,
@@ -385,7 +402,7 @@ def _reject_clear_miss(client, plan: RelevanceCyclotronPlan, gate: Mapping[str, 
     if len(result.auto_rejected) >= plan.auto_reject["maxRejectsPerSweep"]:
         return
     probability = _clear_miss_of_decision(plan, gate, decision)
-    if probability is None or _curation_messages(client, reference["lineageId"]):
+    if probability is None or latest_vote(reference) is not None:
         return
     if reject_reference_automatically(client, reference, cyclotron_id=plan.definition.id, probability=probability,
                                       proof_id=gate["proofId"], decision_id=decision["decisionId"], now=now):
@@ -412,7 +429,7 @@ def _auto_rejections_a_sweep_would_make(client, plan: RelevanceCyclotronPlan, co
         probability = clear_miss_probability(plan.auto_reject, gate, label=recorded.get("label"),
                                              probabilities=recorded.get("probabilities") or {},
                                              labels=classifier.labels, positive_label=classifier.positive_label)
-        if probability is not None and not _curation_messages(client, reference["lineageId"]):
+        if probability is not None and latest_vote(reference) is None:
             would_reject.append({"lineageId": reference["lineageId"], "probability": probability,
                                  "proofId": gate["proofId"]})
     return would_reject
@@ -554,8 +571,7 @@ def _live_agreement(client, plan: RelevanceCyclotronPlan, corpus_id: str, now: s
             if decision_relation is None:
                 continue
             comparison = comparison_of_suggestion_with_human_decision(
-                reference, decision_relation, _curation_messages(client, reference["lineageId"]),
-                labels=classifier.labels)
+                reference, decision_relation, labels=classifier.labels)
             if comparison is not None:
                 comparisons.append(comparison)
     return {**live_agreement(comparisons, positive_label=classifier.positive_label, now=now),
@@ -570,8 +586,7 @@ def _human_label_count(client, labels: Sequence[str], corpus_id: str) -> int:
     count = 0
     for status in REVIEWED_STATUSES:
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
-            messages = _curation_messages(client, reference["lineageId"])
-            if human_label_for_review(reference, messages, labels=labels) is not None:
+            if human_label_for_review(reference, labels=labels) is not None:
                 count += 1
     return count
 
@@ -595,8 +610,7 @@ def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, c
             if current_relevance_decision(_decision_relations(client, reference["lineageId"]),
                                           reference["lineageId"]) is not None:
                 continue
-            messages = _curation_messages(client, reference["lineageId"])
-            label = human_label_for_review(reference, messages, labels=classifier.labels)
+            label = human_label_for_review(reference, labels=classifier.labels)
             if label is None:
                 continue
             note = str(reference.get("curationStatusReason") or "").strip()
@@ -605,7 +619,7 @@ def _prime_from_human_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, c
                                   {"human_feedback": note} if note else {})
             try:
                 asyncio.run(cyclotron.add_priming_examples(
-                    {classifier.id: [example]}, added_by=str(messages[-1].get("authorLabel") or "newsroom editor")))
+                    {classifier.id: [example]}, added_by=str(latest_vote(reference)["authorLabel"] or "newsroom editor")))
             except ValueError as error:
                 warnings.append(f"{reference['lineageId']}: {error}")
                 continue
@@ -627,8 +641,8 @@ def _retire_withdrawn_labels(client, cyclotron, plan: RelevanceCyclotronPlan, co
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
             decision_relation = current_relevance_decision(_decision_relations(client, reference["lineageId"]),
                                                            reference["lineageId"])
-            messages = _curation_messages(client, reference["lineageId"])
-            if not messages or human_label_for_review(reference, messages, labels=labels) is not None:
+            vote = latest_vote(reference)
+            if vote is None or human_label_for_review(reference, labels=labels) is not None:
                 continue
             if decision_relation is None:
                 retired += _retract_priming_example(cyclotron, plan, reference, warnings)
@@ -637,7 +651,7 @@ def _retire_withdrawn_labels(client, cyclotron, plan: RelevanceCyclotronPlan, co
             if not decision_id:
                 continue
             try:
-                asyncio.run(cyclotron.undo_review(decision_id, review_id=f"retire:{messages[-1]['id']}"))
+                asyncio.run(cyclotron.undo_review(decision_id, review_id=f"retire:{vote['id']}"))
             except ValueError as error:
                 if "no label to undo" not in str(error):
                     warnings.append(f"{reference['lineageId']}: {error}")
@@ -659,7 +673,7 @@ def _retract_priming_example(cyclotron, plan: RelevanceCyclotronPlan, reference:
 
 
 def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: str, warnings: list[str]) -> int:
-    """Send each decided, reviewed reference's curation to the cyclotron. Idempotent by message id."""
+    """Send each decided, reviewed reference's latest vote to the cyclotron. Idempotent by vote id."""
     labels = plan.definition.classifiers[0].labels
     sent = 0
     for status in REVIEWED_STATUSES:
@@ -669,18 +683,16 @@ def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: st
             if decision_relation is None:
                 continue
             decision_id = json.loads(decision_relation.get("metadata") or "{}").get("decisionId")
-            messages = _curation_messages(client, reference["lineageId"])
-            if not messages or not decision_id:
+            latest = latest_vote(reference)
+            if latest is None or not decision_id:
                 continue
-            latest = messages[-1]
-            metadata = latest.get("metadata") or {}
-            if not curation_was_made_by_a_human(messages):
+            if not curation_was_made_by_a_human(reference):
                 continue
-            label = relevance_label_for_review(reference, messages, labels=labels)
+            label = relevance_label_for_review(reference, labels=labels)
             try:
                 asyncio.run(cyclotron.review(
                     decision_id, label, explanation=reference.get("curationStatusReason"),
-                    reason_code=metadata.get("reasonCode"), reviewer=latest.get("authorLabel"),
+                    reason_code=latest["reasonCode"], reviewer=latest["authorLabel"],
                     review_id=latest["id"]))
             except ValueError as error:
                 # For example a review without a label after a labeled one: the
@@ -694,35 +706,6 @@ def _send_reviews(client, cyclotron, plan: RelevanceCyclotronPlan, corpus_id: st
 def _decision_relations(client, lineage_id: str) -> list[dict[str, Any]]:
     return [relation for relation in client.list_by_index("semanticRelationsBySubjectState", f"reference#{lineage_id}#current")
             if relation.get("predicate") == RELEVANCE_RELATION]
-
-
-def _curation_messages(client, lineage_id: str) -> list[dict[str, Any]]:
-    """The reference's curation Messages with their metadata, oldest first."""
-    messages = []
-    for relation in client.list_by_index("semanticRelationsByObjectState", f"reference#{lineage_id}#current"):
-        if relation.get("predicate") != "comment" or relation.get("subjectKind") != "message":
-            continue
-        if relation.get("relationState") != "current":
-            continue
-        message = client.get_record("Message", relation["subjectId"])
-        if not message or message.get("messageKind") != "reference_curation":
-            continue
-        messages.append({**message, "metadata": _owner_metadata(client, message),
-                         "hasInlineMetadata": bool(parse_jsonish(message.get("metadata")))})
-    messages.sort(key=lambda message: str(message.get("createdAt") or ""))
-    return messages
-
-
-def _owner_metadata(client, record: Mapping[str, Any]) -> dict[str, Any]:
-    metadata = parse_jsonish(record.get("metadata"))
-    if isinstance(metadata, dict) and metadata:
-        return metadata
-    for attachment in client.list_by_index("modelAttachmentsByOwnerRoleAndSortKey", record["id"]):
-        if attachment.get("role") == "metadata":
-            payload = parse_jsonish((download_attachment_buffer(client, attachment) or b"").decode("utf-8", "replace"))
-            if isinstance(payload, dict):
-                return payload
-    return {}
 
 
 def _current(references) -> list[dict[str, Any]]:
