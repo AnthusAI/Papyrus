@@ -1724,9 +1724,10 @@ const definitions = {
       index("searchVisibility").sortKeys(["createdAt"]).name("messagesBySearchVisibilityCreatedAt").queryField("listMessagesBySearchVisibilityAndCreatedAt"),
     ])
     .authorization((allow) => [
-      allow.groups(categoryWriteGroups).to(categoryAppendOnlyOperations),
+      // One rule per group (a group may appear once per model): editors read and add; admins also delete, for moderation.
+      allow.group("editor").to(categoryAppendOnlyOperations),
+      allow.group(adminGroup).to(["read", "create", "delete"]),
       // Messages belong to their author: the author edits (and soft-deletes) their own, and only an admin can remove someone else's.
-      allow.group(adminGroup).to(["delete"]),
       allow.ownerDefinedIn("authorSub").identityClaim("sub").to(["read", "update", "delete"]),
     ]),
 

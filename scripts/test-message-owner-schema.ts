@@ -25,8 +25,8 @@ test("a Message's author can read, update and delete their own, matched on the s
 
 test("editors and admins read and create; only an admin deletes someone else's; nobody but the author updates", () => {
   const rules = authRules(transformed, "Message");
-  assert.match(rules, /allow: groups, operations: \[read, create\], groups: \["editor", "admin"\]/);
-  assert.match(rules, /allow: groups, operations: \[delete\], groups: \["admin"\]/);
+  assert.match(rules, /allow: groups, operations: \[read, create\], groups: \["editor"\]/);
+  assert.match(rules, /allow: groups, operations: \[read, create, delete\], groups: \["admin"\]/);
   const groupRules = rules.split("\n").filter((line) => line.includes("allow: groups"));
   assert.equal(groupRules.some((line) => /update/.test(line)), false, "no group may update a Message");
   assert.equal(groupRules.filter((line) => /delete/.test(line)).every((line) => /groups: \["admin"\]/.test(line)), true, "editors cannot delete");
@@ -43,7 +43,8 @@ test("the typed schema (resource.ts) carries the same rule and fields, and keeps
   const source = readFileSync(join(root, "amplify/data/resource.ts"), "utf8");
   const start = source.indexOf("  Message: a");
   const block = source.slice(start, source.indexOf("  MessageThread: a", start));
-  assert.match(block, /allow\.group\(adminGroup\)\.to\(\["delete"\]\)/);
+  assert.match(block, /allow\.group\("editor"\)\.to\(categoryAppendOnlyOperations\)/);
+  assert.match(block, /allow\.group\(adminGroup\)\.to\(\["read", "create", "delete"\]\)/);
   assert.match(block, /allow\.ownerDefinedIn\("authorSub"\)\.identityClaim\("sub"\)\.to\(\["read", "update", "delete"\]\)/);
   assert.match(block, /allow\.authenticated\("identityPool"\)\.to\(\["read", "create", "update"\]\)/);
   for (const field of ["editedAt: a.datetime()", "deletedAt: a.datetime()", "deletedBySub: a.string()"]) assert.ok(block.includes(field), field);
