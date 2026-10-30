@@ -259,25 +259,19 @@ def accept_by_rule(client: Any, reference: Mapping[str, Any], *, monitor_id: str
 def direct_monitors(client: Any, rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
     """The monitors of a corpus that deliver by rule, with a delivered Reference of each: ``{monitorId: {"rule": ..., "deliveries": n}}``.
 
-    A monitor is a rule monitor when a delivery's provenance relation says ``machineDecision.system == "direct"`` (written since this feature),
+    A monitor is a rule monitor when a delivery's ``discoveryRule`` says ``system == "direct"`` (written since this feature),
     or when none of its deliveries in the corpus carries a Cyclotron verdict at all (a Cyclotron-decided delivery always does)."""
-    from .categories_steering import semantic_state_key
-    from .ideas.monitor_stories import monitor_of
+    from .knowledge_snapshot.monitor_records import discovery_monitor_id, discovery_rule
     seen: dict[str, dict[str, Any]] = {}
     for row in rows:
-        lineage = row.get("lineageId") or row["id"]
-        incoming = list(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
-        monitor = monitor_of(incoming)
+        monitor = discovery_monitor_id(row)
         if monitor is None:
             continue
         entry = seen.setdefault(monitor, {"rule": None, "flagged": False, "verdicts": 0, "deliveries": 0})
         entry["deliveries"] += 1
-        for relation in incoming:
-            metadata = relation.get("metadata")
-            metadata = json.loads(metadata) if isinstance(metadata, str) else (metadata or {})
-            decision = metadata.get("machineDecision") if isinstance(metadata, dict) else None
-            if isinstance(decision, dict) and decision.get("system") == "direct":
-                entry["flagged"], entry["rule"] = True, decision.get("rule")
+        decision = discovery_rule(row)
+        if decision is not None:
+            entry["flagged"], entry["rule"] = True, decision.get("rule")
         if relevance_of(relations_of(client, dict(row))) is not None:
             entry["verdicts"] += 1
     return {monitor: {"rule": entry["rule"], "deliveries": entry["deliveries"]} for monitor, entry in seen.items()
@@ -286,8 +280,7 @@ def direct_monitors(client: Any, rows: Sequence[Mapping[str, Any]]) -> dict[str,
 
 def run_rule_backfill(client: Any, publication: Mapping[str, Any], *, now: datetime, dry_run: bool = False) -> dict[str, Any]:
     """Accept the pending deliveries of the publication's rule monitors that no editor touched (the CLI's backfill for deliveries made before this existed)."""
-    from .categories_steering import semantic_state_key
-    from .ideas.monitor_stories import monitor_of
+    from .knowledge_snapshot.monitor_records import discovery_monitor_id
     from .monitoring_router import human_actor
     moment = now.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     corpus_id = publication["corpusId"]
@@ -298,8 +291,7 @@ def run_rule_backfill(client: Any, publication: Mapping[str, Any], *, now: datet
     for row in current_references(client, corpus_id, "pending"):
         if human_actor(str(row.get("curationStatusUpdatedBy") or "")):
             continue
-        lineage = row.get("lineageId") or row["id"]
-        monitor = monitor_of(list(client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage))))
+        monitor = discovery_monitor_id(row)
         if monitor not in monitors:
             continue
         result["candidates"] += 1

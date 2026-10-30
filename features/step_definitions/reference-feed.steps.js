@@ -15,8 +15,9 @@ for (const given of [
   "a Reference with no captured text",
   "References where one has full stored text, one only a teaser, and one nothing but its link",
   "a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction",
-  "References whose accepted examples show how quickly the editor acts",
-  "References older than three times the learned freshness",
+  "References of very different ages with predictions",
+  "an old unrated Reference with a strong prediction",
+  "a feed with References that were accepted automatically or by an editor",
   "References whose pictures load, fail, or were never found",
   "the References are still loading",
   "this browser saved the last feed it showed",
@@ -47,9 +48,9 @@ const outcomes = [
     "the chosen button is filled and the other is quiet, and tapping the chosen one does not unselect it",
   ]],
   ["design", [
-    "no card, tab, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone",
+    "no card, button, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone",
     "cards are rounded rectangles with a full-bleed picture across the top, and pills are fully rounded",
-    "the feed has the sections Top predictions, More for you and Least likely in large type with no lines between them",
+    "the feed is one list in rank order with no section headings, the predicted Rejects last",
     "on a phone the first card's picture is on the first screen",
   ]],
   ["auto", [
@@ -57,8 +58,8 @@ const outcomes = [
     "both read as accepted, and the editor can still change either",
   ]],
   ["popover", [
-    "it explains best bets first, confidence, fading toward not sure, Earlier and why a rated card stays put",
-    "it says how many accepted examples have been learned from, or how many more are needed",
+    "it explains Best bets, Newest, Unrated only, Include rated and why a rated card stays put",
+    "it says that age does not change the order",
   ]],
   ["cached", [
     "the saved cards are shown at once with a note that they are the last view",
@@ -69,11 +70,11 @@ const outcomes = [
     "the answered button says Confirmed or Overturned, in words and a marker as well as colour",
     "Rejecting asks for a written reason in words and changes nothing until one is given",
     "while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded",
-    "the Rated tab lists the most recent answer first, and the next visit lists the answered cards there",
+    "choosing Include rated keeps the answered cards where they were",
   ]],
 ];
 When("the editor opens the feed at 375 and 1440 pixels", function () { this.feedResult = ""; });
-When("the editor opens the Rated tab at 375 and 1440 pixels", function () { this.feedResult = ""; });
+When("the editor chooses Include rated at 375 and 1440 pixels", function () { this.feedResult = ""; });
 for (const action of [
   "the editor opens each of them",
   "the editor opens the full-text one at 375 pixels and shows all of the captured text",
@@ -145,14 +146,19 @@ for (const [name, texts] of outcomes) {
 
 // "the editor opens the feed at 375 and 1440 pixels" opens every scenario that uses it; the outcomes below each run their own browser scenario.
 When("the feed is ranked", { timeout: 60_000 }, async function () { this.feedResult = await ranking(); });
-Then("an old prediction keeps only part of its distance from not sure and never falls below a fresh Reject", function () { assert.match(this.feedResult, /Age pulls a prediction toward uncertain/); });
-Then("with fewer than ten accepted examples there is no fading and no Earlier section", function () { assert.match(this.feedResult, /Fewer than ten accepted examples means no decay/); });
-Then("a card rated this visit does not move any other card", function () { assert.match(this.feedResult, /Rating one item does not move the others/); });
-Then("they appear in an Earlier section after everything in the feed, and under the Earlier tab", async function () { assert.ok((await browser("earlier")).includes("passed: earlier")); });
-Then("an Earlier card can be rated and stays where it is", async function () { assert.ok((await browser("earlier")).includes("passed: earlier")); });
+Then("an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept", function () { assert.match(this.feedResult, /Best bets is the Cyclotron's own confidence: age never changes it/); });
+Then("ties go to the newest item and then to a stable order", function () { assert.match(this.feedResult, /Ties in Best bets go to the newest item/); });
+Then("a card rated this visit does not move any other card", function () { assert.match(this.feedResult, /The feed order is taken once and kept, in both sorts/); });
+Then("it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
+Then("an old card can be rated and stays where it is", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
+Then("Best bets and Unrated only are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("choosing Newest orders the cards by arrival, newest first, whatever the predictions say", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("the answered cards join the same list in the active sort, each showing its recorded vote", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("the page remembers Newest and Include rated for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+When("the editor chooses Include rated and reloads the page", function () { this.feedResult = ""; });
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
-Then("the page header, the tabs and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
+Then("the page header, the sort and show buttons and card skeletons are on screen and no text says it is checking credentials", async function () { assert.ok((await browser("skeleton")).includes("passed: skeleton")); });
 Then("a title shows without the site name a page tacks on its end, such as \" | Brookings\" or \" | Poverty and Development | Al Jazeera\"", async function () { assert.match(await ranking(), /A title drops the site name tacked on its end/); });
 Then("a long capture that only ends without a full stop lists that as a fact but is not sent to the editor as a capture check", async function () { assert.match(await ranking(), /but a bare unpunctuated ending does not/); });
 Then("the saved copy and the session summary expire, survive a blocked or full browser store, and are wiped on sign-out", async function () { assert.match(await ranking(), /The saved copy and the session display survive a return visit/); });

@@ -1688,6 +1688,9 @@ const schema = a.schema({
       curationDecisionRelationId: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
+      discoveredByMonitorId: a.string(),
+      discoveryDetails: a.json(),
+      discoveryRule: a.json(),
       // The References page reads the feed through two indexes (docs/reference-feed-indexes.md). `feedStateKey` is
       // "<corpusId>#unrated" or "<corpusId>#rated" for a current, not archived Reference (null otherwise: it is in no feed).
       // `predictionSortKey` orders Best bets, `feedArrivalAt` orders Newest. The prediction is the Cyclotron's ORIGINAL
@@ -1709,6 +1712,7 @@ const schema = a.schema({
       index("curationStatus").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusAndUpdatedAt"),
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
       index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
+      index("discoveredByMonitorId").sortKeys(["createdAt"]).queryField("listReferencesByMonitorAndCreatedAt"),
       index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction"),
       index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
     ])
@@ -1838,12 +1842,11 @@ const schema = a.schema({
       index("searchVisibility").sortKeys(["createdAt"]).name("messagesBySearchVisibilityCreatedAt").queryField("listMessagesBySearchVisibilityAndCreatedAt"),
     ])
     .authorization((allow) => [
-      // One rule per group (a group may appear once per model): editors read and add; admins also delete, for moderation.
-      allow.group("editor").to(categoryAppendOnlyOperations),
-      allow.group(adminGroup).to(["read", "create", "delete"]),
+      // Messages belong to their author, and the backend stamps the author: people read Messages here and write them only through
+      // postMessage, editMessage, deleteOwnMessage and moderateMessage (message-actions.ts). Functions and IAM callers write directly.
+      allow.group("editor").to(["read"]),
+      allow.group(adminGroup).to(["read"]),
       allow.authenticated("identityPool").to(["read", "create", "update"]),
-      // Messages belong to their author: the author edits (and soft-deletes) their own, and only an admin can remove someone else's.
-      allow.ownerDefinedIn("authorSub").identityClaim("sub").to(["read", "update", "delete"]),
     ]),
 
   MessageThread: a

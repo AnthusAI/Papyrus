@@ -7,7 +7,7 @@ import json
 import os
 import sys
 import tempfile
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -431,7 +431,9 @@ class CommandTests(unittest.TestCase):
 
     def test_digest_then_synthesize_by_digest_id_with_a_report(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            client = FakeClient(references=[reference(n, days_ago=0.1) for n in range(1, 4)], sections=("Analysis",))
+            # The CLI reads the real clock, so these References are a few hours old by that clock, not by the fixtures' NOW.
+            days_ago = (NOW - datetime.now(timezone.utc)).total_seconds() / 86400 + 0.1
+            client = FakeClient(references=[reference(n, days_ago=days_ago) for n in range(1, 4)], sections=("Analysis",))
             code, output = self.run_cli(["digest", "--publication", "example-site", "--since", "7d", "--out", directory, "--json"], client)
             self.assertEqual(code, 0, output)
             digest_id = json.loads(output)["digest"]["digestId"]

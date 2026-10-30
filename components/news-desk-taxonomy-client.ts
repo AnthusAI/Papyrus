@@ -52,6 +52,8 @@ import {
   GENERAL_CONVERSATION_KIND,
   REFERENCE_CONVERSATION_KIND,
   conversationAnchorKey,
+  conversationPreviewLine,
+  threadMetadataWithLastAuthor,
   conversationMessageId,
   conversationThreadId,
   conversationThreadKind,
@@ -59,12 +61,15 @@ import {
   findOrCreateThread,
   type ConversationAnchor,
   type ConversationMessage,
+  type ConversationViewer,
 } from "../lib/conversation";
+import { postMessageArguments, postMessageMutation } from "../lib/post-message";
 import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
+import { resolveReaderSettings } from "./reader-settings";
 
 const USER_POOL_AUTH_MODE = "userPool";
 const USER_POOL_LIST_LIMIT = 500;
@@ -78,7 +83,7 @@ const REFERENCE_STATUS_KEYS = ["pending", "accepted", "rejected", "archived"] as
 const NEWSROOM_MESSAGE_FEED_QUERY = `
   query ListMessagesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelMessageFilterInput) {
     listMessagesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
+      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
       nextToken
     }
   }
@@ -137,7 +142,7 @@ const CREATE_SEMANTIC_RELATION_MUTATION = `
 const LIST_MESSAGES_BY_THREAD_AND_SEQUENCE_QUERY = `
   query ListMessagesByThreadAndSequence($threadId: ID!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
     listMessagesByThreadAndSequence(threadId: $threadId, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
-      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
+      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
       nextToken
     }
   }
@@ -146,7 +151,7 @@ const LIST_MESSAGES_BY_THREAD_AND_SEQUENCE_QUERY = `
 const LIST_MESSAGES_BY_KIND_AND_CREATED_AT_QUERY = `
   query ListMessagesByKindAndCreatedAt($messageKind: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
     listMessagesByKindAndCreatedAt(messageKind: $messageKind, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
-      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
+      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
       nextToken
     }
   }
@@ -155,7 +160,7 @@ const LIST_MESSAGES_BY_KIND_AND_CREATED_AT_QUERY = `
 const GET_MESSAGE_QUERY = `
   query GetMessage($id: ID!) {
     getMessage(id: $id) {
-      id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey
+      id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey
     }
   }
 `;
@@ -220,40 +225,7 @@ const UPDATE_MESSAGE_THREAD_MUTATION = `
   }
 `;
 
-const CREATE_MESSAGE_MUTATION = `
-  mutation CreateMessage($input: CreateMessageInput!) {
-    createMessage(input: $input) {
-      id
-      messageKind
-      messageDomain
-      status
-      summary
-      source
-      importRunId
-      authorSub
-      authorUserProfileId
-      authorLabel
-      threadId
-      parentMessageId
-      sequenceNumber
-      role
-      messageType
-      content
-      semanticLayer
-      searchVisibility
-      responseTarget
-      responseStatus
-      responseOwner
-      responseStartedAt
-      responseCompletedAt
-      responseError
-      metadata
-      createdAt
-      updatedAt
-      newsroomFeedKey
-    }
-  }
-`;
+const POST_MESSAGE_SELECTION = "id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey";
 
 const UPDATE_MESSAGE_MUTATION = `
   mutation UpdateMessage($input: UpdateMessageInput!) {
@@ -268,6 +240,9 @@ const UPDATE_MESSAGE_MUTATION = `
       authorSub
       authorUserProfileId
       authorLabel
+      editedAt
+      deletedAt
+      deletedBySub
       threadId
       parentMessageId
       sequenceNumber
@@ -302,7 +277,7 @@ const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
 const NEWSROOM_REFERENCE_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -311,7 +286,7 @@ const NEWSROOM_REFERENCE_FEED_QUERY = `
 const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndImportedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndImportedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -320,7 +295,7 @@ const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
 const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
   query ListReferencesByCurationStatusAndUpdatedAt($curationStatus: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByCurationStatusAndUpdatedAt(curationStatus: $curationStatus, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -329,7 +304,7 @@ const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
   query ListReferencesByReviewedFeedAndUpdatedAt($reviewedFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByReviewedFeedAndUpdatedAt(reviewedFeedKey: $reviewedFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -338,7 +313,7 @@ const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_FALLBACK_QUERY = `
   query ListReferencesFallback($limit: Int, $nextToken: String) {
     listReferences(limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt }
       nextToken
     }
   }
@@ -471,7 +446,7 @@ const MODEL_ATTACHMENTS_BY_OWNER_QUERY = `
 
 /** Matches Reference model fields in amplify/data/resource.ts (no metadata on Reference). */
 const REFERENCE_RECORD_GRAPHQL_FIELDS =
-  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt";
+  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey discoveredByMonitorId updatedAt";
 
 const LIST_REFERENCES_BY_LINEAGE_AND_VERSION_QUERY = `
   query ListReferencesByLineageAndVersion($lineageId: ID!, $limit: Int, $nextToken: String) {
@@ -1423,7 +1398,7 @@ export async function createSectionForumThreadRecord(input: {
  * Appends one Message to a thread: the next sequence number, the Message, then the thread's count and last Message. The Message id
  * derives from the sequence number, so a create that loses a race for the number collides and retries with the next one.
  */
-async function appendMessageToThread(thread: MessageThreadRecord, build: (sequenceNumber: number, now: string) => MessageRecord): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
+async function appendMessageToThread(thread: MessageThreadRecord, build: (sequenceNumber: number, now: string) => MessageRecord, threadFields: { summary?: string; metadata?: string } = {}): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
   const threadId = thread.id;
   let now = new Date().toISOString();
   let built: MessageRecord | null = null;
@@ -1434,10 +1409,12 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
       // `createdAt` is part of the composite sort key of messagesByResponseTargetStatusCreatedAt, so AppSync refuses a Message that
       // sets it without `responseStatus`. A person's message waits on no responder: COMPLETED, as the Python message contract writes.
       built = { responseStatus: "COMPLETED", ...build(sequenceNumber, now) };
-      return runGraphql<{ createMessage?: MessageRecord | null }>(CREATE_MESSAGE_MUTATION, { input: built });
+      // The backend stamps the author from the signed-in identity (postMessage); nothing here names one.
+      const args = postMessageArguments(built as unknown as Record<string, unknown>);
+      return runGraphql<{ postMessage?: MessageRecord | null }>(postMessageMutation(args, POST_MESSAGE_SELECTION), args);
     },
   });
-  const createdMessage = normalizeMessageRecord(created.createMessage ?? built!);
+  const createdMessage = normalizeMessageRecord(created.postMessage ?? built!);
   const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(
     UPDATE_MESSAGE_THREAD_MUTATION,
     {
@@ -1447,11 +1424,12 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
         lastMessageId: createdMessage.id,
         lastMessageAt: createdMessage.createdAt,
         updatedAt: now,
+        ...threadFields,
       },
     },
   );
   return {
-    thread: normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, updatedAt: now }),
+    thread: normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, ...threadFields, updatedAt: now }),
     message: createdMessage,
   };
 }
@@ -1493,7 +1471,7 @@ export async function appendForumThreadMessageRecord(input: {
   }));
 }
 
-type ConversationAuthor = { sub: string | null; label: string };
+type ConversationAuthor = { sub: string | null; label: string; userProfileId: string | null; isAdmin: boolean };
 
 async function currentConversationAuthor(): Promise<ConversationAuthor> {
   const snapshot = await loadReaderSessionSnapshot();
@@ -1505,7 +1483,50 @@ async function currentConversationAuthor(): Promise<ConversationAuthor> {
   } catch {
     sub = null;
   }
-  return { sub, label: snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor" };
+  const profile = await currentUserProfile();
+  // The author's name travels on the message (other editors cannot read profiles): their display name, else the session's label.
+  const sessionLabel = snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor";
+  return { sub, label: profile.displayName || sessionLabel, userProfileId: profile.id, isAdmin: snapshot.groups.some((group) => group.trim().toLowerCase() === "admin") };
+}
+
+let userProfileLookup: Promise<{ id: string | null; displayName: string | null }> | null = null;
+/** The signed-in person's profile id and display name (their own profile is readable by them), read once per page load. A failed read is not kept, and does not stop a post. */
+function currentUserProfile(): Promise<{ id: string | null; displayName: string | null }> {
+  userProfileLookup ??= (async () => {
+    const resolution = await resolveReaderSettings();
+    const id = resolution.userProfileId ?? null;
+    if (!id) return { id: null, displayName: null };
+    const names = await loadUserProfileNames([id]);
+    return { id, displayName: names.get(id) ?? null };
+  })().catch(() => { userProfileLookup = null; return { id: null, displayName: null }; });
+  return userProfileLookup;
+}
+
+/** Who is looking at a conversation: their sub, and whether they are an admin. Decided from the session, never from a Message. */
+export async function loadConversationViewer(): Promise<ConversationViewer> {
+  const author = await currentConversationAuthor();
+  return { sub: author.sub, isAdmin: author.isAdmin };
+}
+
+/** Display names by profile id, in one request. A profile this person may not read is left out and its Messages keep the saved label. */
+export async function loadUserProfileNames(profileIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(profileIds.filter(Boolean))];
+  const names = new Map<string, string>();
+  if (!ids.length) return names;
+  const query = `query UserProfileNames { ${ids.map((id, index) => `p${index}: getUserProfile(id: ${JSON.stringify(id)}) { id displayName }`).join(" ")} }`;
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as { graphql: (options: Record<string, unknown>) => Promise<{ data?: Record<string, { id?: string; displayName?: string | null } | null> | null }> };
+  let data: Record<string, { id?: string; displayName?: string | null } | null> | null | undefined;
+  try {
+    data = (await client.graphql({ query, authMode: USER_POOL_AUTH_MODE })).data;
+  } catch (failure) {
+    // Some of the profiles are refused: the rest of the answer is still good.
+    data = (failure as { data?: typeof data } | null)?.data;
+  }
+  for (const profile of Object.values(data ?? {})) {
+    if (profile?.id && profile.displayName?.trim()) names.set(profile.id, profile.displayName.trim());
+  }
+  return names;
 }
 
 async function findConversationThread(anchorKey: string): Promise<MessageThreadRecord | null> {
@@ -1539,6 +1560,7 @@ export async function ensureConversationThread(anchor: ConversationAnchor, autho
         primaryAnchorLineageId: lineageId,
         primaryAnchorKey: anchorKey,
         createdBySub: author?.sub ?? null,
+        createdByUserProfileId: author?.userProfileId ?? null,
         createdByLabel: author?.label ?? "editor",
         messageCount: 0,
         lastMessageId: null,
@@ -1559,9 +1581,14 @@ function toConversationMessage(record: MessageRecord): ConversationMessage {
     id: record.id,
     parentMessageId: record.parentMessageId ?? null,
     authorLabel: record.authorLabel ?? "",
-    content: record.content ?? record.body ?? "",
+    authorSub: record.authorSub ?? null,
+    authorUserProfileId: record.authorUserProfileId ?? null,
+    content: record.status === "deleted" ? "" : record.content ?? record.body ?? "",
     createdAt: record.createdAt,
     sequenceNumber: Number(record.sequenceNumber ?? 0),
+    editedAt: record.editedAt ?? null,
+    deleted: record.status === "deleted",
+    deletedAt: record.deletedAt ?? null,
   };
 }
 
@@ -1572,7 +1599,7 @@ export async function loadConversationMessages(anchor: ConversationAnchor): Prom
   const thread = await findConversationThread(anchorKey);
   if (!thread) return [];
   const records = await listMessagesByThreadId(thread.id, 500);
-  return records.filter((record) => record.status !== "deleted").map(toConversationMessage);
+  return records.map(toConversationMessage);
 }
 
 /** How many Messages each Reference has, from the Reference conversation threads alone (no query per card). Keyed by lineage id. */
@@ -1608,7 +1635,6 @@ export async function appendConversationMessage(input: {
     status: "active",
     summary: content.slice(0, 120),
     source: "newsroom.conversation",
-    authorSub: author.sub,
     authorLabel: author.label,
     threadId: thread.id,
     parentMessageId: input.parentMessageId?.trim() || null,
@@ -1620,7 +1646,7 @@ export async function appendConversationMessage(input: {
     createdAt: now,
     updatedAt: now,
     newsroomFeedKey: CONVERSATION_FEED_KEY,
-  }));
+  }), { summary: conversationPreviewLine(content), metadata: threadMetadataWithLastAuthor(thread.metadata, author.label) });
   let relationError: string | null = null;
   if (input.anchor.kind !== "none") {
     try {
@@ -1644,12 +1670,14 @@ export async function loadConversationThreadPage(threadKind: string, nextToken: 
 /** Every Message in a conversation thread, oldest first. */
 export async function loadConversationThreadMessages(threadId: string): Promise<ConversationMessage[]> {
   const records = await listMessagesByThreadId(threadId, 500);
-  return records.filter((record) => record.status !== "deleted").map(toConversationMessage);
+  return records.map(toConversationMessage);
 }
 
 /** Starts a conversation about nothing but itself: its own thread, and its first Message. */
-export async function startUnattachedConversation(body: string): Promise<{ message: ConversationMessage; thread: MessageThreadRecord }> {
+export async function startUnattachedConversation(title: string, body: string): Promise<{ message: ConversationMessage; thread: MessageThreadRecord }> {
   const content = String(body || "").trim();
+  const heading = String(title || "").trim();
+  if (!heading) throw new Error("Give the conversation a title.");
   if (!content) throw new Error("Write something to post.");
   const author = await currentConversationAuthor();
   const now = new Date().toISOString();
@@ -1658,8 +1686,9 @@ export async function startUnattachedConversation(body: string): Promise<{ messa
     id,
     threadKind: GENERAL_CONVERSATION_KIND,
     status: "active",
-    title: content.split("\n")[0].slice(0, 80),
+    title: heading.slice(0, 120),
     createdBySub: author.sub,
+    createdByUserProfileId: author.userProfileId,
     createdByLabel: author.label,
     messageCount: 0,
     lastMessageId: null,
@@ -1673,6 +1702,62 @@ export async function startUnattachedConversation(body: string): Promise<{ messa
   const saved = normalizeThreadRecord(created.createMessageThread ?? thread);
   const result = await appendConversationMessage({ anchor: { kind: "none" }, body: content, thread: saved });
   return { message: result.message, thread: result.thread };
+}
+
+const GET_MESSAGE_THREAD_QUERY = `
+  query GetMessageThread($id: ID!) {
+    getMessageThread(id: $id) {
+      id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey
+    }
+  }
+`;
+
+const MESSAGE_ACTION_SELECTION = "id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey";
+
+/** The author changes the text of their own Message. The backend (editMessage) checks the stored author against the signed-in user and records when. */
+export async function editConversationMessage(messageId: string, body: string): Promise<ConversationMessage> {
+  const content = String(body || "").trim();
+  if (!content) throw new Error("A message cannot be empty.");
+  const updated = await runGraphql<{ editMessage?: MessageRecord | null }>(
+    `mutation EditMessage($id: ID!, $content: String!, $summary: String) { editMessage(id: $id, content: $content, summary: $summary) { ${MESSAGE_ACTION_SELECTION} } }`,
+    { id: messageId, content, summary: content.slice(0, 120) },
+  );
+  if (!updated.editMessage) throw new Error("The message was not saved.");
+  return toConversationMessage(normalizeMessageRecord(updated.editMessage));
+}
+
+/**
+ * Deletes a Message softly: it stays (so its replies keep their place) marked deleted, with when and by whom. Nothing is removed.
+ * An author deletes their own (deleteOwnMessage); an admin deleting someone else's moderates it (moderateMessage). The backend decides.
+ */
+export async function deleteConversationMessage(messageId: string, moderate = false): Promise<ConversationMessage> {
+  const field = moderate ? "moderateMessage" : "deleteOwnMessage";
+  const updated = await runGraphql<Record<string, MessageRecord | null | undefined>>(
+    `mutation DeleteMessage($id: ID!) { ${field}(id: $id) { ${MESSAGE_ACTION_SELECTION} } }`,
+    { id: messageId },
+  );
+  const record = updated[field];
+  if (!record) throw new Error("The message was not deleted.");
+  return toConversationMessage(normalizeMessageRecord(record));
+}
+
+/** One conversation thread by id (a linked address), or null when there is none or it was removed. */
+export async function loadConversationThread(threadId: string): Promise<MessageThreadRecord | null> {
+  const response = await runGraphql<{ getMessageThread?: MessageThreadRecord | null }>(GET_MESSAGE_THREAD_QUERY, { id: threadId });
+  const thread = response.getMessageThread ? normalizeThreadRecord(response.getMessageThread) : null;
+  return thread && thread.status !== "deleted" ? thread : null;
+}
+
+/** Gives a conversation a new title. Nothing else about the thread changes. */
+export async function renameConversationThread(thread: MessageThreadRecord, title: string): Promise<MessageThreadRecord> {
+  const next = String(title || "").trim();
+  if (!next) throw new Error("A title cannot be empty.");
+  // renameThread (the backend): only the person who started the conversation, or an admin.
+  const updated = await runGraphql<{ renameThread?: MessageThreadRecord | null }>(
+    `mutation RenameThread($id: ID!, $title: String!) { renameThread(id: $id, title: $title) { id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey } }`,
+    { id: thread.id, title: next.slice(0, 120) },
+  );
+  return normalizeThreadRecord(updated.renameThread ?? { ...thread, title: next.slice(0, 120) });
 }
 
 /** The title and editorial stage of each Story, by lineage id. A Story that cannot be read has no entry. */

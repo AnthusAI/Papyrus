@@ -513,10 +513,15 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
     }
     if (!editor) {
       return (
-        <div aria-label="Loading article" className="space-y-5" role="status">
-          <div className="h-8 w-2/3 rounded bg-muted" />
-          <div className="grid gap-4 sm:grid-cols-2"><div className="h-12 rounded bg-muted" /><div className="h-12 rounded bg-muted" /></div>
-          <div className="h-64 rounded-xl border bg-card p-4"><div className="h-4 w-5/6 rounded bg-muted" /><div className="mt-3 h-4 w-3/4 rounded bg-muted" /></div>
+        // The same blocks, in the same order and heights, as the loaded editor (toolbar, then fields, tabs and the preview card),
+        // so nothing moves when the article arrives. The heights live in newsroom-organizer.css (data-skeleton-*).
+        <div aria-label="Loading article" aria-busy="true" className="space-y-4" data-newsroom-article-skeleton role="status">
+          <div className="rounded-md bg-muted" data-skeleton-toolbar />
+          <div className="grid gap-6">
+            <div className="rounded-md bg-muted" data-skeleton-fields />
+            <div className="h-10 w-72 max-w-full rounded-md bg-muted" data-skeleton-tabs />
+            <div className="rounded-xl bg-muted" data-skeleton-preview />
+          </div>
         </div>
       );
     }
@@ -568,6 +573,7 @@ export function NewsroomArticleEditor({ articleId, demo, embedded = false }: { a
               <Badge data-newsroom-article-version variant="outline">{`Version ${editor.versionNumber}`}</Badge>
             ) : null}
             <Badge
+              className="min-w-[8.5rem] justify-center"
               data-newsroom-article-validity={validation.status}
               variant={validation.status === "valid" ? "secondary" : invalid ? "outline" : "muted"}
             >

@@ -10,21 +10,33 @@
   "parent": "PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f5eea6eb-26bd-4c40-825d-6302cbcb304d",
+      "author": "home",
+      "text": "Requested by Ryan for Claude through Kanbus (2026-10-30). This filing authorizes issue records only; implementation and any live identity/backend changes are subsequent work. No production login, deployment, IAM changes, secrets in chat, or direct message to Claude. Dot must operate from cloud/headless Linux without a Mac or AWS CLI. Optional shared auth libraries must not combine the two CLI products. Write executable behavioral specifications before implementation; use fake providers/stores in automated tests, and separately record any approved live evidence.\n\nAdditive acceptance scope; retain current owner/status and completed macOS work. Remote-login sibling: PPY-5a3624d4-4f1a-4eee-9bb6-12e575ec3cad.\n\nExtend secure credential storage to Linux, including a documented usable backend in a headless cloud runtime without desktop session/D-Bus assumptions. Identify install/unlock/persistence requirements and behavior when the backend is absent, locked or ephemeral. Fail closed with actionable diagnostics, never plaintext fallback or a Mac dependency. Prefer Windows support as well; implement Windows Credential Manager or an equivalent approved OS store, or explicitly track the remaining Windows gap without claiming support. Preserve existing macOS Keychain keys and sessions.\n\nKeep issuer/client/person/publication/account/endpoint bindings, multi-site registry migration, atomic secret replacement and refresh rotation. Replace Unix-only fcntl locking where needed with cross-platform process locking; no global lock that unnecessarily blocks unrelated sites. Test concurrent refresh and logout, crashes, permissions/symlink refusal, locked/unavailable stores, token redaction and fresh child processes on each supported OS. Logout attempts local deletion and remote revocation, reports partial/offline failures honestly, and does not silently sign out unrelated sites or fall back to IAM.\n\nFeature: Portable secure sessions\n  Scenario: Headless Linux continuation\n    Given an approved secure backend and two publication sessions on Linux without a desktop or AWS CLI\n    When a fresh CLI process renews one session\n    Then it persists rotated secrets securely and leaves the other binding intact\n  Scenario: Unavailable store\n    Given secure storage is locked or unavailable\n    When login or renewal needs to save a secret\n    Then it fails with recovery guidance and writes no plaintext credential\n  Scenario: Existing Mac sessions survive\n    Given a pre-upgrade macOS Keychain session\n    When the updated CLI uses it\n    Then the existing binding renews without credential migration through chat\n\nVerified starting points: docs/cli-login.md documents macOS-only support and headless failure; src/papyrus_content/cli_user_auth.py contains KeychainStore and fcntl locks; src/papyrus_content/macos_keychain.py; features_backend/cli-user-auth.feature. Update these docs and platform tests as part of implementation.",
+      "created_at": "2026-10-30T09:28:52.047698Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "Cloud CLI issue filing"
+      }
+    }
+  ],
   "created_at": "2026-10-19T10:38:03.602906Z",
-  "updated_at": "2026-10-19T10:44:22.253960Z",
+  "updated_at": "2026-10-30T09:28:52.047932Z",
   "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {
-    "source": "shared",
-    "project_label": "PPY"
-  },
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
-    "name": "ChatGPT",
-    "settings": {}
+    "name": "ChatGPT"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
   },
   "agent_assignment": null
 }

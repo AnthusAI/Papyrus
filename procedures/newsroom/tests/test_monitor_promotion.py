@@ -19,10 +19,7 @@ ACTOR = "papyrus-cli"
 
 
 class Backend(FakeAuthoringClient):
-    """The in-memory backend with the indexed relation lookup the record loader uses."""
-
-    def list_semantic_relations_by_object_state(self, state):
-        return [row for row in self.tables.get("SemanticRelation", {}).values() if row.get("objectStateKey") == state]
+    """The in-memory backend; a monitor record is read from its Reference alone."""
 
 
 def delivered(model_id="org/tuned", created="2026-10-14T08:00:00Z", **overrides) -> Backend:
@@ -37,7 +34,7 @@ def delivered(model_id="org/tuned", created="2026-10-14T08:00:00Z", **overrides)
 
 def record_in(client: Backend) -> MonitorRecord:
     [row] = client.list_records("Reference")
-    record, missing = record_of(client, row)
+    record, missing = record_of(row)
     assert not missing
     return record
 

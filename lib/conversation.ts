@@ -21,9 +21,52 @@ export type ConversationMessage = {
   content: string;
   createdAt: string;
   sequenceNumber: number;
+  /** The sub of the person who wrote it: only they can edit it. */
+  authorSub?: string | null;
+  /** Their profile, where their display name lives. */
+  authorUserProfileId?: string | null;
+  /** When the author last changed the text. */
+  editedAt?: string | null;
+  /** A deleted Message keeps its place (replies stay under it) but has no text. */
+  deleted?: boolean;
+  deletedAt?: string | null;
   /** True while an optimistic Message waits for the save. */
   pending?: boolean;
 };
+
+/** Who is looking: what they may change is decided from this (an author edits their own; an admin removes anyone's). */
+export type ConversationViewer = { sub: string | null; isAdmin: boolean };
+
+export const NO_VIEWER: ConversationViewer = { sub: null, isAdmin: false };
+
+/** Only the author edits a Message, and not one that is deleted or still being saved. */
+export function canEditMessage(viewer: ConversationViewer | undefined, message: ConversationMessage): boolean {
+  return Boolean(viewer?.sub && message.authorSub && message.authorSub === viewer.sub && !message.deleted && !message.pending);
+}
+
+/** The author deletes their own; an admin deletes anyone's. */
+export function canDeleteMessage(viewer: ConversationViewer | undefined, message: ConversationMessage): boolean {
+  if (!viewer || message.deleted || message.pending) return false;
+  return viewer.isAdmin || Boolean(viewer.sub && message.authorSub && message.authorSub === viewer.sub);
+}
+
+/** Only the person who started a conversation, or an admin, renames it. */
+export function canRenameThread(viewer: ConversationViewer | undefined, thread: { createdBySub?: string | null }): boolean {
+  if (!viewer) return false;
+  return viewer.isAdmin || Boolean(viewer.sub && thread.createdBySub && thread.createdBySub === viewer.sub);
+}
+
+/**
+ * The name to show. The label saved with the Message is the author's display name (it travels with the Message, because other
+ * editors cannot read profiles); an older Message saved an email there, so a profile name, when it can be read, comes before an
+ * email's first part.
+ */
+export function messageAuthorName(message: Pick<ConversationMessage, "authorLabel" | "authorUserProfileId">, names?: ReadonlyMap<string, string>): string {
+  const label = String(message.authorLabel ?? "").trim();
+  if (label && !label.includes("@")) return label;
+  const profileName = message.authorUserProfileId ? names?.get(message.authorUserProfileId)?.trim() : "";
+  return profileName || conversationAuthorName(label);
+}
 
 export type ConversationReply = { message: ConversationMessage; answers: string | null };
 export type ConversationRoot = { message: ConversationMessage; replies: ConversationReply[] };
@@ -75,7 +118,7 @@ export function conversationAuthorName(label: string | null | undefined): string
  * Top-level Messages in order, each with its replies. A reply to a reply stays flat under the same root and says who it answers.
  * A reply whose parent is missing is shown as a top-level Message rather than lost.
  */
-export function buildConversationTree(messages: ReadonlyArray<ConversationMessage>): ConversationRoot[] {
+export function buildConversationTree(messages: ReadonlyArray<ConversationMessage>, nameOf: (message: ConversationMessage) => string = (message) => conversationAuthorName(message.authorLabel)): ConversationRoot[] {
   const sorted = [...messages].sort((a, b) => a.sequenceNumber - b.sequenceNumber || a.createdAt.localeCompare(b.createdAt));
   const byId = new Map(sorted.map((message) => [message.id, message]));
   const rootOf = (message: ConversationMessage): string => {
@@ -95,7 +138,7 @@ export function buildConversationTree(messages: ReadonlyArray<ConversationMessag
     const root = roots.get(rootOf(message));
     if (!root || root.message.id === message.id) continue;
     const parent = message.parentMessageId ? byId.get(message.parentMessageId) : undefined;
-    root.replies.push({ message, answers: parent && parent.id !== root.message.id ? conversationAuthorName(parent.authorLabel) : null });
+    root.replies.push({ message, answers: parent && parent.id !== root.message.id ? nameOf(parent) : null });
   }
   return [...roots.values()];
 }
@@ -110,6 +153,34 @@ export function conversationAge(createdAt: string, now: number): string {
   const hours = Math.round(minutes / 60);
   if (hours < 24) return `${hours}h`;
   return `${Math.round(hours / 24)}d`;
+}
+
+/** The first line of a message, trimmed to fit a card: what a thread shows as its latest message. */
+export function conversationPreviewLine(content: string | null | undefined, max = 140): string {
+  const line = String(content ?? "").split("\n").map((part) => part.trim()).find(Boolean) ?? "";
+  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
+}
+
+function threadMetadataObject(metadata: unknown): Record<string, unknown> {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) return metadata as Record<string, unknown>;
+  if (typeof metadata !== "string" || !metadata.trim()) return {};
+  try {
+    const parsed = JSON.parse(metadata);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The thread's metadata (a JSON string) with the author of its latest message recorded, so a list can show who spoke last without reading messages. */
+export function threadMetadataWithLastAuthor(metadata: unknown, authorLabel: string): string {
+  return JSON.stringify({ ...threadMetadataObject(metadata), lastAuthorLabel: authorLabel });
+}
+
+/** Who wrote the latest message, as recorded on the thread; null for a thread that predates the record. */
+export function threadLastAuthorLabel(metadata: unknown): string | null {
+  const label = threadMetadataObject(metadata).lastAuthorLabel;
+  return typeof label === "string" && label.trim() ? label : null;
 }
 
 export function messageCountLabel(count: number): string {

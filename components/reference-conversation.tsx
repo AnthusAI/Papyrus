@@ -22,6 +22,7 @@ export function ReferenceConversation({ disabledReason = null, lineageId, onCoun
     const timer = window.setInterval(() => setNow(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, []);
+  // A deleted Message stays in the conversation, so it still counts.
   const settled = conversation.messages.filter((message) => !message.pending).length;
   useEffect(() => {
     if (conversation.state === "ready") onCount?.(lineageId, settled);
@@ -30,13 +31,17 @@ export function ReferenceConversation({ disabledReason = null, lineageId, onCoun
   return (
     <div data-reference-conversation={lineageId}>
       <ConversationThread
+        authorNames={conversation.names}
         disabledReason={disabledReason}
         error={conversation.error}
         messages={conversation.messages}
         now={now}
+        onDelete={conversation.remove}
+        onEdit={conversation.edit}
         onPost={conversation.post}
         onRetry={conversation.retry}
         state={conversation.state}
+        viewer={conversation.viewer}
       />
     </div>
   );

@@ -225,10 +225,6 @@ def build_reference_catalog_registration_records(catalog: dict[str, Any], option
                 "importRunId": import_run_id,
                 "now": now,
                 "actor": options.get("actor") or "Papyrus content CLI",
-                "createIngestionRationaleMessage": bool(
-                    options.get("createIngestionRationaleMessage")
-                    or options.get("create_ingestion_rationale_message")
-                ),
             },
         )
         records.extend(item_records)
@@ -313,8 +309,6 @@ def reference_records(item: dict[str, Any], context: dict[str, Any]) -> list[dic
         reference,
         *reference_attachment_records(item, reference["expected"], context),
     ]
-    if context.get("createIngestionRationaleMessage"):
-        records.extend(reference_message_records(item, reference["expected"], context))
     return records
 
 
@@ -412,51 +406,6 @@ def reference_attachment_records(item: dict[str, Any], reference: dict[str, Any]
             )
         )
     return records
-
-
-def reference_message_records(item: dict[str, Any], reference: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
-    rationale = ingestion_rationale_from(item)
-    if not rationale:
-        return []
-    message = message_record(
-        {
-            "messageKind": "ingestion_rationale",
-            "messageDomain": "commentary",
-            "body": rationale,
-            "summary": reference.get("title") or reference.get("externalItemId") or "Ingestion rationale",
-            "source": "biblicus-import",
-            "importRunId": context["importRunId"],
-            "createdAt": context["now"],
-            "metadata": {
-                "externalItemId": reference.get("externalItemId"),
-                "corpusId": reference.get("corpusId"),
-            },
-        }
-    )
-    return [
-        message,
-        semantic_relation_record(
-            {
-                "predicate": "ingestion_rationale",
-                "subjectKind": "message",
-                "subjectId": message["expected"]["id"],
-                "subjectLineageId": message["expected"]["id"],
-                "subjectVersionNumber": 1,
-                "objectKind": "reference",
-                "objectId": reference["id"],
-                "objectLineageId": reference["lineageId"],
-                "objectVersionNumber": reference.get("versionNumber"),
-                "rank": 1,
-                "importRunId": context["importRunId"],
-                "importedAt": context["now"],
-                "metadata": {
-                    "messageKind": "ingestion_rationale",
-                    "externalItemId": reference.get("externalItemId"),
-                    "corpusId": reference.get("corpusId"),
-                },
-            }
-        ),
-    ]
 
 
 def message_record(input_payload: dict[str, Any]) -> dict[str, Any]:

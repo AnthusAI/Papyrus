@@ -3,14 +3,13 @@ import test from "node:test";
 import type { ReferenceAttachmentRecord, ReferenceRecord } from "../lib/category-repository";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
 import {
-  EARLIER_AFTER_TAUS,
-  MINIMUM_FRESHNESS_EXAMPLES,
   acceptProbability,
   applyFeedOrderSnapshot,
-  groupFeedItems,
-  learnFreshness,
+  buildFeedItems,
+  feedLeadId,
+  orderFeedItems,
   takeFeedOrderSnapshot,
-  partitionReferenceFeed,
+  visibleFeedItems,
 } from "../lib/reference-feed-ranking";
 import { withoutSiteName } from "../lib/newsroom-references";
 import { dekAddsInformation, formatFeedAge, referenceDek, referencePreviewsByLineage, referenceSourceHost } from "../lib/reference-preview";
@@ -41,75 +40,72 @@ test("A prediction becomes a probability that the editor accepts", () => {
   assert.ok(acceptProbability(decision("include", null)) > 0.5 && acceptProbability(decision("include", null)) < 0.8, "an unrecorded confidence is a mild lean");
 });
 
-test("Ranking: strongest Accepts first, no prediction in the middle, strongest Rejects last", () => {
+const items = (references: ReferenceRecord[], decisions?: Map<string, RelevanceDecisionView>) => buildFeedItems(references, decisions);
+
+test("Best bets: strongest Accepts first, no prediction in the middle, strongest Rejects last", () => {
   const references = ["weak-accept", "none", "strong-reject", "strong-accept", "weak-reject"].map((id) => reference(id));
   const decisions = new Map<string, RelevanceDecisionView>([
     ["weak-accept", decision("include", 0.6)], ["strong-accept", decision("include", 0.95)],
     ["weak-reject", decision("exclude", 0.6)], ["strong-reject", decision("exclude", 0.95)],
   ]);
-  const { feed } = partitionReferenceFeed(references, decisions, { now: NOW });
-  assert.deepEqual(ids(feed), ["strong-accept", "weak-accept", "none", "weak-reject", "strong-reject"]);
+  assert.deepEqual(ids(orderFeedItems(items(references, decisions), "best")), ["strong-accept", "weak-accept", "none", "weak-reject", "strong-reject"]);
 });
 
-test("Age pulls a prediction toward uncertain, never to the bottom", () => {
-  // Ten accepted items, each accepted two days after it arrived: tau = 2 / ln 2 days (a half-life of two days).
-  const learned = Array.from({ length: 10 }, (_, index) => reference(`old-${index}`, { curationStatus: "accepted", createdAt: ago(12), curationStatusUpdatedAt: ago(10) }));
-  const fresh = reference("fresh-accept", { createdAt: ago(0.1) });
-  const stale = reference("stale-accept", { createdAt: ago(4) });
-  const staleReject = reference("stale-reject", { createdAt: ago(4) });
-  const freshReject = reference("fresh-reject", { createdAt: ago(0.1) });
+test("Best bets is the Cyclotron's own confidence: age never changes it", () => {
+  const references = [reference("old-strong", { createdAt: ago(400) }), reference("new-weak", { createdAt: ago(0.1) }), reference("new-reject", { createdAt: ago(0.1) }), reference("old-reject", { createdAt: ago(400) })];
   const decisions = new Map<string, RelevanceDecisionView>([
-    ["fresh-accept", decision("include", 0.9)], ["stale-accept", decision("include", 0.9)],
-    ["fresh-reject", decision("exclude", 0.9)], ["stale-reject", decision("exclude", 0.9)],
+    ["old-strong", decision("include", 0.9)], ["new-weak", decision("include", 0.6)], ["new-reject", decision("exclude", 0.9)], ["old-reject", decision("exclude", 0.7)],
   ]);
-  const partition = partitionReferenceFeed([...learned, fresh, stale, staleReject, freshReject], decisions, { now: NOW });
-  assert.ok(Math.abs(partition.freshness.tauDays! - 2 / Math.LN2) < 1e-6, "tau is the median age at acceptance over ln 2");
-  const byId = new Map([...partition.feed, ...partition.earlier].map((item) => [item.lineageId, item]));
-  // After two half-lives (4 days) the 0.9 prediction keeps a quarter of its distance from 0.5.
-  assert.ok(Math.abs(byId.get("stale-accept")!.score - (0.5 + 0.4 * 0.25)) < 1e-6);
-  assert.ok(Math.abs(byId.get("stale-reject")!.score - (0.5 - 0.4 * 0.25)) < 1e-6);
-  assert.deepEqual(ids(partition.feed), ["fresh-accept", "stale-accept", "stale-reject", "fresh-reject"], "a stale Reject ranks above a fresh Reject: decay is toward the middle");
+  const ordered = orderFeedItems(items(references, decisions), "best");
+  assert.deepEqual(ids(ordered), ["old-strong", "new-weak", "old-reject", "new-reject"], "a year-old 90% Accept still outranks a fresh 60% one");
+  assert.equal(ordered[0].probability, 0.9, "no fading");
 });
 
-test("Fewer than ten accepted examples means no decay and no guessed constant", () => {
-  const few = Array.from({ length: MINIMUM_FRESHNESS_EXAMPLES - 1 }, (_, index) => reference(`a${index}`, { curationStatus: "accepted", createdAt: ago(9), curationStatusUpdatedAt: ago(8) }));
-  assert.deepEqual(learnFreshness(few), { tauDays: null, medianAgeDays: null, examples: 9 });
-  const ancient = reference("ancient", { createdAt: ago(400) });
-  const partition = partitionReferenceFeed([...few, ancient], new Map([["ancient", decision("include", 0.9)]]), { now: NOW });
-  assert.equal(partition.earlier.length, 0, "nothing moves to Earlier without a learned tau");
-  assert.equal(partition.feed[0].score, 0.9, "and the score is the probability itself");
+test("Ties in Best bets go to the newest item, then to a stable id order", () => {
+  const references = [reference("b", { createdAt: ago(2) }), reference("a", { createdAt: ago(2) }), reference("c", { createdAt: ago(1) })];
+  assert.deepEqual(ids(orderFeedItems(items(references), "best")), ["c", "a", "b"]);
 });
 
-test("Unrated items older than three tau move to Earlier, still ratable and never dropped", () => {
-  const learned = Array.from({ length: 10 }, (_, index) => reference(`a${index}`, { curationStatus: "accepted", createdAt: ago(6), curationStatusUpdatedAt: ago(5) }));
-  const tau = 1 / Math.LN2;
-  const young = reference("young", { createdAt: ago(EARLIER_AFTER_TAUS * tau - 0.2) });
-  const aged = reference("aged", { createdAt: ago(EARLIER_AFTER_TAUS * tau + 0.2) });
-  const partition = partitionReferenceFeed([...learned, young, aged], undefined, { now: NOW });
-  assert.deepEqual(ids(partition.feed), ["young"]);
-  assert.deepEqual(ids(partition.earlier), ["aged"]);
-  assert.equal(partition.rated.length, 10);
+test("Newest is reverse chronological by arrival, whatever the predictions say", () => {
+  const references = [reference("older", { createdAt: ago(3) }), reference("newest", { createdAt: ago(0.1) }), reference("middle", { createdAt: ago(1) })];
+  const decisions = new Map<string, RelevanceDecisionView>([["older", decision("include", 0.99)], ["newest", decision("exclude", 0.99)]]);
+  assert.deepEqual(ids(orderFeedItems(items(references, decisions), "newest")), ["newest", "middle", "older"]);
+  const tied = [reference("y", { createdAt: ago(1) }), reference("x", { createdAt: ago(1) })];
+  assert.deepEqual(ids(orderFeedItems(items(tied), "newest")), ["x", "y"], "ties are deterministic");
 });
 
-test("A card rated this visit stays in place, and on the next load it is under Rated, most recent first", () => {
-  const references = ["a", "b", "c"].map((id, index) => reference(id, { createdAt: ago(0.1 + index * 0.1) }));
-  const decisions = new Map<string, RelevanceDecisionView>([["a", decision("include", 0.9)], ["b", decision("include", 0.8)], ["c", decision("include", 0.7)]]);
-  const before = partitionReferenceFeed(references, decisions, { now: NOW });
-  assert.deepEqual(ids(before.feed), ["a", "b", "c"]);
-  const rated = references.map((item) => (item.lineageId === "b" ? { ...item, curationStatus: "accepted", curationStatusUpdatedAt: ago(0) } : item));
-  const sameVisit = partitionReferenceFeed(rated, decisions, { now: NOW, visitRated: new Set(["b"]) });
-  assert.deepEqual(ids(sameVisit.feed), ["a", "b", "c"], "same place, now showing the answer");
-  assert.deepEqual(ids(sameVisit.rated), ["b"]);
-  const nextLoad = partitionReferenceFeed(rated, decisions, { now: NOW });
-  assert.deepEqual(ids(nextLoad.feed), ["a", "c"]);
-  const more = rated.map((item) => (item.lineageId === "a" ? { ...item, curationStatus: "rejected", curationStatusUpdatedAt: ago(0.2) } : item));
-  assert.deepEqual(ids(partitionReferenceFeed(more, decisions, { now: NOW }).rated), ["b", "a"], "Rated is most recent first");
+test("Unrated only hides answered items except those answered this visit; Include rated adds them in the active sort", () => {
+  const references = [
+    reference("open", { createdAt: ago(1) }),
+    reference("yes", { createdAt: ago(2), curationStatus: "accepted" }),
+    reference("no", { createdAt: ago(0.5), curationStatus: "rejected" }),
+    reference("gone", { curationStatus: "archived" }),
+  ];
+  const all = items(references);
+  assert.ok(!ids(all).includes("gone"), "archived items are never listed");
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated")), ["open"]);
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "all")), ["no", "open", "yes"]);
+  assert.deepEqual(ids(visibleFeedItems(all, "newest", "unrated", new Set(["yes"]))), ["open", "yes"], "answered this visit: stays");
+  assert.ok(visibleFeedItems(all, "best", "all").find((item) => item.lineageId === "yes")!.rated);
 });
 
-test("Rating one item does not move the others: tau ignores what was rated this visit", () => {
-  const learned = Array.from({ length: 10 }, (_, index) => reference(`a${index}`, { curationStatus: "accepted", createdAt: ago(6), curationStatusUpdatedAt: ago(4) }));
-  const rated = reference("just-rated", { curationStatus: "accepted", createdAt: ago(20), curationStatusUpdatedAt: ago(0) });
-  assert.equal(learnFreshness([...learned, rated], new Set(["just-rated"])).tauDays, learnFreshness(learned).tauDays);
+test("An old unrated item stays in the one list, placed by its original confidence, never dropped, and its rating works", () => {
+  const aged = reference("aged", { createdAt: ago(900) });
+  const young = reference("young", { createdAt: ago(0.1) });
+  const none = reference("none", { createdAt: ago(0.1) });
+  const reject = reference("reject", { createdAt: ago(0.1) });
+  const decisions = new Map<string, RelevanceDecisionView>([["young", decision("include", 0.8)], ["aged", decision("include", 0.9)], ["reject", decision("exclude", 0.7)]]);
+  assert.deepEqual(ids(visibleFeedItems(items([young, aged, none, reject], decisions), "best", "unrated")), ["aged", "young", "none", "reject"]);
+  assert.deepEqual(ids(visibleFeedItems(items([young, aged, none, reject], decisions), "newest", "unrated")).at(-1), "aged", "and last by date");
+  const rated = [young, { ...aged, curationStatus: "accepted", curationStatusUpdatedAt: ago(0) }, none, reject];
+  assert.deepEqual(ids(visibleFeedItems(items(rated, decisions), "best", "unrated", new Set(["aged"]))), ["aged", "young", "none", "reject"], "rated in place");
+});
+
+test("The lead card is the first card unless it is a predicted Reject", () => {
+  const decisions = new Map<string, RelevanceDecisionView>([["r", decision("exclude", 0.9)]]);
+  assert.equal(feedLeadId(orderFeedItems(items([reference("r")], decisions), "best")), undefined);
+  assert.equal(feedLeadId(orderFeedItems(items([reference("n")]), "best")), "n");
+  assert.equal(feedLeadId([]), undefined);
 });
 
 test("Previews come from the preview attachment; the dek falls back to the Reference's own metadata", () => {
@@ -169,17 +165,6 @@ test("The saved copy and the session display survive a return visit, expire, and
   }
 });
 
-test("Sections: Top predictions are the Accepts at least half as strong as the best, Least likely the predicted Rejects", () => {
-  const ids3 = ["a", "b", "c", "d", "e", "f"];
-  const decisions = new Map<string, RelevanceDecisionView>([
-    ["a", decision("include", 0.95)], ["b", decision("include", 0.8)], ["c", decision("include", 0.65)], ["e", decision("exclude", 0.6)], ["f", decision("exclude", 0.9)],
-  ]);
-  const groups = groupFeedItems(partitionReferenceFeed(ids3.map((id) => reference(id)), decisions, { now: NOW }).feed);
-  assert.deepEqual(groups.map((group) => [group.key, ids(group.items)]), [["top", ["a", "b"]], ["more", ["c", "d"]], ["least", ["e", "f"]]]);
-  assert.deepEqual(groupFeedItems(partitionReferenceFeed([reference("x")], undefined, { now: NOW }).feed).map((group) => group.key), ["more"], "no prediction at all is one plain section");
-  assert.deepEqual(groupFeedItems([]), []);
-});
-
 test("A title drops the site name tacked on its end, and only that", () => {
   assert.equal(withoutSiteName("Auditing employment algorithms for discrimination | Brookings", "www.brookings.edu"), "Auditing employment algorithms for discrimination");
   assert.equal(withoutSiteName("How an algorithm denied food to the poor | Poverty and Development | Al Jazeera", "www.aljazeera.com"), "How an algorithm denied food to the poor", "with a pipe the section name goes too");
@@ -230,23 +215,35 @@ test("Structured extraction (GROBID fields) becomes plain label and value rows",
   assert.deepEqual(structuredRows([attach("a", "source")]), []);
 });
 
-test("The feed order is taken once and kept: new predictions re-rank nothing, new items are counted, not shuffled in", () => {
+test("The feed order is taken once and kept, in both sorts: new predictions re-rank nothing, new items are counted, not shuffled in", () => {
   const references = ["a", "b", "c", "d"].map((id, index) => reference(id, { createdAt: ago(0.1 + index * 0.1) }));
   const first = new Map<string, RelevanceDecisionView>([["a", decision("include", 0.95)], ["b", decision("include", 0.8)], ["c", decision("exclude", 0.9)]]);
-  const snapshot = takeFeedOrderSnapshot(partitionReferenceFeed(references, first, { now: NOW }));
-  assert.deepEqual(snapshot.feed, ["a", "b", "d", "c"]);
+  const snapshot = takeFeedOrderSnapshot(items(references, first));
+  assert.deepEqual(snapshot.best, ["a", "b", "d", "c"]);
+  assert.deepEqual(snapshot.newest, ["a", "b", "c", "d"]);
   // The predictions change completely, a card is rated, and a new item arrives.
   const later = new Map<string, RelevanceDecisionView>([["a", decision("exclude", 0.99)], ["b", decision("exclude", 0.9)], ["d", decision("include", 0.99)]]);
-  const rated = [...references.map((item) => (item.lineageId === "b" ? { ...item, curationStatus: "accepted", curationStatusUpdatedAt: ago(0) } : item)), reference("e")];
-  const live = partitionReferenceFeed(rated, later, { now: NOW, visitRated: new Set(["b"]) });
-  assert.notDeepEqual(ids(live.feed), snapshot.feed, "a live re-rank would have reshuffled the feed");
-  const stable = applyFeedOrderSnapshot(snapshot, live);
-  assert.deepEqual(ids(stable.partition.feed), ["a", "b", "d", "c"], "the order is the snapshot's: nothing moved, the rated card stayed");
-  assert.deepEqual(stable.groups.flatMap((group) => ids(group.items)), ["a", "b", "d", "c"], "so are the sections");
+  const rated = [...references.map((item) => (item.lineageId === "b" ? { ...item, curationStatus: "accepted", curationStatusUpdatedAt: ago(0) } : item)), reference("e", { createdAt: ago(0) })];
+  const live = items(rated, later);
+  assert.notDeepEqual(ids(visibleFeedItems(live, "best", "unrated", new Set(["b"]))), snapshot.best, "a live re-rank would have reshuffled the feed");
+  const stable = applyFeedOrderSnapshot(snapshot, live, "best", "unrated");
+  assert.deepEqual(ids(stable.items), ["a", "b", "d", "c"], "the order is the snapshot's: nothing moved, the rated card stayed");
+  assert.equal(stable.leadId, "a");
   assert.equal(stable.newCount, 1, "the new item is counted for the pill");
-  assert.ok(!ids(stable.partition.feed).includes("e"), "and not shuffled in");
-  const refreshed = applyFeedOrderSnapshot(takeFeedOrderSnapshot(live), live);
-  assert.ok(ids(refreshed.partition.feed).includes("e") && refreshed.newCount === 0, "showing the new items takes a fresh snapshot");
+  assert.ok(!ids(stable.items).includes("e"), "and not shuffled in");
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").items), ["a", "b", "c", "d"], "Newest keeps its own snapshot order too");
+  const refreshed = applyFeedOrderSnapshot(takeFeedOrderSnapshot(live), live, "newest", "unrated");
+  assert.ok(ids(refreshed.items).includes("e") && refreshed.newCount === 0, "showing the new items takes a fresh snapshot");
+  assert.equal(ids(refreshed.items)[0], "e");
+});
+
+test("Include rated adds answered cards from the snapshot, in the active sort, with no re-rank", () => {
+  const references = [reference("open", { createdAt: ago(1) }), reference("done", { createdAt: ago(0.5), curationStatus: "accepted" }), reference("old", { createdAt: ago(5) })];
+  const live = items(references, new Map([["old", decision("include", 0.9)]]));
+  const snapshot = takeFeedOrderSnapshot(live);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "all").items), ["done", "open", "old"]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "best", "all").items), ["old", "done", "open"]);
+  assert.deepEqual(ids(applyFeedOrderSnapshot(snapshot, live, "newest", "unrated").items), ["open", "old"]);
 });
 
 const curation = (body: Record<string, unknown>) => attach("a", "curation", { sortKey: "003-curation", metadata: JSON.stringify({ kind: "reference-curation", ...body }) });

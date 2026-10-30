@@ -62,7 +62,7 @@ REFERENCE_FIELDS = (
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
     "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey "
-    "feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey updatedAt"
+    "discoveredByMonitorId discoveryDetails discoveryRule feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
     "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath "

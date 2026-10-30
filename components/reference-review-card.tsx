@@ -177,7 +177,7 @@ export function ReviewQueueBar({
   return (
     <nav
       aria-label="Review queue"
-      className={cn("sticky bottom-0 z-10 flex shrink-0 items-center gap-2 bg-[var(--feed-card)] px-3 py-2", anchored && "md:fixed md:bottom-0 md:right-0 md:w-[calc(24rem+1rem)] md:pr-7 lg:w-[calc(28rem+1rem)]")}
+      className={cn("sticky bottom-0 z-10 flex shrink-0 items-center gap-2 bg-[var(--feed-card)] px-3 py-2", anchored && "lg:fixed lg:bottom-0 lg:right-0 lg:w-[calc(24rem+1rem)] lg:pr-7 xl:w-[calc(28rem+1rem)]")}
       data-review-queue-anchored={anchored || undefined}
       data-review-queue-bar
     >

@@ -33,6 +33,11 @@ module.exports = {
     require: ["features/step_definitions/reference-editor.steps.js"],
     format: ["summary"],
   },
+  newsroomUxReview: {
+    paths: ["features/newsroom-board-and-proposals.feature"],
+    require: ["features/step_definitions/newsroom-ux-review.steps.js"],
+    format: ["summary"],
+  },
   notificationCenter: {
     paths: ["features/newsroom-notification-center.feature"],
     require: ["features/step_definitions/notification-center.steps.js"],
@@ -48,9 +53,9 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
-  messageOwnerSchema: {
-    paths: ["features/message-owner-schema.feature"],
-    require: ["features/step_definitions/message-owner-schema.steps.js"],
+  messageAuthorEnforced: {
+    paths: ["features/message-author-enforced.feature"],
+    require: ["features/step_definitions/message-author-enforced.steps.js"],
     format: ["summary"],
   },
   messagesPage: {

@@ -4378,8 +4378,8 @@ function AdministrationDeskView({
                 data-active={administrationPanel === "proposals" || undefined}
                 onClick={() => onPanelChange("proposals")}
               >
-                <strong>Proposals</strong>
-                <span>Story drafts and changes that AI proposes</span>
+                <strong>Proposed Stories</strong>
+                <span>Proposed Stories and changes that AI proposes</span>
               </Link>
               {readerPluginEnabled() ? (
                 <Link
@@ -15967,8 +15967,8 @@ function CategorySetPanel({
             <dd>{referenceAttachments.length}</dd>
           </div>
           <div>
-            <dt>Ingestion Rationales</dt>
-            <dd>{messages.filter((message) => message.messageKind === "ingestion_rationale").length}</dd>
+            <dt>Monitor Deliveries</dt>
+            <dd>{references.filter((reference) => Boolean(reference.discoveredByMonitorId)).length}</dd>
           </div>
           <div>
             <dt>Review Links</dt>

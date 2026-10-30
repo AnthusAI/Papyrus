@@ -4,9 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { LoaderIcon } from "lucide-react";
 import { SITE_BRAND } from "../lib/site-brand";
 import { loadFeedSnapshot, type FeedSnapshot } from "../lib/reference-feed-cache";
-import { partitionReferenceFeed, type ReferenceFeedTabKey } from "../lib/reference-feed-ranking";
+import { buildFeedItems, feedLeadId, visibleFeedItems } from "../lib/reference-feed-ranking";
 import { selectCanonicalReferenceRecords } from "../lib/newsroom-references";
 import { ReferenceFeed, ReferenceFeedSkeleton } from "./reference-feed";
+import { useFeedPreferences } from "./use-feed-preferences";
 
 /**
  * What the References page shows while the session and the first reads are still resolving: the real page header at once,
@@ -16,7 +17,7 @@ import { ReferenceFeed, ReferenceFeedSkeleton } from "./reference-feed";
 export function ReferencesPageLoading() {
   const [snapshot, setSnapshot] = useState<FeedSnapshot | null>(null);
   const [checked, setChecked] = useState(false);
-  const [tab, setTab] = useState<ReferenceFeedTabKey>("feed");
+  const { sort, setSort, show, setShow } = useFeedPreferences();
   const [note, setNote] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
   useEffect(() => {
@@ -26,8 +27,9 @@ export function ReferencesPageLoading() {
   const references = useMemo(() => selectCanonicalReferenceRecords(snapshot?.references ?? []), [snapshot]);
   const decisions = useMemo(() => new Map(snapshot?.decisions ?? []), [snapshot]);
   const previews = useMemo(() => new Map(snapshot?.previews ?? []), [snapshot]);
-  const partition = useMemo(() => partitionReferenceFeed(references, decisions, { now }), [references, decisions, now]);
   const noVisitRated = useMemo(() => new Set<string>(), []);
+  const allItems = useMemo(() => buildFeedItems(references, decisions), [references, decisions]);
+  const items = useMemo(() => visibleFeedItems(allItems, sort, show, noVisitRated), [allItems, sort, show, noVisitRated]);
 
   return (
     <div className="space-y-4" data-references-page-loading>
@@ -42,12 +44,16 @@ export function ReferencesPageLoading() {
           now={now}
           onOpen={() => setNote("Opening a reference is available in a moment, once your sign-in is confirmed.")}
           onRate={() => undefined}
-          onTabChange={setTab}
+          onShowChange={setShow}
+          onSortChange={setSort}
           onVisitRated={() => undefined}
-          partition={partition}
+          items={items}
+          leadId={feedLeadId(items)}
+          ratedCount={allItems.filter((item) => item.rated).length}
           previews={previews}
+          show={show}
+          sort={sort}
           stale
-          tab={tab}
           visitRated={noVisitRated}
         />
       ) : (

@@ -243,8 +243,7 @@ class Delivery:
         if pub in self.fail:
             raise RuntimeError("backend unavailable")
         ref = self.references.setdefault((pub, disc["sourceId"]), f"reference-{pub}-{disc['sourceId']}")
-        return {"referenceId": ref, "referenceLineageId": ref.removesuffix("-v1"), "referenceVersion": 1,
-                "provenanceMessageId": "message-1"}
+        return {"referenceId": ref, "referenceLineageId": ref.removesuffix("-v1"), "referenceVersion": 1}
 
 
 def collected_table(feed):

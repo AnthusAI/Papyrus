@@ -22,7 +22,7 @@ export type ProposalFilter = "open" | "draft" | "in_steering" | "editor_review" 
 export type ProposalMove = { label: string; path?: string[]; edit?: "pin" | "unpin" | "hold" | "release"; state?: string };
 
 const STATE_LABELS: Record<string, string> = {
-  draft: "Draft",
+  draft: "Proposed",
   in_steering: "In steering",
   editor_review: "Editor review",
   approved: "Approved",
@@ -31,7 +31,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const KIND_LABELS: Record<string, string> = {
-  story_draft: "Story draft",
+  story_draft: "Proposed Story",
   new_concept: "New concept",
   rename: "Rename",
   merge: "Merge",

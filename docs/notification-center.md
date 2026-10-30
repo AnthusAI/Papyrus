@@ -24,10 +24,10 @@ grid on every card. An editor on the overview should see the same components and
 | `flag` | Other | An open flag | Acknowledge |
 | `concept_proposal` | Other | A proposed taxonomy concept or a reader's proposal | **Stub**: typed, returns nothing yet |
 
-**Order.** Hard gates first, oldest first. Then the interim *value of your input*: `uncertainty x importance x freshness`.
+**Order.** Hard gates first, oldest first. Then the interim *value of your input*: `uncertainty x importance`.
 Uncertainty is `1 - |2P - 1|` with P the Cyclotron's probability that you would Accept (a coin toss is 1, a certainty 0), and 0.5 when the item has no
-prediction. Importance is the item's own priority (a relevance score, or a story or section priority); no source supplies one yet, so it is 1. Freshness is the
-References feed's `exp(-age / tau)`, with tau learned from the age of the References you accepted (none with fewer than 10 examples). The result is interleaved so that no
+prediction. Importance is the item's own priority (a relevance score, or a story or section priority); no source supplies one yet, so it is 1. Age does not
+change the score: the Cyclotron's own confidence is used as it was recorded. The result is interleaved so that no
 more than two items of one type sit in a row while another type waits. The scoring lives in one module behind the `AttentionModel` interface; a future Cyclotron "attention"
 decision replaces `interimAttention` and nothing else changes.
 

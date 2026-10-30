@@ -17,10 +17,17 @@
       "text": "Deferred from stage 1 (PPY-cd2940): (1) console_web_context SYSTEM turns - the Rust console-chat-responder rebuilds model history from them (main.rs:2344, 2878), so moving the page context into the user turn's metadata.console.webUi is a responder change plus shell UI (papyrus-console-shell.tsx:515, 564, 585, 1022); (2) machine-authored forum posts (coverage_theme forum kickoff/refresh/dispatch/rotating-desk + supersede, Tactus MessageThread.append in tactus_runtime.py/newsroom.py) whose idempotency readers (coverage_theme.py ~2942, 3398, 3958-4046) must move to Edition/Assignment; (3) console chat and the human 'stories note' for agents.",
       "created_at": "2026-10-29T23:57:28.444211Z",
       "comment_type": "default"
+    },
+    {
+      "id": "87ecb8ac-365c-498a-b99b-17b32e492dfa",
+      "author": "home",
+      "text": "Deferred from stage 1: console_web_context SYSTEM turns (Rust console-chat-responder rebuilds model history from them, main.rs:2344 and 2878; shell papyrus-console-shell.tsx:515, 564, 585, 1022) and machine-authored forum posts with their idempotency readers (coverage_theme.py forum kickoff, refresh, dispatch, rotating desk and supersede; Tactus MessageThread.append). Also the human stories note CLI path is agent-usable until this stage.",
+      "created_at": "2026-10-30T01:53:21.699505Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-29T23:51:32.270981Z",
-  "updated_at": "2026-10-29T23:57:28.444735Z",
+  "updated_at": "2026-10-30T01:53:21.699843Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

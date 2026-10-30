@@ -197,13 +197,13 @@ const scenarios: Record<string, () => Promise<void>> = {
       await draft(page, "proposal-1").waitFor();
       const first = draft(page, "proposal-1");
       const text = await first.innerText();
-      for (const expected of ["AI draft", "Sparse attention goes open", "Open-weight models are adopting sparse attention", "Closes on 2026-10-30 07:00 UTC if nobody answers", "Accept", "Reject"]) {
+      for (const expected of ["Proposed Story", "Sparse attention goes open", "Open-weight models are adopting sparse attention", "Closes on 2026-10-30 07:00 UTC if nobody answers", "Accept", "Reject"]) {
         assert.ok(text.includes(expected), `draft 1 card shows: ${expected}`);
       }
       assert.equal(await page.locator("[data-review-draft]").count(), 3, "a request covering three drafts is three cards");
       assert.equal(await page.locator("[data-review-drafts]").count(), 0, "no batch container");
       const body = await page.locator("body").innerText();
-      assert.ok(body.includes("What needs me?") && body.includes("3 drafts waiting for you"), "the header counts drafts, not batches");
+      assert.ok(body.includes("What needs me?") && body.includes("3 Proposed Stories waiting for you"), "the header counts drafts, not batches");
       for (const word of WORDS_GONE) assert.ok(!body.includes(word), `retired wording gone: ${word}`);
       assert.equal(await page.locator("[data-review-draft] [data-review-choice]").count(), 6, "Accept and Reject on every draft");
       assert.equal(await page.locator("[data-review-draft] [data-review-row=cyclotron]").count(), 0, "no prediction row for a draft");
@@ -223,8 +223,16 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await pane.locator('a[href="https://example.org/sparse-attention"]').count(), 1, "a citation chip links to its address");
       assert.equal(await pane.locator("[data-draft-open]").getAttribute("href"), "/newsroom/administration/proposals?proposal=proposal-1");
       assert.equal(await pane.getByLabel("Why? (optional)").count(), 1, "the optional Why box is in the detail");
+      // With no prediction, Accept and Reject keep the place they have on a Reference: first, with the Why box under them.
+      const buttonsRow = pane.locator('[data-needs-me-decision] [data-review-row="you"]');
+      const whyBox = pane.locator("[data-needs-me-why]");
+      await buttonsRow.waitFor({ state: "visible" });
+      await whyBox.waitFor({ state: "visible" });
+      // Document order, not bounding boxes: the pane may still be sliding in when it is measured.
+      const buttonsFirst = await buttonsRow.evaluate((row, why) => Boolean(row.compareDocumentPosition(why as Node) & Node.DOCUMENT_POSITION_FOLLOWING), await whyBox.elementHandle());
+      assert.ok(buttonsFirst, "Accept and Reject come before the Why box, as on a Reference");
       const monitor = await draft(page, "proposal-2").innerText();
-      assert.ok(monitor.includes("AI draft"), "the monitor story is a draft card too");
+      assert.ok(monitor.includes("Proposed Story"), "the monitor story is a draft card too");
     });
   },
 
@@ -236,7 +244,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await draft(page, "proposal-1").locator("[data-review-saved]").waitFor();
       assert.deepEqual((await calls(page)).filter((call) => call.type === "transition"), [{ type: "transition", id: "proposal-1", path: ["in_steering", "editor_review", "approved"] }], "a draft is walked to approved");
       assert.equal((await calls(page)).filter((call) => call.type === "answer").length, 0, "the request stays open while drafts wait");
-      assert.ok((await page.locator("body").innerText()).includes("2 drafts waiting for you"));
+      assert.ok((await page.locator("body").innerText()).includes("2 Proposed Stories waiting for you"));
       assert.equal(await page.locator("[data-review-draft]").count(), 3, "the decided card stays in place, showing its answer");
       assert.equal(await draft(page, "proposal-1").getAttribute("data-needs-me-state"), "accepted");
 
@@ -303,7 +311,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
     await run("?only-batch=1&held=1", [1440], async (page) => {
       const text = await draft(page, "proposal-1").innerText();
-      assert.ok(text.includes("This draft is on hold in Proposals. Release the hold there before you decide it."), "a hold is named, not hidden");
+      assert.ok(text.includes("This Proposed Story is on hold in Proposals. Release the hold there before you decide it."), "a hold is named, not hidden");
       assert.equal(await choice(page, "proposal-1", "accept").getAttribute("aria-disabled"), "true");
       await choice(page, "proposal-1", "accept").dispatchEvent("click");
       assert.equal((await calls(page)).length, 0, "no move while on hold");
@@ -322,7 +330,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const requestCard = page.locator('[data-needs-me-card="stage_review"]');
       await requestCard.waitFor();
       const text = await page.locator("body").innerText();
-      assert.ok(text.includes("2 of these drafts are not in Proposals on this site"), "unopenable drafts are said, not hidden");
+      assert.ok(text.includes("2 of these Proposed Stories are not in Proposals on this site"), "unopenable drafts are said, not hidden");
       await requestCard.locator('[data-review-choice="accept"]').click();
       await answered(page);
       assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.decision, "approve");
@@ -333,7 +341,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal((await calls(page)).find((call) => call.type === "answer")!.answer!.decision, "approve", "drafts that cannot be opened do not block the rest");
     });
     await run("?only-batch=1&fail-load=1", [1440], async (page) => {
-      await page.getByText("The drafts could not be loaded right now.").waitFor();
+      await page.getByText("The Proposed Stories could not be loaded right now.").waitFor();
       await page.getByRole("button", { name: "Try again" }).click();
       await draft(page, "proposal-1").locator("[data-feed-title]").waitFor();
     });
@@ -358,8 +366,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.id, (call as { action?: string }).action]), [["reference-a", "accept"]]);
       }
       await page.locator('[data-notification-filter="drafts"]').click();
-      assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 0, "the Drafts filter hides References");
-      assert.ok((await page.locator("[data-filter-empty]").innerText()).includes("Nothing in Drafts"), "an empty filter says so");
+      assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 0, "the Proposed Stories filter hides References");
+      assert.ok((await page.locator("[data-filter-empty]").innerText()).includes("Nothing in Proposed Stories"), "an empty filter says so");
       await page.locator('[data-notification-filter="references"]').click();
       assert.equal(await page.locator('[data-needs-me-card="reference"]').count(), 2);
       assert.equal(await page.locator('[data-notification-filter="references"]').getAttribute("aria-pressed"), "true");

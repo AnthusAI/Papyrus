@@ -23,7 +23,6 @@ import { referenceReasonCode, REFERENCE_REJECTION_REASON_CODES, normalizeReferen
 import { formatFeedAge } from "../lib/reference-preview";
 import { buildNeedsMeItemPath, parseNeedsMeItemIdFromNewsroomPathname } from "../lib/newsroom-index-filters";
 import { getNewsroomNavHref } from "../lib/newsroom-nav";
-import type { FeedFreshness } from "../lib/reference-feed-ranking";
 import type { RecentDecision } from "../lib/notification-feed";
 import { getKanbusTheme, SITE_BRAND } from "../lib/site-brand";
 import { NeedsMeDetail, type DecisionExtras } from "./needs-me-detail";
@@ -218,22 +217,14 @@ export function ShapingStrip({ stats }: { stats: ShapingStats }) {
   );
 }
 
-function plainDays(days: number): string {
-  if (days < 1) return `${Math.max(1, Math.round(days * 24))} hours`;
-  return `${days < 10 ? days.toFixed(1).replace(/\.0$/, "") : Math.round(days)} days`;
-}
-
 /** The plain-words recipe, with this site's learned numbers in it. */
-export function NeedsMeRecipe({ freshness, threshold }: { freshness: FeedFreshness; threshold: ConfidenceThreshold }) {
+export function NeedsMeRecipe({ threshold }: { threshold: ConfidenceThreshold }) {
   return (
     <div className="space-y-3 rounded-[20px] bg-[var(--feed-card)] p-5 text-sm" data-needs-me-recipe>
       <p className="text-base font-bold">A feed run by algorithms you control</p>
       <ol className="list-decimal space-y-2.5 pl-5">
         <li><strong>Hard gates first.</strong> Nothing continues until you decide one.</li>
-        <li><strong>Then where your answer matters most.</strong> Each item is scored by how unsure the Cyclotron is, times how much it matters, times how fresh it is. A coin toss scores highest; a sure thing scores lowest; no prediction counts as halfway.</li>
-        <li><strong>Age fades the score.</strong> {freshness.tauDays !== null && freshness.medianAgeDays !== null
-          ? <>It loses half its pull every {plainDays(freshness.medianAgeDays)}, the typical age of the {freshness.examples} References you accepted.</>
-          : <>Age does not change the order yet. The pace is learned from the References you accept, and so far there are {freshness.examples} of the 10 needed.</>}</li>
+        <li><strong>Then where your answer matters most.</strong> Each item is scored by how unsure the Cyclotron is, times how much it matters. Age does not change it. A coin toss scores highest; a sure thing scores lowest; no prediction counts as halfway.</li>
         <li><strong>A mix, not a run.</strong> Never more than two of one kind in a row while something else is waiting.</li>
         <li><strong>Confident items do not ask for you.</strong> {threshold.threshold !== null
           ? <>Items the Cyclotron is surer about than {Math.round((1 - threshold.threshold) * 100)}% (the median of the {threshold.examples} predictions you confirmed) wait under Decided automatically. You can overrule any of them.</>
@@ -253,7 +244,6 @@ const NO_ATTACHMENTS: ReferenceAttachmentRecord[] = [];
 export type NeedsMeViewProps = {
   loadState: NeedsMeLoadState;
   entries: NeedsMeEntry[];
-  freshness: FeedFreshness;
   threshold: ConfidenceThreshold;
   now: number;
   shaping: ShapingStats;
@@ -291,7 +281,7 @@ function Note({ children, ...rest }: { children: ReactNode } & Record<string, un
 
 /** The CMS console home: one feed that mixes everything that may need a person, with the References feed's cards and detail pane. */
 export function NeedsMeView({
-  loadState, entries, freshness, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
+  loadState, entries, threshold, now, shaping, recent, legacyAuto = [], settled, demo = false, stale = false, error = null, referencesLoading = false, predictionLoading = false,
   referenceDisabledReason = null, draftsFailed = false, missingDraftCount = 0, initialFilter = "all", referenceAttachments = NO_ATTACHMENTS, captureTeaserLine, onCorrectCapture, onDecide, onEditReason, onRetryDrafts, onOpened, loadEmail, below,
 }: NeedsMeViewProps) {
   const themeMode = useResolvedPapyrusTheme();
@@ -312,7 +302,7 @@ export function NeedsMeView({
 
   // The order is taken ONCE per visit, when every source has been read, and then left alone: selecting, deciding, a refresh or a cache
   // revalidation changes what the cards say, never where they are. Items that arrive later wait behind a "N new items: show" pill.
-  const live = useMemo(() => rankNeedsMe(entries, { now, freshness, threshold }), [entries, now, freshness, threshold]);
+  const live = useMemo(() => rankNeedsMe(entries, { threshold }), [entries, threshold]);
   const snapshot = useRef<NeedsMeSnapshot | null>(null);
   if (!snapshot.current && settled && entries.length > 0) snapshot.current = takeNeedsMeSnapshot(live);
   const placed = snapshot.current ? applyNeedsMeSnapshot(snapshot.current, live) : { feed: live.feed, auto: live.auto, newCount: 0 };
@@ -459,7 +449,7 @@ export function NeedsMeView({
               <InfoIcon aria-hidden="true" className="size-4" />How this is ordered
             </button>
           </div>
-          {recipeOpen ? <NeedsMeRecipe freshness={freshness} threshold={threshold} /> : null}
+          {recipeOpen ? <NeedsMeRecipe threshold={threshold} /> : null}
           <p className="max-w-3xl text-sm text-muted-foreground" data-notification-ignore>
             Decide what you like and leave the rest. Each item says what happens if you do nothing, and only a hard gate waits for you.
           </p>
@@ -486,17 +476,17 @@ export function NeedsMeView({
           <div className="flex flex-col items-center gap-2 rounded-[20px] bg-[var(--feed-card)] px-6 py-12 text-center" data-notification-caught-up>
             <CircleCheckBigIcon aria-hidden="true" className="size-10 text-primary" />
             <h2 className="text-2xl font-bold tracking-tight">All caught up</h2>
-            <p className="max-w-md text-sm text-muted-foreground">Nothing needs you right now. New drafts, references, emails and reviews will appear here as they arrive.</p>
+            <p className="max-w-md text-sm text-muted-foreground">Nothing needs you right now. New Proposed Stories, references, emails and reviews will appear here as they arrive.</p>
           </div>
         ) : null}
 
         {draftsFailed ? (
           <Note role="alert">
-            <p>The drafts could not be loaded right now.</p>
+            <p>The Proposed Stories could not be loaded right now.</p>
             <button className={cn(PILL, "mt-3 bg-[var(--feed-control)] text-foreground")} onClick={onRetryDrafts} type="button">Try again</button>
           </Note>
         ) : null}
-        {missingDraftCount ? <p className="text-sm text-muted-foreground" data-needs-me-missing-drafts>{missingDraftCount} of these drafts {missingDraftCount === 1 ? "is" : "are"} not in Proposals on this site, so they cannot be opened here.</p> : null}
+        {missingDraftCount ? <p className="text-sm text-muted-foreground" data-needs-me-missing-drafts>{missingDraftCount} of these Proposed Stories {missingDraftCount === 1 ? "is" : "are"} not in Proposals on this site, so they cannot be opened here.</p> : null}
 
         {referencesLoading && !placed.feed.length ? (
           <NotificationSkeleton count={3} bare />
