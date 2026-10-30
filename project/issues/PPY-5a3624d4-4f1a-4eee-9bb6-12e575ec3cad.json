@@ -34,10 +34,31 @@
       "text": "Plan (Claude, 2026-10-30; decisions by Ryan in chat).\n\nDecisions: one broker per site (in each site's own backend, approval page on the site's own domain). Cloud machines without a keychain use a memory-only `papyrus auth agent` (see PPY-109943). Same pattern goes to the Cyclotron session as a design note, not shared code.\n\nWhy a broker: Cognito does not implement the RFC 8628 device flow, and AWS's `--remote` has the user paste a code back, which this story forbids.\n\nFlow (split secrets):\n1. `papyrus login --remote <site>`: the CLI makes a PKCE verifier V and a poll secret P and keeps both. It POSTs to the site broker `/start`: publication, client id, code_challenge S256(V), sha256(P), requester label (host name, CLI version). The broker returns a transaction id T, a short matching code, `https://<site>/cli/approve?t=T`, a poll interval and an expiry (about 10 minutes).\n2. The approval page shows the requester, the matching code, the site and \"acts as you with your newsroom permissions\". Approve sends the browser to Cognito `/oauth2/authorize` (Google) with the transaction's code_challenge, redirect `https://<site>/cli/callback`, and state = T plus a CSRF nonce bound to a browser cookie. Deny and cancel are recorded.\n3. `/cli/callback` checks the state and hands the authorization code to the broker for T.\n4. The CLI polls `/poll` with T and P and receives the code exactly once (then the record is deleted). It exchanges the code at the Cognito token endpoint with V, and stores the session as a local login would.\n\nProperties: no token or code in chat or copy/paste. The broker never holds a token, and the code it holds briefly is useless without V. The link cannot redeem anything without P. Single use, short expiry, DynamoDB TTL, per-caller rate limits on /start and /poll, bounded polling with slow_down backoff. Each site's broker serves only its own publication and client.\n\nBuild:\n- Shared site backend: broker Lambda with a function URL (no auth on start/poll; complete/deny need the state/nonce), plus a DynamoDB table with TTL.\n- Shared app shell: `/cli/approve` and `/cli/callback` pages.\n- Discovery file: optional `remote_login_endpoint` and `remote_callback_uri`.\n- CLI: `--remote` on `papyrus login`, using the existing per-site registry and endpoint matching.\n\nLive prerequisite (needs Ryan's approval): add `https://<site>/cli/callback` to each site's Cognito web client callback URLs and deploy the broker.\n\nOrder: Gherkin specs plus fake broker/provider tests first, then the backend and pages, then the CLI, then proof on a test publication before any other site.\n",
       "created_at": "2026-10-30T10:19:59.427698Z",
       "comment_type": "default"
+    },
+    {
+      "id": "c02facab-4048-40f3-b200-d96bcdaaaaa8",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30). Ryan: the Papyrus and Cyclotron CLI logins work the same way, keeping the best choices from both (no shared code). Kept from this plan: the throttling on both brokers (per-caller rate limits on /start and /poll, slow_down), one broker per deployment with its own function URL and DynamoDB TTL table, /start, /poll, /cli/approve, /cli/callback, and the discovery keys remote_login_endpoint and remote_callback_uri. Added from the Cyclotron plan (AnthusAI/Cyclotron docs/cli-remote-login.md, PR #177): (1) the approval page asks the person to compare the matching code before approving, not only shows it; (2) /poll hands the code over with a conditional delete, so two concurrent polls cannot both receive it; (3) a request carrying both a cookie and a bearer token is refused; (4) the CLI names its secure-store backend explicitly so a library never picks a plaintext one; (5) the client's token settings are read and recorded with the plan and again at release; (6) logout says plainly that an access token the API already accepted stays valid until it expires.",
+      "created_at": "2026-10-30T10:37:46.075547Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "b15301b0-8e70-42b0-9dee-fecfb917372c",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30): Ryan approved factoring the CLI login out into a new public AnthusAI repository: a shared Python library (sign-in with PKCE, remote login, the five secure stores, memory agent, per-key locks, renewal, logout), the broker as one deployable (Lambda function URL, DynamoDB TTL table, the /cli/approve and /cli/callback pages, throttling), and language-neutral protocol specs. Papyrus's existing cli_user_auth code moves into it first, keeping its Keychain service name so Mac sessions survive; Papyrus then uses the released library. Products stay separate (own key namespace, client, discovery and sessions). Design: AnthusAI/Cyclotron docs/shared-cli-auth.md (PR #177), moving to the new repository.",
+      "created_at": "2026-10-30T10:44:21.139525Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "e6419c43-2c82-494a-a0ae-592fc71b9994",
+      "author": "home",
+      "text": "Current plan (Claude, 2026-10-30). This supersedes the 2026-10-30 plan comment (from AnthusAI/Papyrus#879) and the earlier comments in AnthusAI/Papyrus#882: follow only this one. The design is AnthusAI/cli-login docs/design.md (public, Ryan's decision 2026-10-30), work tracked on that repository's board. Papyrus's part: its CLI login moves into the shared library anthus_cli_login, keeping Keychain SERVICE 'papyrus-newsroom-oauth' and the per-site keys; the new stores, memory agent and locks are built there; then Papyrus depends on a pinned release. The broker: the CLI calls the broker's function URL directly for /start and /poll (throttled per caller, slow_down); Papyrus serves /cli/approve and /cli/callback on each site's own domain with the library's page handlers and invokes the broker's describe, bind, complete and deny by IAM. Live changes per site (Cognito callback URL, broker deploy, pages, IAM grant) need Ryan's approval.",
+      "created_at": "2026-10-30T10:52:37.335698Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-30T09:28:51.580949Z",
-  "updated_at": "2026-10-30T10:19:59.428309Z",
+  "updated_at": "2026-10-30T10:52:37.335999Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
