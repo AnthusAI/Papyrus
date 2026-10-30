@@ -1117,14 +1117,14 @@ tests = ["citeproc-py-styles", "tox"]
 
 [[package]]
 name = "cli-login"
-version = "0.1.0"
+version = "0.3.0"
 description = "One CLI login for every Anthus product: PKCE sign-in, remote approval, secure storage and renewal."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "cli_login-0.1.0-py3-none-any.whl", hash = "sha256:e443b0509e9d14480c9ead68afc8c0f477a2aa7a60c081c459ebaa9f4aee4a15"},
-    {file = "cli_login-0.1.0.tar.gz", hash = "sha256:131e50d00c6359215bf559bce7d6e2d8a7a7ad18e2686eecb36aaf11c251b65c"},
+    {file = "cli_login-0.3.0-py3-none-any.whl", hash = "sha256:b7c2967602e9b165803d415e60333236adb7baf522c759dfe07cc4421924cfbc"},
+    {file = "cli_login-0.3.0.tar.gz", hash = "sha256:e5be1be49e60ec5ce69ee8c5b84600794208afea5e4513325b56359f97a2068d"},
 ]
 
 [package.dependencies]
@@ -9029,4 +9029,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "981ac183f01149823e1c643321574dfd8f8c1af5afbea5a6d5848427877be875"
+content-hash = "2402aad8da62dbe478b6c953703aa4fbdf260dd5995e53a42751e80b3aecf916"

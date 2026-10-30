@@ -132,10 +132,11 @@ assert.deepEqual(resolveSiteBackendFeatureFlags(undefined, allOff, newSiteMain),
   inboundEmail: false,
   slack: false,
   storageBackups: false,
+  cliRemoteLogin: false,
 });
 assert.deepEqual(
   resolveSiteBackendFeatureFlags(undefined, { ...allOff, PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_ENABLE_STORAGE_BACKUPS: "1" }, newSiteMain),
-  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true },
+  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false },
 );
 assert.equal(
   resolveSiteBackendFeatureFlags({ inboundEmail: false }, { PAPYRUS_ENABLE_INBOUND_EMAIL: "true" }, newSiteMain).inboundEmail,
@@ -149,5 +150,7 @@ assert.equal(defaultsNewSite.slack, false);
 const defaultsLegacy = resolveSiteBackendFeatureFlags(undefined, {}, legacyMain);
 assert.equal(defaultsLegacy.inboundEmail, true);
 assert.equal(defaultsLegacy.storageBackups, true);
+assert.equal(defaultsNewSite.cliRemoteLogin, false, "remote CLI login is off by default");
+assert.equal(defaultsLegacy.cliRemoteLogin, false, "and off even for the legacy production pipeline");
 
 console.log("site backend names: ok");

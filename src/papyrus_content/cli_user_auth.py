@@ -24,6 +24,7 @@ from cli_login.target import Target
 from cli_login.errors import AuthError, OAuthError  # noqa: F401 (OAuthError is re-exported)
 from cli_login.locks import key_lock
 from cli_login.oauth import receive_code
+from cli_login.remote import remote_login
 from cli_login.target import https_url as _https
 
 from .user_auth_mode import user_auth_requested  # noqa: F401 (re-exported for the CLI)
@@ -31,6 +32,9 @@ from .user_auth_mode import user_auth_requested  # noqa: F401 (re-exported for t
 # The secure-store namespace. On macOS it is the Keychain service name, so sessions written by earlier
 # CLIs (service `papyrus-newsroom-oauth`, account = the per-site key) are found unchanged.
 NAMESPACE = 'papyrus-newsroom-oauth'
+
+
+_REMOTE_FIELDS = ('broker_endpoint', 'remote_callback_uri')
 
 
 @dataclass(frozen=True)
@@ -42,6 +46,10 @@ class AuthConfig:
     graphql_endpoint: str
     callback_uri: str
     refresh_lifetime_seconds: int | None = None
+    # Published by a site that opted in to `papyrus login --remote`. Public, discoverable on every login, so never
+    # part of the session key or the saved registry.
+    broker_endpoint: str | None = None
+    remote_callback_uri: str | None = None
 
     def __post_init__(self):
         for name in ('publication', 'issuer', 'oauth_domain', 'graphql_endpoint'):
@@ -62,12 +70,19 @@ class AuthConfig:
             raise AuthError('A registered native OAuth client id is required.')
         if self.refresh_lifetime_seconds is not None and (type(self.refresh_lifetime_seconds) is not int or self.refresh_lifetime_seconds <= 0):
             raise AuthError('Configured refresh lifetime must be a positive number of seconds.')
+        if (self.broker_endpoint is None) != (self.remote_callback_uri is None):
+            raise AuthError('A remote sign-in broker needs both broker_endpoint and remote_callback_uri.')
+        for name in _REMOTE_FIELDS:
+            if getattr(self, name) is not None:
+                _https(getattr(self, name), name)
 
     @property
     def key(self) -> str:
         # Full binding prevents cross-client/publication token reuse, even on a shared pool.
         public = asdict(self)
         public.pop('refresh_lifetime_seconds')
+        for name in _REMOTE_FIELDS:
+            public.pop(name)
         return hashlib.sha256(json.dumps(public, sort_keys=True).encode()).hexdigest()
 
 
@@ -137,13 +152,18 @@ def load_registry() -> list[AuthConfig]:
     return configs
 
 
+def _saved(config: AuthConfig) -> dict:
+    # The registry holds what a normal login saves; the broker is rediscovered from the site on each remote login.
+    return {name: value for name, value in asdict(config).items() if name not in _REMOTE_FIELDS}
+
+
 def _write_registry(configs: list[AuthConfig]) -> None:
     path = selection_path()
     temporary = path.with_name('selection-'+secrets.token_hex(8))
     try:
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as handle:
-            json.dump({'version': 2, 'sites': [asdict(config) for config in configs]}, handle)
+            json.dump({'version': 2, 'sites': [_saved(config) for config in configs]}, handle)
         os.replace(temporary, path)
     except OSError:
         raise AuthError('Unable to save public CLI session registry; check directory permissions.') from None
@@ -173,7 +193,7 @@ def registered_site(site: str) -> AuthConfig:
 DISCOVERY_PATH = '/.well-known/papyrus-cli.json'
 DISCOVERY_MAX_BYTES = 16*1024
 _PUBLIC_FIELDS = {'publication', 'issuer', 'client_id', 'oauth_domain', 'graphql_endpoint', 'callback_uri'}
-_OPTIONAL_FIELDS = {'refresh_lifetime_seconds'}
+_OPTIONAL_FIELDS = {'refresh_lifetime_seconds', *_REMOTE_FIELDS}
 
 
 def discover(site: str, *, opener=None) -> AuthConfig:
@@ -248,7 +268,8 @@ def config_for_endpoint(endpoint: str) -> AuthConfig:
 def _target(config: AuthConfig) -> Target:
     return Target(issuer=config.issuer, client_id=config.client_id, oauth_domain=config.oauth_domain,
                   token_endpoint=config.oauth_domain+'/oauth2/token', api_endpoint=config.graphql_endpoint,
-                  key=config.key, namespace=NAMESPACE, callback_uri=config.callback_uri)
+                  key=config.key, namespace=NAMESPACE, callback_uri=config.callback_uri,
+                  broker_endpoint=config.broker_endpoint, remote_callback_uri=config.remote_callback_uri)
 
 
 class SiteSession:
@@ -285,6 +306,15 @@ class SiteSession:
 
     def login(self):
         result = self._session.login()
+        return {'subject': result['subject'], 'label': result['label'], 'publication': self.config.publication}
+
+    def login_remote(self, **options):
+        """Sign in through the site's broker: the person approves in a browser on another device.
+
+        The tokens are checked and stored exactly as a local login's are (same store, key and renewal); this
+        prints only the approval URL, the matching code and who signed in.
+        """
+        result = remote_login(self._session.target, self._session.store_token_set, **options)
         return {'subject': result['subject'], 'label': result['label'], 'publication': self.config.publication}
 
     def headers(self, endpoint):
@@ -330,6 +360,19 @@ def _login_targets(args) -> list[AuthConfig]:
     return list({config.publication: config for config in targets}.values())
 
 
+def _remote_targets(args) -> list[AuthConfig]:
+    """Sites to sign in to remotely, each with the broker its own site publishes (rediscovered, never saved)."""
+    configs = []
+    for config in _login_targets(args):
+        if config.broker_endpoint is None:
+            config = discover(config.publication)
+        if config.broker_endpoint is None:
+            raise AuthError(f'{site_host(config)} does not publish a remote sign-in broker, so `papyrus login --remote` is not enabled '
+                            f'for it. Run `papyrus login {site_host(config)}` on a machine with a browser, or ask the site owner to enable remote CLI login.')
+        configs.append(config)
+    return configs
+
+
 def _existing_targets(args, *, all_by_default: bool) -> list[AuthConfig]:
     if args.config or args.publication:
         return [resolve_config(args.config, args.publication)]
@@ -365,7 +408,10 @@ def command(arguments: list[str]) -> int:
         sub.add_argument('--config')
         sub.add_argument('--publication')
         if name == 'login':
-            sub.add_argument('--remote', action='store_true', help='sign in from another device (not available yet)')
+            sub.add_argument('--remote', action='store_true',
+                             help="approve the sign-in in a browser on another device (the site must publish a broker)")
+            sub.add_argument('--expect-email', metavar='EMAIL',
+                             help='with --remote: refuse, and save nothing, unless this person approved')
     auth = commands.add_parser('auth')
     auth.add_argument('operation', choices=['status'])
     auth.add_argument('sites', nargs='*', metavar='site')
@@ -375,8 +421,13 @@ def command(arguments: list[str]) -> int:
     args = parser.parse_args(arguments)
     if args.action == 'login':
         if args.remote:
-            raise AuthError('Remote sign-in (`papyrus login --remote`) is not available yet: the sites do not publish '
-                            'a sign-in broker. Run `papyrus login <site>` on a machine with a browser.')
+            def log_in_remotely(config):
+                result = session_for(config).login_remote(expected_email=args.expect_email)
+                save_selection(config)
+                return result
+            return _run_each(_remote_targets(args), log_in_remotely)
+        if args.expect_email:
+            raise AuthError('--expect-email only applies to `papyrus login --remote`.')
         def log_in(config):
             result = session_for(config).login()
             save_selection(config)

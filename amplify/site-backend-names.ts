@@ -6,6 +6,8 @@ export type SiteBackendFeatureFlags = {
   inboundEmail: boolean;
   slack: boolean;
   storageBackups: boolean;
+  /** `papyrus login --remote`: a cli-login broker and approval pages for this site. Off unless a site turns it on. */
+  cliRemoteLogin: boolean;
 };
 
 export type SiteBackendFeatureInput = Partial<SiteBackendFeatureFlags> | undefined;
@@ -79,6 +81,8 @@ export function resolveSiteBackendFeatureFlags(
     slack: features?.slack ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_SLACK", false),
     storageBackups:
       features?.storageBackups ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_STORAGE_BACKUPS", legacyPipeline),
+    // Off for every site, the legacy production pipeline included: it adds a public function URL and a Cognito callback.
+    cliRemoteLogin: features?.cliRemoteLogin ?? readBooleanEnvFlag(environment, "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", false),
   };
 }
 

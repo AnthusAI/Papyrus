@@ -398,3 +398,21 @@ def test_busy_callback_port_is_named_and_nothing_is_saved():
 def test_localhost_3001_web_client_callback_is_a_valid_login_config():
     config = site('shipped.anth.us', callback_uri='http://localhost:3001/')
     assert discover('shipped.anth.us', opener=Opener(asdict(config))) == config
+
+
+# --- remote sign-in metadata (the broker is public, discoverable, and never part of a saved session) ----------
+
+def test_a_published_broker_changes_neither_the_session_key_nor_the_saved_registry(tmp_path):
+    plain = site('shipped.anth.us')
+    brokered = replace(plain, broker_endpoint='https://broker.example.test', remote_callback_uri='https://shipped.anth.us/cli/callback')
+    assert brokered.key == plain.key
+    save_selection(brokered)
+    saved = selection_path().read_text()
+    assert 'broker' not in saved and 'remote_callback' not in saved
+    assert load_registry() == [plain]
+
+
+def test_discovery_accepts_the_published_broker_and_remote_callback():
+    published = asdict(site('shipped.anth.us')) | {'broker_endpoint': 'https://broker.example.test', 'remote_callback_uri': 'https://shipped.anth.us/cli/callback'}
+    config = discover('shipped.anth.us', opener=Opener(published))
+    assert config.broker_endpoint == 'https://broker.example.test' and config.remote_callback_uri == 'https://shipped.anth.us/cli/callback'

@@ -401,9 +401,10 @@ def test_lock_files_stay_in_the_papyrus_state_directory(fixture):
     assert [path.name for path in state_dir().glob('session-*.lock')] == ['session-' + c.key + '.lock']
 
 
-def test_remote_login_is_not_available_yet_and_signs_nothing_in(fixture):
-    from papyrus_content.cli_user_auth import command
+def test_remote_login_for_a_site_without_a_broker_signs_nothing_in(fixture, monkeypatch):
+    from papyrus_content import cli_user_auth
     c, clock, store, p, seen, s = fixture
-    with pytest.raises(AuthError, match='not available yet'):
-        command(['login', '--remote', 'news.example.test'])
+    monkeypatch.setattr(cli_user_auth, 'discover', lambda site: c)
+    with pytest.raises(AuthError, match='does not publish a remote sign-in broker'):
+        cli_user_auth.command(['login', '--remote', 'news.example.test'])
     assert p.calls == [] and store.data == {}
