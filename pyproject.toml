@@ -12,6 +12,10 @@ dependencies = [
     # integrating it more deeply, so it is a base dependency (Ryan, 2026-10-05).
     "humanus >=0.33,<0.34",
     "biblicus >=1.15.0,<2",
+    # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
+    # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
+    "cli-login ==0.1.0 ; sys_platform != 'linux'",
+    "cli-login[linux] ==0.1.0 ; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]

@@ -6,7 +6,7 @@ from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 import pytest
-from papyrus_content.cli_user_auth import AuthConfig, AuthError, OAuthError, Session, selected_headers, save_selection, KeychainStore
+from papyrus_content.cli_user_auth import AuthConfig, AuthError, OAuthError, SiteSession, selected_headers, save_selection
 
 
 def token(now, subject='person-1', issuer='https://cognito-idp.us-east-1.amazonaws.com/pool', audience='native-client'):
@@ -42,7 +42,7 @@ def fixture(tmp_path,monkeypatch):
     def receive(callback,url,state,timeout):
         received.update(callback=callback,url=url,state=state,timeout=timeout)
         return 'one-time-code'
-    session=Session(config,store=store,provider=provider,clock=lambda:clock[0],receive=receive)
+    session=SiteSession(config,store=store,provider=provider,clock=lambda:clock[0],receive=receive)
     return config,clock,store,provider,received,session
 
 
@@ -62,7 +62,7 @@ def test_browser_login_uses_pkce_and_normal_user_identity(fixture):
 
 def test_renew_after_24_hours_and_process_restart_without_browser(fixture):
     c,clock,store,p,seen,s=fixture;s.login();clock[0]+=25*3600
-    restarted=Session(c,store=store,provider=p,clock=lambda:clock[0],receive=lambda *a:pytest.fail('interactive login'))
+    restarted=SiteSession(c,store=store,provider=p,clock=lambda:clock[0],receive=lambda *a:pytest.fail('interactive login'))
     assert restarted.headers(c.graphql_endpoint)['Authorization']==token(clock[0])
     assert p.calls[-1][1]['grant_type']=='refresh_token'
     assert restarted.status()['elapsed_session_seconds']==25*3600
@@ -73,7 +73,7 @@ def test_renew_after_24_hours_and_process_restart_without_browser(fixture):
 def test_refresh_rotation_is_saved_before_next_process(fixture):
     c,clock,store,p,seen,s=fixture;s.login();clock[0]+=4000;s.headers(c.graphql_endpoint)
     rotated=json.loads(store.get(c.key))['refresh_token']
-    second=Session(c,store=store,provider=p,clock=lambda:clock[0]);second.headers(c.graphql_endpoint)
+    second=SiteSession(c,store=store,provider=p,clock=lambda:clock[0]);second.headers(c.graphql_endpoint)
     assert p.calls[-1][1]['refresh_token']==rotated
 
 
@@ -106,7 +106,7 @@ def test_logout_clears_local_secret_even_when_remote_revoke_is_unconfirmed(fixtu
 
 def test_logout_in_another_process_invalidates_cached_local_use(fixture):
     c,clock,store,p,seen,s=fixture;s.login()
-    Session(c,store=store,provider=p,clock=lambda:clock[0]).logout()
+    SiteSession(c,store=store,provider=p,clock=lambda:clock[0]).logout()
     with pytest.raises(AuthError,match='papyrus login'):s.headers(c.graphql_endpoint)
 
 
@@ -148,25 +148,9 @@ def test_explicit_iam_keeps_operator_auth_separate(fixture,monkeypatch):
     assert selected_headers(c.graphql_endpoint) is None
 
 
-def test_secret_store_rejects_plaintext_backend():
-    class Plaintext:
-        __module__='keyrings.alt.file'
-    with pytest.raises(AuthError,match='secure'):KeychainStore(backend=Plaintext())
-
-
 def test_missing_native_configuration_is_actionable_and_does_not_open_browser(tmp_path):
     from papyrus_content.cli_user_auth import load_config
     with pytest.raises(AuthError,match='native OAuth'):load_config(tmp_path/'absent.json')
-
-
-def test_refresh_errors_do_not_leak_provider_payload(fixture):
-    from papyrus_content.cli_user_auth import HTTPProvider
-    import urllib.error
-    from io import BytesIO
-    error=urllib.error.HTTPError('https://auth.test',400,'bad',{},BytesIO(b'{"error":"invalid_grant","error_description":"SECRET-TOKEN"}'))
-    with patch('urllib.request.OpenerDirector.open',side_effect=error):
-        with pytest.raises(AuthError) as result:HTTPProvider().post('https://auth.test/oauth2/token',{})
-    assert 'SECRET' not in str(result.value)
 
 
 def test_cli_login_and_status_are_real_dispatch_paths(fixture,capsys,monkeypatch):
@@ -191,7 +175,7 @@ def test_concurrent_refresh_reads_latest_rotated_secret_under_shared_lock(fixtur
     p.post=slow
     def renew(_):
         barrier.wait(timeout=3)
-        return Session(c,store=store,provider=p,clock=lambda:clock[0]).headers(c.graphql_endpoint)
+        return SiteSession(c,store=store,provider=p,clock=lambda:clock[0]).headers(c.graphql_endpoint)
     with ThreadPoolExecutor(max_workers=2) as pool:
         assert len(list(pool.map(renew,range(2))))==2
     assert p.calls[-2][1]['refresh_token']=='refresh-1'
@@ -208,13 +192,13 @@ def test_actual_fresh_python_process_renews_synthetic_session_after_25_simulated
 import json,os
 from pathlib import Path
 from unittest.mock import patch
-from papyrus_content.cli_user_auth import Session,resolve_config
+from papyrus_content.cli_user_auth import SiteSession,resolve_config
 from procedures.newsroom.tests.test_cli_user_auth import MemoryStore,Provider
 from papyrus import cli
 clock=[1000+25*3600]
 store=MemoryStore();store.data=json.loads(Path(os.environ['SYNTHETIC_STORE']).read_text())
 provider=Provider(clock)
-session=Session(resolve_config(),store=store,provider=provider,clock=lambda:clock[0],receive=lambda *a: (_ for _ in ()).throw(AssertionError('interactive login')))
+session=SiteSession(resolve_config(),store=store,provider=provider,clock=lambda:clock[0],receive=lambda *a: (_ for _ in ()).throw(AssertionError('interactive login')))
 with patch('papyrus_content.cli_user_auth.session_for',return_value=session):
     assert cli.main(['whoami'])==0
 assert provider.calls[0][1]['grant_type']=='refresh_token'
@@ -286,7 +270,7 @@ def test_selected_publication_can_switch_without_cross_reusing_tokens(fixture):
     other=replace(c,publication='https://other.example.test',graphql_endpoint='https://other.appsync-api.us-east-1.amazonaws.com/graphql')
     assert c.key != other.key
     with pytest.raises(AuthError,match='papyrus login'):
-        Session(other,store=store,provider=p,clock=lambda:clock[0]).headers(other.graphql_endpoint)
+        SiteSession(other,store=store,provider=p,clock=lambda:clock[0]).headers(other.graphql_endpoint)
 
 
 def test_lock_file_contains_no_secret(fixture):
@@ -301,35 +285,6 @@ def test_failed_keychain_delete_cannot_report_successful_local_logout(fixture):
     c,clock,store,p,seen,s=fixture;s.login()
     with patch.object(store,'delete',side_effect=AuthError('locked')):
         with pytest.raises(AuthError,match='locked'):s.logout()
-
-
-@pytest.mark.parametrize('host', ['127.0.0.1', 'localhost'])
-def test_callback_keeps_ipv4_loopback_binding_and_rejects_wrong_state_or_path(host):
-    from papyrus_content.cli_user_auth import receive_code
-    import socket,threading,urllib.request,urllib.error
-    with socket.socket() as free:
-        free.bind(('127.0.0.1',0));port=free.getsockname()[1]
-    from http.server import HTTPServer
-    bindings=[]
-    class RecordedServer(HTTPServer):
-        def server_bind(self):
-            bindings.append(self.server_address)
-            return super().server_bind()
-    uri=f'http://{host}:{port}/oauth/callback';observed=[];threads=[]
-    def browser(_):
-        def visit():
-            for address in [uri+'?state=wrong&code=fixture-code',
-                            f'http://{host}:{port}/wrong-path?state=expected&code=fixture-code',
-                            uri+'?state=expected&code=fixture-code']:
-                try:
-                    with urllib.request.urlopen(address,timeout=2) as response:observed.append(response.status)
-                except urllib.error.HTTPError as error:observed.append(error.code)
-        thread=threading.Thread(target=visit);thread.start();threads.append(thread);return True
-    with patch('webbrowser.open',side_effect=browser), patch('papyrus_content.cli_user_auth.HTTPServer', RecordedServer):
-        assert receive_code(uri,'https://auth.example.test','expected',2)=='fixture-code'
-    for thread in threads:thread.join(timeout=3)
-    assert observed==[400,400,200]
-    assert bindings==[('127.0.0.1',port)]
 
 
 def test_registered_localhost_is_preserved_in_oauth_redirect_and_exchange(fixture):
@@ -353,85 +308,6 @@ def test_callback_url_expansion_still_rejects_unapproved_hosts_and_components(fi
     c, *_ = fixture
     with pytest.raises(AuthError):
         replace(c, callback_uri=callback)
-
-
-def test_login_timeout_is_bounded_and_does_not_store_a_session():
-    from papyrus_content.cli_user_auth import receive_code
-    import socket
-    with socket.socket() as free:
-        free.bind(('127.0.0.1',0));port=free.getsockname()[1]
-    with patch('webbrowser.open',return_value=True):
-        with pytest.raises(AuthError,match='timed out'):receive_code(f'http://127.0.0.1:{port}/','https://auth.test','state',0.01)
-
-
-def test_oauth_provider_refuses_secret_bearing_redirects():
-    from papyrus_content.cli_user_auth import HTTPProvider
-    import urllib.request
-    handlers=[]
-    original=urllib.request.build_opener
-    def build(*args):
-        handlers.extend(args)
-        class Opener:
-            def open(self,*a,**k):raise urllib.error.HTTPError('https://auth.test',302,'redirect',{},None)
-        return Opener()
-    with patch('urllib.request.build_opener',side_effect=build):
-        with pytest.raises(AuthError,match='rejected'):HTTPProvider().post('https://auth.test/oauth2/token',{'refresh_token':'synthetic'})
-    assert handlers[0].redirect_request(None,None,None,None,None,None) is None
-
-
-def test_native_keychain_duplicate_update_keeps_old_item_until_update():
-    from papyrus_content.macos_keychain import MacOSKeychain
-    from unittest.mock import MagicMock
-    native=object.__new__(MacOSKeychain)
-    native._dictionary=MagicMock(return_value=('fixture-dictionary',[]));native._release=MagicMock()
-    native.sec=MagicMock();native.sec.SecItemAdd.return_value=-25299;native.sec.SecItemUpdate.return_value=0
-    native.set_password('service','binding','synthetic-secret')
-    assert native.sec.SecItemUpdate.call_count==1
-    assert native.sec.SecItemDelete.call_count==0
-    assert native._release.call_count==3
-
-
-def test_native_keychain_locked_error_is_sanitized_and_no_fallback_occurs():
-    from papyrus_content.macos_keychain import MacOSKeychain
-    from unittest.mock import MagicMock
-    native=object.__new__(MacOSKeychain)
-    native.get_password=MagicMock(side_effect=RuntimeError('SYNTHETIC-SECRET-ERROR'))
-    store=KeychainStore(backend=native)
-    with pytest.raises(AuthError,match='unlock') as error:store.get('binding')
-    assert 'SYNTHETIC' not in str(error.value)
-
-
-def test_native_keychain_item_not_found_is_a_missing_session():
-    from papyrus_content.macos_keychain import MacOSKeychain
-    from unittest.mock import MagicMock
-    native=object.__new__(MacOSKeychain)
-    native._dictionary=MagicMock(return_value=('fixture-dictionary',[]));native._release=MagicMock()
-    native.sec=MagicMock();native.sec.SecItemCopyMatching.return_value=-25300
-    assert native.get_password('service','binding') is None
-    native._release.assert_called_once()
-
-
-def test_native_keychain_read_and_delete_use_sdk_results():
-    import ctypes
-    from papyrus_content.macos_keychain import MacOSKeychain
-    from unittest.mock import MagicMock
-    native=object.__new__(MacOSKeychain)
-    native._dictionary=MagicMock(return_value=('fixture-dictionary',[]));native._release=MagicMock()
-    native.sec=MagicMock();native.cf=MagicMock()
-    data=ctypes.create_string_buffer(b'synthetic-secret')
-    pointer=ctypes.cast(data,ctypes.c_void_p).value
-    def copy(query,result):
-        ctypes.cast(result,ctypes.POINTER(ctypes.c_void_p))[0]=pointer
-        return 0
-    native.sec.SecItemCopyMatching.side_effect=copy
-    native.cf.CFDataGetBytePtr.return_value=pointer
-    native.cf.CFDataGetLength.return_value=len(b'synthetic-secret')
-    assert native.get_password('service','binding')=='synthetic-secret'
-    native.cf.CFRelease.assert_called_once()
-    native.sec.SecItemDelete.return_value=-25300
-    native.delete_password('service','binding')
-    native.sec.SecItemDelete.return_value=-25308
-    with pytest.raises(RuntimeError,match='delete'):native.delete_password('service','binding')
 
 
 def test_unknown_auth_mode_never_silently_selects_iam(fixture,monkeypatch):
@@ -466,7 +342,7 @@ def test_missing_stored_identity_label_is_a_clean_status_error(fixture):
 
 def test_explicit_new_person_login_invalidates_old_process_cached_identity(fixture):
     c,clock,store,p,seen,s=fixture;s.login()
-    second=Session(c,store=store,provider=p,clock=lambda:clock[0],receive=lambda *a:'new-code')
+    second=SiteSession(c,store=store,provider=p,clock=lambda:clock[0],receive=lambda *a:'new-code')
     new={'id_token':token(clock[0],subject='person-2'),'refresh_token':'synthetic-new-person','expires_in':3600}
     with patch.object(p,'post',return_value=new):
         second.login()
@@ -494,7 +370,40 @@ def test_session_lock_refusal_never_uses_the_provider(fixture):
     c, clock, store, provider, seen, session = fixture
     session.login()
     previous_calls = len(provider.calls)
-    with patch('papyrus_content.cli_user_auth.os.open', side_effect=PermissionError('fixture denied')):
+    with patch('cli_login.locks.os.open', side_effect=PermissionError('fixture denied')):
         with pytest.raises(AuthError, match='session lock'):
             session.headers(c.graphql_endpoint)
     assert len(provider.calls) == previous_calls
+
+
+def test_the_per_site_key_is_the_one_earlier_clis_used(fixture):
+    # Existing Keychain items are found by (service, key); the key must never change.
+    import hashlib
+    c = fixture[0]
+    public = dict(publication=c.publication, issuer=c.issuer, client_id=c.client_id, oauth_domain=c.oauth_domain,
+                  graphql_endpoint=c.graphql_endpoint, callback_uri=c.callback_uri)
+    assert c.key == hashlib.sha256(json.dumps(public, sort_keys=True).encode()).hexdigest()
+
+
+def test_the_library_target_keeps_service_key_and_endpoints(fixture):
+    from papyrus_content.cli_user_auth import NAMESPACE, _target
+    c = fixture[0]
+    target = _target(c)
+    assert NAMESPACE == 'papyrus-newsroom-oauth' and target.namespace == NAMESPACE
+    assert target.key == c.key and target.api_endpoint == c.graphql_endpoint
+    assert target.token_endpoint == c.oauth_domain + '/oauth2/token' and target.callback_uri == c.callback_uri
+
+
+def test_lock_files_stay_in_the_papyrus_state_directory(fixture):
+    from papyrus_content.cli_user_auth import state_dir
+    c, clock, store, p, seen, s = fixture
+    s.login()
+    assert [path.name for path in state_dir().glob('session-*.lock')] == ['session-' + c.key + '.lock']
+
+
+def test_remote_login_is_not_available_yet_and_signs_nothing_in(fixture):
+    from papyrus_content.cli_user_auth import command
+    c, clock, store, p, seen, s = fixture
+    with pytest.raises(AuthError, match='not available yet'):
+        command(['login', '--remote', 'news.example.test'])
+    assert p.calls == [] and store.data == {}
