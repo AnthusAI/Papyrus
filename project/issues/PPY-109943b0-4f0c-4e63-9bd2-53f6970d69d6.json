@@ -22,10 +22,17 @@
         "model": "gpt-6",
         "name": "Cloud CLI issue filing"
       }
+    },
+    {
+      "id": "479fae5c-4126-4a75-922d-ad90a2c48f80",
+      "author": "home",
+      "text": "Plan (Claude, 2026-10-30; decision by Ryan in chat: a memory-only agent is acceptable on cloud machines).\n\nBackends, tried in order, all fail-closed with no plaintext fallback:\n1. macOS Keychain: unchanged keys and service, so existing sessions survive.\n2. Linux Secret Service (desktop, D-Bus).\n3. Linux kernel keyring (user or persistent keyring) where the syscalls are allowed. Docker's default seccomp profile blocks add_key/keyctl, so probe for it and do not assume it.\n4. `papyrus auth agent`: an ssh-agent-style process holding refresh tokens in memory only, behind a 0600 Unix socket in the state directory. Never on disk; the session ends with the machine, and a new remote approval is needed after a restart. `papyrus auth agent --status` and `stop`.\n5. Windows Credential Manager. A blob is at most 2,560 bytes, so store only the refresh token plus a small record, chunked if needed. Otherwise track the gap and make no claim of support.\n\nLocking: replace fcntl with a per-site cross-platform lock (fcntl on POSIX, msvcrt/LockFileEx on Windows), with no global lock.\n\nTests: fake stores for each backend; locked/absent store; concurrent refresh and logout; symlink and permission refusal; token redaction; fresh child processes. Update docs/cli-login.md with the supported platforms and how to recover on each.\n",
+      "created_at": "2026-10-30T10:19:59.578248Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T10:38:03.602906Z",
-  "updated_at": "2026-10-30T09:28:52.047932Z",
+  "updated_at": "2026-10-30T10:19:59.578959Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

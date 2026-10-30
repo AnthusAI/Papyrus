@@ -22,10 +22,17 @@
         "model": "gpt-6",
         "name": "Cloud CLI issue filing"
       }
+    },
+    {
+      "id": "e935358c-02d7-4a44-a2dd-2f6b39d8b5bc",
+      "author": "home",
+      "text": "Plan (Claude, 2026-10-30).\n\nMostly built: refresh-token renewal, transient errors preserving the session, and per-site binding. Remaining:\n- Run the same contract through each new store (PPY-109943) and through remote-login sessions (PPY-5a3624).\n- On invalid_grant, keep deleting the local session, but distinguish revocation or a removed grant (fail closed with recovery guidance) from 429/5xx/network errors (keep the session, bounded retry).\n- Never replay an uncertain protected mutation.\n- Evidence reported in three separate parts: simulated-clock tests; Cognito client settings inspection (refresh validity, rotation); an actual run of 24 hours or more from a cloud session logged in with --remote, with timestamped redacted receipts across a restart.\n",
+      "created_at": "2026-10-30T10:19:59.645420Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T10:37:48.586795Z",
-  "updated_at": "2026-10-30T09:28:52.123899Z",
+  "updated_at": "2026-10-30T10:19:59.645717Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
