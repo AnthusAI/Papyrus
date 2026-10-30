@@ -27,9 +27,17 @@
       "type": "relates-to"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "72a5c2e1-6edf-48d5-b22d-ae2a6a76eab4",
+      "author": "home",
+      "text": "Plan (Claude, 2026-10-30; decisions by Ryan in chat).\n\nDecisions: one broker per site (in each site's own backend, approval page on the site's own domain). Cloud machines without a keychain use a memory-only `papyrus auth agent` (see PPY-109943). Same pattern goes to the Cyclotron session as a design note, not shared code.\n\nWhy a broker: Cognito does not implement the RFC 8628 device flow, and AWS's `--remote` has the user paste a code back, which this story forbids.\n\nFlow (split secrets):\n1. `papyrus login --remote <site>`: the CLI makes a PKCE verifier V and a poll secret P and keeps both. It POSTs to the site broker `/start`: publication, client id, code_challenge S256(V), sha256(P), requester label (host name, CLI version). The broker returns a transaction id T, a short matching code, `https://<site>/cli/approve?t=T`, a poll interval and an expiry (about 10 minutes).\n2. The approval page shows the requester, the matching code, the site and \"acts as you with your newsroom permissions\". Approve sends the browser to Cognito `/oauth2/authorize` (Google) with the transaction's code_challenge, redirect `https://<site>/cli/callback`, and state = T plus a CSRF nonce bound to a browser cookie. Deny and cancel are recorded.\n3. `/cli/callback` checks the state and hands the authorization code to the broker for T.\n4. The CLI polls `/poll` with T and P and receives the code exactly once (then the record is deleted). It exchanges the code at the Cognito token endpoint with V, and stores the session as a local login would.\n\nProperties: no token or code in chat or copy/paste. The broker never holds a token, and the code it holds briefly is useless without V. The link cannot redeem anything without P. Single use, short expiry, DynamoDB TTL, per-caller rate limits on /start and /poll, bounded polling with slow_down backoff. Each site's broker serves only its own publication and client.\n\nBuild:\n- Shared site backend: broker Lambda with a function URL (no auth on start/poll; complete/deny need the state/nonce), plus a DynamoDB table with TTL.\n- Shared app shell: `/cli/approve` and `/cli/callback` pages.\n- Discovery file: optional `remote_login_endpoint` and `remote_callback_uri`.\n- CLI: `--remote` on `papyrus login`, using the existing per-site registry and endpoint matching.\n\nLive prerequisite (needs Ryan's approval): add `https://<site>/cli/callback` to each site's Cognito web client callback URLs and deploy the broker.\n\nOrder: Gherkin specs plus fake broker/provider tests first, then the backend and pages, then the CLI, then proof on a test publication before any other site.\n",
+      "created_at": "2026-10-30T10:19:59.427698Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-30T09:28:51.580949Z",
-  "updated_at": "2026-10-30T09:28:52.693262Z",
+  "updated_at": "2026-10-30T10:19:59.428309Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
