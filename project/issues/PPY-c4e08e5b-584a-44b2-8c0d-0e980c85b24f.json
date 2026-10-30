@@ -3,17 +3,30 @@
   "title": "Rename Data Parade posts to articles: dataparade.io/articles, /posts redirects",
   "description": "Ryan (2026-10-30): the DataParade client wants \"articles\", not \"posts\". Move the article pages from dataparade.io/posts to dataparade.io/articles on both sites, and ship the landing side through DataParade's new CI/CD pipeline (Ryan chose: add a landing deploy workflow).\n\nOrder, so nothing breaks in between:\n1. dataparade.io CloudFront (domain-edge, account 688128002352): add /articles and /articles/* behaviors to the Papyrus edge, keeping /posts*. By reviewed change set by hand: the pipeline's roles do not cover domain-edge.\n2. AnthusAI/DataParade-newsroom: urls.basePath /articles, a pattern redirect ^/posts/(.*)$ -> /articles/$1 (301), labels Posts -> Articles, tests, docs.\n3. DataParade-io/dataparade: fold the rename into PR #85 (landing nav, footer, home-page feed at /articles/_data/latest.json, next.config redirects, domain-edge template), merge main into it, add a plan/apply landing deploy workflow modeled on deploy-prod.yml, merge, then plan and apply through the pipeline. Note: production landing runs the #85 branch, 226 commits behind main, so the first pipeline deploy also ships main's landing changes.\nDone when dataparade.io/articles/ serves the articles, every old /posts/... URL 301s to /articles/..., the landing home page shows the latest articles, and the landing was deployed by the new workflow.",
   "type": "task",
-  "status": "in_progress",
+  "status": "closed",
   "priority": 1,
   "assignee": null,
   "creator": null,
   "parent": "PPY-d74fb46b-8255-4e22-a923-d905765b1bd2",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "40cfe35a-0a4e-45a2-8674-06b6aa649716",
+      "author": "home",
+      "text": "Done and live 2026-10-30. dataparade.io/articles/ serves the articles; every old /posts/... path 301s to /articles/... (redirects.patterns ^/posts/(.*)$, compiled into the viewer-request function); canonicals and _data/latest.json are on /articles. Shipped by: (1) dataparade-domain-edge-sam change set (reviewed: only the /articles and /articles/* behaviors added, plus SAM metadata removal); (2) AnthusAI/DataParade-newsroom #39/#40, deployed by Amplify job 29 together with the Papyrus 5.61.0 bump (jobs 26-28 failed on the Papyrus 5.59.0 resolver-path bug, fixed in 5.61.0). While job 29's backend update ran, the new redirect was live before the pages, so I ran papyrus ops content project --all by hand (after a reconcile dry run) to end the gap. (3) DataParade-io/dataparade #85/#130: landing nav, footer and latest-articles section on /articles, and the new deploy-landing-prod.yml workflow. #131/#132 add ECR Public sign-in (anonymous public.ecr.aws pulls hit toomanyrequests on GitHub runners); the role change was applied through deploy-iam plan/apply. The landing was deployed by the new workflow: plan 41088451716 (change set: only LandingFunction image), apply 41099011114, smoke test passed. Verified live in a browser: home page shows the four latest articles linking to /articles/.",
+      "created_at": "2026-10-30T17:29:19.328350Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
+    }
+  ],
   "created_at": "2026-10-30T15:32:11.465844Z",
-  "updated_at": "2026-10-30T15:32:14.511480Z",
-  "closed_at": null,
+  "updated_at": "2026-10-30T17:29:19.477277Z",
+  "closed_at": "2026-10-30T17:29:19.476997Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}
