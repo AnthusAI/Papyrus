@@ -42,6 +42,12 @@ class FakeRedirectStore:
         for source in sources:
             self.mapping.pop(source, None)
 
+    def list_all(self) -> dict[str, str]:
+        return dict(self.mapping)
+
+    def get(self, source: str) -> str | None:
+        return self.mapping.get(source)
+
 
 class FailingRenderProjector:
     def __init__(self, inner) -> None:

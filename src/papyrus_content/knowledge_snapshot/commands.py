@@ -126,7 +126,7 @@ def select_backend(options: dict[str, Any]) -> None:
 
 def announce_backend() -> None:
     """One line on stderr: the lane and the AppSync host a command is about to use."""
-    from ..cli_user_auth import user_auth_requested
+    from ..user_auth_mode import user_auth_requested
 
     try:
         host = urlparse(graphql_endpoint()).netloc

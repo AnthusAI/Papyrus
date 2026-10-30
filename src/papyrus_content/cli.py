@@ -1117,7 +1117,7 @@ def references_register_catalog(flags: list[str]) -> None:
     if not options.get("catalog"):
         raise ValueError("references create-from-catalog requires --catalog <catalog.json>.")
     client, _ = create_authoring_client()
-    from .cli_user_auth import user_auth_requested
+    from .user_auth_mode import user_auth_requested
     if user_auth_requested():
         from .reference_intake_cli import register_pending_catalog
         register_pending_catalog(client, options, apply=apply)

@@ -585,12 +585,19 @@ def project_all(context: ProjectionContext) -> ProjectionReport:
     _write_item_pages(context, report, rendered, _versions_by_page(context, site))
     _write_listing_pages(context, report, listings, inputs)
     _delete_pages(context, report, planned)
-    if context.redirect_store is not None and redirects:
+    if context.redirect_store is not None:
         current = context.redirect_store.list_all()
         changed = {source: target for source, target in redirects.items() if current.get(source) != target}
         if changed:
             context.redirect_store.put_all(changed)
         report.redirects_written = len(changed)
+        # A path that is a page now never stays a redirect: an entry left by an earlier layout (a basePath that moved
+        # back and forth) would otherwise loop with the redirect that points at the page.
+        served = {path for key in (*rendered, *listings) for path in _request_paths(projector, key)}
+        shadowing = sorted(source for source in current if source in served and source not in redirects)
+        if shadowing:
+            context.redirect_store.delete_all(shadowing)
+            report.redirects_deleted += len(shadowing)
     if context.keep_state:
         for state in states:
             write_item_state(context.writer, state)

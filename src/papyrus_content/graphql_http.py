@@ -49,7 +49,7 @@ def aws_credentials_available() -> bool:
 
 
 def authoring_credentials_available() -> bool:
-    from .cli_user_auth import user_auth_requested
+    from .user_auth_mode import user_auth_requested
     # The selected user session is checked/renewed at request time, without an
     # AWS credential probe or escalation when that user session has expired.
     return user_auth_requested() or aws_credentials_available()
@@ -59,10 +59,12 @@ def graphql_request_headers(*, endpoint: str, body: bytes) -> dict[str, str]:
     from .guest_auth import refuse_guest_auth
 
     refuse_guest_auth("this command")
-    from .cli_user_auth import selected_headers
-    user_headers = selected_headers(endpoint)
-    if user_headers is not None:
-        return user_headers
+    from .user_auth_mode import user_auth_requested
+    if user_auth_requested():
+        from .cli_user_auth import selected_headers
+        user_headers = selected_headers(endpoint)
+        if user_headers is not None:
+            return user_headers
     return iam_signed_graphql_headers(endpoint, body)
 
 
