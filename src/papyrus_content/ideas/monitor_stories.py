@@ -155,10 +155,26 @@ def monitor_of(relations: list[dict[str, Any]]) -> str | None:
     return max(found)[1] if found else None
 
 
+def has_based_on_story(relations: Iterable[dict[str, Any]]) -> bool:
+    """True when a story (an item) is linked to the Reference with the ``uses_evidence`` relation in the role ``based_on``: someone or something already wrote it up."""
+    for relation in relations:
+        if relation.get("predicate") != "uses_evidence" or relation.get("subjectKind") != "item":
+            continue
+        metadata = relation.get("metadata")
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except ValueError:
+                continue
+        if isinstance(metadata, dict) and metadata.get("role") == "based_on":
+            return True
+    return False
+
+
 def automated_monitor_ids(client: Any) -> tuple[set[str], str | None]:
     """(the monitors an enabled Automation of the site is triggered by, an error name or None). An Automation whose trigger is
-    ``{"kind": "monitor", "config": {"monitorId": ...}}`` drafts from that monitor's deliveries itself (docs/monitoring-cloud.md), so monitor stories
-    leave them alone. When the records cannot be read the set is empty and the error is returned, so the run still goes ahead and says so."""
+    ``{"kind": "monitor", "config": {"monitorId": ...}}`` is meant to draft from that monitor's deliveries (docs/monitoring-cloud.md). Being configured is
+    not handling: a Reference is left to it only once a story based on it exists or a procedure run for it is recorded (``automation_handled``). When the records cannot be read the set is empty and the error is returned, so the run still goes ahead and says so."""
     try:
         rows = client.list_records("Automation")
     except Exception as error:  # noqa: BLE001 - a role that cannot list Automations must not stop the step
@@ -181,14 +197,16 @@ def automated_monitor_ids(client: Any) -> tuple[set[str], str | None]:
 
 def collect_monitored_items(
     client: Any, *, site: str, since: str | None = None, now: datetime, drafted: set[str] = frozenset(), excluded_hosts: Iterable[str] = (),
-    automated_monitors: Iterable[str] = (), statuses: Iterable[str] = DEFAULT_STATUSES, workers: int = 1,
+    automated_monitors: Iterable[str] = (), automation_handled: Iterable[str] = (), statuses: Iterable[str] = DEFAULT_STATUSES, workers: int = 1,
     out_of_time: Callable[[], bool] | None = None,
 ) -> tuple[list[MonitoredItem], dict[str, int]]:
     """Every monitored Reference of ``site`` (all of them, or only those that arrived inside ``since`` when it is given), each with the monitor,
     the stored details and the Cyclotron's verdict. One indexed query per Reference for its provenance and one more for its decision; the
     decision is not read for a Reference in ``drafted`` (it is never a candidate again). A Reference whose ``sourceUri`` host is one of
-    ``excluded_hosts`` (or a subdomain) is never read further, never a candidate, and is counted as ``excludedHost``. A Reference delivered by a monitor in ``automated_monitors`` (one an
-    enabled Automation of the site already handles) is never a candidate either, and is counted as ``handledByAutomation``.
+    ``excluded_hosts`` (or a subdomain) is never read further, never a candidate, and is counted as ``excludedHost``. A Reference an Automation has really taken on is never a candidate
+    either, and is counted as ``handledByAutomation``: its id is in ``automation_handled`` (a procedure run for it is recorded or in progress), or a story is
+    already ``based_on`` it and the monitor that delivered it is one in ``automated_monitors`` (an enabled Automation is configured for it). An Automation that is
+    merely configured for the monitor handles nothing yet. A story ``based_on`` a Reference from a monitor no Automation is configured for is counted as ``hasStory``.
 
     With ``workers`` above 1 the References are read that many at a time, each worker on its own connection (a site with thousands of accepted
     References needs two queries each: read one after the other, a daily run would spend its whole time budget reading). If ``out_of_time()``
@@ -197,8 +215,9 @@ def collect_monitored_items(
     window = now - parse_window(since) if since else None
     rows = collect_references(client, [f"{CORPUS_PREFIX}{site}"], statuses, window)
     not_accepted = 0 if "pending" in statuses else len(collect_references(client, [f"{CORPUS_PREFIX}{site}"], ["pending"], window))
-    counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0}
+    counts = {"inWindow": len(rows), "notAccepted": not_accepted, "notMonitored": 0, "judgedNotRelevant": 0, "excludedHost": 0, "handledByAutomation": 0, "hasStory": 0}
     automated = set(automated_monitors)
+    handled = {str(identifier) for identifier in automation_handled}
     excluded_hosts = normalize_hosts(excluded_hosts)
     local = threading.local()
 
@@ -223,8 +242,10 @@ def collect_monitored_items(
         monitor = monitor_of(incoming)
         if monitor is None or not row.get("sourceUri"):
             return "notMonitored", None
-        if monitor in automated:
+        if handled & {str(row["id"]), str(lineage)}:
             return "handledByAutomation", None
+        if has_based_on_story(incoming):
+            return ("handledByAutomation" if monitor in automated else "hasStory"), None
         item = MonitoredItem(
             reference_id=row["id"], lineage_id=lineage, title=str(row.get("title") or row["sourceUri"]).strip(), url=str(row["sourceUri"]),
             arrived_at=str(row.get("createdAt") or ""), published_at=str(row.get("sourcePublishedAt") or "") or None, monitor_id=monitor,
@@ -525,6 +546,7 @@ def draft_monitor_stories(
     statuses: Iterable[str] = DEFAULT_STATUSES,
     out_of_time: Callable[[], bool] | None = None,
     read_workers: int = 1,
+    automation_handled: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Drafts monitor stories and returns the run ledger. A dry run reads, asks the model and checks, but files, stores and requests nothing.
 
@@ -544,7 +566,7 @@ def draft_monitor_stories(
     already = drafted_lineage_ids(proposals, stored)
     automated, automation_error = automated_monitor_ids(client)
     items, counts = collect_monitored_items(
-        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, statuses=statuses,
+        client, site=corpus_key or site, since=since, now=moment, drafted=already, excluded_hosts=excluded_hosts, automated_monitors=automated, automation_handled=automation_handled, statuses=statuses,
         workers=read_workers, out_of_time=out_of_time,
     )
     if counts.get("readStopped"):
@@ -652,7 +674,7 @@ def render_report(run: dict[str, Any]) -> str:
         f"Run `{run['runId']}`, " + (f"items that arrived in the last {run['window']['since']}" if run["window"]["since"] else "every undrafted monitored item") + f". Proposed by AI." + (" Dry run: nothing was filed." if run["dryRun"] else " Private drafts for review; nothing here is published."),
         "",
         "- Freshness: " + (f"tau {run['freshness']['tauDays']} days from {run['freshness']['examples']} accepted items" if run["freshness"]["tauDays"] else f"none ({run['freshness']['note']})"),
-        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (never drafted here): {inputs.get('handledByAutomation', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
+        f"- Monitored items read ({', '.join(run['statuses'])} only; pending not read: {inputs.get('notAccepted', 0)}): {inputs['inWindow'] - inputs['notMonitored'] - inputs.get('excludedHost', 0) - inputs.get('handledByAutomation', 0) - inputs.get('hasStory', 0)}; from excluded source hosts (never drafted): {inputs.get('excludedHost', 0)}; handled by an automation (a story based on it, or a procedure run recorded or in progress; never drafted here): {inputs.get('handledByAutomation', 0)}; already has a story based on it: {inputs.get('hasStory', 0)}; judged not relevant: {inputs['judgedNotRelevant']}; already drafted: {inputs['alreadyDrafted']}; promoted: {inputs['promoted']}; candidates: {inputs['candidates']}",
         f"- Drafts attempted: {run['attempted']} ({'no limit' if run['limit'] is None else 'limit ' + str(run['limit'])}); kept: {len(run['drafts'])}; failed the check: {len(run['invalid'])}; skipped: {len(run['skipped'])}; duplicates dropped: {len(run['duplicates'])}",
         f"- Model {run['model']}: {usage.get('inputTokens', 0)} input and {usage.get('outputTokens', 0)} output tokens in {usage.get('calls', 0)} call(s), cost ${usage.get('costUsd') if usage.get('costUsd') is not None else 'unknown'}",
         "",

@@ -49,6 +49,7 @@ import type {
 import { relationTypeKey, semanticStateKey, semanticVersionKey } from "../lib/semantic-graph";
 import {
   CONVERSATION_FEED_KEY,
+  GENERAL_CONVERSATION_KIND,
   REFERENCE_CONVERSATION_KIND,
   conversationAnchorKey,
   conversationMessageId,
@@ -301,7 +302,7 @@ const NEWSROOM_ASSIGNMENT_FEED_QUERY = `
 const NEWSROOM_REFERENCE_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
       nextToken
     }
   }
@@ -310,7 +311,7 @@ const NEWSROOM_REFERENCE_FEED_QUERY = `
 const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
   query ListReferencesByNewsroomFeedAndImportedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByNewsroomFeedAndImportedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
       nextToken
     }
   }
@@ -319,7 +320,7 @@ const NEWSROOM_REFERENCE_IMPORTED_FEED_QUERY = `
 const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
   query ListReferencesByCurationStatusAndUpdatedAt($curationStatus: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByCurationStatusAndUpdatedAt(curationStatus: $curationStatus, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
       nextToken
     }
   }
@@ -328,7 +329,7 @@ const LIST_REFERENCES_BY_CURATION_STATUS_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
   query ListReferencesByReviewedFeedAndUpdatedAt($reviewedFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelReferenceFilterInput) {
     listReferencesByReviewedFeedAndUpdatedAt(reviewedFeedKey: $reviewedFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
       nextToken
     }
   }
@@ -337,7 +338,7 @@ const LIST_REFERENCES_BY_REVIEWED_FEED_AND_UPDATED_AT_QUERY = `
 const LIST_REFERENCES_FALLBACK_QUERY = `
   query ListReferencesFallback($limit: Int, $nextToken: String) {
     listReferences(limit: $limit, nextToken: $nextToken) {
-      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt }
+      items { id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt }
       nextToken
     }
   }
@@ -470,7 +471,7 @@ const MODEL_ATTACHMENTS_BY_OWNER_QUERY = `
 
 /** Matches Reference model fields in amplify/data/resource.ts (no metadata on Reference). */
 const REFERENCE_RECORD_GRAPHQL_FIELDS =
-  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt";
+  "id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount importRunId importedAt createdAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey updatedAt";
 
 const LIST_REFERENCES_BY_LINEAGE_AND_VERSION_QUERY = `
   query ListReferencesByLineageAndVersion($lineageId: ID!, $limit: Int, $nextToken: String) {
@@ -1430,7 +1431,9 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
     list: () => listMessagesByThreadId(threadId, 1000),
     create: (sequenceNumber) => {
       now = new Date().toISOString();
-      built = build(sequenceNumber, now);
+      // `createdAt` is part of the composite sort key of messagesByResponseTargetStatusCreatedAt, so AppSync refuses a Message that
+      // sets it without `responseStatus`. A person's message waits on no responder: COMPLETED, as the Python message contract writes.
+      built = { responseStatus: "COMPLETED", ...build(sequenceNumber, now) };
       return runGraphql<{ createMessage?: MessageRecord | null }>(CREATE_MESSAGE_MUTATION, { input: built });
     },
   });
@@ -1591,11 +1594,13 @@ export async function appendConversationMessage(input: {
   anchor: ConversationAnchor;
   body: string;
   parentMessageId?: string | null;
+  /** The conversation to write into, when the caller already holds it (the Messages page). Without it the anchor finds or creates it. */
+  thread?: MessageThreadRecord;
 }): Promise<{ message: ConversationMessage; thread: MessageThreadRecord; relationError: string | null }> {
   const content = String(input.body || "").trim();
   if (!content) throw new Error("Write something to post.");
   const author = await currentConversationAuthor();
-  const thread = await ensureConversationThread(input.anchor, author);
+  const thread = input.thread ?? await ensureConversationThread(input.anchor, author);
   const result = await appendMessageToThread(thread, (sequenceNumber, now) => ({
     id: conversationMessageId(thread.id, sequenceNumber),
     messageKind: "comment",
@@ -1625,6 +1630,65 @@ export async function appendConversationMessage(input: {
     }
   }
   return { message: toConversationMessage(result.message), thread: result.thread, relationError };
+}
+
+/** One page of conversation threads of a kind, newest activity first. */
+export async function loadConversationThreadPage(threadKind: string, nextToken: string | null, limit = 20): Promise<{ items: MessageThreadRecord[]; nextToken: string | null }> {
+  type ThreadConnectionResponse = { listMessageThreadsByKindAndUpdatedAt?: { items?: Array<MessageThreadRecord | null> | null; nextToken?: string | null } | null };
+  const response = await runGraphql<ThreadConnectionResponse>(LIST_MESSAGE_THREADS_BY_KIND_AND_UPDATED_AT_QUERY, { threadKind, sortDirection: "DESC", limit, nextToken });
+  const connection = response.listMessageThreadsByKindAndUpdatedAt;
+  const items = ((connection?.items ?? []).filter(Boolean) as MessageThreadRecord[]).map(normalizeThreadRecord).filter((thread) => thread.status !== "deleted");
+  return { items, nextToken: connection?.nextToken ?? null };
+}
+
+/** Every Message in a conversation thread, oldest first. */
+export async function loadConversationThreadMessages(threadId: string): Promise<ConversationMessage[]> {
+  const records = await listMessagesByThreadId(threadId, 500);
+  return records.filter((record) => record.status !== "deleted").map(toConversationMessage);
+}
+
+/** Starts a conversation about nothing but itself: its own thread, and its first Message. */
+export async function startUnattachedConversation(body: string): Promise<{ message: ConversationMessage; thread: MessageThreadRecord }> {
+  const content = String(body || "").trim();
+  if (!content) throw new Error("Write something to post.");
+  const author = await currentConversationAuthor();
+  const now = new Date().toISOString();
+  const id = `message-thread-conversation-new-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const thread: MessageThreadRecord = {
+    id,
+    threadKind: GENERAL_CONVERSATION_KIND,
+    status: "active",
+    title: content.split("\n")[0].slice(0, 80),
+    createdBySub: author.sub,
+    createdByLabel: author.label,
+    messageCount: 0,
+    lastMessageId: null,
+    lastMessageAt: null,
+    metadata: JSON.stringify({ anchorKind: "none" }),
+    createdAt: now,
+    updatedAt: now,
+    newsroomFeedKey: CONVERSATION_FEED_KEY,
+  };
+  const created = await runGraphql<{ createMessageThread?: MessageThreadRecord | null }>(CREATE_MESSAGE_THREAD_MUTATION, { input: thread });
+  const saved = normalizeThreadRecord(created.createMessageThread ?? thread);
+  const result = await appendConversationMessage({ anchor: { kind: "none" }, body: content, thread: saved });
+  return { message: result.message, thread: result.thread };
+}
+
+/** The title and editorial stage of each Story, by lineage id. A Story that cannot be read has no entry. */
+export async function loadStoryHeaders(lineageIds: string[]): Promise<Map<string, { title: string; stage: string | null }>> {
+  const headers = new Map<string, { title: string; stage: string | null }>();
+  await Promise.all([...new Set(lineageIds)].map(async (lineageId) => {
+    try {
+      type Response = { listItemsByLineageAndVersion?: { items?: Array<{ versionNumber?: number | null; headline?: string | null; title?: string | null; stage?: string | null } | null> | null } | null };
+      const response = await runGraphql<Response>(`query StoryHeader($lineageId: ID!) { listItemsByLineageAndVersion(lineageId: $lineageId, limit: 50) { items { versionNumber headline title stage } } }`, { lineageId });
+      const items = (response.listItemsByLineageAndVersion?.items ?? []).filter(Boolean) as Array<{ versionNumber?: number | null; headline?: string | null; title?: string | null; stage?: string | null }>;
+      const newest = items.sort((left, right) => (right.versionNumber ?? 0) - (left.versionNumber ?? 0))[0];
+      const title = newest?.headline || newest?.title;
+      if (title) headers.set(lineageId, { title, stage: newest?.stage ?? null });
+    } catch { /* a Story that cannot be read keeps the title the thread was started with */ }
+  }));
+  return headers;
 }
 
 async function createCommentRelation(message: MessageRecord, anchor: ConversationAnchor): Promise<void> {
@@ -1843,10 +1907,17 @@ async function runGraphql<T extends Record<string, unknown>>(
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<{ data?: T | null; errors?: unknown[] | null }>;
   };
+  // The Amplify client rejects with the raw `{ data, errors }` response when the API returns errors; turn that into an
+  // Error carrying the API's own words, so a refusal is said in words instead of as an unknown failure.
   const response = await client.graphql({
     query,
     variables,
     authMode: USER_POOL_AUTH_MODE,
+  }).catch((failure: unknown) => {
+    if (failure && typeof failure === "object" && Array.isArray((failure as { errors?: unknown }).errors)) {
+      assertNoGraphQLErrors((failure as { errors: unknown[] }).errors);
+    }
+    throw failure;
   });
   assertNoGraphQLErrors(response.errors);
   return (response.data ?? {}) as T;
@@ -2082,17 +2153,15 @@ export async function loadEditorReferenceReviewDetails(lineageId: string) {
   configureAmplifyClient();
   const testMock = getTestEditorNewsroomMock();
   return loadReferenceReviewDetails(lineageId, {
-    relations: async (direction) => {
+    relations: async () => {
       if (testMock?.semanticRelations) return testMock.semanticRelations;
       return loadSemanticRelationsByState({
-        field: direction === "outgoing" ? "listSemanticRelationsBySubjectState" : "listSemanticRelationsByObjectState",
-        keyName: direction === "outgoing" ? "subjectStateKey" : "objectStateKey",
+        field: "listSemanticRelationsBySubjectState",
+        keyName: "subjectStateKey",
         keyValue: `reference#${lineageId}#current`,
-        query: direction === "outgoing" ? LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY : LIST_SEMANTIC_RELATIONS_BY_OBJECT_STATE_QUERY,
+        query: LIST_SEMANTIC_RELATIONS_BY_SUBJECT_STATE_QUERY,
       });
     },
-    message: async (id) => testMock?.messages ? testMock.messages.find((message) => message.id === id) ?? null : getMessageRecordById(id),
-    payloads: (id) => loadModelPayloadsForOwner("message", id, ["metadata"]),
   });
 }
 

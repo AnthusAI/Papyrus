@@ -1,0 +1,19 @@
+<!-- @dsCard group="Paper" height=188 subtitle="Kicker, section, byline, meta" -->
+<div id="root" style="padding:20px;background:var(--paper)"></div>
+<script>
+  const { Eyebrow } = window.Papyrus;
+  const React = window.React;
+  const h = React.createElement;
+
+  function Demo() {
+    return h("div", { style: { display: "grid", gap: "16px", maxWidth: "440px" } }, [
+      h(Eyebrow, { role: "section", as: "h2", key: 1 }, "Analysis"),
+      h(Eyebrow, { key: 2 }, "Reading from A1"),
+      h(Eyebrow, { role: "byline", key: 3 }, "By a staff writer"),
+      h(Eyebrow, { role: "meta", key: 4 }, "Analysis · 4 min · Edition A"),
+      h(Eyebrow, { role: "meta", tone: "alarm", key: 5 }, "Active exploitation")
+    ]);
+  }
+
+  ReactDOM.createRoot(document.getElementById("root")).render(h(Demo));
+</script>

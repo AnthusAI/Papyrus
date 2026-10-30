@@ -29,16 +29,27 @@ Feature: A site can name source hosts its AI drafts never cite
     Then no monitor story was drafted from "On a subdomain"
     And the monitor story run counted 1 item as excluded host
 
-  Scenario: A monitor that an enabled automation handles is left to the automation
+  Scenario: A Reference an enabled automation has already written a story for is left alone, one it never ran for is drafted
     Given a site "example-site" with the sections "Analysis" and "Tools"
     And the monitors of the site delivered these excluded-host items:
       | monitor | title            | address                       | days ago |
       | ttab    | A board decision | https://www.example1.org/a    | 1        |
       | hn      | A tool           | https://www.example2.org/post | 2        |
     And an enabled automation is triggered by the monitor "ttab"
+    And a story written by the automation is based on "A board decision"
     When the operator drafts monitor stories excluding no host
     Then no monitor story was drafted from "A board decision"
     And the monitor story run counted 1 item as handled by an automation
+
+  Scenario: A Reference whose enabled automation never ran is drafted like any other
+    Given a site "example-site" with the sections "Analysis" and "Tools"
+    And the monitors of the site delivered these excluded-host items:
+      | monitor | title            | address                       | days ago |
+      | ttab    | A board decision | https://www.example1.org/a    | 1        |
+    And an enabled automation is triggered by the monitor "ttab"
+    When the operator drafts monitor stories excluding no host
+    Then the monitor story run counted 0 item as handled by an automation
+    And a monitor story was drafted from "A board decision"
 
   Scenario: A trend story is never shown an item from an excluded host, but the statistics still count it
     Given a trend snapshot whose releases are published on "site.example"

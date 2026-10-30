@@ -210,15 +210,16 @@ const PREVIEW_CYCLOTRON_ID = "papyrus-relevance";
 /**
  * Fixture data for reviewing the cyclotron suggestion UI without a backend:
  * suggestions with provenance on the first references, a mix of human and
- * non-human curation messages, and a live-agreement payload.
+ * non-human votes recorded on the References, and a live-agreement payload.
  */
 export function createLocalPreviewCyclotronFixtures(references: ReferenceRecord[]): {
   relations: SemanticRelationRecord[];
-  messages: MessageRecord[];
+  /** The first few References with a latest vote recorded on them, by Reference id. */
+  votedReferences: Map<string, ReferenceRecord>;
   shadowAgreement: ShadowAgreement;
 } {
   const relations: SemanticRelationRecord[] = [];
-  const messages: MessageRecord[] = [];
+  const votedReferences = new Map<string, ReferenceRecord>();
   references.slice(0, PREVIEW_SUGGESTION_PLANS.length).forEach((reference, index) => {
     const plan = PREVIEW_SUGGESTION_PLANS[index];
     const lineageId = reference.lineageId ?? reference.id;
@@ -264,35 +265,23 @@ export function createLocalPreviewCyclotronFixtures(references: ReferenceRecord[
       }),
     } as SemanticRelationRecord);
     if (plan.curation !== "none") {
-      const createdAt = isoTimestampHoursBeforeBase(30 - index);
-      messages.push({
-        id: `preview-curation-message-${index}`,
-        messageKind: "reference_curation",
-        messageDomain: "commentary",
-        status: "active",
-        summary: `${reference.title ?? lineageId}: curated`,
-        authorLabel: plan.curation === "delegated" ? "Maya Okafor" : null,
-        source: "newsroom",
-        createdAt,
-        updatedAt: createdAt,
-        metadata: JSON.stringify({
-          action: reference.curationStatus === "rejected" ? "reject" : "accept",
-          curationStatus: reference.curationStatus,
-          referenceLineageId: lineageId,
-          actorKind: plan.curation === "service" ? "service" : "human",
-          ...(plan.curation === "delegated" ? {
-            attestation: "delegated",
-            relayedBy: "newsroom-reporter",
-            delegationId: "curation-delegation-9b1f6c24-5d0e-4a7b-8c31-2e6f0a1d7b45",
-            instruction: "Reject that one, it duplicates the filing from Tuesday.",
-          } : {}),
-        }),
+      // A Reference keeps its latest vote on itself (no Message): the details sit in its curation* fields.
+      votedReferences.set(reference.id, {
+        ...reference,
+        curationStatusUpdatedAt: isoTimestampHoursBeforeBase(30 - index),
+        curationStatusUpdatedBy: plan.curation === "delegated" ? "Maya Okafor" : reference.curationStatusUpdatedBy,
+        curationActorKind: plan.curation === "service" ? "agent" : "human",
+        curationDelegation: plan.curation === "delegated" ? {
+          delegationId: "curation-delegation-9b1f6c24",
+          relayedBy: "newsroom-reporter",
+          instruction: "Reject that one, it duplicates the filing from Tuesday.",
+        } : null,
       });
     }
   });
   return {
     relations,
-    messages,
+    votedReferences,
     shadowAgreement: {
       schema: SHADOW_AGREEMENT_SCHEMA,
       comparisons: 23,

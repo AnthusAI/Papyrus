@@ -280,6 +280,13 @@ export type ReferenceRecord = {
   curationStatusUpdatedAt?: string | null;
   curationStatusUpdatedBy?: string | null;
   curationStatusReason?: string | null;
+  /** The latest vote's details; a Reference keeps only its latest vote (earlier votes live in the Cyclotron's feedback). */
+  curationReasonCode?: string | null;
+  curationActorKind?: string | null;
+  curationSectionId?: string | null;
+  curationShareable?: boolean | null;
+  curationDelegation?: unknown;
+  curationDecisionRelationId?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
   metadata?: unknown;

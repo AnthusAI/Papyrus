@@ -149,11 +149,15 @@ export function currentRelevanceDecisions(relations: SemanticRelationRecord[]): 
  * any other label, or a review without a label, rejects with the reason code,
  * which the existing scope-training rule turns back into a cyclotron label
  * (out_of_scope and policy_exclusion) or none.
+ *
+ * A rejection must say why, but either way of saying it will do: a reason code,
+ * or the editor's own words, which the curation Lambda reads for the code they
+ * name. Only a rejection with neither is refused.
  */
 export function curationForRelevanceReview(decision: RelevanceDecisionView, review: RelevanceReview): RelevanceCuration {
   const accepted = review.label !== null && review.label === decision.positiveLabel;
-  if (!accepted && !review.reasonCode) {
-    throw new Error("A review that does not accept the reference needs a reason code.");
+  if (!accepted && !review.reasonCode && !review.explanation?.trim()) {
+    throw new Error("A review that does not accept the reference needs a reason code, or a written reason.");
   }
   return {
     action: accepted ? "accept" : "reject",

@@ -45,14 +45,14 @@ try {
     };
     const close = async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(600); };
     const toDecision = async () => {
-      await pane().getByLabel("Why? (optional)").evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await pane().locator("[data-review-reason] textarea").evaluate((element) => element.scrollIntoView({ block: "center" }));
       await page.waitForTimeout(500);
     };
     const reasonAfterVote = async (selector, choice, reason, name, saved) => {
       await open(selector);
       await pane().locator(`[data-review-choice="${choice}"]`).first().click();
       await page.waitForTimeout(1500);
-      const why = pane().getByLabel("Why? (optional)");
+      const why = pane().locator("[data-review-reason] textarea");
       await why.fill(reason);
       await why.blur();
       await pane().locator(saved).first().waitFor();

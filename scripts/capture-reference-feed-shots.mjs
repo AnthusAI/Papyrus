@@ -62,8 +62,8 @@ try {
     // Rate: one card the Cyclotron expected to be Accepted (a match) and one it expected to be Rejected (a miss), both answered Accept.
     const { page } = session;
     await page.locator("[data-feed-tab-button=feed]").scrollIntoViewIfNeeded();
-    const predictedAccept = page.locator('[data-feed-card]:has([data-cyclotron-choice="accept"])').first();
-    const predictedReject = page.locator('[data-feed-card]:has([data-cyclotron-choice="reject"])').first();
+    const predictedAccept = page.locator('[data-feed-card]:has([data-review-choice="accept"][data-predicted])').first();
+    const predictedReject = page.locator('[data-feed-card]:has([data-review-choice="reject"][data-predicted])').first();
     await predictedAccept.locator('[data-review-choice="accept"]').click();
     await page.waitForTimeout(700);
     await predictedAccept.scrollIntoViewIfNeeded();
@@ -75,7 +75,7 @@ try {
     await shoot(page, "after-rating-miss", { clip: await clipOf(predictedReject) });
     await shoot(page, "after-rating-in-place");
     // Reject path: the card asks for a reason.
-    const another = page.locator('[data-feed-card]:not([data-feed-rated]):has([data-cyclotron-choice="reject"])').first();
+    const another = page.locator('[data-feed-card]:not([data-feed-rated]):has([data-review-choice="reject"][data-predicted])').first();
     await another.scrollIntoViewIfNeeded();
     await another.locator('[data-review-choice="reject"]').click();
     await page.waitForTimeout(400);

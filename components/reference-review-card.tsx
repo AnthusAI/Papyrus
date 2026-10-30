@@ -2,20 +2,16 @@
 
 import {
   ArchiveIcon,
-  CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CircleCheckIcon,
-  CircleXIcon,
   ExternalLinkIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
-import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { cn } from "@/lib/utils";
-import { RatingGrid } from "./review-rating-grid";
+import { DecisionControl } from "./decision-control";
 import { useRatingStore, type RatingController } from "./use-reference-ratings";
-import { REFERENCE_REJECTION_REASON_CODES, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
+import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
 
 export type ReviewChoice = "accept" | "reject";
 
@@ -31,96 +27,6 @@ export type ReviewCardDecision = {
   reasonCode: ReferenceRejectionReasonCode | null;
 };
 
-const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
-  out_of_scope: "Out of scope",
-  policy_exclusion: "Policy exclusion",
-  duplicate: "Duplicate",
-  low_quality: "Low quality",
-  unavailable: "Unavailable",
-  provenance: "Provenance",
-  other: "Other",
-};
-
-const CHOICE_LABEL: Record<ReviewChoice, string> = { accept: "Accept", reject: "Reject" };
-
-function percent(confidence: number | null): string | null {
-  return confidence === null ? null : `${Math.round(confidence * 100)}%`;
-}
-
-/**
- * The Cyclotron's read-only row: its Accept or Reject highlighted with its confidence, and a check or cross once a person has answered.
- * Shared by the review card and by every list that shows a suggestion before a decision.
- */
-export function CyclotronRow({ decided = null, prediction }: { decided?: ReviewChoice | null; prediction: CardPrediction }) {
-  const matched = decided && prediction.state === "ready" ? prediction.choice === decided : null;
-  return (
-    <div className="space-y-2" data-review-row="cyclotron">
-      <div className="flex items-center gap-3">
-        <span className="w-20 shrink-0 text-sm font-semibold">Cyclotron</span>
-        {prediction.state === "ready" ? (
-          <div className="flex flex-1 gap-2">
-            {(["accept", "reject"] as const).map((choice) => {
-              const predicted = prediction.state === "ready" && prediction.choice === choice;
-              const verdict = predicted && matched !== null ? (matched ? "match" : "miss") : null;
-              return (
-                <span
-                  className={cn(
-                    "inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md border px-3 text-sm",
-                    predicted ? "border-foreground bg-muted font-semibold" : "border-dashed text-muted-foreground",
-                    verdict === "match" && "border-green-700 bg-green-100 text-green-950",
-                    verdict === "miss" && "border-red-700 bg-red-100 text-red-950",
-                  )}
-                  data-cyclotron-choice={choice}
-                  data-predicted={predicted || undefined}
-                  data-verdict={verdict ?? undefined}
-                  key={choice}
-                >
-                  {verdict === "match" ? <CircleCheckIcon aria-hidden="true" className="size-4" /> : null}
-                  {verdict === "miss" ? <CircleXIcon aria-hidden="true" className="size-4" /> : null}
-                  {CHOICE_LABEL[choice]}
-                  {predicted && percent(prediction.confidence) ? <small className="text-xs font-normal">{percent(prediction.confidence)}</small> : null}
-                  {verdict ? <span className="sr-only">{verdict === "match" ? ", matches your answer" : ", differs from your answer"}</span> : null}
-                </span>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground" data-cyclotron-state={prediction.state}>
-            {prediction.state === "loading" ? "Loading…" : prediction.state === "error" ? "Prediction unavailable" : "No prediction"}
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** The two answers, large enough to tap: Accept and Reject, the chosen one filled and checked (never colour alone). */
-export function ChoiceButtons({ chosen, disabled = false, onChoose }: { chosen: ReviewChoice | null; disabled?: boolean; onChoose: (choice: ReviewChoice) => void }) {
-  return (
-    <div className="flex flex-1 gap-2">
-      {(["accept", "reject"] as const).map((choice) => {
-        const on = chosen === choice;
-        return (
-          <Button
-            aria-disabled={disabled ? true : undefined}
-            aria-pressed={on}
-            className="min-h-14 flex-1 text-base"
-            data-review-choice={choice}
-            key={choice}
-            onClick={() => onChoose(choice)}
-            type="button"
-            variant={on ? (choice === "accept" ? "default" : "destructive") : "outline"}
-          >
-            {on ? <CheckIcon aria-hidden="true" className="size-5" /> : null}
-            {CHOICE_LABEL[choice]}
-          </Button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** A reference's relevance decision in the card's own vocabulary. */
 export function predictionFromDecision(decision: { label: string; positiveLabel: string | null; confidence: number | null }): CardPrediction {
   return { state: "ready", choice: decision.label === (decision.positiveLabel ?? "include") ? "accept" : "reject", confidence: decision.confidence };
 }
@@ -181,10 +87,8 @@ export function ReviewCard({
   const store = ratings ?? local;
   const item = store.get(itemId);
   const note = item.note ?? initialNote;
-  const reason = item.reasonCode !== undefined ? item.reasonCode : initialReason;
   const chosen = item.pending ?? decided;
   const choose = (choice: ReviewChoice) => { if (!disabledReason) store.choose(itemId, choice); };
-  const chooseReason = (code: ReferenceRejectionReasonCode) => { if (!disabledReason) store.setReason(itemId, code); };
   const commitNote = () => { if (!disabledReason) store.commitNote(itemId); };
 
   // Desktop shortcuts: A accepts, R rejects. Never while typing.
@@ -222,52 +126,22 @@ export function ReviewCard({
         ) : null}
       </header>
 
-      <RatingGrid
+      <DecisionControl
         answer={chosen}
         decided={decided}
         disabled={Boolean(disabledReason)}
         disabledReason={disabledReason}
         feedback={item.feedback}
+        needsReason={item.askReason}
         onChoose={choose}
+        onReasonChange={(text) => store.setNote(itemId, text)}
+        onReasonCommit={commitNote}
         prediction={prediction}
+        reason={note}
+        reasonRequiredFor="reject"
         size="large"
         surface="card"
       />
-
-      <label className="block text-sm font-medium">
-        Why? (optional)
-        <AutoGrowTextarea
-          aria-label="Why? (optional)"
-          className="mt-1 block min-h-20 w-full rounded-[var(--feed-radius-lg,10px)] bg-[var(--feed-control)] p-3 text-base font-normal outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          onBlur={commitNote}
-          onChange={(event) => store.setNote(itemId, event.target.value)}
-          placeholder="Say what made this an easy yes or a clear no. Your note teaches the Cyclotron."
-          value={note}
-        />
-      </label>
-
-      {chosen === "reject" ? (
-        <div className="space-y-2" data-review-reasons>
-          <p className="text-sm font-medium">Reason for rejecting</p>
-          <div className="flex flex-wrap gap-2">
-            {REFERENCE_REJECTION_REASON_CODES.map((code) => (
-              <button
-                aria-disabled={disabledReason ? true : undefined}
-                aria-pressed={reason === code}
-                className={cn("inline-flex min-h-10 items-center gap-1.5 rounded-[var(--feed-radius-pill,8px)] px-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", reason === code ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)]")}
-                data-review-reason={code}
-                key={code}
-                onClick={() => chooseReason(code)}
-                type="button"
-              >
-                {reason === code ? <CheckIcon aria-hidden="true" className="size-4" /> : null}
-                {REASON_LABELS[code]}
-              </button>
-            ))}
-          </div>
-          {!reason && !note.trim() ? <p className="text-sm text-muted-foreground">Choose a reason, or say why above, to save your Reject.</p> : null}
-        </div>
-      ) : null}
 
       {children}
 

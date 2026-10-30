@@ -61,7 +61,8 @@ REFERENCE_FIELDS = (
     f"{VERSION_FIELDS} id corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 "
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
-    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey updatedAt"
+    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey "
+    "feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (
     "id referenceId referenceLineageId referenceVersionNumber referenceVersionKey role sortKey storagePath "
@@ -462,6 +463,16 @@ INDEX_DEFINITIONS: dict[str, dict[str, str]] = {
         "field": "listReferencesByLineageAndVersion",
         "partitionKey": "lineageId",
         "partitionType": "ID",
+        "fields": REFERENCE_FIELDS,
+    },
+    "referencesByFeedStateAndPrediction": {
+        "field": "listReferencesByFeedStateAndPrediction",
+        "partitionKey": "feedStateKey",
+        "fields": REFERENCE_FIELDS,
+    },
+    "referencesByFeedStateAndArrival": {
+        "field": "listReferencesByFeedStateAndArrival",
+        "partitionKey": "feedStateKey",
         "fields": REFERENCE_FIELDS,
     },
     "referencesByCurationStatusKey": {

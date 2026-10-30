@@ -99,7 +99,7 @@ Feature: A confident prediction nobody voted on is accepted automatically, once 
     And a pending Reference delivered 5 days ago that the Cyclotron judged relevant with 95% confidence
     When the router runs its automatic acceptance
     Then the Reference is accepted by "auto:cyclotron"
-    And a curation Message records an automatic accept by the Cyclotron that is not a human label
+    And the Reference records an automatic accept by the Cyclotron that is not a human label and no Message is written
 
   Scenario: A monitor that delivers by a fixed rule has its delivery accepted on delivery
     Given the monitor delivers by a fixed rule that takes every collected item
@@ -107,7 +107,7 @@ Feature: A confident prediction nobody voted on is accepted automatically, once 
     When the router delivers the item
     Then the Reference is accepted by "auto:rule"
     And its reason names the monitor "hn" and the rule "every collected item"
-    And a curation Message records an automatic accept by the rule that is not a human label
+    And the Reference records an automatic accept by the rule that is not a human label and no Message is written
 
   Scenario: Switching it off keeps a rule monitor's delivery pending for an editor
     Given the monitor delivers by a fixed rule that takes every collected item

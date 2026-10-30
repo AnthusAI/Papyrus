@@ -344,10 +344,10 @@ const scenarios: Record<string, () => Promise<void>> = {
     await run("?overview=1", [375, 1440], async (page, width) => {
       const refCard = page.locator('[data-feed-card="reference-a"]');
       await refCard.waitFor();
-      assert.equal(await refCard.locator('[data-cyclotron-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
+      assert.equal(await refCard.locator('[data-review-choice="accept"][data-predicted]').count(), 1, "the suggestion highlights Accept");
       assert.ok((await refCard.innerText()).includes("82%"), "with its confidence");
       assert.match(await page.locator("[data-notification-summary]").innerText(), /\b2 references\b.*waiting for you/, "the header counts References");
-      assert.equal(await page.locator('[data-feed-card="reference-b"] [data-cyclotron-state="none"]').count(), 1, "no invented suggestion");
+      assert.equal(await page.locator('[data-feed-card="reference-b"] [data-prediction-state="none"]').count(), 1, "no invented suggestion");
       const pane = await openDetail(page, refCard);
       assert.ok((await pane.innerText()).includes("ReadyArt: text-generation model"), "a card opens the same detail the References page has");
       assert.equal(await pane.locator("[data-capture-panel]").count(), 1, "with our captured record");
@@ -598,8 +598,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       pane = await openDetail(page, reference);
       await pane.locator('[data-review-choice="accept"]').click();
       await page.waitForFunction(() => (window as unknown as { calls: { type: string }[] }).calls.some((call) => call.type === "rate"));
-      await pane.getByLabel("Why? (optional)").fill("Exactly on topic.");
-      await pane.getByLabel("Why? (optional)").blur();
+      // A Reference's reason lives in the decision control, not in the card's own labelled box.
+      await pane.locator("[data-review-reason] textarea").fill("Exactly on topic.");
+      await pane.locator("[data-review-reason] textarea").blur();
       await page.waitForFunction(() => (window as unknown as { calls: { type: string; note?: string }[] }).calls.filter((call) => call.type === "rate").length === 2);
       assert.deepEqual((await calls(page)).filter((call) => call.type === "rate").map((call) => [call.action, call.note ?? ""]), [["accept", ""], ["accept", "Exactly on topic."]]);
     });

@@ -89,23 +89,26 @@ def references_review_curation(flags: list[str]) -> None:
         raise ValueError("references review-curation requires --reference <id>.")
     if not options.get("action"):
         raise ValueError("references review-curation requires --action accept|reject|reopen|archive.")
+    note = str(options.get("note") or "")
+    # Words are a reason: a reject with --note needs no --reason-code, because the
+    # curation Lambda reads those words for the code they name.
     reason_code = normalize_reference_rejection_reason_code(
         options.get("reason-code") or options.get("reasonCode"),
-        required=str(options.get("action")).lower() == "reject",
+        required=str(options.get("action")).lower() == "reject" and not note.strip(),
     )
     client, _ = create_authoring_client()
     review = newsroom_reference_actions.review_reference_curation(
         client.graphql,
         reference_id=str(reference_id),
         action=str(options["action"]),
-        note=str(options.get("note") or ""),
+        note=note,
         actor_label=str(options.get("actor") or "Papyrus content CLI"),
         reason_code=reason_code or "",
         section_id=_section_option(options),
     )
     print(
         f"references\treview-curation\t{review.get('referenceId')}\t{review.get('action')}\t"
-        f"{review.get('status')}\t{review.get('reasonCode') or ''}\t{review.get('messageId') or ''}"
+        f"{review.get('status')}\t{review.get('reasonCode') or ''}"
     )
 
 
@@ -133,13 +136,15 @@ def references_record_on_behalf_of(flags: list[str], *, action: str) -> None:
                if not value or value is True]
     if missing:
         raise ValueError(f"references {action} requires {', '.join(missing)}.")
+    note = str(options.get("note") or "")
     reason_code = normalize_reference_rejection_reason_code(
-        options.get("reason-code") or options.get("reasonCode"), required=action == "reject")
+        options.get("reason-code") or options.get("reasonCode"),
+        required=action == "reject" and not note.strip())
     client, _ = create_authoring_client()
     recorded = newsroom_reference_actions.record_delegated_curation(
         client.graphql, reference_id=str(reference_id), action=action, delegation_token=str(token),
         agent_label=str(agent_label), on_behalf_of=str(on_behalf_of),
-        instruction=str(options["instruction"]), note=str(options.get("note") or ""),
+        instruction=str(options["instruction"]), note=note,
         reason_code=reason_code or "", section_id=_section_option(options))
     print(f"references\t{action}\t{recorded.get('referenceId')}\t{recorded.get('status')}\t"
           f"{recorded.get('reasonCode') or ''}\ton behalf of {on_behalf_of} via {agent_label}")
@@ -277,6 +282,27 @@ def references_auto_accept(flags: list[str]) -> None:
     from .auto_accept import run_rule_backfill
     backfill = run_rule_backfill(client, publication, now=datetime.now(timezone.utc), dry_run=bool(options.get("dry-run")))
     print(json.dumps({"autoAccept": "rule-backfill", **backfill}))
+
+
+def references_backfill_feed_keys(flags: list[str]) -> None:
+    """``papyrus references backfill-feed-keys --site KEY [--corpus-key KEY] [--positive-label LABEL] [--dry-run]``.
+
+    Sets the keys the References page pages through (src/papyrus_content/reference_feed_backfill.py) from each Reference's status and its
+    current Cyclotron decision. It writes only those fields. ``--dry-run`` prints the counts and writes nothing.
+    """
+    from .reference_feed_backfill import backfill_feed_keys
+    options = parse_options(flags)
+    site = normalize_string(options.get("site"))
+    if not site:
+        raise ValueError("references backfill-feed-keys needs --site KEY.")
+    apply = resolve_mutation_apply(options, "references backfill-feed-keys")
+    corpus_key = normalize_string(options.get("corpus-key")) or site
+    client, _ = create_authoring_client()
+    result = backfill_feed_keys(client, corpus_id=f"knowledge-corpus-{corpus_key}",
+                                positive_label=normalize_string(options.get("positive-label")) or "include", dry_run=not apply,
+                                progress=lambda line: print(f"references\tbackfill-feed-keys\tprogress\t{line}") if int(line.split()[0]) % 100 == 0 else None)
+    for key, value in result.items():
+        print(f"references\tbackfill-feed-keys\t{key}\t{value}")
 
 
 def references_backfill_reviewed_feed_key(flags: list[str]) -> None:
@@ -1790,15 +1816,11 @@ def references_export_scope_training(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     references = client.list_records("Reference")
     attachments = client.list_records("ReferenceAttachment")
-    messages = client.list_records("Message")
-    relations = client.list_records("SemanticRelation")
     payload = build_reference_scope_training_export(
         corpus_config=corpus_config,
         corpus_id=corpus_id,
         references=references,
         attachments=attachments,
-        messages=messages,
-        relations=relations,
     )
     _write_json_file(options["output"], payload)
     print(

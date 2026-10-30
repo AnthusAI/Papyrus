@@ -1,0 +1,229 @@
+<!-- @dsCard group="Feed" height=860 subtitle="Prediction, decision, reason, one status line" -->
+<div id="root"></div>
+<style>
+  #root, #root *, #root *::before, #root *::after { box-sizing: border-box; }
+  #root { display: grid; font-family: var(--font-sans); gap: var(--space-5); }
+  .demo { background: var(--surface); border-radius: var(--radius-lg); display: grid; gap: var(--space-3); padding: var(--space-4); }
+  .demo > header { display: grid; gap: 2px; }
+  .demo > div { display: grid; gap: var(--space-2); }
+  .cap { color: var(--ink-muted); font-family: var(--font-label); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+  .cap em { color: var(--ink-strong); font-style: normal; }
+  .hint { color: var(--ink-muted); font-size: 12px; line-height: 16px; }
+  .lbl { color: var(--ink-muted); font-family: var(--font-label); font-size: 10px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+
+  /* 1. The prediction: a bar that carries its own confidence, above the choice it is about. */
+  .pred { display: grid; gap: 3px; }
+  .bar { background: var(--surface-muted); border-radius: 999px; height: 16px; overflow: hidden; position: relative; }
+  .fill { align-items: center; border-radius: 999px; display: flex; inset-block: 0; justify-content: flex-end; position: absolute; transition: background-color 160ms ease; }
+  .fill[data-fill="reject"] { justify-content: flex-start; }
+  .pct { color: var(--surface); font-family: var(--font-label); font-size: 10px; font-weight: 800; letter-spacing: 0.04em; padding: 0 6px; white-space: nowrap; }
+  .pct[data-outside] { color: var(--ink-muted); position: absolute; }
+  .notch { background: var(--surface); inset-block: 0; left: 50%; position: absolute; transform: translateX(-50%); width: 3px; }
+
+  /* 2. The decision: one pair of segments, three degrees of finish in tone alone. The feed register has
+     no borders to spend, so the predicted side takes the full tone and an untouched side is quieter. */
+  .seg { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; }
+  .opt { align-items: center; background: var(--surface-muted); border: 0; border-radius: 8px; color: var(--ink); cursor: pointer;
+         display: flex; flex-direction: column; font: inherit; font-size: 14px; gap: 1px; justify-content: center; min-height: 48px;
+         outline: none; position: relative; transition: background-color 120ms ease, color 120ms ease; }
+  .opt:focus-visible { box-shadow: var(--focus-ring); }
+  .opt .word { align-items: center; display: flex; gap: 6px; font-weight: 500; }
+  .opt .sub { font-family: var(--font-label); font-size: 10px; font-weight: 800; letter-spacing: 0.07em; opacity: 0.75; text-transform: uppercase; }
+  .opt[data-state="proposed"] { background: var(--surface-accent); color: var(--ink-strong); }
+  .opt[data-state="staged"] { background: var(--surface-accent); color: var(--ink-strong); font-weight: 600; }
+  .opt[data-state="decided"] { background: var(--primary); color: var(--primary-contrast); font-weight: 600; }
+  /* The verdict never tints the editor's own choice: it belongs to the prediction's marker and bar. */
+  .mark { inset-block-start: 6px; inset-inline-end: 7px; opacity: 0.55; position: absolute; }
+  .mark svg { height: 12px; width: 12px; }
+  .mark[data-verdict="match"] { color: var(--verdict-match); opacity: 1; }
+  .mark[data-verdict="miss"] { color: var(--verdict-miss); opacity: 1; }
+
+  /* 3. The reason: written, always in view, never behind a disclosure. */
+  .why { display: grid; gap: 6px; }
+  textarea { background: var(--surface-muted); border: 0; border-radius: 8px; color: var(--ink); font: inherit; font-size: 13px; line-height: 19px;
+             min-height: 60px; outline: none; padding: 9px 11px; resize: vertical; transition: min-height 120ms ease; width: 100%; }
+  textarea::placeholder { color: var(--ink-muted); }
+  textarea:focus-visible, textarea:not(:placeholder-shown) { min-height: 92px; }
+  textarea:focus-visible { box-shadow: var(--focus-ring); }
+
+  /* 4. One status line for the whole block. Fixed height: a vote never moves the card. */
+  .status { align-items: center; display: flex; font-size: 12px; gap: 8px; min-height: 22px; }
+  .status .msg { align-items: center; color: var(--ink-muted); display: flex; gap: 5px; }
+  .status[data-phase="recorded"] .msg { color: var(--ink-strong); }
+  .status[data-phase="error"] .msg { color: var(--danger-text); }
+  .status[data-phase="needs"] .msg { color: var(--ink-strong); font-weight: 600; }
+  .status .nudge { color: var(--ink-muted); font-weight: 400; }
+  .status button { background: var(--primary); border: 0; border-radius: 8px; color: var(--primary-contrast); cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; min-height: 26px; padding: 0 10px; }
+  .status button.quiet { background: var(--surface-accent); color: var(--ink-strong); }
+  .status button:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+  .spin { animation: spin 900ms linear infinite; height: 13px; width: 13px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .line { align-items: baseline; display: flex; flex-wrap: wrap; font-size: 14px; gap: 6px; }
+  .line strong { color: var(--ink-strong); }
+  .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .act { background: var(--surface-accent); border: 0; border-radius: 8px; color: var(--ink-strong); cursor: pointer; font: inherit; font-size: 13px; min-height: 36px; padding: 0 12px; }
+  .act.primary { background: var(--primary); color: var(--primary-contrast); font-weight: 600; }
+  .act:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+</style>
+<script>
+  const ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="height:15px;width:15px"><path d="M20 6 9 17l-5-5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="height:15px;width:15px"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    mark:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>',
+    spin:  '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg>',
+    tick:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" style="height:13px;width:13px"><path d="M20 6 9 17l-5-5"/></svg>',
+  };
+  const WORD = { accept: "Accept", reject: "Reject" };
+  let seq = 0;
+
+  /* One decision in two stages. A prediction proposes, the editor decides, a reason can be given
+     before or after, and one status line says what has been captured. No product name appears in
+     the copy: the component knows about "predictions", not about which engine made them. */
+  function DecisionControl(host, config) {
+    const id = "dc" + (seq += 1);
+    const s = {
+      prediction: config.prediction,            // {choice, confidence} or null
+      reasonRequiredFor: config.reasonRequiredFor ?? null,
+      decided: null, staged: null, note: "",
+      phase: "idle", everRecorded: false, failOnce: config.failOnce ?? false,
+    };
+    let timer;
+
+    const commit = () => {
+      s.phase = "recording"; render();
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (s.failOnce) { s.failOnce = false; s.phase = "error"; s.decided = null; }
+        else { s.decided = s.staged ?? s.decided; s.staged = null; s.everRecorded = true; s.phase = "recorded"; }
+        render();
+      }, 650);
+    };
+    const choose = (side) => {
+      if (s.decided === side && s.phase === "recorded") return;
+      s.staged = side;
+      if (s.reasonRequiredFor === side && !s.note.trim()) { s.phase = "needs"; render(); focusNote(); return; }
+      commit();
+    };
+    const focusNote = () => { const t = host.querySelector("textarea"); if (t) t.focus(); };
+    const reasonGiven = () => Boolean(s.note.trim());
+    const touched = () => { if (s.phase === "needs") render(); else if (s.decided) { s.phase = "note-pending"; render(); } };
+
+    function statusLine() {
+      const verdict = s.decided && s.prediction ? (s.decided === s.prediction.choice ? "match" : "miss") : null;
+      const said = {
+        idle:      ['<span class="msg">Nothing recorded yet</span>', ""],
+        recording: ['<span class="msg">' + ICON.spin + 'Recording…</span>', ""],
+        recorded:  ['<span class="msg">' + ICON.tick + 'Recorded' +
+                      (verdict === "match" ? " · confirms the prediction" : verdict === "miss" ? " · overturns the prediction" : "") +
+                      (reasonGiven() ? " · reason saved" : '<span class="nudge"> · no reason given</span>') + '</span>', ""],
+        needs:     ['<span class="msg">A reason is needed to record ' + WORD[s.staged] + '</span>',
+                    '<button data-act="record"' + (reasonGiven() ? "" : " disabled style=opacity:.5") + '>Record</button>'],
+        error:     ['<span class="msg">Not recorded — the backend refused this</span>', '<button class="quiet" data-act="retry">Try again</button>'],
+        "note-pending": ['<span class="msg">Recorded · reason not saved yet</span>', '<button data-act="savenote">Save reason</button>'],
+      }[s.phase];
+      return '<div class="status" data-phase="' + s.phase + '" role="status">' + said[0] + said[1] + '</div>';
+    }
+
+    function predictionBar(verdict) {
+      const p = s.prediction;
+      if (!p) return '<div class="pred"><span class="lbl">No prediction</span>' +
+        '<div class="bar" role="img" aria-label="No prediction"><span class="notch"></span></div></div>';
+      const prob = p.choice === "accept" ? (p.confidence ?? 0.6) : 1 - (p.confidence ?? 0.6);
+      const half = Math.abs(prob - 0.5) * 100;                       // percent of the whole bar, one side of centre
+      const pct = p.confidence ? Math.round(p.confidence * 100) + "%" : "unrecorded";
+      const narrow = half < 12;                                       // too short to hold the number inside
+      const fill = '<span class="fill" data-fill="' + p.choice + '" style="left:' + (p.choice === "accept" ? 50 - half : 50) + '%;width:' + half +
+        '%;background:' + (verdict ? "var(--verdict-" + verdict + ")" : "var(--ink-muted)") + '">' +
+        (narrow ? "" : '<span class="pct">' + pct + '</span>') + '</span>' +
+        (narrow ? '<span class="pct" data-outside style="left:' + (p.choice === "accept" ? 50 - half : 50 + half) + '%;transform:translateX(' +
+          (p.choice === "accept" ? "-100%" : "0") + ');top:2px">' + pct + '</span>' : "");
+      return '<div class="pred"><span class="lbl">Predicted ' + WORD[p.choice] + '</span>' +
+        '<div class="bar" role="img" aria-label="Prediction: ' + WORD[p.choice] + ', ' + pct + ' confident">' + fill + '<span class="notch"></span></div></div>';
+    }
+
+    function render() {
+      const p = s.prediction;
+      const verdict = s.decided && p ? (s.decided === p.choice ? "match" : "miss") : null;
+      const seg = ["accept", "reject"].map((side) => {
+        const state = s.decided === side ? "decided" : s.staged === side ? "staged" : (!s.decided && !s.staged && p && p.choice === side) ? "proposed" : "idle";
+        const sub = state === "proposed" ? "Predicted"
+          : state === "staged" ? (s.phase === "recording" ? (s.everRecorded ? "Updating…" : "Sending…") : "Needs a reason")
+          : state === "decided" ? (verdict === "miss" ? "Overturned" : verdict === "match" ? "Confirmed" : "Recorded") : "";
+        const mark = p && p.choice === side && (s.decided || s.staged)
+          ? '<span class="mark"' + (verdict ? ' data-verdict="' + verdict + '"' : "") + ' title="this is what was predicted">' + ICON.mark + '</span>' : "";
+        return '<button class="opt" type="button" role="radio" aria-checked="' + (s.decided === side) + '" data-side="' + side + '" data-state="' + state + '">' +
+          mark + '<span class="word">' + (side === "accept" ? ICON.check : ICON.cross) + WORD[side] + '</span>' +
+          (sub ? '<span class="sub">' + sub + '</span>' : "") + '</button>';
+      }).join("");
+
+      host.innerHTML =
+        predictionBar(verdict) +
+        '<div class="seg" role="radiogroup" aria-label="Classification">' + seg + '</div>' +
+        '<div class="why"><label class="lbl" for="' + id + '">Reason' +
+          (s.reasonRequiredFor ? " · required to " + WORD[s.reasonRequiredFor].toLowerCase() : " · optional") + '</label>' +
+          '<textarea id="' + id + '" placeholder="Why? In your own words — this is what the next prediction learns from.">' + s.note + '</textarea>' +
+        '</div>' + statusLine();
+
+      host.querySelectorAll(".seg [data-side]").forEach((b) => b.onclick = () => choose(b.dataset.side));
+      const ta = host.querySelector("textarea");
+      ta.oninput = (e) => { s.note = e.target.value; };
+      ta.onblur = () => touched();
+      const act = (name, fn) => { const el = host.querySelector('[data-act="' + name + '"]'); if (el) el.onclick = fn; };
+      act("record", () => { if (reasonGiven()) commit(); });
+      act("retry", () => { s.staged = s.staged ?? "accept"; commit(); });
+      act("savenote", () => commit());
+    }
+    render();
+  }
+
+  /* Variant C: the prediction as a sentence, with two actions named after it. */
+  function ProposalLine(host, prediction) {
+    const s = { decided: null, phase: "idle" };
+    const render = () => {
+      const other = prediction.choice === "accept" ? "reject" : "accept";
+      const half = Math.abs((prediction.choice === "accept" ? prediction.confidence : 1 - prediction.confidence) - 0.5) * 100;
+      const verdict = s.decided ? (s.decided === prediction.choice ? "match" : "miss") : null;
+      host.innerHTML =
+        '<div class="bar" role="img" aria-label="Prediction confidence"><span class="fill" data-fill="' + prediction.choice + '" style="left:' +
+          (prediction.choice === "accept" ? 50 - half : 50) + '%;width:' + half + '%;background:' +
+          (verdict ? "var(--verdict-" + verdict + ")" : "var(--ink-muted)") + '"><span class="pct">' +
+          Math.round(prediction.confidence * 100) + '%</span></span><span class="notch"></span></div>' +
+        '<div class="line">' + (s.decided
+          ? '<strong>' + WORD[s.decided] + 'ed</strong> — you ' + (verdict === "match" ? "confirmed" : "overturned") + ' the prediction'
+          : 'Predicted <strong>' + WORD[prediction.choice] + '</strong>') + '</div>' +
+        '<div class="acts">' + (s.decided
+          ? '<button class="act" type="button" data-side="' + (s.decided === "accept" ? "reject" : "accept") + '">Change to ' + WORD[s.decided === "accept" ? "reject" : "accept"] + '</button>'
+          : '<button class="act primary" type="button" data-side="' + prediction.choice + '">Confirm ' + WORD[prediction.choice] + '</button>' +
+            '<button class="act" type="button" data-side="' + other + '">Overturn to ' + WORD[other] + '</button>') + '</div>' +
+        '<div class="status" data-phase="' + s.phase + '" role="status"><span class="msg">' +
+          (s.phase === "recording" ? ICON.spin + "Recording…" : s.phase === "recorded" ? ICON.tick + "Recorded" : "Nothing recorded yet") + '</span></div>';
+      host.querySelectorAll(".acts [data-side]").forEach((b) => b.onclick = () => {
+        s.phase = "recording"; render();
+        setTimeout(() => { s.decided = b.dataset.side; s.phase = "recorded"; render(); }, 650);
+      });
+    };
+    render();
+  }
+
+  const demos = [
+    ["A · recommended — <em>predict, decide, explain</em>",
+     "The bar states the prediction and carries its confidence, above the choice it is about. Tap the predicted segment to confirm it, the other to overturn it. The reason sits in the open underneath, in your own words.",
+     (el) => DecisionControl(el, { prediction: { choice: "accept", confidence: 0.96 } })],
+    ["A · a reason is required to reject",
+     "Rejecting stages the answer, focuses the reason and waits — the segment says Needs a reason, and this is the only case with a Record button.",
+     (el) => DecisionControl(el, { prediction: { choice: "accept", confidence: 0.88 }, reasonRequiredFor: "reject" })],
+    ["A · a near-even prediction, and the save fails once",
+     "At 54% the fill is too short to hold its number, so the number sits beside it. The first tap fails: the status line holds the error and offers one retry.",
+     (el) => DecisionControl(el, { prediction: { choice: "reject", confidence: 0.54 }, failOnce: true })],
+    ["A · nothing predicted",
+     "No bar fill, no predicted segment, and the caption says so rather than leaving an empty rail to puzzle over. The first tap decides.",
+     (el) => DecisionControl(el, { prediction: null })],
+    ["C · minimal alternative — <em>a sentence with two actions</em>",
+     "The prediction is written out and the actions are named after it. Fewer parts, but the symmetry is gone and an item with nothing predicted needs a different control.",
+     (el) => ProposalLine(el, { choice: "reject", confidence: 0.94 })],
+  ];
+  document.getElementById("root").innerHTML = demos.map((d, i) =>
+    '<section class="demo"><header><span class="cap">' + d[0] + '</span><span class="hint">' + d[1] + '</span></header><div id="d' + i + '"></div></section>').join("");
+  demos.forEach((d, i) => d[2](document.getElementById("d" + i)));
+</script>

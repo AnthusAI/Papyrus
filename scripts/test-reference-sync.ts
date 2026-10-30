@@ -145,7 +145,7 @@ const rgbOf = (locator: ReturnType<Page["locator"]>, property: "color" | "backgr
   const context = canvas.getContext("2d")!; context.fillStyle = "#000"; context.fillStyle = getComputedStyle(el)[prop as "color"]; context.fillRect(0, 0, 1, 1);
   const [r, g, b] = context.getImageData(0, 0, 1, 1).data; return { r, g, b };
 }, property);
-const WHY = "Why? (optional)";
+const WHY = /^Reason/;
 
 const scenarios: Record<string, () => Promise<void>> = {
   /** The curation card is read first (status, words, signals, summary, GROBID fields, the curation-text body); extracted_text is the fallback. */
@@ -300,8 +300,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         await card(page, "r1").locator("[data-verdict=match]").waitFor();
         await open(page, "r1");
         assert.equal(await review(page).locator("[data-review-choice=accept]").getAttribute("aria-pressed"), "true", "the detail pane shows the vote made on the card");
-        assert.ok((await review(page).locator("[data-predicted]").innerText()).includes("Match"), "and its green match state");
-        await review(page).getByLabel(WHY, { exact: true }).fill("Exactly the audience we serve.");
+        assert.ok((await review(page).locator("[data-predicted]").innerText()).toLowerCase().includes("confirmed"), "and its green match state");
+        await review(page).getByLabel(WHY).fill("Exactly the audience we serve.");
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2, undefined, { timeout: 4000 });
         assert.deepEqual((await requests(page))[1], { id: "r1", action: "accept", note: "Exactly the audience we serve.", reasonCode: null }, "the reason is saved onto the decision, after a pause");
         await review(page).locator("[data-review-saved]").waitFor();
@@ -311,8 +311,8 @@ const scenarios: Record<string, () => Promise<void>> = {
         // On blur the reason saves at once.
         await card(page, "r2").locator("[data-review-choice=accept]").click();
         await open(page, "r2");
-        await review(page).getByLabel(WHY, { exact: true }).fill("Quick note.");
-        await review(page).getByLabel(WHY, { exact: true }).blur();
+        await review(page).getByLabel(WHY).fill("Quick note.");
+        await review(page).getByLabel(WHY).blur();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 4, undefined, { timeout: 800 });
         assert.equal(((await requests(page))[3] as { note: string }).note, "Quick note.");
         assert.deepEqual(errors, []);
@@ -326,7 +326,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const { browser, page, errors } = await setup(width);
       try {
         await open(page, "r3");
-        const why = review(page).getByLabel(WHY, { exact: true });
+        const why = review(page).getByLabel(WHY);
         await why.fill("Typed before voting.");
         await page.waitForTimeout(1600);
         assert.equal((await requests(page)).length, 0, "nothing is saved onto a decision that does not exist yet");
@@ -334,30 +334,31 @@ const scenarios: Record<string, () => Promise<void>> = {
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 1);
         assert.deepEqual((await requests(page))[0], { id: "r3", action: "accept", note: "Typed before voting.", reasonCode: null }, "the vote carries the reason");
         await closeDetail(page, width);
-        assert.ok((await card(page, "r3").locator("[data-predicted]").innerText()).includes("Match"));
-        // A typed reason is a reason: a Reject with words and no reason button saves at once, filed under "other".
+        assert.ok((await card(page, "r3").locator("[data-predicted]").innerText()).toLowerCase().includes("confirmed"));
+        // A typed reason is a reason: a Reject with words and no reason button saves at once.
         await open(page, "r6");
-        await review(page).getByLabel(WHY, { exact: true }).fill("Not our beat.");
+        await review(page).getByLabel(WHY).fill("Not our beat.");
         await review(page).locator("[data-review-choice=reject]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 2);
-        assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: "other" }, "a typed reason saves the Reject");
+        assert.deepEqual((await requests(page))[1], { id: "r6", action: "reject", note: "Not our beat.", reasonCode: null }, "a typed reason saves the Reject");
         await closeDetail(page, width);
         // With no reason at all, a Reject waits for one and saves nothing.
         await open(page, "r7");
         await review(page).locator("[data-review-choice=reject]").click();
-        assert.ok(await review(page).getByText("Choose a reason, or say why above, to save your Reject.").isVisible());
+        assert.ok(await review(page).locator("[data-review-record]").isVisible(), "a Reject with no reason asks for one, in words");
         assert.equal((await requests(page)).length, 2, "a Reject with no reason waits");
-        await review(page).locator("[data-review-reason=out_of_scope]").click();
+        await review(page).getByLabel(WHY).fill("Off topic for us.");
+        await review(page).locator("[data-review-record]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 3);
-        assert.deepEqual((await requests(page))[2], { id: "r7", action: "reject", note: null, reasonCode: "out_of_scope" });
+        assert.deepEqual((await requests(page))[2], { id: "r7", action: "reject", note: "Off topic for us.", reasonCode: null });
         await closeDetail(page, width);
         await open(page, "r6");
         // A failed save keeps what was typed.
         await page.evaluate(() => { (window as unknown as { fixtureFailNext: boolean }).fixtureFailNext = true; });
-        await review(page).getByLabel(WHY, { exact: true }).fill("Second thoughts that must not vanish.");
-        await review(page).getByLabel(WHY, { exact: true }).blur();
+        await review(page).getByLabel(WHY).fill("Second thoughts that must not vanish.");
+        await review(page).getByLabel(WHY).blur();
         await review(page).getByRole("alert").waitFor();
-        assert.equal(await review(page).getByLabel(WHY, { exact: true }).inputValue(), "Second thoughts that must not vanish.", "a typed reason is never lost");
+        assert.equal(await review(page).getByLabel(WHY).inputValue(), "Second thoughts that must not vanish.", "a typed reason is never lost");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     }
@@ -369,18 +370,18 @@ const scenarios: Record<string, () => Promise<void>> = {
       const { browser, page, errors } = await setup(width);
       try {
         await card(page, "r4").locator("[data-review-choice=reject]").click();
-        assert.equal(await card(page, "r4").locator("[data-review-reasons]").count(), 1, "the card asks for a reason");
+        assert.equal(await card(page, "r4").locator("[data-review-record]").count(), 1, "the card asks for a reason");
         await open(page, "r4");
         assert.equal(await review(page).locator("[data-review-choice=reject]").getAttribute("aria-pressed"), "true", "the detail pane shows the waiting Reject");
-        assert.ok(await review(page).getByText("Choose a reason, or say why above, to save your Reject.").isVisible());
-        await review(page).locator("[data-review-reason=duplicate]").click();
+        assert.ok(await review(page).locator("[data-review-record]").isVisible());
+        await review(page).getByLabel(WHY).fill("Seen this one already.");
+        await review(page).locator("[data-review-record]").click();
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 1);
         await closeDetail(page, width);
-        await card(page, "r4").locator("[data-verdict=match]").waitFor();
+        await card(page, "r4").locator("[data-prediction-mark][data-verdict=match]").waitFor();
         assert.equal(await card(page, "r4").getAttribute("data-feed-rated"), "reject");
-        assert.ok((await card(page, "r4").locator("[data-feed-reason]").innerText()).includes("Duplicate"), "the card shows the reason chosen in the pane");
-        assert.equal(await card(page, "r4").locator("[data-review-reasons]").count(), 0);
-        const green = await rgbOf(card(page, "r4").locator("[data-verdict=match]"), "color");
+        assert.equal(await card(page, "r4").locator("[data-review-record]").count(), 0, "nothing is waiting any more");
+        const green = await rgbOf(card(page, "r4").locator("[data-prediction-mark][data-verdict=match]"), "color");
         assert.ok(green.g > green.r, "a match is green on the card");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
@@ -495,7 +496,7 @@ Object.assign(scenarios, {
       await panel.locator("[data-capture-text]").waitFor();
       const toggle = panel.locator("[data-capture-toggle]");
       if (await toggle.count()) await toggle.click();
-      await review(page).getByLabel(WHY, { exact: true }).fill(Array.from({ length: 12 }, (_, line) => `Line ${line + 1} of a long reason.`).join("\n"));
+      await review(page).getByLabel(WHY).fill(Array.from({ length: 12 }, (_, line) => `Line ${line + 1} of a long reason.`).join("\n"));
       const boxes = await page.evaluate(() => [...document.querySelectorAll("[data-capture-text], textarea")].filter((el) => (el as HTMLElement).offsetParent).map((el) => {
         const style = getComputedStyle(el);
         return { overflow: style.overflowY, scrolls: el.scrollHeight > el.clientHeight + 1 };
@@ -566,9 +567,13 @@ Object.assign(scenarios, {
         await domClick(card(page, "r2").locator("[data-review-choice=accept]"));
         await card(page, "r2").locator("[data-verdict=match]").waitFor();
         await domClick(card(page, "r4").locator("[data-review-choice=reject]"));
-        assertSame(before, await geometry(page), "asking for a reason");
-        await domClick(card(page, "r4").locator("[data-review-reason=duplicate]"));
-        await card(page, "r4").locator("[data-verdict=match]").waitFor();
+        // Asking for a written reason adds one status row to that card (and its grid row): the order and columns never change.
+        const asking = await geometry(page);
+        assert.deepEqual(asking.cards.map((c) => c.id), before.cards.map((c) => c.id), "asking for a reason: the cards are in the same order");
+        for (const [index, c] of before.cards.entries()) assert.ok(Math.abs(asking.cards[index].x - c.x) <= 1 && Math.abs(asking.cards[index].w - c.w) <= 1, `asking for a reason: ${c.id} keeps its column`);
+        await card(page, "r4").getByLabel(WHY).fill("Seen this one already.");
+        await domClick(card(page, "r4").locator("[data-review-record]"));
+        await card(page, "r4").locator("[data-prediction-mark][data-verdict=match]").waitFor();
         await page.waitForTimeout(300);
         assertSame(before, await geometry(page), "rating two items");
         await domClick(card(page, "r3").locator("[data-feed-open]"));

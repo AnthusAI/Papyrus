@@ -13,7 +13,7 @@ import type { NeedsMeEntry } from "../lib/needs-me-items";
 import { answerWords, formatWhen, nextText, steeringText, subjectHref, subjectLabel } from "../lib/review-requests";
 import { DecidedLine } from "./notification-cards";
 import { SourceMark } from "./reference-feed";
-import { RatingGrid } from "./review-rating-grid";
+import { DecisionControl } from "./decision-control";
 import type { RatingController } from "./use-reference-ratings";
 import { FlagFooter, decidedChoiceOf, recordedAnswer } from "./needs-me-shared";
 
@@ -111,7 +111,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
           {item.decisionState === "acknowledged"
             ? <p className="flex items-center gap-1.5 text-sm font-medium" data-flag-acknowledged><CircleCheckIcon aria-hidden="true" className="size-4" />Acknowledged</p>
             : <DecidedLine choice={decided ?? "accept"} notThisKind={recorded.notThisKind} />}
-          {flag ? null : <RatingGrid answer={decided} disabled feedback={{ phase: "idle" }} onChoose={() => undefined} prediction={{ state: "none" }} showPrediction={false} size="large" surface="footer" />}
+          {flag ? null : <DecisionControl answer={decided} disabled feedback={{ phase: "idle" }} onChoose={() => undefined} prediction={{ state: "none" }} showPrediction={false} showReason={false} size="large" surface="footer" />}
           {lockedNote ? <p className="text-xs text-muted-foreground" data-review-disabled-reason>{lockedNote}</p> : null}
         </>
       ) : (
@@ -134,7 +134,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
           {flag ? (
             <FlagFooter busy={busy} disabledReason={disabledReason} done={false} error={rating.feedback.phase === "error" ? rating.feedback.message ?? null : null} onAcknowledge={() => ratings.choose(item.id, "accept")} />
           ) : (
-            <RatingGrid
+            <DecisionControl
               answer={rating.pending}
               disabled={Boolean(disabledReason)}
               disabledReason={disabledReason}
@@ -142,6 +142,7 @@ export function DecisionPanel({ item, ratings, extras, onExtras, disabledReason,
               onChoose={(choice) => { if (!disabledReason) ratings.choose(item.id, choice); }}
               prediction={{ state: "none" }}
               showPrediction={false}
+              showReason={false}
               size="large"
               surface="footer"
             />

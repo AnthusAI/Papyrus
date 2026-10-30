@@ -12,8 +12,8 @@ Editors Accept or Reject. This pass accepts a pending Reference on its own when 
   of the time from delivery (``createdAt``) to a human vote, over the publication's human votes. Without any, nothing is accepted.
 
 Nothing here is a fixed cap or window. The write is the same record shape an editor's accept leaves, except that ``curationStatusUpdatedBy`` is
-``auto:cyclotron`` (not a person, so the router never sends it to the Cyclotron as an editor's label) and a curation Message whose
-``actorKind`` is ``cyclotron``. An editor can Reject or re-Accept it later; that is then an ordinary human vote. A Reference an editor
+``auto:cyclotron`` (not a person, so the router never sends it to the Cyclotron as an editor's label) and a vote whose
+``curationActorKind`` is ``cyclotron`` (or ``rule``), recorded on the Reference itself: no Message. An editor can Reject or re-Accept it later; that is then an ordinary human vote. A Reference an editor
 touched is never changed. A monitor that delivers by a fixed rule (``decisions: "direct"``) has no confidence: its delivery is accepted on delivery by ``auto:rule``. See docs/monitoring-cloud.md#automatic-acceptance.
 """
 from __future__ import annotations
@@ -25,16 +25,16 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from .catalog import semantic_relation_record
 from .ideas.digest import parse_time, relations_of, relevance_of
-from .ids import hash_short, safe_id
+from .reference_feed_keys import feed_state_key
+from .reference_vote import CYCLOTRON, RULE, vote_fields
 
 AUTO_ACTOR = "auto:cyclotron"
 RULE_ACTOR = "auto:rule"   # a monitor with a fixed delivery rule (decisions "direct") has no confidence: matching the rule is the acceptance
-RULE_ACTOR_KIND = "rule"
+RULE_ACTOR_KIND = RULE
 ACTOR_LABEL = "Cyclotron (automatic)"
 RULE_ACTOR_LABEL = "Monitor rule (automatic)"
-CYCLOTRON_CURATION_ACTOR_KIND = "cyclotron"
+CYCLOTRON_CURATION_ACTOR_KIND = CYCLOTRON
 DEFAULT_PRECISION = 0.9
 DEFAULT_LATENCY_QUANTILE = 0.9
 WILSON_Z = 1.96   # two-sided 95%
@@ -154,35 +154,21 @@ def reason_text(*, confidence: float, learned: Mapping[str, Any], precision: flo
 
 def accept_reference_automatically(client: Any, reference: Mapping[str, Any], *, reason: str, evidence: Mapping[str, Any], now: str,
                                    actor: str = AUTO_ACTOR) -> bool:
-    """Accept one still-pending Reference with an audited curation Message. False when it is no longer pending or an editor touched it."""
+    """Accept one still-pending Reference, recording the vote on it. False when it is no longer pending or an editor touched it."""
     from .monitoring_router import human_actor
     current = client.get_record("Reference", reference["id"])
     if not current or current.get("versionState") != "current" or current.get("curationStatus") != "pending":
         return False
     if human_actor(str(current.get("curationStatusUpdatedBy") or "")):
         return False
-    lineage_id = reference.get("lineageId") or reference["id"]
     by_rule = actor == RULE_ACTOR
-    message_id = f"message-reference-curation-{safe_id(lineage_id)}-auto-accept-{hash_short([reference['id'], now])}"
-    metadata = {"action": "accept", "curationStatus": "accepted", "referenceId": reference["id"], "referenceLineageId": lineage_id,
-                "actorKind": RULE_ACTOR_KIND if by_rule else CYCLOTRON_CURATION_ACTOR_KIND, "automatic": True, **evidence}
+    # The vote is recorded on the Reference itself; Messages come only from people.
     client.update_record("Reference", {
         "id": reference["id"], "curationStatus": "accepted", "curationStatusKey": f"{current['corpusId']}#accepted",
         "curationStatusUpdatedAt": now, "curationStatusUpdatedBy": actor, "curationStatusReason": reason,
-        "reviewedFeedKey": REVIEWED_FEED_KEY, "updatedAt": now})
-    client.upsert("Message", {
-        "id": message_id, "messageKind": "reference_curation", "messageDomain": "commentary", "status": "active",
-        "summary": f"{current.get('title') or lineage_id}: accepted", "source": "papyrus-monitoring" if by_rule else "cyclotron",
-        "authorLabel": RULE_ACTOR_LABEL if by_rule else ACTOR_LABEL,
-        "content": reason, "responseTarget": "none", "responseStatus": "COMPLETED", "responseOwner": "papyrus-auto-accept",
-        "metadata": json.dumps(metadata, sort_keys=True, default=str), "createdAt": now, "updatedAt": now, "newsroomFeedKey": "messages"})
-    relation = semantic_relation_record({
-        "predicate": "comment", "subjectKind": "message", "subjectId": message_id, "subjectLineageId": message_id,
-        "subjectVersionNumber": 1, "objectKind": "reference", "objectId": reference["id"],
-        "objectLineageId": lineage_id, "objectVersionNumber": reference.get("versionNumber"),
-        "importedAt": now, "metadata": {"action": "accept", "curationStatus": "accepted",
-                                        "messageKind": "reference_curation"}})["expected"]
-    client.upsert("SemanticRelation", relation)
+        **vote_fields(RULE_ACTOR_KIND if by_rule else CYCLOTRON_CURATION_ACTOR_KIND),
+        "reviewedFeedKey": REVIEWED_FEED_KEY, "feedStateKey": feed_state_key({**current, "curationStatus": "accepted"}),   # a vote moves it to the rated feed; its prediction stays
+        "updatedAt": now})
     return True
 
 

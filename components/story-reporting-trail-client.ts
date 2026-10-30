@@ -4,7 +4,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { isLocalPreviewEnabled } from "../lib/local-preview";
 import { createLocalPreviewReportingTrail, createLocalPreviewStoriesForReference } from "../lib/local-preview-seed";
-import { EMPTY_STORY_REPORTING_TRAIL, referencesByRole, siteNameOf, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
+import { EMPTY_STORY_REPORTING_TRAIL, referencesByRole, siteNameOf, stageMovesOf, type ReferenceStory, type StoryReportingTrail, type TrailAssignment, type TrailAttachment, type TrailReference, type TrailThread, type TrailVersion } from "../lib/story-reporting-trail";
 import { configureAmplifyClient } from "./amplify-client-provider";
 
 type GraphqlResponse = { data?: Record<string, { items?: Record<string, unknown>[] | null; nextToken?: string | null } | null> | null; errors?: { message?: string }[] | null };
@@ -89,7 +89,7 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string,
   configureAmplifyClient();
   const client = generateClient<Schema>() as unknown as GraphqlClient;
   const [versionRows, assignmentRows, attachmentRows, relationRows] = await Promise.all([
-    listAll(client, "listItemsByLineageAndVersion", "id versionNumber versionState status stage headline title changeReason versionCreatedBy versionCreatedAt updatedAt", ", $lineageId: ID!", ", lineageId: $lineageId", { lineageId }).catch(() => []),
+    listAll(client, "listItemsByLineageAndVersion", "id versionNumber versionState status stage headline title changeReason versionCreatedBy versionCreatedAt updatedAt metadata", ", $lineageId: ID!", ", lineageId: $lineageId", { lineageId }).catch(() => []),
     listAll(client, "listAssignmentsByItemLineageAndCreatedAt", "id title assignmentTypeKey status assigneeKey summary createdAt", ", $itemLineageId: ID!", ", itemLineageId: $itemLineageId", { itemLineageId: lineageId }).catch(() => []),
     listAll(client, "listModelAttachmentsByOwnerRoleAndSortKey", "id role filename mediaType byteSize", ", $ownerId: ID!", ", ownerId: $ownerId", { ownerId: itemId }).catch(() => []),
     listAll(client, "listSemanticRelations", "id predicate subjectKind subjectLineageId objectKind objectId objectLineageId metadata", ", $filter: ModelSemanticRelationFilterInput", ", filter: $filter", { filter: { or: [{ subjectLineageId: { eq: lineageId } }, { objectLineageId: { eq: lineageId } }] } }).catch(() => []),
@@ -124,5 +124,6 @@ export async function loadStoryReportingTrail(lineageId: string, itemId: string,
     };
   })));
   const attachments: TrailAttachment[] = attachmentRows.map(row => ({ id: String(row.id), role: text(row.role), filename: text(row.filename), mediaType: text(row.mediaType), byteSize: typeof row.byteSize === "number" ? row.byteSize : null }));
-  return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments };
+  const latestRow = [...versionRows].sort((left, right) => Number(right.versionNumber ?? 0) - Number(left.versionNumber ?? 0))[0];
+  return { ...EMPTY_STORY_REPORTING_TRAIL, versions, assignments, threads, references, attachments, stageMoves: stageMovesOf(latestRow?.metadata) };
 }

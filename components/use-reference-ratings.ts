@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import type { ReviewChoice } from "./reference-review-card";
-import type { RatingFeedback } from "./review-rating-grid";
+import type { RatingFeedback } from "./decision-control";
 
 /** How long after the last keystroke a typed reason is saved on its own. */
 export const NOTE_AUTOSAVE_MS = 1200;
@@ -38,8 +38,8 @@ export type RatingController = {
  * shows in both at once. `saved(id)` is the saved human answer; `seed(id)` the saved note and reason code.
  *   vote, then reason  -> the reason is saved onto the existing decision (on blur, or after a short pause)
  *   reason, then vote  -> the vote carries the reason
- * A Reject needs a reason code (the backend refuses one without), so it waits as `pending` until one is chosen; a typed reason is
- * kept in the store until it is saved and is never dropped by a failed save.
+ * A Reject needs a reason (the backend refuses one without): words or a reason code, whichever the surface asks for. With neither it
+ * waits as `pending` until one arrives; a typed reason is kept in the store until it is saved and is never dropped by a failed save.
  */
 export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNote }: {
   save: RatingSave;
@@ -110,13 +110,17 @@ export function useRatingStore({ save, saved, seed, needsReason, sticky, saveNot
 
   const commit = useCallback(async (id: string, choice: ReviewChoice) => {
     if (finalDecision(id)) { void saveNoteOnly(id); return; }
-    const { note, reasonCode: chosenCode } = values(id);
-    // A typed reason is a reason: a Reject with words but no reason button is filed under "other" rather than left waiting.
-    const reasonCode = chosenCode ?? (choice === "reject" && note.trim() ? "other" : null);
-    if (choice === "reject" && !reasonCode && (latest.current.needsReason?.(id) ?? true)) { patch(id, { pending: "reject", askReason: true }); return; }
+    const { note, reasonCode } = values(id);
+    // A typed reason is a reason, so a Reject with words goes at once rather than waiting. It carries no
+    // code the editor did not pick: the backend reads the words for the code they name, and files words
+    // that name none under "other". Only a Reject with neither words nor a code waits for one.
+    if (choice === "reject" && !reasonCode && !note.trim() && (latest.current.needsReason?.(id) ?? true)) { patch(id, { pending: "reject", askReason: true }); return; }
     if (inFlight.current.has(id)) { dirty.current.add(id); return; }
     inFlight.current.add(id);
     dirty.current.delete(id);
+    // The note goes out with this save, so its own pending autosave has nothing left to send.
+    dirty.current.delete(`note:${id}`);
+    clearTimeout(timers.current[id]);
     const started = itemsRef.current[id] ?? EMPTY;
     patch(id, { pending: choice, askReason: false, feedback: { phase: "saving" } });
     try {

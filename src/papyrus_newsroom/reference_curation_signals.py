@@ -125,7 +125,7 @@ ISBN10_TEXT_RE = re.compile(r"\b[0-9][0-9\-\s]{8,16}[0-9Xx]\b")
 REFERENCE_FIELDS = """
 id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash
 corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt
-retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason updatedAt
+retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId updatedAt
 """
 
 LIST_REFERENCES_BY_CORPUS_QUERY = f"""

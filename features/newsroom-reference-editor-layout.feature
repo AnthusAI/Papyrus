@@ -14,5 +14,5 @@ Feature: Reference review remains reachable on a laptop screen
     Given an explicitly configured local reference demo
     When the editor opens the References page at four desktop sizes
     Then the feed scroller and the Detail pane both end at the bottom of the viewport
-    And the confidence bar sits midway between the Cyclotron row and the You row on a card and in the Detail pane
+    And the confidence bar sits above the buttons on a card and in the Detail pane
     And the space under a card's You buttons is no larger than the card's side padding

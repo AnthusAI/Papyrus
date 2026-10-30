@@ -53,8 +53,9 @@ async function main() {
         const measure = (grid: Element) => {
           const rect = (selector: string) => grid.querySelector(selector)!.getBoundingClientRect();
           const bar = rect("[data-confidence-bar]");
-          const above = bar.top + bar.height / 2 - rect("[data-cyclotron-choice]").bottom;
-          const below = rect("[data-review-choice]").top - (bar.top + bar.height / 2);
+          // The bar sits between the prediction's caption and the buttons it is about.
+          const above = bar.top - rect("[data-prediction-caption]").bottom;
+          const below = rect("[data-review-choice]").top - (bar.top + bar.height);
           return { above, below };
         };
         const cardGrid = document.querySelector("[data-feed-card] [data-rating-grid]")!;

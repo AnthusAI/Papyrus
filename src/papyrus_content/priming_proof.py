@@ -189,7 +189,7 @@ def reviewed_references_with_editor_labels(client, steering_config: Mapping[str,
     """Every current reviewed Reference of the canonical corpus that the scope-training rule labels."""
     from .ids import knowledge_corpus_id
     from .relevance_decisions import relevance_label_for_review
-    from .relevance_sweep import REVIEWED_STATUSES, _curation_messages, _current
+    from .relevance_sweep import REVIEWED_STATUSES, _current
     from .steering import require_corpus_config
 
     corpus = require_corpus_config(dict(steering_config), steering_config["canonicalTopicSet"]["corpusKey"],
@@ -199,8 +199,7 @@ def reviewed_references_with_editor_labels(client, steering_config: Mapping[str,
     labeled_references = []
     for status in REVIEWED_STATUSES:
         for reference in _current(client.list_by_index("referencesByCurationStatusKey", f"{corpus_id}#{status}")):
-            label = relevance_label_for_review(reference, _curation_messages(client, reference["lineageId"]),
-                                               labels=labels)
+            label = relevance_label_for_review(reference, labels=labels)
             if label is not None:
                 labeled_references.append((reference, label))
     return labeled_references
