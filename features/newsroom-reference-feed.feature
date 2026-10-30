@@ -10,8 +10,11 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   recorded vote. Both choices are remembered in this browser. Nothing is hidden because it is old. A card the editor rates stays where
   it is for the rest of the visit, showing the answer and whether the Cyclotron matched it, and the order is taken once per visit in
   either sort. The page shows its shell and card skeletons at once instead of a checking screen, and a return visit shows the last
-  saved cards while the live read runs. These scenarios use synthetic References in an isolated browser at 375 and 1440 pixels and
-  never touch production.
+  saved cards while the live read runs. The page never loads every Reference: it reads 24 at a time from an index of the unrated
+  References and one of the rated ones, in the order of the chosen sort, and reads the next 24 only when the last cards come near
+  the viewport, with a Load more button for anyone who cannot or would rather not scroll. A card's attachments and prediction are
+  read for the cards on that page and no others. These scenarios use synthetic References in an isolated browser at 375 and 1440
+  pixels and never touch production.
 
   Scenario: The strongest predictions are first and the strongest Rejects are last
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -192,9 +195,48 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     Then a page that sends X-Frame-Options or a frame-ancestors rule that does not allow every site is not framed, and one with neither rule is
     And only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network
 
-  Scenario: The feed holds every Reference, not just the first page the backend returns
+  Scenario: The pages that need every Reference still read them all, page by page
     Given a newsroom with more References than one page of the backend's list holds
-    When the editor opens the References feed
-    Then the feed reads page after page until the backend says there are no more
+    When a page that genuinely needs the whole list, such as the home page, loads it
+    Then it reads page after page until the backend says there are no more
     And each Reference appears once even when two pages overlap
     And a page token that repeats stops the read with a message instead of looping
+
+  Scenario: The feed loads one page first and more as the editor scrolls
+    Given a newsroom with two thousand References
+    When the editor opens the References feed and scrolls to the end of the cards twice
+    Then the first visit makes one request for 24 References and one for the attachments and predictions of those 24
+    And scrolling to the end reads exactly one more page of 24, appended after the cards already there, with a skeleton row in the shape of the final cards while it loads
+    And a Load more button is on the page as the fallback and reads the next page too
+    And no request asks for more than one page, and no attachment is read one Reference at a time
+
+  Scenario: Include rated merges the unrated and rated streams in order, each read lazily
+    Given a newsroom with two thousand References
+    When the editor chooses Include rated, and then Newest, and scrolls
+    Then the cards are the unrated and rated References merged in the order of the sort, in Best bets and in Newest
+    And each stream is read one page of 24 at a time, only as far as the cards on screen need
+    And no Reference appears twice and the answered ones show their vote
+
+  Scenario: Nothing on screen reshuffles while the editor scrolls or rates
+    Given a newsroom with two thousand References
+    When the editor loads the second page and rates a card
+    Then every card of the first page keeps its order and its position while the second page loads
+    And the rated card stays in its place showing its answer, and no other card moves
+
+  Scenario: New arrivals wait behind the pill, which a cheap check refreshes when the tab regains focus
+    Given a newsroom with two thousand References
+    When a Reference arrives after the editor opened the feed and the editor comes back to the tab
+    Then a quiet "1 new item: show" pill appears and no card moves
+    And the check was one small request that read no page of the feed
+    And showing it starts the feed over from its first page with the new item first
+
+  Scenario: A link to a Reference far down the feed opens it without loading the feed
+    Given a newsroom with two thousand References
+    When the editor opens a link to a Reference that is not on the first page
+    Then that one Reference is read by its id, with its own attachments and prediction in a request of one
+    And no more than the first page of the feed is read to show it
+
+  Scenario: Next at the end of the loaded cards reads the next page
+    Given a newsroom with two thousand References
+    When the editor opens the last loaded card and chooses Next
+    Then the queue says "24 of 24+" because more can be read, the next page is read, and the first card of that page opens

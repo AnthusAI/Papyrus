@@ -422,6 +422,14 @@ function RankingPopover() {
   );
 }
 
+/** The nearest ancestor that scrolls vertically: the margin of an IntersectionObserver is measured from it, not from the window. */
+function scrollParent(element: HTMLElement): HTMLElement | null {
+  for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+    if (/(auto|scroll|overlay)/.test(getComputedStyle(parent).overflowY)) return parent;
+  }
+  return null;
+}
+
 /**
  * The end of the loaded cards: an invisible marker the page watches, and a Load more button for anyone who prefers it or cannot scroll.
  * The marker asks for the next page when it comes within a screen of the viewport (an IntersectionObserver on the feed's scroll area), so
@@ -434,7 +442,7 @@ function FeedLoadMore({ armKey, error, hasMore, loading, onLoadMore }: { armKey:
   useEffect(() => {
     const element = marker.current;
     if (!element || !hasMore || loading || error || typeof IntersectionObserver === "undefined") return;
-    const root = element.closest("[data-radix-scroll-area-viewport], [data-feed-scroller]");
+    const root = scrollParent(element);
     const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) request.current(); }, { root, rootMargin: "0px 0px 900px 0px" });
     observer.observe(element);
     return () => observer.disconnect();

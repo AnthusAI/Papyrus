@@ -48,3 +48,17 @@ It reads each current Reference of the publication's corpus (`knowledge-corpus-K
 ## Rollout
 
 The Python client now asks for these fields on every Reference read and write, so a site's backend must have the schema before the engine that carries these writers reaches that site's tools: deploy the data API first, then the router and operator tools. Adding the two indexes makes DynamoDB build them from existing items, which have no keys until the backfill runs: the page sees only References the backfill or a writer has keyed.
+
+## How the page reads them
+
+`components/newsroom-references-view.tsx` pages the feed through a `ReferenceFeedSource` (`lib/reference-feed-pages.ts`); `createGraphqlReferenceFeedSource` in `components/news-desk-taxonomy-client.ts` reads the two indexes.
+
+- **A page is 24** (`FEED_PAGE_SIZE`). The first visit makes one request for the first page and one for that page's attachments and decisions (an aliased field per Reference in a single GraphQL document). The next page is requested when the last cards come near the viewport (an `IntersectionObserver` on the feed's scroller, 900px margin), or from the Load more button.
+- **Include rated** keeps two cursors, one per stream, and merges them by the sort's key. Each stream is read a page at a time and only as far as the merged list needs.
+- **Nothing reshuffles.** A page is appended after the cards already there; rating a card patches it in place and it leaves the unrated stream on the next visit; a Reference that moves streams is never shown twice.
+- **New arrivals** are counted by one small query of the Newest index (`feedArrivalAt` greater than the visit's start, unrated), run when the tab regains focus. The "N new items: show" pill starts the visit over from the first page.
+- **Previous and Next** follow the loaded cards; Next at the end reads the next page. The count says "24 of 24+" while more can be read.
+- **A link to a Reference** that is not on the loaded pages reads that Reference by its id, with its own attachments and decision, and shows it in the detail pane.
+- The **List** view reads both streams and shows what is loaded; its tab counts carry a "+" while more can be read.
+
+What still reads every Reference: the home page's Notification Center and the other newsroom pages that list Reference records (`loadEditorReferencesData`, started by `components/references-prefetch.ts` on the home page and by the workspace on those pages), and exports. The References page does not.

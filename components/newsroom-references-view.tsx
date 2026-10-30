@@ -434,8 +434,11 @@ export function NewsroomReferencesView({
   const staticData = useRef<StaticFeedData>({ references: liveReferences, decisions: liveDecisions, attachments: referenceAttachments });
   staticData.current = { references: liveReferences, decisions: liveDecisions, attachments: referenceAttachments };
   const staticStarted = useRef(false);
-  if (!source && liveReferences.length > 0 && !loading && predictionState !== "loading") staticStarted.current = true;
-  const staticSource = useMemo(() => createStaticFeedSource(() => staticData.current), [staticStarted.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  const staticPredicted = useRef(false);
+  if (!source && liveReferences.length > 0 && !loading) staticStarted.current = true;
+  if (staticStarted.current && predictionState !== "loading") staticPredicted.current = true;
+  // The list shows as soon as it has its References; the visit is taken once more when the first predictions arrive, so the order is theirs.
+  const staticSource = useMemo(() => createStaticFeedSource(() => staticData.current), [staticStarted.current, staticPredicted.current]); // eslint-disable-line react-hooks/exhaustive-deps
   const feedSource = source ?? staticSource;
   // The List view has a tab for each answer, so it reads the rated stream as well as the unrated one.
   const pagedShow = view === "list" ? "all" : feedShow;
@@ -543,8 +546,10 @@ export function NewsroomReferencesView({
 
   const selectedReference = useMemo(
     () => selectedReferenceRecordByLineage(filteredReferences, selectedLineageId)
-      ?? selectedReferenceRecordByLineage(canonicalReferences, selectedLineageId),
-    [canonicalReferences, filteredReferences, selectedLineageId],
+      ?? selectedReferenceRecordByLineage(canonicalReferences, selectedLineageId)
+      // A list held in memory has the Reference in hand before its first page is read (and in a server render).
+      ?? (source ? null : selectedReferenceRecordByLineage(liveReferences, selectedLineageId)),
+    [canonicalReferences, filteredReferences, liveReferences, selectedLineageId, source],
   );
   // A link to a Reference that is not in the loaded pages: read that one Reference, not the feed.
   const requestedDeepLinks = useRef(new Set<string>());
@@ -657,7 +662,8 @@ export function NewsroomReferencesView({
   // One rating store for the whole view: the grid cards and the detail pane read and write the same state, so a vote or a reason
   // entered in either shows in both. Reason then vote, or vote then reason, both end up on one decision.
   const sectionChoices = useRef<Map<string, string | null>>(new Map());
-  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId);
+  const referenceById = (lineageId: string) => selectedReferenceRecordByLineage(canonicalReferences, lineageId)
+    ?? (source ? null : selectedReferenceRecordByLineage(liveReferences, lineageId));
   const ratings = useRatingStore({
     save: async (lineageId, choice, detail) => {
       const reference = referenceById(lineageId);

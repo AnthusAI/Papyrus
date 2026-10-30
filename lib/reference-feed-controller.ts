@@ -189,9 +189,10 @@ export class ReferenceFeedController {
     this.errors.delete(key);
     const before = pager.requests;
     const first = !pager.firstPageLoaded;
+    const pending = pager.loadMore();   // starts the read at once, so the state below already says a page is loading
     this.emit();
     try {
-      await pager.loadMore();
+      await pending;
     } catch (failure) {
       this.errors.set(key, failure instanceof Error ? failure.message : "The References could not be loaded.");
     }
@@ -253,12 +254,23 @@ export class ReferenceFeedController {
   async refreshCompanions() {
     const loaded = [...this.loadedLineages()].flatMap((lineage) => this.find(lineage) ?? []);
     if (!loaded.length) return;
+    const before = this.companionSignature();
     try {
       this.takeCompanions(loaded, await this.source.fetchCompanions(loaded));
     } catch (failure) {
       this.companionsError = failure instanceof Error ? failure.message : "Predictions could not be loaded.";
+      this.emit();
+      return;
     }
-    this.emit();
+    // Only a change is announced: a host that calls this on every render must not start a render loop.
+    if (this.companionSignature() !== before) this.emit();
+  }
+
+  private companionSignature(): string {
+    return JSON.stringify([
+      [...this.decisions].sort(([a], [b]) => a.localeCompare(b)),
+      [...this.attachments].sort(([a], [b]) => a.localeCompare(b)).map(([lineage, rows]) => [lineage, rows.map((row) => `${row.id}:${row.sortKey}:${row.storagePath ?? ""}`)]),
+    ]);
   }
 
   // --- Records that change while the page is open --------------------------------------------------------------------------------

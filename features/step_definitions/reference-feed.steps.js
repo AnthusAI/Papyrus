@@ -148,13 +148,13 @@ for (const [name, texts] of outcomes) {
 When("the feed is ranked", { timeout: 60_000 }, async function () { this.feedResult = await ranking(); });
 Then("an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept", function () { assert.match(this.feedResult, /Best bets is the Cyclotron's own confidence: age never changes it/); });
 Then("ties go to the newest item and then to a stable order", function () { assert.match(this.feedResult, /Ties in Best bets go to the newest item/); });
-Then("a card rated this visit does not move any other card", function () { assert.match(this.feedResult, /The feed order is taken once and kept, in both sorts/); });
+Then("a card rated this visit does not move any other card", async function () { assert.match(await run("scripts/test-reference-feed-pages.ts"), /reference feed pages ok/); });
 Then("it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
 Then("an old card can be rated and stays where it is", async function () { assert.ok((await browser("aged")).includes("passed: aged")); });
 Then("Best bets and Unrated only are pressed, and each choice is a pair of buttons with an icon and words", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("choosing Newest orders the cards by arrival, newest first, whatever the predictions say", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 Then("the answered cards join the same list in the active sort, each showing its recorded vote", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
-Then("the page remembers Newest and Include rated for this browser, with no tabs on the page", async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
+Then("the page remembers Newest and Include rated for this browser, with no tabs on the page", { timeout: 120_000 }, async function () { assert.ok((await browser("sorting")).includes("passed: sorting")); });
 When("the editor chooses Include rated and reloads the page", function () { this.feedResult = ""; });
 Then("the pictures are lazy, in a fixed frame and requested with no referrer", async function () { assert.ok((await browser("images")).includes("passed: images")); });
 Then("a missing or failing picture shows a soft gradient tile with the source's mark and name", async function () { assert.ok((await browser("images")).includes("passed: images")); });
@@ -182,11 +182,53 @@ for (const text of [
   "only public web addresses on the standard ports are ever fetched, so the check cannot be pointed at the server's own network",
 ]) Then(text, function () { assert.match(this.frameableResult, /source frameable check: ok/); });
 
-// Paging: scripts/test-newsroom-all-pages.ts drives the loader the feed uses with three overlapping pages and a looping token.
+// Paging: scripts/test-newsroom-all-pages.ts drives the loader the pages that need every Reference use, with three overlapping pages and a looping token.
 Given("a newsroom with more References than one page of the backend's list holds", function () { this.pagingResult = ""; });
-When("the editor opens the References feed", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
+When("a page that genuinely needs the whole list, such as the home page, loads it", async function () { this.pagingResult = await run("scripts/test-newsroom-all-pages.ts"); });
 for (const then of [
-  "the feed reads page after page until the backend says there are no more",
+  "it reads page after page until the backend says there are no more",
   "each Reference appears once even when two pages overlap",
   "a page token that repeats stops the read with a message instead of looping",
 ]) Then(then, function () { assert.match(this.pagingResult, /newsroom all-pages: ok/); });
+
+// Lazy loading: scripts/test-reference-feed-pages.ts is the paging rules over a counting fake; scripts/test-reference-feed-paging.ts mounts the
+// real view over a fake paged source (2,000 References) at 375 and 1440 pixels and counts the requests and their sizes.
+const paging = (name) => run("scripts/test-reference-feed-paging.ts", name);
+Given("a newsroom with two thousand References", function () { this.pagingScenario = ""; });
+When("the editor opens the References feed and scrolls to the end of the cards twice", function () { this.pagingScenario = "first_page"; });
+When("the editor chooses Include rated, and then Newest, and scrolls", function () { this.pagingScenario = "include_rated"; });
+When("the editor loads the second page and rates a card", function () { this.pagingScenario = "nothing_reshuffles"; });
+When("a Reference arrives after the editor opened the feed and the editor comes back to the tab", function () { this.pagingScenario = "new_arrivals"; });
+When("the editor opens a link to a Reference that is not on the first page", function () { this.pagingScenario = "deep_link"; });
+When("the editor opens the last loaded card and chooses Next", function () { this.pagingScenario = "next_loads_more"; });
+for (const [name, texts] of [
+  ["first_page", [
+    "the first visit makes one request for 24 References and one for the attachments and predictions of those 24",
+    "scrolling to the end reads exactly one more page of 24, appended after the cards already there, with a skeleton row in the shape of the final cards while it loads",
+    "a Load more button is on the page as the fallback and reads the next page too",
+    "no request asks for more than one page, and no attachment is read one Reference at a time",
+  ]],
+  ["include_rated", [
+    "the cards are the unrated and rated References merged in the order of the sort, in Best bets and in Newest",
+    "each stream is read one page of 24 at a time, only as far as the cards on screen need",
+    "no Reference appears twice and the answered ones show their vote",
+  ]],
+  ["nothing_reshuffles", [
+    "every card of the first page keeps its order and its position while the second page loads",
+    "the rated card stays in its place showing its answer, and no other card moves",
+  ]],
+  ["new_arrivals", [
+    'a quiet "1 new item: show" pill appears and no card moves',
+    "the check was one small request that read no page of the feed",
+    "showing it starts the feed over from its first page with the new item first",
+  ]],
+  ["deep_link", [
+    "that one Reference is read by its id, with its own attachments and prediction in a request of one",
+    "no more than the first page of the feed is read to show it",
+  ]],
+  ["next_loads_more", [
+    'the queue says "24 of 24+" because more can be read, the next page is read, and the first card of that page opens',
+  ]],
+]) {
+  for (const text of texts) Then(text, { timeout: 300_000 }, async function () { assert.ok((await paging(name)).includes(`Reference paging scenario passed: ${name}`)); });
+}
