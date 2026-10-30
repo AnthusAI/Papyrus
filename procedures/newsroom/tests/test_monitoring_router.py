@@ -174,7 +174,7 @@ class FakeCyclotron:
         pubs, item = self.combined_jobs[path.rsplit("/", 1)[1]]
         return 200, {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1",
                      "jobId": path.rsplit("/", 1)[1], "decisionId": f"dec-{item}",
-                     "publications": {pub: self.combined_entry_override.get(pub) or self.single_receipt(pub, item)
+                     "decisions": {pub: self.combined_entry_override.get(pub) or self.single_receipt(pub, item)
                                       for pub in pubs}}
 
     def still_running(self, job):
@@ -187,7 +187,7 @@ class FakeCyclotron:
         return entry | extra if extra else entry
 
     def single_receipt(self, pub, item):
-        return {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
+        return {"contractVersion": mr.CONTRACT_VERSION, "bindingId": pub, "bindingRevision": "1",
                 "decision": {"decisionId": f"dec-{item}", "itemId": item, "classifiers": {
                     f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
                                          "fingerprint": f"fp-{pub}", "version": 3,
@@ -219,7 +219,7 @@ class FakeCyclotron:
         if self.still_running(job):
             return 202, {"status": "running"}
         _, item = self.jobs[job]
-        return 200, {"contractVersion": mr.CONTRACT_VERSION, "publicationId": pub, "bindingRevision": "1",
+        return 200, {"contractVersion": mr.CONTRACT_VERSION, "bindingId": pub, "bindingRevision": "1",
                      "decision": {"decisionId": f"dec-{item}", "itemId": item, "classifiers": {
                          f"{pub}-relevance": {"label": self.labels.get((item, pub), "include"),
                                               "fingerprint": f"fp-{pub}", "version": 3,
@@ -315,8 +315,8 @@ def test_decide_request_has_the_exact_contract_shape(table):
     disc = table.items[("MONITOR#hn", "DISC#101#000001")]
     built = build_decide_request(config, config["publications"][0], disc)
     body = built["body"]
-    assert built["path"] == "/machine/publications/anth-us/operations"
-    assert body["contractVersion"] == "cyclotron-publication/v1" and body["operation"] == "decide"
+    assert built["path"] == "/machine/bindings/anth-us/operations"
+    assert body["contractVersion"] == "cyclotron-decision/v1" and body["operation"] == "decide"
     assert body["requestId"] == request_id("acct-1", "run-1", "anth-us", body["payload"])
     assert body["payload"] == {"bindingRevision": "1", "item": {"id": "hn-101", "values": {
         "title": "Alpha source", "url": "https://example.org/alpha", "source": "hacker-news",
@@ -352,7 +352,7 @@ def test_dry_run_builds_validates_and_records_receipts_without_any_cyclotron_cal
     assert route["dryRun"]["contexts"]["anth-us"] == {"contextHash": None, "reason": "no stored policy"}
     assert route["dryRun"]["contexts"]["threat-intelligence"]["contextHash"] == "abc"
     request = route["dryRun"]["requests"]["p-apyr-us"]
-    assert request["path"] == "/machine/publications/p-apyr-us/operations" and request["body"]["operation"] == "decide"
+    assert request["path"] == "/machine/bindings/p-apyr-us/operations" and request["body"]["operation"] == "decide"
     receipt = table3.by_prefix("ROUTERUN#")[0]
     assert receipt["mode"] == "dry-run" and receipt["counts"]["dryRunValidated"] == 3
     # the next dry-run advances through the backlog instead of revalidating the same items
@@ -393,7 +393,7 @@ def test_live_happy_path_one_shared_decision_and_per_publication_delivery(table)
     delivery = Delivery()
     result = go(table, store, cyclotron, deliver=delivery)
     assert result["status"] == "complete" and result["counts"]["decided"] == 1 and result["counts"]["routed"] == 1
-    assert [c[1] for c in cyclotron.posts()] == [f"/machine/publications/{p}/operations" for p in PUBS]
+    assert [c[1] for c in cyclotron.posts()] == [f"/machine/bindings/{p}/operations" for p in PUBS]
     route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
     decision = route["decision"]
     assert decision["decisionId"] == "dec-hn-101" and decision["source"]["revision"] == 2
@@ -632,7 +632,7 @@ def test_client_signs_with_sigv4_for_execute_api_and_the_account_header():
     pytest.importorskip("botocore")
     config = validate_router_config(router_config())
     sign = mr.sigv4_signer(config, lambda: {"key": "AKIDEXAMPLE", "secret": "secret", "token": "token"})
-    headers = {k.lower(): v for k, v in sign("POST", config["cyclotron"]["endpoint"] + "/machine/publications/anth-us/operations", b"{}").items()}
+    headers = {k.lower(): v for k, v in sign("POST", config["cyclotron"]["endpoint"] + "/machine/bindings/anth-us/operations", b"{}").items()}
     assert "/us-east-1/execute-api/aws4_request" in headers["authorization"]
     assert headers["x-cyclotron-account"] == "acct-1" and headers["x-amz-security-token"] == "token"
     assert "x-cyclotron-account" in headers["authorization"]
@@ -676,7 +676,7 @@ def test_feedback_maps_accepted_and_rejected_to_labels_with_deterministic_reques
     sent = {c[1].split("/")[3]: c[2] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
     assert sent["anth-us"]["payload"] == {"bindingRevision": "1", "itemId": "hn-101", "itemRevision": 2,
                                           "output": "anth-us-relevance", "label": "include",
-                                          "editor": {"site": "anth-us.example", "subject": "user:sub-1"}}
+                                          "caller": "anth-us.example", "reviewer": "user:sub-1"}
     assert sent["p-apyr-us"]["payload"]["label"] == "exclude"
     from hashlib import sha256
     assert sent["anth-us"]["requestId"] == sha256("\n".join(["reference-anth-us-101", "accepted", "2026-10-21T01:00:00Z"]).encode()).hexdigest()
@@ -1517,7 +1517,7 @@ def test_combined_request_has_the_exact_contract_shape_and_a_stable_id(table):
     built = mr.build_combined_request(config, config["publications"], disc)
     body = built["body"]
     assert built["path"] == "/machine/decisions"
-    assert set(body) == {"contractVersion", "requestId", "payload"} and body["contractVersion"] == "cyclotron-publication/v1"
+    assert set(body) == {"contractVersion", "requestId", "payload"} and body["contractVersion"] == "cyclotron-decision/v1"
     assert body["payload"]["bindings"] == {p: "1" for p in sorted(PUBS)}
     assert body["payload"]["item"]["id"] == "hn-101" and "operation" not in body
     assert 8 <= len(body["requestId"]) <= 128 and mr.re.fullmatch(r"[A-Za-z0-9._:-]+", body["requestId"])
@@ -1526,6 +1526,45 @@ def test_combined_request_has_the_exact_contract_shape_and_a_stable_id(table):
     assert body["requestId"] != mr.build_combined_request(config, config["publications"], disc, 1)["body"]["requestId"]
     assert body["requestId"] == mr.build_combined_request(config, config["publications"], {**disc, "revision": 2})["body"]["requestId"]
     assert body["requestId"] != mr.build_combined_request(config, config["publications"], {**disc, "title": "Changed"})["body"]["requestId"]
+
+
+def test_the_router_speaks_the_decision_contract_on_the_binding_routes(table):
+    config = validate_router_config(router_config())
+    disc = table.items[("MONITOR#hn", "DISC#101#000001")]
+    single = mr.build_decide_request(config, config["publications"][0], disc)
+    combined = mr.build_combined_request(config, config["publications"], disc)
+    assert single["path"] == "/machine/bindings/anth-us/operations"
+    assert single["body"]["contractVersion"] == combined["body"]["contractVersion"] == "cyclotron-decision/v1"
+    # Cyclotron holds a combined request id to the contract it was first sent in: the id names the contract
+    payload = combined["body"]["payload"]
+    legacy = mr.sha256("\n".join(["decisions", config["cyclotron"]["accountId"], config["cyclotron"]["runId"],
+                                   mr.canonical_json(payload)]).encode()).hexdigest()
+    assert combined["body"]["requestId"] != legacy
+
+
+def test_a_combined_job_posted_under_the_publication_contract_is_collected_from_its_old_shaped_receipt(table):
+    store, cyclotron = combined_setup(table)
+    original = cyclotron.combined
+
+    def legacy(method, path, data):
+        status, body = original(method, path, data)
+        if method == "GET" and status == 200:
+            body = {**body, "contractVersion": mr.LEGACY_CONTRACT_VERSION, "publications": {
+                pub: {("publicationId" if key == "bindingId" else key): value for key, value in entry.items()}
+                | {"contractVersion": mr.LEGACY_CONTRACT_VERSION} for pub, entry in body.pop("decisions").items()}}
+        return status, body
+    cyclotron.combined = legacy
+    result = go(table, store, cyclotron, deliver=Delivery())
+    assert result["counts"]["decided"] == 1 and result["counts"]["routed"] == 1
+    route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
+    assert set(route["jobs"]) == set(PUBS) and all(job["checked"] for job in route["jobs"].values())
+
+
+def test_an_old_shaped_answer_is_read_in_the_decision_contract_names():
+    old = {"contractVersion": mr.LEGACY_CONTRACT_VERSION, "publicationId": "anth-us", "bindingRevision": "1"}
+    assert mr.in_decision_contract(old) == {"contractVersion": mr.CONTRACT_VERSION, "bindingId": "anth-us", "bindingRevision": "1"}
+    new = {"contractVersion": mr.CONTRACT_VERSION, "bindingId": "anth-us"}
+    assert mr.in_decision_contract(new) is new and mr.in_decision_contract({"status": "running"}) == {"status": "running"}
 
 
 def test_combined_success_is_one_post_one_poll_and_the_receipt_matches_the_per_publication_shape(table):
@@ -1734,7 +1773,7 @@ def test_combined_jobs_are_marked_and_never_polled_on_the_per_publication_route(
     go(table, store, cyclotron)
     route = table.items[("MONITOR#hn", "ROUTE#101#000001")]
     assert {j["via"] for j in route["jobs"].values()} == {"decisions"}
-    assert not [c for c in cyclotron.calls if c[0] == "GET"]          # no GET on /machine/publications/*/commands/*
+    assert not [c for c in cyclotron.calls if c[0] == "GET"]          # no GET on /machine/bindings/*/commands/*
 
 
 def test_a_combined_job_entry_without_a_receipt_is_polled_via_decisions_not_commands(table):
@@ -1874,7 +1913,7 @@ def test_a_receipt_that_leaves_a_publication_out_is_completed_per_publication(ta
     def drop(method, path, data):
         status, body = original(method, path, data)
         if method == "GET" and status == 200:
-            body["publications"].pop("anth-us")
+            body["decisions"].pop("anth-us")
         return status, body
     cyclotron.combined = drop
     go(table, store, cyclotron)
@@ -2034,7 +2073,7 @@ def test_the_template_schedules_the_collector_on_the_router_function_without_new
 
 def decision_event(**detail):
     base = {"contractVersion": mr.CONTRACT_VERSION, "accountId": "acct-1", "runId": "run-1", "jobId": "job-1",
-            "requestId": "req-1", "itemId": "hn-101", "publications": [], "status": "complete"}
+            "requestId": "req-1", "itemId": "hn-101", "bindings": [], "status": "complete"}
     return {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": base | detail}
 
 
@@ -2051,6 +2090,15 @@ def test_doorbell_collects_every_configured_monitor_for_the_run(table):
     assert calls == ["hn", "ttab"] and outcome["status"] == "collected"
 
 
+def test_a_doorbell_for_a_job_posted_under_the_publication_contract_still_collects(table):
+    table.put_item(router_config())
+    detail = {k: v for k, v in decision_event()["detail"].items() if k != "bindings"}
+    event = {"source": "cyclotron.lab", "detail-type": "Decision Ready",
+             "detail": detail | {"contractVersion": mr.LEGACY_CONTRACT_VERSION, "publications": ["anth-us"]}}
+    outcome, calls = ring(table, event)
+    assert calls == ["hn"] and outcome["status"] == "collected"
+
+
 def test_doorbell_ignores_an_old_run_or_other_account(table):
     table.put_item(router_config())
     assert ring(table, decision_event(runId="run-0"))[1] == []
@@ -2063,7 +2111,9 @@ def test_doorbell_ignores_an_old_run_or_other_account(table):
     {"source": "cyclotron.lab", "detail-type": "Other", "detail": {}},
     {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": "x"},
     decision_event(runId=""), decision_event(jobId=5), decision_event(status="weird"),
-    decision_event(contractVersion="v0"), decision_event(publications="x"),
+    decision_event(contractVersion="v0"), decision_event(bindings="x"),
+    {"source": "cyclotron.lab", "detail-type": "Decision Ready", "detail": {**decision_event()["detail"], "bindings": None,
+                                                                         "contractVersion": mr.LEGACY_CONTRACT_VERSION, "publications": "x"}},
     {k: v for k, v in decision_event().items() if k != "detail"}])
 def test_doorbell_drops_a_malformed_event_without_raising(table, event):
     table.put_item(router_config())
@@ -2129,12 +2179,12 @@ def test_feedback_is_sent_for_ui_editor_actors_with_a_non_pii_subject(table):
     result = feedback_run(table, store, cyclotron, references)
     assert result["feedback"]["sent"] == 3
     from hashlib import sha256
-    sent = {c[1].split("/")[3]: c[2]["payload"]["editor"] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
+    sent = {c[1].split("/")[3]: c[2]["payload"] for c in cyclotron.posts() if c[2]["operation"] == "feedback"}
     digest = sha256(b"anth-us:editor@example.test").hexdigest()[:32]
-    assert sent["anth-us"] == {"site": "anth-us.example", "subject": f"editor:{digest}"}
-    assert sent["p-apyr-us"]["subject"].startswith("editor:")
-    assert sent["threat-intelligence"]["subject"] == f"cognito:{SUB}"
-    assert all("@" not in e["subject"] for e in sent.values())
+    assert (sent["anth-us"]["caller"], sent["anth-us"]["reviewer"]) == ("anth-us.example", f"editor:{digest}")
+    assert sent["p-apyr-us"]["reviewer"].startswith("editor:")
+    assert sent["threat-intelligence"]["reviewer"] == f"cognito:{SUB}"
+    assert all("@" not in e["reviewer"] for e in sent.values())
 
 
 def test_feedback_skips_machine_and_missing_actors(table):

@@ -45,7 +45,7 @@ def step_sent(context):
 
 @then("the editor subject sent does not contain an email address")
 def step_no_email(context):
-    assert "@" not in feedback_posts(context)[0]["payload"]["editor"]["subject"]
+    assert "@" not in feedback_posts(context)[0]["payload"]["reviewer"]
 
 
 @then("no feedback was sent to Cyclotron")
