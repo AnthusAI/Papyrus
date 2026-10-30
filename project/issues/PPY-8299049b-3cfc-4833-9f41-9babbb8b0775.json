@@ -10,21 +10,33 @@
   "parent": "PPY-7c458d71-3ea8-4c39-8a6c-d2d2ab903df7",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "2128fa47-68c6-4b4b-a960-d15f73bc1bf8",
+      "author": "home",
+      "text": "Ryan's cloud CLI extension (2026-10-30): apply the existing renewal/rotation and >=24h acceptance contract to headless Linux, fresh child processes, multiple simultaneous publication bindings, and Windows when supported. Coordinate storage with PPY-109943 and remote approval with PPY-5a3624d4-4f1a-4eee-9bb6-12e575ec3cad. Retain current status/ownership. Distinguish simulated-clock, provider-policy inspection and actual elapsed-time evidence. Retry only safe token operations; never replay an uncertain protected mutation. Removed grants, revocation and absolute expiry fail closed; transient refresh failures preserve valid stored state. No Mac, AWS CLI, or token/code paste is a prerequisite.",
+      "created_at": "2026-10-30T09:28:52.123635Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "codex",
+        "model": "gpt-6",
+        "name": "Cloud CLI issue filing"
+      }
+    }
+  ],
   "created_at": "2026-10-19T10:37:48.586795Z",
-  "updated_at": "2026-10-19T10:44:21.745654Z",
+  "updated_at": "2026-10-30T09:28:52.123899Z",
   "closed_at": null,
-  "right_now_summary": null,
-  "right_now_updated_at": null,
-  "custom": {
-    "source": "shared",
-    "project_label": "PPY"
-  },
   "agent": {
     "platform": "codex",
     "model": "gpt-6",
-    "name": "ChatGPT",
-    "settings": {}
+    "name": "ChatGPT"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {
+    "project_label": "PPY",
+    "source": "shared"
   },
   "agent_assignment": null
 }
