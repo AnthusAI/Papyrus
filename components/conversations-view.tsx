@@ -1,6 +1,6 @@
 "use client";
 
-import { BookmarkIcon, CheckIcon, ChevronRightIcon, ExternalLinkIcon, InboxIcon, LayoutGridIcon, ListIcon, Loader2Icon, MessageCircleIcon, MessageSquareIcon, MessageSquareTextIcon, MessagesSquareIcon, NewspaperIcon, PencilIcon, TriangleAlertIcon, XIcon } from "lucide-react";
+import { BookmarkIcon, CheckIcon, ChevronRightIcon, ExternalLinkIcon, InboxIcon, LayoutGridIcon, ListIcon, Loader2Icon, MessageCircleIcon, MessageSquareIcon, MessageSquareTextIcon, MessagesSquareIcon, NewspaperIcon, PencilIcon, SquarePenIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageThreadRecord } from "../lib/category-repository";
 import { conversationAge, conversationAuthorName, conversationPreviewLine, threadLastAuthorLabel, threadMetadataWithLastAuthor, type ConversationMessage } from "../lib/conversation";
@@ -12,11 +12,13 @@ import { cn } from "@/lib/utils";
 import { Composer, ConversationThread } from "./conversation-thread";
 import { ListDetailLayout } from "./list-detail-layout";
 import type { ConversationReferenceView, ConversationStoryView, ConversationsSource } from "./conversations-source";
-import { FEED_GRID, FEED_SURFACE_PROPS, PILL, ReferenceCardHeader } from "./reference-feed";
+import { FEED_GRID, FEED_SURFACE_PROPS, PILL, ReferenceCardHeader, SELECTED_RING } from "./reference-feed";
 
 const PAGE_SIZE = 12;
 const LAYOUT_STORAGE_KEY = "papyrus:messages-layout";
 const THREAD_PARAM = "thread";
+/** `?thread=new`: the detail view holds the New thread form. */
+const NEW_THREAD = "new";
 const STALE_AFTER_MS = 60_000;
 const CONSOLE_SELECT_THREAD_EVENT = "papyrus:console-select-thread";
 const LABEL = "font-[family-name:var(--font-sans)] text-[10px] font-extrabold tracking-[0.07em] uppercase";
@@ -142,7 +144,7 @@ function ThreadItem({ demo, mode, now, onNavigate, onSelect, references, selecte
   const activity = [author ? conversationAuthorName(author) : null, when].filter(Boolean).join(" · ");
   const preview = (thread.summary ?? "").trim();
   const count = thread.messageCount ?? 0;
-  const control = "rounded-[var(--feed-radius-lg,10px)] text-left outline-none after:absolute after:inset-0 after:rounded-[20px] focus-visible:after:ring-[3px] focus-visible:after:ring-ring";
+  const control = "rounded-[var(--feed-radius-lg,10px)] text-left outline-none after:absolute after:inset-0 after:rounded-[inherit] focus-visible:after:ring-[3px] focus-visible:after:ring-ring";
   const opensElsewhere = !selectableKind(thread.threadKind);
   const titleControl = (() => {
     if (section === "chats") {
@@ -154,7 +156,9 @@ function ThreadItem({ demo, mode, now, onNavigate, onSelect, references, selecte
     }
     return <button aria-current={selected ? "true" : undefined} className={control} data-conversation-open onClick={() => onSelect(thread.id)} type="button">{thread.title}</button>;
   })();
-  const tone = selected ? "bg-[var(--feed-control)]" : "bg-[var(--feed-card)] hover:bg-[var(--feed-control)]/60";
+  const tone = "bg-[var(--feed-card)] hover:bg-[var(--feed-control)]/60";
+  // The open thread wears the ring around its outside, as a selected References card does: never a mark on one edge.
+  const ring = selected ? SELECTED_RING : undefined;
   const countBadge = (
     <span aria-label={`${count} ${count === 1 ? "message" : "messages"}`} className="inline-flex shrink-0 items-center gap-1 text-sm text-muted-foreground" data-conversation-count>
       <MessageSquareIcon aria-hidden="true" className="size-4" />
@@ -169,7 +173,7 @@ function ThreadItem({ demo, mode, now, onNavigate, onSelect, references, selecte
 
   if (mode === "list") {
     return (
-      <article className={cn("relative flex min-w-0 items-center gap-3 rounded-[var(--feed-radius-lg,10px)] px-3 py-2.5 transition-colors", tone)} data-conversation-card={thread.id} data-conversation-kind={thread.threadKind} data-conversation-mode="list">
+      <article className={cn("relative flex min-w-0 items-center gap-3 rounded-[var(--feed-radius-lg,10px)] px-3 py-2.5 transition-colors", tone)} data-conversation-card={thread.id} data-selected={selected || undefined} style={ring} data-conversation-kind={thread.threadKind} data-conversation-mode="list">
         <KindIcon aria-label={kindText} className="size-4 shrink-0 text-muted-foreground" role="img" />
         <h3 className="min-w-0 flex-1 truncate text-sm font-semibold" data-conversation-title>{titleControl}</h3>
         <span className="hidden min-w-0 max-w-[40%] shrink @[44rem]:flex"><AttachedLine lineageId={lineageId} references={references} section={section} stories={stories} /></span>
@@ -180,7 +184,7 @@ function ThreadItem({ demo, mode, now, onNavigate, onSelect, references, selecte
     );
   }
   return (
-    <article className={cn("relative flex flex-col gap-2 rounded-[20px] p-4 transition-colors", tone)} data-conversation-card={thread.id} data-conversation-kind={thread.threadKind} data-conversation-mode="grid">
+    <article className={cn("relative flex flex-col gap-2 rounded-[20px] p-4 transition-colors", tone)} data-conversation-card={thread.id} data-selected={selected || undefined} style={ring} data-conversation-kind={thread.threadKind} data-conversation-mode="grid">
       <p className={cn(LABEL, "flex items-center justify-between gap-2 text-muted-foreground")} data-conversation-caption>
         <span className="inline-flex items-center gap-1.5"><KindIcon aria-hidden="true" className="size-3.5" />{kindText}</span>
         {marker}
@@ -332,12 +336,18 @@ function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, re
   );
 }
 
-/** The New message box: a required title and the first message. */
-function NewConversation({ onStart }: { onStart: (title: string, body: string) => Promise<void> }) {
+/** The New thread form, shown in the detail view: a required title and the first message. */
+function NewConversation({ onCancel, onStart }: { onCancel: () => void; onStart: (title: string, body: string) => Promise<void> }) {
   const [title, setTitle] = useState("");
   return (
-    <section aria-label="New message" className="max-w-2xl space-y-2 rounded-[20px] bg-[var(--feed-card)] p-4" data-conversation-new>
-      <h2 className={cn(LABEL, "text-muted-foreground")}>New message</h2>
+    <section aria-label="New thread" className="space-y-3" data-conversation-new>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">New thread</h2>
+        <button className={cn(PILL, "bg-[var(--feed-control)]/45 text-muted-foreground hover:text-foreground")} data-conversation-new-cancel onClick={onCancel} type="button">
+          <XIcon aria-hidden="true" className="size-4" />
+          Cancel
+        </button>
+      </div>
       <input
         aria-label="Title"
         className={CONTROL_FIELD}
@@ -455,7 +465,7 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
   // A linked thread that is not on the pages read so far is read by its id.
   const inList = selectedId ? threads.find((thread) => thread.id === selectedId) : undefined;
   useEffect(() => {
-    if (!selectedId || loading || inList || fetched?.id === selectedId) return;
+    if (!selectedId || selectedId === NEW_THREAD || loading || inList || fetched?.id === selectedId) return;
     let active = true;
     const dropSelection = (message: string) => { setNotice(message); setSelectedId(null); writeSelectedThread(null); };
     source.loadThread(selectedId).then((thread) => {
@@ -521,7 +531,9 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
     const { thread, message } = await source.start(title, body);
     setSeeds((current) => ({ ...current, [thread.id]: [message] }));
     setThreads((current) => [thread, ...current.filter((entry) => entry.id !== thread.id)]);
+    select(thread.id);   // the new thread opens in the detail view
   };
+  const composing = selectedId === NEW_THREAD;
 
   const canStart = section === "all" || section === "other";
   const list = (
@@ -546,6 +558,19 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
             );
           })}
         </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+        {canStart ? (
+          <button
+            aria-pressed={composing}
+            className={cn(PILL, composing ? "bg-[var(--primary)] font-semibold text-[var(--primary-foreground)]" : "bg-[var(--feed-control)] text-foreground hover:bg-[var(--feed-control)]/70")}
+            data-conversation-new-open
+            onClick={() => select(NEW_THREAD)}
+            type="button"
+          >
+            <SquarePenIcon aria-hidden="true" className="size-4" />
+            New thread
+          </button>
+        ) : null}
         <div aria-label="Layout" className="flex gap-1.5" data-conversation-layouts role="group">
           {([["grid", "Grid", LayoutGridIcon], ["list", "List", ListIcon]] as const).map(([key, label, Icon]) => (
             <button
@@ -561,9 +586,8 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
             </button>
           ))}
         </div>
+        </div>
       </div>
-
-      {canStart ? <NewConversation onStart={startConversation} /> : null}
 
       {notice ? (
         <p className="flex items-start gap-1.5 text-sm text-muted-foreground" data-conversations-notice role="status">
@@ -605,12 +629,14 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
     <div data-conversations-view data-conversations-mode={mode} {...FEED_SURFACE_PROPS}>
       <ListDetailLayout
         backLabel="Messages"
-        detail={openable ? (
+        detail={composing ? (
+          <NewConversation onCancel={() => select(null)} onStart={startConversation} />
+        ) : openable ? (
           <ThreadDetail demo={demo} key={openable.id} now={now} onNavigate={onNavigate} onPosted={onPosted} onRename={rename} reloadKey={reloadKey} references={references} seed={seeds[openable.id]} source={source} stories={stories} thread={openable} />
         ) : null}
         list={list}
         onBack={() => select(null)}
-        open={Boolean(openable)}
+        open={composing || Boolean(openable)}
       />
     </div>
   );

@@ -35,7 +35,7 @@ Feature: The Messages page is a forum
   Scenario: Each section shows only its own conversations
     Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
     When the editor taps References, Stories, Chats and Other in turn
-    Then each shows only its own threads and the New message box is on All and Other only
+    Then each shows only its own threads and the New thread button is on All and Other only
     And an empty section says so in plain words with an icon
 
   Scenario: Selecting a thread opens its conversation beside the list or in its place
@@ -66,8 +66,8 @@ Feature: The Messages page is a forum
 
   Scenario: Starting a conversation takes a title
     Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
-    When the editor writes a message in the New message box and then gives it a title and taps Post
-    Then Post waits for the title and says so in words, and the new thread appears first with that title and attached to nothing
+    When the editor taps New thread, writes a message in the form in the detail view and then gives it a title and taps Post
+    Then Post waits for the title and says so in words, and the new thread appears first with that title, attached to nothing, and opens in the detail view
 
   Scenario: Forum threads and chats are cards that open their own views
     Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record

@@ -154,7 +154,8 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await section(page, "all").getAttribute("aria-pressed"), "true", "All is the default");
       assert.deepEqual(await page.locator("[data-conversation-section]").evaluateAll((buttons) => buttons.map((button) => button.textContent?.trim())), ["All", "References", "Stories", "Chats", "Other"]);
       assert.deepEqual(await cardIds(page), ["t-ref-1", "t-general", "t-story", "t-forum", "t-chat", "t-ref-2"], "newest activity first, and no machine record");
-      assert.equal(await page.locator("[data-conversation-new]").count(), 1, "a New message box at the top");
+      assert.equal(await page.locator("[data-conversation-new]").count(), 0, "no New thread form until it is asked for");
+      assert.equal(await page.locator("[data-conversation-new-open]").count(), 1, "a New thread button");
       assert.equal(await page.locator("[data-conversations-view] select").count(), 0, "buttons, no drop-downs");
       assert.equal(await section(page, "references").locator("svg").count(), 1, "each section button has an icon");
       assert.equal(await page.locator('[data-conversation-layout="grid"]').getAttribute("aria-pressed"), "true", "grid by default");
@@ -176,6 +177,14 @@ const scenarios: Record<string, () => Promise<void>> = {
       // Nothing is read for a card, and a card holds no conversation.
       assert.equal(await page.locator("[data-conversation-card] [data-conversation-message], [data-conversation-card] [data-conversation-composer], [data-conversation-card] [data-conversation-show-all]").count(), 0, "no inline conversation");
       assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "loadMessages"), [], "no messages are read for the list");
+      if (width >= 1024) {   // beside the list from 1024px; below it the detail takes the list's place
+        await cards(page).first().locator("[data-conversation-open]").click();
+        const chosen = page.locator("[data-conversation-card][data-selected]");
+        await chosen.waitFor();
+        assert.ok((await chosen.evaluate((element) => getComputedStyle(element).boxShadow)).includes("0px 0px 0px 4px"), "the open thread wears a ring around its outside");
+        const unselected = await cards(page).nth(1).evaluate((element) => getComputedStyle(element).boxShadow);
+        assert.ok(!unselected.includes("0px 0px 0px 4px"), "and only the open one");
+      }
       await screenshot(page, "grid", width);
     });
   },
@@ -236,7 +245,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await cards(page).first().waitFor();
       await open(page, "references");
       assert.deepEqual(await cardIds(page), ["t-ref-1", "t-ref-2"]);
-      assert.equal(await page.locator("[data-conversation-new]").count(), 0, "no New message box where a message would not be unattached");
+      assert.equal(await page.locator("[data-conversation-new-open]").count(), 0, "no New thread button where a thread would not be unattached");
       await open(page, "stories");
       assert.deepEqual(await cardIds(page), ["t-story"]);
       await open(page, "chats");
@@ -244,7 +253,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.ok((await page.locator('[data-conversation-card="t-chat"]').innerText()).toLowerCase().includes("open chat"));
       await open(page, "other");
       assert.deepEqual(await cardIds(page), ["t-general", "t-forum"], "unattached conversations and forum threads");
-      assert.equal(await page.locator("[data-conversation-new]").count(), 1, "the New message box is on Other");
+      assert.equal(await page.locator("[data-conversation-new-open]").count(), 1, "the New thread button is on Other");
       await open(page, "all");
       assert.equal((await cardIds(page)).length, 6);
     });
@@ -411,7 +420,10 @@ const scenarios: Record<string, () => Promise<void>> = {
   async start() {
     await run("", [375, 1440], async (page, width) => {
       await cards(page).first().waitFor();
+      assert.equal(await page.locator("[data-conversation-new]").count(), 0, "the form is not on the page until asked for");
+      await page.locator("[data-conversation-new-open]").click();
       const box = page.locator("[data-conversation-new]");
+      assert.ok(new URL(page.url()).searchParams.get("thread") === "new", "the New thread form is in the address");
       const post = box.locator('[data-conversation-post="post"]');
       await box.locator("textarea").fill("A loose thought about the budget.");
       assert.equal(await post.isDisabled(), true, "a title is required");
@@ -427,8 +439,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await first.locator("[data-conversation-preview]").innerText(), "A loose thought about the budget.");
       assert.equal(await first.locator("[data-conversation-attached]").count(), 0, "attached to nothing");
       assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "start"), [{ type: "start", title: "Budget thoughts", body: "A loose thought about the budget." }]);
-      assert.equal(await box.locator("textarea").inputValue(), "", "the box clears");
-      assert.equal(await box.locator("[data-conversation-new-title]").inputValue(), "", "and the title");
+      assert.equal(await page.locator("[data-conversation-new]").count(), 0, "the form gives way to the new thread");
+      assert.ok((await page.locator("[data-conversation-detail]").getAttribute("data-conversation-detail"))?.startsWith("message-thread-conversation-new-"), "the new thread is open in the detail view");
+      if (width < 1024) await page.locator("[data-detail-back]").click();   // on a phone the thread took the list's place
       await open(page, "other");
       assert.equal((await cardIds(page))[0]?.startsWith("message-thread-conversation-new-"), true, "and it is under Other");
     });

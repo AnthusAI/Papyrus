@@ -22,7 +22,7 @@ for (const when of [
   "the editor opens an address that names a thread, even one on a later page, or one that does not exist",
   "the editor taps Rename, changes the title and taps Save",
   "the editor replies to a message and then adds a message in the open conversation",
-  "the editor writes a message in the New message box and then gives it a title and taps Post",
+  "the editor taps New thread, writes a message in the form in the detail view and then gives it a title and taps Post",
   "the editor opens Other and Chats",
   "the editor taps Show more conversations",
   "the editor looks at the grid, the list and an open conversation at 375, 1024 and 1440 pixels",
@@ -43,7 +43,7 @@ const outcomes = [
   ]],
   ["titles", ["each shows the thread's title, with the Reference's headline or the Story's title and stage as a small line below it"]],
   ["sections", [
-    "each shows only its own threads and the New message box is on All and Other only",
+    "each shows only its own threads and the New thread button is on All and Other only",
     "an empty section says so in plain words with an icon",
   ]],
   ["detail", [
@@ -62,7 +62,7 @@ const outcomes = [
     "the thread's card counts the new messages and moves to the top",
     "a refused save takes the message back, says so in words with an icon, and keeps the typed text",
   ]],
-  ["start", ["Post waits for the title and says so in words, and the new thread appears first with that title and attached to nothing"]],
+  ["start", ["Post waits for the title and says so in words, and the new thread appears first with that title, attached to nothing, and opens in the detail view"]],
   ["forum", ["the forum thread links to its own view, the chat opens in the console, and neither opens a pane here"]],
   ["paging", ["the next page follows in order with no conversation twice"]],
   ["design", ["nothing has a border, an outline or a rule, nothing scrolls sideways, and lines stay one line beside the pane"]],
