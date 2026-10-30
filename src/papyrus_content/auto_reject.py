@@ -16,6 +16,7 @@ from typing import Any, Mapping, Sequence
 from .auto_decision_gate import AUTO_REJECT_CLEAR_MISSES
 from .catalog import semantic_relation_record
 from .ids import hash_short, safe_id
+from .reference_feed_keys import feed_state_key
 
 CYCLOTRON_CURATION_ACTOR_KIND = "cyclotron"
 AUTO_REJECT_REASON_CODE = "out_of_scope"
@@ -59,7 +60,9 @@ def reject_reference_automatically(client, reference: Mapping[str, Any], *, cycl
     client.update_record("Reference", {
         "id": reference["id"], "curationStatus": "rejected",
         "curationStatusKey": f"{current['corpusId']}#rejected", "curationStatusUpdatedAt": now,
-        "curationStatusUpdatedBy": actor_label, "curationStatusReason": reason, "updatedAt": now})
+        "curationStatusUpdatedBy": actor_label, "curationStatusReason": reason,
+        "feedStateKey": feed_state_key({**current, "curationStatus": "rejected"}),   # a vote moves it to the rated feed; its prediction stays
+        "updatedAt": now})
     client.upsert("Message", {
         "id": message_id, "messageKind": "reference_curation", "messageDomain": "commentary", "status": "active",
         "summary": f"{current.get('title') or lineage_id}: rejected", "source": "cyclotron",

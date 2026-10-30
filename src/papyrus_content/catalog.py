@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .ids import hash_short, knowledge_corpus_id, reference_lineage_id_for, safe_id
+from .reference_feed_keys import feed_keys
 from .source_site_plugins import youtube_video_id_from_uri
 from .message_contract import build_canonical_message_expected
 from .reference_policy import (
@@ -380,6 +381,7 @@ def reference_record(item: dict[str, Any], context: dict[str, Any]) -> dict[str,
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": context["now"],
     }
+    reference.update(feed_keys({**reference, "versionState": "current"}))   # nobody has predicted it yet: it sorts as 0.5
     return _record(
         "Reference",
         versioned_record(

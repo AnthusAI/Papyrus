@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import yaml
 
 from .biblicus_runner import BiblicusCommandError, BiblicusRunner, resolve_biblicus_workdir
+from .reference_feed_keys import feed_keys
 from .automatic_assignments import OPERATIONAL_ASSIGNMENT_FEED_KEY
 from .assignments import apply_assignment_action, assignment_metadata
 from .catalog import semantic_relation_record
@@ -614,6 +615,7 @@ def next_reference_version_for_accession(
             "curationStatus": next_reference.get("curationStatus"),
         }
     )
+    next_reference.update(feed_keys(next_reference))
     return next_reference
 
 
@@ -672,6 +674,7 @@ def new_reference_for_accession_replacement(
             "curationStatus": next_reference.get("curationStatus"),
         }
     )
+    next_reference.update(feed_keys(next_reference))
     return next_reference
 
 
