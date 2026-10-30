@@ -48,7 +48,6 @@ export const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
 };
 
 const TAB_LABELS: Record<ReferenceFeedTabKey, string> = { feed: "Feed", rated: "Rated", earlier: "Earlier" };
-const GROUP_HEADINGS: Record<FeedGroupKey, string> = { top: "Top predictions", more: "More for you", least: "Least likely" };
 
 export const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -480,7 +479,6 @@ export function ReferenceFeed({
   }, [scrollTarget]);
 
   const groups = stableGroups ?? groupFeedItems(partition.feed);
-  const headings = groups.length > 1;
   const leadId = stableGroups ? stableLeadId : groups[0]?.key !== "least" ? groups[0]?.items[0]?.lineageId : undefined;
 
   return (
@@ -517,12 +515,10 @@ export function ReferenceFeed({
         <div role="tabpanel">
           {tab === "feed" ? (
             <div>
-              {groups.length ? groups.map((group) => (
-                <section aria-labelledby={headings ? `feed-group-${group.key}` : undefined} data-feed-group={group.key} key={group.key}>
-                  {headings ? <SectionHeading id={`feed-group-${group.key}`}>{GROUP_HEADINGS[group.key]}</SectionHeading> : null}
-                  <div className={FEED_GRID} data-feed-grid>{group.items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
-                </section>
-              )) : empty(counts.rated || counts.earlier ? "You are all caught up. Check Earlier and Rated." : "No references yet.")}
+              {/* One list in rank order. The groups only decide the lead card; they are not shown as sections. */}
+              {groups.length ? (
+                <div className={FEED_GRID} data-feed-grid>{groups.flatMap((group) => group.items).map((item) => renderCard(item, item.lineageId === leadId))}</div>
+              ) : empty(counts.rated || counts.earlier ? "You are all caught up. Check Earlier and Rated." : "No references yet.")}
               {partition.earlier.length ? (
                 <section aria-labelledby="feed-earlier-heading" data-feed-earlier>
                   <SectionHeading id="feed-earlier-heading">Earlier</SectionHeading>

@@ -198,11 +198,12 @@ const scenarios: Record<string, () => Promise<void>> = {
       const box = (await card(page, "mid-accept").boundingBox())!;
       const image = (await card(page, "mid-accept").locator("[data-feed-image]").boundingBox())!;
       assert.ok(Math.abs(image.width - box.width) < 1 && Math.abs(image.y - box.y) < 1, "full-bleed top image");
-      // Three real sections with large type, no lines.
-      assert.deepEqual(await page.locator("[data-feed-group] h3").allInnerTexts(), ["Top predictions", "More for you", "Least likely"]);
-      const heading = page.locator("[data-feed-group=top] h3");
-      assert.ok(parseFloat(await heading.evaluate((element) => getComputedStyle(element).fontSize)) >= 28, "large section type");
-      assert.equal(await page.locator("[data-feed-group=least] [data-feed-card]").count(), 2);
+      // One list in rank order, with no section headings: the predicted Rejects simply come last.
+      assert.equal(await page.locator("[data-feed-group]").count(), 0, "no sections");
+      const feedText = await page.locator("[data-reference-feed]").innerText();
+      for (const heading of ["Top predictions", "More for you", "Least likely"]) assert.ok(!feedText.includes(heading), `no "${heading}" heading`);
+      const ranked = await page.locator("[data-feed-grid]").first().locator("[data-feed-card]").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-feed-card")));
+      assert.deepEqual(ranked.slice(-2), ["weak-reject", "strong-reject"], "the predicted Rejects are last in the one list");
       // Phone: the first card is on the first screen.
       if (width === 375) assert.ok((await card(page, "strong-accept").locator("[data-feed-image]").boundingBox())!.y < 500, "the first card's picture is on the first screen");
       // A card that adds nothing to its headline drops its dek.

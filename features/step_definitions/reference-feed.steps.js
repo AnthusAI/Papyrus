@@ -49,7 +49,7 @@ const outcomes = [
   ["design", [
     "no card, tab, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone",
     "cards are rounded rectangles with a full-bleed picture across the top, and pills are fully rounded",
-    "the feed has the sections Top predictions, More for you and Least likely in large type with no lines between them",
+    "the feed is one list in rank order with no section headings, the predicted Rejects last",
     "on a phone the first card's picture is on the first screen",
   ]],
   ["auto", [

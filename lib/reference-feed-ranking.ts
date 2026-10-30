@@ -175,7 +175,8 @@ export function partitionReferenceFeed(
 export type FeedGroupKey = "top" | "more" | "least";
 
 /**
- * The feed's sections, from the ranked list (already best first). No fixed counts: Top predictions are the Accepts at least half as
+ * Bands of the ranked list (already best first). The feed shows one list in this order with no headings; the bands only decide
+ * which card leads (the lead is never a predicted Reject). No fixed counts: Top predictions are the Accepts at least half as
  * strong as the strongest one, Least likely are the predicted Rejects, and More for you is everything between (weaker Accepts and
  * items with no prediction). A group with no members is absent.
  */
