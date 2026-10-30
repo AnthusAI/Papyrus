@@ -1431,7 +1431,9 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
     list: () => listMessagesByThreadId(threadId, 1000),
     create: (sequenceNumber) => {
       now = new Date().toISOString();
-      built = build(sequenceNumber, now);
+      // `createdAt` is part of the composite sort key of messagesByResponseTargetStatusCreatedAt, so AppSync refuses a Message that
+      // sets it without `responseStatus`. A person's message waits on no responder: COMPLETED, as the Python message contract writes.
+      built = { responseStatus: "COMPLETED", ...build(sequenceNumber, now) };
       return runGraphql<{ createMessage?: MessageRecord | null }>(CREATE_MESSAGE_MUTATION, { input: built });
     },
   });
@@ -1905,10 +1907,17 @@ async function runGraphql<T extends Record<string, unknown>>(
   const client = generateClient<Schema>() as unknown as {
     graphql: (options: Record<string, unknown>) => Promise<{ data?: T | null; errors?: unknown[] | null }>;
   };
+  // The Amplify client rejects with the raw `{ data, errors }` response when the API returns errors; turn that into an
+  // Error carrying the API's own words, so a refusal is said in words instead of as an unknown failure.
   const response = await client.graphql({
     query,
     variables,
     authMode: USER_POOL_AUTH_MODE,
+  }).catch((failure: unknown) => {
+    if (failure && typeof failure === "object" && Array.isArray((failure as { errors?: unknown }).errors)) {
+      assertNoGraphQLErrors((failure as { errors: unknown[] }).errors);
+    }
+    throw failure;
   });
   assertNoGraphQLErrors(response.errors);
   return (response.data ?? {}) as T;
