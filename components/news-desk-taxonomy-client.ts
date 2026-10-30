@@ -60,6 +60,7 @@ import {
   type ConversationAnchor,
   type ConversationMessage,
 } from "../lib/conversation";
+import { postMessageArguments, postMessageMutation } from "../lib/post-message";
 import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
@@ -220,40 +221,7 @@ const UPDATE_MESSAGE_THREAD_MUTATION = `
   }
 `;
 
-const CREATE_MESSAGE_MUTATION = `
-  mutation CreateMessage($input: CreateMessageInput!) {
-    createMessage(input: $input) {
-      id
-      messageKind
-      messageDomain
-      status
-      summary
-      source
-      importRunId
-      authorSub
-      authorUserProfileId
-      authorLabel
-      threadId
-      parentMessageId
-      sequenceNumber
-      role
-      messageType
-      content
-      semanticLayer
-      searchVisibility
-      responseTarget
-      responseStatus
-      responseOwner
-      responseStartedAt
-      responseCompletedAt
-      responseError
-      metadata
-      createdAt
-      updatedAt
-      newsroomFeedKey
-    }
-  }
-`;
+const POST_MESSAGE_SELECTION = "id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey";
 
 const UPDATE_MESSAGE_MUTATION = `
   mutation UpdateMessage($input: UpdateMessageInput!) {
@@ -1434,10 +1402,12 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
       // `createdAt` is part of the composite sort key of messagesByResponseTargetStatusCreatedAt, so AppSync refuses a Message that
       // sets it without `responseStatus`. A person's message waits on no responder: COMPLETED, as the Python message contract writes.
       built = { responseStatus: "COMPLETED", ...build(sequenceNumber, now) };
-      return runGraphql<{ createMessage?: MessageRecord | null }>(CREATE_MESSAGE_MUTATION, { input: built });
+      // The backend stamps the author from the signed-in identity (postMessage); nothing here names one.
+      const args = postMessageArguments(built as unknown as Record<string, unknown>);
+      return runGraphql<{ postMessage?: MessageRecord | null }>(postMessageMutation(args, POST_MESSAGE_SELECTION), args);
     },
   });
-  const createdMessage = normalizeMessageRecord(created.createMessage ?? built!);
+  const createdMessage = normalizeMessageRecord(created.postMessage ?? built!);
   const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(
     UPDATE_MESSAGE_THREAD_MUTATION,
     {
@@ -1608,7 +1578,6 @@ export async function appendConversationMessage(input: {
     status: "active",
     summary: content.slice(0, 120),
     source: "newsroom.conversation",
-    authorSub: author.sub,
     authorLabel: author.label,
     threadId: thread.id,
     parentMessageId: input.parentMessageId?.trim() || null,

@@ -48,9 +48,9 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
-  messageOwnerSchema: {
-    paths: ["features/message-owner-schema.feature"],
-    require: ["features/step_definitions/message-owner-schema.steps.js"],
+  messageAuthorEnforced: {
+    paths: ["features/message-author-enforced.feature"],
+    require: ["features/step_definitions/message-author-enforced.steps.js"],
     format: ["summary"],
   },
   messagesPage: {
