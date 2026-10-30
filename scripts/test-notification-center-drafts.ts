@@ -228,9 +228,9 @@ const scenarios: Record<string, () => Promise<void>> = {
       const whyBox = pane.locator("[data-needs-me-why]");
       await buttonsRow.waitFor({ state: "visible" });
       await whyBox.waitFor({ state: "visible" });
-      const buttonsTop = (await buttonsRow.boundingBox())?.y ?? Infinity;
-      const whyTop = (await whyBox.boundingBox())?.y ?? -Infinity;
-      assert.ok(buttonsTop < whyTop, "Accept and Reject come before the Why box, as on a Reference");
+      // Document order, not bounding boxes: the pane may still be sliding in when it is measured.
+      const buttonsFirst = await buttonsRow.evaluate((row, why) => Boolean(row.compareDocumentPosition(why as Node) & Node.DOCUMENT_POSITION_FOLLOWING), await whyBox.elementHandle());
+      assert.ok(buttonsFirst, "Accept and Reject come before the Why box, as on a Reference");
       const monitor = await draft(page, "proposal-2").innerText();
       assert.ok(monitor.includes("Proposed Story"), "the monitor story is a draft card too");
     });
