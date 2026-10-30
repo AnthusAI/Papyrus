@@ -34,20 +34,21 @@ import { createMemoryConversationsSource } from "./components/conversations-memo
 const params = new URLSearchParams(location.search);
 const NOW = Date.now();
 const ago = (minutes) => new Date(NOW - minutes * 60000).toISOString();
-const msg = (id, parent, author, content, minutes, sequenceNumber) => ({ id, parentMessageId: parent, authorLabel: author, content, createdAt: ago(minutes), sequenceNumber });
+const who = (author) => author.split("@")[0];
+const msg = (id, parent, author, content, minutes, sequenceNumber) => ({ id, parentMessageId: parent, authorLabel: author, authorSub: "sub-" + who(author), authorUserProfileId: "profile-" + who(author), content, createdAt: ago(minutes), sequenceNumber });
 const by = (author) => JSON.stringify({ lastAuthorLabel: author });
 const thread = (id, threadKind, title, minutes, extra = {}) => ({ id, threadKind, status: "active", title, messageCount: 1, createdAt: ago(minutes + 5), updatedAt: ago(minutes), lastMessageAt: ago(minutes), ...extra });
 const reference = (id, title) => ({ id: id + "-v1", lineageId: id, versionState: "current", versionNumber: 1, corpusId: "c", externalItemId: id, title, sourceUri: "https://" + id + ".example.org/story", curationStatus: "pending", createdAt: ago(600), sourcePublishedAt: ago(600) });
 
 const conversations = params.has("empty") ? [] : [
-  { thread: thread("t-ref-1", "reference_conversation", "Water policy", 5, { primaryAnchorKind: "reference", primaryAnchorLineageId: "ref-1", primaryAnchorKey: "reference#ref-1", messageCount: 5, summary: "Drafting it Monday.", metadata: by("ada@example.test") }), messages: [
+  { thread: thread("t-ref-1", "reference_conversation", "Water policy", 5, { primaryAnchorKind: "reference", primaryAnchorLineageId: "ref-1", primaryAnchorKey: "reference#ref-1", createdBySub: "sub-ada", messageCount: 5, summary: "Drafting it Monday.", metadata: by("ada@example.test") }), messages: [
     msg("a1", null, "ada@example.test", "First thought on the water policy piece.", 90, 1),
     msg("a2", null, "grace@example.test", "The date range needs checking.", 80, 2),
     msg("a3", null, "ada@example.test", "Could anchor the Tuesday explainer.", 60, 3),
     msg("a4", null, "grace@example.test", "Agreed, and the numbers hold up.", 20, 4),
     msg("a5", "a4", "ada@example.test", "Drafting it Monday.", 5, 5),
   ] },
-  { thread: thread("t-general", "conversation", "Council vote coverage", 30, { summary: "Should we cover the council vote?", metadata: by("grace@example.test") }), messages: [msg("g1", null, "ada@example.test", "Should we cover the council vote?", 30, 1)] },
+  { thread: thread("t-general", "conversation", "Council vote coverage", 30, { createdBySub: "sub-grace", summary: "Should we cover the council vote?", metadata: by("grace@example.test") }), messages: [msg("g1", null, "ada@example.test", "Should we cover the council vote?", 30, 1)] },
   { thread: thread("t-story", "story_conversation", "Does the lede bury the vote", 45, { primaryAnchorKind: "item", primaryAnchorLineageId: "story-1", primaryAnchorKey: "item#story-1", summary: "The lede buries the vote.", metadata: by("grace@example.test") }), messages: [msg("s1", null, "grace@example.test", "The lede buries the vote.", 45, 1)] },
   { thread: thread("t-forum", "edition_forum", "Tuesday edition planning", 120, { messageCount: 7 }), messages: [] },
   { thread: thread("t-chat", "console", "Chat about the housing beat", 180, { messageCount: 12 }), messages: [] },
@@ -55,8 +56,12 @@ const conversations = params.has("empty") ? [] : [
   { thread: thread("t-machine", "ingestion_rationale", "Why this Reference was kept", 1), messages: [msg("x1", null, "system", "A machine record.", 1, 1)] },
   ...(params.has("many") ? Array.from({ length: 14 }, (_, index) => ({ thread: thread("t-many-" + index, "conversation", "Extra conversation " + index, 300 + index, { summary: "Extra " + index }), messages: [msg("e" + index, null, "ada@example.test", "Extra " + index, 300 + index, 1)] })) : []),
 ];
+const viewers = { you: { sub: "sub-you", isAdmin: false }, ada: { sub: "sub-ada", isAdmin: false }, grace: { sub: "sub-grace", isAdmin: false }, admin: { sub: "sub-root", isAdmin: true } };
 const source = createMemoryConversationsSource("you@example.test", {
   conversations,
+  viewer: viewers[params.get("viewer") || "you"],
+  viewerProfileId: "profile-you",
+  profiles: { "profile-ada": "Ada Lovelace" },
   references: {
     "ref-1": { reference: reference("ref-1", "Water policy shifts across three counties"), preview: { imageUrl: null, description: "What the new rules mean for farms and towns.", siteName: "Example Gazette", title: null } },
     "ref-2": { reference: reference("ref-2", "Transit funding fight reaches the state house"), preview: undefined },
@@ -79,6 +84,22 @@ source.rename = async (thread, title) => {
   await new Promise((resolve) => setTimeout(resolve, 20));
   if (params.has("failrename")) throw new Error("The backend refused this.");
   return rename(thread, title);
+};
+const loadAuthors = source.loadAuthors;
+source.loadAuthors = async (ids) => { window.calls.push({ type: "loadAuthors", ids: [...ids].sort() }); return loadAuthors(ids); };
+const edit = source.edit;
+source.edit = async (messageId, body) => {
+  window.calls.push({ type: "edit", messageId, body });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  if (params.has("failedit")) throw new Error("The backend refused this.");
+  return edit(messageId, body);
+};
+const remove = source.remove;
+source.remove = async (messageId, moderate) => {
+  window.calls.push({ type: "remove", messageId, moderate });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  if (params.has("faildelete")) throw new Error("The backend refused this.");
+  return remove(messageId, moderate);
 };
 const loadMessages = source.loadMessages;
 source.loadMessages = async (threadId) => { window.calls.push({ type: "loadMessages", threadId }); return loadMessages(threadId); };
@@ -339,7 +360,7 @@ const scenarios: Record<string, () => Promise<void>> = {
 
   /** A thread is renamed in its detail; a refused save says why in words and keeps the typed text. */
   async rename() {
-    await run("", [375, 1440], async (page, width) => {
+    await run("?viewer=grace", [375, 1440], async (page, width) => {
       await cards(page).first().waitFor();
       await openThread(page, "t-general");
       const rename = page.locator("[data-conversation-rename]");
@@ -363,7 +384,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await page.locator("[data-conversation-rename-cancel]").click();
       assert.equal(await page.locator("[data-conversation-detail-title]").innerText(), "Should we cover the council vote?");
     });
-    await run("?failrename=1", [375], async (page) => {
+    await run("?failrename=1&viewer=grace", [375], async (page) => {
       await cards(page).first().waitFor();
       await openThread(page, "t-general");
       await page.locator("[data-conversation-rename]").click();
@@ -479,15 +500,164 @@ const scenarios: Record<string, () => Promise<void>> = {
     });
   },
 
+  /** The author's name comes from their profile; a profile that cannot be read falls back to the label, and one request serves the whole conversation. */
+  async authors() {
+    await run("", [375, 1440], async (page) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      await page.waitForFunction(() => [...document.querySelectorAll('[data-conversation-detail="t-ref-1"] [data-conversation-author]')].some((element) => element.textContent === "Ada Lovelace"));
+      const names = await page.locator('[data-conversation-detail="t-ref-1"] [data-conversation-message]').evaluateAll((elements) => elements.map((element) => `${element.getAttribute("data-conversation-message")}:${element.querySelector("[data-conversation-author]")?.textContent}`));
+      assert.deepEqual(names, ["a1:Ada Lovelace", "a2:grace", "a3:Ada Lovelace", "a4:grace", "a5:Ada Lovelace"], "the profile's name, else the saved label's first part");
+      const batches = (await calls(page) as { type: string; ids: string[] }[]).filter((entry) => entry.type === "loadAuthors");
+      assert.deepEqual(batches, [{ type: "loadAuthors", ids: ["profile-ada", "profile-grace"] }], "one request for the whole conversation");
+    });
+  },
+
+  /** Your own messages show Edit and Delete; other people's show neither; only the thread's creator (or an admin) renames. */
+  async others() {
+    await run("", [375, 1440], async (page) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const detail = page.locator('[data-conversation-detail="t-ref-1"]');
+      assert.equal(await detail.locator("[data-conversation-message]").count(), 5);
+      assert.equal(await detail.locator("[data-conversation-edit], [data-conversation-delete]").count(), 0, "no Edit or Delete on someone else's messages");
+      assert.equal(await detail.locator("[data-conversation-reply]").count(), 5, "but anyone can reply");
+      assert.equal(await page.locator("[data-conversation-rename]").count(), 0, "and only the creator renames");
+    });
+    await run("?viewer=ada", [375], async (page) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const own = await page.locator('[data-conversation-detail="t-ref-1"] [data-conversation-edit]').evaluateAll((elements) => elements.map((element) => element.getAttribute("data-conversation-edit")));
+      assert.deepEqual(own, ["a1", "a3", "a5"], "Edit on the author's own messages only");
+      const del = await page.locator('[data-conversation-detail="t-ref-1"] [data-conversation-delete]').evaluateAll((elements) => elements.map((element) => element.getAttribute("data-conversation-delete")));
+      assert.deepEqual(del, ["a1", "a3", "a5"]);
+      const edit = page.locator('[data-conversation-edit="a1"]');
+      assert.ok((await edit.innerText()).includes("Edit") && (await edit.locator("svg").count()) === 1, "a pencil beside the word");
+      const remove = page.locator('[data-conversation-delete="a1"]');
+      assert.ok((await remove.innerText()).includes("Delete") && (await remove.locator("svg").count()) === 1, "a bin beside the word");
+      assert.equal(await page.locator("[data-conversation-rename]").count(), 1, "Ada created this thread");
+    });
+  },
+
+  /** An author edits their own message in place, and it shows "edited". */
+  async edit() {
+    await run("?viewer=ada", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const message = page.locator('[data-conversation-message="a1"]');
+      await message.locator('[data-conversation-edit="a1"]').click();
+      const box = message.locator("textarea");
+      assert.equal(await box.inputValue(), "First thought on the water policy piece.");
+      assert.ok((await message.locator("[data-conversation-edit-save]").innerText()).includes("Save"));
+      assert.ok((await message.locator("[data-conversation-edit-cancel]").innerText()).includes("Cancel"));
+      await screenshot(page, "edit", width, '[data-conversation-message="a1"]');
+      // Cancel changes nothing.
+      await box.fill("Not saved");
+      await message.locator("[data-conversation-edit-cancel]").click();
+      assert.equal(await message.locator("[data-conversation-content]").innerText(), "First thought on the water policy piece.");
+      assert.equal(await message.locator("[data-conversation-edited]").count(), 0);
+      await message.locator('[data-conversation-edit="a1"]').click();
+      await box.fill("First thought, corrected.");
+      await message.locator("[data-conversation-edit-save]").click();
+      await message.locator("[data-conversation-edited]").waitFor();
+      assert.equal(await message.locator("[data-conversation-content]").innerText(), "First thought, corrected.");
+      assert.equal(await message.locator("[data-conversation-edited]").innerText(), "edited just now");
+      assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "edit"), [{ type: "edit", messageId: "a1", body: "First thought, corrected." }]);
+      assert.equal(await page.locator('[data-conversation-message="a2"] [data-conversation-edited]').count(), 0, "only the edited message says so");
+    });
+  },
+
+  /** An author deletes their own message after an inline confirmation; its replies stay and it reads "Message deleted". */
+  async delete() {
+    await run("?viewer=grace", [375, 1440], async (page, width) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const message = page.locator('[data-conversation-message="a4"]');
+      await message.locator('[data-conversation-delete="a4"]').click();
+      const confirm = message.locator("[data-conversation-confirm]");
+      assert.ok((await confirm.innerText()).includes("Delete this message?"), "asked inline, not in a browser dialog");
+      assert.ok((await confirm.locator("[data-conversation-delete-confirm]").innerText()).includes("Delete"));
+      assert.ok((await confirm.locator("[data-conversation-delete-keep]").innerText()).includes("Keep"));
+      await screenshot(page, "delete-confirm", width, '[data-conversation-message="a4"]');
+      await confirm.locator("[data-conversation-delete-keep]").click();
+      assert.equal(await message.locator("[data-conversation-confirm]").count(), 0);
+      assert.equal(await message.locator("[data-conversation-content]").innerText(), "Agreed, and the numbers hold up.", "Keep leaves it");
+      await message.locator('[data-conversation-delete="a4"]').click();
+      await message.locator("[data-conversation-delete-confirm]").click();
+      await page.locator('[data-conversation-message="a4"][data-conversation-deleted]').waitFor();
+      const deleted = page.locator('[data-conversation-message="a4"]');
+      assert.equal(await deleted.locator("[data-conversation-content]").innerText(), "Message deleted");
+      assert.equal(await deleted.locator("svg").count(), 1, "a ban icon beside the words");
+      assert.equal(await deleted.locator("button").count(), 0, "no Reply, Edit or Delete on a deleted message");
+      assert.equal(await page.locator('[data-conversation-message="a5"]').count(), 1, "its reply stays");
+      assert.ok((await page.locator('[data-conversation-message="a5"] [data-conversation-content]').innerText()).includes("Drafting it Monday."));
+      assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "remove"), [{ type: "remove", messageId: "a4", moderate: false }]);
+      await screenshot(page, "deleted", width, '[data-conversation-detail="t-ref-1"]');
+      if (width < 1024) await page.locator("[data-detail-back]").click();
+      assert.equal((await page.locator('[data-conversation-card="t-ref-1"] [data-conversation-count]').innerText()).trim(), "5", "the thread's count does not drop");
+    });
+  },
+
+  /** An admin can delete anyone's message but cannot edit it, and can rename any thread. */
+  async admin() {
+    await run("?viewer=admin", [375, 1440], async (page) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const detail = page.locator('[data-conversation-detail="t-ref-1"]');
+      assert.equal(await detail.locator("[data-conversation-delete]").count(), 5, "Delete on everyone's messages");
+      assert.equal(await detail.locator("[data-conversation-edit]").count(), 0, "Edit on none");
+      assert.equal(await page.locator("[data-conversation-rename]").count(), 1, "an admin renames any thread");
+      await detail.locator('[data-conversation-delete="a2"]').click();
+      await detail.locator("[data-conversation-delete-confirm]").click();
+      await page.locator('[data-conversation-message="a2"][data-conversation-deleted]').waitFor();
+      assert.equal(await page.locator('[data-conversation-message="a2"] [data-conversation-content]').innerText(), "Message deleted");
+      assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "remove"), [{ type: "remove", messageId: "a2", moderate: true }], "an admin deleting someone else's message moderates it");
+    });
+  },
+
+  /** A refused edit or delete says why in words and keeps the text. */
+  async refused() {
+    await run("?viewer=ada&failedit=1", [375, 1440], async (page) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const message = page.locator('[data-conversation-message="a1"]');
+      await message.locator('[data-conversation-edit="a1"]').click();
+      await message.locator("textarea").fill("A better first thought.");
+      await message.locator("[data-conversation-edit-save]").click();
+      const alert = message.locator("[data-conversation-action-error]");
+      await alert.waitFor();
+      assert.equal(await alert.locator("svg").count(), 1, "an icon beside the words");
+      const text = await alert.innerText();
+      assert.ok(text.includes("The backend refused this.") && text.includes("Your text is kept here."), text);
+      assert.equal(await message.locator("textarea").inputValue(), "A better first thought.", "the typed text is kept");
+      await message.locator("[data-conversation-edit-cancel]").click();
+      assert.equal(await message.locator("[data-conversation-content]").innerText(), "First thought on the water policy piece.", "the message is unchanged");
+    });
+    await run("?viewer=grace&faildelete=1", [375], async (page) => {
+      await cards(page).first().waitFor();
+      await openThread(page, "t-ref-1");
+      const message = page.locator('[data-conversation-message="a4"]');
+      await message.locator('[data-conversation-delete="a4"]').click();
+      await message.locator("[data-conversation-delete-confirm]").click();
+      const alert = message.locator("[data-conversation-action-error]");
+      await alert.waitFor();
+      assert.ok((await alert.innerText()).includes("The backend refused this."));
+      assert.equal(await message.locator("[data-conversation-deleted]").count(), 0);
+      assert.equal(await message.locator("[data-conversation-content]").innerText(), "Agreed, and the numbers hold up.");
+    });
+  },
+
   /** Flat tones and rounded rectangles: no borders, outlines or rules anywhere on the page, in either layout, with the detail open. */
   async design() {
     for (const layoutMode of ["grid", "list"]) {
-      await run("", [375, 1024, 1440], async (page, width) => {
+      await run("?viewer=ada", [375, 1024, 1440], async (page, width) => {
         await cards(page).first().waitFor();
         if (layoutMode === "list") await page.locator('[data-conversation-layout="list"]').click();
         await openThread(page, "t-ref-1");
         await page.locator('[data-conversation-detail="t-ref-1"] [data-conversation-reply="a1"]').click();
         await page.locator('[data-conversation-detail="t-ref-1"] [data-conversation-rename]').click();
+        await page.locator('[data-conversation-edit="a3"]').click();
+        await page.locator('[data-conversation-delete="a5"]').click();
         const offenders = await page.locator("[data-conversations-view], [data-conversations-view] *").evaluateAll((elements) => elements.flatMap((element) => {
           const style = getComputedStyle(element);
           const edges = ["top", "right", "bottom", "left"].some((edge) => parseFloat(style.getPropertyValue(`border-${edge}-width`)) > 0 && style.getPropertyValue(`border-${edge}-style`) !== "none");

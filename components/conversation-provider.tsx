@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from "react";
 import { ConversationStoreProvider, createMemoryConversationStore, type ConversationStore } from "./conversation-context";
-import { appendConversationMessage, loadConversationMessages, loadReferenceConversationCounts } from "./news-desk-taxonomy-client";
+import { appendConversationMessage, deleteConversationMessage, editConversationMessage, loadConversationMessages, loadConversationViewer, loadReferenceConversationCounts, loadUserProfileNames } from "./news-desk-taxonomy-client";
 
 function networkConversationStore(authorLabel: string): ConversationStore {
   return {
@@ -10,6 +10,10 @@ function networkConversationStore(authorLabel: string): ConversationStore {
     load: loadConversationMessages,
     append: async ({ anchor, body, parentMessageId }) => (await appendConversationMessage({ anchor, body, parentMessageId })).message,
     counts: loadReferenceConversationCounts,
+    viewer: loadConversationViewer,
+    authors: loadUserProfileNames,
+    edit: editConversationMessage,
+    remove: (messageId, moderate) => deleteConversationMessage(messageId, moderate),
   };
 }
 

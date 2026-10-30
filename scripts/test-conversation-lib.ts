@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildConversationTree,
+  canDeleteMessage,
+  canEditMessage,
+  canRenameThread,
+  messageAuthorName,
   conversationAnchorKey,
   conversationMessageId,
   conversationThreadId,
@@ -96,4 +100,37 @@ test("A reply whose parent is missing is kept as a top-level message", () => {
 test("The message count is said in words", () => {
   assert.equal(messageCountLabel(1), "1 message");
   assert.equal(messageCountLabel(3), "3 messages");
+});
+
+test("Only the author edits a message; the author or an admin deletes it; a deleted or unsent one offers neither", () => {
+  const mine = { ...message(1, null), authorSub: "sub-me" };
+  const theirs = { ...message(2, null), authorSub: "sub-them" };
+  const me = { sub: "sub-me", isAdmin: false };
+  const admin = { sub: "sub-root", isAdmin: true };
+  assert.equal(canEditMessage(me, mine), true);
+  assert.equal(canEditMessage(me, theirs), false);
+  assert.equal(canEditMessage(admin, theirs), false, "an admin does not edit someone else's message");
+  assert.equal(canDeleteMessage(me, mine), true);
+  assert.equal(canDeleteMessage(me, theirs), false);
+  assert.equal(canDeleteMessage(admin, theirs), true, "an admin removes anyone's");
+  assert.equal(canEditMessage(me, { ...mine, deleted: true }), false);
+  assert.equal(canDeleteMessage(admin, { ...theirs, deleted: true }), false);
+  assert.equal(canDeleteMessage(me, { ...mine, pending: true }), false);
+  assert.equal(canEditMessage(undefined, mine), false);
+  assert.equal(canEditMessage({ sub: null, isAdmin: false }, { ...mine, authorSub: null }), false, "no sub, no ownership");
+});
+
+test("Only a thread's creator or an admin renames it", () => {
+  assert.equal(canRenameThread({ sub: "sub-me", isAdmin: false }, { createdBySub: "sub-me" }), true);
+  assert.equal(canRenameThread({ sub: "sub-me", isAdmin: false }, { createdBySub: "sub-them" }), false);
+  assert.equal(canRenameThread({ sub: "sub-me", isAdmin: false }, { createdBySub: null }), false);
+  assert.equal(canRenameThread({ sub: "sub-root", isAdmin: true }, { createdBySub: "sub-them" }), true);
+});
+
+test("The author's name is the saved label (their display name), then a readable profile name, then the email's first part", () => {
+  const names = new Map([["profile-1", "Ada Lovelace"]]);
+  assert.equal(messageAuthorName({ authorLabel: "Ada L.", authorUserProfileId: "profile-1" }, names), "Ada L.", "a display name saved with the message wins");
+  assert.equal(messageAuthorName({ authorLabel: "ada@example.test", authorUserProfileId: "profile-1" }, names), "Ada Lovelace", "an older message saved an email: a readable profile name is better");
+  assert.equal(messageAuthorName({ authorLabel: "ada@example.test", authorUserProfileId: "profile-2" }, names), "ada");
+  assert.equal(messageAuthorName({ authorLabel: "", authorUserProfileId: null }), "Someone");
 });

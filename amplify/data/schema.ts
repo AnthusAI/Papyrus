@@ -4,6 +4,7 @@ import { categoryAction } from "../functions/category-action/resource";
 import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/schema";
 import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
 import { proposalActionsSchemaDefinitions } from "../functions/proposal-actions/schema";
+import { messageActionsSchemaDefinitions } from "./message-actions";
 import { monitoringViewSchemaDefinitions } from "../functions/monitoring-view/schema";
 import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
@@ -1743,24 +1744,25 @@ const definitions = {
       index("searchVisibility").sortKeys(["createdAt"]).name("messagesBySearchVisibilityCreatedAt").queryField("listMessagesBySearchVisibilityAndCreatedAt"),
     ])
     .authorization((allow) => [
-      // One rule per group (a group may appear once per model): editors read and add; admins also delete, for moderation.
-      allow.group("editor").to(categoryAppendOnlyOperations),
-      allow.group(adminGroup).to(["read", "create", "delete"]),
-      // Messages belong to their author: the author edits (and soft-deletes) their own, and only an admin can remove someone else's.
-      allow.ownerDefinedIn("authorSub").identityClaim("sub").to(["read", "update", "delete"]),
+      // Messages belong to their author, and the backend stamps the author: people read Messages here and write them only through
+      // postMessage, editMessage, deleteOwnMessage and moderateMessage (message-actions.ts). Functions and IAM callers write directly.
+      allow.group("editor").to(["read"]),
+      allow.group(adminGroup).to(["read"]),
     ]),
 
   MessageThread: realtimeModel({
       id: a.id().required(),
       threadKind: a.string().required(),
       status: a.string().required(),
-      title: a.string().required(),
+      // The title and the creator are set when a conversation is created and read afterwards; a title changes only through
+      // renameThread (its creator or an admin), and the creator never changes.
+      title: a.string().required().authorization((allow) => [allow.group("editor").to(["read", "create"]), allow.group(adminGroup).to(["read", "create"])]),
       summary: a.string(),
       primaryAnchorKind: a.string(),
       primaryAnchorId: a.id(),
       primaryAnchorLineageId: a.id(),
       primaryAnchorKey: a.string(),
-      createdBySub: a.string(),
+      createdBySub: a.string().authorization((allow) => [allow.group("editor").to(["read", "create"]), allow.group(adminGroup).to(["read", "create"])]),
       createdByUserProfileId: a.id(),
       createdByLabel: a.string(),
       messageCount: a.integer(),
@@ -2260,6 +2262,7 @@ const definitions = {
   ...monitoringViewSchemaDefinitions,
   ...automationViewSchemaDefinitions,
   ...proposalActionsSchemaDefinitions,
+  ...messageActionsSchemaDefinitions,
 };
 if (!includeEditions) {
   const mutableDefinitions = definitions as Record<string, unknown>;
