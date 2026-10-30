@@ -1,0 +1,28 @@
+{
+  "id": "PPY-a7ee5431-c434-4263-8945-d8d326b12d24",
+  "title": "A saved Reference vote shows a false 'without commentary audit rows' error",
+  "description": "",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "cd5a29b8-a3d5-49ef-927a-3eeba9cf576f",
+      "author": "home",
+      "text": "Ryan hit it on Anth.us (5.58.0) accepting a Reference without an explanation. Stage 1 of Messages come only from people (a1b42feb) stopped the curation Lambda writing a Message and relation, but the newsroom's response check still required messageId and relationId, so every saved vote showed an error and the card did not update. The vote itself was saved. Fix: the check moves to lib/reference-review-response.ts and requires only ok plus a matching referenceId; scripts/test-reference-review-api.ts passes the real handler's responses through it; features/newsroom-reference-vote-saved.feature (profile referenceVoteSaved).",
+      "created_at": "2026-10-30T10:29:01.500856Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-30T10:28:50.632355Z",
+  "updated_at": "2026-10-30T10:29:01.567231Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

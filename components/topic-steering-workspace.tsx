@@ -21,6 +21,7 @@ import { ProposalsPanel } from "./proposals-panel";
 import { NewsletterPanel } from "./newsletter-panel";
 import { SignupEntriesPanel } from "./signup-entries-panel";
 import { pluginSettings, type PluginOutputs } from "../lib/plugin-settings";
+import { assertReferenceReviewSaved, type ReferenceReviewResult } from "../lib/reference-review-response";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import {
@@ -429,15 +430,7 @@ type CategoryReviewResponse = {
 };
 
 type ReferenceReviewResponse = {
-  data?: {
-    ok?: boolean | null;
-    action?: string | null;
-    referenceId?: string | null;
-    status?: string | null;
-    reasonCode?: string | null;
-    messageId?: string | null;
-    relationId?: string | null;
-  } | null;
+  data?: ReferenceReviewResult | null;
   errors?: Array<{ message?: string | null } | string | null> | null;
 };
 
@@ -14561,20 +14554,11 @@ function assertReviewMutationSucceeded(response: CategoryReviewResponse, proposa
   return response.data;
 }
 
-function assertReferenceReviewMutationSucceeded(response: ReferenceReviewResponse, referenceId: string): NonNullable<ReferenceReviewResponse["data"]> {
+function assertReferenceReviewMutationSucceeded(response: ReferenceReviewResponse, referenceId: string): ReferenceReviewResult {
   if (response.errors?.length) {
     throw new Error(response.errors.map(formatGraphQLError).join("; "));
   }
-  if (!response.data?.ok) {
-    throw new Error(`Reference curation review was not saved for ${referenceId}.`);
-  }
-  if (response.data.referenceId && response.data.referenceId !== referenceId) {
-    throw new Error(`Reference review response did not match ${referenceId}.`);
-  }
-  if (!response.data.messageId || !response.data.relationId) {
-    throw new Error(`Reference review saved without commentary audit rows for ${referenceId}.`);
-  }
-  return response.data;
+  return assertReferenceReviewSaved(response.data, referenceId);
 }
 
 function assertReferenceQualityMutationSucceeded(
