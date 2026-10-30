@@ -22,10 +22,22 @@
         "model": "claude-opus-5-5",
         "name": "DataParade.anth.us implementation"
       }
+    },
+    {
+      "id": "fb4a13b2-c883-41a1-a545-35812612cba4",
+      "author": "home",
+      "text": "Reopened 2026-10-30: Amplify job 29 (Papyrus 5.61.0) failed in the reproject-on-deploy custom resource (ModuleNotFoundError cli_login, Papyrus #885) and rolled back. During the rollback, a reprojection with the old backend (basePath /posts) at 13:31:52 ET rewrote posts/, removed the /articles item pages and added exact KVS redirects /articles/<slug>/ -> /posts/<slug>/. Everything still resolves to 200 (the landing's /articles links work through one hop). Blocked on Papyrus 5.61.1 (#889). On its deploy, check that the /articles/* -> /posts/* KVS entries are gone, or /posts/x -> /articles/x -> /posts/x loops.",
+      "created_at": "2026-10-30T17:34:59.607132Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-opus-5-5",
+        "name": "DataParade.anth.us implementation"
+      }
     }
   ],
   "created_at": "2026-10-30T15:32:11.465844Z",
-  "updated_at": "2026-10-30T17:29:19.477277Z",
+  "updated_at": "2026-10-30T17:34:59.607570Z",
   "closed_at": "2026-10-30T17:29:19.476997Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
