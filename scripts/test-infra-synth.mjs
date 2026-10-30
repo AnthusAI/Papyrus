@@ -118,6 +118,18 @@ try {
   const noPreview = synthesizeSite("pilobol-no-preview", noPreviewSite);
   assert.equal(/upload-preview/.test(buildSpecOf(stagingBranchOf(noPreview))), false, "no reader and no stagingPreview: the staging branch builds the newsroom only");
 
+  // `papyrus login --remote` is off unless cms.cliRemoteLogin is true: the production branch then names the flag and its compute role.
+  const productionBranchOf = (template) => resourcesOfType(template, "AWS::Amplify::Branch").find((branch) => branch.Properties.BranchName === "main");
+  const remoteLoginNames = (template) => productionBranchOf(template).Properties.EnvironmentVariables.map((variable) => variable.Name).filter((name) => /CLI_REMOTE_LOGIN|CLI_INVOKER_ROLE/.test(name));
+  assert.deepEqual(remoteLoginNames(withReader), [], "remote CLI login off by default: the production branch carries neither variable");
+  const remoteLoginSite = structuredClone(pilobolExample);
+  remoteLoginSite.cms.cliRemoteLogin = true;
+  const remoteLogin = synthesizeSite("pilobol-remote-login", remoteLoginSite);
+  assert.deepEqual(remoteLoginNames(remoteLogin).sort(), ["PAPYRUS_CLI_INVOKER_ROLE_ARN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN"], "cliRemoteLogin: the production branch names the flag and the invoker role");
+  const invoker = productionBranchOf(remoteLogin).Properties.EnvironmentVariables.find((variable) => variable.Name === "PAPYRUS_CLI_INVOKER_ROLE_ARN");
+  assert.ok(JSON.stringify(invoker.Value).includes("AmplifyComputeRole"), "cliRemoteLogin: the invoker is the Amplify compute role");
+  assert.deepEqual(stagingBranchOf(remoteLogin).Properties.EnvironmentVariables.filter((variable) => /CLI_REMOTE_LOGIN|CLI_INVOKER_ROLE/.test(variable.Name)), [], "cliRemoteLogin: the staging branch is unchanged");
+
   const anthUsDomains = resourcesOfType(anthUsTemplate, "AWS::Amplify::Domain");
   assert.equal(anthUsDomains.length, 1, "anth-us: one reader domain");
   assert.deepEqual(anthUsDomains[0].Properties.SubDomainSettings.map((setting) => setting.Prefix), ["", "www"]);

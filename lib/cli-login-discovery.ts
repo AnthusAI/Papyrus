@@ -16,6 +16,9 @@ export interface CliLoginDocument {
   oauth_domain: string;
   graphql_endpoint: string;
   callback_uri: string;
+  /** Present only for a site that switched on `papyrus login --remote` (docs/cli-login.md). */
+  broker_endpoint?: string;
+  remote_callback_uri?: string;
 }
 
 export interface AmplifyOutputsForCliLogin {
@@ -26,6 +29,7 @@ export interface AmplifyOutputsForCliLogin {
     oauth?: { domain?: string; redirect_sign_in_uri?: string[] };
   };
   data?: { url?: string };
+  custom?: { cliLogin?: { brokerEndpoint?: string; remoteCallbackUri?: string; pagesFunctionArn?: string } | null };
 }
 
 /**
@@ -43,6 +47,7 @@ export function cliLoginDocumentFromOutputs(outputs: AmplifyOutputsForCliLogin |
   // Only when the client really registers the callback; otherwise the sign-in could never complete.
   if (!outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(CLI_CALLBACK_URI)) return null;
   const region = outputs?.auth?.aws_region ?? userPoolId.split("_")[0];
+  const remote = remoteLoginFromOutputs(outputs, siteOrigin);
   return {
     publication: siteOrigin,
     issuer: `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`,
@@ -50,7 +55,22 @@ export function cliLoginDocumentFromOutputs(outputs: AmplifyOutputsForCliLogin |
     oauth_domain: `https://${domain}`,
     graphql_endpoint: endpoint,
     callback_uri: CLI_CALLBACK_URI,
+    ...remote,
   };
+}
+
+/**
+ * The broker, only when everything remote login needs is in place: the backend published a broker on an https URL, the
+ * remote callback is this site's own `/cli/callback`, and the web client registers it. Otherwise the file says nothing
+ * about remote login, so the CLI reports that the site has not switched it on.
+ */
+function remoteLoginFromOutputs(outputs: AmplifyOutputsForCliLogin | null, siteOrigin: string): Pick<CliLoginDocument, "broker_endpoint" | "remote_callback_uri"> | null {
+  const published = outputs?.custom?.cliLogin;
+  const broker = published?.brokerEndpoint;
+  const callback = published?.remoteCallbackUri;
+  if (!broker || !callback || !broker.startsWith("https://") || callback !== `${siteOrigin}/cli/callback`) return null;
+  if (!outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(callback)) return null;
+  return { broker_endpoint: broker, remote_callback_uri: callback };
 }
 
 export interface CliLoginDiscoveryOptions {

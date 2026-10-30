@@ -49,6 +49,7 @@ Every block is optional except `site.name`. Unknown keys are errors.
 | `showcase` | a logo wall fed from published items: `{section, path, title, description, kinds}` (see "Showcase") |
 | `forms` | public forms as data (see "Forms"): `{ "<id>": {title, fields, endpoint, submitLabel, honeypot, closedNotice, successText, failureText} }` |
 | `agents` | agent-readable output, all on by default: `markdown` (a `.md` twin per page), `llmsTxt`, `llmsFull`, `llmsFullMaxItems` (200), `llmsFullMaxBytes` (1000000), `llmsMaxLinks` (200) |
+| `mermaid` | `{enabled}`: ` ```mermaid ` blocks render as diagrams (default on; see Mermaid diagrams) |
 | `pageActions` | copy / view / open-in actions on article pages: `{enabled, placement (header\|aside), actions (copy, view), ai (chatgpt, claude, perplexity), prompt}` |
 | `wiki` | public wiki pages (see [public-wiki.md](public-wiki.md)): `{types (default ["wiki_page"]), suggestForm (the id of a forms entry), dataLink (default true)}` |
 | `components` | `itemByline`, `breadcrumbs`, `itemPagesDependOn` |
@@ -550,6 +551,39 @@ that is not told would see them as orphans. Three rules prevent that:
 
 `--only <prefix>` limits the orphans a reconcile considers to keys under a site-relative prefix, such as `--only wiki/page/`;
 the site's `urls.basePath` is added for you. It does not limit the repair of stale items or listings.
+
+## Mermaid diagrams
+
+A fenced code block whose info string is `mermaid` is drawn as a diagram on every standard site, with no setting:
+
+````markdown
+```mermaid
+flowchart TD
+  A[Idea] --> B{Approved?}
+  B -->|yes| C[Publish]
+  B -.->|no| A
+```
+````
+
+How it works: the projector keeps the block as `<pre><code class="language-mermaid">`, so the source is readable text before
+the script runs, with JavaScript off, and in any reader that ignores scripts. Only a page that contains such a block gets a
+`<script>` tag for `_plugins/papyrus-mermaid-v1.js`; that loader then fetches the Mermaid library
+(`_plugins/mermaid-11.17.2.min.js`, about 3.5 MB, 1 MB compressed) from the site's own origin. A page without a diagram loads
+neither. Nothing comes from a third-party CDN.
+
+- **Accessible.** The drawing sits in a `role="img"` wrapper with an `aria-label`, the SVG has a `<title>` (Mermaid's `accTitle`
+  is used when the author writes one), and the original source moves into a "Diagram source" disclosure under the drawing.
+- **Theme.** Text, lines and fills are taken from the page's `--papyrus-ink`, `--papyrus-bg` and `--papyrus-band-bg` tokens and
+  redrawn when the colour scheme changes. There is no colour coding: nodes are drawn in the text colour, so meaning is
+  carried by shapes, line styles and labels.
+- **Safe.** Mermaid runs at `securityLevel: "strict"` with plain SVG text labels; HTML in a label is shown as text and never
+  runs. A diagram with a syntax error is left as its source, with a short note.
+- **Agents.** The Markdown twin (`.../index.md`, `Accept: text/markdown`) carries the fenced source verbatim.
+- **Off.** `"mermaid": { "enabled": false }` publishes neither the script nor the library and leaves the blocks as code.
+
+Why client-side: the projection runs in a Python Lambda with no browser, so build-time SVG would mean shipping a headless
+browser into it. Drawing in the reader's browser keeps the projection unchanged, keeps the source in the page, and costs
+nothing on pages without a diagram.
 
 ## Page actions
 

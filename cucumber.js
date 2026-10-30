@@ -73,6 +73,11 @@ module.exports = {
     require: ["features/step_definitions/cli-login-discovery.steps.js"],
     format: ["summary"],
   },
+  cliRemoteLoginSite: {
+    paths: ["features/cli-remote-login-site.feature"],
+    require: ["features/step_definitions/cli-remote-login-site.steps.js"],
+    format: ["summary"],
+  },
   referenceEditorLayout: {
     paths: ["features/newsroom-reference-editor-layout.feature"],
     require: ["features/step_definitions/reference-editor.steps.js"],

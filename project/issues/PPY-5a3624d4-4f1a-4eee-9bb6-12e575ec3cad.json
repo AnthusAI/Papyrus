@@ -55,10 +55,17 @@
       "text": "Current plan (Claude, 2026-10-30). This supersedes the 2026-10-30 plan comment (from AnthusAI/Papyrus#879) and the earlier comments in AnthusAI/Papyrus#882: follow only this one. The design is AnthusAI/cli-login docs/design.md (public, Ryan's decision 2026-10-30), work tracked on that repository's board. Papyrus's part: its CLI login moves into the shared library anthus_cli_login, keeping Keychain SERVICE 'papyrus-newsroom-oauth' and the per-site keys; the new stores, memory agent and locks are built there; then Papyrus depends on a pinned release. The broker: the CLI calls the broker's function URL directly for /start and /poll (throttled per caller, slow_down); Papyrus serves /cli/approve and /cli/callback on each site's own domain with the library's page handlers and invokes the broker's describe, bind, complete and deny by IAM. Live changes per site (Cognito callback URL, broker deploy, pages, IAM grant) need Ryan's approval.",
       "created_at": "2026-10-30T10:52:37.335698Z",
       "comment_type": "default"
+    },
+    {
+      "id": "4c853167-9514-4b65-94bc-f1c4e7703e5b",
+      "author": "home",
+      "text": "Implementation in PR feat/cli-remote-login: papyrus login --remote [site] with a per-site cli-login 0.3.0 broker and the library's own ApprovalPages in a Python pages Lambda (forwarded by IAM from the Next.js /cli/* routes). Off by default; a site opts in with cms.cliRemoteLogin (app-shell) which sets PAPYRUS_ENABLE_CLI_REMOTE_LOGIN and PAPYRUS_CLI_INVOKER_ROLE_ARN. Nothing is deployed by merging: enabling it for a site needs an app-shell deploy plus a backend deploy (Ryan's approval).",
+      "created_at": "2026-10-30T19:28:58.507106Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-30T09:28:51.580949Z",
-  "updated_at": "2026-10-30T10:52:37.335999Z",
+  "updated_at": "2026-10-30T19:28:58.507879Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

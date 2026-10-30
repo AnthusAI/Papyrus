@@ -245,6 +245,9 @@ export class AmplifyAppShellStack extends Stack {
         SITE_ENV: "production",
         PAPYRUS_SITE_ORIGIN: productionSiteOrigin,
         PAPYRUS_CONTENT_SOURCE: "published",
+        ...(config.cms.cliRemoteLogin
+          ? { PAPYRUS_ENABLE_CLI_REMOTE_LOGIN: "true", PAPYRUS_CLI_INVOKER_ROLE_ARN: computeRole.roleArn }
+          : {}),
         ...(revalidateSecretParameterName ? { PAPYRUS_REVALIDATE_SECRET_PARAMETER: revalidateSecretParameterName } : {}),
         ...prospectusEnvironment,
       }),

@@ -75,8 +75,71 @@ The agent keeps sessions in memory only, behind a private Unix socket, so they l
 until it stops or the machine restarts; sign in again after that. The agent is not
 available on Windows in this version.
 
-`papyrus login --remote` (approve a sign-in from another device) is not available yet:
-the sites do not publish a sign-in broker, so the flag fails with that message.
+`papyrus login --remote` signs in from a machine with no browser at all, and needs no
+agent unless the machine has no keyring either: see
+[Remote sign-in from another device](#remote-sign-in-from-another-device).
+
+## Remote sign-in from another device
+
+An agent on a cloud machine has no browser and should hold no long-lived keys. It runs
+
+```sh
+papyrus login --remote shipped.anth.us
+```
+
+and prints an approval URL and a short matching code, then waits (up to 10 minutes):
+
+```text
+To approve this sign-in, open https://shipped.anth.us/cli/approve?t=...
+and check that the page shows the code BCDF-GHJK.
+```
+
+Open the URL on your phone, sign in with Google on the site, check that the page shows
+the same code and approve. The waiting CLI receives the session and stores it exactly
+like a normal login (the same secure store, key and registry), then prints
+`Signed in as <you>.` The approval URL and code are an approval capability: whoever opens
+the URL and signs in first owns the session. When the agent knows who should approve, add
+`--expect-email you@example.com`; the CLI then refuses, and stores nothing, if anyone else
+approved. Nothing secret is printed or relayed: the broker sees only hashes of the CLI's
+secrets, and the code it holds for a moment is useless without the CLI's PKCE verifier.
+
+On a machine with no keyring, start the memory agent first (see
+[Cloud machines and containers](#cloud-machines-and-containers)); sessions then live in
+memory only. A site that has not switched this on answers
+`<site> does not publish a remote sign-in broker`, and nothing is started. A denied or
+expired approval, or an approval link that was already used, stores nothing.
+
+### Switching it on for one site
+
+Remote sign-in is **off for every site** until the site turns it on. It is built on the
+shared [`cli-login`](https://github.com/AnthusAI/cli-login) broker protocol
+(`docs/protocol.md` there) with one broker per site:
+
+| Piece | Where it lives |
+| --- | --- |
+| Broker (Lambda function URL for `/start` and `/poll`, DynamoDB transactions, alarms) | the site's Amplify backend, in the `CliRemoteLogin` stack (`amplify/cli-login/remote-login.ts`) |
+| Approval pages function (the library's own `ApprovalPages`, Python) | the same stack (`amplify/functions/cli-login-pages`) |
+| `/cli/approve` and `/cli/callback` | the site's Next.js app, which forwards them to the pages function with IAM (`lib/cli-login-pages.ts`) |
+| `https://<site>/cli/callback` | registered as a sign-in return URL on the site's existing web app client (never a logout URL) |
+| `broker_endpoint`, `remote_callback_uri` | added to `/.well-known/papyrus-cli.json`, only when the backend outputs name them |
+
+The broker, the pages and the CLI run the same pinned `cli-login` release
+(`amplify/cli-login/bundle.ts` and `pyproject.toml`; a test keeps them equal).
+
+To turn it on, set `cliRemoteLogin: true` in the `cms` block of the site's app-shell
+`site.json`, then deploy the app-shell stack and the site's backend:
+
+```json
+"cms": { "cliRemoteLogin": true }
+```
+
+The app-shell stack then sets two variables on the production branch:
+`PAPYRUS_ENABLE_CLI_REMOTE_LOGIN=true` and `PAPYRUS_CLI_INVOKER_ROLE_ARN` (the app's
+compute role, the only principal allowed to invoke the pages function). A site whose
+backend is configured without the app-shell can set the same two variables itself, or set
+`features: { cliRemoteLogin: true }` in `defineSiteBackend`. The site also needs
+`PAPYRUS_SITE_ORIGIN`, which production branches already have. With the flag off, the
+synthesized backend and the Cognito client are unchanged.
 
 ## Sign in by site name
 

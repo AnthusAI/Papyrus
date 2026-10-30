@@ -59,7 +59,11 @@ export function applyGoogleEmailVerifiedMapping(authStack: Stack): void {
   provider.attributeMapping = { ...(mapping ?? {}), email_verified: "email_verified" };
 }
 
-export function defineSiteAuth(config: PapyrusAuthConfig) {
+/**
+ * `extraCallbackUrls` are sign-in return URLs only (never logout URLs) that a feature registers on the same web client,
+ * such as the remote CLI login page. Empty (the default) leaves the client exactly as it was.
+ */
+export function defineSiteAuth(config: PapyrusAuthConfig, extraCallbackUrls: readonly string[] = []) {
   const authRedirectUrls = expandNewsroomRedirectUrls(
     siteAuthRedirectUrls(config),
     config.newsroomBasePath,
@@ -78,7 +82,7 @@ export function defineSiteAuth(config: PapyrusAuthConfig) {
                 scopes: ["email", "profile", "openid"],
               },
               scopes: ["EMAIL", "PROFILE", "OPENID"],
-              callbackUrls: authRedirectUrls,
+              callbackUrls: [...authRedirectUrls, ...extraCallbackUrls.filter((url) => !authRedirectUrls.includes(url))],
               logoutUrls: authRedirectUrls,
             },
           }),
