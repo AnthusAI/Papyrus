@@ -18,6 +18,7 @@ const eslintConfig = [
       "coverage/**",
       "corpora/**",
       "public/videoml/**",
+      "src/papyrus_content/projection/standard/assets/mermaid.min.js", // vendored third-party bundle
     ],
   },
   ...compat.extends("next/core-web-vitals"),
