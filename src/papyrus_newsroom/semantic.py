@@ -62,7 +62,7 @@ SEMANTIC_PREDICATES: dict[str, dict[str, str]] = {
 REFERENCE_FIELDS = """
 id lineageId versionNumber previousVersionId versionState versionCreatedAt versionCreatedBy changeReason contentHash
 corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 sourcePublishedAt sourceUpdatedAt
-    retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason updatedAt
+    retrievedAt importRunId importedAt curationStatus curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId updatedAt
 """
 
 ATTACHMENT_FIELDS = """

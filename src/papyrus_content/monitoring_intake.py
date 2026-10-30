@@ -7,8 +7,7 @@ from __future__ import annotations
 
 import json
 
-from .catalog import (catalog_item_with_external_item_id, message_record,
-                      reference_attachment_records, reference_record, semantic_relation_record)
+from .catalog import catalog_item_with_external_item_id, reference_attachment_records, reference_record
 from .ids import hash_short, knowledge_corpus_id
 from .monitoring import Monitor, SourceItem, canonical_url
 from .records import apply_record_changes, build_record_changes
@@ -60,9 +59,17 @@ class ReferenceIntake:
         text = "; ".join(p for p in parts if p)
         return f" {text[:1].upper()}{text[1:]}." if text else ""
 
+    def _discovery_fields(self, item: SourceItem, provenance: dict) -> dict:
+        """What a delivery records on the Reference: the monitor, the source's structured details and, for a rule monitor, the rule."""
+        decision = provenance.get("machineDecision")
+        direct = isinstance(decision, dict) and decision.get("system") == "direct"
+        return {"discoveredByMonitorId": self.monitor.id,
+                "discoveryDetails": json.dumps(item.details, sort_keys=True) if item.details else None,
+                **({"discoveryRule": json.dumps({"system": "direct", "rule": decision.get("rule")}, sort_keys=True)} if direct else {})}
+
     def __call__(self, item: SourceItem, provenance: dict, extra_records=None, *, reference_id=None) -> dict:
         """`extra_records(reference)` may return more records for the same persist batch (the router's lab
-        decision relation), so they land with the Reference and its provenance Message or not at all."""
+        decision relation), so they land with the Reference or not at all."""
         for key, value in self.monitor.binding.items():
             if provenance.get(key) != value:
                 raise ValueError("Discovery provenance does not match the verified Monitor binding")
@@ -108,8 +115,9 @@ class ReferenceIntake:
         else:
             proposed = reference_record(source, context)["expected"]
             # The catalog factory builds an import intermediate. Canonical Reference
-            # has no metadata column; provenance belongs in its private Message.
+            # has no metadata column; the monitor and the source's details ride on the Reference itself.
             proposed.pop("metadata", None)
+            proposed.update(self._discovery_fields(item, provenance))
             try:
                 # Normal model create is conditional on absent identity; never upsert
                 # a Reference, which could reset another worker's human curation.
@@ -124,37 +132,23 @@ class ReferenceIntake:
             reference = self.client.get_record("Reference", proposed["id"])
             if not reference or reference.get("corpusId") != self.monitor.corpus_id:
                 raise ValueError("Reference creation has no verified persisted readback")
+        if matches:
+            # A Reference some monitor already delivered keeps its first monitor; a new revision of the same source item
+            # refreshes the stored details. Only these fields are written, so human curation is never touched.
+            fields = self._discovery_fields(item, provenance)
+            if not reference.get("discoveredByMonitorId"):
+                self.client.update_record("Reference", {"id": reference["id"], **fields})
+            elif reference.get("discoveredByMonitorId") == self.monitor.id and item.details:
+                self.client.update_record("Reference", {"id": reference["id"], "discoveryDetails": fields["discoveryDetails"]})
 
-        event_id = "message-monitor-" + hash_short([self.monitor.binding, item.source_id, item.fingerprint])
-        message = message_record({"id": event_id, "messageKind": "ingestion_rationale",
-                                  "source": "papyrus-monitoring", "authorLabel": "Papyrus Monitor worker",
-                                  "summary": f"{self.monitor.source_name} discovery: {item.title}",
-                                  "body": json.dumps(provenance, sort_keys=True),
-                                  "metadata": {"corpusId": self.monitor.corpus_id},
-                                  "createdAt": provenance["observedAt"], "importRunId": context["importRunId"]})
-        # The canonical Message envelope omits bodies. Supply the private payload
-        # to the existing expander, which uploads it instead of sending it to DynamoDB.
-        message["expected"]["body"] = json.dumps(provenance, sort_keys=True)
-        relation = semantic_relation_record({
-            "predicate": "ingestion_rationale", "subjectKind": "message", "subjectId": event_id,
-            "subjectLineageId": event_id, "subjectVersionNumber": 1,
-            "objectKind": "reference", "objectId": reference["id"],
-            "objectLineageId": reference["lineageId"], "objectVersionNumber": reference.get("versionNumber") or 1,
-            "importRunId": context["importRunId"], "importedAt": provenance["observedAt"],
-            # A source with structured details (a Hub model) keeps them here, where the weekly knowledge run reads them with one
-            # indexed query (knowledge_snapshot/monitor_records.py); the Message body holds them too, in private storage.
-            "metadata": {"monitorId": self.monitor.id, "sourceId": item.source_id, **({"details": item.details} if item.details else {}),
-                         **({"machineDecision": {"system": "direct", "rule": provenance["machineDecision"].get("rule")}}
-                            if isinstance(provenance.get("machineDecision"), dict) and provenance["machineDecision"].get("system") == "direct" else {})},
-        })
         run = {"modelName": "KnowledgeImportRun", "expected": {
             "id": context["importRunId"], "corpusId": self.monitor.corpus_id,
             "importKind": "monitor-discovery", "corpusImportKindKey": f"{self.monitor.corpus_id}#monitor-discovery",
             "status": "imported", "generatedAt": provenance["observedAt"], "importedAt": provenance["observedAt"],
-            "itemCount": 1, "referenceCount": 1, "relationCount": 1, "warningCount": 0,
+            "itemCount": 1, "referenceCount": 1, "relationCount": 0, "warningCount": 0,
         }}
         extras = list(extra_records(reference)) if extra_records else []
-        self.persist([run, *reference_attachment_records(source, reference, context), message, relation, *extras])
+        self.persist([run, *reference_attachment_records(source, reference, context), *extras])
         return {"referenceId": reference["id"], "referenceLineageId": reference["lineageId"],
-                "referenceVersion": reference.get("versionNumber") or 1, "provenanceMessageId": event_id,
+                "referenceVersion": reference.get("versionNumber") or 1,
                 "referenceReused": bool(matches)}

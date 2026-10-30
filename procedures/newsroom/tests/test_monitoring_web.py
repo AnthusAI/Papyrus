@@ -500,7 +500,7 @@ def test_a_released_shared_router_decides_the_find_for_all_six_publications_in_o
     client = CyclotronClient(validate_router_config(config), sign=lambda m, u, b: {}, http=lab.http, sleep=lambda s: None, clock=lambda: 0)
 
     run_router(RouterStore(table), MONITOR, now=NOW + 10, cyclotron=client, deliver=lambda *a: {"referenceId": "r", "referenceLineageId": "r",
-               "referenceVersion": 1, "provenanceMessageId": "m"}, appsync=lambda endpoint: object(),
+               "referenceVersion": 1}, appsync=lambda endpoint: object(),
                context_receipt=lambda c, p: {"contextHash": None, "reason": "test"})
 
     (post,) = [c for c in lab.combined_calls if c[0] == "POST"]

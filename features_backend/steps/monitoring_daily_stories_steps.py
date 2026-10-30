@@ -44,7 +44,7 @@ def add(client, count, status, monitor, verdicts=None):
         number = len(client.references) + 1
         row = reference(number, status=status, days_ago=number)
         client.references.append(row)
-        client.incoming[row["lineageId"]] = [provenance(row, monitor)]
+        provenance(row, monitor)
         verdict = (verdicts or {}).get(number, 0.5)
         client.relations[row["lineageId"]] = [decision(row, verdict)]
 
@@ -84,7 +84,7 @@ def step_automation(context, monitor):
 
 def first_reference(context, monitor):
     client = state(context).clients[state(context).publications[0]]
-    return next(row for row in client.references if json.loads(client.incoming[row["lineageId"]][0]["metadata"])["monitorId"] == monitor)
+    return next(row for row in client.references if row["discoveredByMonitorId"] == monitor)
 
 
 @given('the Automation has a procedure run in progress for the first "{monitor}" Reference')
@@ -97,8 +97,8 @@ def step_run_in_progress(context, monitor):
 def step_story_based_on(context, monitor):
     row = first_reference(context, monitor)
     client = state(context).clients[state(context).publications[0]]
-    client.incoming[row["lineageId"]].append({"predicate": "uses_evidence", "relationState": "current", "subjectKind": "item", "objectKind": "reference",
-                                              "objectLineageId": row["lineageId"], "metadata": json.dumps({"role": "based_on"})})
+    client.incoming[row["lineageId"]] = [{"predicate": "uses_evidence", "relationState": "current", "subjectKind": "item", "objectKind": "reference",
+                                              "objectLineageId": row["lineageId"], "metadata": json.dumps({"role": "based_on"})}]
 
 
 @given('a second publication "{publication}" with {count:d} accepted References that the "{monitor}" monitor delivered')

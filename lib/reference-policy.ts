@@ -139,23 +139,17 @@ export function isEvidenceEligibleReference(reference: Pick<ReferenceRecord, "ve
     && normalizeReferenceCurationStatus(reference?.curationStatus) === "accepted";
 }
 
-export function referenceReasonCode(reference: Pick<ReferenceRecord, "metadata"> | null | undefined, messages: Array<Pick<MessageRecord, "metadata" | "createdAt">> = []): ReferenceRejectionReasonCode | null {
-  const metadataReason = reasonCodeFromMetadata(reference?.metadata);
-  if (metadataReason) return metadataReason;
-  const sortedMessages = [...messages].sort((left, right) => String(right.createdAt ?? "").localeCompare(String(left.createdAt ?? "")));
-  for (const message of sortedMessages) {
-    const reason = reasonCodeFromMetadata(message.metadata);
-    if (reason) return reason;
-  }
-  return null;
+/** The reason code of the Reference's latest vote (`curationReasonCode`), else one recorded in its metadata. */
+export function referenceReasonCode(reference: Pick<ReferenceRecord, "metadata" | "curationReasonCode"> | null | undefined): ReferenceRejectionReasonCode | null {
+  return normalizeReferenceRejectionReasonCode(reference?.curationReasonCode) ?? reasonCodeFromMetadata(reference?.metadata);
 }
 
-export function scopeTrainingLabelForReference(reference: Pick<ReferenceRecord, "versionState" | "curationStatus" | "metadata"> | null | undefined, messages: Array<Pick<MessageRecord, "metadata" | "createdAt">> = []): "positive" | "negative" | null {
+export function scopeTrainingLabelForReference(reference: Pick<ReferenceRecord, "versionState" | "curationStatus" | "metadata" | "curationReasonCode"> | null | undefined): "positive" | "negative" | null {
   if (!reference || reference.versionState !== "current") return null;
   const status = normalizeReferenceCurationStatus(reference.curationStatus);
   if (status === "accepted") return "positive";
   if (status !== "rejected") return null;
-  const reasonCode = referenceReasonCode(reference, messages);
+  const reasonCode = referenceReasonCode(reference);
   return reasonCode && SCOPE_TRAINING_NEGATIVE_REASON_CODE_SET.has(reasonCode) ? "negative" : null;
 }
 

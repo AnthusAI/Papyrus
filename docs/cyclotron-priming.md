@@ -140,7 +140,7 @@ a schedule. Each run:
    follows the existing scope-training rule: accepted is `include`; rejected as
    `out_of_scope` or `policy_exclusion` is `exclude`; other outcomes close the
    decision without a label. The editor's note is the explanation and the
-   curation Message id is the review id, so a rerun records nothing twice.
+   vote id (derived from the Reference and its `curationStatusUpdatedAt`) is the review id, so a rerun records nothing twice.
 4. Decides every current pending reference of the relevance corpus
    (`relevanceCyclotron.corpusKey`, else the canonical corpus) and records
    each new decision as a `relevance_decision_is` relation. An unchanged
@@ -590,11 +590,18 @@ and the chosen storage authority (PPY-58f107).
 ## Self-training from human decisions, in shadow mode
 
 A cyclotron learns only from References a person explicitly accepted or
-rejected. The Newsroom's curation Lambda records `actorKind: "human"` on the
-curation Message only when AppSync supplied a user-pool subject claim for the
-caller; request arguments cannot claim it, and IAM-signed service callers and
-agents record `service`. A curation with no recorded actor kind, from before
-this rule, never teaches.
+rejected. Messages come only from people, so a vote is recorded on the
+Reference itself (`curationActorKind`, `curationReasonCode`, `curationSectionId`,
+`curationShareable`, `curationDelegation`, `curationDecisionRelationId`, beside
+`curationStatus`, `curationStatusUpdatedBy`, `curationStatusUpdatedAt` and
+`curationStatusReason`). The Newsroom's curation Lambda records
+`curationActorKind: "human"` only when AppSync supplied a user-pool subject claim
+for the caller; request arguments cannot claim it, and IAM-signed service callers
+and agents record `agent`. The Cyclotron's own accept or reject records `cyclotron`,
+a monitor rule `rule`, and a catalog registration `catalog`. A Reference keeps only
+its latest vote; the history of earlier votes lives in the Cyclotron's feedback.
+A Reference with no recorded actor kind never teaches. The helpers are in
+`src/papyrus_content/reference_vote.py` (`vote_fields`, `latest_vote`).
 
 Each decide-relevance sweep:
 
@@ -626,16 +633,16 @@ the proof above teaches through priming, where every example reaches the prompt.
 
 Section labels follow the same rule. A human or delegated accept can carry a
 `sectionId` (an enabled `NewsroomSection`, validated when recorded and stored in
-the curation Message metadata beside `actorKind`). `human_section_for_review(reference,
-messages, section_ids)` in `relevance_decisions.py` returns that id only when the
-latest curation is an explicit human accept carrying a section id in the given
+`curationSectionId` beside `curationActorKind`). `human_section_for_review(reference,
+section_ids)` in `relevance_decisions.py` returns that id only when the
+latest vote is an explicit human accept carrying a section id in the given
 set, and `None` otherwise. Agent or unknown actors, rejections and unrecognised
 ids never produce a section label.
 
-Historic curation has no `actorKind`. `papyrus references stamp-curation-actor-kind
---human-authors <label,label>` stamps `human` only on curation whose author label
-a person names, and is a dry run (it also lists every other author label) until
-`--apply`.
+Votes recorded before the rule lived in `reference_curation` Messages. `papyrus references
+backfill-vote-details [--human-authors <label,label>] [--dry-run]` copies each Reference's
+newest old vote onto the Reference (old `service` and unknown actors become `agent`; only an
+author label a person names becomes `human`) and prints the counts; `--dry-run` writes nothing.
 
 Not yet built: retiring a taught label when a human changes it to no label
 (the engine corrects a flipped label, but cannot remove a primed example), and
@@ -675,10 +682,10 @@ least `minimumRejectProbability`; the Reference has no curation history at all
 (a person who reviewed, or reopened, a Reference is never overruled); and the
 sweep is under `maxRejectsPerSweep` and the daily decision cap. It never accepts.
 
-Each rejection writes the usual `reference_curation` Message with
-`actorKind: "cyclotron"`, reason code `out_of_scope`, and the cyclotron id,
-probability, proof id and decision id in its metadata and reason, so the
-Newsroom can show it was automatic and a person can reopen it. Because the actor
+Each rejection is recorded on the Reference (no Message) with
+`curationActorKind: "cyclotron"`, reason code `out_of_scope`, and the cyclotron id,
+probability and proof id in its `curationStatusReason` (the decision is the Reference's
+`relevance_decision_is` relation), so the Newsroom can show it was automatic and a person can reopen it. Because the actor
 kind is not `human`, an auto-rejection is never a training label and never counts
 toward the gate's human label count. The result and `--json` output list them as
 `autoRejected` (`lineageId`, `probability`, `proofId`). A dry run lists what
@@ -759,7 +766,7 @@ shared. A tenant with no Sections is refused with the command that seeds them:
   single Section. Agents, unknown actors, rejections and accepts without a
   Section never teach. A Reference the cyclotron never decided teaches as a
   priming example for each classifier; a decided one teaches through one
-  checklist review, with the curation Message id as the review id, so a repeat
+  checklist review, with the vote id as the review id, so a repeat
   sweep changes nothing.
 - The `cyclotron-shadow-agreement/v1` payload for the site cyclotron holds, per
   classifier under `classifiers`, the agreement metrics of suggestions against

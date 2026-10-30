@@ -216,7 +216,7 @@ def test_direct_delivery_records_the_monitor_rule_and_the_pdf(monkeypatch):
 
         def __call__(self, item, provenance):
             captured.update(item=item, provenance=provenance)
-            return {"referenceId": "reference-1", "referenceLineageId": "reference", "provenanceMessageId": "m"}
+            return {"referenceId": "reference-1", "referenceLineageId": "reference"}
 
     monkeypatch.setattr(monitoring_intake, "ReferenceIntake", RecordingIntake)
     table = collected_table()

@@ -8,6 +8,7 @@ from .ids import hash_short, knowledge_corpus_id, reference_lineage_id_for, safe
 from .reference_feed_keys import feed_keys
 from .source_site_plugins import youtube_video_id_from_uri
 from .message_contract import build_canonical_message_expected
+from .reference_vote import CATALOG, vote_fields
 from .reference_policy import (
     normalize_reference_curation_status,
     normalize_reference_rejection_reason_code,
@@ -224,28 +225,9 @@ def build_reference_catalog_registration_records(catalog: dict[str, Any], option
                 "importRunId": import_run_id,
                 "now": now,
                 "actor": options.get("actor") or "Papyrus content CLI",
-                "createIngestionRationaleMessage": bool(
-                    options.get("createIngestionRationaleMessage")
-                    or options.get("create_ingestion_rationale_message")
-                ),
             },
         )
         records.extend(item_records)
-        if status == "rejected":
-            reference = next(entry["expected"] for entry in item_records if entry["modelName"] == "Reference")
-            records.extend(
-                reference_curation_message_records(
-                    reference=reference,
-                    action="reject",
-                    status=status,
-                    reason_code=reason_code,
-                    note=item.get("curation_note") or item.get("ingestion_rationale"),
-                    actor=options.get("actor") or "papyrus-register-catalog",
-                    source="papyrus-register-catalog",
-                    import_run_id=import_run_id,
-                    now=now,
-                )
-            )
 
     import_run = next(entry for entry in records if entry["modelName"] == "KnowledgeImportRun")
     import_run["expected"]["relationCount"] = sum(1 for entry in records if entry["modelName"] == "SemanticRelation")
@@ -327,8 +309,6 @@ def reference_records(item: dict[str, Any], context: dict[str, Any]) -> list[dic
         reference,
         *reference_attachment_records(item, reference["expected"], context),
     ]
-    if context.get("createIngestionRationaleMessage"):
-        records.extend(reference_message_records(item, reference["expected"], context))
     return records
 
 
@@ -381,6 +361,10 @@ def reference_record(item: dict[str, Any], context: dict[str, Any]) -> dict[str,
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": context["now"],
     }
+    raw_metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    if curation_status == "rejected" and raw_metadata.get("reference_intake_status") == "rejected":
+        # A catalog registration that rejects is a vote by the catalog; its details sit on the Reference, not in a Message.
+        reference.update(vote_fields(CATALOG, reason_code=raw_metadata.get("curation_reason_code")))
     reference.update(feed_keys({**reference, "versionState": "current"}))   # nobody has predicted it yet: it sorts as 0.5
     return _record(
         "Reference",
@@ -422,110 +406,6 @@ def reference_attachment_records(item: dict[str, Any], reference: dict[str, Any]
             )
         )
     return records
-
-
-def reference_message_records(item: dict[str, Any], reference: dict[str, Any], context: dict[str, Any]) -> list[dict[str, Any]]:
-    rationale = ingestion_rationale_from(item)
-    if not rationale:
-        return []
-    message = message_record(
-        {
-            "messageKind": "ingestion_rationale",
-            "messageDomain": "commentary",
-            "body": rationale,
-            "summary": reference.get("title") or reference.get("externalItemId") or "Ingestion rationale",
-            "source": "biblicus-import",
-            "importRunId": context["importRunId"],
-            "createdAt": context["now"],
-            "metadata": {
-                "externalItemId": reference.get("externalItemId"),
-                "corpusId": reference.get("corpusId"),
-            },
-        }
-    )
-    return [
-        message,
-        semantic_relation_record(
-            {
-                "predicate": "ingestion_rationale",
-                "subjectKind": "message",
-                "subjectId": message["expected"]["id"],
-                "subjectLineageId": message["expected"]["id"],
-                "subjectVersionNumber": 1,
-                "objectKind": "reference",
-                "objectId": reference["id"],
-                "objectLineageId": reference["lineageId"],
-                "objectVersionNumber": reference.get("versionNumber"),
-                "rank": 1,
-                "importRunId": context["importRunId"],
-                "importedAt": context["now"],
-                "metadata": {
-                    "messageKind": "ingestion_rationale",
-                    "externalItemId": reference.get("externalItemId"),
-                    "corpusId": reference.get("corpusId"),
-                },
-            }
-        ),
-    ]
-
-
-def reference_curation_message_records(
-    *,
-    reference: dict[str, Any],
-    action: str,
-    status: str,
-    reason_code: str | None,
-    note: str | None,
-    actor: str,
-    source: str,
-    import_run_id: str,
-    now: str,
-) -> list[dict[str, Any]]:
-    body = note or f"{actor} marked this reference {status}."
-    message = message_record(
-        {
-            "messageKind": "reference_curation",
-            "messageDomain": "commentary",
-            "body": body,
-            "summary": f"{reference.get('title') or reference.get('externalItemId') or reference['id']}: {status}",
-            "source": source,
-            "importRunId": import_run_id,
-            "authorLabel": actor,
-            "createdAt": now,
-            "metadata": {
-                "action": action,
-                "curationStatus": status,
-                "reasonCode": reason_code,
-                "referenceId": reference["id"],
-                "referenceLineageId": reference["lineageId"],
-            },
-        }
-    )
-    return [
-        message,
-        semantic_relation_record(
-            {
-                "predicate": "comment",
-                "subjectKind": "message",
-                "subjectId": message["expected"]["id"],
-                "subjectLineageId": message["expected"]["id"],
-                "subjectVersionNumber": 1,
-                "objectKind": "reference",
-                "objectId": reference["id"],
-                "objectLineageId": reference["lineageId"],
-                "objectVersionNumber": reference.get("versionNumber"),
-                "rank": 1,
-                "importRunId": import_run_id,
-                "importedAt": now,
-                "metadata": {
-                    "action": action,
-                    "curationStatus": status,
-                    "reasonCode": reason_code,
-                    "messageKind": "reference_curation",
-                },
-            }
-        ),
-    ]
 
 
 def message_record(input_payload: dict[str, Any]) -> dict[str, Any]:

@@ -304,10 +304,11 @@ PORTED_COMMANDS = frozenset(
         "references:freeze-priming-held-out",
         "references:prove-priming",
         "references:freeze-priming-cross-validation",
-        "references:stamp-curation-actor-kind",
+        "references:backfill-vote-details",
         "references:prove-priming-cross-validated",
         "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
+        "references:backfill-monitor-deliveries",
         "references:backfill-feed-keys",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
@@ -660,9 +661,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:prove-priming":
         from .priming_proof import references_prove_priming
         references_prove_priming(flags)
-    elif route == "references:stamp-curation-actor-kind":
-        from .curation_actor_backfill import references_stamp_curation_actor_kind
-        references_stamp_curation_actor_kind(flags)
+    elif route == "references:backfill-vote-details":
+        from .reference_vote_backfill import references_backfill_vote_details
+        references_backfill_vote_details(flags)
     elif route == "references:freeze-priming-cross-validation":
         from .priming_proof import references_freeze_priming_cross_validation
         references_freeze_priming_cross_validation(flags)
@@ -672,6 +673,9 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
     elif route == "references:prove-site-sections":
         from .section_proof import references_prove_site_sections
         references_prove_site_sections(flags)
+    elif route == "references:backfill-monitor-deliveries":
+        from .monitor_delivery_backfill import references_backfill_monitor_deliveries
+        references_backfill_monitor_deliveries(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
     elif route == "references:backfill-feed-keys":

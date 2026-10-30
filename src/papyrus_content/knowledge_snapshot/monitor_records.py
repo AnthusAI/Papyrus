@@ -11,11 +11,11 @@ the dating, the counts and the entities of one run agree and no later stage scan
 
 * A record is dated by the source's own date (``createdAt`` of the model), so a 12-month backfill gives real weekly history.
 * Rejected References are left out; any other curation state counts.
-* The Hub's structured fields ride in the ``details`` of the relation that links the provenance Message to the Reference
-  (``monitoring_intake.py``), so reading a record is one indexed query, not a download.
+* The Hub's structured fields ride on the Reference itself (``discoveryDetails``, set at intake by ``monitoring_intake.py``), so reading a
+  record needs no second query. Messages come only from people: no provenance Message or relation is written or read.
 * Entities and relations of a record come from its structured fields, deterministically (``monitor_import.py``).
-* A **routed** record (source ``routed``) is any other Reference a monitor delivered to the site (its provenance relation names the
-  ``monitorId``, e.g. ``hn``). It has no structured fields: its title is matched against the entities already accepted on the map.
+* A **routed** record (source ``routed``) is any other Reference a monitor delivered to the site (its ``discoveredByMonitorId`` names the
+  monitor, e.g. ``hn``). It has no structured fields: its title is matched against the entities already accepted on the map.
 """
 
 from __future__ import annotations
@@ -28,11 +28,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from ..categories_steering import semantic_state_key
 from ..ids import deterministic_uuid
 from ..reference_policy import normalize_policy_token
 from .model import KIND_MONITOR_RECORD, PublishedItem
-from .parallel import map_with_clients
 from .weeks import iso_timestamp, parse_day
 
 SOURCE_HUGGINGFACE = "huggingface"
@@ -40,7 +38,6 @@ SOURCE_ROUTED = "routed"  # the source name in ``monitorSources`` for any monito
 SOURCES = (SOURCE_HUGGINGFACE, SOURCE_ROUTED)
 HUB_HOST = "huggingface.co"
 PROVENANCE = {SOURCE_HUGGINGFACE: "from the Hugging Face Hub"}
-RATIONALE_PREDICATE = "ingestion_rationale"
 SCHEMA_VERSION = 1
 EXCLUDED_STATES = frozenset({"rejected", "reject", "declined", "decline", "discarded"})
 GENERIC_LICENCES = frozenset({"other", "unknown"})
@@ -117,39 +114,30 @@ def _source_of(row: Mapping[str, Any], sources: tuple[str, ...] = (SOURCE_HUGGIN
     return SOURCE_ROUTED if SOURCE_ROUTED in sources else None
 
 
-def _monitor_id(rows: Iterable[Mapping[str, Any]]) -> str:
-    """The ``monitorId`` of the newest provenance relation that names one: which monitor routed the Reference ('' when none did)."""
-    found: list[tuple[str, str]] = []
-    for row in rows:
-        if row.get("predicate") != RATIONALE_PREDICATE or row.get("relationState", "current") != "current":
-            continue
-        metadata = row.get("metadata")
-        if isinstance(metadata, str):
-            try:
-                metadata = json.loads(metadata)
-            except ValueError:
-                continue
-        if isinstance(metadata, dict) and metadata.get("monitorId"):
-            found.append((str(row.get("importedAt") or row.get("createdAt") or ""), str(metadata["monitorId"])))
-    return max(found)[1] if found else ""
+def _json_field(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except ValueError:
+            return None
+    return value
 
 
-def _details_from_relations(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
-    """The ``details`` of the newest provenance relation that carries them (a new revision of a model adds another)."""
-    found: list[tuple[str, dict[str, Any]]] = []
-    for row in rows:
-        if row.get("predicate") != RATIONALE_PREDICATE or row.get("relationState", "current") != "current":
-            continue
-        metadata = row.get("metadata")
-        if isinstance(metadata, str):
-            try:
-                metadata = json.loads(metadata)
-            except ValueError:
-                continue
-        details = metadata.get("details") if isinstance(metadata, dict) else None
-        if isinstance(details, dict):
-            found.append((str(row.get("importedAt") or row.get("createdAt") or ""), details))
-    return max(found, key=lambda pair: pair[0])[1] if found else {}
+def discovery_monitor_id(row: Mapping[str, Any]) -> str | None:
+    """The monitor that delivered a Reference: its ``discoveredByMonitorId`` (``None`` when no monitor did)."""
+    return str(row.get("discoveredByMonitorId") or "").strip() or None
+
+
+def discovery_details(row: Mapping[str, Any]) -> dict[str, Any]:
+    """The structured fields the source gave a Reference when a monitor delivered it (a Hub model's, a web search's), ``{}`` when none."""
+    details = _json_field(row.get("discoveryDetails"))
+    return dict(details) if isinstance(details, dict) else {}
+
+
+def discovery_rule(row: Mapping[str, Any]) -> dict[str, Any] | None:
+    """For a Reference a rule monitor delivered (``decisions: "direct"``), ``{"system": "direct", "rule": ...}``; otherwise ``None``."""
+    rule = _json_field(row.get("discoveryRule"))
+    return rule if isinstance(rule, dict) and rule.get("system") == "direct" else None
 
 
 def _fallback_details(row: Mapping[str, Any], url: str) -> dict[str, Any]:
@@ -160,11 +148,10 @@ def _fallback_details(row: Mapping[str, Any], url: str) -> dict[str, Any]:
 
 def load_monitor_records(
     client: Any, *, corpus_id: str, sources: tuple[str, ...], as_of: date, weeks: int | None = None,
-    workers: int = 1, client_factory: Any = None,
 ) -> tuple[list[MonitorRecord], list[str]]:
     """The records of a publication dated up to the end of ``as_of``'s week, newest first, and warnings. All history by default: there is no
     lower bound and no cap on how many. ``weeks`` (optional) limits how far back a record counts, by its source date.
-    Each record costs one indexed query (its provenance relation); with ``workers`` above 1 and a ``client_factory`` they run over that many clients."""
+    A record is read from its Reference alone: no further query."""
     since = as_of - timedelta(weeks=weeks) if weeks is not None else None
     until = as_of + timedelta(days=6)
     warnings: list[str] = []
@@ -183,38 +170,37 @@ def load_monitor_records(
             chosen.append((created, row, source))
     chosen.sort(key=lambda entry: (entry[0], str(entry[1].get("id"))), reverse=True)
     records = []
-    read = map_with_clients(chosen, lambda reader, entry: record_of(reader, entry[1], entry[2]), client=client, client_factory=client_factory, workers=workers)
+    read = [record_of(entry[1], entry[2]) for entry in chosen]
     for (_created, row, _source), (record, missing) in zip(chosen, read):
-        if record is None:  # a routed candidate no monitor delivered (no provenance relation names one): not a monitor record
+        if record is None:  # a routed candidate no monitor delivered (no ``discoveredByMonitorId``): not a monitor record
             continue
         if missing:
-            warnings.append(f"{row['id']}: no Hub details on its provenance relation; only its title, date and author are used")
+            warnings.append(f"{row['id']}: no Hub details on the Reference; only its title, date and author are used")
         records.append(record)
     return records, warnings
 
 
-def record_of(client: Any, row: Mapping[str, Any], source: str | None = None) -> tuple[MonitorRecord | None, bool]:
-    """The record a delivered Reference is, and whether its provenance relation lacked the Hub details. A routed candidate that no monitor
-    delivered (its provenance names no ``monitorId``, or names the Hub monitor, which the ``huggingface`` source owns) is ``None``."""
+def record_of(row: Mapping[str, Any], source: str | None = None) -> tuple[MonitorRecord | None, bool]:
+    """The record a delivered Reference is, and whether the Reference lacked the Hub details. A routed candidate that no monitor
+    delivered (no ``discoveredByMonitorId``, or the Hub monitor, which the ``huggingface`` source owns) is ``None``."""
     source = source or _source_of(row)
     if source is None:
         raise ValueError(f"Reference {row.get('id')} is not a monitor record: its address is not on a supported source.")
     lineage = str(row.get("lineageId") or row["id"])
     url = str(row["sourceUri"])
-    relations = client.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage))
     if source == SOURCE_ROUTED:
-        monitor = _monitor_id(relations)
+        monitor = discovery_monitor_id(row)
         if not monitor or monitor == SOURCE_HUGGINGFACE:
             return None, False
         return (
             MonitorRecord(
                 reference_id=str(row["id"]), lineage_id=lineage, source=monitor, url=url, title=str(row.get("title") or url),
-                created_at=iso_timestamp(str(row["sourcePublishedAt"])), details=_details_from_relations(relations),
+                created_at=iso_timestamp(str(row["sourcePublishedAt"])), details=discovery_details(row),
                 state=normalize_policy_token(row.get("curationStatus")) or "pending",
             ),
             False,
         )
-    details = _details_from_relations(relations)
+    details = discovery_details(row)
     missing = not details
     if missing:
         details = _fallback_details(row, url)
