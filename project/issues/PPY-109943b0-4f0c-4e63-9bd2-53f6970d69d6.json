@@ -36,10 +36,17 @@
       "text": "Plan update (Claude, 2026-10-30), best of both with the Cyclotron plan: name the secure-store backend explicitly (for example with the Python keyring package) so a library never falls back to a plaintext backend such as keyrings.alt.",
       "created_at": "2026-10-30T10:37:46.139577Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3668624c-96fc-46d2-bcba-d52d7ad18c10",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30): Ryan approved factoring the CLI login out into a new public AnthusAI repository: a shared Python library (sign-in with PKCE, remote login, the five secure stores, memory agent, per-key locks, renewal, logout), the broker as one deployable (Lambda function URL, DynamoDB TTL table, the /cli/approve and /cli/callback pages, throttling), and language-neutral protocol specs. Papyrus's existing cli_user_auth code moves into it first, keeping its Keychain service name so Mac sessions survive; Papyrus then uses the released library. Products stay separate (own key namespace, client, discovery and sessions). Design: AnthusAI/Cyclotron docs/shared-cli-auth.md (PR #177), moving to the new repository.",
+      "created_at": "2026-10-30T10:44:21.282829Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T10:38:03.602906Z",
-  "updated_at": "2026-10-30T10:37:46.139905Z",
+  "updated_at": "2026-10-30T10:44:21.283138Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

@@ -36,10 +36,17 @@
       "text": "Plan update (Claude, 2026-10-30), best of both with the Cyclotron plan: record each site client's token settings (access and refresh validity, rotation, revocation) with the plan and again at release, and have logout state that an access token already accepted by the API stays valid until it expires.",
       "created_at": "2026-10-30T10:37:46.200492Z",
       "comment_type": "default"
+    },
+    {
+      "id": "3bf2bb16-360d-4e3e-8ecd-124e6bae8961",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30): Ryan approved factoring the CLI login out into a new public AnthusAI repository: a shared Python library (sign-in with PKCE, remote login, the five secure stores, memory agent, per-key locks, renewal, logout), the broker as one deployable (Lambda function URL, DynamoDB TTL table, the /cli/approve and /cli/callback pages, throttling), and language-neutral protocol specs. Papyrus's existing cli_user_auth code moves into it first, keeping its Keychain service name so Mac sessions survive; Papyrus then uses the released library. Products stay separate (own key namespace, client, discovery and sessions). Design: AnthusAI/Cyclotron docs/shared-cli-auth.md (PR #177), moving to the new repository.",
+      "created_at": "2026-10-30T10:44:21.342646Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T10:37:48.586795Z",
-  "updated_at": "2026-10-30T10:37:46.200758Z",
+  "updated_at": "2026-10-30T10:44:21.342905Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

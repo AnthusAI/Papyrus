@@ -41,10 +41,17 @@
       "text": "Plan update (Claude, 2026-10-30). Ryan: the Papyrus and Cyclotron CLI logins work the same way, keeping the best choices from both (no shared code). Kept from this plan: the throttling on both brokers (per-caller rate limits on /start and /poll, slow_down), one broker per deployment with its own function URL and DynamoDB TTL table, /start, /poll, /cli/approve, /cli/callback, and the discovery keys remote_login_endpoint and remote_callback_uri. Added from the Cyclotron plan (AnthusAI/Cyclotron docs/cli-remote-login.md, PR #177): (1) the approval page asks the person to compare the matching code before approving, not only shows it; (2) /poll hands the code over with a conditional delete, so two concurrent polls cannot both receive it; (3) a request carrying both a cookie and a bearer token is refused; (4) the CLI names its secure-store backend explicitly so a library never picks a plaintext one; (5) the client's token settings are read and recorded with the plan and again at release; (6) logout says plainly that an access token the API already accepted stays valid until it expires.",
       "created_at": "2026-10-30T10:37:46.075547Z",
       "comment_type": "default"
+    },
+    {
+      "id": "b15301b0-8e70-42b0-9dee-fecfb917372c",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30): Ryan approved factoring the CLI login out into a new public AnthusAI repository: a shared Python library (sign-in with PKCE, remote login, the five secure stores, memory agent, per-key locks, renewal, logout), the broker as one deployable (Lambda function URL, DynamoDB TTL table, the /cli/approve and /cli/callback pages, throttling), and language-neutral protocol specs. Papyrus's existing cli_user_auth code moves into it first, keeping its Keychain service name so Mac sessions survive; Papyrus then uses the released library. Products stay separate (own key namespace, client, discovery and sessions). Design: AnthusAI/Cyclotron docs/shared-cli-auth.md (PR #177), moving to the new repository.",
+      "created_at": "2026-10-30T10:44:21.139525Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-30T09:28:51.580949Z",
-  "updated_at": "2026-10-30T10:37:46.075765Z",
+  "updated_at": "2026-10-30T10:44:21.140053Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",
