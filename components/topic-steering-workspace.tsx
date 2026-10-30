@@ -39,6 +39,7 @@ import {
   loadModelPayloadsForOwner,
   loadStoragePathText,
   loadEditorReferencesData,
+  createGraphqlReferenceFeedSource,
   loadEditorProcedureData,
   loadEditorSemanticRelationsData,
   loadEditorReferenceReviewDetails,
@@ -1207,8 +1208,17 @@ function NewsDeskDashboard({
     setHasHydratedReferences(false);
   }, [authState.status]);
 
+  // The References page reads its own pages (the feed indexes) and never loads the whole set; every other page that needs the list still does.
+  const referencesPaged = activeTab === "references" && !dashboard.isDemo;
+  // One source per visit to the page: its pages, its new-arrival check and its single-Reference reads (components/news-desk-taxonomy-client.ts).
+  const referenceFeedSource = useMemo(
+    () => (referencesPaged && canLoadPrivateCorpus ? createGraphqlReferenceFeedSource(canonicalCorpusId) : undefined),
+    // The corpus is known when the page opens; a later change of it is not a new visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [referencesPaged, canLoadPrivateCorpus],
+  );
   useEffect(() => {
-    if (!canLoadPrivateCorpus || hasHydratedReferences) return;
+    if (!canLoadPrivateCorpus || hasHydratedReferences || referencesPaged) return;
     let active = true;
     void loadReferencesWithHeadStart()
       .then(({ references: nextReferences, referenceAttachments }) => {
@@ -1230,7 +1240,7 @@ function NewsDeskDashboard({
     return () => {
       active = false;
     };
-  }, [canLoadPrivateCorpus, hasHydratedReferences]);
+  }, [canLoadPrivateCorpus, hasHydratedReferences, referencesPaged]);
 
   useEffect(() => {
     if (dashboard.isDemo) return;
@@ -1317,7 +1327,8 @@ function NewsDeskDashboard({
     refreshNewsroomSections,
   ]);
 
-  const needsReferenceReviewData = activeTab === "overview" || activeTab === "references" || activeTab === "assignments" || activeTab === "messages";
+  // The References page reads each page's decisions with the page; the relations and messages of the whole newsroom are for the other pages.
+  const needsReferenceReviewData = activeTab === "overview" || (activeTab === "references" && !referencesPaged) || activeTab === "assignments" || activeTab === "messages";
   const selectedReviewLineageId = pathname ? pathnameReferenceLineageId ?? "" : initialSelection.reference ?? "";
   const referenceReviewData = useReferenceReviewData({
     enabled: canLoadPrivateCorpus && needsReferenceReviewData && !(activeTab === "references" && selectedReviewLineageId),
@@ -1360,8 +1371,10 @@ function NewsDeskDashboard({
   }, [activeTab, dashboard.isDemo, hasHydratedReferences, predictionState, referenceAttachments, references, relevanceDecisions]);
   const retryReferenceReviewData = () => { referenceReviewData.retry(); setSelectedReviewAttempt((current) => current + 1); };
 
-  const applyReferenceRecord = useCallback((nextReference: ReferenceRecord) => {
-    const { nextRecords, nextRecord, previousRecord } = upsertReferenceRecords(referencesRef.current, nextReference);
+  const applyReferenceRecord = useCallback((nextReference: ReferenceRecord, previousHint?: ReferenceRecord | null) => {
+    const { nextRecords, nextRecord, previousRecord: listed } = upsertReferenceRecords(referencesRef.current, nextReference);
+    // The References page holds only the pages it has read, so the list here may not have the Reference: the caller's copy is what it was before.
+    const previousRecord = listed ?? previousHint ?? null;
     referencesRef.current = nextRecords;
     setReferences(nextRecords);
     setSummary((current) => patchReferenceSummary(current, previousRecord, nextRecord));
@@ -1699,7 +1712,7 @@ function NewsDeskDashboard({
           nextStatus: status,
           note: note?.trim() || null,
           now,
-        }));
+        }), reference);
         setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
         retryReferenceReviewData();
       } catch (error) {
@@ -3195,6 +3208,8 @@ function NewsDeskDashboard({
             loading={!dashboard.isDemo && !hasHydratedReferences}
             onCorrectCapture={dashboard.isDemo ? undefined : (input) => correctReferenceCapture(input)}
             savedCopy={savedFeedCopy}
+            source={referenceFeedSource}
+            onFirstPage={(snapshot) => { saveFeedSnapshot(SITE_BRAND.id, snapshot); }}
           />
           </NewsroomCurationBootstrap>
         ) : null}

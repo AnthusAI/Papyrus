@@ -282,6 +282,12 @@ export type ReferenceRecord = {
   curationStatusReason?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
+  /** The feeds the References page pages through (docs/reference-feed-indexes.md). */
+  feedStateKey?: string | null;
+  feedArrivalAt?: string | null;
+  predictedAcceptProbability?: number | null;
+  predictionDecidedAt?: string | null;
+  predictionSortKey?: string | null;
   metadata?: unknown;
   updatedAt?: string | null;
 };

@@ -86,6 +86,13 @@ export type ReferenceFeedProps = {
   /** True when the cards are a saved copy that is being refreshed. */
   stale?: boolean;
   visitRated: ReadonlySet<string>;
+  /** Paging: more References can be read. The next page loads when the last cards come near the viewport, or from the Load more button. */
+  hasMore?: boolean;
+  /** A page is being read: a row of skeleton cards, in the shape of the final cards, sits under the last card. */
+  loadingMore?: boolean;
+  /** Why the last page could not be read, in words. */
+  loadError?: string | null;
+  onLoadMore?: () => void;
 };
 
 /** Columns follow the width the feed has (a container query, not the screen), so they stay put while a detail pane holds its place beside it. */
@@ -99,12 +106,12 @@ const GRID = FEED_GRID;
 const LEAD_SPAN = "@[36rem]:col-span-2";
 
 /** Pulsing placeholder cards: the page shell is on screen at once, with no "checking" screen in front of it. */
-export function ReferenceFeedSkeleton({ count = 6 }: { count?: number }) {
+export function ReferenceFeedSkeleton({ count = 6, row = false }: { count?: number; /** A single row at the end of a loaded feed: one card on a phone, one row of cards where there is room. No lead. */ row?: boolean }) {
   return (
-    <div aria-busy="true" aria-label="Loading references" className={cn("@container", GRID)} data-reference-feed-skeleton role="status" {...FEED_SURFACE_PROPS}>
+    <div aria-busy="true" aria-label={row ? "Loading more references" : "Loading references"} className={cn("@container", GRID)} data-reference-feed-skeleton={row ? "more" : ""} role="status" {...FEED_SURFACE_PROPS}>
       {Array.from({ length: count }, (_, index) => (
-        <div className={cn("overflow-hidden rounded-[20px] bg-[var(--feed-card)]", index === 0 && LEAD_SPAN)} key={index}>
-          <div className={cn("animate-pulse bg-[var(--feed-control)]", index === 0 ? "aspect-[2/1]" : "aspect-[16/10]")} />
+        <div className={cn("overflow-hidden rounded-[20px] bg-[var(--feed-card)]", !row && index === 0 && LEAD_SPAN, row && index > 0 && "hidden @[36rem]:block")} key={index}>
+          <div className={cn("animate-pulse bg-[var(--feed-control)]", !row && index === 0 ? "aspect-[2/1]" : "aspect-[16/10]")} />
           <div className="space-y-3 p-5">
             <div className="h-3 w-1/3 animate-pulse rounded-full bg-[var(--feed-control)]" />
             <div className="h-5 w-11/12 animate-pulse rounded-full bg-[var(--feed-control)]" />
@@ -415,6 +422,45 @@ function RankingPopover() {
   );
 }
 
+/**
+ * The end of the loaded cards: an invisible marker the page watches, and a Load more button for anyone who prefers it or cannot scroll.
+ * The marker asks for the next page when it comes within a screen of the viewport (an IntersectionObserver on the feed's scroll area), so
+ * the next cards are usually there before they are reached. It re-arms after every page, so a tall screen keeps filling.
+ */
+function FeedLoadMore({ armKey, error, hasMore, loading, onLoadMore }: { armKey: number; error: string | null; hasMore: boolean; loading: boolean; onLoadMore: () => void }) {
+  const marker = useRef<HTMLDivElement | null>(null);
+  const request = useRef(onLoadMore);
+  request.current = onLoadMore;
+  useEffect(() => {
+    const element = marker.current;
+    if (!element || !hasMore || loading || error || typeof IntersectionObserver === "undefined") return;
+    const root = element.closest("[data-radix-scroll-area-viewport], [data-feed-scroller]");
+    const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) request.current(); }, { root, rootMargin: "0px 0px 900px 0px" });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [armKey, error, hasMore, loading]);
+  return (
+    <div className="space-y-4" data-feed-more>
+      {loading ? <ReferenceFeedSkeleton count={3} row /> : null}
+      <div aria-hidden="true" className="h-px" data-feed-sentinel ref={marker} />
+      {error ? <p className="rounded-2xl bg-[var(--feed-card)] p-3 text-sm" data-feed-load-error role="alert">{error}</p> : null}
+      {hasMore ? (
+        <div className="flex justify-center">
+          <button
+            className={cn(PILL, "bg-[var(--feed-card)] text-foreground hover:bg-[var(--feed-control)] disabled:opacity-60")}
+            data-feed-load-more
+            disabled={loading}
+            onClick={onLoadMore}
+            type="button"
+          >
+            {error ? "Try again" : loading ? "Loading more" : "Load more"}
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ReferenceFeed({
   disabledReason = null,
   loading = false,
@@ -438,6 +484,10 @@ export function ReferenceFeed({
   sort,
   stale = false,
   visitRated,
+  hasMore = false,
+  loadingMore = false,
+  loadError = null,
+  onLoadMore,
 }: ReferenceFeedProps) {
 
   const renderCard = (item: FeedItem, lead: boolean) => (
@@ -517,7 +567,12 @@ export function ReferenceFeed({
 
       {loading ? <ReferenceFeedSkeleton /> : (
         items.length ? (
-          <div className={FEED_GRID} data-feed-grid>{items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+          <>
+            <div className={FEED_GRID} data-feed-grid>{items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+            {onLoadMore && (hasMore || loadingMore || loadError) ? (
+              <FeedLoadMore armKey={items.length} error={loadError} hasMore={hasMore} loading={loadingMore} onLoadMore={onLoadMore} />
+            ) : null}
+          </>
         ) : empty(ratedCount && show === "unrated" ? "You are all caught up. Choose Include rated to see your answers." : "No references yet.")
       )}
     </div>

@@ -6,6 +6,9 @@
  *   - Ties go to the newest item, then to a stable id order.
  *   - "Unrated only" shows References nobody has answered; "Include rated" adds the answered ones to the same list.
  * Nothing is cut off by age, and age never changes the order of Best bets: the original confidence is what ranks.
+ *
+ * In the app the order comes from the two indexes on Reference, one page at a time (lib/reference-feed-pages.ts); the functions here rank
+ * a list already in memory (the saved copy shown while the first page loads) and say what the lead card is.
  */
 import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceDecisionView } from "./relevance-decisions";
@@ -63,7 +66,7 @@ export function scoreFeedItem(reference: ReferenceRecord, decision: RelevanceDec
     reference,
     lineageId: referenceLineageId(reference),
     decision,
-    probability: acceptProbability(decision),
+    probability: typeof reference.predictedAcceptProbability === "number" ? reference.predictedAcceptProbability : acceptProbability(decision),
     rated: status === "accepted" || status === "rejected",
   };
 }
@@ -104,50 +107,4 @@ export function visibleFeedItems(items: FeedItem[], sort: FeedSort, show: FeedSh
 /** The lead card is the first card, unless it is a predicted Reject. */
 export function feedLeadId(items: FeedItem[]): string | undefined {
   return items[0] && items[0].probability >= UNDECIDED_PROBABILITY ? items[0].lineageId : undefined;
-}
-
-/**
- * The order of the feed, taken once per visit when it loads and then left alone: selecting, rating, a background refresh and a cache
- * revalidation never re-rank it, in either sort. Items that arrive later are counted as new and wait behind a "N new items: show" pill.
- */
-export type FeedOrderSnapshot = {
-  /** Every Reference lineage the snapshot knew about: anything else is new. */
-  known: ReadonlySet<string>;
-  /** The ones nobody had answered when the snapshot was taken: they stay listed under "Unrated only" after being rated this visit. */
-  unrated: ReadonlySet<string>;
-  best: string[];
-  newest: string[];
-  /** The lead card of each sort, taken with the order: it is never a predicted Reject when the snapshot is taken. */
-  lead: { best: string | undefined; newest: string | undefined };
-};
-
-export function takeFeedOrderSnapshot(items: FeedItem[]): FeedOrderSnapshot {
-  const unrated = items.filter((item) => !item.rated);
-  const best = orderFeedItems(items, "best");
-  const newest = orderFeedItems(items, "newest");
-  return {
-    known: new Set(items.map((item) => item.lineageId)),
-    unrated: new Set(unrated.map((item) => item.lineageId)),
-    best: best.map((item) => item.lineageId),
-    newest: newest.map((item) => item.lineageId),
-    lead: { best: feedLeadId(orderFeedItems(unrated, "best")), newest: feedLeadId(orderFeedItems(unrated, "newest")) },
-  };
-}
-
-/** The visible list in the snapshot's order; records and predictions stay current. */
-export function applyFeedOrderSnapshot(snapshot: FeedOrderSnapshot, live: FeedItem[], sort: FeedSort, show: FeedShow): {
-  items: FeedItem[];
-  leadId: string | undefined;
-  newCount: number;
-} {
-  const byId = new Map(live.map((item) => [item.lineageId, item] as const));
-  const items = (sort === "newest" ? snapshot.newest : snapshot.best)
-    .filter((id) => show === "all" || snapshot.unrated.has(id))
-    .flatMap((id) => { const item = byId.get(id); return item ? [item] : []; });
-  const lead = snapshot.lead[sort];
-  return {
-    items,
-    leadId: lead && items.some((item) => item.lineageId === lead) ? lead : undefined,
-    newCount: live.filter((item) => !item.rated && !snapshot.known.has(item.lineageId)).length,
-  };
 }
