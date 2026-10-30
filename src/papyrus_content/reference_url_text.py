@@ -15,6 +15,7 @@ from .env import load_amplify_outputs, storage_bucket_from_amplify_outputs
 from .corpus_storage_paths import corpus_storage_path_prefix
 from .ids import hash_short, reference_lineage_id_for, semantic_node_lineage_id_for, safe_id
 from .model_defaults import DEFAULT_REFERENCE_FILTER_MODEL
+from .reference_feed_keys import feed_keys
 from .relation_types import semantic_relation_type_fields_for_predicate
 from .source_site_plugins import (
     resolve_accessible_pdf_url_for_reference,
@@ -2744,6 +2745,7 @@ def _resolve_or_build_cited_reference_record(
         "metadata": json.dumps(metadata, sort_keys=True),
         "updatedAt": now,
     }
+    record.update(feed_keys({**record, "versionState": "current"}))
     existing_lookup[external_item_id] = record
     return {"record": record, "isNew": True}
 

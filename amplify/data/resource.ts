@@ -1684,6 +1684,15 @@ const schema = a.schema({
       curationStatusReason: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
+      // The References page reads the feed through two indexes (docs/reference-feed-indexes.md). `feedStateKey` is
+      // "<corpusId>#unrated" or "<corpusId>#rated" for a current, not archived Reference (null otherwise: it is in no feed).
+      // `predictionSortKey` orders Best bets, `feedArrivalAt` orders Newest. The prediction is the Cyclotron's ORIGINAL
+      // P(accept), written once, and never rewritten by a vote.
+      feedStateKey: a.string(),
+      feedArrivalAt: a.datetime(),
+      predictedAcceptProbability: a.float(),
+      predictionDecidedAt: a.datetime(),
+      predictionSortKey: a.string(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1696,6 +1705,8 @@ const schema = a.schema({
       index("curationStatus").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusAndUpdatedAt"),
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
       index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
+      index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction"),
+      index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

@@ -94,11 +94,20 @@ async function main() {
   const metadata = (result: CurationResult) => payloads.get(payloadKey("message", result.messageId, "metadata", "metadata")) as Record<string, unknown>;
   const current = () => table("Reference").get(referenceId)!;
   table("Reference").set(referenceId, { id: referenceId, lineageId: "reference-fixture", versionNumber: 1,
-    versionState: "current", corpusId: "corpus-fixture", title: "Synthetic source", curationStatus: "pending" });
+    versionState: "current", corpusId: "corpus-fixture", title: "Synthetic source", curationStatus: "pending",
+    feedStateKey: "corpus-fixture#unrated", predictedAcceptProbability: 0.73, predictionDecidedAt: "2026-10-28T09:00:00.000Z",
+    feedArrivalAt: "2026-10-28T08:00:00.000Z", predictionSortKey: `0.730000#2026-10-28T08:00:00.000Z#${referenceId}` });
 
   const accepted = await invoke({ action: "accept", note: "   " });
   assert.equal(accepted.ok, true);
   assert.equal(current().curationStatus, "accepted");
+  assert.equal(current().feedStateKey, "corpus-fixture#rated", "a vote moves the Reference from the unrated feed to the rated feed");
+  assert.equal(current().predictedAcceptProbability, 0.73, "a vote leaves the original prediction alone");
+  assert.equal(current().predictionSortKey, `0.730000#2026-10-28T08:00:00.000Z#${referenceId}`, "and the Best bets key");
+  const vote = writes.find((write) => write.model === "Reference" && write.operation === "update")!.input;
+  for (const untouched of ["predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "feedArrivalAt"]) {
+    assert.ok(!Object.hasOwn(vote, untouched), `a vote does not write ${untouched}`);
+  }
   assert.equal(current().curationStatusReason, null, "blank explanation is optional and persists as null");
   assert.equal(metadata(accepted).actorKind, "human");
   assert.equal(metadata(accepted).referenceLineageId, "reference-fixture");
@@ -122,6 +131,15 @@ async function main() {
   assert.equal(current().curationStatus, "rejected");
   assert.equal(current().curationStatusReason, null, "a reason code alone needs no written explanation");
   assert.equal(metadata(rejected).reasonCode, "duplicate");
+  assert.equal(current().feedStateKey, "corpus-fixture#rated", "a rejection is a rating too");
+  const reopened = await invoke({ action: "reopen" });
+  assert.equal(reopened.status, "pending");
+  assert.equal(current().feedStateKey, "corpus-fixture#unrated", "reopening puts the Reference back in the unrated feed");
+  assert.equal(current().predictedAcceptProbability, 0.73);
+  const archived = await invoke({ action: "archive" });
+  assert.equal(archived.status, "archived");
+  assert.equal(current().feedStateKey, null, "an archived Reference is in no feed");
+  await invoke({ action: "reject", reasonCode: "duplicate" });
   await invoke({ action: "reject", reasonCode: "out_of_scope", note: "Different coverage." });
   assert.equal(current().curationStatusReason, "Different coverage.");
 
