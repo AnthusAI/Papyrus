@@ -1,19 +1,14 @@
 "use client";
 
-import { InfoIcon, Loader2Icon, MessageSquareIcon } from "lucide-react";
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { CheckCheckIcon, CircleDashedIcon, ClockIcon, InfoIcon, Loader2Icon, MessageSquareIcon, SparklesIcon } from "lucide-react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import type { ReferenceRecord } from "../lib/category-repository";
 import { REFERENCE_REJECTION_REASON_CODES, isAutoAccepted, normalizeReferenceCurationStatus, type ReferenceRejectionReasonCode } from "../lib/reference-policy";
 import {
   referenceDisplayTime,
-  groupFeedItems,
-  EARLIER_AFTER_TAUS,
-  MINIMUM_FRESHNESS_EXAMPLES,
-  type FeedGroupKey,
   type FeedItem,
-  type FeedFreshness,
-  type ReferenceFeedPartition,
-  type ReferenceFeedTabKey,
+  type FeedShow,
+  type FeedSort,
 } from "../lib/reference-feed-ranking";
 import { dekAddsInformation, isCardStyleImage, referenceDek, referenceSourceHost, formatFeedAge, type ReferencePreview } from "../lib/reference-preview";
 import { referenceDisplayTitle } from "../lib/newsroom-references";
@@ -47,8 +42,14 @@ export const REASON_LABELS: Record<ReferenceRejectionReasonCode, string> = {
   other: "Other",
 };
 
-const TAB_LABELS: Record<ReferenceFeedTabKey, string> = { feed: "Feed", rated: "Rated", earlier: "Earlier" };
-const GROUP_HEADINGS: Record<FeedGroupKey, string> = { top: "Top predictions", more: "More for you", least: "Least likely" };
+const SORTS: Array<{ key: FeedSort; label: string; Icon: typeof SparklesIcon }> = [
+  { key: "best", label: "Best bets", Icon: SparklesIcon },
+  { key: "newest", label: "Newest", Icon: ClockIcon },
+];
+const SHOWS: Array<{ key: FeedShow; label: string; Icon: typeof SparklesIcon }> = [
+  { key: "unrated", label: "Unrated only", Icon: CircleDashedIcon },
+  { key: "all", label: "Include rated", Icon: CheckCheckIcon },
+];
 
 export const PILL = "inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full px-3.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring";
 
@@ -63,16 +64,20 @@ export type ReferenceFeedProps = {
   onOpen: (lineageId: string) => void;
   onRate: (reference: ReferenceRecord, choice: ReviewChoice, reasonCode: ReferenceRejectionReasonCode | null) => Promise<void> | void;
   onVisitRated: (lineageId: string) => void;
-  onTabChange: (tab: ReferenceFeedTabKey) => void;
-  /** The ranked tabs, from `partitionReferenceFeed`. */
-  partition: ReferenceFeedPartition;
+  onSortChange: (sort: FeedSort) => void;
+  onShowChange: (show: FeedShow) => void;
+  /** The visible list, already ordered by the chosen sort and filtered by the chosen Show. */
+  items: FeedItem[];
+  /** How many References already have an answer, for the empty text. */
+  ratedCount: number;
+  sort: FeedSort;
+  show: FeedShow;
   predictionLoading?: boolean;
   previews: ReadonlyMap<string, ReferencePreview>;
   selectedLineageId?: string;
   /** Capture status per Reference lineage, for the small badge on each card. Optional. */
   captures?: ReadonlyMap<string, CaptureStatus>;
-  /** The sections and lead, when the caller keeps the order stable (a snapshot). Without them the feed groups its own partition. */
-  groups?: Array<{ key: FeedGroupKey; items: FeedItem[] }>;
+  /** The large lead card, if any. */
   leadId?: string;
   /** Scrolls the grid to a card, deliberately (Previous / Next). A new nonce is a new request; selecting alone never scrolls. */
   scrollTarget?: { id: string; nonce: number } | null;
@@ -80,7 +85,6 @@ export type ReferenceFeedProps = {
   ratings?: RatingController;
   /** True when the cards are a saved copy that is being refreshed. */
   stale?: boolean;
-  tab: ReferenceFeedTabKey;
   visitRated: ReadonlySet<string>;
 };
 
@@ -360,13 +364,8 @@ export function FeedCard({
   );
 }
 
-function plainDays(days: number): string {
-  if (days < 1) return `${Math.max(1, Math.round(days * 24))} hours`;
-  return `${days < 10 ? days.toFixed(1).replace(/\.0$/, "") : Math.round(days)} days`;
-}
-
-/** The plain-words recipe, with this site's learned numbers in it. */
-function RankingPopover({ freshness }: { freshness: FeedFreshness }) {
+/** The plain-words recipe. */
+function RankingPopover() {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const root = useRef<HTMLDivElement | null>(null);
@@ -405,24 +404,15 @@ function RankingPopover({ freshness }: { freshness: FeedFreshness }) {
         >
           <p className="text-base font-bold">A feed run by algorithms you control</p>
           <ol className="list-decimal space-y-2.5 pl-5">
-            <li><strong>Best bets first.</strong> The Cyclotron predicts Accept or Reject and how sure it is. The items it expects you to Accept most surely come first. The ones it expects you to Reject most surely come last. Items with no prediction sit in the middle.</li>
-            <li><strong>Confidence counts.</strong> An Accept at 90% ranks above an Accept at 60%.</li>
-            <li><strong>Age fades a prediction toward &ldquo;not sure&rdquo;.</strong> Older items drift toward the middle, never to the bottom. {freshness.tauDays !== null && freshness.medianAgeDays !== null
-              ? <>A prediction loses half its pull every {plainDays(freshness.medianAgeDays)}, the typical age of the {freshness.examples} items you accepted.</>
-              : <>Age does not change the order yet. The pace is learned from the items you accept, and so far there are {freshness.examples} of the {MINIMUM_FRESHNESS_EXAMPLES} needed.</>}</li>
-            <li><strong>Earlier.</strong> {freshness.tauDays !== null
-              ? <>Unrated items older than {plainDays(freshness.tauDays * EARLIER_AFTER_TAUS)} move to Earlier at the bottom. You can still rate them. Nothing is deleted.</>
-              : <>Once the pace is learned, unrated items past three times that pace move to Earlier at the bottom. Nothing is deleted.</>}</li>
-            <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit. Next time it is under Rated.</li>
+            <li><strong>Best bets</strong> puts the items the Cyclotron is most sure you will Accept first. It goes by confidence alone: an Accept at 90% ranks above an Accept at 60%, and the ones it expects you to Reject most surely come last. Items with no prediction sit in the middle. Age does not change this order.</li>
+            <li><strong>Newest</strong> puts the items that arrived most recently first.</li>
+            <li><strong>Unrated only</strong> shows items nobody has answered yet. <strong>Include rated</strong> adds the ones you have already accepted or rejected to the same list, showing your answer, in the same sort. Nothing is hidden because it is old.</li>
+            <li><strong>Your answers stay put.</strong> A card you rate stays where it is for this visit, and new items wait behind a button until you ask for them.</li>
           </ol>
         </div>
       ) : null}
     </div>
   );
-}
-
-export function SectionHeading({ children, id }: { children: ReactNode; id: string }) {
-  return <h3 className="mb-5 mt-10 text-3xl font-bold tracking-tight text-primary first:mt-2 sm:mt-12 sm:text-4xl" id={id}>{children}</h3>;
 }
 
 export function ReferenceFeed({
@@ -432,22 +422,23 @@ export function ReferenceFeed({
   now,
   onOpen,
   onRate,
-  onTabChange,
+  onShowChange,
+  onSortChange,
   onVisitRated,
-  partition,
+  items,
+  ratedCount,
   predictionLoading = false,
   previews,
   selectedLineageId = "",
   captures,
-  groups: stableGroups,
-  leadId: stableLeadId,
+  leadId,
   ratings,
   scrollTarget = null,
+  show,
+  sort,
   stale = false,
-  tab,
   visitRated,
 }: ReferenceFeedProps) {
-  const counts: Record<ReferenceFeedTabKey, number> = { feed: partition.feed.length, rated: partition.rated.length, earlier: partition.earlier.length };
 
   const renderCard = (item: FeedItem, lead: boolean) => (
     <FeedCard
@@ -479,28 +470,39 @@ export function ReferenceFeed({
     document.querySelector(`[data-feed-card="${CSS.escape(scrollTarget.id)}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [scrollTarget]);
 
-  const groups = stableGroups ?? groupFeedItems(partition.feed);
-  const headings = groups.length > 1;
-  const leadId = stableGroups ? stableLeadId : groups[0]?.key !== "least" ? groups[0]?.items[0]?.lineageId : undefined;
 
   return (
-    <div className="@container space-y-5" data-reference-feed data-feed-tab={tab} {...FEED_SURFACE_PROPS}>
-      <div className="flex items-center justify-between gap-2">
-        <div aria-label="Feed sections" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" role="tablist">
-          {(Object.keys(TAB_LABELS) as ReferenceFeedTabKey[]).map((key) => (
-            <button
-              aria-selected={tab === key}
-              className={cn(PILL, "min-h-9 gap-1.5 px-3.5", tab === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
-              data-feed-tab-button={key}
-              key={key}
-              onClick={() => onTabChange(key)}
-              role="tab"
-              type="button"
-            >
-              {TAB_LABELS[key]}
-              <span className="text-xs tabular-nums opacity-70" data-feed-tab-count>{counts[key]}</span>
-            </button>
-          ))}
+    <div className="@container space-y-5" data-reference-feed data-feed-sort={sort} data-feed-show={show} {...FEED_SURFACE_PROPS}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div aria-label="Sort" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" data-feed-control="sort" role="group">
+            {SORTS.map(({ key, label, Icon }) => (
+              <button
+                aria-pressed={sort === key}
+                className={cn(PILL, "px-3.5", sort === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+                data-feed-sort-button={key}
+                key={key}
+                onClick={() => onSortChange(key)}
+                type="button"
+              >
+                <Icon aria-hidden="true" className="size-4" />{label}
+              </button>
+            ))}
+          </div>
+          <div aria-label="Show" className="inline-flex rounded-full bg-[var(--feed-card)] p-1" data-feed-control="show" role="group">
+            {SHOWS.map(({ key, label, Icon }) => (
+              <button
+                aria-pressed={show === key}
+                className={cn(PILL, "px-3.5", show === key ? "bg-[var(--feed-control)] text-foreground" : "text-muted-foreground hover:text-foreground")}
+                data-feed-show-button={key}
+                key={key}
+                onClick={() => onShowChange(key)}
+                type="button"
+              >
+                <Icon aria-hidden="true" className="size-4" />{label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {stale ? (
@@ -508,33 +510,15 @@ export function ReferenceFeed({
               <Loader2Icon aria-hidden="true" className="size-3.5 animate-spin" />Showing your last view while it updates
             </span>
           ) : null}
-          <RankingPopover freshness={partition.freshness} />
+          <RankingPopover />
         </div>
       </div>
       {stale ? <p className="text-xs text-muted-foreground sm:hidden" role="status"><Loader2Icon aria-hidden="true" className="mr-1 inline size-3.5 animate-spin" />Showing your last view while it updates</p> : null}
 
       {loading ? <ReferenceFeedSkeleton /> : (
-        <div role="tabpanel">
-          {tab === "feed" ? (
-            <div>
-              {groups.length ? groups.map((group) => (
-                <section aria-labelledby={headings ? `feed-group-${group.key}` : undefined} data-feed-group={group.key} key={group.key}>
-                  {headings ? <SectionHeading id={`feed-group-${group.key}`}>{GROUP_HEADINGS[group.key]}</SectionHeading> : null}
-                  <div className={FEED_GRID} data-feed-grid>{group.items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
-                </section>
-              )) : empty(counts.rated || counts.earlier ? "You are all caught up. Check Earlier and Rated." : "No references yet.")}
-              {partition.earlier.length ? (
-                <section aria-labelledby="feed-earlier-heading" data-feed-earlier>
-                  <SectionHeading id="feed-earlier-heading">Earlier</SectionHeading>
-                  <p className="-mt-3 mb-5 text-sm text-muted-foreground">Unrated and past their freshness. Still yours to rate.</p>
-                  <div className={FEED_GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div>
-                </section>
-              ) : null}
-            </div>
-          ) : null}
-          {tab === "rated" ? (partition.rated.length ? <div className={FEED_GRID} data-feed-grid>{partition.rated.map((item) => renderCard(item, false))}</div> : empty("Nothing rated yet. Your Accepts and Rejects collect here, newest first.")) : null}
-          {tab === "earlier" ? (partition.earlier.length ? <div className={FEED_GRID} data-feed-grid>{partition.earlier.map((item) => renderCard(item, false))}</div> : empty("Nothing has aged out. Unrated items that fall past their freshness collect here.")) : null}
-        </div>
+        items.length ? (
+          <div className={FEED_GRID} data-feed-grid>{items.map((item) => renderCard(item, item.lineageId === leadId))}</div>
+        ) : empty(ratedCount && show === "unrated" ? "You are all caught up. Choose Include rated to see your answers." : "No references yet.")
       )}
     </div>
   );

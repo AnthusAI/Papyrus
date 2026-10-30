@@ -138,8 +138,8 @@ const card = (page: Page, id: string) => page.locator(`[data-feed-card="${id}"]`
 const review = (page: Page) => page.locator("[data-review-card]").locator("visible=true").first();
 const requests = (page: Page) => page.evaluate(() => (window as unknown as { fixtureRequests: Array<Record<string, unknown>> }).fixtureRequests);
 const open = async (page: Page, id: string) => { await card(page, id).locator("[data-feed-open]").click(); await review(page).waitFor(); };
-/** On a phone the detail is a sheet over the grid: close it to see the card. */
-const closeDetail = async (page: Page, width: number) => { if (width < 768) { await page.keyboard.press("Escape"); await page.waitForTimeout(400); } };
+/** Below 1024 the detail takes the feed's place at the full width: go Back to see the cards again. From 1024 it sits beside the feed. */
+const closeDetail = async (page: Page, width: number) => { if (width < 1024) { await page.locator("[data-reference-back]:visible").click(); await card(page, "r1").waitFor(); } };
 const rgbOf = (locator: ReturnType<Page["locator"]>, property: "color" | "backgroundColor") => locator.evaluate((el, prop) => {
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1;
   const context = canvas.getContext("2d")!; context.fillStyle = "#000"; context.fillStyle = getComputedStyle(el)[prop as "color"]; context.fillRect(0, 0, 1, 1);
@@ -538,16 +538,16 @@ function assertSame(before: Awaited<ReturnType<typeof geometry>>, after: Awaited
 Object.assign(scenarios, {
   /** Selecting, rating and a background refresh never move a card: same order, same boxes, same scroll position. */
   async grid_stays_put() {
-    // 900 and 1440: the detail pane appears beside the grid with the first selection (the grid narrows once) and then holds its place;
-    // 375: the detail is a sheet.
-    for (const width of [375, 900, 1440]) {
+    // 1100 and 1440: the detail pane appears beside the grid with the first selection (the grid narrows once) and then holds its place;
+    // 375: the detail takes the feed's place, with a Back control, so the grid is measured after going Back.
+    for (const width of [375, 1100, 1440]) {
       const { browser, page, errors } = await setup(width);
       try {
         const columns = async () => page.locator("[data-feed-grid]").first().evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(" ").length);
         await domClick(card(page, "r1").locator("[data-feed-open]"));
         await review(page).waitFor();
         await page.waitForTimeout(250);
-        if (width < 768) { await page.keyboard.press("Escape"); await page.waitForTimeout(300); }
+        await closeDetail(page, width);
         const columnsBefore = await columns();
         const before = await geometry(page);
         let last = before;
@@ -556,12 +556,12 @@ Object.assign(scenarios, {
           await domClick(card(page, id).locator("[data-feed-open]"));
           await review(page).waitFor();
           await page.waitForTimeout(250);
+          await closeDetail(page, width);
           const now = await geometry(page);
           assertSame(before, now, `selecting ${id}`);
           assert.equal(now.scrollTop, before.scrollTop, `selecting ${id} does not scroll the grid`);
           assert.equal(await columns(), columnsBefore, "the column count stays fixed while the pane is open");
           last = now;
-          if (width < 768) { await page.keyboard.press("Escape"); await page.waitForTimeout(300); }
         }
         // Rate two: one from the card, one from the pane.
         await domClick(card(page, "r2").locator("[data-review-choice=accept]"));
@@ -581,7 +581,7 @@ Object.assign(scenarios, {
         await domClick(review(page).locator("[data-review-choice=accept]"));
         await page.waitForFunction(() => (window as unknown as { fixtureRequests: unknown[] }).fixtureRequests.length === 3);
         await page.waitForTimeout(300);
-        if (width < 768) { await page.keyboard.press("Escape"); await page.waitForTimeout(300); }
+        await closeDetail(page, width);
         assertSame(before, await geometry(page), "rating from the pane");
         void last;
         // A background refresh: predictions change (a re-rank would reshuffle everything) and a new item arrives.

@@ -127,9 +127,9 @@ export function draftItem(item: DraftItem, bySource: ReadonlyMap<string, Referen
     type: "draft",
     id: item.key,
     title: view?.headline ?? link?.label ?? "Draft",
-    dek: view ? view.dek : "Loading the draft…",
+    dek: view ? view.dek : "Loading the Proposed Story…",
     image: picture.imageUrl,
-    source: picture.siteName ?? picture.host ?? (view ? `AI ${view.kindLabel.toLowerCase()}` : "AI draft"),
+    source: picture.siteName ?? picture.host ?? (view ? `AI ${view.kindLabel.toLowerCase()}` : "Proposed Story"),
     host: picture.host,
     createdAt: timeOf(request.raisedAt),
     importance: 1,
@@ -273,10 +273,10 @@ function plural(count: number, one: string, many = `${one}s`): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** "3 drafts and 12 references waiting for you"; "All caught up" when nothing waits. */
+/** "3 Proposed Stories and 12 references waiting for you"; "All caught up" when nothing waits. */
 export function waitingTextFor(counts: NeedsMeCounts): string {
   const parts = [
-    counts.drafts ? plural(counts.drafts, "draft") : null,
+    counts.drafts ? plural(counts.drafts, "Proposed Story", "Proposed Stories") : null,
     counts.references ? plural(counts.references, "reference") : null,
     counts.stories ? plural(counts.stories, "story review") : null,
     counts.email ? plural(counts.email, "held email", "held emails") : null,

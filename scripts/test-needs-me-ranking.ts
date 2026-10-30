@@ -14,7 +14,6 @@ import { buildNeedsMeItems, captureIsIncomplete, conceptProposalItems, waitingTe
 
 const NOW = Date.parse("2026-10-27T12:00:00Z");
 const DAY = 86_400_000;
-const NO_FRESHNESS = { tauDays: null, medianAgeDays: null, examples: 0 };
 const NO_THRESHOLD = { threshold: null, examples: 0 };
 
 const item = (id: string, type: NeedsMeType, fields: Partial<NeedsMeItem> = {}): NeedsMeItem => ({
@@ -32,12 +31,9 @@ assert.equal(uncertaintyOf(0), 0);
 assert.ok(Math.abs(uncertaintyOf(0.9) - 0.2) < 1e-9 && Math.abs(uncertaintyOf(0.1) - 0.2) < 1e-9, "an Accept and a Reject at the same confidence are equally sure");
 assert.equal(uncertaintyOf(undefined), 0.5);
 
-// The interim score is uncertainty x importance x freshness; freshness is the feed's exp(-age / tau), and 1 without a learned tau.
-const context = { now: NOW, freshness: NO_FRESHNESS };
-assert.equal(interimAttention.value(item("a", "draft", { uncertainty: 0.8, importance: 2 }), context), 1.6);
-const tau = { tauDays: 2, medianAgeDays: 2 * Math.LN2, examples: 12 };
-const aged = interimAttention.value(item("b", "draft", { uncertainty: 1, createdAt: NOW - 2 * DAY }), { now: NOW, freshness: tau });
-assert.ok(Math.abs(aged - Math.exp(-1)) < 1e-9, "one tau old is e^-1");
+// The interim score is uncertainty x importance. Age does not change it: the Cyclotron's recorded confidence is used as it was.
+assert.equal(interimAttention.value(item("a", "draft", { uncertainty: 0.8, importance: 2 })), 1.6);
+assert.equal(interimAttention.value(item("b", "draft", { uncertainty: 1, createdAt: NOW - 400 * DAY })), 1, "a year-old item scores the same as a fresh one");
 
 // Hard gates first (oldest first), then the highest value of input, whatever the type.
 const ranked = rankNeedsMe([
@@ -47,7 +43,7 @@ const ranked = rankNeedsMe([
   predicted("coin-toss", "reference", 0.5, { importance: 3 }),
   predicted("lean", "reference", 0.8),
   item("draft", "draft"),
-], { now: NOW, freshness: NO_FRESHNESS, threshold: NO_THRESHOLD });
+], { threshold: NO_THRESHOLD });
 assert.deepEqual(ids(ranked.feed).slice(0, 2), ["gate-old", "gate-new"], "hard gates lead, oldest first");
 assert.equal(ranked.feed[2].id, "coin-toss", "then the highest value: a coin toss that matters most");
 assert.ok(ranked.scores.get("coin-toss")! > ranked.scores.get("lean")!, "a lean is worth less than a coin toss");
@@ -61,7 +57,7 @@ assert.deepEqual(ids(interleaveByType([item("r1", "reference"), item("d1", "draf
 const mixed = rankNeedsMe([
   ...Array.from({ length: 5 }, (_, index) => predicted(`ref-${index}`, "reference", 0.5, { createdAt: NOW - index * 60_000 })),
   item("draft-1", "draft", { uncertainty: 0.1 }), item("mail-1", "held_email", { uncertainty: 0.1 }),
-], { now: NOW, freshness: NO_FRESHNESS, threshold: NO_THRESHOLD });
+], { threshold: NO_THRESHOLD });
 const types = mixed.feed.map((entry) => entry.type);
 for (let index = 2; index < types.length; index += 1) {
   if (types[index] === types[index - 1] && types[index] === types[index - 2]) assert.ok(types.slice(index).every((type) => type === types[index]), `no run of three while another type waits: ${types.join(",")}`);
@@ -89,13 +85,13 @@ assert.equal(isConfident({ ...sure, askedForReview: true }, learned.threshold), 
 assert.equal(isConfident({ ...sure, hardGate: true }, learned.threshold), false);
 assert.equal(isConfident(item("none", "reference"), learned.threshold), false, "no prediction, no confidence");
 assert.equal(isConfident({ ...sure, decisionState: "accepted" }, learned.threshold), false, "an item decided in this visit stays put");
-const split = rankNeedsMe([sure, predicted("unsure", "reference", 0.55)], { now: NOW, freshness: NO_FRESHNESS, threshold: learned });
+const split = rankNeedsMe([sure, predicted("unsure", "reference", 0.55)], { threshold: learned });
 assert.deepEqual([ids(split.feed), ids(split.auto)], [["unsure"], ["sure"]]);
 
 // One order per visit: the snapshot keeps places while content changes; later arrivals wait behind the pill.
-const first = rankNeedsMe([predicted("a", "reference", 0.5), predicted("b", "reference", 0.6), item("d", "draft")], { now: NOW, freshness: NO_FRESHNESS, threshold: NO_THRESHOLD });
+const first = rankNeedsMe([predicted("a", "reference", 0.5), predicted("b", "reference", 0.6), item("d", "draft")], { threshold: NO_THRESHOLD });
 const snapshot = takeNeedsMeSnapshot(first);
-const later = rankNeedsMe([predicted("b", "reference", 0.5), predicted("a", "reference", 0.9, { decisionState: "accepted" }), item("d", "draft"), predicted("new", "reference", 0.5)], { now: NOW, freshness: NO_FRESHNESS, threshold: NO_THRESHOLD });
+const later = rankNeedsMe([predicted("b", "reference", 0.5), predicted("a", "reference", 0.9, { decisionState: "accepted" }), item("d", "draft"), predicted("new", "reference", 0.5)], { threshold: NO_THRESHOLD });
 const placed = applyNeedsMeSnapshot(snapshot, later);
 assert.deepEqual(ids(placed.feed), ids(first.feed), "deciding and re-scoring never re-rank");
 assert.equal(placed.newCount, 1, "the arrival is counted, not placed");
@@ -103,7 +99,7 @@ assert.equal(placed.feed.find((entry) => entry.id === "a")!.decisionState, "acce
 
 // A future Cyclotron attention decision replaces the formula through the same interface.
 const reversed: AttentionModel = { id: "test", value: (entry) => -entry.uncertainty };
-const swapped = rankNeedsMe([predicted("a", "reference", 0.5), predicted("b", "reference", 0.9)], { now: NOW, freshness: NO_FRESHNESS, threshold: NO_THRESHOLD, attention: reversed });
+const swapped = rankNeedsMe([predicted("a", "reference", 0.5), predicted("b", "reference", 0.9)], { threshold: NO_THRESHOLD, attention: reversed });
 assert.deepEqual(ids(swapped.feed), ["b", "a"]);
 
 // Filters and counts: only what waits is counted; decided items stay on the page but not in the numbers.
@@ -112,7 +108,7 @@ const everything: NeedsMeItem[] = [
 ];
 assert.deepEqual(countNeedsMe(everything), { all: 7, references: 1, drafts: 1, stories: 1, email: 1, captures: 1, other: 2 });
 assert.deepEqual(everything.filter((entry) => matchesFilter(entry, "other")).map((entry) => entry.id), ["7", "8"]);
-assert.equal(waitingTextFor(countNeedsMe(everything)), "1 draft, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
+assert.equal(waitingTextFor(countNeedsMe(everything)), "1 Proposed Story, 1 reference, 1 story review, 1 held email, 1 capture to check and 2 other items waiting for you");
 assert.equal(waitingTextFor(countNeedsMe([])), "All caught up");
 
 // This week is a calendar week (Monday, UTC), and agreement counts only References that had a prediction.

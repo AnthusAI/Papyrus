@@ -44,7 +44,7 @@ export type DraftView = {
 
 export const MAXIMUM_SOURCES = 5;
 const MAXIMUM_EVIDENCE = 3;
-const KIND_WORDS: Record<string, string> = { story_draft: "Story draft", new_concept: "New concept", rename: "Rename", merge: "Merge", split: "Split", new_column: "New column", element_symbol: "Element symbol" };
+const KIND_WORDS: Record<string, string> = { story_draft: "Proposed Story", new_concept: "New concept", rename: "Rename", merge: "Merge", split: "Split", new_column: "New column", element_symbol: "Element symbol" };
 
 /** JSON fields arrive as strings, and a field written through `JSON.stringify` of a string arrives encoded twice: unwrap until it is not text. */
 function parseJson(value: unknown, depth = 0): unknown {
@@ -170,7 +170,7 @@ export function rejectPath(state: string): string[] | null {
 /** The sentence for a draft that cannot move, or null when it can. A hold is named, never hidden. */
 export function cannotMoveReason(view: Pick<DraftView, "state" | "held" | "decided">): string | null {
   if (view.decided) return null;
-  if (view.held) return "This draft is on hold in Proposals. Release the hold there before you decide it.";
+  if (view.held) return "This Proposed Story is on hold in Proposals. Release the hold there before you decide it.";
   return null;
 }
 

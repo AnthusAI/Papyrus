@@ -9,7 +9,6 @@ import { acceptPath, batchAnswer, draftDecisionOf, draftReasonUpdate, draftView,
 import { previewsBySourceAddress, recentDecisions } from "../lib/notification-feed";
 import { answerReasonUpdate, answerUpdate, applyReviewUpdate, cyclotronAutoDecided, draftIdsOf, isDraftReview, sectionReviews, type AnswerInput, type DraftDecision, type ReviewRequest } from "../lib/review-requests";
 import type { RelevanceDecisionView } from "../lib/relevance-decisions";
-import { learnFreshness } from "../lib/reference-feed-ranking";
 import { learnConfidenceThreshold, shapingThisWeek } from "../lib/needs-me-ranking";
 import { buildNeedsMeItems } from "../lib/needs-me-items";
 import { captureStatusesByLineage } from "../lib/reference-capture";
@@ -290,9 +289,9 @@ export function NotificationCenter({
     resolving.current.add(request.id);
     try {
       const view = drafts[draftId];
-      if (!view) throw new Error("This draft has not loaded yet.");
+      if (!view) throw new Error("This Proposed Story has not loaded yet.");
       const path = choice === "accept" ? acceptPath(view.state) : rejectPath(view.state);
-      if (!path) throw new Error(`This draft is ${stateLabel(view.state, false).toLowerCase()} and cannot be ${choice === "accept" ? "accepted" : "rejected"} from here. Open it in Proposals.`);
+      if (!path) throw new Error(`This Proposed Story is ${stateLabel(view.state, false).toLowerCase()} and cannot be ${choice === "accept" ? "accepted" : "rejected"} from here. Open it in Proposals.`);
       const receipt = await api.transitionProposalPath(draftId, path);
       if (receipt.status !== "ok") throw new Error(proposalReceiptMessage(receipt));
       const decided: DraftView = { ...view, state: choice === "accept" ? "approved" : "declined", decided: choice };
@@ -307,7 +306,7 @@ export function NotificationCenter({
         setRequests((current) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
         if (closing) await markRead(request.id);
       } catch (failure) {
-        throw new Error(`The draft was ${choice === "accept" ? "accepted" : "rejected"} in Proposals, but this request could not record it. ${failure instanceof Error ? failure.message : ""}`.trim());
+        throw new Error(`The Proposed Story was ${choice === "accept" ? "accepted" : "rejected"} in Proposals, but this request could not record it. ${failure instanceof Error ? failure.message : ""}`.trim());
       }
     } catch (failure) {
       if (!demo) void loadDraftsFor([request]);
@@ -375,7 +374,7 @@ export function NotificationCenter({
       const request = latest.current.requests.find((entry) => entry.id === payload.item.request.id) ?? payload.item.request;
       const view = latest.current.drafts[payload.item.draftId];
       const decision = draftDecisionOf(request.links.find((link) => link.id === payload.item.draftId), view, { by: actorLabel, at: now.toISOString() });
-      if (!decision) throw new Error("This draft has not been decided yet.");
+      if (!decision) throw new Error("This Proposed Story has not been decided yet.");
       store(await api.saveReviewReason(request, draftReasonUpdate(request, payload.item.draftId, { ...decision, title: decision.title ?? view?.headline, why }, actorLabel, now)));
     } else if (payload.kind === "request") {
       const request = latest.current.requests.find((entry) => entry.id === payload.request.id) ?? payload.request;
@@ -417,7 +416,6 @@ export function NotificationCenter({
     }),
     [shownReferences, decisions, previews, captures, visitRated, requests, drafts, missingDrafts, draftsState, stay, bySource, storyTitles, storyExcerpts, deletedStories, emails, emailsDecided],
   );
-  const freshness = useMemo(() => learnFreshness(shownReferences, visitRated), [shownReferences, visitRated]);
   const threshold = useMemo(() => learnConfidenceThreshold(shownReferences, decisions, visitRated), [shownReferences, decisions, visitRated]);
   const recent = useMemo(() => recentDecisions(requests, references, demo), [requests, references, demo]);
   const shaping = useMemo(
@@ -435,7 +433,7 @@ export function NotificationCenter({
 
   return (
     <NeedsMeView
-      below={below} captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} freshness={freshness} legacyAuto={legacyAuto}
+      below={below} captureTeaserLine={teaserLine} demo={demo} draftsFailed={draftsState === "failed"} entries={entries} error={error} legacyAuto={legacyAuto}
       loadEmail={api.loadEmail} loadState={preview === "loading" ? "loading" : loadState} missingDraftCount={missingCount} now={now} onCorrectCapture={onCorrectCapture} onDecide={decide} onEditReason={editReason}
       onRetryDrafts={() => void loadDraftsFor(requests)} predictionLoading={predictionLoading} recent={recent} referenceAttachments={referenceAttachments}
       referenceDisabledReason={referenceDisabledReason} referencesLoading={referencesLoading} settled={settled} shaping={shaping} stale={stale} threshold={threshold}

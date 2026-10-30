@@ -33,7 +33,7 @@ import { ReferenceFeed } from "./components/reference-feed";
 import { ReviewCard } from "./components/reference-review-card";
 import { ReferenceConversation } from "./components/reference-conversation";
 import { ConversationStoreProvider, createMemoryConversationStore } from "./components/conversation-context";
-import { partitionReferenceFeed } from "./lib/reference-feed-ranking";
+import { buildFeedItems, feedLeadId, visibleFeedItems } from "./lib/reference-feed-ranking";
 
 const params = new URLSearchParams(location.search);
 const minutesAgo = (minutes) => new Date(Date.now() - minutes * 60000).toISOString();
@@ -77,8 +77,8 @@ function Detail() {
 }
 
 function Feed() {
-  const partition = useMemo(() => partitionReferenceFeed(FIXTURE, new Map(), { now: NOW, visitRated: new Set(), tauDaysOverride: null }), []);
-  return <ReferenceFeed messageCounts={COUNTS} now={NOW} onOpen={() => undefined} onRate={async () => undefined} onTabChange={() => undefined} onVisitRated={() => undefined} partition={partition} previews={new Map()} tab="feed" visitRated={new Set()} />;
+  const items = useMemo(() => visibleFeedItems(buildFeedItems(FIXTURE, new Map()), "best", "unrated"), []);
+  return <ReferenceFeed messageCounts={COUNTS} now={NOW} onOpen={() => undefined} onRate={async () => undefined} items={items} leadId={feedLeadId(items)} onShowChange={() => undefined} onSortChange={() => undefined} onVisitRated={() => undefined} previews={new Map()} ratedCount={0} show="unrated" sort="best" visitRated={new Set()} />;
 }
 
 createRoot(document.getElementById("root")).render(<ConversationStoreProvider store={store}>{params.has("feed") ? <Feed /> : <Detail />}</ConversationStoreProvider>);

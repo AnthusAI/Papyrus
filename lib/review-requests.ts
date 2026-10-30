@@ -164,12 +164,12 @@ export function nextText(request: ReviewRequest): string {
   if (request.state === "open") {
     if (request.mode === "hard_gate") return "Waiting for you. Nothing continues until you accept or reject.";
     if (request.mode === "soft_review") {
-      if (drafts) return request.deadline ? `Closes on ${formatWhen(request.deadline)} if nobody answers. The drafts stay in Proposals.` : "No deadline. The drafts stay in Proposals until an editor decides them.";
+      if (drafts) return request.deadline ? `Closes on ${formatWhen(request.deadline)} if nobody answers. The Proposed Stories stay in Proposals.` : "No deadline. The Proposed Stories stay in Proposals until an editor decides them.";
       return request.deadline ? `If nobody answers by ${formatWhen(request.deadline)}, this closes and ${request.raisedBy} carries on without a review.` : "No deadline. Stays open until someone answers it.";
     }
     return "Nothing is waiting on this. It stays here until you acknowledge it.";
   }
-  if (request.state === "timed_out") return drafts ? `Closed with no answer on ${formatWhen(request.updatedAt)}. The drafts stay in Proposals.` : `Proceeded without review on ${formatWhen(request.updatedAt)}.`;
+  if (request.state === "timed_out") return drafts ? `Closed with no answer on ${formatWhen(request.updatedAt)}. The Proposed Stories stay in Proposals.` : `Proceeded without review on ${formatWhen(request.updatedAt)}.`;
   if (request.state === "withdrawn") return "Withdrawn by the step that raised it.";
   const answer = request.answer;
   return answer ? `${answerWords(answer, request)} by ${answer.by} on ${formatWhen(answer.at)}.` : "Answered.";
@@ -295,7 +295,7 @@ export function sectionReviews(requests: ReviewRequest[]): NotificationSections 
 export type NotificationSummary = { waiting: number; drafts: number; otherReviews: number; decidedBySystem: number; unread: number };
 
 /**
- * "N waiting for you · N AI drafts to review · N other reviews open · N recently decided by the system".
+ * "N waiting for you · N Proposed Stories to review · N other reviews open · N recently decided by the system".
  * Waiting = hard gates plus Cyclotron items held for review (both stay put until a person acts). `draftsToDecide` is the number of
  * drafts in open draft reviews that nobody has decided yet.
  */
@@ -305,7 +305,7 @@ export function summarize(sections: NotificationSections, held: CyclotronEntry[]
 }
 
 export function summaryText(summary: NotificationSummary): string {
-  return `${summary.waiting} waiting for you · ${summary.drafts} AI ${summary.drafts === 1 ? "draft" : "drafts"} to review · ${summary.otherReviews} other ${summary.otherReviews === 1 ? "review" : "reviews"} open · ${summary.decidedBySystem} recently decided by the system`;
+  return `${summary.waiting} waiting for you · ${summary.drafts} ${summary.drafts === 1 ? "Proposed Story" : "Proposed Stories"} to review · ${summary.otherReviews} other ${summary.otherReviews === 1 ? "review" : "reviews"} open · ${summary.decidedBySystem} recently decided by the system`;
 }
 
 export function isUnread(request: ReviewRequest, readIds: ReadonlySet<string>): boolean {

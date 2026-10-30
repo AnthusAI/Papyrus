@@ -58,7 +58,7 @@ test("labels say AI for AI and never show a reader's id", () => {
   assert.equal(proposerLabel("ai"), "AI");
   assert.equal(proposerLabel("ss1_secretsubject"), "Reader");
   assert.equal(stateLabel("overridden_by_editor"), "Decided by an editor");
-  assert.equal(kindLabel("story_draft"), "Story draft");
+  assert.equal(kindLabel("story_draft"), "Proposed Story");
   assert.equal(proposalReceiptMessage({ status: "ok" }), "Done.");
   assert.equal(proposalReceiptMessage({ status: "refused", message: "Someone else changed that proposal first." }), "Someone else changed that proposal first.");
 });
@@ -67,7 +67,7 @@ test("the panel shows a story draft with its body and the move buttons, and no r
   const html = renderToStaticMarkup(
     createElement(ProposalsView, { rows: [row("1")], readers: true, filter: "open", busy: false, status: "", reason: "", onFilter() {}, onReason() {}, onMove() {}, onRefresh() {} }),
   );
-  assert.match(html, /Story draft/);
+  assert.match(html, /Proposed Story/);
   assert.match(html, /Story 1/);
   assert.match(html, /from AI/);
   assert.match(html, /Send to steering/);

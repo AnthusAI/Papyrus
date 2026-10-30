@@ -2,14 +2,16 @@
 Feature: The References page is a news feed ranked by what the Cyclotron expects the editor to accept
   References open as a feed in a responsive grid, like a news app: a larger lead card, then cards with a picture, a title, a one-line
   dek, the source and its age, the Cyclotron's prediction (Accept or Reject with its confidence and an icon) and the editor's own
-  Accept and Reject. The order is the Cyclotron's prediction: the items it expects the editor to Accept most surely come first, the
-  items with no prediction sit in the middle, and the strongest predicted Rejects come last. Age fades a prediction toward "not sure"
-  and never to the bottom, at a pace learned from how old the editor's accepted References were when accepted; with fewer than ten
-  accepted examples nothing is guessed. A card the editor rates stays where it is for the rest of the visit, showing the answer and
-  whether the Cyclotron matched it; on the next visit it is under Rated. Unrated items past their freshness move to an Earlier section at
-  the bottom and can still be rated. The page shows its shell and card skeletons at once instead of a checking screen, and a return
-  visit shows the last saved cards while the live read runs. These scenarios use synthetic References in an isolated browser at 375 and
-  1440 pixels and never touch production.
+  Accept and Reject. The feed is one list with two choices, each a pair of buttons with an icon and words, never a drop-down and never
+  tabs. Sort is Best bets, the default, or Newest. Best bets is the Cyclotron's own confidence that the editor will Accept, highest
+  first, whatever the age: the items it expects the editor to Accept most surely come first, the items with no prediction sit in the
+  middle, and the strongest predicted Rejects come last. Newest is the latest arrival first. Show is Unrated only, the default, or
+  Include rated, which adds the References that already have a human answer to the same list in the same sort, each showing its
+  recorded vote. Both choices are remembered in this browser. Nothing is hidden because it is old. A card the editor rates stays where
+  it is for the rest of the visit, showing the answer and whether the Cyclotron matched it, and the order is taken once per visit in
+  either sort. The page shows its shell and card skeletons at once instead of a checking screen, and a return visit shows the last
+  saved cards while the live read runs. These scenarios use synthetic References in an isolated browser at 375 and 1440 pixels and
+  never touch production.
 
   Scenario: The strongest predictions are first and the strongest Rejects are last
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -20,21 +22,21 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And a title shows without the site name a page tacks on its end, such as " | Brookings" or " | Poverty and Development | Al Jazeera"
     And nothing scrolls sideways and there are no drop-downs
 
-  Scenario: Age fades a prediction toward not sure, at a pace learned from the editor's own accepts
-    Given References whose accepted examples show how quickly the editor acts
+  Scenario: Best bets goes by the Cyclotron's original confidence, whatever the age
+    Given References of very different ages with predictions
     When the feed is ranked
-    Then an old prediction keeps only part of its distance from not sure and never falls below a fresh Reject
-    And with fewer than ten accepted examples there is no fading and no Earlier section
+    Then an old strong Accept still ranks above a new weaker one, and an old Reject never rises above a new Accept
+    And ties go to the newest item and then to a stable order
     And a card rated this visit does not move any other card
 
-  Scenario: A rated card stays in place, shows whether the Cyclotron matched, and is under Rated on the next visit
+  Scenario: A rated card stays in place and shows whether the Cyclotron matched, and Unrated only leaves it out on the next visit
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor accepts a card, then rejects it with a written reason, and rejects a card that was predicted Reject
     Then each rated card stays in its place and shows Saved
     And the answered button says Confirmed or Overturned, in words and a marker as well as colour
     And Rejecting asks for a written reason in words and changes nothing until one is given
     And while an answer is being saved the button says Sending, or Updating when it changes a saved answer, and never says it is unrecorded
-    And the Rated tab lists the most recent answer first, and the next visit lists the answered cards there
+    And choosing Include rated keeps the answered cards where they were
 
   Scenario: The decision is one control: a prediction above one pair of buttons, with the reason under them
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
@@ -54,18 +56,30 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And the chosen button itself is never tinted by the verdict: it is the same fill either way
     And the chosen button is filled and the other is quiet, and tapping the chosen one does not unselect it
 
-  Scenario: Unrated items past their freshness move to Earlier at the bottom and can still be rated
-    Given References older than three times the learned freshness
+  Scenario: An old unrated item stays in the one list, and can still be rated
+    Given an old unrated Reference with a strong prediction
     When the editor opens the feed at 375 and 1440 pixels
-    Then they appear in an Earlier section after everything in the feed, and under the Earlier tab
-    And an Earlier card can be rated and stays where it is
+    Then it stays in the one list where its original confidence puts it, and last when sorted by Newest, with no Earlier section and no tabs
+    And an old card can be rated and stays where it is
 
-  Scenario: The feed is flat, rounded and borderless, with large section headings
+  Scenario: Best bets is the default, Newest sorts by date, and Unrated only is the default
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor opens the feed at 375 and 1440 pixels
-    Then no card, tab, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone
+    Then Best bets and Unrated only are pressed, and each choice is a pair of buttons with an icon and words
+    And choosing Newest orders the cards by arrival, newest first, whatever the predictions say
+
+  Scenario: Include rated adds the answered cards with their votes, and both choices are remembered
+    Given a feed with References that were accepted automatically or by an editor
+    When the editor chooses Include rated and reloads the page
+    Then the answered cards join the same list in the active sort, each showing its recorded vote
+    And the page remembers Newest and Include rated for this browser, with no tabs on the page
+
+  Scenario: The feed is flat, rounded and borderless, one list in rank order
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens the feed at 375 and 1440 pixels
+    Then no card, button, pill, chip, panel or skeleton has a border, an outline or a rule, and surfaces differ only by tone
     And cards are rounded rectangles with a full-bleed picture across the top, and pills are fully rounded
-    And the feed has the sections Top predictions, More for you and Least likely in large type with no lines between them
+    And the feed is one list in rank order with no section headings, the predicted Rejects last
     And on a phone the first card's picture is on the first screen
 
   Scenario: A picture that cannot load becomes a tile with the source name
@@ -85,7 +99,7 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
   Scenario: The page shows its shell and card skeletons at once, never a checking screen
     Given the References are still loading
     When the editor opens the feed at 375 and 1440 pixels
-    Then the page header, the tabs and card skeletons are on screen and no text says it is checking credentials
+    Then the page header, the sort and show buttons and card skeletons are on screen and no text says it is checking credentials
 
   Scenario: A return visit shows the last saved cards, read only, until the live read arrives
     Given this browser saved the last feed it showed
@@ -96,15 +110,15 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
 
   Scenario: A Reference accepted automatically, by the Cyclotron or by a monitor's rule, says so, in words and an icon, apart from an editor's accept
     Given a Reference the Cyclotron accepted automatically, one a monitor's rule accepted, and another that an editor accepted
-    When the editor opens the Rated tab at 375 and 1440 pixels
+    When the editor chooses Include rated at 375 and 1440 pixels
     Then the automatically accepted card says Accepted automatically with a Lucide icon, one accepted by a monitor's rule says so too, and the editor's accept carries no such mark
     And both read as accepted, and the editor can still change either
 
   Scenario: The ranking is explained in plain words with this site's own numbers
     Given the feed is open
     When the editor opens how this feed is ranked
-    Then it explains best bets first, confidence, fading toward not sure, Earlier and why a rated card stays put
-    And it says how many accepted examples have been learned from, or how many more are needed
+    Then it explains Best bets, Newest, Unrated only, Include rated and why a rated card stays put
+    And it says that age does not change the order
 
   Scenario: The detail pane reads top to bottom: what the item is, then the rating, then what was captured
     Given References where one has full stored text, one only a teaser, and one nothing but its link

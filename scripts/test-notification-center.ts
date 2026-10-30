@@ -43,7 +43,7 @@ async function main() {
   assert.equal(isDue(openEnded, new Date("2036-01-01T00:00:00Z")), false);
   assert.equal(nextText(openEnded), "No deadline. Stays open until someone answers it.");
   const openEndedDrafts = { ...FIXTURE_REVIEW_REQUESTS[1], deadline: null };
-  assert.equal(nextText(openEndedDrafts), "No deadline. The drafts stay in Proposals until an editor decides them.");
+  assert.equal(nextText(openEndedDrafts), "No deadline. The Proposed Stories stay in Proposals until an editor decides them.");
 
   // Cyclotron: low-confidence pending items are held (least confident first); confident ones are the read-only stream.
   const references = [reference("a"), reference("b"), reference("c"), reference("d", "accepted"), reference("e")];
@@ -58,18 +58,18 @@ async function main() {
   assert.deepEqual(auto.map((entry) => entry.lineageId), ["e", "c"], "newest first");
   assert.equal(auto[1].reviewedByPerson, true);
 
-  // The summary says it in plain counts: what waits, how many AI drafts, the other reviews, what the system decided.
+  // The summary says it in plain counts: what waits, how many Proposed Stories, the other reviews, what the system decided.
   const summary = summarize(sections, held, auto, 3);
-  assert.equal(summaryText(summary), "3 waiting for you · 4 AI drafts to review · 1 other review open · 2 recently decided by the system");
+  assert.equal(summaryText(summary), "3 waiting for you · 4 Proposed Stories to review · 1 other review open · 2 recently decided by the system");
 
   // Only a hard gate says "Waiting for you"; a soft review says in plain words what its deadline does; a flag waits for nothing.
   assert.match(nextText(FIXTURE_REVIEW_REQUESTS[0]), /^Waiting for you/);
-  assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[1]), "Closes on 2026-10-30 07:00 UTC if nobody answers. The drafts stay in Proposals.");
+  assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[1]), "Closes on 2026-10-30 07:00 UTC if nobody answers. The Proposed Stories stay in Proposals.");
   assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[7]), "If nobody answers by 2026-10-31 07:00 UTC, this closes and copy-editor carries on without a review.");
   for (const request of FIXTURE_REVIEW_REQUESTS) assert.ok(!/Proceeds automatically|unless you steer/.test(nextText(request)), request.id);
   assert.match(nextText(FIXTURE_REVIEW_REQUESTS[3]), /^Nothing is waiting on this/);
   assert.equal(nextText(FIXTURE_REVIEW_REQUESTS[4]), "Proceeded without review on 2026-10-17 07:00 UTC.");
-  assert.equal(nextText({ ...FIXTURE_REVIEW_REQUESTS[1], state: "timed_out", updatedAt: "2026-10-30T07:00:00Z" }), "Closed with no answer on 2026-10-30 07:00 UTC. The drafts stay in Proposals.");
+  assert.equal(nextText({ ...FIXTURE_REVIEW_REQUESTS[1], state: "timed_out", updatedAt: "2026-10-30T07:00:00Z" }), "Closed with no answer on 2026-10-30 07:00 UTC. The Proposed Stories stay in Proposals.");
   for (const request of FIXTURE_REVIEW_REQUESTS.filter((r) => r.mode !== "hard_gate")) assert.ok(!/Waiting for you/.test(nextText(request)), request.id);
 
   // What became of steering: applied in a run, or not yet used.
@@ -159,13 +159,13 @@ async function main() {
   });
   const render = (overrides: Partial<Parameters<typeof NeedsMeView>[0]> = {}, from: Partial<Parameters<typeof buildNeedsMeItems>[0]> = {}) =>
     renderToStaticMarkup(createElement(NeedsMeView, {
-      loadState: "ready", entries: buildNeedsMeItems(sources(from)), freshness: { tauDays: null, medianAgeDays: null, examples: 0 }, threshold: learnConfidenceThreshold([], undefined),
+      loadState: "ready", entries: buildNeedsMeItems(sources(from)), threshold: learnConfidenceThreshold([], undefined),
       now: NOW.getTime(), shaping: { decisions: 0, agreed: 0, overruled: 0 }, recent: [], settled: true, onDecide: async () => undefined, ...overrides,
     }));
   const html = render();
   const page = text(html);
-  assert.match(page, /What needs me\? \d+ drafts?(, [\w ]+)* waiting for you/, "the header counts what waits");
-  for (const expected of ["All", "References", "Drafts", "Stories", "Email", "Captures", "Other", "Sparse attention goes open", "Hard gate", "You\u2019re shaping this", "Accept", "Reject", "Acknowledge"]) assert.ok(page.includes(expected), `page shows: ${expected}`);
+  assert.match(page, /What needs me\? \d+ Proposed Stor(?:y|ies)(, [\w ]+)* waiting for you/, "the header counts what waits");
+  for (const expected of ["All", "References", "Proposed Stories", "Stories", "Email", "Captures", "Other", "Sparse attention goes open", "Hard gate", "You\u2019re shaping this", "Accept", "Reject", "Acknowledge"]) assert.ok(page.includes(expected), `page shows: ${expected}`);
   assert.equal((html.match(/data-review-draft="proposal-/g) ?? []).length, 3, "three draft cards");
   assert.ok(!html.includes("data-review-drafts"), "no batch container");
   for (const retired of ["Approve", "Steer with this note", "Steering note", "Agree", "Proceeds automatically", "unless you steer", "draft batches", "Mark all read", "Needs attention"]) assert.ok(!page.includes(retired), `the retired wording is gone: ${retired}`);
@@ -175,7 +175,7 @@ async function main() {
   assert.ok(text(render({ loadState: "forbidden" })).includes("for editors and admins"));
   assert.ok(text(render({ loadState: "unavailable" })).includes("could not be read right now"));
   assert.match(render({ loadState: "loading" }), /data-notification-skeleton/);
-  assert.match(text(render({ draftsFailed: true })), /The drafts could not be loaded right now\./);
+  assert.match(text(render({ draftsFailed: true })), /The Proposed Stories could not be loaded right now\./);
   const autoCards = [{ lineageId: "x", title: "A confident call", label: "include", confidence: 0.97, decidedAt: null, reviewDetail: null, reviewedByPerson: false, href: "/newsroom/references/x" }];
   assert.ok(text(render({ legacyAuto: autoCards })).includes("Decided automatically (1)"), "the system's decisions are a collapsed footer");
   assert.match(render({ legacyAuto: autoCards }), /<details[^>]*data-notification-section="auto-decided"/);

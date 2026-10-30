@@ -33,6 +33,11 @@ module.exports = {
     require: ["features/step_definitions/reference-editor.steps.js"],
     format: ["summary"],
   },
+  newsroomUxReview: {
+    paths: ["features/newsroom-board-and-proposals.feature"],
+    require: ["features/step_definitions/newsroom-ux-review.steps.js"],
+    format: ["summary"],
+  },
   notificationCenter: {
     paths: ["features/newsroom-notification-center.feature"],
     require: ["features/step_definitions/notification-center.steps.js"],

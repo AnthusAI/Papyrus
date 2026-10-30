@@ -1,8 +1,8 @@
 @brand-agnostic @notification-center-fixtures
 Feature: The Notification Center answers "What needs me?" with one feed that mixes everything that may need a person
   The console home is a single feed in the style of the References feed: flat tones and rounded cards, no borders or lines. It mixes
-  References, AI drafts, story reviews, held email, captures that may be cut off, and flags. Hard gates come first. After them the
-  order is the value of the editor's input: how unsure the Cyclotron is, times how much the item matters, times how fresh it is, with
+  References, Proposed Stories, story reviews, held email, captures that may be cut off, and flags. Hard gates come first. After them the
+  order is the value of the editor's input: how unsure the Cyclotron is, times how much the item matters, with no change for age, and with
   no more than two items of one type in a row while another type waits. The order is taken once when the editor arrives and then left
   alone. Pills narrow the feed to one type and count what waits. Items the Cyclotron is confident about do not ask for the editor;
   they wait under "Decided automatically", where they can be overruled. Every card has the References feed's Accept and Reject grid,
@@ -15,7 +15,8 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     When the editor opens the Notification Center at 375 and 1440 pixels
     Then every draft card shows its type, headline, dek and what happens if it is left alone, with Accept and Reject and no prediction row
     And the header counts drafts, nothing scrolls sideways, no card has a border, and the retired Approve, Steer and Agree wording is gone
-    And opening a draft shows its headline, section, evidence, citations, a link to the full draft in Proposals and a Why box
+    And opening a draft shows its headline, section, evidence, citations, a link to the full Proposed Story in Proposals and a Why box
+    And with no prediction, Accept and Reject sit where they do on a Reference, above the Why box
 
   Scenario: Accept approves the Proposal, Reject declines it, and the request closes itself
     Given an isolated Notification Center with a batch of three AI drafts
@@ -41,7 +42,7 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
 
   Scenario: References keep their prediction and the pills narrow the feed
     Given an isolated Notification Center with a batch of three AI drafts
-    When the editor looks at pending References and uses the Drafts and References pills at 375 and 1440 pixels
+    When the editor looks at pending References and uses the Proposed Stories and References pills at 375 and 1440 pixels
     Then each Reference card marks the predicted Accept or Reject with its confidence, or says there is no prediction
     And a card opens the same detail pane the References page has, a rating is saved through the References review, and an empty pill says so
 
@@ -106,10 +107,10 @@ Feature: The Notification Center answers "What needs me?" with one feed that mix
     When the editor opens a draft at 1440 by 900, 1440 by 1300 and 1024 by 768 and scrolls the page and the feed, and again on a phone
     Then the Previous and Next bar's bottom-right corner is the viewport's bottom-right corner, other sections below the feed never push it up, and on a phone it is the fixed bottom of the sheet
 
-  Scenario: Drafts is reachable under Editorial work
+  Scenario: Proposed Stories is reachable under Editorial work
     Given the organizer navigation
     When the editor looks at Editorial work
-    Then Drafts opens the Proposals panel
+    Then Proposed Stories opens the Proposals panel
 
   Scenario: While the session is checked, the page shows the feed's own skeleton, not an older outlined one
     Given the newsroom is still checking the editor's session

@@ -423,6 +423,9 @@ export type MessageRecord = {
   authorSub?: string | null;
   authorUserProfileId?: string | null;
   authorLabel?: string | null;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  deletedBySub?: string | null;
   threadId?: string | null;
   parentMessageId?: string | null;
   sequenceNumber?: number | null;

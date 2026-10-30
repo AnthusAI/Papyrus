@@ -167,7 +167,7 @@ export function DraftCard({ busy, demo: _demo, error, item, onDecide, previews, 
       <article aria-busy="true" className={CARD} data-draft-state="loading" data-review-draft={draftId} role="status" {...FEED_SURFACE_PROPS}>
         <div className="aspect-[16/10] animate-pulse bg-[var(--feed-control)]" />
         <div className="space-y-3 p-5">
-          <p className="text-xs text-muted-foreground">{link?.label ?? "Draft"}: loading the draft…</p>
+          <p className="text-xs text-muted-foreground">{link?.label ?? "Proposed Story"}: loading the Proposed Story…</p>
           <div className="h-5 w-11/12 animate-pulse rounded-full bg-[var(--feed-control)]" />
           <div className="h-5 w-2/3 animate-pulse rounded-full bg-[var(--feed-control)]" />
         </div>
@@ -216,13 +216,13 @@ export function DraftCard({ busy, demo: _demo, error, item, onDecide, previews, 
                 </li>
               );
             })}
-            {view.moreSources ? <li className="self-center text-xs text-muted-foreground">and {view.moreSources} more in the full draft</li> : null}
+            {view.moreSources ? <li className="self-center text-xs text-muted-foreground">and {view.moreSources} more in the full Proposed Story</li> : null}
           </ul>
         ) : null}
         <p className="mt-auto flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
           <span data-draft-caption>{requestCaption(request)}</span>
           <Link className="inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline" data-draft-open href={view.href}>
-            Open full draft<ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            Open full Proposed Story<ExternalLinkIcon aria-hidden="true" className="size-3.5 shrink-0" />
           </Link>
         </p>
       </div>
@@ -232,7 +232,7 @@ export function DraftCard({ busy, demo: _demo, error, item, onDecide, previews, 
         disabledReason={hold ?? session}
         error={error}
         kind="story"
-        lockedNote={<>To change it, <Link className="text-primary underline underline-offset-4" href={view.href}>open the draft in Proposals</Link>.</>}
+        lockedNote={<>To change it, <Link className="text-primary underline underline-offset-4" href={view.href}>open the Proposed Story in Proposals</Link>.</>}
         onDecide={(choice, extras) => onDecide(draftId, choice, extras)}
         placeholder="Why? Optional. Your note teaches the AI."
       />
