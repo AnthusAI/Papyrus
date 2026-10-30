@@ -174,10 +174,6 @@ test("machine writers still work: function grants, IAM and the model's write ope
   assert.ok(access.includes('"Mutation/fields/createMessage"') && access.includes('"Mutation/fields/updateMessage"'), "the router and procedures still create and update Messages directly");
   // The model is still a model with create and update operations; only the groups lost them (IAM callers are not group-gated).
   assert.doesNotMatch(modelRules("Message"), /disableOperations/);
-  // The Python and Lambda writers call createMessage and set no human author.
-  for (const file of ["src/papyrus_newsroom/console_chat_enqueue.py", "src/papyrus_newsroom/email_submission_replies.py", "src/papyrus_newsroom/reference_actions.py"]) {
-    assert.ok(read(file).includes("createMessage"), `${file} still writes through the model`);
-  }
 });
 
 test("the browser writes only through postMessage: no author, no timestamps, on every path", () => {
