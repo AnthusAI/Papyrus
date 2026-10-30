@@ -131,6 +131,7 @@ from .relations_commands import relations_backfill, relations_import_types
 from .references_commands import (
     references_attach_extracted_text,
     references_backfill_corpus_storage_paths,
+    references_backfill_feed_keys,
     references_backfill_reviewed_feed_key,
     references_create_doi_backfill_assignment,
     references_create_identifier_backfill_assignment,
@@ -307,6 +308,7 @@ PORTED_COMMANDS = frozenset(
         "references:prove-priming-cross-validated",
         "references:prove-site-sections",
         "references:backfill-reviewed-feed-key",
+        "references:backfill-feed-keys",
         "references:backfill-corpus-storage-paths",
         "assignments:list",
         "assignments:create-research",
@@ -672,6 +674,8 @@ def dispatch(group: str, command: str, flags: list[str]) -> None:
         references_prove_site_sections(flags)
     elif route == "references:backfill-reviewed-feed-key":
         references_backfill_reviewed_feed_key(flags)
+    elif route == "references:backfill-feed-keys":
+        references_backfill_feed_keys(flags)
     elif route == "references:backfill-corpus-storage-paths":
         references_backfill_corpus_storage_paths(flags)
     elif route == "assignments:list":

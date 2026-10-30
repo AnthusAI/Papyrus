@@ -300,6 +300,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                 provenance = {**provenance, "sample": {key: sample[key] for key in (
                     "policy", "seed", "poolFingerprint", "selectionFingerprint") if key in sample}}
             auto_reject_gate = _auto_reject_gate(client, plan, corpus_id, now())
+            predicted: list[tuple[dict[str, Any], dict[str, Any]]] = []
             for reference in pending:
                 if decisions_allowed is not None and result.decided >= decisions_allowed:
                     result.stopped_because = "daily decision cap"
@@ -317,6 +318,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                     positive_label=plan.definition.classifiers[0].positive_label, now=now(), current_relations=current,
                     question=plan.definition.classifiers[0].question, labels=plan.definition.classifiers[0].labels,
                     review_control=plan.review_control, provenance=provenance))
+                predicted.append((reference, decision.to_json()))
                 result.decided += 1
             classifier = plan.definition.classifiers[0].id
             result.status = cyclotron.status(classifier).to_json()
@@ -328,6 +330,7 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
                 records.append(usage_record(plan.definition.id, day=today,
                                             decisions=already_decided_today + result.decided, now=now()))
             _apply(client, records)
+            _record_original_predictions(client, plan, predicted, now())
             if snapshots and snapshot_uri:
                 with tempfile.TemporaryDirectory() as scratch:
                     archive = Path(scratch) / SNAPSHOT_NAME
@@ -338,6 +341,19 @@ def run_decide_relevance(client, steering_config: Mapping[str, Any], doctrine, *
     finally:
         lease.release()
     return result
+
+
+def _record_original_predictions(client, plan, predicted: list[tuple[dict[str, Any], dict[str, Any]]], decided_at: str) -> None:
+    """Write each decided Reference's first prediction onto it (src/papyrus_content/reference_feed_keys.py); a Reference that has one keeps it."""
+    from .reference_feed_keys import original_prediction_fields
+    positive_label = plan.definition.classifiers[0].positive_label
+    for reference, decision in predicted:
+        (_, outcome), = decision["classifiers"].items()
+        current = client.get_record("Reference", reference["id"])
+        fields = original_prediction_fields(current, label=outcome["label"], positive_label=positive_label,
+                                            confidence=outcome.get("confidence"), decided_at=decision.get("createdAt") or decided_at) if current else {}
+        if fields:
+            client.update_record("Reference", {"id": reference["id"], **fields})
 
 
 def _sampled(client, pending: list[dict[str, Any]], corpus_id: str, size: int | None, seed: str | None,

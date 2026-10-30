@@ -93,26 +93,35 @@ async function main() {
   });
   const current = () => table("Reference").get(referenceId)!;
   // A vote is recorded on the Reference itself, so its details are read from the Reference right after the call.
-  const vote = () => ({ actorKind: current().curationActorKind, reasonCode: current().curationReasonCode,
+  const voteOnReference = () => ({ actorKind: current().curationActorKind, reasonCode: current().curationReasonCode,
     decisionRelationId: current().curationDecisionRelationId, shareable: current().curationShareable });
   table("Reference").set(referenceId, { id: referenceId, lineageId: "reference-fixture", versionNumber: 1,
-    versionState: "current", corpusId: "corpus-fixture", title: "Synthetic source", curationStatus: "pending" });
+    versionState: "current", corpusId: "corpus-fixture", title: "Synthetic source", curationStatus: "pending",
+    feedStateKey: "corpus-fixture#unrated", predictedAcceptProbability: 0.73, predictionDecidedAt: "2026-10-28T09:00:00.000Z",
+    feedArrivalAt: "2026-10-28T08:00:00.000Z", predictionSortKey: `0.730000#2026-10-28T08:00:00.000Z#${referenceId}` });
 
   const accepted = await invoke({ action: "accept", note: "   " });
   assert.equal(accepted.ok, true);
   assert.equal(current().curationStatus, "accepted");
+  assert.equal(current().feedStateKey, "corpus-fixture#rated", "a vote moves the Reference from the unrated feed to the rated feed");
+  assert.equal(current().predictedAcceptProbability, 0.73, "a vote leaves the original prediction alone");
+  assert.equal(current().predictionSortKey, `0.730000#2026-10-28T08:00:00.000Z#${referenceId}`, "and the Best bets key");
+  const vote = writes.find((write) => write.model === "Reference" && write.operation === "update")!.input;
+  for (const untouched of ["predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "feedArrivalAt"]) {
+    assert.ok(!Object.hasOwn(vote, untouched), `a vote does not write ${untouched}`);
+  }
   assert.equal(current().curationStatusReason, null, "blank explanation is optional and persists as null");
-  assert.equal(vote().actorKind, "human");
+  assert.equal(voteOnReference().actorKind, "human");
   assert.equal(table("Message").size + table("SemanticRelation").size, 0, "Messages come only from people: a vote writes no Message and no relation");
 
   const explained = await invoke({ action: "accept", note: "  Useful context.  ", decisionRelationId: "prediction-fixture", shareable: false });
   assert.equal(current().curationStatusReason, "Useful context.");
-  assert.equal(vote().decisionRelationId, "prediction-fixture");
-  assert.equal(vote().shareable, false);
+  assert.equal(voteOnReference().decisionRelationId, "prediction-fixture");
+  assert.equal(voteOnReference().shareable, false);
   assert.equal(explained.ok, true);
   await invoke({ action: "accept", note: "again" });
-  assert.equal(vote().decisionRelationId, null, "a later vote replaces the details of the earlier one");
-  assert.equal(vote().shareable, null);
+  assert.equal(voteOnReference().decisionRelationId, null, "a later vote replaces the details of the earlier one");
+  assert.equal(voteOnReference().shareable, null);
 
   await invoke({ action: "accept", note: "" });
   assert.equal(current().curationStatusReason, null, "clearing a saved explanation is persisted");
@@ -125,7 +134,16 @@ async function main() {
   assert.equal(current().curationStatus, "rejected");
   assert.equal(current().curationStatusReason, null, "a reason code alone needs no written explanation");
   assert.equal(rejected.reasonCode, "duplicate");
-  assert.equal(vote().reasonCode, "duplicate");
+  assert.equal(voteOnReference().reasonCode, "duplicate");
+  assert.equal(current().feedStateKey, "corpus-fixture#rated", "a rejection is a rating too");
+  const reopened = await invoke({ action: "reopen" });
+  assert.equal(reopened.status, "pending");
+  assert.equal(current().feedStateKey, "corpus-fixture#unrated", "reopening puts the Reference back in the unrated feed");
+  assert.equal(current().predictedAcceptProbability, 0.73);
+  const archived = await invoke({ action: "archive" });
+  assert.equal(archived.status, "archived");
+  assert.equal(current().feedStateKey, null, "an archived Reference is in no feed");
+  await invoke({ action: "reject", reasonCode: "duplicate" });
   await invoke({ action: "reject", reasonCode: "out_of_scope", note: "Different coverage." });
   assert.equal(current().curationStatusReason, "Different coverage.");
 
@@ -135,7 +153,7 @@ async function main() {
   assert.equal(current().curationStatus, "rejected");
   assert.equal(current().curationStatusReason, "Out of scope for this publication.", "the words are kept verbatim");
   assert.equal(written.reasonCode, "out_of_scope");
-  assert.equal(vote().reasonCode, "out_of_scope", "the Reference carries the read code");
+  assert.equal(voteOnReference().reasonCode, "out_of_scope", "the Reference carries the read code");
   assert.equal((await invoke({ action: "reject", note: "Excluded by our policy on vendor blogs." })).reasonCode, "policy_exclusion");
   assert.equal((await invoke({ action: "reject", note: "Already have it, and off our beat anyway." })).reasonCode, "duplicate",
     "a mechanical reason wins over scope, so no false training negative is recorded");
@@ -156,7 +174,7 @@ async function main() {
   const service = await invoke({ action: "accept", actorSub: "claimed-editor", actorLabel: "Claimed editor", actorKind: "human" },
     { userArn: "arn:aws:sts::123456789012:assumed-role/fixture-agent/session" });
   assert.equal(service.ok, true);
-  assert.equal(vote().actorKind, "agent");
+  assert.equal(voteOnReference().actorKind, "agent");
   assert.equal(current().curationDelegation, null, "no delegation is invented");
 
   // The typed schema keeps the same declared authorization as the deployed schema.
