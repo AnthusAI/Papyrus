@@ -155,7 +155,7 @@ status; it does not execute inline curation stages.
 `references register-catalog` is the canonical bridge from corpus accession
 files into Papyrus workflow state. In default apply mode, it creates a
 `KnowledgeImportRun`, sanitized `KnowledgeRawPayload`, `Reference` and
-`ReferenceAttachment` records, ingestion-rationale `Message` rows, workflow
+`ReferenceAttachment` records, workflow
 `SemanticRelation` links, and one open `curation.reference-intake` `Assignment`
 per pending reference. The filesystem catalog is not the queue after
 registration; pending references and assignments are.

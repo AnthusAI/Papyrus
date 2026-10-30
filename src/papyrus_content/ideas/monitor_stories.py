@@ -1,8 +1,8 @@
 """Monitor stories: the items a site's monitors find, written up as cited story drafts (docs/idea-pipeline.md#monitor-stories).
 
 A monitor (docs/monitoring-cloud.md) delivers pending ``Reference`` rows into the site's canonical knowledge corpus, whatever its source:
-Hacker News, the Hugging Face Hub, an email submission. Each has a provenance Message linked by an ``ingestion_rationale`` relation whose
-metadata names the monitor (``monitorId``) and may carry the source's structured ``details``. This module picks the few most worth
+Hacker News, the Hugging Face Hub, an email submission. Each Reference records its monitor (``discoveredByMonitorId``)
+and may carry the source's structured ``discoveryDetails``; no Message is written (Messages come only from people). This module picks the few most worth
 writing about and drafts one short story per item. Nothing in it names a source.
 
 The flow is read, rank, fetch, one model call per item, a deterministic citation check, then a ``story_draft`` Proposal in state ``draft``.
@@ -42,7 +42,7 @@ from typing import Any
 from .. import link_exploration
 from ..categories_steering import semantic_state_key
 from ..link_exploration import Context, Exploration
-from ..knowledge_snapshot.monitor_records import RATIONALE_PREDICATE, _details_from_relations
+from ..knowledge_snapshot.monitor_records import discovery_details, discovery_monitor_id
 from ..monitor_promotion import promoted_reference_ids
 from . import dedupe, synthesis, trends
 from .digest import CORPUS_PREFIX, collect_references, iso, parse_time, parse_window, relations_of, relevance_of
@@ -138,23 +138,6 @@ class MonitoredItem:
         }
 
 
-def monitor_of(relations: list[dict[str, Any]]) -> str | None:
-    """The monitor that delivered a Reference: ``monitorId`` of the newest current provenance relation that names one."""
-    found: list[tuple[str, str]] = []
-    for relation in relations:
-        if relation.get("predicate") != RATIONALE_PREDICATE or relation.get("relationState", "current") != "current":
-            continue
-        metadata = relation.get("metadata")
-        if isinstance(metadata, str):
-            try:
-                metadata = json.loads(metadata)
-            except ValueError:
-                continue
-        if isinstance(metadata, dict) and str(metadata.get("monitorId") or "").strip():
-            found.append((str(relation.get("importedAt") or relation.get("createdAt") or ""), str(metadata["monitorId"]).strip()))
-    return max(found)[1] if found else None
-
-
 def has_based_on_story(relations: Iterable[dict[str, Any]]) -> bool:
     """True when a story (an item) is linked to the Reference with the ``uses_evidence`` relation in the role ``based_on``: someone or something already wrote it up."""
     for relation in relations:
@@ -239,7 +222,7 @@ def collect_monitored_items(
         reader = connection()
         lineage = row.get("lineageId") or row["id"]
         incoming = list(reader.list_semantic_relations_by_object_state(semantic_state_key("reference", lineage)))
-        monitor = monitor_of(incoming)
+        monitor = discovery_monitor_id(row)
         if monitor is None or not row.get("sourceUri"):
             return "notMonitored", None
         if handled & {str(row["id"]), str(lineage)}:
@@ -249,7 +232,7 @@ def collect_monitored_items(
         item = MonitoredItem(
             reference_id=row["id"], lineage_id=lineage, title=str(row.get("title") or row["sourceUri"]).strip(), url=str(row["sourceUri"]),
             arrived_at=str(row.get("createdAt") or ""), published_at=str(row.get("sourcePublishedAt") or "") or None, monitor_id=monitor,
-            status=str(row.get("curationStatus") or "pending"), details=_details_from_relations(incoming),
+            status=str(row.get("curationStatus") or "pending"), details=discovery_details(row),
             verdict=None if lineage in drafted else relevance_of(relations_of(reader, row)),
             curated_at=str(row.get("curationStatusUpdatedAt") or "") or None,
             curated_by=str(row.get("curationStatusUpdatedBy") or "") or None,

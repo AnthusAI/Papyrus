@@ -740,7 +740,7 @@ def test_delivery_carries_the_models_structured_fields_into_the_provenance(monke
 
         def __call__(self, item, provenance):
             captured.update(item=item, provenance=provenance)
-            return {"referenceId": "reference-1", "referenceLineageId": "reference", "provenanceMessageId": "m"}
+            return {"referenceId": "reference-1", "referenceLineageId": "reference"}
 
     monkeypatch.setattr(monitoring_intake, "ReferenceIntake", RecordingIntake)
     table = collected()

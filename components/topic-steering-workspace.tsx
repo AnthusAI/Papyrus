@@ -15967,8 +15967,8 @@ function CategorySetPanel({
             <dd>{referenceAttachments.length}</dd>
           </div>
           <div>
-            <dt>Ingestion Rationales</dt>
-            <dd>{messages.filter((message) => message.messageKind === "ingestion_rationale").length}</dd>
+            <dt>Monitor Deliveries</dt>
+            <dd>{references.filter((reference) => Boolean(reference.discoveredByMonitorId)).length}</dd>
           </div>
           <div>
             <dt>Review Links</dt>

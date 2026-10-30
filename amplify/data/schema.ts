@@ -1592,6 +1592,9 @@ const definitions = {
       curationDecisionRelationId: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
+      discoveredByMonitorId: a.string(),
+      discoveryDetails: a.json(),
+      discoveryRule: a.json(),
       // The References page reads the feed through two indexes (docs/reference-feed-indexes.md). `feedStateKey` is
       // "<corpusId>#unrated" or "<corpusId>#rated" for a current, not archived Reference (null otherwise: it is in no feed).
       // `predictionSortKey` orders Best bets, `feedArrivalAt` orders Newest. The prediction is the Cyclotron's ORIGINAL
@@ -1613,6 +1616,7 @@ const definitions = {
       index("curationStatus").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusAndUpdatedAt"),
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
       index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
+      index("discoveredByMonitorId").sortKeys(["createdAt"]).queryField("listReferencesByMonitorAndCreatedAt"),
       index("feedStateKey").sortKeys(["predictionSortKey"]).queryField("listReferencesByFeedStateAndPrediction"),
       index("feedStateKey").sortKeys(["feedArrivalAt"]).queryField("listReferencesByFeedStateAndArrival"),
     ])
