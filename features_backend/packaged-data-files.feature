@@ -28,7 +28,7 @@ Feature: The PyPI wheel carries the data files the commands read at run time
 
   Scenario: The wheel depends on the exact shared login library release
     Given the wheel built from this checkout
-    Then the wheel requires cli-login at exactly version 0.1.0, with the Linux extra on Linux
+    Then the wheel requires cli-login at exactly version 0.3.0, with the Linux extra on Linux
 
   Scenario: Code that Lambda functions run works without the login library
     The Lambda bundles ship papyrus_content but not cli-login, which only the CLI

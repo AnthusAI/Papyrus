@@ -52,6 +52,12 @@ export type CmsConfig = {
    * `prospectusAccountsApiStageArn`; docs/reader-steering.md).
    */
   readerRetirementPoll?: boolean;
+  /**
+   * Switch on `papyrus login --remote` for this site's production branch (docs/cli-login.md). The stack then sets
+   * `PAPYRUS_ENABLE_CLI_REMOTE_LOGIN` and `PAPYRUS_CLI_INVOKER_ROLE_ARN` (this app's compute role, the only principal
+   * allowed to invoke the approval pages function) on the branch. Off when absent: the branch is unchanged.
+   */
+  cliRemoteLogin?: boolean;
   deployStackInBuild?: boolean;
 };
 
@@ -184,7 +190,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", "PAPYRUS_CLI_INVOKER_ROLE_ARN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -429,7 +435,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "deployStackInBuild"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -445,6 +451,9 @@ function parseCms(value: unknown): CmsConfig {
   }
   if (cmsRecord.readerRetirementPoll === true && cmsRecord.prospectusAccountsApiStageArn === undefined) {
     fail("cms.readerRetirementPoll", "requires cms.prospectusAccountsApiStageArn: the poll calls Prospectus as the site");
+  }
+  if (cmsRecord.cliRemoteLogin !== undefined && typeof cmsRecord.cliRemoteLogin !== "boolean") {
+    fail("cms.cliRemoteLogin", `must be a boolean, got ${JSON.stringify(cmsRecord.cliRemoteLogin)}`);
   }
   if (cmsRecord.deployStackInBuild !== undefined && typeof cmsRecord.deployStackInBuild !== "boolean") {
     fail("cms.deployStackInBuild", `must be a boolean, got ${JSON.stringify(cmsRecord.deployStackInBuild)}`);
@@ -469,6 +478,7 @@ function parseCms(value: unknown): CmsConfig {
     redirects: parseRedirects(cmsRecord.redirects),
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
     readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
+    cliRemoteLogin: cmsRecord.cliRemoteLogin as boolean | undefined,
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
     prospectusAccountsApiStageArn: optionalString(
       cmsRecord.prospectusAccountsApiStageArn,

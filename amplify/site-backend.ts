@@ -27,6 +27,9 @@ import {
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient } from "./auth/prospectus-google-client";
+import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
+import { addCliRemoteLogin, planCliRemoteLogin } from "./cli-login/remote-login";
+import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { editorialChecks } from "./functions/editorial-checks/resource";
 import { automationView } from "./functions/automation-view/resource";
@@ -118,11 +121,16 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const plugins = resolvePlugins(site.plugins);
   const pluginDefinitions = Object.assign({}, ...plugins.map(({ plugin }) => plugin.schemaDefinitions()));
   const pluginFunctions: Record<never, never> = Object.assign({}, ...plugins.map(({ plugin }) => plugin.functions()));
+  // Off unless the site turns it on; then it needs the site's origin and compute role (see amplify/cli-login/remote-login.ts).
+  const cliRemoteLoginPlan = planCliRemoteLogin(featureFlags.cliRemoteLogin, process.env);
+  if (cliRemoteLoginPlan && authConfig.disableGoogleOAuth === true) {
+    throw new Error("Remote CLI login signs in through the Cognito hosted UI with Google, so it cannot be enabled when Google sign-in is disabled.");
+  }
   const backend = defineBackend({
     ...pluginFunctions,
     assignmentAction,
     automationView,
-    auth: defineSiteAuth(authConfig),
+    auth: defineSiteAuth(authConfig, cliRemoteLoginPlan ? [cliRemoteLoginPlan.callbackUri] : []),
     categoryAction,
     contentActions,
     editorialChecks,
@@ -165,6 +173,18 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const prospectusGoogleOnlyClient = authConfig.disableGoogleOAuth === true
     ? undefined
     : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig));
+
+  const cliRemoteLogin = cliRemoteLoginPlan
+    ? addCliRemoteLogin(backend.createStack("CliRemoteLogin"), {
+        plan: cliRemoteLoginPlan,
+        clientId: backend.auth.resources.userPoolClient.userPoolClientId,
+        graphqlEndpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
+        authorizeEndpoint: cognitoAuthorizeEndpoint(backend.auth.stack),
+        product: `Papyrus (${new URL(cliRemoteLoginPlan.origin).host})`,
+        brokerCode: cliLoginBrokerCode(),
+        pagesCode: cliLoginPagesCode(),
+      })
+    : undefined;
 
   const amplifyBackendDir = dirname(fileURLToPath(import.meta.url));
   // Repo root in a Papyrus checkout; package root when installed from npm.
@@ -743,6 +763,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         s3ProjectionPublication !== undefined
           ? { kind: "s3-projection", contentActionsFunction: contentActionsLambda.functionName }
           : null,
+      // Only a site that turned remote CLI login on gets this key; `papyrus-cli.json` then publishes the broker.
+      ...(cliRemoteLogin
+        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn } }
+        : {}),
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,
