@@ -437,19 +437,34 @@ publication stores no policy, never a failure) and records a receipt.
 decision receipt and delivers (see below). The dry-run receipt also records that request under
 `dryRun.combined`.
 
+### The decision contract
+
+The router speaks Cyclotron's decision contract, `cyclotron-decision/v1`, in which Cyclotron names bindings,
+callers and reviewers rather than publications and editors. A publication's binding is still configured here by its
+`publicationId`; that id is the binding id Cyclotron sees. A story for one publication goes to
+`POST /machine/bindings/{publicationId}/operations` and is polled at `GET /machine/bindings/{publicationId}/commands/{jobId}`;
+a story for several goes to `POST /machine/decisions`. Answers name the binding as `bindingId`, and a combined
+receipt maps each binding to its answer under `decisions`.
+
+A combined job posted before the router switched still answers in `cyclotron-publication/v1` (Cyclotron answers a
+combined job in the contract it was posted in), and so does its decision-ready event. The router reads those answers
+in the decision contract's names (`publicationId` as `bindingId`, `publications` as `decisions`, or as `bindings` in an
+event), so an older job is collected like any other and never posted again.
+
 ### One request per story
 
 For each story the router sends `POST /machine/decisions` (SigV4, same principals, `X-Cyclotron-Account`)
 with `{"contractVersion", "requestId", "payload": {"bindings": {"<publication>": "<bindingRevision>", ...}, "item"}}`.
 The bindings are every active publication that has no decision yet and is not parked (a publication
 waiting for a classifier is left out, as the per-publication logic always did). It then checks
-`GET /machine/decisions/{jobId}` (202 while running; see [post first, then collect](#post-first-then-collect)). The 200 body's `publications` maps each publication to
-exactly what `GET /machine/publications/{pub}/commands/{job}` returns, and each is checked and stored as
+`GET /machine/decisions/{jobId}` (202 while running; see [post first, then collect](#post-first-then-collect)). The 200 body's `decisions` maps each binding to
+exactly what `GET /machine/bindings/{pub}/commands/{job}` returns, and each is checked and stored as
 `ROUTE.jobs[pub].checked` by the same code as before, so the `decide_binding` receipts, `route.decision`
 and delivery keep their shape. A story takes one Cyclotron job instead of one per publication.
 
-- `requestId` is `sha256("decisions" \n accountId \n runId \n sorted pub@binding list \n itemId \n revision \n fingerprint [\n attempt-N])`,
-  so a retry of the same story with the same binding set reuses it (Cyclotron's idempotency). The job is
+- `requestId` is `sha256("decisions" \n contractVersion \n accountId \n runId \n sorted pub@binding list \n itemId \n revision \n fingerprint [\n attempt-N])`,
+  so a retry of the same story with the same binding set reuses it (Cyclotron's idempotency). The contract is part
+  of the id because Cyclotron holds a combined request id to the contract it was first sent in. The job is
   stored on the route as `combinedJob` before the POST is sent; an accepted job is resumed by polling only
   and a POST is never repeated.
 - **404** on the POST means this Cyclotron has no combined endpoint yet: the router decides that story, and
@@ -695,8 +710,9 @@ Always, when `mode` is `live` and the monitor's decisions come from Cyclotron (t
 `curationStatusUpdatedBy`. A human curator is any of `user:<x>` (CLI), the editor's sign-in email (what the
 newsroom UI records), a Cognito username (`google_<digits>`) or a Cognito sub (UUID). A missing actor, the
 worker's own actor and every other machine actor (`ai`, `system:*`, `worker:*`, `papyrus*`, `*-import`, the
-"Papyrus newsroom" fallback) are skipped and the reason recorded on the row. Cyclotron's `editor.subject` is
-free text and must never be an email address, so the subject sent with the configured `site` is:
+"Papyrus newsroom" fallback) are skipped and the reason recorded on the row. The feedback is sent in the
+decision contract: `caller` is the publication's configured `site` and `reviewer` names who voted. Cyclotron stores
+the reviewer as free text, and it must never be an email address, so the reviewer sent is:
 `user:<x>` as is (when `<x>` is not an email); `cognito:<sub>` for a bare Cognito sub; otherwise
 `editor:` + the first 32 hex characters of `sha256(publicationId + ":" + lowercased actor)`.
 `requestId = sha256(referenceId \n curationStatus \n curationStatusUpdatedAt)`, so repeats are
@@ -805,8 +821,9 @@ its signed GET.
   `arn:aws:iam::682849160744:role/cyclotron-console-worker-runtime`) and only when `events:source` is
   `cyclotron.lab`.
 - **Event**: source `cyclotron.lab`, detail-type `Decision Ready`, detail `{contractVersion:
-  "cyclotron-publication/v1", accountId, runId, jobId, requestId, itemId, publications, status:
-  "complete"|"failed"}`. Delivery is at least once; resends are harmless.
+  "cyclotron-decision/v1", accountId, runId, jobId, requestId, itemId, bindings, status:
+  "complete"|"failed"}`. A job posted under `cyclotron-publication/v1` rings in that contract, with
+  `publications` for `bindings`; the router accepts both. Delivery is at least once; resends are harmless.
 - **Rule** `papyrus-monitoring-decision-ready` (state follows `ScheduleState`) invokes the router
   Lambda with the event unchanged, with a small retry policy and the router dead-letter queue.
 - **Handler**: a strictly validated event is accepted; anything malformed is dropped with a log line

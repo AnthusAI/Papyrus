@@ -22,10 +22,38 @@
         "model": "gpt-6",
         "name": "Cloud CLI issue filing"
       }
+    },
+    {
+      "id": "e935358c-02d7-4a44-a2dd-2f6b39d8b5bc",
+      "author": "home",
+      "text": "Plan (Claude, 2026-10-30).\n\nMostly built: refresh-token renewal, transient errors preserving the session, and per-site binding. Remaining:\n- Run the same contract through each new store (PPY-109943) and through remote-login sessions (PPY-5a3624).\n- On invalid_grant, keep deleting the local session, but distinguish revocation or a removed grant (fail closed with recovery guidance) from 429/5xx/network errors (keep the session, bounded retry).\n- Never replay an uncertain protected mutation.\n- Evidence reported in three separate parts: simulated-clock tests; Cognito client settings inspection (refresh validity, rotation); an actual run of 24 hours or more from a cloud session logged in with --remote, with timestamped redacted receipts across a restart.\n",
+      "created_at": "2026-10-30T10:19:59.645420Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "76ac36da-837d-445a-a09d-12a964b304f5",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30), best of both with the Cyclotron plan: record each site client's token settings (access and refresh validity, rotation, revocation) with the plan and again at release, and have logout state that an access token already accepted by the API stays valid until it expires.",
+      "created_at": "2026-10-30T10:37:46.200492Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "3bf2bb16-360d-4e3e-8ecd-124e6bae8961",
+      "author": "home",
+      "text": "Plan update (Claude, 2026-10-30): Ryan approved factoring the CLI login out into a new public AnthusAI repository: a shared Python library (sign-in with PKCE, remote login, the five secure stores, memory agent, per-key locks, renewal, logout), the broker as one deployable (Lambda function URL, DynamoDB TTL table, the /cli/approve and /cli/callback pages, throttling), and language-neutral protocol specs. Papyrus's existing cli_user_auth code moves into it first, keeping its Keychain service name so Mac sessions survive; Papyrus then uses the released library. Products stay separate (own key namespace, client, discovery and sessions). Design: AnthusAI/Cyclotron docs/shared-cli-auth.md (PR #177), moving to the new repository.",
+      "created_at": "2026-10-30T10:44:21.342646Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "47456b49-1b29-40ff-9504-6d121b9a69f9",
+      "author": "home",
+      "text": "Current plan (Claude, 2026-10-30). This supersedes the 2026-10-30 plan comment (from AnthusAI/Papyrus#879) and the earlier comments in AnthusAI/Papyrus#882: follow only this one. The design is AnthusAI/cli-login docs/design.md (public, Ryan's decision 2026-10-30), work tracked on that repository's board. Papyrus's part: its CLI login moves into the shared library anthus_cli_login, keeping Keychain SERVICE 'papyrus-newsroom-oauth' and the per-site keys; the new stores, memory agent and locks are built there; then Papyrus depends on a pinned release. The broker: the CLI calls the broker's function URL directly for /start and /poll (throttled per caller, slow_down); Papyrus serves /cli/approve and /cli/callback on each site's own domain with the library's page handlers and invokes the broker's describe, bind, complete and deny by IAM. Live changes per site (Cognito callback URL, broker deploy, pages, IAM grant) need Ryan's approval.",
+      "created_at": "2026-10-30T10:52:37.550448Z",
+      "comment_type": "default"
     }
   ],
   "created_at": "2026-10-19T10:37:48.586795Z",
-  "updated_at": "2026-10-30T09:28:52.123899Z",
+  "updated_at": "2026-10-30T10:52:37.550662Z",
   "closed_at": null,
   "agent": {
     "platform": "codex",

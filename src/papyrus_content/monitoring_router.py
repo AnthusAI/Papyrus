@@ -77,7 +77,28 @@ from .reference_capture import SHORT_BODY_CHARACTERS
 from .monitoring_huggingface import hf_accepts, validate_rule
 from .monitoring_stories import lambda_story_transport, run_publication as draft_publication_stories, validate_monitor_stories
 
-CONTRACT_VERSION = "cyclotron-publication/v1"
+CONTRACT_VERSION = "cyclotron-decision/v1"   # Cyclotron's neutral contract: bindings, callers and reviewers
+LEGACY_CONTRACT_VERSION = "cyclotron-publication/v1"   # a combined job posted before the switch still answers in it
+
+
+def in_decision_contract(body):
+    """A Cyclotron answer in the decision contract's names. A combined job posted under the publication contract
+    answers in it when polled (and its doorbell rings in it), so those names are mapped: `publicationId` to `bindingId`,
+    the `publications` receipt map to `decisions` and the doorbell's `publications` list to `bindings`."""
+    if not isinstance(body, dict) or body.get("contractVersion") != LEGACY_CONTRACT_VERSION:
+        return body
+    result = {}
+    for key, value in body.items():
+        if key == "contractVersion":
+            value = CONTRACT_VERSION
+        elif key == "publicationId":
+            key = "bindingId"
+        elif key == "publications" and isinstance(value, dict):
+            key, value = "decisions", {name: in_decision_contract(entry) for name, entry in value.items()}
+        elif key == "publications" and isinstance(value, list):
+            key = "bindings"
+        result[key] = value
+    return result
 ROUTER_CONFIG_SK = "CONFIG#router"
 ROUTER_LOCK_SK = "LOCK#router"
 LEASE_SECONDS = 660                    # longer than the 600 s Lambda timeout
@@ -457,7 +478,8 @@ def request_id(account_id: str, run_id: str, publication_id: str, payload: dict,
 
 def combined_request_id(account_id: str, run_id: str, payload: dict, attempt: int = 0) -> str:
     """Content-addressed over the whole POST /machine/decisions payload (sorted bindings map and item incl. values)."""
-    parts = ["decisions", account_id, run_id, canonical_json(payload)]
+    # The contract is part of the id: Cyclotron holds a combined request id to the contract it was first sent in.
+    parts = ["decisions", CONTRACT_VERSION, account_id, run_id, canonical_json(payload)]
     if attempt:
         parts.append(f"attempt-{attempt}")
     return sha256("\n".join(parts).encode()).hexdigest()
@@ -504,7 +526,7 @@ def build_decide_request(config: dict, publication: dict, discovery: dict, attem
                                     payload, attempt),
             "payload": payload}
     validate_request(body)
-    return {"path": f"/machine/publications/{publication['publicationId']}/operations", "body": body}
+    return {"path": f"/machine/bindings/{publication['publicationId']}/operations", "body": body}
 
 
 def build_combined_request(config: dict, publications: list[dict], discovery: dict, attempt: int = 0,
@@ -574,12 +596,11 @@ def validate_request(body: dict) -> None:
                 or not _text_matches(values)):
             raise ValueError("decide item values content")
     elif body["operation"] == "feedback":
-        required = {"bindingRevision", "itemId", "itemRevision", "output", "label", "editor"}
+        required = {"bindingRevision", "itemId", "itemRevision", "output", "label", "caller", "reviewer"}
         if not required <= set(payload) or set(payload) - required - {"comment"}:
             raise ValueError("feedback payload shape")
-        editor = payload["editor"]
-        if not isinstance(editor, dict) or set(editor) != {"site", "subject"} or not all(editor.values()):
-            raise ValueError("feedback editor shape")
+        if not all(isinstance(payload[key], str) and payload[key] for key in ("caller", "reviewer")):
+            raise ValueError("feedback caller and reviewer")
 
 
 # --- Cyclotron machine API ------------------------------------------------------------------------
@@ -713,7 +734,7 @@ class CyclotronClient:
                 self.sleep(self.jitter(*LAB_THROTTLE_WAIT))
         if status < 400:
             self.answered += 1
-        return status, payload
+        return status, in_decision_contract(payload)
 
     def classify(self, status: int, payload: dict) -> Exception:
         code = refusal_code(status, payload)
@@ -748,7 +769,7 @@ class CyclotronClient:
         """Returns (jobId, None) for an accepted job, or (None, completed response) for a synchronous result.
         A POST is never repeated: a transport failure or ambiguous answer raises ItemUncertain."""
         try:
-            status, payload = self._call("POST", f"/machine/publications/{quote(publication_id)}/operations", body)
+            status, payload = self._call("POST", f"/machine/bindings/{quote(publication_id)}/operations", body)
         except (OSError, TimeoutError) as error:
             raise ItemUncertain(f"no answer: {type(error).__name__}") from error
         if status in (200, 201, 202) and isinstance(payload.get("jobId"), str) and payload["jobId"]:
@@ -771,14 +792,14 @@ class CyclotronClient:
             raise ItemUncertain(f"no answer: {type(error).__name__}") from error
         if status in (200, 201, 202) and isinstance(payload.get("jobId"), str) and payload["jobId"]:
             return payload["jobId"], None
-        if status == 200 and isinstance(payload.get("publications"), dict):
+        if status == 200 and isinstance(payload.get("decisions"), dict):
             return None, payload
         if status == 404:
             raise CombinedUnavailable()
         raise self.classify(status, payload)
 
     def poll_combined(self, job_id: str, wait: bool = True) -> dict:
-        """Polls GET /machine/decisions/{jobId}; the 200 body maps each publication to its single receipt.
+        """Polls GET /machine/decisions/{jobId}; the 200 body's `decisions` maps each binding to its single receipt.
         wait=False is one GET: a job that is still running raises JobRunning."""
         deadline = self.clock() + self.config["cyclotron"]["pollSeconds"]
         delay = 1.0
@@ -787,7 +808,7 @@ class CyclotronClient:
                 status, payload = self._call("GET", f"/machine/decisions/{quote(job_id)}", None)
             except (OSError, TimeoutError):
                 status, payload = 0, {}
-            if status == 200 and isinstance(payload.get("publications"), dict):
+            if status == 200 and isinstance(payload.get("decisions"), dict):
                 return payload
             if status == 404:
                 raise JobGone()
@@ -821,7 +842,7 @@ class CyclotronClient:
         delay = 1.0
         while True:
             try:
-                status, payload = self._call("GET", f"/machine/publications/{quote(publication_id)}/commands/{quote(job_id)}", None)
+                status, payload = self._call("GET", f"/machine/bindings/{quote(publication_id)}/commands/{quote(job_id)}", None)
             except (OSError, TimeoutError):
                 status, payload = 0, {}
             if status == 200 and payload.get("decision"):
@@ -847,7 +868,7 @@ class CyclotronClient:
 
     def post_feedback(self, publication_id: str, body: dict):
         try:
-            status, payload = self._call("POST", f"/machine/publications/{quote(publication_id)}/operations", body)
+            status, payload = self._call("POST", f"/machine/bindings/{quote(publication_id)}/operations", body)
         except (OSError, TimeoutError) as error:
             raise ItemUncertain(f"no answer: {type(error).__name__}") from error
         if status == 200 and not payload.get("jobId"):
@@ -861,7 +882,7 @@ class CyclotronClient:
         delay = 1.0
         while True:
             try:
-                status, payload = self._call("GET", f"/machine/publications/{quote(publication_id)}/commands/{quote(job_id)}", None)
+                status, payload = self._call("GET", f"/machine/bindings/{quote(publication_id)}/commands/{quote(job_id)}", None)
             except (OSError, TimeoutError):
                 status, payload = 0, {}
             if status == 200 and not self._transient(status, payload):
@@ -895,13 +916,13 @@ def checked_decision(response: dict, publication: dict, config: dict, item_id: s
         raise ItemInvalid("response has no decisionId")
     if config.get("accountId"):
         expected = {"contractVersion": CONTRACT_VERSION, "accountId": config["accountId"],
-                    "publicationId": publication["publicationId"],
+                    "bindingId": publication["publicationId"],
                     "bindingRevision": config["cyclotron"]["bindingRevision"]}
         if any(response.get(key) != value for key, value in expected.items()) or decision.get("itemId") != item_id:
             raise ItemInvalid("Account-bound response identity mismatch")
     if decision.get("itemId") not in (None, item_id):
         raise ItemInvalid("decision is for a different item")
-    for key, expected in (("publicationId", publication["publicationId"]),
+    for key, expected in (("bindingId", publication["publicationId"]),
                           ("bindingRevision", config["cyclotron"]["bindingRevision"])):
         if response.get(key) not in (None, expected):
             raise ItemInvalid(f"response {key} mismatch")
@@ -1781,7 +1802,7 @@ class Router:
         if response.get("accountId") not in (None, self.config["cyclotron"]["accountId"]) or \
                 response.get("jobId") not in (None, stored["jobId"]):
             raise ItemInvalid("combined response identity mismatch")
-        receipts = response.get("publications") or {}
+        receipts = response.get("decisions") or {}
         jobs = route.setdefault("jobs", {})
         remaining, failure = [], None
         for publication in todo:
@@ -1896,7 +1917,7 @@ class Router:
     def poll_combined_entry(self, pub_id: str, job_id: str) -> dict:
         """One publication's receipt out of a combined job, polled through the route the job was posted to."""
         response = self.cyclotron.poll_combined(job_id, wait=not self.nowait)
-        entry = (response.get("publications") or {}).get(pub_id)
+        entry = (response.get("decisions") or {}).get(pub_id)
         if entry is None:
             raise ItemInvalid("combined receipt has no entry for this publication")
         if not isinstance(entry, dict) or not entry.get("decision"):
@@ -2497,8 +2518,8 @@ class Router:
                 "requestId": sha256("\n".join([row["referenceId"], status, updated_at]).encode()).hexdigest(),
                 "payload": {"bindingRevision": self.config["cyclotron"]["bindingRevision"], "itemId": row["itemId"],
                             "itemRevision": (row.get("source") or {}).get("revision"), "output": row["output"],
-                            "label": label, "editor": {"site": publication["site"],
-                                       "subject": editor_subject(publication["publicationId"], actor)}}}
+                            "label": label, "caller": publication["site"],
+                            "reviewer": editor_subject(publication["publicationId"], actor)}}
         if body["payload"]["itemRevision"] is None:
             self.rotate(row, "decision receipt has no item revision")
             return "skipped"
@@ -2638,14 +2659,14 @@ def is_decision_event(event) -> bool:
 
 def parse_decision_event(event: dict) -> dict | None:
     """The validated detail of a Decision Ready event, or None. Never raises: a bad event is dropped, not retried."""
-    detail = event.get("detail")
+    detail = in_decision_contract(event.get("detail"))
     if event.get("source") != DECISION_SOURCE or event.get("detail-type") != DECISION_DETAIL_TYPE or not isinstance(detail, dict):
         return None
     if detail.get("contractVersion") != CONTRACT_VERSION or detail.get("status") not in ("complete", "failed"):
         return None
     if any(not isinstance(detail.get(key), str) or not detail[key].strip() for key in DECISION_FIELDS):
         return None
-    if not isinstance(detail.get("publications"), list):
+    if not isinstance(detail.get("bindings"), list):
         return None
     return detail
 

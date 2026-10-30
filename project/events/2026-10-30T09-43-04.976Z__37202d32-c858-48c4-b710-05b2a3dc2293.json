@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "37202d32-c858-48c4-b710-05b2a3dc2293",
+  "issue_id": "PPY-5707068e-d59e-42cd-9117-8d3937582415",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-30T09:43:04.976Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "The monitoring router speaks Cyclotron's decision contract",
+    "description": "Cyclotron step 3 (docs/general-decision-engine.md in AnthusAI/Cyclotron): the router calls /machine/bindings/{id}/operations and /commands/{job}, sends contractVersion cyclotron-decision/v1, reads bindingId and the decisions map, and sends feedback as caller/reviewer instead of editor {site, subject}. Papyrus's own config keeps publicationId. The curation host and routing selection client stay on cyclotron-publication/v1 until Cyclotron gives its curation routes a neutral form.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}

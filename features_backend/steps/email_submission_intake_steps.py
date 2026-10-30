@@ -280,7 +280,7 @@ def cyclotron_selection_stays_in_destination(context):
     allowed = {"publication", "second"}
     assert result["counts"]["delivered"] == 4
     assert delivered and {entry[0]["publicationId"] for entry in delivered} <= allowed
-    assert model.posts() and all(any(f"/publications/{pub}/" in row[1] for pub in allowed)
+    assert model.posts() and all(any(f"/bindings/{pub}/" in row[1] for pub in allowed)
                                  for row in model.posts())
 
 
