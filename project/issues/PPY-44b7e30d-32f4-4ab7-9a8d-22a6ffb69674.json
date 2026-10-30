@@ -1,0 +1,28 @@
+{
+  "id": "PPY-44b7e30d-32f4-4ab7-9a8d-22a6ffb69674",
+  "title": "Sites cannot deploy 5.59.0: message resolver entries are relative paths",
+  "description": "",
+  "type": "bug",
+  "status": "in_progress",
+  "priority": 0,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [
+    {
+      "id": "0e2cdb72-1481-4c8a-94cb-f1d7557da215",
+      "author": "home",
+      "text": "All 7 site deploys of 5.59.0 failed at BUILD with UnresolvedEntryPathError for ./resolvers/post-message.js: a site loads amplify/data/message-actions from node_modules through tsx, the call-site URL carries ?tsx-namespace=..., and Amplify cannot resolve a relative entry from it. Sites stayed on 5.58.0. Fix: absolute entries via fileURLToPath(new URL(entry, import.meta.url)); test in scripts/test-message-author-enforced.ts plus a scenario in features/message-author-enforced.feature.",
+      "created_at": "2026-10-30T13:23:54.591720Z",
+      "comment_type": "default"
+    }
+  ],
+  "created_at": "2026-10-30T13:23:54.530535Z",
+  "updated_at": "2026-10-30T13:23:54.648303Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

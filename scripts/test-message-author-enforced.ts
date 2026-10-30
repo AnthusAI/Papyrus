@@ -4,15 +4,16 @@
  * records the DynamoDB operation each would send. Nothing is deployed and nothing touches AWS.
  */
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { test } from "node:test";
+import { resolverEntry } from "../amplify/data/message-actions";
 import { schema } from "../amplify/data/schema";
 import { postMessageArguments, postMessageMutation } from "../lib/post-message";
 
 const root = join(import.meta.dirname, "..");
 const read = (file: string) => readFileSync(join(root, file), "utf8");
-const transformed = (schema as unknown as { transform: () => { schema: string; jsFunctions: Array<{ typeName: string; fieldName: string; handlers: Array<{ dataSource: string; entry: { relativePath: string } }> }> } }).transform();
+const transformed = (schema as unknown as { transform: () => { schema: string; jsFunctions: Array<{ typeName: string; fieldName: string; handlers: Array<{ dataSource: string; entry: string | { relativePath: string } }> }> } }).transform();
 
 function modelBlock(model: string): string {
   const start = transformed.schema.indexOf(`type ${model} @model`);
@@ -195,4 +196,18 @@ test("the browser writes only through postMessage: no author, no timestamps, on 
   assert.match(chat, /postMessageMutation\(args, selectionSet\)/, "console chat user turns");
   assert.doesNotMatch(chat, /createMessage\(input/, "no createMessage from the console chat client");
   assert.doesNotMatch(chat, /authorSub:/, "and no author named");
+});
+
+test("every message resolver is found by an absolute path, also when a site loads the schema from the package", () => {
+  // A site loads amplify/data from node_modules through a loader whose call sites carry a query (`?tsx-namespace=...`).
+  // Amplify cannot resolve a relative entry from such a call site, so each entry must already be an absolute file path.
+  for (const fn of transformed.jsFunctions) {
+    const entry = fn.handlers[0].entry;
+    assert.equal(typeof entry, "string", `${fn.fieldName} names its resolver by absolute path, not a relative one`);
+    assert.ok(isAbsolute(entry as string) && existsSync(entry as string), `${fn.fieldName}: ${entry} exists`);
+  }
+  const fromPackage = new URL("file:///site/node_modules/@anthusai/papyrus/amplify/data/message-actions.js?tsx-namespace=1");
+  assert.equal(new URL("./resolvers/post-message.js", fromPackage).pathname, "/site/node_modules/@anthusai/papyrus/amplify/data/resolvers/post-message.js",
+    "resolving against a loader URL drops its query and keeps the package directory");
+  assert.equal(resolverEntry("./resolvers/post-message.js"), join(root, "amplify/data/resolvers/post-message.js"));
 });
