@@ -238,13 +238,12 @@ The weekly cloud knowledge run can run this command after it publishes the snaps
 ## Monitor stories
 
 `papyrus ideas monitor-stories` writes about the items a site's **monitors** found ([monitoring in the cloud](monitoring-cloud.md)). A monitor
-delivers pending `Reference`s into the site's canonical knowledge corpus (`knowledge-corpus-<site>`), each with a provenance Message linked by an
-`ingestion_rationale` relation whose metadata names the monitor (`monitorId`: `hn`, `huggingface`, an email intake) and may carry the source's
-structured `details`. Most of what arrives is never written about. This command picks the few most worth a story and files one cited draft for each.
+delivers pending `Reference`s into the site's canonical knowledge corpus (`knowledge-corpus-<site>`), each recording its monitor on the Reference
+(`discoveredByMonitorId`: `hn`, `huggingface`, an email intake) and, where the source has them, the source's structured `discoveryDetails`. Most of what arrives is never written about. This command picks the few most worth a story and files one cited draft for each.
 It is the same for every monitor: no source is named in the code, so a new site with any monitoring source uses it by configuration alone.
 
 1. **Read.** Every Reference of the site, however old (there is no default window; `--since` is an optional filter and the cloud step passes none; the index is paged to the end), **accepted** (by an editor, or automatically: [automatic acceptance](monitoring-cloud.md#automatic-acceptance)). Pending References are left out and counted as `notAccepted` in the run record; `--status accepted,pending` reads them too, and a rejected one is never read. The cloud step uses the default,
-   that a monitor delivered (a Reference with no `monitorId` provenance is not a monitored item), that no item carries yet (a promoted record,
+   that a monitor delivered (a Reference with no `discoveredByMonitorId` is not a monitored item), that no item carries yet (a promoted record,
    [monitoring-cloud.md](monitoring-cloud.md#promoting-a-record-to-an-item)) and that no earlier draft cites. A Reference the relevance Cyclotron judged *not*
    relevant is left out. The run record counts each kind left out. Reading costs two indexed queries per Reference (its provenance, then its decision; the decision is skipped for a Reference an earlier draft already cites) on one connection, so a corpus of a few thousand References takes minutes, not seconds.
 2. **Rank.** The source-agnostic signal is the Cyclotron's verdict, which the router records per delivered item as a `relevance_decision_is`

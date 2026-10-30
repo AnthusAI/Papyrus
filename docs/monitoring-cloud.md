@@ -71,8 +71,7 @@ its `relevance_decision_is` fields in `RouterDecisionRelationPolicy`), but no ro
 adds a `shipped` publication only once Cyclotron r3 adds the publication `shipped` with output `shipped-relevance`.
 
 **Lab decisions in the References tab.** When the router delivers a Cyclotron lab decision it also writes a
-`relevance_decision_is` relation for the Reference, in the same persist batch as the Reference and its provenance
-Message, so the Suggestion row, Agree/Overrule and status read it like a sweep decision. `metadata.cyclotronId` and
+`relevance_decision_is` relation for the Reference, in the same persist batch as the Reference, so the Suggestion row, Agree/Overrule and status read it like a sweep decision. `metadata.cyclotronId` and
 `classifierId` name the lab output (`<publication>-relevance`); `metadata.provenance` records account, run, binding
 revision, decision id, fingerprint and version. Any current decision relation for the Reference is superseded; the
 relation id derives from the decision id, so re-delivering the same decision writes nothing. Cost per item: one
@@ -220,11 +219,11 @@ with `reason: "excluded by the monitor's rule"` and delivered nowhere; in a dry 
 The rule is evaluated once, on the first collected revision. It is allowed only with `direct`, so it can stand in
 until Cyclotron criteria exist; `cyclotron` routing also works, and sends `values.source: "huggingface"` (the Cyclotron
 machine API must accept that source). The delivered Reference's rationale line carries the pipeline tag, license, likes
-and base models, and the provenance Message body carries the whole `details` map.
+and base models, and the Reference holds the whole `details` map in `discoveryDetails`.
 
 ### Feeding the Knowledge Map
 
-Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in entities (the model, its maker, licence and task) and weekly trends (not in topic-model clusters), and imports `baseModels` as `built_on` relations with the Hub card as evidence. To make that possible without downloading each provenance Message, the router now also writes the model's structured `details` into the `metadata` of the `ingestion_rationale` relation that links the provenance Message to the Reference (a model delivered before this change is still counted, with its title, date and author only). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
+Delivered models are References, so they stay out of the evidence sets until a person accepts them, and they never become pages. A site that wants them in its weekly Knowledge Map **as data** sets `monitorSources: ["huggingface"]` in the `knowledgeRun` block of its `infra/site.json` ([knowledge-cloud-run.md](knowledge-cloud-run.md#monitor-records-optional-off-by-default)). The next knowledge run then counts every delivered model that is not rejected, dated by its `createdAt`, in entities (the model, its maker, licence and task) and weekly trends (not in topic-model clusters), and imports `baseModels` as `built_on` relations with the Hub card as evidence. Messages come only from people, so a delivery writes no provenance Message and no `ingestion_rationale` relation. The router records the delivering monitor in the Reference's `discoveredByMonitorId` (indexed: `listReferencesByMonitorAndCreatedAt`), the model's structured `details` in `discoveryDetails`, and, for a rule monitor, `{"system": "direct", "rule": ...}` in `discoveryRule`. A Reference that several monitors find keeps the first monitor; a new revision of the same source item refreshes the details. A model delivered before this change is counted with its title, date and author only until `papyrus references backfill-monitor-deliveries` copies the old relation's facts onto the Reference (`--dry-run` prints the counts and writes nothing). Backfill the year you want counted before the first run; a record's weekly history is its release week, not its delivery week.
 
 ### Promoting a record to an item
 
@@ -670,8 +669,7 @@ imports and subpackages). With `ENRICHMENT_BUCKET` unset the router behaves exac
 
 For each positive publication the router runs the existing `ReferenceIntake` over IAM-signed
 AppSync: a `pending` Reference (never an upsert, so human curation is never reset), plus the
-provenance Message whose body holds the Cyclotron decision (`decisionId`, `output`, `label`,
-`fingerprint`, `version`, account, run, binding revision, "machine decision"). The
+`discoveredByMonitorId` (and `discoveryDetails`, `discoveryRule` where the source has them) on the Reference. No provenance Message is written (Messages come only from people); the Cyclotron decision lives in the `relevance_decision_is` relation. The
 Reference's rationale line ends with the decision so editors see it in the queue. Delivered
 flags, attempts and errors are kept per publication per item; one failing backend never loses
 the others, and a rerun skips what is already delivered. The publication needs exactly one
@@ -728,7 +726,7 @@ All three keys are optional; with no block, or with `{}`, it runs with those def
 * **Feedback.** `auto:cyclotron` is not a person, so [Feedback](#feedback) skips it. An editor who later Rejects or re-Accepts the Reference replaces the actor, and that vote is sent like any other.
 * **Monitors that deliver by a fixed rule** (`decisions: "direct"`, such as TTAB for Distinctive) have no confidence: the rule match is the acceptance. A newly delivered Reference is set to accepted on delivery with
   `curationStatusUpdatedBy="auto:rule"` and a reason naming the monitor and the rule. Same switch (`autoAccept.enabled`), same Message (`actorKind` `rule`), never sent to Cyclotron, an editor can still Reject it.
-  `papyrus references auto-accept --site KEY [--dry-run]` applies it to deliveries that already exist (the dry run lists them), and also runs the confidence pass; the monitors it treats as rule monitors are those whose provenance says `machineDecision.system = "direct"`
+  `papyrus references auto-accept --site KEY [--dry-run]` applies it to deliveries that already exist (the dry run lists them), and also runs the confidence pass; the monitors it treats as rule monitors are those whose `discoveryRule` says `system = "direct"`
   or whose deliveries in the corpus carry no Cyclotron verdict at all.
 * **The newsroom** shows "Accepted automatically" (and "(by rule)") with a Lucide icon on the feed card, the list row and the detail, apart from an editor's accept.
 * **Log.** One JSON line per publication per run: `{"autoAccept": "ran|skipped|failed|dry-run", "publicationId", "targetPrecision", "latencyQuantile", "threshold", "estimatedPrecision", "precisionLowerBound", "votes", "delaySeconds", "latencySamples", "candidates", "accepted", "reason"}`;
@@ -779,7 +777,7 @@ every publication the `hn` monitor lists gets it, whether or not it has the stac
 
 The field list was captured by running the real intake and editorial-context code against a
 recording client. `updateReferenceAttachment` is there because a second HN item for an
-existing URL re-points the shared source attachment. There are no deletes, and the only Reference update is the automatic acceptance in `RouterAutoAcceptPolicy` (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), the daily [monitor stories](#monitor-stories-daily) read and file through `RouterMonitorStoriesPolicy`, `RouterMonitorStoriesSharedSitesPolicy` and `RouterMonitorStoriesDistinctivePolicy` (eleven fields on each of seven APIs, listed there), no wildcard resources, no admin. The provenance upload uses the
+existing URL re-points the shared source attachment. There are no deletes, and the only Reference updates are the automatic acceptance in `RouterAutoAcceptPolicy` and, when a delivery finds a Reference no monitor delivered yet, the three discovery fields (`listReferencesByCurationStatusKeyAndUpdatedAt`, `updateReference` per API), the daily [monitor stories](#monitor-stories-daily) read and file through `RouterMonitorStoriesPolicy`, `RouterMonitorStoriesSharedSitesPolicy` and `RouterMonitorStoriesDistinctivePolicy` (eleven fields on each of seven APIs, listed there), no wildcard resources, no admin. The provenance upload uses the
 presigned URL AppSync returns, so the role needs no S3 permission.
 
 Limits: Python 3.13 arm64, 512 MB, 600 s timeout, retry 0 on async invocation, dead-letter queue,

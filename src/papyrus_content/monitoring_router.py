@@ -1923,7 +1923,7 @@ class Router:
                 result = self.deliver(self.client(publication), publication, disc, receipt, self.config)
                 state.update(delivered=True, deliveredAt=_iso(self.now), referenceId=result["referenceId"],
                              referenceLineageId=result.get("referenceLineageId"),
-                             provenanceMessageId=result.get("provenanceMessageId"), lastError=None)
+                             lastError=None)
                 self.record_delivery(publication, disc, route, result)
                 self.counts["delivered"] += 1
                 copied = self.copy_curation(publication, disc, result)   # before the procedure, so it only fills gaps

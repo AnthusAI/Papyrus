@@ -1684,6 +1684,9 @@ const schema = a.schema({
       curationStatusReason: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
+      discoveredByMonitorId: a.string(),
+      discoveryDetails: a.json(),
+      discoveryRule: a.json(),
       updatedAt: a.datetime(),
     })
     .secondaryIndexes((index) => [
@@ -1696,6 +1699,7 @@ const schema = a.schema({
       index("curationStatus").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusAndUpdatedAt"),
       index("curationStatusKey").sortKeys(["curationStatusUpdatedAt"]).queryField("listReferencesByCurationStatusKeyAndUpdatedAt"),
       index("reviewedFeedKey").sortKeys(["updatedAt"]).queryField("listReferencesByReviewedFeedAndUpdatedAt"),
+      index("discoveredByMonitorId").sortKeys(["createdAt"]).queryField("listReferencesByMonitorAndCreatedAt"),
     ])
     .authorization((allow) => [
       allow.groups(categoryWriteGroups).to(["read"]),

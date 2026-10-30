@@ -13,6 +13,7 @@ class Client:
     def __init__(self):
         self.references = []
         self.writes = []
+        self.updates = []
 
     def list_records(self, model):
         if model == "KnowledgeCorpus":
@@ -26,6 +27,12 @@ class Client:
         assert model == "Reference"
         self.writes.append((model, deepcopy(row)))
         self.references.append(deepcopy(row))
+
+
+    def update_record(self, model, row):
+        assert model == "Reference"
+        self.updates.append(deepcopy(row))
+        next(r for r in self.references if r["id"] == row["id"]).update(row)
 
 
 def setup(tmp_path):
@@ -48,11 +55,9 @@ def test_registers_pending_and_preserves_accepted_reference_with_more_provenance
     other = SourceItem("456", item.title, item.canonical_url, "https://news.ycombinator.com/item?id=456", None)
     again = sink(other, {**p, "sourceId": "456", "sourceItemUrl": other.source_item_url})
     assert first["referenceId"] == again["referenceId"]
-    assert len(client.writes) == 1 and client.references[0] == before
-    assert len({r["expected"]["id"] for r in saved if r["modelName"] == "Message"}) == 2
-    assert all(r["modelName"] != "Reference" for r in saved)
-    messages = [r["expected"] for r in saved if r["modelName"] == "Message"]
-    assert '"sourceId": "123"' in messages[0]["body"]
+    assert len(client.writes) == 1 and client.references[0] == before and client.updates == []
+    assert all(r["modelName"] not in {"Reference", "Message", "SemanticRelation"} for r in saved)   # Messages come only from people
+    assert client.references[0]["discoveredByMonitorId"] == "hn"
 
 
 def test_editorial_user_intake_never_falls_back_to_raw_model_writes(tmp_path):
@@ -103,19 +108,42 @@ def test_a_reference_stored_under_another_address_of_the_same_document_is_reused
     assert client.writes == []
 
 
-def test_a_sources_structured_details_ride_on_the_provenance_relation_where_the_knowledge_run_reads_them(tmp_path):
+def test_a_delivery_records_its_monitor_and_details_on_the_reference_and_writes_no_message(tmp_path):
     import json
 
     client, saved, sink, item, p = setup(tmp_path)
     plain = sink(item, p)
-    [relation] = [r["expected"] for r in saved if r["modelName"] == "SemanticRelation"]
-    assert "details" not in json.loads(relation["metadata"])  # a source without details writes what it always wrote
+    assert "provenanceMessageId" not in plain
+    created = client.references[0]
+    assert created["discoveredByMonitorId"] == "hn" and created["discoveryDetails"] is None and "discoveryRule" not in created
+    assert not [r for r in saved if r["modelName"] in {"Message", "SemanticRelation"}]
 
     details = {"modelId": "org/tuned", "author": "org", "createdAt": "2026-10-14T08:00:00Z", "license": "apache-2.0", "likes": 3, "downloads": 10, "baseModels": [{"modelId": "org/base", "relation": "finetune"}]}
     model = SourceItem("org--tuned", "org/tuned: text-to-speech model", "https://huggingface.co/org/tuned", "https://huggingface.co/org/tuned", "2026-10-14T08:00:00Z", details=details)
     saved.clear()
     sink(model, {**p, "sourceId": model.source_id, "sourceItemUrl": model.source_item_url, "fingerprint": model.fingerprint})
-    [relation] = [r["expected"] for r in saved if r["modelName"] == "SemanticRelation"]
-    metadata = json.loads(relation["metadata"])
-    assert relation["predicate"] == "ingestion_rationale" and metadata["details"] == details and metadata["sourceId"] == "org--tuned"
-    assert plain["referenceId"] != ""
+    stored = client.references[-1]
+    assert stored["discoveredByMonitorId"] == "hn" and json.loads(stored["discoveryDetails"]) == details
+    assert not [r for r in saved if r["modelName"] in {"Message", "SemanticRelation"}]
+
+
+def test_a_rule_monitors_delivery_records_its_rule_on_the_reference(tmp_path):
+    import json
+
+    client, saved, sink, item, p = setup(tmp_path)
+    sink(item, {**p, "machineDecision": {"system": "direct", "rule": {"minLikes": 5}}})
+    assert json.loads(client.references[0]["discoveryRule"]) == {"system": "direct", "rule": {"minLikes": 5}}
+
+
+def test_a_reused_reference_without_a_monitor_gets_one_and_never_loses_its_first(tmp_path):
+    client, saved, sink, item, p = setup(tmp_path)
+    client.references.append({"id": "reference-earlier-v1", "lineageId": "reference-earlier", "versionNumber": 1,
+                              "corpusId": "knowledge-corpus-publication", "versionState": "current",
+                              "sourceUri": item.canonical_url, "curationStatus": "accepted"})
+    sink(item, p)
+    assert client.updates and client.updates[0]["discoveredByMonitorId"] == "hn" and "curationStatus" not in client.updates[0]
+    assert client.writes == []
+    client.references[0]["discoveredByMonitorId"] = "other"
+    client.updates.clear()
+    sink(item, p)
+    assert client.updates == []

@@ -629,7 +629,6 @@ RESOURCE_API_SCHEMA: dict[str, Any] = {
                     "apply",
                     "enrich",
                     "skipExisting",
-                    "createIngestionRationaleMessage",
                     "note",
                 ],
                 "writes": ["Reference", "KnowledgeImportRun", "Assignment"],

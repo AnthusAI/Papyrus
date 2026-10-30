@@ -568,7 +568,7 @@ def references_promote(flags: list[str]) -> None:
     apply = resolve_mutation_apply(options, "references promote")
     client, _ = create_authoring_client()
     row = client.get_record("Reference", token) or resolve_reference_any(client.list_records("Reference"), token)
-    record, _missing = record_of(client, row)
+    record, _missing = record_of(row)
     item_id = promotion_item_id(record, section)
     print(f"references\tpromote\t{record.reference_id}\t{record.model_id}\t{section}\t{item_id}\t{'write' if apply else 'dry run'}")
     if not apply:

@@ -282,6 +282,10 @@ export type ReferenceRecord = {
   curationStatusReason?: string | null;
   newsroomFeedKey?: string | null;
   reviewedFeedKey?: string | null;
+  /** The monitor that delivered this Reference (set at intake; the Reference is the record, no Message). */
+  discoveredByMonitorId?: string | null;
+  /** What the monitor's source said about it (a Hub model's structured fields, say). */
+  discoveryDetails?: unknown;
   metadata?: unknown;
   updatedAt?: string | null;
 };
@@ -1472,18 +1476,6 @@ export function createDemoCategorySteeringDashboard(
     ],
     messages: [
       {
-        id: "message-demo-history-002-rationale",
-        messageKind: "ingestion_rationale",
-        messageDomain: "commentary",
-        status: "active",
-        body: "Imported as a useful holdout against modern scaling coverage.",
-        summary: "Holdout ingestion rationale",
-        source: "biblicus-import",
-        importRunId: "knowledge-import-demo-projection",
-        createdAt: importedAt,
-        updatedAt: importedAt,
-      },
-      {
         id: reportingPacketMessageId,
         messageKind: "reporting_context_packet",
         messageDomain: "assignment_work",
@@ -1823,32 +1815,6 @@ export function createDemoCategorySteeringDashboard(
         rank: 1,
         classifierId: "demo-canonical-classifier",
         reviewRecommended: true,
-        importRunId: "knowledge-import-demo-projection",
-        importedAt,
-      },
-      {
-        id: "semantic-relation-demo-message-history-002-rationale",
-        relationState: "current",
-        predicate: "comment",
-        relationTypeId: "semantic-relation-type-comment",
-        relationTypeKey: "comment",
-        relationDomain: "commentary",
-        subjectKind: "message",
-        subjectId: "message-demo-history-002-rationale",
-        subjectLineageId: "message-demo-history-002-rationale",
-        subjectVersionNumber: 1,
-        objectKind: "reference",
-        objectId: referenceHistoryTwoId,
-        objectLineageId: referenceHistoryTwoLineageId,
-        objectVersionNumber: 1,
-        subjectStateKey: "message#message-demo-history-002-rationale#current",
-        objectStateKey: `reference#${referenceHistoryTwoLineageId}#current`,
-        objectSubjectStateKey: `reference#${referenceHistoryTwoLineageId}#current#message`,
-        predicateObjectStateKey: `comment#reference#${referenceHistoryTwoLineageId}#current`,
-        subjectVersionKey: "message#message-demo-history-002-rationale",
-        objectVersionKey: `reference#${referenceHistoryTwoId}`,
-        rank: 1,
-        reviewRecommended: false,
         importRunId: "knowledge-import-demo-projection",
         importedAt,
       },

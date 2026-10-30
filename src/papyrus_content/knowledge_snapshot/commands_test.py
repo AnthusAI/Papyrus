@@ -1181,9 +1181,7 @@ HUB_CORPUS = "knowledge-corpus-shipped"
 
 
 def hub_model(client, model_id: str, created: str, *, bases=(), status: str = "pending", **overrides) -> None:
-    """A delivered Hub model: its Reference and the relation that carries its provenance details."""
-    from papyrus_content.categories_steering import semantic_relation_record
-
+    """A delivered Hub model: its Reference, which carries the monitor and the Hub details."""
     slug = model_id.replace("/", "--")
     reference = {
         "id": f"reference-{slug}", "lineageId": f"lineage-{slug}", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": status,
@@ -1193,15 +1191,8 @@ def hub_model(client, model_id: str, created: str, *, bases=(), status: str = "p
         "modelId": model_id, "author": model_id.split("/")[0], "createdAt": created, "pipelineTag": "text-to-speech", "license": "apache-2.0",
         "likes": 30, "downloads": 900, "baseModels": [{"modelId": base, "relation": relation} for base, relation in bases], **overrides,
     }
-    relation = semantic_relation_record(
-        {
-            "predicate": "ingestion_rationale", "subjectKind": "message", "subjectId": f"message-{slug}", "subjectLineageId": f"message-{slug}",
-            "subjectVersionNumber": 1, "objectKind": "reference", "objectId": reference["id"], "objectLineageId": reference["lineageId"],
-            "objectVersionNumber": 1, "importedAt": created, "metadata": {"monitorId": "huggingface", "sourceId": slug, "details": details},
-        }
-    )["expected"]
+    reference.update(discoveredByMonitorId="huggingface", discoveryDetails=json.dumps(details))
     client.rows.setdefault("Reference", {})[reference["id"]] = reference
-    client.rows.setdefault("SemanticRelation", {})[relation["id"]] = relation
 
 
 def with_published_rows(client) -> None:
@@ -1442,23 +1433,13 @@ def test_parallel_workers_give_the_same_import(client, hub, tmp_path, capsys):
 # -- routed monitor records (docs/knowledge-cloud-run.md, "Routed records"): any monitor's References, linked to entities already on the map --
 
 def routed_story(client, slug: str, title: str, created: str, *, monitor: str = "hn", status: str = "pending", **details) -> None:
-    """A Reference the shared router delivered (Hacker News by default): a pending Reference at the story's address and the provenance relation naming the monitor."""
-    from papyrus_content.categories_steering import semantic_relation_record
-
+    """A Reference the shared router delivered (Hacker News by default): a pending Reference at the story's address naming the monitor on the Reference."""
     reference = {
         "id": f"reference-{slug}", "lineageId": f"lineage-{slug}", "versionState": "current", "corpusId": HUB_CORPUS, "curationStatus": status,
         "sourceUri": f"https://example.org/{slug}", "title": title, "sourcePublishedAt": created,
     }
-    metadata = {"monitorId": monitor, "sourceId": slug, **({"details": details} if details else {})}
-    relation = semantic_relation_record(
-        {
-            "predicate": "ingestion_rationale", "subjectKind": "message", "subjectId": f"message-{slug}", "subjectLineageId": f"message-{slug}",
-            "subjectVersionNumber": 1, "objectKind": "reference", "objectId": reference["id"], "objectLineageId": reference["lineageId"],
-            "objectVersionNumber": 1, "importedAt": created, "metadata": metadata,
-        }
-    )["expected"]
+    reference.update(discoveredByMonitorId=monitor, **({"discoveryDetails": json.dumps(details)} if details else {}))
     client.rows.setdefault("Reference", {})[reference["id"]] = reference
-    client.rows.setdefault("SemanticRelation", {})[relation["id"]] = relation
 
 
 def routed_export(tmp_path, *sources: str) -> Path:
