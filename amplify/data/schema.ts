@@ -285,8 +285,6 @@ const definitions = {
     referenceId: a.id().required(),
     status: a.string().required(),
     reasonCode: a.string(),
-    messageId: a.id(),
-    relationId: a.id(),
   }),
 
   ReferenceQualityActionResult: a.customType({
@@ -1586,6 +1584,12 @@ const definitions = {
       curationStatusUpdatedAt: a.datetime(),
       curationStatusUpdatedBy: a.string(),
       curationStatusReason: a.string(),
+      curationReasonCode: a.string(),
+      curationActorKind: a.string(),
+      curationSectionId: a.string(),
+      curationShareable: a.boolean(),
+      curationDelegation: a.json(),
+      curationDecisionRelationId: a.string(),
       newsroomFeedKey: a.string(),
       reviewedFeedKey: a.string(),
       // The References page reads the feed through two indexes (docs/reference-feed-indexes.md). `feedStateKey` is

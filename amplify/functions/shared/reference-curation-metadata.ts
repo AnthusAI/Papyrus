@@ -1,23 +1,19 @@
 /**
- * Metadata stored with an editor's reference curation Message. When the
- * relevance cyclotron decided the reference, the review records which
- * decision it answered and whether its explanation may be shared (for the
- * Cyclotron marketing recording). Both are optional.
+ * The details of a vote, kept on the Reference itself (Messages come only from people).
+ * When the relevance cyclotron decided the reference, the vote records which decision
+ * it answered and whether its explanation may be shared (for the Cyclotron marketing
+ * recording). Both are optional. A Reference keeps only its latest vote.
  */
-export type ReferenceCurationMetadataInput = {
-  action: string
-  curationStatus: string
-  reasonCode: string | null
-  referenceId: string
-  referenceLineageId: string
+export type ReferenceVoteInput = {
+  actorKind: CurationActorKind
+  reasonCode?: string | null
+  sectionId?: string | null
   decisionRelationId?: string | null
   shareable?: boolean | null
-  actorKind?: CurationActorKind | null
-  sectionId?: string | null
   delegation?: { delegationId: string; relayedBy: string; instruction: string } | null
 }
 
-export type CurationActorKind = "human" | "service"
+export type CurationActorKind = "human" | "agent" | "cyclotron" | "rule" | "catalog"
 
 /**
  * A curation is human only when the caller signed in through the user pool, so
@@ -27,26 +23,22 @@ export type CurationActorKind = "human" | "service"
 export function curationActorKind(identity: unknown): CurationActorKind {
   const claims = (identity as {claims?: Record<string, unknown>} | null | undefined)?.claims
   const subject = claims?.sub
-  return typeof subject === "string" && subject.trim() !== "" ? "human" : "service"
+  return typeof subject === "string" && subject.trim() !== "" ? "human" : "agent"
 }
 
-export function referenceCurationMetadata(input: ReferenceCurationMetadataInput): Record<string, unknown> {
+/**
+ * The Reference fields a vote sets. Every field is always present, so a new vote clears
+ * what the last one carried. The delegation is stored as JSON.
+ */
+export function referenceVoteFields(input: ReferenceVoteInput): Record<string, unknown> {
   const decisionRelationId = input.decisionRelationId?.trim() || null
   return {
-    action: input.action,
-    curationStatus: input.curationStatus,
-    reasonCode: input.reasonCode,
-    curationReasonCode: input.reasonCode,
-    referenceId: input.referenceId,
-    referenceLineageId: input.referenceLineageId,
-    ...(input.actorKind ? {actorKind: input.actorKind} : {}),
-    ...(input.sectionId?.trim() ? {sectionId: input.sectionId.trim()} : {}),
-    ...(input.delegation
-      ? {attestation: "delegated", relayedBy: input.delegation.relayedBy, delegationId: input.delegation.delegationId,
-         instruction: input.delegation.instruction}
-      : {}),
-    ...(decisionRelationId ? {decisionRelationId} : {}),
-    ...(decisionRelationId ? {shareable: input.shareable === true} : {}),
+    curationActorKind: input.actorKind,
+    curationReasonCode: input.reasonCode?.trim() || null,
+    curationSectionId: input.sectionId?.trim() || null,
+    curationShareable: decisionRelationId ? input.shareable === true : null,
+    curationDelegation: input.delegation ? JSON.stringify(input.delegation) : null,
+    curationDecisionRelationId: decisionRelationId,
   }
 }
 

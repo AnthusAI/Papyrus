@@ -61,7 +61,7 @@ REFERENCE_FIELDS = (
     f"{VERSION_FIELDS} id corpusId externalItemId title authors sourceUri storagePath mediaType byteSize sha256 "
     "sourcePublishedAt sourceUpdatedAt retrievedAt inboundCitationCount outboundCitationCount "
     "importRunId importedAt createdAt curationStatus "
-    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason newsroomFeedKey reviewedFeedKey "
+    "curationStatusKey curationStatusUpdatedAt curationStatusUpdatedBy curationStatusReason curationReasonCode curationActorKind curationSectionId curationShareable curationDelegation curationDecisionRelationId newsroomFeedKey reviewedFeedKey "
     "feedStateKey feedArrivalAt predictedAcceptProbability predictionDecidedAt predictionSortKey updatedAt"
 )
 REFERENCE_ATTACHMENT_FIELDS = (

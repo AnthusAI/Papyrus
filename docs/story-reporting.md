@@ -127,8 +127,8 @@ judgment never becomes a label this way.
 
 3. The `recordDelegatedCuration` mutation checks the token (unexpired,
    unrevoked, granted to your agent name, granted by the person you named), then
-   records the curation as the person's: `actorKind: human`, `attestation:
-   delegated`, `relayedBy` your agent name, `delegationId` and `instruction`, the person's
+   records the curation as the person's on the Reference: `curationActorKind: human`, and
+   `curationDelegation` holding `relayedBy` (your agent name), `delegationId` and `instruction`, the person's
    words as you quoted them. The token proves the person let you relay decisions,
    not that they made this one, so the quote is what makes each label auditable.
 
@@ -199,7 +199,7 @@ you decide.
 Limit to know about: an agent with direct write access to the data models could
 still write curation metadata itself. The delegation makes the honest path
 verifiable, and the audit trail (delegation id, agent, grantor) lets a person
-check it; removing direct write access to curation Messages is a separate
+check it; removing direct write access to the Reference's curation fields is a separate
 hardening step.
 
 ### Naming the section
@@ -217,5 +217,5 @@ papyrus references review-curation --reference <record id> --action accept --sec
 `sectionId`. It must be the id of an enabled `NewsroomSection`; an unknown or
 disabled section is refused before anything is written, and a section on a
 reject, reopen or archive is refused. The id is stored as `sectionId` in the
-curation Message metadata beside `actorKind`. Only an accept that the signed-in
+`curationSectionId` on the Reference beside `curationActorKind`. Only an accept that the signed-in
 person made, or that the person delegated, counts as their section label.

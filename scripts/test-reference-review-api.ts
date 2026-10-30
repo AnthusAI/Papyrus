@@ -9,7 +9,7 @@ import { Kind, parse, valueFromASTUntyped } from "graphql";
 import { schema } from "../amplify/data/schema";
 
 type RecordValue = Record<string, unknown> & { id: string };
-type CurationResult = { ok: boolean; status: string; messageId: string; relationId: string; reasonCode: string | null };
+type CurationResult = { ok: boolean; status: string; reasonCode: string | null };
 type HandlerEvent = { info: { fieldName: string }; identity: unknown; arguments: Record<string, unknown> };
 const root = resolve(import.meta.dirname, "..");
 const referenceId = "reference-fixture-v1";
@@ -91,8 +91,10 @@ async function main() {
   const invoke = (arguments_: Record<string, unknown>, identity: unknown = editor) => handler({
     info: { fieldName: "reviewReferenceCuration" }, identity, arguments: { referenceId, ...arguments_ },
   });
-  const metadata = (result: CurationResult) => payloads.get(payloadKey("message", result.messageId, "metadata", "metadata")) as Record<string, unknown>;
   const current = () => table("Reference").get(referenceId)!;
+  // A vote is recorded on the Reference itself, so its details are read from the Reference right after the call.
+  const voteOnReference = () => ({ actorKind: current().curationActorKind, reasonCode: current().curationReasonCode,
+    decisionRelationId: current().curationDecisionRelationId, shareable: current().curationShareable });
   table("Reference").set(referenceId, { id: referenceId, lineageId: "reference-fixture", versionNumber: 1,
     versionState: "current", corpusId: "corpus-fixture", title: "Synthetic source", curationStatus: "pending",
     feedStateKey: "corpus-fixture#unrated", predictedAcceptProbability: 0.73, predictionDecidedAt: "2026-10-28T09:00:00.000Z",
@@ -109,16 +111,17 @@ async function main() {
     assert.ok(!Object.hasOwn(vote, untouched), `a vote does not write ${untouched}`);
   }
   assert.equal(current().curationStatusReason, null, "blank explanation is optional and persists as null");
-  assert.equal(metadata(accepted).actorKind, "human");
-  assert.equal(metadata(accepted).referenceLineageId, "reference-fixture");
-  assert.equal(table("SemanticRelation").get(accepted.relationId)?.objectLineageId, "reference-fixture");
+  assert.equal(voteOnReference().actorKind, "human");
+  assert.equal(table("Message").size + table("SemanticRelation").size, 0, "Messages come only from people: a vote writes no Message and no relation");
 
   const explained = await invoke({ action: "accept", note: "  Useful context.  ", decisionRelationId: "prediction-fixture", shareable: false });
   assert.equal(current().curationStatusReason, "Useful context.");
-  assert.equal(metadata(explained).decisionRelationId, "prediction-fixture");
-  assert.equal(metadata(explained).shareable, false);
-  assert.notEqual(explained.messageId, accepted.messageId, "same-status revision appends an audit message");
-  assert.ok(table("Message").has(accepted.messageId), "earlier feedback remains intact");
+  assert.equal(voteOnReference().decisionRelationId, "prediction-fixture");
+  assert.equal(voteOnReference().shareable, false);
+  assert.equal(explained.ok, true);
+  await invoke({ action: "accept", note: "again" });
+  assert.equal(voteOnReference().decisionRelationId, null, "a later vote replaces the details of the earlier one");
+  assert.equal(voteOnReference().shareable, null);
 
   await invoke({ action: "accept", note: "" });
   assert.equal(current().curationStatusReason, null, "clearing a saved explanation is persisted");
@@ -130,7 +133,8 @@ async function main() {
   const rejected = await invoke({ action: "reject", reasonCode: "duplicate" });
   assert.equal(current().curationStatus, "rejected");
   assert.equal(current().curationStatusReason, null, "a reason code alone needs no written explanation");
-  assert.equal(metadata(rejected).reasonCode, "duplicate");
+  assert.equal(rejected.reasonCode, "duplicate");
+  assert.equal(voteOnReference().reasonCode, "duplicate");
   assert.equal(current().feedStateKey, "corpus-fixture#rated", "a rejection is a rating too");
   const reopened = await invoke({ action: "reopen" });
   assert.equal(reopened.status, "pending");
@@ -148,14 +152,14 @@ async function main() {
   const written = await invoke({ action: "reject", note: "Out of scope for this publication." });
   assert.equal(current().curationStatus, "rejected");
   assert.equal(current().curationStatusReason, "Out of scope for this publication.", "the words are kept verbatim");
-  assert.equal(metadata(written).reasonCode, "out_of_scope");
-  assert.equal(metadata(written).curationReasonCode, "out_of_scope", "both metadata keys carry the read code");
-  assert.equal(metadata(await invoke({ action: "reject", note: "Excluded by our policy on vendor blogs." })).reasonCode, "policy_exclusion");
-  assert.equal(metadata(await invoke({ action: "reject", note: "Already have it, and off our beat anyway." })).reasonCode, "duplicate",
+  assert.equal(written.reasonCode, "out_of_scope");
+  assert.equal(voteOnReference().reasonCode, "out_of_scope", "the Reference carries the read code");
+  assert.equal((await invoke({ action: "reject", note: "Excluded by our policy on vendor blogs." })).reasonCode, "policy_exclusion");
+  assert.equal((await invoke({ action: "reject", note: "Already have it, and off our beat anyway." })).reasonCode, "duplicate",
     "a mechanical reason wins over scope, so no false training negative is recorded");
-  assert.equal(metadata(await invoke({ action: "reject", note: "The editor and I decided against it." })).reasonCode, "other",
+  assert.equal((await invoke({ action: "reject", note: "The editor and I decided against it." })).reasonCode, "other",
     "words that name no code are filed under \"other\" rather than guessed at");
-  assert.equal(metadata(await invoke({ action: "reject", reasonCode: "duplicate", note: "Out of scope." })).reasonCode, "duplicate",
+  assert.equal((await invoke({ action: "reject", reasonCode: "duplicate", note: "Out of scope." })).reasonCode, "duplicate",
     "a reason code the caller chose is never overridden by the words beside it");
 
   const beforeFailure = writes.length;
@@ -169,8 +173,9 @@ async function main() {
   // An IAM identity cannot manufacture a human label through request arguments.
   const service = await invoke({ action: "accept", actorSub: "claimed-editor", actorLabel: "Claimed editor", actorKind: "human" },
     { userArn: "arn:aws:sts::123456789012:assumed-role/fixture-agent/session" });
-  assert.equal(metadata(service).actorKind, "service");
-  assert.ok(!Object.hasOwn(metadata(service), "attestation"), "no delegation is invented");
+  assert.equal(service.ok, true);
+  assert.equal(voteOnReference().actorKind, "agent");
+  assert.equal(current().curationDelegation, null, "no delegation is invented");
 
   // The typed schema keeps the same declared authorization as the deployed schema.
   const typedSource = readFileSync(resolve(root, "amplify/data/resource.ts"), "utf8");

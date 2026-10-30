@@ -108,7 +108,7 @@ def references_review_curation(flags: list[str]) -> None:
     )
     print(
         f"references\treview-curation\t{review.get('referenceId')}\t{review.get('action')}\t"
-        f"{review.get('status')}\t{review.get('reasonCode') or ''}\t{review.get('messageId') or ''}"
+        f"{review.get('status')}\t{review.get('reasonCode') or ''}"
     )
 
 
@@ -1816,15 +1816,11 @@ def references_export_scope_training(flags: list[str]) -> None:
     client, _ = create_authoring_client()
     references = client.list_records("Reference")
     attachments = client.list_records("ReferenceAttachment")
-    messages = client.list_records("Message")
-    relations = client.list_records("SemanticRelation")
     payload = build_reference_scope_training_export(
         corpus_config=corpus_config,
         corpus_id=corpus_id,
         references=references,
         attachments=attachments,
-        messages=messages,
-        relations=relations,
     )
     _write_json_file(options["output"], payload)
     print(

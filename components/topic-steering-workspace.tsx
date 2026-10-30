@@ -776,17 +776,22 @@ function NewsDeskDashboard({
     () => (isLocalPreviewEnabled() && !semanticRelations.some((relation) => relation.predicate === "relevance_decision_is") ? createLocalPreviewCyclotronFixtures(references) : null),
     [references, semanticRelations],
   );
+  // A Reference keeps its latest vote on itself; the preview fixtures overlay votes on the first few.
+  const votedReferences = useMemo(
+    () => (cyclotronPreviewFixtures ? references.map((reference) => cyclotronPreviewFixtures.votedReferences.get(reference.id) ?? reference) : references),
+    [cyclotronPreviewFixtures, references],
+  );
   const relevanceDecisions = useMemo(
     () => currentRelevanceDecisions(cyclotronPreviewFixtures ? [...semanticRelations, ...cyclotronPreviewFixtures.relations] : semanticRelations),
     [cyclotronPreviewFixtures, semanticRelations],
   );
   const delegatedCurations = useMemo(
-    () => delegatedCurationsByReference(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
-    [cyclotronPreviewFixtures, messages],
+    () => delegatedCurationsByReference(votedReferences),
+    [votedReferences],
   );
   const humanCuratedReferenceLineageIds = useMemo(
-    () => referencesWithHumanLatestCuration(cyclotronPreviewFixtures ? [...messages, ...cyclotronPreviewFixtures.messages] : messages),
-    [cyclotronPreviewFixtures, messages],
+    () => referencesWithHumanLatestCuration(votedReferences),
+    [votedReferences],
   );
   const relevanceCyclotronId = useMemo(
     () => [...relevanceDecisions.values()].find((decision) => decision.cyclotronId)?.cyclotronId ?? null,
@@ -905,8 +910,8 @@ function NewsDeskDashboard({
   const referenceReviewsPending = useRef(new Map<string, Promise<void>>());
   const [selectedReviewRead, setSelectedReviewRead] = useState<{ lineageId: string; state: "loading" | "ready" | "error"; error: string | null }>({ lineageId: "", state: "ready", error: null });
   const [selectedReviewAttempt, setSelectedReviewAttempt] = useState(0);
-  const reviewReasons = useMemo(() => latestReferenceReviewReasons(messages), [messages]);
-  const reviewSectionIds = useMemo(() => latestReferenceReviewSections(messages), [messages]);
+  const reviewReasons = useMemo(() => latestReferenceReviewReasons(references), [references]);
+  const reviewSectionIds = useMemo(() => latestReferenceReviewSections(references), [references]);
 
   useEffect(() => {
     referencesRef.current = references;
@@ -1331,10 +1336,9 @@ function NewsDeskDashboard({
     if (!canLoadPrivateCorpus || activeTab !== "references" || !selectedReviewLineageId) return;
     let active = true;
     setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "loading", error: null });
-    void loadEditorReferenceReviewDetails(selectedReviewLineageId).then(({ relations, messages: history }) => {
+    void loadEditorReferenceReviewDetails(selectedReviewLineageId).then(({ relations }) => {
       if (!active) return;
       setSemanticRelations((current) => [...current.filter((relation) => relation.subjectLineageId !== selectedReviewLineageId || relation.subjectKind !== "reference"), ...relations]);
-      setMessages((current) => [...current.filter((message) => !history.some((entry) => entry.id === message.id)), ...history]);
       setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "ready", error: null });
     }).catch((error) => {
       if (active) setSelectedReviewRead({ lineageId: selectedReviewLineageId, state: "error", error: error instanceof Error ? error.message : "Reference review details could not be loaded." });
@@ -1621,59 +1625,18 @@ function NewsDeskDashboard({
       setActionState({ id: reference.id, message: `${action} pending`, tone: "pending" });
       if (dashboard.isDemo) {
         const now = new Date().toISOString();
-        const messageId = `message-demo-${reference.id}-${action}-${now.replace(/[^0-9]/g, "")}`;
-        const relationId = `semantic-relation-demo-${messageId}`;
         applyReferenceRecord(buildReviewedReferenceRecord(referencesRef.current, reference, {
           actorLabel: authState.label,
           nextStatus,
           note: note ?? null,
           now,
-        }));
-        setMessages((current) => [{
-          id: messageId,
-          messageKind: "reference_curation",
-          messageDomain: "commentary",
-          status: "active",
-          body: note?.trim() || `${authState.label} marked this reference ${nextStatus}.`,
-          summary: `${reference.title ?? reference.externalItemId}: ${nextStatus}`,
-          source: "newsroom",
-          authorLabel: authState.label,
-          createdAt: now,
-          updatedAt: now,
-          metadata: {
-            referenceLineageId: reference.lineageId ?? reference.id,
-            action,
-            curationStatus: nextStatus,
+          vote: {
             reasonCode: action === "reject" ? reasonCode ?? null : null,
-            ...(relevance ? { decisionRelationId: relevance.decisionRelationId, shareable: relevance.shareable } : {}),
-            ...(action === "accept" && sectionId ? { sectionId } : {}),
+            sectionId: action === "accept" ? sectionId ?? null : null,
+            decisionRelationId: relevance?.decisionRelationId ?? null,
+            shareable: relevance ? relevance.shareable : null,
           },
-        }, ...current]);
-        setSemanticRelations((current) => [{
-          id: relationId,
-          relationState: "current",
-          predicate: "comment",
-          relationTypeId: "semantic-relation-type-comment",
-          relationTypeKey: "comment",
-          relationDomain: "commentary",
-          subjectKind: "message",
-          subjectId: messageId,
-          subjectLineageId: messageId,
-          subjectVersionNumber: 1,
-          objectKind: "reference",
-          objectId: reference.id,
-          objectLineageId: reference.lineageId ?? reference.id,
-          objectVersionNumber: reference.versionNumber ?? null,
-          subjectStateKey: `message#${messageId}#current`,
-          objectStateKey: `reference#${reference.lineageId ?? reference.id}#current`,
-          objectSubjectStateKey: `reference#${reference.lineageId ?? reference.id}#current#message`,
-          predicateObjectStateKey: `comment#reference#${reference.lineageId ?? reference.id}#current`,
-          subjectVersionKey: `message#${messageId}`,
-          objectVersionKey: `reference#${reference.id}`,
-          rank: 1,
-          reviewRecommended: false,
-          importedAt: now,
-        }, ...current]);
+        }));
         setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
         return;
       }
@@ -1699,6 +1662,12 @@ function NewsDeskDashboard({
           nextStatus: status,
           note: note?.trim() || null,
           now,
+          vote: {
+            reasonCode: action === "reject" ? reasonCode ?? null : null,
+            sectionId: action === "accept" ? sectionId ?? null : null,
+            decisionRelationId: relevance?.decisionRelationId ?? null,
+            shareable: relevance ? relevance.shareable : null,
+          },
         }));
         setActionState({ id: reference.id, message: `${action} saved`, tone: "ok" });
         retryReferenceReviewData();
@@ -8445,11 +8414,7 @@ function SemanticDetailPanel({
                 {messages.slice(0, 4).map((message) => (
                   <div className="news-desk-detail-line" key={message.id}>
                     <span>{message.messageKind}</span>
-                    <strong>
-                      {message.messageKind === "reference_curation"
-                        ? "Canonical summary is stored on the linked reference metadata attachment."
-                        : (message.summary ?? "Stored message payload")}
-                    </strong>
+                    <strong>{message.summary ?? "Stored message payload"}</strong>
                   </div>
                 ))}
               </div>
@@ -9858,11 +9823,7 @@ function ReferenceDetailPanel({
                 {messages.slice(0, 4).map((message) => (
                   <div className="news-desk-detail-line" key={message.id}>
                     <span>{message.messageKind}</span>
-                    <strong>
-                      {message.messageKind === "reference_curation"
-                        ? (metadataSummary ?? "Canonical summary unavailable")
-                        : (message.summary ?? "Stored message payload")}
-                    </strong>
+                    <strong>{message.summary ?? "Stored message payload"}</strong>
                   </div>
                 ))}
               </div>
@@ -9964,25 +9925,9 @@ function MessageDetailPanel({
   const bodyPayload = modelPayloadByRole(messagePayloadState.payloads, "message_body");
   const metadataPayload = modelPayloadByRole(messagePayloadState.payloads, "metadata");
   const messageMetadata = metadataRecord(metadataPayload?.json) ?? metadataRecord(message.metadata);
-  const linkedReference = useReferenceCurationMessageReference(graph, message, messageMetadata);
-  const referencePayloadState = useModelPayloads("reference", linkedReference?.id, ["metadata"]);
-  const referenceMetadataPayload = modelPayloadByRole(referencePayloadState.payloads, "metadata");
-  const referenceSubtitle = referenceMetadataSubtitle(referenceMetadataPayload, linkedReference?.metadata);
-  const referenceSummary = linkedReference
-    ? referenceDisplaySummary(
-      graph,
-      linkedReference.lineageId ?? linkedReference.id,
-      referenceMetadataPayload,
-      linkedReference.metadata,
-    )
-    : null;
   const headerLabel = humanizeNewsroomLabel(message.messageKind ?? "message");
-  const headerTitle = message.messageKind === "reference_curation"
-    ? linkedReference?.title ?? linkedReference?.externalItemId ?? "Reference curation"
-    : message.summary ?? "Stored message payload";
-  const detailSummary = message.messageKind === "reference_curation"
-    ? referenceSummary ?? null
-    : message.summary ?? null;
+  const headerTitle = message.summary ?? "Stored message payload";
+  const detailSummary = message.summary ?? null;
   const neighborGroups = selected ? graph.neighbors(selected.kind, selected.lineageId) : [];
   return (
     <section className="category-steering-section" aria-label="Message detail" data-news-desk-message-detail={message.id}>
@@ -9991,9 +9936,6 @@ function MessageDetailPanel({
           <div>
             <p className="story-label">{headerLabel}</p>
             <strong data-news-desk-message-headline>{headerTitle}</strong>
-            {message.messageKind === "reference_curation" && referenceSubtitle ? (
-              <p className="news-desk-semantic-detail__subheading" data-news-desk-message-subheading>{referenceSubtitle}</p>
-            ) : null}
             <span>{formatDateTime(message.createdAt)}</span>
           </div>
         </header>
@@ -10012,14 +9954,13 @@ function MessageDetailPanel({
               <p className="story-label">Message Metadata</p>
               {detailSummary ? (
                 <div className="news-desk-detail-line" data-news-desk-message-summary>
-                  <span>{message.messageKind === "reference_curation" ? "Summary" : "Event summary"}</span>
+                  <span>Event summary</span>
                   <strong>{detailSummary}</strong>
                 </div>
               ) : null}
               <div className="news-desk-detail-line"><span>Status</span><strong>{message.status}</strong></div>
               <div className="news-desk-detail-line"><span>Source</span><strong>{message.source ?? "unknown"}</strong></div>
               <div className="news-desk-detail-line"><span>Author</span><strong>{message.authorLabel ?? message.authorSub ?? "unknown"}</strong></div>
-              {linkedReference ? <div className="news-desk-detail-line"><span>Reference</span><strong>{linkedReference.title ?? linkedReference.externalItemId}</strong></div> : null}
               {message.importRunId ? <div className="news-desk-detail-line"><span>Import run</span><strong>{message.importRunId}</strong></div> : null}
             </div>
             <PayloadDetailBlock
@@ -10036,81 +9977,6 @@ function MessageDetailPanel({
       </article>
     </section>
   );
-}
-
-function useReferenceCurationMessageReference(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-  metadata: Record<string, unknown> | null,
-): ReferenceRecord | null {
-  const relationReferenceId = useMemo(
-    () => referenceCurationMessageReferenceId(graph, message),
-    [graph, message],
-  );
-  const graphReference = useMemo(
-    () => resolveReferenceCurationMessageReference(graph, message, metadata),
-    [graph, message, metadata],
-  );
-  const referenceId = relationReferenceId ?? normalizeMetadataString(metadata?.referenceId);
-  const [loadedReference, setLoadedReference] = useState<ReferenceRecord | null>(null);
-
-  useEffect(() => {
-    setLoadedReference(null);
-    if (message.messageKind !== "reference_curation" || graphReference || !referenceId) return;
-    let active = true;
-    loadReferenceRecordById(referenceId)
-      .then((reference) => {
-        if (active) setLoadedReference(reference);
-      })
-      .catch(() => {
-        if (active) setLoadedReference(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [graphReference, message.id, message.messageKind, referenceId]);
-
-  return graphReference ?? loadedReference;
-}
-
-function resolveReferenceCurationMessageReference(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-  metadata: Record<string, unknown> | null,
-): ReferenceRecord | null {
-  if (message.messageKind !== "reference_curation") return null;
-  const outgoingReference = referenceCurationMessageRelation(graph, message);
-  const graphSummary = outgoingReference
-    ? graph.resolve("reference", outgoingReference.objectLineageId) ?? graph.resolve("reference", outgoingReference.objectId)
-    : null;
-  if (graphSummary?.kind === "reference" && graphSummary.record) {
-    return graphSummary.record as ReferenceRecord;
-  }
-  const referenceId = normalizeMetadataString(metadata?.referenceId);
-  const referenceLineageId = normalizeMetadataString(metadata?.referenceLineageId);
-  const fallbackSummary = (referenceId ? graph.resolve("reference", referenceId) : null)
-    ?? (referenceLineageId ? graph.resolve("reference", referenceLineageId) : null);
-  return fallbackSummary?.kind === "reference" && fallbackSummary.record
-    ? fallbackSummary.record as ReferenceRecord
-    : null;
-}
-
-function referenceCurationMessageReferenceId(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-): string | null {
-  const relation = referenceCurationMessageRelation(graph, message);
-  return relation?.objectId ?? null;
-}
-
-function referenceCurationMessageRelation(
-  graph: ReturnType<typeof createSemanticGraphSnapshot>,
-  message: MessageRecord,
-): SemanticRelationRecord | null {
-  if (message.messageKind !== "reference_curation") return null;
-  return graph.outgoing("message", message.id)
-    .find((relation) => relation.objectKind === "reference" && relationTypeKey(relation) === "comment")
-    ?? null;
 }
 
 type ReferenceCurationDisplayState = {
@@ -15128,6 +14994,8 @@ function buildReviewedReferenceRecord(
     nextStatus: string;
     note: string | null;
     now: string;
+    /** The details of a person's vote, as the curation mutation records them on the Reference. */
+    vote?: { reasonCode: string | null; sectionId: string | null; decisionRelationId: string | null; shareable: boolean | null };
   },
 ): ReferenceRecord {
   const current = records.find((entry) => entry.id === reference.id) ?? reference;
@@ -15138,6 +15006,14 @@ function buildReviewedReferenceRecord(
     curationStatusUpdatedAt: options.now,
     curationStatusUpdatedBy: options.actorLabel,
     curationStatusReason: options.note,
+    ...(options.vote ? {
+      curationActorKind: "human",
+      curationReasonCode: options.vote.reasonCode,
+      curationSectionId: options.vote.sectionId,
+      curationShareable: options.vote.decisionRelationId ? options.vote.shareable === true : null,
+      curationDelegation: null,
+      curationDecisionRelationId: options.vote.decisionRelationId,
+    } : {}),
     updatedAt: options.now,
   };
 }
