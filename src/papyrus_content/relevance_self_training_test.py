@@ -21,16 +21,12 @@ def prepared_context(tmp_path, *, pending=3, relevance_overrides=None):
 
 
 def curate(client, item, *, status, actor_kind, reason=None, note=None, at="2026-10-09T12:00:00Z"):
+    """Record a vote on the Reference itself, as a vote leaves it (no Message, no comment relation)."""
+    kind = {"service": "agent"}.get(actor_kind, actor_kind)
     client.tables["Reference"][item["id"]].update({
-        "curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}", "curationStatusReason": note})
-    message_id = f"message-reference-curation-{item['lineageId']}-{status}"
-    metadata = {"reasonCode": reason, **({"actorKind": actor_kind} if actor_kind else {})}
-    client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "someone",
-                              "createdAt": at, "metadata": json.dumps(metadata)})
-    client.upsert("SemanticRelation", {
-        "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
-        "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
-        "objectStateKey": f"reference#{item['lineageId']}#current", "subjectStateKey": f"message#{message_id}#current"})
+        "curationStatus": status, "curationStatusKey": f"{CORPUS_ID}#{status}", "curationStatusReason": note,
+        "curationStatusUpdatedAt": at, "curationStatusUpdatedBy": "someone",
+        "curationReasonCode": reason, "curationActorKind": kind})
 
 
 class TrainingRecordingModel(Model):
@@ -201,48 +197,3 @@ def test_the_daily_decision_cap_stops_the_sweep_and_resets_the_next_day(tmp_path
     assert (same_day.decided, same_day.stopped_because) == (0, "daily decision cap")
     next_day = sweep(context, Model(), client, tmp_path, now="2026-10-19T01:00:00Z")
     assert next_day.decided == 1 and next_day.stopped_because is None
-
-
-def test_the_backfill_stamps_only_the_authors_a_person_named():
-    from papyrus_content.curation_actor_backfill import plan_actor_kind_stamps
-
-    messages = [
-        {"id": "m1", "authorLabel": "editor@example.org", "metadata": {"action": "accept"}},
-        {"id": "m2", "authorLabel": "Papyrus newsroom", "metadata": {"action": "accept"}},
-        {"id": "m3", "authorLabel": "editor@example.org", "metadata": {"actorKind": "service"}},
-        {"id": "m4", "authorLabel": "editor@example.org", "metadata": {"action": "reject"}, "hasInlineMetadata": True},
-    ]
-    plan = plan_actor_kind_stamps(messages, human_author_labels=["editor@example.org"])
-    assert [message["id"] for message in plan["toStamp"]] == ["m1"]
-    assert plan["alreadyStamped"] == 1 and plan["inlineMetadataSkipped"] == 1
-    assert plan["unstampedAuthors"] == {"Papyrus newsroom": 1}
-
-
-def test_the_backfill_writes_the_human_stamp_into_the_message_metadata(tmp_path):
-    from papyrus_content.curation_actor_backfill import actor_kind_stamp_record, plan_actor_kind_stamps
-    from papyrus_content.relevance_sweep import _apply, _curation_messages
-
-    context = prepared_context(tmp_path)
-    first, second = two_pending_references()
-    client = SweepClient({"Reference": [first, second]})
-    sweep(context, Model(), client, tmp_path)
-    curate(client, first, status="rejected", actor_kind=None, reason="out_of_scope")
-    client.tables["Message"][f"message-reference-curation-{first['lineageId']}-rejected"]["authorLabel"] = "editor@example.org"
-    sweep(context, Model(), client, tmp_path)
-    assert labels_in_store(context) == {}
-
-    def store_body(recording_client, attachment, body):
-        recording_client.upsert("ModelAttachment", attachment)
-        recording_client.bodies[attachment["id"]] = body
-
-    with mock.patch("papyrus_content.relevance_sweep.knowledge_corpus_id", return_value=CORPUS_ID), \
-            mock.patch("papyrus_content.records.upload_attachment_body", side_effect=store_body), \
-            mock.patch("papyrus_content.relevance_sweep.download_attachment_buffer",
-                       side_effect=lambda recording_client, attachment: recording_client.bodies.get(attachment["id"])):
-        messages = [{**message, "hasInlineMetadata": False} for message in _curation_messages(client, first["lineageId"])]
-        plan = plan_actor_kind_stamps(messages, human_author_labels=["editor@example.org"])
-        _apply(client, [actor_kind_stamp_record(message, now="2026-10-18T12:00:00Z") for message in plan["toStamp"]])
-    assert len(plan["toStamp"]) == 1
-    stamped_metadata = [json.loads(body) for body in client.bodies.values() if b"backfill:named-editor" in body]
-    assert len(stamped_metadata) == 1 and stamped_metadata[0]["actorKind"] == "human"
-    assert stamped_metadata[0]["reasonCode"] == "out_of_scope"

@@ -1506,7 +1506,7 @@ class ReferenceCommandsTests(unittest.TestCase):
                 "versionState": "current",
                 "curationStatus": "rejected",
                 "externalItemId": "rejected-1",
-                "metadata": json.dumps({"reasonCode": "out_of_scope"}),
+                "curationReasonCode": "out_of_scope",
             },
         ]
         payload = build_reference_scope_training_export(
@@ -1514,8 +1514,6 @@ class ReferenceCommandsTests(unittest.TestCase):
             corpus_id=corpus_id,
             references=references,
             attachments=[],
-            messages=[],
-            relations=[],
         )
         self.assertEqual(payload["counts"]["positive"], 1)
         self.assertEqual(payload["counts"]["negative"], 1)

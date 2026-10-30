@@ -47,8 +47,7 @@ def collect_human_placed_references(client, steering_config: Mapping[str, Any],
 
     corpus = require_corpus_config(dict(steering_config), steering_config["canonicalTopicSet"]["corpusKey"],
                                    "canonicalTopicSet.corpusKey")
-    return [(reference, section_id) for reference, _messages, section_id
-            in _human_section_references(client, knowledge_corpus_id(corpus), enabled_section_ids)]
+    return list(_human_section_references(client, knowledge_corpus_id(corpus), enabled_section_ids))
 
 
 def labeled_references_for_classifier(placed_references: Sequence[tuple[Mapping[str, Any], str]],

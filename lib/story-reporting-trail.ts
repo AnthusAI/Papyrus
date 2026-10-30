@@ -17,6 +17,15 @@ export type TrailVersion = {
   updatedAt: string | null;
 };
 
+/** One stage move of the story, read from the latest Item version's `metadata.stageMoves` (not from Messages). */
+export type TrailStageMove = {
+  at: string;
+  from: string | null;
+  to: string;
+  by: string | null;
+  reason: string | null;
+};
+
 export type TrailAssignmentEvent = {
   id: string;
   eventType: string;
@@ -89,12 +98,29 @@ export type StoryReportingTrail = {
   threads: TrailThread[];
   references: TrailReference[];
   attachments: TrailAttachment[];
+  stageMoves: TrailStageMove[];
 };
 
-export const EMPTY_STORY_REPORTING_TRAIL: StoryReportingTrail = { versions: [], assignments: [], threads: [], references: [], attachments: [] };
+export const EMPTY_STORY_REPORTING_TRAIL: StoryReportingTrail = { versions: [], assignments: [], threads: [], references: [], attachments: [], stageMoves: [] };
+
+/** The stage moves recorded on an Item version's metadata, oldest first. Anything that is not a well-formed move is skipped. */
+export function stageMovesOf(metadata: unknown): TrailStageMove[] {
+  let parsed: unknown = metadata;
+  if (typeof metadata === "string") {
+    try { parsed = JSON.parse(metadata); } catch { return []; }
+  }
+  const moves = typeof parsed === "object" && parsed ? (parsed as Record<string, unknown>).stageMoves : null;
+  if (!Array.isArray(moves)) return [];
+  return moves.flatMap(entry => {
+    if (typeof entry !== "object" || !entry) return [];
+    const move = entry as Record<string, unknown>;
+    if (typeof move.at !== "string" || typeof move.to !== "string") return [];
+    return [{ at: move.at, from: typeof move.from === "string" ? move.from : null, to: move.to, by: typeof move.by === "string" ? move.by : null, reason: typeof move.reason === "string" ? move.reason : null }];
+  });
+}
 
 export function storyReportingTrailIsEmpty(trail: StoryReportingTrail): boolean {
-  return trail.assignments.length === 0 && trail.threads.length === 0 && trail.references.length === 0 && trail.attachments.length === 0 && trail.versions.length <= 1;
+  return trail.assignments.length === 0 && trail.threads.length === 0 && trail.stageMoves.length === 0 && trail.references.length === 0 && trail.attachments.length === 0 && trail.versions.length <= 1;
 }
 
 export type StoryFeedEntry =

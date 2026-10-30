@@ -3518,13 +3518,9 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(result["signals"][0]["coverageKey"], "coverage.ai-in-video-games")
         self.assertEqual(result["signals"][0]["acceptedEvidenceCount"], 2)
         self.assertIn("arts", result["signals"][0]["sectionFit"])
-        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in result["records"]))
-        self.assertEqual(result["records"][0]["input"]["messageKind"], "edition_signal_report")
-        evidence_relations = [
-            record for record in result["records"]
-            if record["modelName"] == "SemanticRelation" and record["input"]["relationTypeKey"] == "uses_evidence"
-        ]
-        self.assertEqual(len(evidence_relations), 2)
+        # Messages come only from people: the report is printed, never written.
+        self.assertNotIn("records", result)
+        self.assertEqual(result["signals"][0]["sourceReferenceIds"], ["reference-ai-games-1", "reference-ai-games-2"])
 
     def _concept_report_fixture(self):
         references = [
@@ -3673,16 +3669,8 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertEqual(result["popularity"][0]["distinctReferenceCount"], 3)
         self.assertEqual(result["trending"][0]["conceptLineageId"], "semantic-node-rl")
         self.assertEqual(result["pagerank"][0]["conceptLineageId"], "semantic-node-rl")
-        self.assertFalse(any(record["modelName"] in {"Item", "EditionItem"} for record in result["records"]))
-        self.assertEqual(result["records"][0]["input"]["messageKind"], "concept_report")
-        self.assertEqual(result["records"][0]["input"]["messageDomain"], "analytics")
-        signal_report_types = {
-            str((record["input"].get("metadata") or {}).get("reportType"))
-            for record in result["records"]
-            if record["modelName"] == "SemanticRelation"
-            and record["input"].get("relationTypeKey") == "uses_signal"
-        }
-        self.assertEqual(signal_report_types, {"popularity", "trending", "pagerank"})
+        self.assertNotIn("records", result)
+        self.assertEqual({section["reportType"] for section in result["reports"]}, {"popularity", "trending", "pagerank"})
 
     def test_concept_report_respects_single_report_type_selection(self):
         fixture = self._concept_report_fixture()
@@ -3702,13 +3690,8 @@ return finish_research_from_search(search, { research_mode = "source_discovery" 
         self.assertGreaterEqual(len(result["popularity"]), 1)
         self.assertEqual(result["trending"], [])
         self.assertEqual(result["pagerank"], [])
-        signal_report_types = {
-            str((record["input"].get("metadata") or {}).get("reportType"))
-            for record in result["records"]
-            if record["modelName"] == "SemanticRelation"
-            and record["input"].get("relationTypeKey") == "uses_signal"
-        }
-        self.assertEqual(signal_report_types, {"popularity"})
+        self.assertNotIn("records", result)
+        self.assertEqual({section["reportType"] for section in result["reports"]}, {"popularity"})
 
     def test_newsroom_cli_concept_report_command_outputs_all_three_reports(self):
         from papyrus_newsroom import cli as newsroom_cli

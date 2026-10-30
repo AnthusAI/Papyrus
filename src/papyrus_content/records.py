@@ -103,12 +103,20 @@ def build_record_changes_targeted_by_id(
     return changes
 
 
+KEPT_FEED_FIELDS = ("predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey", "feedArrivalAt")
+
+
 def build_record_change_from_current(
     model_name: str,
     expected: dict[str, Any],
     current: dict[str, Any] | None,
 ) -> dict[str, Any]:
     next_expected = strip_unsupported_payload_fields(model_name, dict(expected))
+    if current and model_name == "Reference":
+        # An import never rewrites the original prediction, nor the arrival the feeds sort by (src/papyrus_content/reference_feed_keys.py).
+        for key in KEPT_FEED_FIELDS:
+            if current.get(key) is not None:
+                next_expected.pop(key, None)
     if current and model_name in APPEND_ONLY_EXISTING_NOOP_MODELS:
         return {"modelName": model_name, "expected": current, "current": current, "action": "noop"}
     action = "create" if not current else ("noop" if records_equal_for_model(model_name, current, next_expected) else "update")
@@ -123,7 +131,7 @@ def build_record_change_from_current(
 def records_equal_for_model(model_name: str, current: dict[str, Any], expected: dict[str, Any]) -> bool:
     ignored = {"updatedAt", "createdAt", "importedAt", "versionCreatedAt"}
     if model_name == "Reference":
-        ignored |= {"newsroomFeedKey", "curationStatusUpdatedAt"}
+        ignored |= {"newsroomFeedKey", "curationStatusUpdatedAt", *KEPT_FEED_FIELDS}
     keys = {key for key in {*current.keys(), *expected.keys()} if key not in ignored}
     for key in sorted(keys):
         if normalize_compare_value(current.get(key)) != normalize_compare_value(expected.get(key)):
@@ -278,6 +286,7 @@ def prepare_versioned_knowledge_records(
                 {
                     "id": current["id"],
                     "versionState": "superseded",
+                    "feedStateKey": None,   # a superseded version is in no feed
                     "updatedAt": expected.get("updatedAt") or expected.get("importedAt"),
                 },
                 current,

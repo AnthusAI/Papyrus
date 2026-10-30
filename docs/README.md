@@ -123,6 +123,7 @@ One line per page. Read [../README.md](../README.md) for what the repository is 
 - [idea-pipeline.md](idea-pipeline.md): `papyrus ideas digest|synthesize`, private story ideas from a site's recent references (v0).
 - [python-cli-and-testing.md](python-cli-and-testing.md): Poetry setup, CLI recipes, sandbox seeding and BDD suites.
 - [schema-and-api-alignment.md](schema-and-api-alignment.md): fix schema drift by deploying, never by shims.
+- [reference-feed-indexes.md](reference-feed-indexes.md): the two indexes the newsroom References page pages through, the keys every writer keeps, and the backfill.
 - [local-dev-431-troubleshooting.md](local-dev-431-troubleshooting.md): `HTTP 431` from oversized localhost cookies.
 
 ## Archive

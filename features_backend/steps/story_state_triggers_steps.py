@@ -182,10 +182,11 @@ def in_stage(context, stage):
     assert context.world.stage() == stage
 
 
-@then("the story's trail names automation:distinctive.copywriter as the actor of the move")
+@then("the story's stage moves name automation:distinctive.copywriter as the actor of the move")
 def trail(context):
-    messages = list(context.world.client.tables["Message"].values())
-    assert any("copywriting -> typesetting" in json.dumps(m) and "automation:distinctive.copywriter" in json.dumps(m) for m in messages)
+    moves = json.loads(t.latest_story_version(context.world.client, t.LINEAGE)["metadata"])["stageMoves"]
+    assert any(m["from"] == "copywriting" and m["to"] == "typesetting" and m["by"] == "automation:distinctive.copywriter" for m in moves)
+    assert not context.world.client.tables.get("Message")
 
 
 @then("the new version is labelled as a bot action of distinctive.copywriter")
@@ -256,10 +257,12 @@ def unchanged(context):
                                                            "unverifiable": ["a date"], "remaining_findings": 1})
 
 
-@then("the story's trail says distinctive.copywriter made no changes")
+@then("the story's stage move says distinctive.copywriter made no changes and no Message is written")
 def no_changes_note(context):
     assert context.moved["noChanges"] is True
-    assert "distinctive.copywriter: no changes" in json.dumps(list(context.world.client.tables["Message"].values()))
+    moves = json.loads(t.latest_story_version(context.world.client, t.LINEAGE)["metadata"])["stageMoves"]
+    assert moves[-1]["reason"].endswith("(no changes)")
+    assert not context.world.client.tables.get("Message")
 
 
 @then("no version is labelled as a bot action")

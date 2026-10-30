@@ -53,6 +53,11 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
+  messageOwnerSchema: {
+    paths: ["features/message-owner-schema.feature"],
+    require: ["features/step_definitions/message-owner-schema.steps.js"],
+    format: ["summary"],
+  },
   messagesPage: {
     paths: ["features/newsroom-messages-page.feature"],
     require: ["features/step_definitions/messages-page.steps.js"],

@@ -9,8 +9,8 @@ supersedes the older one. The cyclotron status snapshot is a
 ``KnowledgeRawPayload`` whose JSON lives in a ``raw_payload`` attachment, the
 same pattern as the Newsroom summary snapshot.
 
-Reviews stay the existing ``reviewReferenceCuration`` mutation and its
-``reference_curation`` Message; ``relevance_label_for_review`` applies the
+Reviews stay the existing ``reviewReferenceCuration`` mutation, which records the vote on the
+Reference itself (see ``reference_vote``); ``relevance_label_for_review`` applies the
 existing scope-training rule to turn one into a cyclotron label.
 """
 from __future__ import annotations
@@ -21,6 +21,7 @@ from typing import Any, Mapping, Sequence
 from .catalog import _record, semantic_relation_record
 from .ids import hash_short, safe_id
 from .reference_policy import scope_training_label_for_reference
+from .reference_vote import HUMAN, latest_vote
 
 RELEVANCE_RELATION = "relevance_decision_is"
 DECISION_NODE_KIND = "relevanceDecision"
@@ -154,56 +155,49 @@ def status_snapshot_record(cyclotron_id: str, status: Mapping[str, Any], *, now:
     })
 
 
-def relevance_label_for_review(reference: Mapping[str, Any], messages: Sequence[Mapping[str, Any]],
-                               *, labels: Sequence[str]) -> str | None:
+def relevance_label_for_review(reference: Mapping[str, Any], *, labels: Sequence[str]) -> str | None:
     """The cyclotron label an editor's curation implies, by the existing scope-training rule.
 
     Accepted is the positive label; rejected as out of scope or a policy
     exclusion is the negative label; any other outcome gives no label.
     """
-    outcome = scope_training_label_for_reference(dict(reference), [dict(message) for message in messages])
+    outcome = scope_training_label_for_reference(dict(reference))
     positive, negative = labels
     return {"positive": positive, "negative": negative}.get(outcome)
 
 
-HUMAN_CURATION_ACTOR_KIND = "human"
+HUMAN_CURATION_ACTOR_KIND = HUMAN
 
 
-def curation_was_made_by_a_human(messages: Sequence[Mapping[str, Any]]) -> bool:
-    """True only when the latest curation message says, in its own metadata, that a person made it."""
-    if not messages:
-        return False
-    return (messages[-1].get("metadata") or {}).get("actorKind") == HUMAN_CURATION_ACTOR_KIND
+def curation_was_made_by_a_human(reference: Mapping[str, Any]) -> bool:
+    """True only when the Reference's latest vote says, in its own fields, that a person made it."""
+    vote = latest_vote(reference)
+    return vote is not None and vote["actorKind"] == HUMAN
 
 
-def human_label_for_review(reference: Mapping[str, Any], messages: Sequence[Mapping[str, Any]],
-                           *, labels: Sequence[str]) -> str | None:
+def human_label_for_review(reference: Mapping[str, Any], *, labels: Sequence[str]) -> str | None:
     """The scope-training label, but only when a person explicitly made the curation.
 
     References an agent found, or curation an agent or an unknown actor recorded,
     never become training labels, whatever their status says.
     """
-    if not curation_was_made_by_a_human(messages):
+    if not curation_was_made_by_a_human(reference):
         return None
-    return relevance_label_for_review(reference, messages, labels=labels)
+    return relevance_label_for_review(reference, labels=labels)
 
 
-def human_section_for_review(reference: Mapping[str, Any], messages: Sequence[Mapping[str, Any]],
-                             section_ids: Sequence[str]) -> str | None:
+def human_section_for_review(reference: Mapping[str, Any], section_ids: Sequence[str]) -> str | None:
     """The newsroom Section a person chose when accepting the Reference, else None.
 
     Only an explicit human (or delegated) accept that names one of the known
     section ids teaches a section. Agents, unknown actors, rejections and
     unrecognised ids never produce a section label.
     """
-    if not curation_was_made_by_a_human(messages):
+    if not curation_was_made_by_a_human(reference):
         return None
     if reference.get("curationStatus") != "accepted":
         return None
-    metadata = messages[-1].get("metadata") or {}
-    if metadata.get("action") != "accept":
-        return None
-    section_id = metadata.get("sectionId")
+    section_id = latest_vote(reference)["sectionId"]
     if not isinstance(section_id, str) or section_id not in set(section_ids):
         return None
     return section_id

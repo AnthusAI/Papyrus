@@ -33,10 +33,11 @@ PAGE = "<html><head><meta name='description' content='Foo is an open tool that c
 
 
 def provenance(row, monitor="hn", details=None):
-    """The relation that links a monitor's provenance Message to the Reference it delivered."""
-    metadata = {"monitorId": monitor, "sourceId": f"{monitor}-1", **({"details": details} if details else {})}
-    return {"predicate": "ingestion_rationale", "relationState": "current", "subjectKind": "message", "objectKind": "reference", "objectLineageId": row["lineageId"],
-            "importedAt": "2026-10-22T00:00:00Z", "metadata": json.dumps(metadata)}
+    """What a delivery records on the Reference itself: the monitor and the source's structured details (no Message, no relation)."""
+    row["discoveredByMonitorId"] = monitor
+    if details:
+        row["discoveryDetails"] = json.dumps(details)
+    return row
 
 
 def decision(row, score=0.9, label="include"):
@@ -86,7 +87,9 @@ class MonitorClient(FakeClient):
 def world(count=4, *, details=None, verdicts=None, monitor="hn", status="accepted", **options):
     """``count`` monitored References r1..rN, each judged by ``verdicts[number]`` (a score, a (label, score) pair, or None for no verdict)."""
     rows = [reference(number, status=status, days_ago=number) for number in range(1, count + 1)]
-    incoming = {row["lineageId"]: [provenance(row, monitor, (details or {}).get(number))] for number, row in enumerate(rows, start=1)}
+    for number, row in enumerate(rows, start=1):
+        provenance(row, monitor, (details or {}).get(number))
+    incoming = {}
     relations = {}
     for number, row in enumerate(rows, start=1):
         verdict = (verdicts or {}).get(number, 0.5)
@@ -149,9 +152,9 @@ def draft(client, model, *, fetch=None, limit=3, dry_run=False, json_store=None,
 
 
 class ReadingTests(unittest.TestCase):
-    def test_every_monitor_counts_and_the_monitor_and_details_are_read_from_the_provenance(self) -> None:
+    def test_every_monitor_counts_and_the_monitor_and_details_are_read_from_the_reference(self) -> None:
         rows, client = world(2, details={1: {"points": 120, "summary": "A Show item."}})
-        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "huggingface")]
+        provenance(rows[1], "huggingface")
         items, counts = stories.collect_monitored_items(client, site=SITE, since="7d", now=NOW)
         by_id = {item.lineage_id: item for item in items}
         self.assertEqual({item.monitor_id for item in items}, {"hn", "huggingface"})
@@ -161,7 +164,7 @@ class ReadingTests(unittest.TestCase):
 
     def test_a_reference_no_monitor_delivered_is_not_a_monitored_item(self) -> None:
         rows, client = world(2)
-        client.incoming[rows[1]["lineageId"]] = []
+        del client.references[1]["discoveredByMonitorId"]
         items, counts = stories.collect_monitored_items(client, site=SITE, since="7d", now=NOW)
         self.assertEqual([item.lineage_id for item in items], [rows[0]["lineageId"]])
         self.assertEqual(counts["notMonitored"], 1)
@@ -613,7 +616,7 @@ class ExcludedHostAndAutomationTests(unittest.TestCase):
 
     def test_a_reference_an_automation_has_a_procedure_run_for_is_left_to_it(self) -> None:
         rows, client = world(2)
-        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab")]
+        provenance(rows[1], "ttab")
         client.automations = [self.TTAB_AUTOMATION]
         run = draft(client, StoryModel(), fetch=lambda url: PAGE, automation_handled=[rows[1]["id"]])
         self.assertEqual(run["inputs"]["handledByAutomation"], 1)
@@ -622,7 +625,7 @@ class ExcludedHostAndAutomationTests(unittest.TestCase):
 
     def test_a_reference_whose_automation_never_ran_is_drafted_like_any_other(self) -> None:
         rows, client = world(2)
-        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab")]
+        provenance(rows[1], "ttab")
         client.automations = [self.TTAB_AUTOMATION]
         run = draft(client, StoryModel(), fetch=lambda url: PAGE)
         self.assertEqual(run["inputs"]["handledByAutomation"], 0)
@@ -634,9 +637,10 @@ class ExcludedHostAndAutomationTests(unittest.TestCase):
         story = {"predicate": "uses_evidence", "relationState": "current", "subjectKind": "item", "objectKind": "reference",
                  "objectLineageId": rows[0]["lineageId"], "metadata": json.dumps({"role": "based_on"})}
         consulted = {**story, "objectLineageId": rows[2]["lineageId"], "metadata": json.dumps({"role": "consulted"})}
-        client.incoming[rows[0]["lineageId"]].append(story)
-        client.incoming[rows[1]["lineageId"]] = [provenance(rows[1], "ttab"), {**story, "objectLineageId": rows[1]["lineageId"]}]
-        client.incoming[rows[2]["lineageId"]].append(consulted)
+        provenance(rows[1], "ttab")
+        client.incoming[rows[0]["lineageId"]] = [story]
+        client.incoming[rows[1]["lineageId"]] = [{**story, "objectLineageId": rows[1]["lineageId"]}]
+        client.incoming[rows[2]["lineageId"]] = [consulted]
         client.automations = [self.TTAB_AUTOMATION]
         items, counts = stories.collect_monitored_items(client, site=SITE, now=NOW, automated_monitors=["ttab"])
         self.assertEqual([item.lineage_id for item in items], [rows[2]["lineageId"]])   # only a consulted story does not count

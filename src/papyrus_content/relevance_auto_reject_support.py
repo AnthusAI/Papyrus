@@ -4,7 +4,8 @@ from unittest import mock
 
 from features_backend.steps.cyclotron_relevance_sweep_steps import (CORPUS_ID, DOCTRINE, LocalBucket, Model, configure,
                                                                      reference)
-from papyrus_content.relevance_sweep import _curation_messages, run_decide_relevance
+from papyrus_content.reference_vote import HUMAN, latest_vote, vote_fields
+from papyrus_content.relevance_sweep import run_decide_relevance
 
 VENDOR_TITLE = "A vendor launch announcement"
 SECURITY_TITLE = "A security advisory for model servers"
@@ -68,19 +69,16 @@ def sweep_with(context, model, client, tmp_path, *, apply=True, now=SWEEP_TIME):
 
 
 def reopen_as_a_person(client, item, *, at="2026-10-09T12:00:00Z"):
+    """A person reopens the Reference: the vote is recorded on the Reference itself."""
     row = client.tables["Reference"][item["id"]]
-    row.update({"curationStatus": "pending", "curationStatusKey": f"{CORPUS_ID}#pending"})
-    message_id = f"message-reference-curation-{item['lineageId']}-reopen"
-    client.upsert("Message", {"id": message_id, "messageKind": "reference_curation", "authorLabel": "editor-7",
-                              "createdAt": at, "metadata": json.dumps({"action": "reopen", "actorKind": "human"})})
-    client.upsert("SemanticRelation", {
-        "id": f"relation-{message_id}", "relationState": "current", "predicate": "comment", "subjectKind": "message",
-        "subjectId": message_id, "objectKind": "reference", "objectLineageId": item["lineageId"],
-        "objectStateKey": f"reference#{item['lineageId']}#current", "subjectStateKey": f"message#{message_id}#current"})
+    row.update({"curationStatus": "pending", "curationStatusKey": f"{CORPUS_ID}#pending", "curationStatusUpdatedAt": at,
+                "curationStatusUpdatedBy": "editor-7", **vote_fields(HUMAN)})
 
 
-def curation_messages_of(client, lineage_id):
-    return _curation_messages(client, lineage_id)
+def votes_of(client, lineage_id):
+    """The Reference's recorded votes: at most one, because it keeps only its latest."""
+    rows = [row for row in client.tables["Reference"].values() if row.get("lineageId") == lineage_id]
+    return [vote for vote in (latest_vote(row) for row in rows) if vote]
 
 
 def labels_of_store(context):
