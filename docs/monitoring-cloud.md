@@ -723,11 +723,11 @@ All three keys are optional; with no block, or with `{}`, it runs with those def
   disagree) nothing is accepted and the reason is logged. Automatic acceptances are not votes and never teach the threshold.
 * **Delay, learned per publication.** The nearest-rank `latencyQuantile` of the time from a Reference's `createdAt` to a human vote, over all the publication's human votes. Without any vote, nothing is accepted.
 * **Write.** `curationStatus=accepted`, `curationStatusKey`, `reviewedFeedKey`, `curationStatusUpdatedAt`, `curationStatusUpdatedBy="auto:cyclotron"` and a `curationStatusReason` naming the confidence, the
-  threshold, the estimated accept rate, its lower bound, the number of votes and the delay; plus a `reference_curation` Message whose `actorKind` is `cyclotron` (never a human label). A Reference an editor
+  threshold, the estimated accept rate, its lower bound, the number of votes and the delay; plus the vote's details on the Reference itself (`curationActorKind` is `cyclotron`, never a human label; no Message is written). A Reference an editor
   touched (any person as the last actor) is left alone.
 * **Feedback.** `auto:cyclotron` is not a person, so [Feedback](#feedback) skips it. An editor who later Rejects or re-Accepts the Reference replaces the actor, and that vote is sent like any other.
 * **Monitors that deliver by a fixed rule** (`decisions: "direct"`, such as TTAB for Distinctive) have no confidence: the rule match is the acceptance. A newly delivered Reference is set to accepted on delivery with
-  `curationStatusUpdatedBy="auto:rule"` and a reason naming the monitor and the rule. Same switch (`autoAccept.enabled`), same Message (`actorKind` `rule`), never sent to Cyclotron, an editor can still Reject it.
+  `curationStatusUpdatedBy="auto:rule"` and a reason naming the monitor and the rule. Same switch (`autoAccept.enabled`), same Reference fields (`curationActorKind` `rule`), never sent to Cyclotron, an editor can still Reject it.
   `papyrus references auto-accept --site KEY [--dry-run]` applies it to deliveries that already exist (the dry run lists them), and also runs the confidence pass; the monitors it treats as rule monitors are those whose provenance says `machineDecision.system = "direct"`
   or whose deliveries in the corpus carry no Cyclotron verdict at all.
 * **The newsroom** shows "Accepted automatically" (and "(by rule)") with a Lucide icon on the feed card, the list row and the detail, apart from an editor's accept.

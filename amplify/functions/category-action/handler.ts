@@ -4,7 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { putJsonModelPayload, putTextModelPayload, readJsonModelPayload } from "../shared/model-payloads";
-import { curationActorKind, referenceCurationMetadata, validatedCurationSectionId } from "../shared/reference-curation-metadata";
+import { curationActorKind, referenceVoteFields, validatedCurationSectionId } from "../shared/reference-curation-metadata";
 import {
   CURATION_DELEGATION_OWNER_TYPE,
   CURATION_DELEGATION_PAYLOAD_KIND,
@@ -235,17 +235,10 @@ async function reviewReferenceCuration(
   const actorLabel = normalizeOptionalString(event.arguments.actorLabel) ?? getIdentityLabel(event);
   const actor = actorLabel ?? actorSub ?? "Papyrus newsroom";
   const note = writtenReason;
-  const referenceLineageId = normalizeOptionalString(reference.lineageId) ?? referenceId;
-  const referenceVersionNumber = typeof reference.versionNumber === "number" ? reference.versionNumber : null;
-  const referenceTitle = normalizeOptionalString(reference.title) ?? normalizeOptionalString(reference.externalItemId) ?? referenceId;
-  const messageId = `message-reference-curation-${safeId(referenceLineageId)}-${safeId(action)}-${now.replace(/[^0-9TZ]/g, "")}-${randomUUID().slice(0, 8)}`;
-  const relationId = `semantic-relation-${hashStable([
-    `message#${messageId}`,
-    "comment",
-    `reference#${referenceId}`,
-    action,
-  ]).slice(0, 16)}`;
+  const decisionRelationId = normalizeOptionalString(event.arguments.decisionRelationId);
 
+  // The vote is recorded on the Reference itself: its status, who set it and the note, plus the details of the vote.
+  // Messages come only from people, so a vote writes no Message and no comment relation.
   await requireDataResult(
     client.models.Reference.update({
       id: referenceId,
@@ -254,96 +247,19 @@ async function reviewReferenceCuration(
       curationStatusUpdatedAt: now,
       curationStatusUpdatedBy: actor,
       curationStatusReason: note,
+      ...referenceVoteFields({
+        actorKind: delegation ? "human" : curationActorKind(event.identity),
+        reasonCode,
+        sectionId,
+        shareable: event.arguments.shareable ?? null,
+        delegation,
+        decisionRelationId,
+      }),
       newsroomFeedKey: reference.newsroomFeedKey ?? "references",
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
       updatedAt: now,
     }),
     "update Reference curation status",
-  );
-
-  await requireDataResult(
-    client.models.Message.create(buildCanonicalMessageInput({
-      id: messageId,
-      messageKind: "reference_curation",
-      messageDomain: "commentary",
-      summary: `${referenceTitle}: ${nextStatus}`,
-      source: "newsroom",
-      authorSub: actorSub,
-      authorLabel: actor,
-      now,
-    })),
-    "create Message",
-  );
-  await putTextModelPayload(
-    client as any,
-    { ownerKind: "message", ownerId: messageId, ownerLineageId: messageId },
-    "message_body",
-    "message",
-    note ?? `${actor} marked this reference ${nextStatus}.`,
-    { filename: "message.txt", now },
-  );
-  await putJsonModelPayload(
-    client as any,
-    { ownerKind: "message", ownerId: messageId, ownerLineageId: messageId },
-    "metadata",
-    "metadata",
-    referenceCurationMetadata({
-      action,
-      curationStatus: nextStatus,
-      reasonCode,
-      referenceId,
-      referenceLineageId,
-      decisionRelationId: normalizeOptionalString(event.arguments.decisionRelationId),
-      shareable: event.arguments.shareable ?? null,
-      actorKind: delegation ? "human" : curationActorKind(event.identity),
-      sectionId,
-      delegation,
-    }),
-    { filename: "metadata.json", now },
-  );
-
-  await requireDataResult(
-    client.models.SemanticRelation.create({
-      id: relationId,
-      relationState: "current",
-      predicate: "comment",
-      relationTypeId: "semantic-relation-type-comment",
-      relationTypeKey: "comment",
-      relationDomain: "commentary",
-      subjectKind: "message",
-      subjectId: messageId,
-      subjectLineageId: messageId,
-      subjectVersionNumber: 1,
-      objectKind: "reference",
-      objectId: referenceId,
-      objectLineageId: referenceLineageId,
-      objectVersionNumber: referenceVersionNumber,
-      subjectStateKey: semanticStateKey("message", messageId),
-      objectStateKey: semanticStateKey("reference", referenceLineageId),
-      objectSubjectStateKey: `${semanticStateKey("reference", referenceLineageId)}#message`,
-      predicateObjectStateKey: `comment#${semanticStateKey("reference", referenceLineageId)}`,
-      subjectVersionKey: semanticVersionKey("message", messageId),
-      objectVersionKey: semanticVersionKey("reference", referenceId),
-      score: 1,
-      confidence: null,
-      rank: 1,
-      classifierId: null,
-      modelVersion: null,
-      reviewRecommended: false,
-      sourceSnapshotId: null,
-      importRunId: null,
-      importedAt: now,
-      createdAt: now,
-      updatedAt: now,
-      newsroomFeedKey: "semanticRelations",
-      metadata: JSON.stringify({
-        action,
-        curationStatus: nextStatus,
-        reasonCode,
-        messageKind: "reference_curation",
-      }),
-    }),
-    "create Message SemanticRelation",
   );
 
   await updateNewsroomSummaryForReferenceCuration(client, {
@@ -359,8 +275,6 @@ async function reviewReferenceCuration(
     referenceId,
     status: nextStatus,
     reasonCode,
-    messageId,
-    relationId,
   };
 }
 
@@ -855,6 +769,12 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationStatusUpdatedAt: normalizeOptionalString(current.curationStatusUpdatedAt) ?? now,
       curationStatusUpdatedBy: normalizeOptionalString(current.curationStatusUpdatedBy) ?? actor,
       curationStatusReason: normalizeOptionalString(current.curationStatusReason),
+      curationReasonCode: normalizeOptionalString(current.curationReasonCode),
+      curationActorKind: normalizeOptionalString(current.curationActorKind),
+      curationSectionId: normalizeOptionalString(current.curationSectionId),
+      curationShareable: typeof current.curationShareable === "boolean" ? current.curationShareable : null,
+      curationDelegation: current.curationDelegation ?? null,
+      curationDecisionRelationId: normalizeOptionalString(current.curationDecisionRelationId),
       newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? "references",
       reviewedFeedKey: normalizeOptionalString(current.reviewedFeedKey) ?? reviewedFeedKeyForStatus(curationStatus),
       updatedAt: now,
@@ -2169,9 +2089,6 @@ async function updateNewsroomSummaryForReferenceCuration(
   payload.generatedAt = input.now;
   payload.staleAt = new Date(Date.parse(input.now) + SUMMARY_STALE_AFTER_MS).toISOString();
   payload.source = "incremental";
-  payload.counts.messages = Math.max(0, (payload.counts.messages ?? 0) + 1);
-  payload.counts.modelAttachments = Math.max(0, (payload.counts.modelAttachments ?? 0) + 2);
-  payload.counts.semanticRelations = Math.max(0, (payload.counts.semanticRelations ?? 0) + 1);
   if (input.previousStatus !== input.nextStatus) {
     increment(payload.referenceStatusCounts, input.previousStatus, -1);
     increment(payload.referenceStatusCounts, input.nextStatus, 1);
@@ -2183,23 +2100,6 @@ async function updateNewsroomSummaryForReferenceCuration(
       increment(payload.facets.references.statusByCorpus[input.corpusId], input.nextStatus, 1);
     }
   }
-  increment(payload.messageKindCounts, "reference_curation", 1);
-  increment(payload.messageDomainCounts, "commentary", 1);
-  increment(payload.facets.messages.byKind, "reference_curation", 1);
-  increment(payload.facets.messages.byDomain, "commentary", 1);
-  increment(payload.facets.messages.byStatus, "active", 1);
-  if (!payload.facets.messages.domainByKind.reference_curation) payload.facets.messages.domainByKind.reference_curation = {};
-  increment(payload.facets.messages.domainByKind.reference_curation, "commentary", 1);
-  increment(payload.facets.modelAttachments.byOwnerKind, "message", 2);
-  increment(payload.facets.modelAttachments.byRole, "message_body", 1);
-  increment(payload.facets.modelAttachments.byRole, "metadata", 1);
-  increment(payload.facets.modelAttachments.byMediaType, "text/plain", 1);
-  increment(payload.facets.modelAttachments.byMediaType, "application/json", 1);
-  increment(payload.facets.modelAttachments.byStatus, "active", 2);
-  increment(payload.facets.semanticRelations.byRelationTypeKey, "comment", 1);
-  increment(payload.facets.semanticRelations.byRelationDomain, "workflow", 1);
-  increment(payload.facets.semanticRelations.bySubjectKind, "message", 1);
-  increment(payload.facets.semanticRelations.byObjectKind, "reference", 1);
   await upsertNewsroomSummaryPayload(client, payload, response.data, input.now);
 }
 

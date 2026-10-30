@@ -4,7 +4,6 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from .model_attachments import parse_jsonish
 from .reference_policy import (
     is_current_accepted_reference,
     normalize_reference_curation_status,
@@ -71,18 +70,12 @@ def build_reference_scope_training_export(
     corpus_id: str,
     references: list[dict[str, Any]],
     attachments: list[dict[str, Any]],
-    messages: list[dict[str, Any]],
-    relations: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    hydrated_messages = messages
-    hydrated_references = references
-    comments_by_lineage = reference_curation_messages_by_reference_lineage(hydrated_messages, relations)
     training_items = []
-    for reference in hydrated_references:
+    for reference in references:
         if reference.get("corpusId") != corpus_id or reference.get("versionState") != "current":
             continue
-        curation_messages = comments_by_lineage.get(reference.get("lineageId"), [])
-        label = scope_training_label_for_reference(reference, curation_messages)
+        label = scope_training_label_for_reference(reference)
         if not label:
             continue
         item = reference_manifest_item(reference, attachments)
@@ -90,7 +83,7 @@ def build_reference_scope_training_export(
             {
                 "scope_training_label": "in_scope" if label == "positive" else "out_of_scope",
                 "curation_status": reference.get("curationStatus") or "pending",
-                "reason_code": reference_reason_code(reference, curation_messages),
+                "reason_code": reference_reason_code(reference),
             }
         )
         training_items.append(item)
@@ -155,34 +148,6 @@ def reference_manifest_item(reference: dict[str, Any], attachments: list[dict[st
             for attachment in reference_attachments
         ],
     }
-
-
-def reference_curation_messages_by_reference_lineage(
-    messages: list[dict[str, Any]],
-    relations: list[dict[str, Any]],
-) -> dict[str, list[dict[str, Any]]]:
-    message_by_id = {message["id"]: message for message in messages}
-    comments_by_lineage: dict[str, list[dict[str, Any]]] = {}
-    for relation in relations:
-        if relation.get("relationState") != "current":
-            continue
-        if (relation.get("relationTypeKey") or relation.get("predicate")) != "comment":
-            continue
-        if relation.get("subjectKind") != "message" or relation.get("objectKind") != "reference":
-            continue
-        message = message_by_id.get(relation.get("subjectId"))
-        if not message:
-            continue
-        metadata = parse_jsonish(message.get("metadata"))
-        if metadata.get("messageKind") and metadata.get("messageKind") != "reference_curation":
-            continue
-        if message.get("messageKind") and message.get("messageKind") != "reference_curation":
-            continue
-        lineage_id = relation.get("objectLineageId")
-        if not lineage_id:
-            continue
-        comments_by_lineage.setdefault(lineage_id, []).append(message)
-    return comments_by_lineage
 
 
 def _utc_now() -> str:
