@@ -13,7 +13,9 @@ import { ESLint } from "eslint";
 const root = join(import.meta.dirname, "..");
 const resolverDirectory = join(root, "amplify/data/resolvers");
 const lint = (overrideConfig: object[]) => new ESLint({ cwd: root, overrideConfigFile: true, overrideConfig });
-const rules = [{ ...appsync.configs.base, files: ["**/*.js"], languageOptions: { ecmaVersion: 2022, sourceType: "module" } }];
+const base = appsync.configs?.base;
+assert.ok(base, "the AppSync plugin ships its base rules");
+const rules = [{ ...base, files: ["**/*.js"], languageOptions: { ecmaVersion: 2022, sourceType: "module" } }];
 
 test("every AppSync resolver passes the APPSYNC_JS runtime's lint rules", async () => {
   const files = readdirSync(resolverDirectory).filter((name) => name.endsWith(".js"));
