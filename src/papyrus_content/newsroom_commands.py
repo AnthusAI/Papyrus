@@ -973,6 +973,14 @@ def newsroom_prune_attachments(flags: list[str]) -> None:
         print("attachment-prune\tnext\tpoetry run papyrus sections prune-attachments")
 
 
+def _reference_feed_patch(record: dict[str, Any], created_at: str) -> dict[str, Any]:
+    """The References page keys (src/papyrus_content/reference_feed_keys.py); the prediction fields are never touched here."""
+    from .reference_feed_keys import feed_keys
+    if not record.get("id"):
+        return {}
+    return feed_keys({**record, "createdAt": created_at})
+
+
 def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[str, Any]:
     now = _utc_now()
     if model_name == "Message":
@@ -995,6 +1003,7 @@ def _newsroom_feed_patch_for(model_name: str, record: dict[str, Any]) -> dict[st
             "updatedAt": record.get("updatedAt") or record.get("curationStatusUpdatedAt") or record.get("importedAt") or created_at,
             "newsroomFeedKey": "references",
             "reviewedFeedKey": None if curation_status == "pending" else "references#reviewed",
+            **_reference_feed_patch(record, created_at),
         }
     if model_name == "SemanticNode":
         created_at = record.get("createdAt") or record.get("versionCreatedAt") or record.get("updatedAt") or now

@@ -3,6 +3,7 @@
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../amplify/data/resource";
 import { configureAmplifyClient } from "../components/amplify-client-provider";
+import { postMessageArguments, postMessageMutation } from "./post-message";
 import { loadModelPayloadsForOwner, uploadModelPayloadForOwner } from "../components/news-desk-taxonomy-client";
 
 const USER_POOL_AUTH_MODE = "userPool";
@@ -186,14 +187,6 @@ const UPDATE_CONSOLE_THREAD = `
   mutation UpdateMessageThread($input: UpdateMessageThreadInput!) {
     updateMessageThread(input: $input) {
       ${CONSOLE_THREAD_FIELDS}
-    }
-  }
-`;
-
-const CREATE_CONSOLE_MESSAGE_LEGACY = `
-  mutation CreateMessage($input: CreateMessageInput!) {
-    createMessage(input: $input) {
-      ${CONSOLE_MESSAGE_FIELDS_LEGACY}
     }
   }
 `;
@@ -383,79 +376,6 @@ function chooseMessageSelectionSet(schemaFields: Set<string> | null): string {
   return selected.join("\n  ");
 }
 
-function fieldValuesForCreateMessageInput(input: CreateConsoleMessageInput): Record<string, unknown> {
-  return {
-    id: input.id,
-    messageKind: input.messageKind,
-    messageDomain: input.messageDomain,
-    status: input.status,
-    summary: input.summary ?? truncateSummary(input.content ?? null),
-    source: input.source,
-    importRunId: null,
-    authorSub: null,
-    authorUserProfileId: input.authorUserProfileId ?? null,
-    authorLabel: input.authorLabel,
-    threadId: input.threadId ?? null,
-    parentMessageId: input.parentMessageId ?? null,
-    sequenceNumber: input.sequenceNumber ?? null,
-    role: input.role ?? null,
-    messageType: input.messageType ?? null,
-    semanticLayer: input.semanticLayer,
-    searchVisibility: input.searchVisibility,
-    responseTarget: input.responseTarget,
-    responseStatus: input.responseStatus ?? null,
-    responseOwner: input.responseOwner ?? null,
-    responseStartedAt: input.responseStartedAt ?? null,
-    responseCompletedAt: input.responseCompletedAt ?? null,
-    responseError: input.responseError ?? null,
-    metadata: input.metadata,
-    createdAt: input.createdAt,
-    updatedAt: input.updatedAt,
-    newsroomFeedKey: input.newsroomFeedKey,
-  };
-}
-
-function buildCreateMessageInputCandidates(
-  input: CreateConsoleMessageInput,
-  availableFields: Set<string>,
-): Record<string, unknown>[] {
-  const values = fieldValuesForCreateMessageInput(input);
-  const candidates: Record<string, unknown>[] = [];
-  const seen = new Set<string>();
-
-  const pushCandidate = (candidate: Record<string, unknown>) => {
-    const cleaned: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(candidate)) {
-      if (value !== undefined) cleaned[key] = value;
-    }
-    const signature = JSON.stringify(Object.keys(cleaned).sort().map((key) => [key, cleaned[key]]));
-    if (!seen.has(signature)) {
-      seen.add(signature);
-      candidates.push(cleaned);
-    }
-  };
-
-  if (availableFields.size) {
-    pushCandidate(sanitizeCreateMessageInput(input, availableFields));
-  } else {
-    pushCandidate(values);
-    pushCandidate({
-      id: values.id,
-      messageKind: values.messageKind,
-      messageDomain: values.messageDomain,
-      status: values.status,
-      summary: values.summary,
-      source: values.source,
-      authorLabel: values.authorLabel,
-      createdAt: values.createdAt,
-      updatedAt: values.updatedAt,
-      newsroomFeedKey: values.newsroomFeedKey,
-    });
-  }
-
-  return candidates;
-}
-
 async function loadConsoleSchemaSnapshot(): Promise<ConsoleSchemaSnapshot> {
   if (consoleSchemaSnapshot) return consoleSchemaSnapshot;
   if (consoleSchemaSnapshotPromise) return consoleSchemaSnapshotPromise;
@@ -538,70 +458,6 @@ function buildListMessagesQuery(
       }
     }
   `;
-}
-
-function sanitizeCreateMessageInput(
-  input: CreateConsoleMessageInput,
-  availableFields: Set<string>,
-): Record<string, unknown> {
-  const fieldValues: Record<string, unknown> = {
-    id: input.id,
-    messageKind: input.messageKind,
-    messageDomain: input.messageDomain,
-    status: input.status,
-    summary: input.summary ?? truncateSummary(input.content ?? null),
-    source: input.source,
-    importRunId: null,
-    authorSub: null,
-    authorUserProfileId: input.authorUserProfileId ?? null,
-    authorLabel: input.authorLabel,
-    threadId: input.threadId ?? null,
-    parentMessageId: input.parentMessageId ?? null,
-    sequenceNumber: input.sequenceNumber ?? null,
-    role: input.role ?? null,
-    messageType: input.messageType ?? null,
-    semanticLayer: input.semanticLayer,
-    searchVisibility: input.searchVisibility,
-    responseTarget: input.responseTarget,
-    responseStatus: input.responseStatus ?? null,
-    responseOwner: input.responseOwner ?? null,
-    responseStartedAt: input.responseStartedAt ?? null,
-    responseCompletedAt: input.responseCompletedAt ?? null,
-    responseError: input.responseError ?? null,
-    metadata: input.metadata,
-    createdAt: input.createdAt,
-    updatedAt: input.updatedAt,
-    newsroomFeedKey: input.newsroomFeedKey,
-  };
-
-  if (!availableFields.size) {
-    const conservativeFields = [
-      "id",
-      "messageKind",
-      "messageDomain",
-      "status",
-      "summary",
-      "source",
-      "authorLabel",
-      "createdAt",
-      "updatedAt",
-      "newsroomFeedKey",
-    ] as const;
-    const conservative: Record<string, unknown> = {};
-    for (const key of conservativeFields) {
-      const value = fieldValues[key];
-      if (value !== undefined) conservative[key] = value;
-    }
-    return conservative;
-  }
-
-  const sanitized: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(fieldValues)) {
-    if (!availableFields.has(key)) continue;
-    if (value === undefined) continue;
-    sanitized[key] = value;
-  }
-  return sanitized;
 }
 
 function truncateSummary(value: string | null): string | null {
@@ -733,53 +589,27 @@ export async function createConsoleMessage(input: CreateConsoleMessageInput): Pr
   const selectionSets = snapshot.messageFields.size
     ? [chooseMessageSelectionSet(snapshot.messageFields)]
     : [CONSOLE_MESSAGE_FIELDS, CONSOLE_MESSAGE_FIELDS_LEGACY];
-  const inputCandidates = buildCreateMessageInputCandidates(input, snapshot.createMessageInputFields);
+  // The backend stamps the author from the signed-in identity (postMessage): the browser names none and sets no timestamps.
+  const args = postMessageArguments({ ...input, summary: input.summary ?? truncateSummary(input.content ?? null) } as unknown as Record<string, unknown>);
   let lastError: unknown = null;
 
   for (const selectionSet of selectionSets) {
-    const createMutation = `
-      mutation CreateMessage($input: CreateMessageInput!) {
-        createMessage(input: $input) {
-          ${selectionSet}
-        }
-      }
-    `;
-    for (const candidateInput of inputCandidates) {
-      try {
-        const response = await getGraphQLClient().graphql({
-          query: createMutation,
-          variables: { input: candidateInput },
-          authMode: USER_POOL_AUTH_MODE,
-        });
-        const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "createMessage"));
-        await maybeUploadConsoleMessageBody(created.id, input.content);
-        return input.content?.trim() ? { ...created, content: input.content } : created;
-      } catch (error) {
-        if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "createMessage");
-        lastError = error;
-      }
-    }
-  }
-
-  if (lastError) {
     try {
       const response = await getGraphQLClient().graphql({
-        query: CREATE_CONSOLE_MESSAGE_LEGACY,
-        variables: {
-          input: inputCandidates[inputCandidates.length - 1] ?? {},
-        },
+        query: postMessageMutation(args, selectionSet),
+        variables: args,
         authMode: USER_POOL_AUTH_MODE,
       });
-      const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "createMessage"));
+      const created = normalizeConsoleMessageRecord(assertGraphQL<Record<string, unknown>>(response, "postMessage"));
       await maybeUploadConsoleMessageBody(created.id, input.content);
       return input.content?.trim() ? { ...created, content: input.content } : created;
     } catch (error) {
-      if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "createMessage");
+      if (!isUnavailableQueryError(error)) throw normalizeUnknownError(error, "postMessage");
       lastError = error;
     }
   }
 
-  throw normalizeUnknownError(lastError, "createMessage");
+  throw normalizeUnknownError(lastError, "postMessage");
 }
 
 export async function updateConsoleMessage(

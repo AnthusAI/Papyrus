@@ -653,10 +653,9 @@ def test_email_provenance_reaches_existing_reference_intake_without_recuration(m
     decision = {"decisionId": "direct-fixture", "output": "publication", "label": "include"}
     result = deliver_reference(client, publication, disc, decision, config)
     assert client.references[0]["curationStatus"] == "pending"
-    message = next(r["expected"] for r in saved if r["modelName"] == "Message")
-    body = json.loads(message["body"])
-    assert body["emailSubmission"]["mimeSha256"] == sha256(RAW).hexdigest()
-    assert body["sectionHandoff"] == "pending-reference-site-sweep"
+    # Messages come only from people: the delivery writes no provenance Message; the Reference names the monitor.
+    assert not [r for r in saved if r["modelName"] in {"Message", "SemanticRelation"} and r["expected"].get("predicate", "ingestion_rationale") == "ingestion_rationale"]
+    assert client.references[0]["discoveredByMonitorId"] == disc["monitorId"]
     # A different SES delivery of the same URL has independent audit provenance,
     # while canonical Reference deduplication reuses the original pending row.
     next_delivery(fixture)
@@ -666,9 +665,7 @@ def test_email_provenance_reaches_existing_reference_intake_without_recuration(m
     again = deliver_reference(client, publication, second, decision, config)
     assert again["referenceId"] == result["referenceId"]
     assert client.references[0]["curationStatus"] == "pending" and len(client.writes) == 1
-    messages = [row["expected"] for row in saved if row["modelName"] == "Message"]
-    assert len({row["id"] for row in messages}) == 2
-    assert {json.loads(row["body"])["emailSubmission"]["sesMessageId"] for row in messages} == {"ses-delivery-1", "ses-delivery-2"}
+    assert not [row for row in saved if row["modelName"] == "Message"]
     client.references[0]["curationStatus"] = "accepted"
     before = deepcopy(client.references[0])
     again = deliver_reference(client, publication, disc, decision, config)

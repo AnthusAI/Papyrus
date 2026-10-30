@@ -62,7 +62,7 @@ def step_record(context):
 def step_promote(context, section):
     held = state(context)
     [row] = held.client.list_records("Reference")
-    record, _missing = record_of(held.client, row)
+    record, _missing = record_of(row)
     held.result = promote_record(held.client, record, section=section, actor="papyrus-cli", now=NOW, source_text_reader=reader)
     held.item_id, held.lineage = held.result["itemId"], held.result["itemId"]
 

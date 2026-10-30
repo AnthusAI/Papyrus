@@ -334,7 +334,6 @@ def knowledge_corpus_export(flags: list[str]) -> None:
         weeks = _whole(options.get("monitor-weeks"), "--monitor-weeks", None)  # absent: all history
         records, warnings = load_monitor_records(
             client, corpus_id=knowledge_corpus_id({"key": corpus_key}), sources=sources, as_of=as_of, weeks=weeks,
-            workers=worker_count(options.get("parallel")), client_factory=worker_clients(client),
         )
         if normalize_string(options.get("monitor-records-out")):
             write_records(Path(options["monitor-records-out"]), records, as_of=as_of, sources=sources)

@@ -16,7 +16,6 @@ from typing import Any
 from .env import PAPYRUS_ROOT
 from .graphql_authoring import PapyrusGraphQLAuthoringClient, create_authoring_client
 from .ids import hash_short, hash_stable, safe_id
-from .message_contract import build_canonical_message_expected
 from .model_attachments import (
     attachment_record,
     build_json_model_payload_attachment,
@@ -34,7 +33,6 @@ RELATION_EXPLANATION_PROMPT_VERSION = "ontology-relation-explanation-v1"
 CONCEPT_PROFILE_PROMPT_VERSION = "ontology-concept-profile-v1"
 RELATION_EXPLAINER_PROCEDURE = "procedures/newsroom/ontology_relationship_explainer.tac"
 CONCEPT_PROFILER_PROCEDURE = "procedures/newsroom/ontology_concept_profiler.tac"
-ONTOLOGY_MESSAGE_SOURCE = "papyrus-ontology-enrichment"
 OPERATIONAL_RELATION_TYPES = {
     "comment",
     "ingestion_rationale",
@@ -1147,7 +1145,6 @@ def deterministic_concept_profile(context: dict[str, Any]) -> dict[str, Any]:
 
 def build_relation_explanation_records(relation: dict[str, Any], context: dict[str, Any], output: dict[str, Any], *, now: str) -> list[dict[str, Any]]:
     relation_id = str(relation.get("id") or "")
-    message_id = f"message-ontology-relation-{safe_id(relation_id)}-{hash_short(context['inputFingerprint'])}"
     payload = {
         "schemaVersion": 1,
         "artifactKind": RELATION_EXPLANATION_ROLE,
@@ -1159,28 +1156,6 @@ def build_relation_explanation_records(relation: dict[str, Any], context: dict[s
         "generatedAt": now,
         "output": output,
     }
-    message = build_canonical_message_expected(
-        {
-            "id": message_id,
-            "messageKind": "ontology_relation_explanation",
-            "messageDomain": "ontology",
-            "status": "active",
-            "summary": str(output.get("meaning") or "Ontology relation explanation")[:200],
-            "source": ONTOLOGY_MESSAGE_SOURCE,
-            "body": json.dumps(payload, indent=2, sort_keys=True),
-            "semanticLayer": "ontology",
-            "searchVisibility": "private",
-            "responseTarget": "semanticRelation",
-            "responseStatus": "COMPLETED",
-            "responseOwner": "ontology.relationship-explainer",
-            "createdAt": now,
-            "updatedAt": now,
-            "metadata": {"relationId": relation_id, "inputFingerprint": context["inputFingerprint"]},
-        },
-        default_source=ONTOLOGY_MESSAGE_SOURCE,
-        default_author_label="ontology.relationship-explainer",
-        default_response_owner="ontology.relationship-explainer",
-    )
     attachment = attachment_record(
         build_json_model_payload_attachment(
             {
@@ -1196,32 +1171,12 @@ def build_relation_explanation_records(relation: dict[str, Any], context: dict[s
             }
         )
     )
-    link = semantic_relation_record(
-        predicate="explains_relation",
-        subject_kind="message",
-        subject_id=message_id,
-        subject_lineage_id=message_id,
-        subject_version_number=1,
-        object_kind="semanticRelation",
-        object_id=relation_id,
-        object_lineage_id=relation_id,
-        object_version_number=None,
-        confidence=_number_or_none(output.get("confidence")),
-        score=_number_or_none(output.get("confidence")),
-        classifier_id="ontology.relationship-explainer",
-        model_version=str(output.get("model") or ""),
-        source_snapshot_id=relation.get("sourceSnapshotId"),
-        import_run_id=relation.get("importRunId"),
-        imported_at=now,
-        metadata={"inputFingerprint": context["inputFingerprint"], "artifactRole": RELATION_EXPLANATION_ROLE},
-    )
-    return [{"modelName": "Message", "expected": message}, attachment, link]
+    return [attachment]
 
 
 def build_concept_profile_records(concept: dict[str, Any], context: dict[str, Any], output: dict[str, Any], *, now: str) -> list[dict[str, Any]]:
     concept_id = str(concept.get("id") or "")
     concept_lineage = str(concept.get("lineageId") or concept_id)
-    message_id = f"message-ontology-concept-{safe_id(concept_id)}-{hash_short(context['inputFingerprint'])}"
     payload = {
         "schemaVersion": 1,
         "artifactKind": CONCEPT_PROFILE_ROLE,
@@ -1233,28 +1188,6 @@ def build_concept_profile_records(concept: dict[str, Any], context: dict[str, An
         "generatedAt": now,
         "output": output,
     }
-    message = build_canonical_message_expected(
-        {
-            "id": message_id,
-            "messageKind": "ontology_concept_profile",
-            "messageDomain": "ontology",
-            "status": "active",
-            "summary": str(output.get("meaning") or "Ontology concept profile")[:200],
-            "source": ONTOLOGY_MESSAGE_SOURCE,
-            "body": json.dumps(payload, indent=2, sort_keys=True),
-            "semanticLayer": "ontology",
-            "searchVisibility": "private",
-            "responseTarget": "semanticNode",
-            "responseStatus": "COMPLETED",
-            "responseOwner": "ontology.concept-profiler",
-            "createdAt": now,
-            "updatedAt": now,
-            "metadata": {"conceptId": concept_id, "inputFingerprint": context["inputFingerprint"]},
-        },
-        default_source=ONTOLOGY_MESSAGE_SOURCE,
-        default_author_label="ontology.concept-profiler",
-        default_response_owner="ontology.concept-profiler",
-    )
     attachment = attachment_record(
         build_json_model_payload_attachment(
             {
@@ -1272,26 +1205,7 @@ def build_concept_profile_records(concept: dict[str, Any], context: dict[str, An
             }
         )
     )
-    link = semantic_relation_record(
-        predicate="note_about",
-        subject_kind="message",
-        subject_id=message_id,
-        subject_lineage_id=message_id,
-        subject_version_number=1,
-        object_kind="semanticNode",
-        object_id=concept_id,
-        object_lineage_id=concept_lineage,
-        object_version_number=concept.get("versionNumber"),
-        confidence=_number_or_none(output.get("confidence")),
-        score=_number_or_none(output.get("confidence")),
-        classifier_id="ontology.concept-profiler",
-        model_version=str(output.get("model") or ""),
-        source_snapshot_id=concept.get("sourceSnapshotId"),
-        import_run_id=concept.get("importRunId"),
-        imported_at=now,
-        metadata={"inputFingerprint": context["inputFingerprint"], "artifactRole": CONCEPT_PROFILE_ROLE},
-    )
-    return [{"modelName": "Message", "expected": message}, attachment, link]
+    return [attachment]
 
 
 def build_association_relation_records(state: dict[str, Any], concepts: list[dict[str, Any]], *, threshold: float) -> list[dict[str, Any]]:

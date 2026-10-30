@@ -53,6 +53,11 @@ module.exports = {
     require: ["features/step_definitions/conversations.steps.js"],
     format: ["summary"],
   },
+  messageAuthorEnforced: {
+    paths: ["features/message-author-enforced.feature"],
+    require: ["features/step_definitions/message-author-enforced.steps.js"],
+    format: ["summary"],
+  },
   messagesPage: {
     paths: ["features/newsroom-messages-page.feature"],
     require: ["features/step_definitions/messages-page.steps.js"],

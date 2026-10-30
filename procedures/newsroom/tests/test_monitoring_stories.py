@@ -19,7 +19,6 @@ import test_monitoring_router as tr  # noqa: E402
 from ideas_fixtures import NOW  # noqa: E402
 from test_monitor_stories import StoryModel, pages, provenance, world  # noqa: E402
 from papyrus_content.graphql_authoring import PapyrusGraphQLAuthoringClient  # noqa: E402
-from papyrus_content.ideas.monitor_stories import monitor_of  # noqa: E402
 from papyrus_content.monitoring_cloud import DynamoStore, run_collection  # noqa: E402
 from papyrus_content.monitoring_router import MIN_REMAINING_SECONDS, run_router, validate_router_config  # noqa: E402
 from papyrus_content.monitoring_stories import lambda_story_transport, run_publication, validate_monitor_stories  # noqa: E402
@@ -189,7 +188,7 @@ def trigger_row(table, reference, status, **fields):
 def test_a_ttab_reference_an_automation_is_making_a_story_for_is_not_drafted():
     table, store = router()
     rows, client = world(4, monitor="ttab")
-    client.incoming[rows[3]["lineageId"]] = [provenance(rows[3], "hn")]
+    provenance(rows[3], "hn")
     client.automations = [TTAB_AUTOMATION]
     trigger_row(table, rows[0], "running", runId="run-1")
     trigger_row(table, rows[1], "completed", runId="run-2")
@@ -285,7 +284,7 @@ def test_the_router_zip_can_run_the_drafting_with_nothing_but_the_standard_libra
 def test_reading_with_several_workers_gives_the_same_items_and_counts_as_reading_one_by_one():
     from papyrus_content.ideas import monitor_stories as library
     rows, client = world(12, verdicts={3: ("exclude", 0.1)})
-    client.incoming[rows[4]["lineageId"]] = []   # not monitored
+    del rows[4]["discoveredByMonitorId"]   # not monitored
     one = library.collect_monitored_items(client, site=PUBLICATION, now=NOW)
     many = library.collect_monitored_items(client, site=PUBLICATION, now=NOW, workers=4)
     assert [i.lineage_id for i in many[0]] == [i.lineage_id for i in one[0]] and many[1] == one[1]

@@ -1,4 +1,4 @@
-import type { MessageRecord } from "./category-repository";
+import type { ReferenceRecord } from "./category-repository";
 import type { RelevanceCuration, RelevanceDecisionView } from "./relevance-decisions";
 import { safeId } from "./relevance-status";
 
@@ -149,22 +149,12 @@ function parseMetadata(value: unknown): Record<string, unknown> {
 }
 
 /**
- * Reference lineage ids whose latest curation Message was made by a signed-in
- * person. Agent and classifier status changes never appear here, and neither
- * does a reference a person decided before a later non-human change.
+ * Reference lineage ids whose latest vote was made by a signed-in person
+ * (`curationActorKind` is `human`). Agent, Cyclotron and rule votes never appear
+ * here, and neither does a reference a person decided before a later non-human change.
  */
-export function referencesWithHumanLatestCuration(messages: MessageRecord[]): Set<string> {
-  const latestByReference = new Map<string, { createdAt: string; human: boolean }>();
-  for (const message of messages) {
-    if (message.messageKind !== "reference_curation") continue;
-    const metadata = parseMetadata(message.metadata);
-    const lineageId = typeof metadata.referenceLineageId === "string" ? metadata.referenceLineageId : "";
-    if (!lineageId) continue;
-    const seen = latestByReference.get(lineageId);
-    if (seen && seen.createdAt >= message.createdAt) continue;
-    latestByReference.set(lineageId, { createdAt: message.createdAt, human: metadata.actorKind === "human" });
-  }
-  return new Set([...latestByReference].filter(([, entry]) => entry.human).map(([lineageId]) => lineageId));
+export function referencesWithHumanLatestCuration(references: readonly ReferenceRecord[]): Set<string> {
+  return new Set(references.filter((reference) => reference.curationActorKind === "human").map((reference) => reference.lineageId ?? reference.id));
 }
 
 export type SuggestionChoice = "agree" | "overrule";
@@ -233,30 +223,22 @@ export function delegationShortId(delegationId: string): string {
 }
 
 /**
- * Delegated curations by reference lineage, from each reference's latest
- * curation Message only. The person is the Message author; the agent is relayedBy.
+ * Delegated curations by reference lineage, from each Reference's latest vote only.
+ * The person is who set the status (`curationStatusUpdatedBy`); the agent is the delegation's relayedBy.
  */
-export function delegatedCurationsByReference(messages: MessageRecord[]): Map<string, DelegatedCuration> {
-  const latest = new Map<string, MessageRecord>();
-  for (const message of messages) {
-    if (message.messageKind !== "reference_curation") continue;
-    const lineageId = parseMetadata(message.metadata).referenceLineageId;
-    if (typeof lineageId !== "string" || !lineageId) continue;
-    const seen = latest.get(lineageId);
-    if (!seen || seen.createdAt < message.createdAt) latest.set(lineageId, message);
-  }
+export function delegatedCurationsByReference(references: readonly ReferenceRecord[]): Map<string, DelegatedCuration> {
   const delegated = new Map<string, DelegatedCuration>();
-  for (const [lineageId, message] of latest) {
-    const metadata = parseMetadata(message.metadata);
-    if (metadata.attestation !== "delegated") continue;
-    const delegationId = typeof metadata.delegationId === "string" ? metadata.delegationId : "";
-    delegated.set(lineageId, {
-      agent: typeof metadata.relayedBy === "string" && metadata.relayedBy ? metadata.relayedBy : "an agent",
-      person: message.authorLabel?.trim() || null,
-      instruction: typeof metadata.instruction === "string" ? metadata.instruction : "",
+  for (const reference of references) {
+    const delegation = parseMetadata(reference.curationDelegation);
+    if (!Object.keys(delegation).length) continue;
+    const delegationId = typeof delegation.delegationId === "string" ? delegation.delegationId : "";
+    delegated.set(reference.lineageId ?? reference.id, {
+      agent: typeof delegation.relayedBy === "string" && delegation.relayedBy ? delegation.relayedBy : "an agent",
+      person: reference.curationStatusUpdatedBy?.trim() || null,
+      instruction: typeof delegation.instruction === "string" ? delegation.instruction : "",
       delegationId,
       delegationShortId: delegationShortId(delegationId),
-      countsAsTrainingLabel: metadata.actorKind === "human",
+      countsAsTrainingLabel: reference.curationActorKind === "human",
     });
   }
   return delegated;

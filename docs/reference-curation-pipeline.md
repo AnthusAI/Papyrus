@@ -12,7 +12,7 @@ is one.
 
 | # | Step | Code | When it runs | Where it runs | What it stores |
 |---|------|------|--------------|---------------|----------------|
-| 1 | Delivery of a routed item | `monitoring_router.deliver_reference` -> `monitoring_intake.ReferenceIntake` | Each router sweep, per publication that got a positive decision | Router Lambda (`papyrus-monitoring`) | A `Reference` with `curationStatus = pending`, a provenance `Message`, the relevance decision relations. **No text, no summary, no GROBID.** |
+| 1 | Delivery of a routed item | `monitoring_router.deliver_reference` -> `monitoring_intake.ReferenceIntake` | Each router sweep, per publication that got a positive decision | Router Lambda (`papyrus-monitoring`) | A `Reference` with `curationStatus = pending` that records its monitor (`discoveredByMonitorId`, `discoveryDetails`), and the relevance decision relations. No `Message`. **No text, no summary, no GROBID.** |
 | 2 | Procedure triggers | `Router.start_procedures` -> `procedure_runner.handler` | Right after step 1, once per new Reference (never for a reused one) | Procedure-runner Lambda (`papyrus-procedure-runner`, container, 15 min) | A `ProcedureRun` in the site's newsroom and a `TRIGGER#` row. **No publication of the `hn` router has `procedureTriggers` today**, so nothing is started. |
 | 3 | Preview card | `reference_images.attach_preview` (link exploration; `references_enrich_images` is the batch form) | Automatically when a Reference is created: the monitoring router after delivering a new Reference (it reuses the page metadata item enrichment already read, else fetches once), the URL intake that registers a Reference, and email-submission registration. Never for a reused Reference, idempotent, and a failure is logged (`referencePreview` JSON line) and never blocks the Reference. By hand for the backfill and refresh: `papyrus references enrich-images` | The router Lambda, the intake hosts, or a developer machine / any CLI host for the backfill | `ReferenceAttachment` role `preview`, sort key `002-preview`: image URL, description, site name. |
 | 4 | Find the source | `references find-fetch-url-text` (`reference_url_text`, `source_site_plugins`) | By hand (utility worker or CLI; refuses Lambda) | Machine with Biblicus | A `source` `ReferenceAttachment` (the PDF) in corpus storage. |
@@ -30,6 +30,20 @@ stored their text on a Reference.
 **What that meant.** A Reference the router delivered sat as `pending` with a title and a URL. Text,
 summary and GROBID fields appeared only when someone ran steps 5-8 by hand, typically after the editor had
 already decided. The editor rated blind.
+
+## A vote is recorded on the Reference
+
+A vote (accept, reject, archive, reopen) used to write a `reference_curation` Message and a `comment` relation.
+Messages come only from people, so the Reference holds it: `curationStatus`, `curationStatusUpdatedBy`,
+`curationStatusUpdatedAt` and `curationStatusReason` (the note), plus the details of the vote in
+`curationActorKind` (`human`, `agent`, `cyclotron`, `rule` or `catalog`), `curationReasonCode`, `curationSectionId`,
+`curationShareable`, `curationDelegation` (JSON: `delegationId`, `relayedBy`, `instruction`) and
+`curationDecisionRelationId`. The writers are the curation Lambda (`reviewReferenceCuration`, `recordDelegatedCuration`),
+`reference_actions.review_reference_curation` (CLI and Tactus), the automatic accept and reject, and a catalog
+registration that rejects. A Reference keeps only its latest vote; the history of earlier votes lives in the
+Cyclotron's feedback. Every reader (the sweep, the proofs, the exports, the review screens) reads these fields; see
+`src/papyrus_content/reference_vote.py`. `papyrus references backfill-vote-details [--dry-run]` copies the latest old
+vote of each Reference from its `reference_curation` Message.
 
 ## 2. Curation before review
 

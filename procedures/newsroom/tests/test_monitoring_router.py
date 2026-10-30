@@ -243,8 +243,7 @@ class Delivery:
         if pub in self.fail:
             raise RuntimeError("backend unavailable")
         ref = self.references.setdefault((pub, disc["sourceId"]), f"reference-{pub}-{disc['sourceId']}")
-        return {"referenceId": ref, "referenceLineageId": ref.removesuffix("-v1"), "referenceVersion": 1,
-                "provenanceMessageId": "message-1"}
+        return {"referenceId": ref, "referenceLineageId": ref.removesuffix("-v1"), "referenceVersion": 1}
 
 
 def collected_table(feed):
@@ -1322,7 +1321,7 @@ class LabAppSync:
     def update_record(self, model, payload):
         self.ops.append(("update", model, payload.get("predicate")))
         json.dumps(payload)
-        self.rows[(model, payload["id"])] = dict(payload)
+        self.rows[(model, payload["id"])] = {**self.rows.get((model, payload["id"]), {}), **payload}   # an update changes only the fields it names
 
     def list_by_index(self, index, key):
         self.ops.append(("index", index))
@@ -1377,6 +1376,29 @@ def test_delivery_writes_one_current_relation_with_the_lab_metadata(lab):
         "version": 3, "labelSet": ["include", "exclude"], "sourceId": "101"}
     assert ("SemanticNode", "semantic-node-relevance-include-v1") in client.rows
     assert "p-apyr-us" not in lab.clients      # an exclude decision delivers nothing, so no suggestion either
+
+
+def test_delivery_writes_the_original_accept_probability_onto_the_reference(lab):
+    lab.cyclotron.confidence = {("hn-101", "anth-us"): 0.91234}
+    lab.run(task="route")
+    client = lab.clients["anth-us"]
+    (relation,) = client.relations()
+    reference = next(r for (m, _), r in client.rows.items() if m == "Reference")
+    assert reference["predictedAcceptProbability"] == relation["confidence"] == 0.9123
+    assert reference["predictionDecidedAt"] and reference["feedStateKey"] == f"{reference['corpusId']}#unrated"
+    assert reference["predictionSortKey"] == f"0.912300#{reference['feedArrivalAt']}#{reference['id']}"
+
+
+def test_a_changed_decision_leaves_the_original_prediction_on_the_reference(lab):
+    lab.cyclotron.confidence = {("hn-101", "anth-us"): 0.91}
+    lab.run(task="route")
+    client = lab.clients["anth-us"]
+    reference = next(r for (m, _), r in client.rows.items() if m == "Reference")
+    first = {key: reference[key] for key in ("predictedAcceptProbability", "predictionDecidedAt", "predictionSortKey")}
+    redeliver(lab, "anth-us", decisionId="dec-hn-101-v2", decidedAt="2026-10-22T02:00:00Z", fingerprint="fp-new", version=4,
+              confidence=Decimal("0.62"))
+    again = next(r for (m, _), r in client.rows.items() if m == "Reference")
+    assert {key: again[key] for key in first} == first
 
 
 def test_each_publication_gets_its_own_relation_naming_its_own_lab_output(lab):

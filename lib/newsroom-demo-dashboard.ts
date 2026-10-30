@@ -161,13 +161,6 @@ export function applyPilobolusDemoDashboardContent(
   }));
 
   localized.messages = localized.messages.map((message) => {
-    if (message.messageKind === "ingestion_rationale") {
-      return {
-        ...message,
-        body: "Imported as a useful holdout against generic platform demo intake.",
-        summary: "Pilobolus intake rationale",
-      };
-    }
     if (message.messageKind === "reporting_context_packet") {
       const metadata = message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
         ? message.metadata as Record<string, unknown>

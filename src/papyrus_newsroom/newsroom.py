@@ -1328,9 +1328,6 @@ def papyrus_reference_create(args: dict[str, Any]) -> dict[str, Any]:
         "note": str(payload.get("note") or f"Registered from console chat for {normalized_url}"),
         "ingestionRationale": ingestion_rationale or None,
         "actor": actor_label,
-        "createIngestionRationaleMessage": bool(
-            payload.get("createIngestionRationaleMessage", payload.get("create_ingestion_rationale_message"))
-        ),
     }
     plan = build_reference_catalog_registration_records(catalog, plan_options)
     assert_reference_catalog_plan_safety(plan)
@@ -2046,25 +2043,6 @@ def papyrus_reference_quality_rate(
         rating=rating,
         actor_label=actor_label,
         note=note,
-    )
-
-
-def papyrus_reference_note_create(
-    *,
-    reference_id: str,
-    summary: str,
-    body: str,
-    actor_label: str = "",
-) -> dict[str, Any]:
-    """
-    Canonical note creation action for a reference.
-    """
-    return reference_actions.create_reference_note(
-        execute_graphql,
-        reference_id=reference_id,
-        summary=summary,
-        body=body,
-        actor_label=actor_label,
     )
 
 
