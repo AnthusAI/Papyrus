@@ -203,8 +203,7 @@ def test_a_successful_run_moves_the_story_to_next_stage_as_the_bot_and_labels_it
     result = world.finish(world.invoked[0], output={"version": new})
     assert result["status"] == "moved" and world.stage() == "typesetting"
     assert json.loads(world.client.tables["Item"][new]["metadata"])["botAction"]["automationId"] == COPY_BOT
-    notes = json.dumps(list(world.client.tables["Message"].values()))
-    assert f"automation:{COPY_BOT}" in notes and "copywriting -> typesetting" in notes
+    assert not world.client.tables.get("Message")   # Messages come only from people
     assert world.invoked and len(world.invoked) == 1   # no bot at typesetting
 
 
@@ -225,7 +224,7 @@ def test_a_move_with_no_changes_says_so_in_the_story_record_and_the_trail():
     world.finish(world.invoked[0], output={"version": LINEAGE})
     moves = json.loads(latest_story_version(world.client, LINEAGE)["metadata"])["stageMoves"]
     assert moves[0]["reason"] == f"moved to typesetting by automation:{COPY_BOT} (no changes)"
-    assert "(no changes)" in json.dumps(list(world.client.tables["Message"].values()))
+    assert not world.client.tables.get("Message")
 
 
 def test_returning_the_entering_version_means_no_changes_and_still_advances():
@@ -234,8 +233,7 @@ def test_returning_the_entering_version_means_no_changes_and_still_advances():
     output = {"version": LINEAGE, "hold": False, "corrections": [], "unverifiable": ["a date"], "remaining_findings": 1}
     result = world.finish(world.invoked[0], output=output)
     assert result["status"] == "moved" and result["noChanges"] is True and world.stage() == "typesetting"
-    notes = json.dumps(list(world.client.tables["Message"].values()))
-    assert f"{COPY_BOT}: no changes" in notes and not world.reviews()
+    assert not world.client.tables.get("Message") and not world.reviews()
     assert "botAction" not in json.loads(world.client.tables["Item"][LINEAGE]["metadata"])
 
 

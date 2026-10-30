@@ -160,8 +160,6 @@ def deliver_stage_entered(client, *, story: str, reader, writer, invoke, now: st
 
 
 def _start(client, automation, *, row, chain, reader, writer, invoke, stamp, site_endpoint) -> dict[str, Any]:
-    from .story_reporting import append_story_message
-
     config = automation["trigger"]["config"]
     story, stage, version = row["lineageId"], row.get("stage") or "idea", row["id"]
     if reader is None or writer is None:
@@ -196,12 +194,6 @@ def _start(client, automation, *, row, chain, reader, writer, invoke, stamp, sit
     if not writer.claim(claim):
         return {"status": "duplicate", "reason": "this story, stage and version already started a run"}
     _write_metadata(client, row, **{CHAIN_KEY: {**chain, "hops": hop, "lastAutomation": automation["id"]}})
-    try:
-        append_story_message(client, story, body=f"Bot {automation['id']} started on {stage} (version {version}, hop {hop}).",
-                             summary=f"Bot {automation['id']} started on {stage}", author_label=bot_label(automation["id"]),
-                             message_kind="note", now=stamp)
-    except Exception:   # the trail note is a label, never a reason to skip the run
-        pass
     try:
         invoke(request)
     except Exception as error:   # nothing started: the claim row says so (the hop is not refunded)
@@ -239,15 +231,6 @@ def finish_stage_run(client, trigger: dict[str, Any], result: dict[str, Any], *,
         return {"status": "no_version"}
     unchanged = version == trigger.get("version")
     version_row = None if unchanged else client.get_record("Item", version)   # the entering version is not the bot's to label
-    if unchanged:
-        from .story_reporting import append_story_message
-
-        try:
-            append_story_message(client, story, body=f"Bot {automation_id} made no changes to version {version}.",
-                                 summary=f"Bot {automation_id}: no changes", author_label=bot_label(automation_id),
-                                 message_kind="note", now=now)
-        except Exception:   # a label, never a reason to hold the story
-            pass
     if version_row:
         _write_metadata(client, version_row, **{BOT_ACTION_KEY: {"automationId": automation_id, "at": now or _now(), "runKey": key}})
     target = automation.get("nextStage")

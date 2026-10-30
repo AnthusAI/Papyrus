@@ -1,0 +1,20 @@
+{
+  "id": "PPY-30eb691c-4848-4888-8f1c-e6896f899a09",
+  "title": "Stage 3: delete existing machine Messages after readers move",
+  "description": "",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-781d2668-29ab-49b2-81de-74263d01403d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-29T23:51:32.348885Z",
+  "updated_at": "2026-10-29T23:51:32.348923Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -192,11 +192,10 @@ class OntologyEnrichmentTests(unittest.TestCase):
             {"meaning": "Reference 1 mentions Alpha as an entity.", "confidence": 0.91, "model": "test-model"},
             now="2026-01-01T00:00:00Z",
         )
-        by_model = {record["modelName"]: record for record in records}
-        self.assertEqual(by_model["ModelAttachment"]["expected"]["ownerKind"], "semanticRelation")
-        self.assertEqual(by_model["ModelAttachment"]["expected"]["role"], ontology.RELATION_EXPLANATION_ROLE)
-        self.assertEqual(by_model["SemanticRelation"]["expected"]["relationTypeKey"], "explains_relation")
-        self.assertEqual(by_model["Message"]["expected"]["messageKind"], "ontology_relation_explanation")
+        # The explanation lives on the relation as a ModelAttachment; no Message, no link relation.
+        self.assertEqual([record["modelName"] for record in records], ["ModelAttachment"])
+        self.assertEqual(records[0]["expected"]["ownerKind"], "semanticRelation")
+        self.assertEqual(records[0]["expected"]["role"], ontology.RELATION_EXPLANATION_ROLE)
 
     def test_concept_profile_status_depends_on_relation_explanations(self):
         state = self.build_state()
