@@ -13,7 +13,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
     if str(entry) not in sys.path:
         sys.path.insert(0, str(entry))
 
-from papyrus_content.projection.engine import reconcile  # noqa: E402
+from papyrus_content.projection.engine import project_all, reconcile  # noqa: E402
 from papyrus_content.projection.writers import STATE_PREFIX  # noqa: E402
 from papyrus_content.projection.standard.projector import StandardMarkusProjector  # noqa: E402
 from procedures.newsroom.tests import knowledge_fixtures  # noqa: E402
@@ -134,6 +134,21 @@ def based_page_says(context, key: str, text: str) -> None:
 @then('the based site redirects "{source}" to "{target}"')
 def based_redirect(context, source: str, target: str) -> None:
     assert context.site.redirects.mapping.get(source) == target, context.site.redirects.mapping
+
+
+@when('the redirect store maps "{source}" to "{target}" from an earlier layout')
+def stale_redirect(context, source: str, target: str) -> None:
+    context.site.redirects.mapping[source] = target
+
+
+@when("everything on the based site is projected again")
+def project_based_site_again(context) -> None:
+    context.site.report = project_all(context.site.context)
+
+
+@then('the based site does not redirect "{source}"')
+def based_no_redirect(context, source: str) -> None:
+    assert source not in context.site.redirects.mapping, context.site.redirects.mapping
 
 
 @when('the settings of a site with base path "{base}" are read')
