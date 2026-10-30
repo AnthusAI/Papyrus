@@ -17,8 +17,12 @@ export type ConversationsSource = {
   loadThreads: (threadKind: string, nextToken: string | null) => Promise<PagedThreads<MessageThreadRecord>>;
   loadMessages: (threadId: string) => Promise<ConversationMessage[]>;
   post: (input: { thread: MessageThreadRecord; body: string; parentMessageId: string | null }) => Promise<ConversationMessage>;
-  /** A new conversation about nothing but itself. */
-  start: (body: string) => Promise<{ thread: MessageThreadRecord; message: ConversationMessage }>;
+  /** One thread by id, for a linked address whose thread is not on the pages read so far. Null when there is none. */
+  loadThread: (threadId: string) => Promise<MessageThreadRecord | null>;
+  /** Gives the conversation a new title; rejects with the reason when it cannot be saved. */
+  rename: (thread: MessageThreadRecord, title: string) => Promise<MessageThreadRecord>;
+  /** A new conversation about nothing but itself, with its own title and first message. */
+  start: (title: string, body: string) => Promise<{ thread: MessageThreadRecord; message: ConversationMessage }>;
   loadReferences: (lineageIds: string[]) => Promise<Map<string, ConversationReferenceView>>;
   loadStories: (lineageIds: string[]) => Promise<Map<string, ConversationStoryView>>;
 };

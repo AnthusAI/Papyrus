@@ -1,5 +1,6 @@
 "use client";
 
+import { DETAIL_PANE_WIDTH, LIST_HIDDEN_WHEN_DETAIL_OPEN } from "./list-detail-layout";
 import type { PrimingPanelProps } from "cyclotron/components/priming-panel";
 import { ReferenceAddEntry } from "./reference-add-entry";
 import { ReferenceCurationControls, useReferenceImport } from "./reference-curation-controls";
@@ -660,7 +661,7 @@ export function NewsroomReferencesView({
       data-news-desk-section="references"
       data-detail-open={selectedReference || routeLineageId ? "true" : "false"}
     >
-      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:flex lg:overflow-hidden", detailOpen && "max-lg:hidden")} data-reference-feed-column>
+      <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-4 lg:flex lg:overflow-hidden", detailOpen && LIST_HIDDEN_WHEN_DETAIL_OPEN)} data-reference-feed-column>
         <div className="flex shrink-0 items-center justify-between gap-3" {...FEED_SURFACE_PROPS}>
           <div className="min-w-0 space-y-0.5">
             <h2 className="text-2xl font-bold tracking-tight">References</h2>
@@ -869,7 +870,8 @@ export function NewsroomReferencesView({
 
       <div
         className={cn(
-          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] lg:w-[min(100%,24rem)] lg:pb-16 xl:w-[min(100%,28rem)]",
+          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] lg:pb-16",
+          DETAIL_PANE_WIDTH,
           // The detail appears once a reference is selected (or when the queue is done); until then the feed has the whole width.
           detailOpen && "flex",
         )}

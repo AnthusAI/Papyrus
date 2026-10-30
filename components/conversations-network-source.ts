@@ -1,18 +1,20 @@
 import { referencePreviewsByLineage } from "../lib/reference-preview";
 import {
   appendConversationMessage,
+  loadConversationThread,
   loadConversationThreadMessages,
   loadConversationThreadPage,
   loadReferenceAttachmentsForLineageId,
   loadReferenceRecordByLineageId,
   loadStoryHeaders,
+  renameConversationThread,
   startUnattachedConversation,
 } from "./news-desk-taxonomy-client";
 import type { ConversationReferenceView, ConversationsSource } from "./conversations-source";
 
 const PAGE_SIZE = 20;
 
-/** The newsroom's own source: the MessageThread and Message models. A Reference that cannot be read is left out, and its card shows only the messages. */
+/** The newsroom's own source: the MessageThread and Message models. A Reference that cannot be read is left out, and its header shows only the thread's own title. */
 export function createNetworkConversationsSource(authorLabel: string): ConversationsSource {
   return {
     authorLabel,
@@ -24,6 +26,8 @@ export function createNetworkConversationsSource(authorLabel: string): Conversat
         : { kind: "none" } as const;
       return (await appendConversationMessage({ anchor, body, parentMessageId, thread })).message;
     },
+    loadThread: loadConversationThread,
+    rename: renameConversationThread,
     start: startUnattachedConversation,
     loadReferences: async (lineageIds) => {
       const views = new Map<string, ConversationReferenceView>();

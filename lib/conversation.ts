@@ -112,6 +112,34 @@ export function conversationAge(createdAt: string, now: number): string {
   return `${Math.round(hours / 24)}d`;
 }
 
+/** The first line of a message, trimmed to fit a card: what a thread shows as its latest message. */
+export function conversationPreviewLine(content: string | null | undefined, max = 140): string {
+  const line = String(content ?? "").split("\n").map((part) => part.trim()).find(Boolean) ?? "";
+  return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
+}
+
+function threadMetadataObject(metadata: unknown): Record<string, unknown> {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) return metadata as Record<string, unknown>;
+  if (typeof metadata !== "string" || !metadata.trim()) return {};
+  try {
+    const parsed = JSON.parse(metadata);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The thread's metadata (a JSON string) with the author of its latest message recorded, so a list can show who spoke last without reading messages. */
+export function threadMetadataWithLastAuthor(metadata: unknown, authorLabel: string): string {
+  return JSON.stringify({ ...threadMetadataObject(metadata), lastAuthorLabel: authorLabel });
+}
+
+/** Who wrote the latest message, as recorded on the thread; null for a thread that predates the record. */
+export function threadLastAuthorLabel(metadata: unknown): string | null {
+  const label = threadMetadataObject(metadata).lastAuthorLabel;
+  return typeof label === "string" && label.trim() ? label : null;
+}
+
 export function messageCountLabel(count: number): string {
   return `${count} ${count === 1 ? "message" : "messages"}`;
 }

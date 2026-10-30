@@ -52,6 +52,8 @@ import {
   GENERAL_CONVERSATION_KIND,
   REFERENCE_CONVERSATION_KIND,
   conversationAnchorKey,
+  conversationPreviewLine,
+  threadMetadataWithLastAuthor,
   conversationMessageId,
   conversationThreadId,
   conversationThreadKind,
@@ -1423,7 +1425,7 @@ export async function createSectionForumThreadRecord(input: {
  * Appends one Message to a thread: the next sequence number, the Message, then the thread's count and last Message. The Message id
  * derives from the sequence number, so a create that loses a race for the number collides and retries with the next one.
  */
-async function appendMessageToThread(thread: MessageThreadRecord, build: (sequenceNumber: number, now: string) => MessageRecord): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
+async function appendMessageToThread(thread: MessageThreadRecord, build: (sequenceNumber: number, now: string) => MessageRecord, threadFields: { summary?: string; metadata?: string } = {}): Promise<{ thread: MessageThreadRecord; message: MessageRecord }> {
   const threadId = thread.id;
   let now = new Date().toISOString();
   let built: MessageRecord | null = null;
@@ -1447,11 +1449,12 @@ async function appendMessageToThread(thread: MessageThreadRecord, build: (sequen
         lastMessageId: createdMessage.id,
         lastMessageAt: createdMessage.createdAt,
         updatedAt: now,
+        ...threadFields,
       },
     },
   );
   return {
-    thread: normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, updatedAt: now }),
+    thread: normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, ...threadFields, updatedAt: now }),
     message: createdMessage,
   };
 }
@@ -1620,7 +1623,7 @@ export async function appendConversationMessage(input: {
     createdAt: now,
     updatedAt: now,
     newsroomFeedKey: CONVERSATION_FEED_KEY,
-  }));
+  }), { summary: conversationPreviewLine(content), metadata: threadMetadataWithLastAuthor(thread.metadata, author.label) });
   let relationError: string | null = null;
   if (input.anchor.kind !== "none") {
     try {
@@ -1648,8 +1651,10 @@ export async function loadConversationThreadMessages(threadId: string): Promise<
 }
 
 /** Starts a conversation about nothing but itself: its own thread, and its first Message. */
-export async function startUnattachedConversation(body: string): Promise<{ message: ConversationMessage; thread: MessageThreadRecord }> {
+export async function startUnattachedConversation(title: string, body: string): Promise<{ message: ConversationMessage; thread: MessageThreadRecord }> {
   const content = String(body || "").trim();
+  const heading = String(title || "").trim();
+  if (!heading) throw new Error("Give the conversation a title.");
   if (!content) throw new Error("Write something to post.");
   const author = await currentConversationAuthor();
   const now = new Date().toISOString();
@@ -1658,7 +1663,7 @@ export async function startUnattachedConversation(body: string): Promise<{ messa
     id,
     threadKind: GENERAL_CONVERSATION_KIND,
     status: "active",
-    title: content.split("\n")[0].slice(0, 80),
+    title: heading.slice(0, 120),
     createdBySub: author.sub,
     createdByLabel: author.label,
     messageCount: 0,
@@ -1673,6 +1678,29 @@ export async function startUnattachedConversation(body: string): Promise<{ messa
   const saved = normalizeThreadRecord(created.createMessageThread ?? thread);
   const result = await appendConversationMessage({ anchor: { kind: "none" }, body: content, thread: saved });
   return { message: result.message, thread: result.thread };
+}
+
+const GET_MESSAGE_THREAD_QUERY = `
+  query GetMessageThread($id: ID!) {
+    getMessageThread(id: $id) {
+      id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey
+    }
+  }
+`;
+
+/** One conversation thread by id (a linked address), or null when there is none or it was removed. */
+export async function loadConversationThread(threadId: string): Promise<MessageThreadRecord | null> {
+  const response = await runGraphql<{ getMessageThread?: MessageThreadRecord | null }>(GET_MESSAGE_THREAD_QUERY, { id: threadId });
+  const thread = response.getMessageThread ? normalizeThreadRecord(response.getMessageThread) : null;
+  return thread && thread.status !== "deleted" ? thread : null;
+}
+
+/** Gives a conversation a new title. Nothing else about the thread changes. */
+export async function renameConversationThread(thread: MessageThreadRecord, title: string): Promise<MessageThreadRecord> {
+  const next = String(title || "").trim();
+  if (!next) throw new Error("A title cannot be empty.");
+  const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(UPDATE_MESSAGE_THREAD_MUTATION, { input: { id: thread.id, title: next.slice(0, 120) } });
+  return normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, title: next.slice(0, 120) });
 }
 
 /** The title and editorial stage of each Story, by lineage id. A Story that cannot be read has no entry. */
