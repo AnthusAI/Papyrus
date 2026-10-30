@@ -95,11 +95,11 @@ source.edit = async (messageId, body) => {
   return edit(messageId, body);
 };
 const remove = source.remove;
-source.remove = async (messageId) => {
-  window.calls.push({ type: "remove", messageId });
+source.remove = async (messageId, moderate) => {
+  window.calls.push({ type: "remove", messageId, moderate });
   await new Promise((resolve) => setTimeout(resolve, 20));
   if (params.has("faildelete")) throw new Error("The backend refused this.");
-  return remove(messageId);
+  return remove(messageId, moderate);
 };
 const loadMessages = source.loadMessages;
 source.loadMessages = async (threadId) => { window.calls.push({ type: "loadMessages", threadId }); return loadMessages(threadId); };
@@ -578,7 +578,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       assert.equal(await deleted.locator("button").count(), 0, "no Reply, Edit or Delete on a deleted message");
       assert.equal(await page.locator('[data-conversation-message="a5"]').count(), 1, "its reply stays");
       assert.ok((await page.locator('[data-conversation-message="a5"] [data-conversation-content]').innerText()).includes("Drafting it Monday."));
-      assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "remove"), [{ type: "remove", messageId: "a4" }]);
+      assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "remove"), [{ type: "remove", messageId: "a4", moderate: false }]);
       await screenshot(page, "deleted", width, '[data-conversation-detail="t-ref-1"]');
       if (width < 1024) await page.locator("[data-detail-back]").click();
       assert.equal((await page.locator('[data-conversation-card="t-ref-1"] [data-conversation-count]').innerText()).trim(), "5", "the thread's count does not drop");
@@ -598,6 +598,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       await detail.locator("[data-conversation-delete-confirm]").click();
       await page.locator('[data-conversation-message="a2"][data-conversation-deleted]').waitFor();
       assert.equal(await page.locator('[data-conversation-message="a2"] [data-conversation-content]').innerText(), "Message deleted");
+      assert.deepEqual((await calls(page) as { type: string }[]).filter((entry) => entry.type === "remove"), [{ type: "remove", messageId: "a2", moderate: true }], "an admin deleting someone else's message moderates it");
     });
   },
 

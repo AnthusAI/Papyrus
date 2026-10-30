@@ -13,7 +13,7 @@ function networkConversationStore(authorLabel: string): ConversationStore {
     viewer: loadConversationViewer,
     authors: loadUserProfileNames,
     edit: editConversationMessage,
-    remove: deleteConversationMessage,
+    remove: (messageId, moderate) => deleteConversationMessage(messageId, moderate),
   };
 }
 

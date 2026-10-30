@@ -27,7 +27,7 @@ export function createNetworkConversationsSource(authorLabel: string): Conversat
     loadViewer: loadConversationViewer,
     loadAuthors: loadUserProfileNames,
     edit: editConversationMessage,
-    remove: deleteConversationMessage,
+    remove: (messageId, moderate) => deleteConversationMessage(messageId, moderate),
     post: async ({ thread, body, parentMessageId }) => {
       const anchor = thread.primaryAnchorLineageId && (thread.primaryAnchorKind === "reference" || thread.primaryAnchorKind === "item")
         ? { kind: thread.primaryAnchorKind, lineageId: thread.primaryAnchorLineageId, title: thread.title } as const

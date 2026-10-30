@@ -18,7 +18,7 @@ export type ConversationStore = {
   viewer: () => Promise<ConversationViewer>;
   authors: (profileIds: string[]) => Promise<Map<string, string>>;
   edit: (messageId: string, body: string) => Promise<ConversationMessage>;
-  remove: (messageId: string) => Promise<ConversationMessage>;
+  remove: (messageId: string, moderate: boolean) => Promise<ConversationMessage>;
 };
 
 const ConversationStoreContext = createContext<ConversationStore | null>(null);

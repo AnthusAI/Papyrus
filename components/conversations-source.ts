@@ -23,7 +23,7 @@ export type ConversationsSource = {
   /** The author changes their own Message's text; rejects with the reason when the API refuses. */
   edit: (messageId: string, body: string) => Promise<ConversationMessage>;
   /** A soft delete: the Message stays, marked deleted. */
-  remove: (messageId: string) => Promise<ConversationMessage>;
+  remove: (messageId: string, moderate: boolean) => Promise<ConversationMessage>;
   post: (input: { thread: MessageThreadRecord; body: string; parentMessageId: string | null }) => Promise<ConversationMessage>;
   /** One thread by id, for a linked address whose thread is not on the pages read so far. Null when there is none. */
   loadThread: (threadId: string) => Promise<MessageThreadRecord | null>;

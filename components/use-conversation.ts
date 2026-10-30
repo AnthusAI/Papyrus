@@ -92,9 +92,11 @@ export function useConversation(anchor: ConversationAnchor) {
   }, [store]);
   const remove = useCallback(async (messageId: string) => {
     if (!store) throw new Error("Messages are not available here.");
-    const saved = await store.remove(messageId);
+    const target = messages.find((message) => message.id === messageId);
+    const moderate = viewer.isAdmin && target?.authorSub !== viewer.sub;
+    const saved = await store.remove(messageId, moderate);
     setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
-  }, [store]);
+  }, [store, messages, viewer]);
 
   return { available: Boolean(store), messages, state, error, retry, post, edit, remove, viewer, names };
 }

@@ -1516,15 +1516,23 @@ async function currentConversationAuthor(): Promise<ConversationAuthor> {
   } catch {
     sub = null;
   }
-  const userProfileId = await currentUserProfileId();
-  return { sub, label: snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor", userProfileId, isAdmin: snapshot.groups.some((group) => group.trim().toLowerCase() === "admin") };
+  const profile = await currentUserProfile();
+  // The author's name travels on the message (other editors cannot read profiles): their display name, else the session's label.
+  const sessionLabel = snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor";
+  return { sub, label: profile.displayName || sessionLabel, userProfileId: profile.id, isAdmin: snapshot.groups.some((group) => group.trim().toLowerCase() === "admin") };
 }
 
-let userProfileIdLookup: Promise<string | null> | null = null;
-/** The signed-in person's profile id, read once per page load. A failed read is not kept, and does not stop a post. */
-function currentUserProfileId(): Promise<string | null> {
-  userProfileIdLookup ??= resolveReaderSettings().then((resolution) => resolution.userProfileId ?? null).catch(() => { userProfileIdLookup = null; return null; });
-  return userProfileIdLookup;
+let userProfileLookup: Promise<{ id: string | null; displayName: string | null }> | null = null;
+/** The signed-in person's profile id and display name (their own profile is readable by them), read once per page load. A failed read is not kept, and does not stop a post. */
+function currentUserProfile(): Promise<{ id: string | null; displayName: string | null }> {
+  userProfileLookup ??= (async () => {
+    const resolution = await resolveReaderSettings();
+    const id = resolution.userProfileId ?? null;
+    if (!id) return { id: null, displayName: null };
+    const names = await loadUserProfileNames([id]);
+    return { id, displayName: names.get(id) ?? null };
+  })().catch(() => { userProfileLookup = null; return { id: null, displayName: null }; });
+  return userProfileLookup;
 }
 
 /** Who is looking at a conversation: their sub, and whether they are an admin. Decided from the session, never from a Message. */
@@ -1739,27 +1747,33 @@ const GET_MESSAGE_THREAD_QUERY = `
   }
 `;
 
-/** The author changes the text of their own Message. It records when, and keeps everything else. The API refuses anyone else. */
+const MESSAGE_ACTION_SELECTION = "id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey";
+
+/** The author changes the text of their own Message. The backend (editMessage) checks the stored author against the signed-in user and records when. */
 export async function editConversationMessage(messageId: string, body: string): Promise<ConversationMessage> {
   const content = String(body || "").trim();
   if (!content) throw new Error("A message cannot be empty.");
-  const now = new Date().toISOString();
-  const updated = await runGraphql<{ updateMessage?: MessageRecord | null }>(UPDATE_MESSAGE_MUTATION, {
-    input: { id: messageId, content, summary: content.slice(0, 120), editedAt: now, updatedAt: now },
-  });
-  if (!updated.updateMessage) throw new Error("The message was not saved.");
-  return toConversationMessage(normalizeMessageRecord(updated.updateMessage));
+  const updated = await runGraphql<{ editMessage?: MessageRecord | null }>(
+    `mutation EditMessage($id: ID!, $content: String!, $summary: String) { editMessage(id: $id, content: $content, summary: $summary) { ${MESSAGE_ACTION_SELECTION} } }`,
+    { id: messageId, content, summary: content.slice(0, 120) },
+  );
+  if (!updated.editMessage) throw new Error("The message was not saved.");
+  return toConversationMessage(normalizeMessageRecord(updated.editMessage));
 }
 
-/** Deletes a Message softly: it stays (so its replies keep their place) marked deleted, with when and by whom. Nothing is removed. */
-export async function deleteConversationMessage(messageId: string): Promise<ConversationMessage> {
-  const author = await currentConversationAuthor();
-  const now = new Date().toISOString();
-  const updated = await runGraphql<{ updateMessage?: MessageRecord | null }>(UPDATE_MESSAGE_MUTATION, {
-    input: { id: messageId, status: "deleted", deletedAt: now, deletedBySub: author.sub, updatedAt: now },
-  });
-  if (!updated.updateMessage) throw new Error("The message was not deleted.");
-  return toConversationMessage(normalizeMessageRecord(updated.updateMessage));
+/**
+ * Deletes a Message softly: it stays (so its replies keep their place) marked deleted, with when and by whom. Nothing is removed.
+ * An author deletes their own (deleteOwnMessage); an admin deleting someone else's moderates it (moderateMessage). The backend decides.
+ */
+export async function deleteConversationMessage(messageId: string, moderate = false): Promise<ConversationMessage> {
+  const field = moderate ? "moderateMessage" : "deleteOwnMessage";
+  const updated = await runGraphql<Record<string, MessageRecord | null | undefined>>(
+    `mutation DeleteMessage($id: ID!) { ${field}(id: $id) { ${MESSAGE_ACTION_SELECTION} } }`,
+    { id: messageId },
+  );
+  const record = updated[field];
+  if (!record) throw new Error("The message was not deleted.");
+  return toConversationMessage(normalizeMessageRecord(record));
 }
 
 /** One conversation thread by id (a linked address), or null when there is none or it was removed. */
@@ -1773,8 +1787,12 @@ export async function loadConversationThread(threadId: string): Promise<MessageT
 export async function renameConversationThread(thread: MessageThreadRecord, title: string): Promise<MessageThreadRecord> {
   const next = String(title || "").trim();
   if (!next) throw new Error("A title cannot be empty.");
-  const updated = await runGraphql<{ updateMessageThread?: MessageThreadRecord | null }>(UPDATE_MESSAGE_THREAD_MUTATION, { input: { id: thread.id, title: next.slice(0, 120) } });
-  return normalizeThreadRecord(updated.updateMessageThread ?? { ...thread, title: next.slice(0, 120) });
+  // renameThread (the backend): only the person who started the conversation, or an admin.
+  const updated = await runGraphql<{ renameThread?: MessageThreadRecord | null }>(
+    `mutation RenameThread($id: ID!, $title: String!) { renameThread(id: $id, title: $title) { id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey createdBySub createdByUserProfileId createdByLabel messageCount lastMessageId lastMessageAt contextDigest activeResponseMessageId responseLockOwner responseLockExpiresAt metadata createdAt updatedAt newsroomFeedKey } }`,
+    { id: thread.id, title: next.slice(0, 120) },
+  );
+  return normalizeThreadRecord(updated.renameThread ?? { ...thread, title: next.slice(0, 120) });
 }
 
 /** The title and editorial stage of each Story, by lineage id. A Story that cannot be read has no entry. */

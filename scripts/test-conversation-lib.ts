@@ -127,10 +127,10 @@ test("Only a thread's creator or an admin renames it", () => {
   assert.equal(canRenameThread({ sub: "sub-root", isAdmin: true }, { createdBySub: "sub-them" }), true);
 });
 
-test("The author's name is their profile's, then the saved label, then the email's first part", () => {
+test("The author's name is the saved label (their display name), then a readable profile name, then the email's first part", () => {
   const names = new Map([["profile-1", "Ada Lovelace"]]);
-  assert.equal(messageAuthorName({ authorLabel: "ada@example.test", authorUserProfileId: "profile-1" }, names), "Ada Lovelace");
+  assert.equal(messageAuthorName({ authorLabel: "Ada L.", authorUserProfileId: "profile-1" }, names), "Ada L.", "a display name saved with the message wins");
+  assert.equal(messageAuthorName({ authorLabel: "ada@example.test", authorUserProfileId: "profile-1" }, names), "Ada Lovelace", "an older message saved an email: a readable profile name is better");
   assert.equal(messageAuthorName({ authorLabel: "ada@example.test", authorUserProfileId: "profile-2" }, names), "ada");
-  assert.equal(messageAuthorName({ authorLabel: "Ada L.", authorUserProfileId: null }, names), "Ada L.");
   assert.equal(messageAuthorName({ authorLabel: "", authorUserProfileId: null }), "Someone");
 });

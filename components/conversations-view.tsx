@@ -36,7 +36,7 @@ function kindLabel(kind: string): KindLabel {
 }
 
 /** One conversation's Messages: loaded once, shown at once when posted, taken back when the save fails. */
-function useThreadMessages(source: ConversationsSource, thread: MessageThreadRecord, seed: ConversationMessage[] | undefined, reloadKey: number, onSaved?: (message: ConversationMessage) => void) {
+function useThreadMessages(source: ConversationsSource, thread: MessageThreadRecord, seed: ConversationMessage[] | undefined, reloadKey: number, viewer: ConversationViewer, onSaved?: (message: ConversationMessage) => void) {
   const [messages, setMessages] = useState<ConversationMessage[]>(seed ?? []);
   const [state, setState] = useState<"loading" | "ready" | "error">(seed ? "ready" : "loading");
   const [error, setError] = useState<string | null>(null);
@@ -86,9 +86,12 @@ function useThreadMessages(source: ConversationsSource, thread: MessageThreadRec
     setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
   }, [source]);
   const remove = useCallback(async (messageId: string) => {
-    const saved = await source.remove(messageId);
+    // An admin deleting someone else's message moderates it; everyone else deletes their own.
+    const target = messages.find((message) => message.id === messageId);
+    const moderate = viewer.isAdmin && target?.authorSub !== viewer.sub;
+    const saved = await source.remove(messageId, moderate);
     setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
-  }, [source]);
+  }, [source, messages, viewer]);
   return { messages, state, error, post, edit, remove, names, retry: () => setAttempt((current) => current + 1) };
 }
 
@@ -320,7 +323,7 @@ function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, re
   const lineageId = thread.primaryAnchorLineageId ?? "";
   const story = stories.get(lineageId);
   const saved = useCallback((message: ConversationMessage) => onPosted(thread, message), [onPosted, thread]);
-  const messages = useThreadMessages(source, thread, seed, reloadKey, saved);
+  const messages = useThreadMessages(source, thread, seed, reloadKey, viewer, saved);
   const { icon: KindIcon, text: kindText } = kindLabel(thread.threadKind);
   return (
     <div className="space-y-4" data-conversation-detail={thread.id}>

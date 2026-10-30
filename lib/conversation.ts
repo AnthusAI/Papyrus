@@ -56,10 +56,16 @@ export function canRenameThread(viewer: ConversationViewer | undefined, thread: 
   return viewer.isAdmin || Boolean(viewer.sub && thread.createdBySub && thread.createdBySub === viewer.sub);
 }
 
-/** The name to show: the author's profile name, else the label saved with the Message, else the email's first part. */
+/**
+ * The name to show. The label saved with the Message is the author's display name (it travels with the Message, because other
+ * editors cannot read profiles); an older Message saved an email there, so a profile name, when it can be read, comes before an
+ * email's first part.
+ */
 export function messageAuthorName(message: Pick<ConversationMessage, "authorLabel" | "authorUserProfileId">, names?: ReadonlyMap<string, string>): string {
+  const label = String(message.authorLabel ?? "").trim();
+  if (label && !label.includes("@")) return label;
   const profileName = message.authorUserProfileId ? names?.get(message.authorUserProfileId)?.trim() : "";
-  return profileName || conversationAuthorName(message.authorLabel);
+  return profileName || conversationAuthorName(label);
 }
 
 export type ConversationReply = { message: ConversationMessage; answers: string | null };
