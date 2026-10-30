@@ -61,12 +61,14 @@ import {
   findOrCreateThread,
   type ConversationAnchor,
   type ConversationMessage,
+  type ConversationViewer,
 } from "../lib/conversation";
 import { legacyStageKeysToLoad, type ContentItemVersionRecord } from "../lib/content-item-lifecycle";
 import { getContentItemStageDefinitions } from "../lib/site-brand";
 import { DOCTRINE_DEFINITIONS, getCategoryDoctrineDefinitions, type DoctrineCategory } from "../lib/doctrine";
 import { configureAmplifyClient } from "./amplify-client-provider";
 import { isUnauthenticatedError, loadReaderSessionSnapshot, type ReaderAuthSnapshot } from "./reader-auth-state";
+import { resolveReaderSettings } from "./reader-settings";
 
 const USER_POOL_AUTH_MODE = "userPool";
 const USER_POOL_LIST_LIMIT = 500;
@@ -80,7 +82,7 @@ const REFERENCE_STATUS_KEYS = ["pending", "accepted", "rejected", "archived"] as
 const NEWSROOM_MESSAGE_FEED_QUERY = `
   query ListMessagesByNewsroomFeedAndCreatedAt($newsroomFeedKey: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String, $filter: ModelMessageFilterInput) {
     listMessagesByNewsroomFeedAndCreatedAt(newsroomFeedKey: $newsroomFeedKey, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken, filter: $filter) {
-      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
+      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
       nextToken
     }
   }
@@ -139,7 +141,7 @@ const CREATE_SEMANTIC_RELATION_MUTATION = `
 const LIST_MESSAGES_BY_THREAD_AND_SEQUENCE_QUERY = `
   query ListMessagesByThreadAndSequence($threadId: ID!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
     listMessagesByThreadAndSequence(threadId: $threadId, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
-      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
+      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
       nextToken
     }
   }
@@ -148,7 +150,7 @@ const LIST_MESSAGES_BY_THREAD_AND_SEQUENCE_QUERY = `
 const LIST_MESSAGES_BY_KIND_AND_CREATED_AT_QUERY = `
   query ListMessagesByKindAndCreatedAt($messageKind: String!, $sortDirection: ModelSortDirection, $limit: Int, $nextToken: String) {
     listMessagesByKindAndCreatedAt(messageKind: $messageKind, sortDirection: $sortDirection, limit: $limit, nextToken: $nextToken) {
-      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
+      items { id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey }
       nextToken
     }
   }
@@ -157,7 +159,7 @@ const LIST_MESSAGES_BY_KIND_AND_CREATED_AT_QUERY = `
 const GET_MESSAGE_QUERY = `
   query GetMessage($id: ID!) {
     getMessage(id: $id) {
-      id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey
+      id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel editedAt deletedAt deletedBySub threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata createdAt updatedAt newsroomFeedKey
     }
   }
 `;
@@ -235,6 +237,9 @@ const CREATE_MESSAGE_MUTATION = `
       authorSub
       authorUserProfileId
       authorLabel
+      editedAt
+      deletedAt
+      deletedBySub
       threadId
       parentMessageId
       sequenceNumber
@@ -270,6 +275,9 @@ const UPDATE_MESSAGE_MUTATION = `
       authorSub
       authorUserProfileId
       authorLabel
+      editedAt
+      deletedAt
+      deletedBySub
       threadId
       parentMessageId
       sequenceNumber
@@ -1496,7 +1504,7 @@ export async function appendForumThreadMessageRecord(input: {
   }));
 }
 
-type ConversationAuthor = { sub: string | null; label: string };
+type ConversationAuthor = { sub: string | null; label: string; userProfileId: string | null; isAdmin: boolean };
 
 async function currentConversationAuthor(): Promise<ConversationAuthor> {
   const snapshot = await loadReaderSessionSnapshot();
@@ -1508,7 +1516,42 @@ async function currentConversationAuthor(): Promise<ConversationAuthor> {
   } catch {
     sub = null;
   }
-  return { sub, label: snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor" };
+  const userProfileId = await currentUserProfileId();
+  return { sub, label: snapshot.auth.status === "signedIn" ? snapshot.auth.label : "editor", userProfileId, isAdmin: snapshot.groups.some((group) => group.trim().toLowerCase() === "admin") };
+}
+
+let userProfileIdLookup: Promise<string | null> | null = null;
+/** The signed-in person's profile id, read once per page load. A failed read is not kept, and does not stop a post. */
+function currentUserProfileId(): Promise<string | null> {
+  userProfileIdLookup ??= resolveReaderSettings().then((resolution) => resolution.userProfileId ?? null).catch(() => { userProfileIdLookup = null; return null; });
+  return userProfileIdLookup;
+}
+
+/** Who is looking at a conversation: their sub, and whether they are an admin. Decided from the session, never from a Message. */
+export async function loadConversationViewer(): Promise<ConversationViewer> {
+  const author = await currentConversationAuthor();
+  return { sub: author.sub, isAdmin: author.isAdmin };
+}
+
+/** Display names by profile id, in one request. A profile this person may not read is left out and its Messages keep the saved label. */
+export async function loadUserProfileNames(profileIds: string[]): Promise<Map<string, string>> {
+  const ids = [...new Set(profileIds.filter(Boolean))];
+  const names = new Map<string, string>();
+  if (!ids.length) return names;
+  const query = `query UserProfileNames { ${ids.map((id, index) => `p${index}: getUserProfile(id: ${JSON.stringify(id)}) { id displayName }`).join(" ")} }`;
+  configureAmplifyClient();
+  const client = generateClient<Schema>() as unknown as { graphql: (options: Record<string, unknown>) => Promise<{ data?: Record<string, { id?: string; displayName?: string | null } | null> | null }> };
+  let data: Record<string, { id?: string; displayName?: string | null } | null> | null | undefined;
+  try {
+    data = (await client.graphql({ query, authMode: USER_POOL_AUTH_MODE })).data;
+  } catch (failure) {
+    // Some of the profiles are refused: the rest of the answer is still good.
+    data = (failure as { data?: typeof data } | null)?.data;
+  }
+  for (const profile of Object.values(data ?? {})) {
+    if (profile?.id && profile.displayName?.trim()) names.set(profile.id, profile.displayName.trim());
+  }
+  return names;
 }
 
 async function findConversationThread(anchorKey: string): Promise<MessageThreadRecord | null> {
@@ -1542,6 +1585,7 @@ export async function ensureConversationThread(anchor: ConversationAnchor, autho
         primaryAnchorLineageId: lineageId,
         primaryAnchorKey: anchorKey,
         createdBySub: author?.sub ?? null,
+        createdByUserProfileId: author?.userProfileId ?? null,
         createdByLabel: author?.label ?? "editor",
         messageCount: 0,
         lastMessageId: null,
@@ -1562,9 +1606,14 @@ function toConversationMessage(record: MessageRecord): ConversationMessage {
     id: record.id,
     parentMessageId: record.parentMessageId ?? null,
     authorLabel: record.authorLabel ?? "",
-    content: record.content ?? record.body ?? "",
+    authorSub: record.authorSub ?? null,
+    authorUserProfileId: record.authorUserProfileId ?? null,
+    content: record.status === "deleted" ? "" : record.content ?? record.body ?? "",
     createdAt: record.createdAt,
     sequenceNumber: Number(record.sequenceNumber ?? 0),
+    editedAt: record.editedAt ?? null,
+    deleted: record.status === "deleted",
+    deletedAt: record.deletedAt ?? null,
   };
 }
 
@@ -1575,7 +1624,7 @@ export async function loadConversationMessages(anchor: ConversationAnchor): Prom
   const thread = await findConversationThread(anchorKey);
   if (!thread) return [];
   const records = await listMessagesByThreadId(thread.id, 500);
-  return records.filter((record) => record.status !== "deleted").map(toConversationMessage);
+  return records.map(toConversationMessage);
 }
 
 /** How many Messages each Reference has, from the Reference conversation threads alone (no query per card). Keyed by lineage id. */
@@ -1612,6 +1661,7 @@ export async function appendConversationMessage(input: {
     summary: content.slice(0, 120),
     source: "newsroom.conversation",
     authorSub: author.sub,
+    authorUserProfileId: author.userProfileId,
     authorLabel: author.label,
     threadId: thread.id,
     parentMessageId: input.parentMessageId?.trim() || null,
@@ -1647,7 +1697,7 @@ export async function loadConversationThreadPage(threadKind: string, nextToken: 
 /** Every Message in a conversation thread, oldest first. */
 export async function loadConversationThreadMessages(threadId: string): Promise<ConversationMessage[]> {
   const records = await listMessagesByThreadId(threadId, 500);
-  return records.filter((record) => record.status !== "deleted").map(toConversationMessage);
+  return records.map(toConversationMessage);
 }
 
 /** Starts a conversation about nothing but itself: its own thread, and its first Message. */
@@ -1665,6 +1715,7 @@ export async function startUnattachedConversation(title: string, body: string): 
     status: "active",
     title: heading.slice(0, 120),
     createdBySub: author.sub,
+    createdByUserProfileId: author.userProfileId,
     createdByLabel: author.label,
     messageCount: 0,
     lastMessageId: null,
@@ -1687,6 +1738,29 @@ const GET_MESSAGE_THREAD_QUERY = `
     }
   }
 `;
+
+/** The author changes the text of their own Message. It records when, and keeps everything else. The API refuses anyone else. */
+export async function editConversationMessage(messageId: string, body: string): Promise<ConversationMessage> {
+  const content = String(body || "").trim();
+  if (!content) throw new Error("A message cannot be empty.");
+  const now = new Date().toISOString();
+  const updated = await runGraphql<{ updateMessage?: MessageRecord | null }>(UPDATE_MESSAGE_MUTATION, {
+    input: { id: messageId, content, summary: content.slice(0, 120), editedAt: now, updatedAt: now },
+  });
+  if (!updated.updateMessage) throw new Error("The message was not saved.");
+  return toConversationMessage(normalizeMessageRecord(updated.updateMessage));
+}
+
+/** Deletes a Message softly: it stays (so its replies keep their place) marked deleted, with when and by whom. Nothing is removed. */
+export async function deleteConversationMessage(messageId: string): Promise<ConversationMessage> {
+  const author = await currentConversationAuthor();
+  const now = new Date().toISOString();
+  const updated = await runGraphql<{ updateMessage?: MessageRecord | null }>(UPDATE_MESSAGE_MUTATION, {
+    input: { id: messageId, status: "deleted", deletedAt: now, deletedBySub: author.sub, updatedAt: now },
+  });
+  if (!updated.updateMessage) throw new Error("The message was not deleted.");
+  return toConversationMessage(normalizeMessageRecord(updated.updateMessage));
+}
 
 /** One conversation thread by id (a linked address), or null when there is none or it was removed. */
 export async function loadConversationThread(threadId: string): Promise<MessageThreadRecord | null> {

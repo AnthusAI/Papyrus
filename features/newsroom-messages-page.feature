@@ -64,6 +64,39 @@ Feature: The Messages page is a forum
     And the thread's card counts the new messages and moves to the top
     And a refused save takes the message back, says so in words with an icon, and keeps the typed text
 
+  Scenario: The author's name comes from their profile
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When the editor opens a conversation whose authors have profiles
+    Then each message shows its author's profile name, or the saved label's first part when the profile cannot be read
+    And the profiles were asked for in one request for the whole conversation
+
+  Scenario: Other people's messages cannot be edited or deleted
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When another editor opens a conversation written by someone else
+    Then no message shows Edit or Delete, every message still shows Reply, and the title has no Rename
+    And the author sees Edit and Delete, each with an icon and a word, on their own messages only
+
+  Scenario: An author edits their own message
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When the author taps Edit on their message, changes the text and taps Save
+    Then the message shows the new text and says when it was edited, and Cancel leaves it as it was
+
+  Scenario: An author deletes their own message and its replies stay
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When the author taps Delete on a message that has a reply and confirms
+    Then Delete this message? is asked inline with Delete and Keep, and Keep changes nothing
+    And the message reads Message deleted with a ban icon and offers no Reply, Edit or Delete, its reply stays, and the thread's count does not drop
+
+  Scenario: An admin can delete anyone's message but not edit it
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When an admin opens a conversation written by others
+    Then every message shows Delete and none shows Edit, and the admin can rename any thread
+
+  Scenario: A refused edit or delete says why and keeps the text
+    Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
+    When the backend refuses an edit and a delete
+    Then each says why in words with an icon, the edit box keeps the typed text, and the message is unchanged
+
   Scenario: Starting a conversation takes a title
     Given a Messages page with Reference, Story, unattached, forum and chat conversations and a machine record
     When the editor writes a message in the New message box and then gives it a title and taps Post

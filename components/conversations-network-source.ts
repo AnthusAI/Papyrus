@@ -1,8 +1,12 @@
 import { referencePreviewsByLineage } from "../lib/reference-preview";
 import {
   appendConversationMessage,
+  deleteConversationMessage,
+  editConversationMessage,
   loadConversationThread,
   loadConversationThreadMessages,
+  loadConversationViewer,
+  loadUserProfileNames,
   loadConversationThreadPage,
   loadReferenceAttachmentsForLineageId,
   loadReferenceRecordByLineageId,
@@ -20,6 +24,10 @@ export function createNetworkConversationsSource(authorLabel: string): Conversat
     authorLabel,
     loadThreads: (threadKind, nextToken) => loadConversationThreadPage(threadKind, nextToken, PAGE_SIZE),
     loadMessages: loadConversationThreadMessages,
+    loadViewer: loadConversationViewer,
+    loadAuthors: loadUserProfileNames,
+    edit: editConversationMessage,
+    remove: deleteConversationMessage,
     post: async ({ thread, body, parentMessageId }) => {
       const anchor = thread.primaryAnchorLineageId && (thread.primaryAnchorKind === "reference" || thread.primaryAnchorKind === "item")
         ? { kind: thread.primaryAnchorKind, lineageId: thread.primaryAnchorLineageId, title: thread.title } as const

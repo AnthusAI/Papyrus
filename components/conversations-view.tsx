@@ -3,7 +3,7 @@
 import { BookmarkIcon, CheckIcon, ChevronRightIcon, ExternalLinkIcon, InboxIcon, LayoutGridIcon, ListIcon, Loader2Icon, MessageCircleIcon, MessageSquareIcon, MessageSquareTextIcon, MessagesSquareIcon, NewspaperIcon, PencilIcon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageThreadRecord } from "../lib/category-repository";
-import { conversationAge, conversationAuthorName, conversationPreviewLine, threadLastAuthorLabel, threadMetadataWithLastAuthor, type ConversationMessage } from "../lib/conversation";
+import { NO_VIEWER, canRenameThread, conversationAge, conversationAuthorName, conversationPreviewLine, threadLastAuthorLabel, threadMetadataWithLastAuthor, type ConversationMessage, type ConversationViewer } from "../lib/conversation";
 import { referenceDisplayTitle } from "../lib/newsroom-references";
 import { referenceSourceHost } from "../lib/reference-preview";
 import { CONVERSATION_SECTIONS, SECTION_EMPTY_COPY, createMergedThreadStream, sectionOfThreadKind, threadKindsForSection, type ConversationSection } from "../lib/conversation-feed";
@@ -70,7 +70,26 @@ function useThreadMessages(source: ConversationsSource, thread: MessageThreadRec
       throw failure instanceof Error ? failure : new Error("Your message could not be saved.");
     }
   }, [source, thread, onSaved]);
-  return { messages, state, error, post, retry: () => setAttempt((current) => current + 1) };
+  // Display names come from the authors' profiles, one request for every author not yet asked about.
+  const [names, setNames] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const asked = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = [...new Set(messages.map((message) => message.authorUserProfileId).filter((id): id is string => Boolean(id) && !asked.current.has(id as string)))];
+    if (!missing.length) return;
+    missing.forEach((id) => asked.current.add(id));
+    let active = true;
+    source.loadAuthors(missing).then((loaded) => { if (active && loaded.size) setNames((current) => new Map([...current, ...loaded])); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [messages, source]);
+  const edit = useCallback(async (messageId: string, body: string) => {
+    const saved = await source.edit(messageId, body);
+    setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
+  }, [source]);
+  const remove = useCallback(async (messageId: string) => {
+    const saved = await source.remove(messageId);
+    setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
+  }, [source]);
+  return { messages, state, error, post, edit, remove, names, retry: () => setAttempt((current) => current + 1) };
 }
 
 /** Threads that open in the detail here. Forum threads and chats open their own views. */
@@ -219,7 +238,7 @@ function ReferenceAttachment({ href, now, onNavigate, thread, view }: { href: st
 }
 
 /** The conversation's title, with a Rename button that opens an input in place. A refused save says why and keeps what was typed. */
-function ThreadTitle({ onRename, thread }: { onRename: (title: string) => Promise<void>; thread: MessageThreadRecord }) {
+function ThreadTitle({ canRename, onRename, thread }: { canRename: boolean; onRename: (title: string) => Promise<void>; thread: MessageThreadRecord }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(thread.title);
   const [saving, setSaving] = useState(false);
@@ -246,9 +265,11 @@ function ThreadTitle({ onRename, thread }: { onRename: (title: string) => Promis
     return (
       <div className="flex items-start justify-between gap-2" data-conversation-heading>
         <h2 className="min-w-0 break-words text-xl font-bold leading-snug tracking-tight" data-conversation-detail-title>{thread.title}</h2>
-        <button className={cn(PILL_QUIET, "shrink-0")} data-conversation-rename onClick={() => { setDraft(thread.title); setEditing(true); }} type="button">
-          <PencilIcon aria-hidden="true" className="size-4" />Rename
-        </button>
+        {canRename ? (
+          <button className={cn(PILL_QUIET, "shrink-0")} data-conversation-rename onClick={() => { setDraft(thread.title); setEditing(true); }} type="button">
+            <PencilIcon aria-hidden="true" className="size-4" />Rename
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -281,7 +302,7 @@ function ThreadTitle({ onRename, thread }: { onRename: (title: string) => Promis
 }
 
 /** One conversation opened: its own title, what it is about, and every message with its replies. Messages are read only now. */
-function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, references, seed, source, stories, thread }: {
+function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, references, seed, source, stories, thread, viewer }: {
   demo: boolean;
   now: number;
   onNavigate?: (href: string) => void;
@@ -293,6 +314,7 @@ function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, re
   source: ConversationsSource;
   stories: ReadonlyMap<string, ConversationStoryView>;
   thread: MessageThreadRecord;
+  viewer: ConversationViewer;
 }) {
   const section = sectionOfThreadKind(thread.threadKind);
   const lineageId = thread.primaryAnchorLineageId ?? "";
@@ -303,7 +325,7 @@ function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, re
   return (
     <div className="space-y-4" data-conversation-detail={thread.id}>
       <p className={cn(LABEL, "inline-flex items-center gap-1.5 text-muted-foreground")}><KindIcon aria-hidden="true" className="size-3.5" />{kindText}</p>
-      <ThreadTitle onRename={(title) => onRename(thread, title)} thread={thread} />
+      <ThreadTitle canRename={canRenameThread(viewer, thread)} onRename={(title) => onRename(thread, title)} thread={thread} />
       {section === "references" && lineageId ? (
         <ReferenceAttachment href={getNewsroomNavHref(`/newsroom/references/${encodeURIComponent(lineageId)}`, demo)} now={now} onNavigate={onNavigate} thread={thread} view={references.get(lineageId)} />
       ) : null}
@@ -319,14 +341,18 @@ function ThreadDetail({ demo, now, onNavigate, onPosted, onRename, reloadKey, re
         </div>
       ) : null}
       <ConversationThread
+        authorNames={messages.names}
         error={messages.error}
         heading={`Messages in ${thread.title}`}
         hideHeading
         messages={messages.messages}
         now={now}
+        onDelete={messages.remove}
+        onEdit={messages.edit}
         onPost={messages.post}
         onRetry={messages.retry}
         state={messages.state}
+        viewer={viewer}
       />
     </div>
   );
@@ -394,6 +420,7 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [fetched, setFetched] = useState<MessageThreadRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<ConversationViewer>(NO_VIEWER);
   const [threads, setThreads] = useState<MessageThreadRecord[]>([]);
   const [seeds, setSeeds] = useState<Record<string, ConversationMessage[]>>({});
   const [loading, setLoading] = useState(true);
@@ -413,6 +440,12 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
     const storyIds = page.filter((thread) => thread.threadKind === "story_conversation" && thread.primaryAnchorLineageId).map((thread) => thread.primaryAnchorLineageId!);
     if (referenceIds.length) void source.loadReferences(referenceIds).then((loaded) => setReferences((current) => new Map([...current, ...loaded]))).catch(() => undefined);
     if (storyIds.length) void source.loadStories(storyIds).then((loaded) => setStories((current) => new Map([...current, ...loaded]))).catch(() => undefined);
+  }, [source]);
+
+  useEffect(() => {
+    let active = true;
+    source.loadViewer().then((loaded) => { if (active) setViewer(loaded); }).catch(() => undefined);
+    return () => { active = false; };
   }, [source]);
 
   // Preferences and the address are read in the browser only, after the first render.
@@ -606,7 +639,7 @@ export function ConversationsView({ demo = false, onNavigate, source }: {
       <ListDetailLayout
         backLabel="Messages"
         detail={openable ? (
-          <ThreadDetail demo={demo} key={openable.id} now={now} onNavigate={onNavigate} onPosted={onPosted} onRename={rename} reloadKey={reloadKey} references={references} seed={seeds[openable.id]} source={source} stories={stories} thread={openable} />
+          <ThreadDetail demo={demo} key={openable.id} now={now} onNavigate={onNavigate} onPosted={onPosted} onRename={rename} reloadKey={reloadKey} references={references} seed={seeds[openable.id]} source={source} stories={stories} thread={openable} viewer={viewer} />
         ) : null}
         list={list}
         onBack={() => select(null)}

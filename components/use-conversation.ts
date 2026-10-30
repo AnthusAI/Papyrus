@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ConversationAnchor, ConversationMessage } from "../lib/conversation";
+import { NO_VIEWER, type ConversationAnchor, type ConversationMessage, type ConversationViewer } from "../lib/conversation";
 import { useConversationStore } from "./conversation-context";
 
 export type ConversationState = "loading" | "ready" | "error";
@@ -64,7 +64,39 @@ export function useConversation(anchor: ConversationAnchor) {
     }
   }, [store]);
 
-  return { available: Boolean(store), messages, state, error, retry, post };
+  const [viewer, setViewer] = useState<ConversationViewer>(NO_VIEWER);
+  useEffect(() => {
+    if (!store) return;
+    let active = true;
+    store.viewer().then((loaded) => { if (active) setViewer(loaded); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [store]);
+
+  // Display names come from the authors' profiles: one request for every author not yet asked about.
+  const [names, setNames] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const asked = useRef(new Set<string>());
+  useEffect(() => {
+    if (!store) return;
+    const missing = [...new Set(messages.map((message) => message.authorUserProfileId).filter((id): id is string => Boolean(id) && !asked.current.has(id as string)))];
+    if (!missing.length) return;
+    missing.forEach((id) => asked.current.add(id));
+    let active = true;
+    store.authors(missing).then((loaded) => { if (active && loaded.size) setNames((current) => new Map([...current, ...loaded])); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [messages, store]);
+
+  const edit = useCallback(async (messageId: string, body: string) => {
+    if (!store) throw new Error("Messages are not available here.");
+    const saved = await store.edit(messageId, body);
+    setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
+  }, [store]);
+  const remove = useCallback(async (messageId: string) => {
+    if (!store) throw new Error("Messages are not available here.");
+    const saved = await store.remove(messageId);
+    setMessages((current) => current.map((message) => (message.id === messageId ? { ...message, ...saved } : message)));
+  }, [store]);
+
+  return { available: Boolean(store), messages, state, error, retry, post, edit, remove, viewer, names };
 }
 
 /** Message counts per Reference lineage, for the feed cards. A failed read just shows no counts. */

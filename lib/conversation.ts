@@ -21,9 +21,46 @@ export type ConversationMessage = {
   content: string;
   createdAt: string;
   sequenceNumber: number;
+  /** The sub of the person who wrote it: only they can edit it. */
+  authorSub?: string | null;
+  /** Their profile, where their display name lives. */
+  authorUserProfileId?: string | null;
+  /** When the author last changed the text. */
+  editedAt?: string | null;
+  /** A deleted Message keeps its place (replies stay under it) but has no text. */
+  deleted?: boolean;
+  deletedAt?: string | null;
   /** True while an optimistic Message waits for the save. */
   pending?: boolean;
 };
+
+/** Who is looking: what they may change is decided from this (an author edits their own; an admin removes anyone's). */
+export type ConversationViewer = { sub: string | null; isAdmin: boolean };
+
+export const NO_VIEWER: ConversationViewer = { sub: null, isAdmin: false };
+
+/** Only the author edits a Message, and not one that is deleted or still being saved. */
+export function canEditMessage(viewer: ConversationViewer | undefined, message: ConversationMessage): boolean {
+  return Boolean(viewer?.sub && message.authorSub && message.authorSub === viewer.sub && !message.deleted && !message.pending);
+}
+
+/** The author deletes their own; an admin deletes anyone's. */
+export function canDeleteMessage(viewer: ConversationViewer | undefined, message: ConversationMessage): boolean {
+  if (!viewer || message.deleted || message.pending) return false;
+  return viewer.isAdmin || Boolean(viewer.sub && message.authorSub && message.authorSub === viewer.sub);
+}
+
+/** Only the person who started a conversation, or an admin, renames it. */
+export function canRenameThread(viewer: ConversationViewer | undefined, thread: { createdBySub?: string | null }): boolean {
+  if (!viewer) return false;
+  return viewer.isAdmin || Boolean(viewer.sub && thread.createdBySub && thread.createdBySub === viewer.sub);
+}
+
+/** The name to show: the author's profile name, else the label saved with the Message, else the email's first part. */
+export function messageAuthorName(message: Pick<ConversationMessage, "authorLabel" | "authorUserProfileId">, names?: ReadonlyMap<string, string>): string {
+  const profileName = message.authorUserProfileId ? names?.get(message.authorUserProfileId)?.trim() : "";
+  return profileName || conversationAuthorName(message.authorLabel);
+}
 
 export type ConversationReply = { message: ConversationMessage; answers: string | null };
 export type ConversationRoot = { message: ConversationMessage; replies: ConversationReply[] };
@@ -75,7 +112,7 @@ export function conversationAuthorName(label: string | null | undefined): string
  * Top-level Messages in order, each with its replies. A reply to a reply stays flat under the same root and says who it answers.
  * A reply whose parent is missing is shown as a top-level Message rather than lost.
  */
-export function buildConversationTree(messages: ReadonlyArray<ConversationMessage>): ConversationRoot[] {
+export function buildConversationTree(messages: ReadonlyArray<ConversationMessage>, nameOf: (message: ConversationMessage) => string = (message) => conversationAuthorName(message.authorLabel)): ConversationRoot[] {
   const sorted = [...messages].sort((a, b) => a.sequenceNumber - b.sequenceNumber || a.createdAt.localeCompare(b.createdAt));
   const byId = new Map(sorted.map((message) => [message.id, message]));
   const rootOf = (message: ConversationMessage): string => {
@@ -95,7 +132,7 @@ export function buildConversationTree(messages: ReadonlyArray<ConversationMessag
     const root = roots.get(rootOf(message));
     if (!root || root.message.id === message.id) continue;
     const parent = message.parentMessageId ? byId.get(message.parentMessageId) : undefined;
-    root.replies.push({ message, answers: parent && parent.id !== root.message.id ? conversationAuthorName(parent.authorLabel) : null });
+    root.replies.push({ message, answers: parent && parent.id !== root.message.id ? nameOf(parent) : null });
   }
   return [...roots.values()];
 }
