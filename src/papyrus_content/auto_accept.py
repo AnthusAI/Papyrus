@@ -28,6 +28,7 @@ from typing import Any
 from .catalog import semantic_relation_record
 from .ideas.digest import parse_time, relations_of, relevance_of
 from .ids import hash_short, safe_id
+from .reference_feed_keys import feed_state_key
 
 AUTO_ACTOR = "auto:cyclotron"
 RULE_ACTOR = "auto:rule"   # a monitor with a fixed delivery rule (decisions "direct") has no confidence: matching the rule is the acceptance
@@ -169,7 +170,8 @@ def accept_reference_automatically(client: Any, reference: Mapping[str, Any], *,
     client.update_record("Reference", {
         "id": reference["id"], "curationStatus": "accepted", "curationStatusKey": f"{current['corpusId']}#accepted",
         "curationStatusUpdatedAt": now, "curationStatusUpdatedBy": actor, "curationStatusReason": reason,
-        "reviewedFeedKey": REVIEWED_FEED_KEY, "updatedAt": now})
+        "reviewedFeedKey": REVIEWED_FEED_KEY, "feedStateKey": feed_state_key({**current, "curationStatus": "accepted"}),   # a vote moves it to the rated feed; its prediction stays
+        "updatedAt": now})
     client.upsert("Message", {
         "id": message_id, "messageKind": "reference_curation", "messageDomain": "commentary", "status": "active",
         "summary": f"{current.get('title') or lineage_id}: accepted", "source": "papyrus-monitoring" if by_rule else "cyclotron",

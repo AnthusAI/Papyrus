@@ -1147,8 +1147,26 @@ def deliver_reference(client, publication: dict, disc: dict, decision: dict, con
     intake = ReferenceIntake(client, monitor, auth_mode="iam")
     if config.get("decisions") == "direct":
         return intake(item, provenance)   # the monitor's own rule: no machine decision, so no decision relation
-    return intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc),
-                  reference_id=(disc.get("editorSelectedReference") or {}).get("referenceId"))
+    delivered = intake(item, provenance, lambda reference: lab_decision_records(client, publication, decision, config, reference, disc),
+                       reference_id=(disc.get("editorSelectedReference") or {}).get("referenceId"))
+    record_original_prediction(client, publication, decision, delivered["referenceId"], disc)
+    return delivered
+
+
+def record_original_prediction(client, publication: dict, decision: dict, reference_id: str, disc: dict) -> None:
+    """Write the Cyclotron's first prediction onto the Reference itself, where the References page's Best bets index reads it.
+
+    P(accept) is the confidence of the include label, or 1 - the confidence of the exclude label. It is written once: a Reference that
+    already has a prediction keeps it (a later decision, a vote, a re-delivery change nothing here), so a redelivery writes nothing.
+    """
+    from .reference_feed_keys import original_prediction_fields
+    current = client.get_record("Reference", reference_id)
+    if not current:
+        return
+    fields = original_prediction_fields(current, label=decision["label"], positive_label=publication["positiveLabel"],
+                                        confidence=decision.get("confidence"), decided_at=decision.get("decidedAt") or disc["observedAt"])
+    if fields:
+        client.update_record("Reference", {"id": reference_id, **fields})
 
 
 # --- the run ----------------------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import {
   type DelegationStore,
 } from "../shared/curation-delegation-flow";
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
+import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
@@ -256,6 +257,8 @@ async function reviewReferenceCuration(
       curationStatusReason: note,
       newsroomFeedKey: reference.newsroomFeedKey ?? "references",
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
+      // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
+      feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
       updatedAt: now,
     }),
     "update Reference curation status",
@@ -642,6 +645,8 @@ async function setReferenceQualityRating(event: Parameters<ReferenceQualityHandl
       curationStatusReason: note,
       newsroomFeedKey: reference.newsroomFeedKey ?? "references",
       reviewedFeedKey: reviewedFeedKeyForStatus(nextStatus),
+      // A vote moves the Reference between the unrated and rated feeds; its original prediction and arrival stay as they were.
+      feedStateKey: referenceFeedStateKey({ ...reference, curationStatus: nextStatus }),
       updatedAt: now,
     }),
     "update Reference quality status",
@@ -818,6 +823,7 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       client.models.Reference.update({
         id: normalizeRequiredString(current.id, "reference.id"),
         versionState: "superseded",
+        feedStateKey: null,   // a superseded version is in no feed
         updatedAt: now,
       }),
       "supersede current Reference version",
@@ -857,6 +863,19 @@ async function moveReferenceCorpus(event: Parameters<MoveReferenceCorpusHandler>
       curationStatusReason: normalizeOptionalString(current.curationStatusReason),
       newsroomFeedKey: normalizeOptionalString(current.newsroomFeedKey) ?? "references",
       reviewedFeedKey: normalizeOptionalString(current.reviewedFeedKey) ?? reviewedFeedKeyForStatus(curationStatus),
+      predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
+      predictionDecidedAt: normalizeOptionalString(current.predictionDecidedAt),
+      ...referenceFeedKeys({
+        id: nextReferenceId,
+        corpusId: targetCorpusId,
+        curationStatus,
+        versionState: "current",
+        predictedAcceptProbability: typeof current.predictedAcceptProbability === "number" ? current.predictedAcceptProbability : null,
+        createdAt: normalizeOptionalString(current.createdAt) ?? now,
+        importedAt: normalizeOptionalString(current.importedAt),
+        retrievedAt: normalizeOptionalString(current.retrievedAt),
+        sourcePublishedAt: normalizeOptionalString(current.sourcePublishedAt),
+      }),
       updatedAt: now,
     }),
     "create moved Reference version",
