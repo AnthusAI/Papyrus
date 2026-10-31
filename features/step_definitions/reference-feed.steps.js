@@ -84,6 +84,8 @@ for (const action of [
   "the editor types a reason in the detail pane before voting, then votes",
   "the editor rejects on the card and chooses the reason in the detail pane",
   "the editor opens a card and steps through the queue with Next and Previous",
+  "the editor opens a long reference and scrolls its detail to the bottom at 375, 390 and 1440 pixels",
+  "the editor scrolls a long reference to the bottom and then selects another with a card, with Next and with Previous",
   "the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item",
 ]) When(action, function () { this.feedResult = ""; });
 const syncOutcomes = [
@@ -118,6 +120,15 @@ const syncOutcomes = [
     "every card keeps its order and its position and size, and the grid does not scroll, at 375, 900 and 1440 pixels",
     "the column count stays fixed while the detail pane is open: from the tablet width up the pane appears beside the grid with the first selection and then holds its place, so moving between items moves nothing, while below that the detail is a sheet",
     'the feed order is taken once per visit, so a re-rank never happens, and the new item waits behind a quiet "1 new item: show" pill until the editor shows it',
+  ]],
+  ["detail_bar_fixed", [
+    "the Previous and Next buttons are still in view, above the tab bar on a phone and at the bottom of the detail pane on a desktop",
+    "the bar is in the same place at the top, part way down and at the bottom of the detail",
+    "the last of the detail's content ends above the bar, so nothing is covered by it",
+  ]],
+  ["detail_opens_at_top", [
+    "each newly selected reference is scrolled to the top and its headline is in view above the bar, on a phone and on a desktop",
+    "a refresh of the reference that stays open does not move its scroll position",
   ]],
   ["previous_next_selects", [
     "the grid scrolls smoothly so the selected card stays in view, on a tinted surface with a thick ring drawn outside it on every side, which takes no space in the grid and is never cut off at the feed's edge",
