@@ -2,10 +2,12 @@ import type { PluginRequest } from "../types";
 
 /** The environment variable that carries the resolved config to the skill function. */
 export const ALEXA_SETTINGS_ENVIRONMENT_VARIABLE = "PAPYRUS_ALEXA_SETTINGS";
-const REQUEST_KEYS = ["name", "invocationName", "skillName", "skillId", "accountLinking", "siteOrigin"];
+const REQUEST_KEYS = ["name", "invocationName", "skillName", "skillId", "accountLinking", "amazonVendorId", "siteOrigin"];
 /** Alexa's own rule for a custom skill's invocation name: lowercase letters, apostrophes, periods and spaces, 2 to 50 characters. */
 export const INVOCATION_NAME = /^[a-z](?:[a-z' .]{0,48}[a-z.])$/;
 export const SKILL_ID = /^amzn1\.ask\.skill\.[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** The vendor ID of the Amazon developer account that owns the skill (uppercase letters and digits), from the developer console. */
+export const AMAZON_VENDOR_ID = /^[A-Z0-9]{10,40}$/;
 const HTTPS_ORIGIN = /^https:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]{1,5})?$/;
 
 /**
@@ -24,6 +26,8 @@ export type AlexaConfig = {
   skillId?: string;
   /** Account linking is optional: the public parts of the skill work without it. */
   accountLinking: boolean;
+  /** The skill owner's Amazon vendor ID. Required when `accountLinking` is on: it names Amazon's account-linking redirect URLs. */
+  amazonVendorId?: string;
   /** The site's public https origin, for the public story source. */
   siteOrigin?: string;
 };
@@ -57,6 +61,11 @@ export function resolveAlexaConfig(request: PluginRequest): AlexaConfig {
   }
   const accountLinking = settings.accountLinking ?? false;
   if (typeof accountLinking !== "boolean") throw new Error("alexa accountLinking must be true or false");
+  const amazonVendorId = settings.amazonVendorId;
+  if (amazonVendorId !== undefined && (typeof amazonVendorId !== "string" || !AMAZON_VENDOR_ID.test(amazonVendorId))) {
+    throw new Error("alexa amazonVendorId must be uppercase letters and digits, as the developer console shows it");
+  }
+  if (accountLinking && amazonVendorId === undefined) throw new Error("alexa amazonVendorId is required when accountLinking is true");
   const siteOrigin = settings.siteOrigin;
   if (siteOrigin !== undefined && (typeof siteOrigin !== "string" || !HTTPS_ORIGIN.test(siteOrigin))) {
     throw new Error("alexa siteOrigin must be an https origin without a path, such as https://example.com");
@@ -66,6 +75,7 @@ export function resolveAlexaConfig(request: PluginRequest): AlexaConfig {
     skillName,
     ...(skillId === undefined ? {} : { skillId }),
     accountLinking,
+    ...(amazonVendorId === undefined ? {} : { amazonVendorId }),
     ...(siteOrigin === undefined ? {} : { siteOrigin }),
   };
 }
