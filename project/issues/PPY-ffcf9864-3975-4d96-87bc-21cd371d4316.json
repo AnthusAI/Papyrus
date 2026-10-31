@@ -1,0 +1,24 @@
+{
+  "id": "PPY-ffcf9864-3975-4d96-87bc-21cd371d4316",
+  "title": "Public handle: opt-in UserProfile.publicHandle shown on public Messages",
+  "description": "Small task of the `homePage` epic (Ryan 2026-10-31: authors on public Messages are user handles, opt-in). Gives each person an optional public handle that the threads export shows instead of any identity.\n\n## Data model (`amplify/data/schema.ts`)\n- `UserProfile` gains `publicHandle: a.string()` and a secondary index on `publicHandle` -> query `userProfileByPublicHandle` (new GSI, allowed) for the uniqueness check. Authorization unchanged (`allow.owner()` plus admin; the backend's functions already read every model).\n- Validation in one place, `lib/public-handle.ts` with a Python twin `src/papyrus_content/home_page/handles.py` and shared vectors `scripts/fixtures/public-handle-vectors.json`: 3 to 24 characters, `^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`, no `@`, not in a small reserved list (`admin`, `editor`, `ai`, `papyrus`, `anonymous`), unique per site (store lowercase).\n\n## Console UI\n- The existing profile settings panel (where `displayName` is edited; find it with `grep -rn displayName components app`) gains a \"Public handle\" field with the help text: \"Shown next to your messages on the public site. Leave empty to be shown as Editor. Never your email.\" A Lucide `at-sign` icon marks the field; the save button is the panel's existing one. Errors are text (\"That handle is taken\", \"3 to 24 letters, digits and hyphens\"), never colour alone.\n- Writes go through a custom mutation `setPublicHandle(handle: String)` (`amplify/data/profile-actions.ts`, JS resolver on `UserProfile`: owner only, lowercases, checks the index, writes `publicHandle` and `updatedAt`); `null` clears it.\n\n## Export side (the threads task uses it)\n- `home_page/threads.py` reads `UserProfile.publicHandle` by `authorUserProfileId`; nothing else of the profile is read.\n\n## Gherkin (`features_backend/public-handle.feature`, plus a TS spec in the console's test suite)\n- \"A person sets a public handle and it is shown on their public messages\"\n- \"A person without a handle is shown as Editor\"\n- \"A handle must be 3 to 24 lowercase letters, digits or hyphens and may not contain an at sign\"\n- \"A handle that another person already uses is refused\"\n- \"Clearing the handle returns the person to the anonymous label\"\n- \"No email, sub or UUID appears in the public threads file whether or not handles are set\"\n\n## Acceptance\n`npx tsc --noEmit`, the console unit tests, behave green; set a handle on newsroom.anth.us and see it on https://anth.us/newsroom/ once the threads task ships.\n\n## Dependencies\nNone (schema + console). Blocks: the threads task (PPY-06f20f).",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T07:45:28.409272Z",
+  "updated_at": "2026-10-31T07:45:28.409336Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
