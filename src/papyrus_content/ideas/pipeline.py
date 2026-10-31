@@ -126,8 +126,9 @@ def synthesize(
     }
     stored = json_store.ideas()
     steering, steering_ids, steering_error = read_steering(review_client, json_store.batch_titles())
-    feedback = merge_feedback(steering, feedback or [])
-    run["steering"] = {"entries": len(steering), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
+    decisions = proposal_store.feedback() if hasattr(proposal_store, "feedback") else []   # Items: accepted ideas and spiked ones with their reasons
+    feedback = merge_feedback([*steering, *decisions], feedback or [])
+    run["steering"] = {"entries": len(steering), "decisions": len(decisions), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
     drafts = proposal_store.story_drafts() if proposal_store else []
     documents = comparison_documents(context, stored, drafts, feedback)
     run["inputs"] = count_inputs(digest, context, documents, feedback)

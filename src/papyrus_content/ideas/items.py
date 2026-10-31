@@ -221,6 +221,12 @@ class ItemStore:
                 pass
         return rows
 
+    def feedback(self) -> list[dict[str, Any]]:
+        """Editors' decisions on earlier ideas (accepted, or spiked with a reason) as reviewer feedback for the next synthesis."""
+        from .labels import feedback_entries
+
+        return feedback_entries(self.client)
+
     @staticmethod
     def mark(record: dict[str, Any], identifier: str) -> None:
         record["itemLineageId"] = identifier

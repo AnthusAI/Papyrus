@@ -205,3 +205,32 @@ def step_superseded(context):
     held = state(context)
     roundup = next(item for item in items(context) if item["lineageId"] == held.result["lineageId"])
     assert generated_of(roundup)["supersedes"] == [state(context).first_lineage]
+
+
+@given('three generated ideas: one the editor moved forward, one the editor spiked saying "{reason}", and one still waiting')
+def step_decided(context, reason):
+    held = state(context)
+    held.client, held.accepted, held.declined, _pending = support.decided_world()
+
+
+@then("the pipeline's feedback holds an accept and a decline with the reason, and nothing for the waiting idea")
+def step_feedback(context):
+    from papyrus_content.ideas.labels import feedback_entries
+
+    entries = feedback_entries(state(context).client)
+    assert [entry["verdict"] for entry in entries] == ["accept", "decline"] and "Too basic" in entries[1]["note"], entries
+
+
+@then("the Cyclotron export has an include row and an exclude row that carry the reason and the cited Reference")
+def step_export(context):
+    from papyrus_content.ideas.labels import export_rows
+
+    rows = export_rows(state(context).client)
+    labels = [row["labels"]["idea-accept"] for row in rows]
+    assert [label["label"] for label in labels] == ["include", "exclude"] and "Too basic" in labels[1]["explanation"]
+    assert rows[0]["provenance"]["referenceLineageIds"] == ["reference-clef"]
+
+
+@then("no Message was written")
+def step_no_messages(context):
+    assert not state(context).client.tables.get("Message")
