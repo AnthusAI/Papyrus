@@ -41,3 +41,19 @@ def check_passed(context):
     result = context.origin_check_result
     assert result.returncode == 0, result.stdout + result.stderr
     assert "# pass 1" in result.stdout, result.stdout
+
+
+@when('the console selects an account or connects chat through the sign-in routes')
+def sign_in_routes(context):
+    context.origin_check_result = subprocess.run(
+        ["node", "--import", "tsx", "scripts/test-prospectus-sign-in-routes.ts"],
+        cwd=ROOT, capture_output=True, text=True, timeout=300,
+    )
+
+
+@then('the sign-in routes accept the console origin and refuse a foreign origin')
+@then("the sign-in routes refuse the console host's would-be origin")
+def sign_in_routes_passed(context):
+    result = context.origin_check_result
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "prospectus sign-in routes: ok" in result.stdout, result.stdout

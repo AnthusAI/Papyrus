@@ -1,6 +1,6 @@
 Feature: A console on its own host may make same-origin requests
   A Papyrus site can serve its newsroom console from its own host while the public site keeps
-  the site origin. The console's curation and chat requests carry the console host as their
+  the site origin. The console's curation, chat and sign-in requests carry the console host as their
   Origin, so the same-origin checks accept exactly two origins: the site origin and, when the
   site names one, the console origin. Matching is exact, with no wildcards. A site that names
   no console origin accepts only its own origin, as before.
@@ -19,3 +19,13 @@ Feature: A console on its own host may make same-origin requests
     Given a site with no console origin
     When a request arrives from the console host's would-be origin
     Then the same-origin check refuses it
+
+  Scenario: The sign-in routes accept the console origin when configured
+    Given a site whose public origin and console origin differ
+    When the console selects an account or connects chat through the sign-in routes
+    Then the sign-in routes accept the console origin and refuse a foreign origin
+
+  Scenario: The sign-in routes are unchanged without a console origin
+    Given a site with no console origin
+    When the console selects an account or connects chat through the sign-in routes
+    Then the sign-in routes refuse the console host's would-be origin
