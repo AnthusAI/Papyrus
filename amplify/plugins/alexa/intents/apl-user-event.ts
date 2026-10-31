@@ -1,15 +1,13 @@
 import type { Response } from "ask-sdk-model";
 import type { HandlerInput } from "ask-sdk-core";
-import type { IntentModule } from "../contracts";
+import type { IntentModule, SkillDependencies } from "../contracts";
 import { OPEN_STORY_ARGUMENT } from "../apl/feed";
+import { openStoryAt } from "../speech/conversation";
 
-/**
- * Opens the story at `index` of the feed that was on screen. The intents task exports the real function (the one a voice request for
- * a story uses); after both tasks merge it is passed to `createAplUserEventIntent({ openStory })` in `intents/index.ts`.
- */
-export type OpenStory = (handlerInput: HandlerInput, index: number) => Response | Promise<Response>;
+/** Opens the story at `index` of the feed that was on screen. The skill uses `openStoryAt`, the reading a spoken request gets. */
+export type OpenStory = (handlerInput: HandlerInput, index: number, dependencies: SkillDependencies) => Response | Promise<Response>;
 
-/** The default until then: speech only, so a touch is acknowledged and nothing is rendered. */
+/** Speech only: acknowledges a touch and renders nothing (for tests of the event routing). */
 export const speechOnlyOpenStory: OpenStory = (handlerInput, index) =>
   handlerInput.responseBuilder.speak(`Opening story ${index + 1}.`).withShouldEndSession(false).getResponse();
 
@@ -23,16 +21,16 @@ export function tappedStoryIndex(requestArguments: unknown): number | undefined 
 }
 
 export function createAplUserEventIntent(options: { openStory?: OpenStory } = {}): IntentModule {
-  const openStory = options.openStory ?? speechOnlyOpenStory;
+  const openStory = options.openStory ?? openStoryAt;
   return {
     id: "apl-user-event",
-    create: () => ({
+    create: (dependencies) => ({
       canHandle: (handlerInput) => handlerInput.requestEnvelope.request.type === APL_USER_EVENT_REQUEST,
       handle: async (handlerInput) => {
         const request = handlerInput.requestEnvelope.request as { arguments?: unknown[] };
         const index = tappedStoryIndex(request.arguments);
         if (index === undefined) return handlerInput.responseBuilder.speak("Sorry, I could not tell which story you touched.").withShouldEndSession(false).getResponse();
-        return openStory(handlerInput, index);
+        return openStory(handlerInput, index, dependencies);
       },
     }),
   };

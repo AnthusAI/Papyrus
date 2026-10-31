@@ -128,6 +128,8 @@ const ts = requireTs("typescript");
 const HANDLER_SIDE = /^amplify\/(functions\/[^/]+\/handler\.ts|functions\/shared\/(?!python-bundle)|seed\/|.*\.test\.)/;
 const compileList = [...copied].filter((r) => /^amplify\/.*\.ts$/.test(r) && !HANDLER_SIDE.test(r));
 compileList.push("lib/define-site.ts");
+// The alexa plugin's speech and content modules read the Markus IR types and schema version.
+compileList.push("lib/markus-ir.ts");
 const compiled = new Set(compileList.map((r) => r.replace(/\.ts$/, ".js")));
 const writeCompiled = (rel) => {
   const file = path.join(stage, rel);

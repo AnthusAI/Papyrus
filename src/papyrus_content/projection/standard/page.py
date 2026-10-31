@@ -14,7 +14,7 @@ from .head import PageHead
 from .hooks import HookSite
 from .page_ledger import PageLedger
 
-KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_page", "thread")
+KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_page", "plugin_page", "thread")
 
 
 @dataclass(frozen=True)

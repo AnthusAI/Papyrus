@@ -15,7 +15,7 @@ import { APL_VERSION, VIEWPORT_PROFILES, sizesFor } from "../amplify/plugins/ale
 import { DEFAULT_APL_THEME, themeFromConfig, themeFromTokens } from "../amplify/plugins/alexa/apl/support/theme";
 import { contrastRatio, resolveAlexaConfig } from "../amplify/plugins/alexa/config";
 import type { PublicStory } from "../amplify/plugins/alexa/contracts";
-import { createAplUserEventIntent, aplUserEventIntent } from "../amplify/plugins/alexa/intents/apl-user-event";
+import { createAplUserEventIntent, speechOnlyOpenStory } from "../amplify/plugins/alexa/intents/apl-user-event";
 import { PILOBOL_US_THEME_PACK_TOKENS } from "../lib/site-stack";
 import { PREVIEW_DIRECTORY, previewFixtures, SAMPLE_STORIES } from "./alexa/render-apl-previews";
 
@@ -106,9 +106,9 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     await handler.handle(bad.handlerInput);
     assert.deepEqual(opened, [2, 1]);
     assert.match(bad.spoken[0], /could not tell/);
-    // The default opener is speech only.
+    // The speech-only opener acknowledges the touch.
     const stub = fakeHandlerInput(event(["openStory", 0]));
-    await aplUserEventIntent.create({} as never).handle(stub.handlerInput);
+    await createAplUserEventIntent({ openStory: speechOnlyOpenStory }).create({} as never).handle(stub.handlerInput);
     assert.match(stub.spoken[0], /Opening story 1/);
     assert.equal(touchModule.interactionModel, undefined);
   },
