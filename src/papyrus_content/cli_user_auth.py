@@ -157,13 +157,37 @@ def _saved(config: AuthConfig) -> dict:
     return {name: value for name, value in asdict(config).items() if name not in _REMOTE_FIELDS}
 
 
-def _write_registry(configs: list[AuthConfig]) -> None:
+def _people() -> dict:
+    path = selection_path()
+    try:
+        data = json.loads(path.read_text()) if path.exists() else {}
+        people = data.get('people') if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return {}
+    return {site: person for site, person in (people or {}).items() if isinstance(site, str) and isinstance(person, str)}
+
+
+def enrolled_person(publication: str) -> str | None:
+    """The Prospectus person id the last enrolled login of this site recorded; public, never a credential."""
+    return _people().get(publication)
+
+
+def record_person(publication: str, person_id: str | None) -> None:
+    with _registry_lock():
+        people = {site: person for site, person in _people().items() if site != publication}
+        if person_id:
+            people[publication] = person_id
+        _write_registry(load_registry(), people)
+
+
+def _write_registry(configs: list[AuthConfig], people: dict | None = None) -> None:
+    people = _people() if people is None else people
     path = selection_path()
     temporary = path.with_name('selection-'+secrets.token_hex(8))
     try:
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'w') as handle:
-            json.dump({'version': 2, 'sites': [_saved(config) for config in configs]}, handle)
+            json.dump({'version': 2, 'sites': [_saved(config) for config in configs], **({'people': people} if people else {})}, handle)
         os.replace(temporary, path)
     except OSError:
         raise AuthError('Unable to save public CLI session registry; check directory permissions.') from None
@@ -272,6 +296,106 @@ def _target(config: AuthConfig) -> Target:
                   broker_endpoint=config.broker_endpoint, remote_callback_uri=config.remote_callback_uri)
 
 
+ENROLL_PATH = '/cli/enroll'
+CHALLENGE_PATH = '/cli/challenge'
+ENROLL_MAX_BYTES = 16*1024
+ENROLLMENT_REASONS = {
+    'login_not_enrollable': "this site's sign-in client is not registered for Prospectus enrollment yet",
+    'cli_enrollment_not_configured': 'this site has not switched on Prospectus enrollment',
+    'challenge_replay': 'this sign-in was already used',
+    'challenge_invalid': 'the sign-in challenge was not valid',
+    'login_state': 'the sign-in did not match its approval',
+    'unavailable': 'Prospectus is unavailable; try again in a moment',
+    'invalid_request': 'the enrollment request was not accepted',
+}
+
+
+def enrollment_failure(code: str) -> AuthError:
+    code = code if isinstance(code, str) and code.replace('_', '').isalnum() and len(code) <= 60 else 'unavailable'
+    if code == 'reenrollment_required':
+        return AuthError('This login could not be enrolled with Prospectus (reenrollment_required). Run `papyrus login` again.')
+    return AuthError(f'This login could not be enrolled with Prospectus ({code}): {ENROLLMENT_REASONS.get(code, "enrollment was refused")}.')
+
+
+def enroll_with_site(config: AuthConfig, tokens, transaction: str, enrollment: str | None, *, opener=None) -> str | None:
+    """Enroll a remote login at the site's `/cli/enroll`. Returns the Prospectus person id, or `None` when the site gave no
+    challenge (enrollment is off for it). Any failure raises, so the library stores nothing."""
+    if enrollment is None:
+        return None
+    access, identity = tokens.get('access_token'), tokens.get('id_token')
+    if not isinstance(access, str) or not isinstance(identity, str):
+        raise enrollment_failure('invalid_request')
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    opener = opener or urllib.request.build_opener(NoRedirect())
+    request = urllib.request.Request(
+        config.publication+ENROLL_PATH, method='POST',
+        data=json.dumps({'challengeToken': enrollment, 'idToken': identity, 'loginState': transaction}).encode(),
+        headers={'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer '+access})
+    try:
+        with opener.open(request, timeout=15) as response:
+            answer = json.loads(response.read(ENROLL_MAX_BYTES+1)[:ENROLL_MAX_BYTES] or b'null')
+    except urllib.error.HTTPError as error:
+        try:
+            code = json.loads(error.read(ENROLL_MAX_BYTES)).get('error')
+        except (ValueError, AttributeError, OSError):
+            code = None
+        raise enrollment_failure(code) from None
+    except (OSError, urllib.error.URLError, ValueError):
+        raise enrollment_failure('unavailable') from None
+    person = answer.get('person') if isinstance(answer, dict) else None
+    person_id = person.get('id') if isinstance(person, dict) else None
+    if not isinstance(person_id, str) or not person_id:
+        raise enrollment_failure('unavailable')
+    return person_id
+
+
+def site_enrolls(config: AuthConfig, *, opener=None) -> bool:
+    """Whether the site has switched enrollment on: its challenge route answers 400 to a request with no state, and
+    404 `cli_enrollment_not_configured` when it is off. A site that cannot be asked is treated as not enrolling; the
+    login then stores an unenrolled session, which Prospectus-backed operations refuse."""
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    opener = opener or urllib.request.build_opener(NoRedirect())
+    try:
+        with opener.open(urllib.request.Request(config.publication+CHALLENGE_PATH, headers={'Accept': 'application/json'}), timeout=15):
+            return False
+    except urllib.error.HTTPError as error:
+        return error.code == 400
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def challenge_from_site(config: AuthConfig, state: str, *, opener=None) -> tuple[str, str | None]:
+    """The local login's challenge: `(nonce, enrollment)` from `/cli/challenge`, bound to the login's own state.
+
+    Any failure raises, before the browser opens."""
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs):
+            return None
+    opener = opener or urllib.request.build_opener(NoRedirect())
+    request = urllib.request.Request(config.publication+CHALLENGE_PATH+'?'+urllib.parse.urlencode({'state': state}),
+                                     headers={'Accept': 'application/json'})
+    try:
+        with opener.open(request, timeout=15) as response:
+            answer = json.loads(response.read(ENROLL_MAX_BYTES+1)[:ENROLL_MAX_BYTES] or b'null')
+    except urllib.error.HTTPError as error:
+        try:
+            code = json.loads(error.read(ENROLL_MAX_BYTES)).get('error')
+        except (ValueError, AttributeError, OSError):
+            code = None
+        raise enrollment_failure(code) from None
+    except (OSError, urllib.error.URLError, ValueError):
+        raise enrollment_failure('unavailable') from None
+    nonce = answer.get('nonce') if isinstance(answer, dict) else None
+    token = answer.get('challengeToken') if isinstance(answer, dict) else None
+    if not isinstance(nonce, str) or not nonce or not isinstance(token, str) or not token:
+        raise enrollment_failure('unavailable')
+    return nonce, token
+
+
 class SiteSession:
     """One site's signed-in session: the shared `cli_login.Session` plus what only Papyrus knows.
 
@@ -279,8 +403,10 @@ class SiteSession:
     This layer names the site in messages and adds the Papyrus-only status fields.
     """
 
-    def __init__(self, config: AuthConfig, *, store=None, provider=None, clock=time.time, receive=receive_code):
+    def __init__(self, config: AuthConfig, *, store=None, provider=None, clock=time.time, receive=receive_code, enroll_opener=None):
         self.receive = receive
+        self.enroll_opener = enroll_opener
+        self.person_id = None
         self._config = config
         self._session = Session(_target(config), store=store, provider=provider, clock=clock,
                                 receive=lambda *arguments: self.receive(*arguments), state_dir=state_dir(),
@@ -305,7 +431,17 @@ class SiteSession:
         return self._session.provider
 
     def login(self):
-        result = self._session.login()
+        def prepare(state):
+            return challenge_from_site(self.config, state, opener=self.enroll_opener)
+
+        def enroll(tokens, state, enrollment):
+            self.person_id = enroll_with_site(self.config, tokens, state, enrollment, opener=self.enroll_opener)
+
+        self.person_id = None
+        if site_enrolls(self.config, opener=self.enroll_opener):
+            result = self._session.login(prepare=prepare, enroll=enroll)
+        else:
+            result = self._session.login()
         return {'subject': result['subject'], 'label': result['label'], 'publication': self.config.publication}
 
     def login_remote(self, **options):
@@ -314,7 +450,11 @@ class SiteSession:
         The tokens are checked and stored exactly as a local login's are (same store, key and renewal); this
         prints only the approval URL, the matching code and who signed in.
         """
-        result = remote_login(self._session.target, self._session.store_token_set, **options)
+        def enroll(tokens, transaction, enrollment):
+            self.person_id = enroll_with_site(self.config, tokens, transaction, enrollment, opener=self.enroll_opener)
+
+        self.person_id = None
+        result = remote_login(self._session.target, self._session.store_token_set, enroll=enroll, **options)
         return {'subject': result['subject'], 'label': result['label'], 'publication': self.config.publication}
 
     def headers(self, endpoint):
@@ -424,6 +564,7 @@ def command(arguments: list[str]) -> int:
             def log_in_remotely(config):
                 result = session_for(config).login_remote(expected_email=args.expect_email)
                 save_selection(config)
+                record_person(config.publication, session_for(config).person_id)
                 return result
             return _run_each(_remote_targets(args), log_in_remotely)
         if args.expect_email:
@@ -431,6 +572,7 @@ def command(arguments: list[str]) -> int:
         def log_in(config):
             result = session_for(config).login()
             save_selection(config)
+            record_person(config.publication, session_for(config).person_id)
             return result
         return _run_each(_login_targets(args), log_in)
     targets = _existing_targets(args, all_by_default=args.action != 'logout')

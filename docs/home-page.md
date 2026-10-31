@@ -57,6 +57,10 @@ papyrus home-page snapshot --site KEY --dry-run          # counts and file size;
 
 Mutation commands write by default; `--dry-run` prints the report and the size of the file only. `--static-dir` points at the site checkout so its `projection.json` (including `urls.basePath`) applies; without it the defaults are used.
 
+## Stories beside the Reference grids
+
+A home page that interleaves Stories with the Reference grids uses the ordinary `listing` include. It can show a single Story type with `types` (any of) and `notTypes` (none of), for example `::include{kind="listing" sections="articles" types="article" count="1" card="text" layout="bare"}` for the newest article even when newer posts exist. A type is only selectable if `listings.types` lists it. Pages that do not use the attributes render exactly as before.
+
 ## The references include
 
 `::include{kind="references" select="recent|confident|recommended" count="6" [section="Tools"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
@@ -78,6 +82,11 @@ With `homePage.threads.enabled` the same task also writes `_data/home-page/threa
 - **The card** names what the thread is on in words and a Lucide icon (`link` for a Reference, `file-text` for a Story, whose title links to its page), the title, "N messages" beside a `message-square` icon, the date of the last activity, the latest Message as plain text clipped at a sentence boundary (`publicData.summaryCharacters`, default 240) and "by" the author. Flat tones, rounded corners, no borders.
 - **De-duplication**: threads claim `thread:<key>` in the page ledger, so two threads includes on one page never repeat a thread, and they do not interfere with the Reference cards.
 - **Freshness**: with `threads.enabled`, the `home-page` plugin also reads the Message table's stream into the same trigger. A new comment, or a change of its `status`, `content`, `editedAt` or `deletedAt`, opens the same debounce window. A Message stream that another feature already switched on is reused, not replaced.
+
+## Public handles
+
+A public handle is held by a `PublicHandleClaim` record keyed by the lowercase handle (`ownerKind`, `ownerId`, `claimedAt`), written by a conditional put in `setPublicHandle`, so two people claiming the same handle at once leave exactly one owner; changing or clearing a handle releases the old claim, and a failed profile write releases the new one.
+Sites that had handles before the claim records existed run `scripts/backfill-public-handle-claims.ts` once (an operator with IAM, idempotent, it reports conflicts).
 
 ## Freshness
 

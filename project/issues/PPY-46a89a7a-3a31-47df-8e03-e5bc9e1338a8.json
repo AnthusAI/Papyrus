@@ -1,0 +1,20 @@
+{
+  "id": "PPY-46a89a7a-3a31-47df-8e03-e5bc9e1338a8",
+  "title": "Accept/Reject intents and touch actions writing votes through the newsroom path",
+  "description": "AcceptIntent / RejectIntent (current or named item) plus touch buttons. Writes use the same mutation as the web newsroom, under the user's identity, with a spoken confirmation. Verify that the votes reach the Cyclotron learning loop (PPY-c6aced). Gherkin covers the vote, an unauthorised user, and an offline backend.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:49.149495Z",
+  "updated_at": "2026-10-31T14:06:49.149547Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,20 @@
+{
+  "id": "PPY-d1ca4935-f9da-435f-8e08-5d5051166a3f",
+  "title": "Personal reference feed intent with APL view",
+  "description": "MyFeedIntent: fetch the linked user's ranked reference feed through the existing API with their token, and show it in the M2 feed document (with a reference variant). Read the top items aloud. Gherkin covers it.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:48.952390Z",
+  "updated_at": "2026-10-31T14:06:48.952438Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

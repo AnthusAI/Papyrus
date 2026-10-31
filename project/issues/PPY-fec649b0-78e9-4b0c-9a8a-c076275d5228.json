@@ -1,0 +1,20 @@
+{
+  "id": "PPY-fec649b0-78e9-4b0c-9a8a-c076275d5228",
+  "title": "APL feed document with touch to open a story",
+  "description": "skill-package APL document for the feed: a Sequence of story cards (image, headline, dek), site theme colours and fonts, and a TouchWrapper that sends a UserEvent to open the story. The handler handles Alexa.Presentation.APL.UserEvent. Gherkin covers the directive contents and the touch event.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-5e0b9224-b7e0-451a-8afb-23f53f1b443d",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:47.786048Z",
+  "updated_at": "2026-10-31T14:06:47.786102Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

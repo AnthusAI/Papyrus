@@ -1,8 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: papyrus-edge-threat-intelligence CloudFront distributions in front of the Threat Intelligence Amplify app
+Description: papyrus-edge-threat-intelligence CloudFront distributions for threat-intelligence.anth.us. The main distribution serves the S3 projection bucket by default (OAC) and sends /newsroom*, /_next/*, /api/* and /cyclotron* to the Amplify CMS app. Staging stays on Amplify.
 Parameters:
   CertificateArn:
     Type: String
+  SiteBucketRegionalDomainName:
+    Type: String
+    Description: The backend site bucket, <bucket>.s3.us-east-1.amazonaws.com (PAPYRUS_SITE_BUCKET on content-actions).
+  RedirectsKeyValueStoreArn:
+    Type: String
+    Description: The backend redirects key-value store (PAPYRUS_REDIRECTS_KVS_ARN on content-actions).
 Resources:
   ForwardHostFunction:
     Type: AWS::CloudFront::Function
@@ -18,6 +24,191 @@ Resources:
           request.headers['x-forwarded-host'] = { value: request.headers.host.value };
           return request;
         }
+  SiteViewerRequestFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-site-viewer-request'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: key-value-store redirects, directory index documents
+        Runtime: cloudfront-js-2.0
+        KeyValueStoreAssociations:
+          - KeyValueStoreARN: !Ref RedirectsKeyValueStoreArn
+      FunctionCode: |
+        import cf from "cloudfront";
+
+        const redirectStore = cf.kvs();
+
+        function permanentRedirect(location) {
+          return {
+            statusCode: 301,
+            statusDescription: "Moved Permanently",
+            headers: { location: { value: location } },
+          };
+        }
+
+        async function lookUpRedirectTarget(uri) {
+          try {
+            const target = await redirectStore.get(uri);
+            return target ? String(target) : null;
+          } catch (error) {
+            return null;
+          }
+        }
+
+        function rewriteToIndexDocument(uri) {
+          if (uri.endsWith("/")) {
+            return uri + "index.html";
+          }
+          const lastSegment = uri.substring(uri.lastIndexOf("/") + 1);
+          if (lastSegment.indexOf(".") === -1) {
+            return uri + "/index.html";
+          }
+          return uri;
+        }
+
+        // Content negotiation for agents: when the site publishes Markdown twins (standard front end, agents.markdown), a request
+        // whose Accept header prefers text/markdown over text/html is rewritten to the .md object before the cache lookup. The
+        // site publishes twins, so the flag is on.
+        const negotiateMarkdown = true;
+
+        function qualityOf(accept, mediaType) {
+          let quality = 0;
+          const parts = accept.toLowerCase().split(",");
+          for (let index = 0; index < parts.length; index += 1) {
+            const fields = parts[index].split(";");
+            if (fields[0].trim() !== mediaType) {
+              continue;
+            }
+            quality = 1;
+            for (let field = 1; field < fields.length; field += 1) {
+              const pair = fields[field].trim();
+              if (pair.indexOf("q=") === 0) {
+                quality = Number(pair.substring(2));
+                if (isNaN(quality)) {
+                  quality = 0;
+                }
+              }
+            }
+          }
+          return quality;
+        }
+
+        function prefersMarkdown(request) {
+          const header = request.headers && request.headers.accept;
+          if (!header || !header.value) {
+            return false;
+          }
+          const markdown = qualityOf(header.value, "text/markdown");
+          return markdown > 0 && markdown > qualityOf(header.value, "text/html");
+        }
+
+        function markdownTwin(uri) {
+          if (uri === "/404.html" || uri.length < 6 || uri.substring(uri.length - 5) !== ".html") {
+            return null;
+          }
+          return uri.substring(0, uri.length - 5) + ".md";
+        }
+
+        async function handler(event) {
+          const request = event.request;
+          const redirectTarget = await lookUpRedirectTarget(request.uri);
+          if (redirectTarget !== null) {
+            return permanentRedirect(redirectTarget);
+          }
+          request.uri = rewriteToIndexDocument(request.uri);
+          if (negotiateMarkdown && prefersMarkdown(request)) {
+            const twin = markdownTwin(request.uri);
+            if (twin !== null) {
+              request.uri = twin;
+            }
+          }
+          return request;
+        }
+  NotFoundPageRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: [lambda.amazonaws.com, edgelambda.amazonaws.com]
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  NotFoundPageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Origin-response function of the default behavior only. Turns an S3 miss (403 or 404) into the site's own 404.html with status 404.
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role: !GetAtt NotFoundPageRole.Arn
+      Timeout: 5
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          const https = require("https");
+
+          const ERROR_PAGE_PATH = "/404.html";
+
+          function fetchErrorPage(host) {
+            return new Promise((resolve, reject) => {
+              const request = https.get(
+                { host, path: ERROR_PAGE_PATH, headers: { accept: "text/html", "accept-encoding": "identity" }, timeout: 4000 },
+                (response) => {
+                  const chunks = [];
+                  response.on("data", (chunk) => chunks.push(chunk));
+                  response.on("end", () => resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString("utf8") }));
+                },
+              );
+              request.on("timeout", () => request.destroy(new Error("timeout")));
+              request.on("error", reject);
+            });
+          }
+
+          function notFound(response, contentType, body) {
+            response.status = "404";
+            response.statusDescription = "Not Found";
+            response.headers["content-type"] = [{ key: "Content-Type", value: contentType }];
+            response.bodyEncoding = "text";
+            response.body = body;
+            return response;
+          }
+
+          exports.handler = async (event) => {
+            const { request, response, config } = event.Records[0].cf;
+            if (response.status !== "403" && response.status !== "404") {
+              return response;
+            }
+            if (request.uri === ERROR_PAGE_PATH) {
+              return notFound(response, "text/plain", "Not found");
+            }
+            try {
+              const page = await fetchErrorPage(config.distributionDomainName);
+              if (page.status === 200) {
+                return notFound(response, "text/html", page.body);
+              }
+            } catch (error) {
+              return notFound(response, "text/plain", "Not found");
+            }
+            return notFound(response, "text/plain", "Not found");
+          };
+  NotFoundPageVersion:
+    Type: AWS::Lambda::Version
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      FunctionName: !Ref NotFoundPageFunction
+      Description: 'revision 2: change this text whenever the function code changes, so a new immutable version is published'
+  SiteBucketOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${AWS::StackName}-site-bucket'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
   CmsMainDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -32,21 +223,89 @@ Resources:
           SslSupportMethod: sni-only
           MinimumProtocolVersion: TLSv1.2_2021
         Origins:
+          - Id: site-bucket
+            DomainName: !Ref SiteBucketRegionalDomainName
+            OriginAccessControlId: !GetAtt SiteBucketOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
           - Id: amplify
             DomainName: main.d12wnrx15qbcc2.amplifyapp.com
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
         DefaultCacheBehavior:
-          TargetOriginId: amplify
+          TargetOriginId: site-bucket
           ViewerProtocolPolicy: redirect-to-https
           Compress: true
-          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           FunctionAssociations:
             - EventType: viewer-request
-              FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+              FunctionARN: !GetAtt SiteViewerRequestFunction.FunctionARN
+          LambdaFunctionAssociations:
+            - EventType: origin-response
+              LambdaFunctionARN: !Ref NotFoundPageVersion
+        CacheBehaviors:
+          - PathPattern: '/newsroom*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/_next/*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/api/*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/cli/*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/.well-known/papyrus-cli.json'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
+          - PathPattern: '/cyclotron*'
+            TargetOriginId: amplify
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ForwardHostFunction.FunctionARN
   CmsStagingDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -81,4 +340,5 @@ Outputs:
   MainDomain: {Value: !GetAtt CmsMainDistribution.DomainName}
   StagingDistributionId: {Value: !Ref CmsStagingDistribution}
   StagingDomain: {Value: !GetAtt CmsStagingDistribution.DomainName}
+
 
