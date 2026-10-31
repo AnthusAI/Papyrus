@@ -1,4 +1,4 @@
-import { Duration, Stack } from "aws-cdk-lib";
+import { Duration, Stack, type CfnResource } from "aws-cdk-lib";
 import { StreamViewType, type CfnTable } from "aws-cdk-lib/aws-dynamodb";
 import { Rule, RuleTargetInput, Schedule } from "aws-cdk-lib/aws-events";
 import { LambdaFunction as LambdaFunctionTarget } from "aws-cdk-lib/aws-events-targets";
@@ -39,14 +39,38 @@ export function homePageStreamFilterPattern(): string {
   });
 }
 
-function referenceCfnTable(backend: any): CfnTable {
-  const cfnTables = backend.data.resources.cfnResources.cfnTables as Record<string, CfnTable>;
+type AmplifyTableWrapper = { streamSpecification: { streamViewType: StreamViewType }; resource: CfnResource };
+type ReferenceStream = { enable: () => void; streamArn: string };
+
+/**
+ * Tables that the Amplify table manager owns (the default for this repository) are a custom resource wrapped in an
+ * `AmplifyDynamoDbTableWrapper`; its stream ARN is the resource's `TableStreamArn` attribute. Plain CloudFormation tables are found
+ * the way the Message stream finds them, including the search by table name.
+ */
+function referenceStream(backend: any): ReferenceStream {
+  const cfnResources = backend.data.resources.cfnResources;
+  const wrapper = (cfnResources.amplifyDynamoDbTables as Record<string, AmplifyTableWrapper> | undefined)?.Reference;
+  if (wrapper !== undefined) {
+    const resource = wrapper.resource;
+    return {
+      enable: () => {
+        wrapper.streamSpecification = { streamViewType: StreamViewType.NEW_AND_OLD_IMAGES };
+      },
+      streamArn: resource.getAtt("TableStreamArn").toString(),
+    };
+  }
+  const cfnTables = cfnResources.cfnTables as Record<string, CfnTable>;
   const found =
     cfnTables.Reference ??
     cfnTables.ReferenceTable ??
     Object.entries(cfnTables).find(([key]) => key.toLowerCase().replace(/table$/, "") === "reference")?.[1];
   if (!found) throw new Error(`The home-page plugin needs the Reference table. cfnTables=${Object.keys(cfnTables).join(",")}`);
-  return found;
+  return {
+    enable: () => {
+      found.streamSpecification = { streamViewType: StreamViewType.NEW_AND_OLD_IMAGES };
+    },
+    streamArn: found.attrStreamArn,
+  };
 }
 
 function intervalRate(hours: number): Duration {
@@ -70,9 +94,9 @@ export const homePagePlugin: PapyrusPlugin<HomePageConfig, { homePageTrigger: ty
     }
     const trigger = backend.homePageTrigger.resources.lambda as LambdaFunction;
     const contentActions = context.contentActionsLambda;
-    const referenceTable = referenceCfnTable(backend);
-    referenceTable.streamSpecification = { streamViewType: StreamViewType.NEW_AND_OLD_IMAGES };
-    const streamArn = referenceTable.attrStreamArn;
+    const referenceTable = referenceStream(backend);
+    referenceTable.enable();
+    const streamArn = referenceTable.streamArn;
     const stack = Stack.of(trigger);
 
     trigger.addToRolePolicy(

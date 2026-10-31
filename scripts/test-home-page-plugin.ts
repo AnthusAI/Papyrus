@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { App, Stack } from "aws-cdk-lib";
+import { AmplifyDynamoDbTableWrapper } from "@aws-amplify/graphql-api-construct";
+import { App, CfnResource, Stack } from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { CfnTable } from "aws-cdk-lib/aws-dynamodb";
 import { Architecture, Code, Function as LambdaFunction, Runtime } from "aws-cdk-lib/aws-lambda";
@@ -20,20 +21,31 @@ function siteDirectory(projection: object | undefined): string {
   return directory;
 }
 
-function fakeBackend(options: { onlyTableNames?: boolean } = {}) {
+type TableMode = "manager" | "cfn" | "cfn-generated-name";
+
+function fakeBackend(mode: TableMode = "manager") {
   const app = new App();
   const dataStack = new Stack(app, "Data", { env: environment });
-  const reference = new CfnTable(dataStack, options.onlyTableNames ? "ReferenceTable" : "Reference", {
-    keySchema: [{ attributeName: "id", keyType: "HASH" }],
-    attributeDefinitions: [{ attributeName: "id", attributeType: "S" }],
-    billingMode: "PAY_PER_REQUEST",
-  });
+  let cfnTables: Record<string, CfnTable> = {};
+  let amplifyDynamoDbTables: Record<string, AmplifyDynamoDbTableWrapper> = {};
+  if (mode === "manager") {
+    const resource = new CfnResource(dataStack, "ReferenceManaged", { type: "Custom::AmplifyDynamoDBTable", properties: { tableName: "Reference-test", billingMode: "PAY_PER_REQUEST" } });
+    amplifyDynamoDbTables = { Reference: new AmplifyDynamoDbTableWrapper(resource) };
+  } else {
+    const reference = new CfnTable(dataStack, mode === "cfn" ? "Reference" : "ReferenceTable", {
+      keySchema: [{ attributeName: "id", keyType: "HASH" }],
+      attributeDefinitions: [{ attributeName: "id", attributeType: "S" }],
+      billingMode: "PAY_PER_REQUEST",
+    });
+    cfnTables = mode === "cfn" ? { Reference: reference } : { SomeReferenceTable: reference, ReferenceTable: reference };
+    if (mode === "cfn-generated-name") cfnTables = { ReferenceTable: reference };
+  }
   const trigger = new LambdaFunction(dataStack, "Trigger", { runtime: Runtime.PYTHON_3_12, architecture: Architecture.ARM_64, handler: "handler.handler", code: Code.fromInline("x") });
   const contentActions = new LambdaFunction(dataStack, "ContentActions", { runtime: Runtime.PYTHON_3_12, handler: "handler.handler", code: Code.fromInline("x") });
   const outputs: unknown[] = [];
   const extraStacks: Stack[] = [];
   const backend = {
-    data: { resources: { cfnResources: { cfnTables: options.onlyTableNames ? { ReferenceTable: reference } : { Reference: reference } } } },
+    data: { resources: { cfnResources: { cfnTables, amplifyDynamoDbTables } } },
     homePageTrigger: { resources: { lambda: trigger } },
     addOutput: (value: unknown) => outputs.push(value),
     createStack: (name: string) => {
@@ -43,6 +55,12 @@ function fakeBackend(options: { onlyTableNames?: boolean } = {}) {
     },
   };
   return { backend, dataStack, extraStacks, contentActions, outputs, templates: () => [dataStack, ...extraStacks].map((stack) => Template.fromStack(stack)) };
+}
+
+function streamSpecificationsOf(template: Template): unknown[] {
+  const tables = Object.values(template.findResources("AWS::DynamoDB::Table")).map((resource) => resource.Properties.StreamSpecification);
+  const managed = Object.values(template.findResources("Custom::AmplifyDynamoDBTable")).map((resource) => resource.Properties.streamSpecification);
+  return [...tables, ...managed].filter((specification) => specification !== undefined);
 }
 
 function wireFake(request: Parameters<typeof resolvePlugins>[0], resolveOptions: Parameters<typeof resolvePlugins>[1], projectionEnabled = true, fake = fakeBackend()) {
@@ -113,8 +131,7 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     assert.equal(withoutPlugin.outputs.length, 0, "no output was added");
     const types = resourceTypes(withoutPlugin.templates());
     for (const type of ["AWS::Lambda::EventSourceMapping", "AWS::Events::Rule"]) assert.equal(types.includes(type), false, `no ${type}`);
-    const reference = withoutPlugin.templates()[0].findResources("AWS::DynamoDB::Table");
-    assert.equal(Object.values(reference)[0].Properties.StreamSpecification, undefined, "the Reference table has no stream");
+    assert.deepEqual(streamSpecificationsOf(withoutPlugin.templates()[0]), [], "the Reference table is left as it was");
     return {};
   },
 
@@ -128,8 +145,8 @@ const behaviours: Record<string, () => Promise<unknown>> = {
   async the_plugin_adds_the_stream_the_trigger_the_scheduler_and_nothing_else() {
     const { templates, extraStacks, outputs, contentActions } = wireFake(["home-page"], { staticDir: siteDirectory({ homePage: {} }) });
     const [data, ...others] = templates();
-    const table = Object.values(data.findResources("AWS::DynamoDB::Table")).find((resource) => resource.Properties.StreamSpecification);
-    assert.deepEqual(table?.Properties.StreamSpecification, { StreamViewType: "NEW_AND_OLD_IMAGES" });
+    assert.deepEqual(streamSpecificationsOf(data), [{ streamViewType: "NEW_AND_OLD_IMAGES" }], "the table manager's table streams old and new images");
+    assert.ok(JSON.stringify(others.map((template) => template.toJSON())).includes("TableStreamArn") || JSON.stringify(data.toJSON()).includes("TableStreamArn"), "the stream ARN is the managed table's TableStreamArn attribute");
     const mapping = others.flatMap((template) => Object.values(template.findResources("AWS::Lambda::EventSourceMapping")));
     assert.equal(mapping.length, 1);
     assert.deepEqual(
@@ -158,9 +175,11 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     return {};
   },
 
-  async the_table_is_found_by_its_generated_name_too() {
-    const { templates } = wireFake(["home-page"], {}, true, fakeBackend({ onlyTableNames: true }));
-    assert.ok(Object.values(templates()[0].findResources("AWS::DynamoDB::Table")).some((resource) => resource.Properties.StreamSpecification));
+  async plain_cloudformation_tables_are_found_by_name_too() {
+    for (const mode of ["cfn", "cfn-generated-name"] as const) {
+      const { templates } = wireFake(["home-page"], {}, true, fakeBackend(mode));
+      assert.deepEqual(streamSpecificationsOf(templates()[0]), [{ StreamViewType: "NEW_AND_OLD_IMAGES" }]);
+    }
     return {};
   },
 

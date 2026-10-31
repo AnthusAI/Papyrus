@@ -70,7 +70,7 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
   Scenario: A site that does not ask for the plugin gets no stream, trigger function, scheduler or rule
     When a site synthesizes its backend without the home-page plugin
     Then no stack changes, no stack is added and no output is added
-    And the Reference table has no stream
+    And the Reference table is left as it was
 
   Scenario: A site that asks for the plugin gets the stream, the trigger and the scheduler role and nothing more
     When a site synthesizes its backend with the home-page plugin

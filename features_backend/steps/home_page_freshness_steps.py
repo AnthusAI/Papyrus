@@ -218,7 +218,7 @@ def synth_without(context) -> None:
 
 @when("a site synthesizes its backend with the home-page plugin")
 def synth_with(context) -> None:
-    plugin_behaviours(context, "the_plugin_adds_the_stream_the_trigger_the_scheduler_and_nothing_else", "the_table_is_found_by_its_generated_name_too")
+    plugin_behaviours(context, "the_plugin_adds_the_stream_the_trigger_the_scheduler_and_nothing_else", "plain_cloudformation_tables_are_found_by_name_too")
 
 
 @when("a site asks for the home-page plugin with an interval of 6 hours")
@@ -233,7 +233,7 @@ def synth_refused(context) -> None:
 
 @then("purge is off and the debounce window is 300 seconds")
 @then("no stack changes, no stack is added and no output is added")
-@then("the Reference table has no stream")
+@then("the Reference table is left as it was")
 @then("the Reference table streams old and new images to one trigger function")
 @then("the trigger function may create only schedules named for the home-page snapshot and pass only the scheduler role")
 @then("the debounce window reaches the trigger function")
