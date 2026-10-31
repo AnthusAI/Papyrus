@@ -12,6 +12,7 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | `p-apyr-us-reader-cache.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The same change for the p.apyr.us production distribution. Not deployed (PPY-79e668) |
 | `../../docs/hosting/p-apyr-us-edge.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The full intended p.apyr.us edge: the stack's own production and staging distributions, plus the two live distributions that sit outside the stack today (`E17ZRAI87DN065` marketing, `E2EM0JLBC2W9WW` reader) and the `papyrus-reader-edge` function. The reader function only redirects `/newsroom` to the CMS host and forwards the host header; the legacy `/information` redirect function is gone and the marketing default behavior uses the stack's forward-host function for the apex redirect. Not deployed |
 | `s3-projection-cms.yaml` | `papyrus-edge-<site>` (reference) | An S3 projection bucket (OAC) on the default behavior and the site's CMS Amplify app on `/newsroom*`, `/_next/*`, `/api/*`, `/cli/*` and `/.well-known/papyrus-cli.json`, on one host. The shape of the Shipped, Distinctive Mark, DataParade and Threat Intelligence edges. Carries the 404 handling described below |
+| `shipped-console.yaml` | `papyrus-edge-shipped-console` | The Shipped newsroom console host: own ACM certificate, one CloudFront distribution to the CMS Amplify app, alias records. Not deployed |
 | `anth-us.yaml` | `papyrus-edge-anth-us` (rollback) | The retired Anth.us Amplify reader. Updating the stack with this template moves the origin back, and only works while the Amplify reader app exists |
 
 Update a stack with a change set, never in place, and read the change set before executing it.
@@ -35,7 +36,7 @@ A pure S3 distribution without CMS behaviors (`anth-us-s3.yaml`, `pilobol-us.yam
 
 ## The console on its own host
 
-A site can serve its newsroom console from a separate host (`newsroom.<site host>`). That host gets its own small distribution: one default behavior to the site's CMS Amplify app, uncached, all methods, the `x-forwarded-host` viewer-request function, no S3 origin and no `CustomErrorResponses`. The stack creates its own ACM certificate (DNS validation in the Route 53 zone) and the alias records, so no Amplify domain association is needed, which matters where `create-domain-association` is throttled. The Shipped template is `infra/edge/shipped-console.yaml` in Shipped-web. The site's app-shell `site.json` names the host as `cms.consoleOrigin`.
+A site can serve its newsroom console from a separate host (`newsroom.<site host>`). That host gets its own small distribution: one default behavior to the site's CMS Amplify app, uncached, all methods, the `x-forwarded-host` viewer-request function, no S3 origin and no `CustomErrorResponses`. The stack creates its own ACM certificate (DNS validation in the Route 53 zone) and the alias records, so no Amplify domain association is needed, which matters where `create-domain-association` is throttled. The Shipped template is `shipped-console.yaml` here (stack `papyrus-edge-shipped-console`; parameters `HostedZoneId`, `CmsAppId`, `ConsoleHost`). The site's app-shell `site.json` names the host as `cms.consoleOrigin`.
 
 ## New sites
 
