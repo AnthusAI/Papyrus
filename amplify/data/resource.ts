@@ -32,6 +32,7 @@ const schema = a.schema({
       id: a.id().required(),
       email: a.email(),
       displayName: a.string(),
+      publicHandle: a.string(),
       avatarUrl: a.url(),
       preferences: a.json(),
       settings: a.json(),
@@ -43,6 +44,9 @@ const schema = a.schema({
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
+    .secondaryIndexes((index) => [
+      index("publicHandle").name("userProfilesByPublicHandle").queryField("userProfileByPublicHandle"),
+    ])
     .authorization((allow) => [
       allow.owner(),
       allow.group(adminGroup),
@@ -137,6 +141,7 @@ const schema = a.schema({
 
   ReaderSettingsResult: a.customType({
     userProfileId: a.id().required(),
+    publicHandle: a.string(),
     email: a.email(),
     settings: a.json(),
     avatarHash: a.string(),

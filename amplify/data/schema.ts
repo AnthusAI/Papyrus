@@ -5,6 +5,7 @@ import { editorialChecksSchemaDefinitions } from "../functions/editorial-checks/
 import { automationViewSchemaDefinitions } from "../functions/automation-view/schema";
 import { proposalActionsSchemaDefinitions } from "../functions/proposal-actions/schema";
 import { messageActionsSchemaDefinitions } from "./message-actions";
+import { profileActionsSchemaDefinitions } from "./profile-actions";
 import { monitoringViewSchemaDefinitions } from "../functions/monitoring-view/schema";
 import { contentActions } from "../functions/content-actions/resource";
 import { knowledgeQuery } from "../functions/knowledge-query/resource";
@@ -55,6 +56,7 @@ const definitions = {
       id: a.id().required(),
       email: a.email(),
       displayName: a.string(),
+      publicHandle: a.string(),
       avatarUrl: a.url(),
       preferences: a.json(),
       settings: a.json(),
@@ -66,6 +68,9 @@ const definitions = {
       createdAt: a.datetime(),
       updatedAt: a.datetime(),
     })
+    .secondaryIndexes((index) => [
+      index("publicHandle").name("userProfilesByPublicHandle").queryField("userProfileByPublicHandle"),
+    ])
     .authorization((allow) => [
       allow.owner(),
       allow.group(adminGroup),
@@ -158,6 +163,7 @@ const definitions = {
 
   ReaderSettingsResult: a.customType({
     userProfileId: a.id().required(),
+    publicHandle: a.string(),
     settings: a.json(),
   }),
 
@@ -2263,6 +2269,7 @@ const definitions = {
   ...automationViewSchemaDefinitions,
   ...proposalActionsSchemaDefinitions,
   ...messageActionsSchemaDefinitions,
+  ...profileActionsSchemaDefinitions,
 };
 if (!includeEditions) {
   const mutableDefinitions = definitions as Record<string, unknown>;

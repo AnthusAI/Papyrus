@@ -29,6 +29,7 @@
     "test:reference-feed-keys": "tsx scripts/test-reference-feed-keys.ts",
     "test:assignment-data-access": "node --import tsx scripts/test-assignment-data-access.ts",
     "test:reference-vote-saved": "tsx --test scripts/test-reference-review-api.ts && cucumber-js --profile referenceVoteSaved",
+    "test:public-handle": "tsx --test scripts/test-public-handle.ts scripts/test-appsync-resolvers.ts && tsx scripts/test-public-handle-browser.ts && poetry run behave features_backend/public-handle.feature",
     "test:message-author-enforced": "tsx --test scripts/test-message-author-enforced.ts scripts/test-appsync-resolvers.ts && cucumber-js --profile messageAuthorEnforced",
     "test:identity-pool-model-access": "tsx scripts/test-identity-pool-model-access.ts",
     "test:local-preview-seed": "tsx scripts/test-local-preview-seed.ts",
