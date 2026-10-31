@@ -244,7 +244,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             inputs.append(["threads", self._home_page.threads_digest()])
             if self._forum() is not None:
                 inputs.append(["threadBase", self._forum().thread_base])
+        if inputs:
+            inputs.append(self._home_page_stylesheet_token())
         return inputs
+
+    def _home_page_stylesheet_token(self) -> str:
+        """The version token of ``papyrus-home-page.css`` alone: a short hash of that file, empty when the site has no ``homePage``."""
+        content = self._static_files.get(HOME_PAGE_CSS_PATH)
+        return hashlib.sha256(content).hexdigest()[:12] if content is not None else ""
 
     def _forum(self):
         home_page = self.standard.home_page
@@ -1022,6 +1029,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         ]
         if index.references:
             inputs.append(self._home_page.digest())
+            inputs.append(self._home_page_stylesheet_token())
         if index.source:
             text, found = self._page_includes(index.source, f"urls.sections.{section.name}.index")
             inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
@@ -1233,8 +1241,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         if self.standard.components_css and KNOWLEDGE_CSS_PATH not in sheets and self._knowledge.digest():
             sheets.insert(sheets.index(COMPONENTS_CSS_PATH) + 1, KNOWLEDGE_CSS_PATH)
-        if self.standard.home_page is not None and HOME_PAGE_CSS_PATH not in sheets:
+        own_versions: tuple[tuple[str, str], ...] = ()
+        if self.standard.home_page is not None and (page.ledger.home_page_used or page.kind == "thread") and HOME_PAGE_CSS_PATH not in sheets:
             sheets.append(HOME_PAGE_CSS_PATH)
+            own_versions = ((HOME_PAGE_CSS_PATH, self._home_page_stylesheet_token()),)
         if self.standard.section_fronts and SECTION_FRONTS_CSS_PATH not in sheets:
             sheets.append(SECTION_FRONTS_CSS_PATH)
         if self.standard.islands is not None and self.standard.islands.stylesheet:
@@ -1254,6 +1264,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             site_name=identity.name,
             lang=identity.language,
             stylesheets=tuple(sheets),
+            stylesheet_versions=own_versions,
             scripts=scripts,
             head_html=base.head_html + head_html,
             asset_root="/" + self.policy.root,

@@ -149,11 +149,14 @@ def read_static_files(static_directory: Path | None, theme: str | None) -> dict[
     return files
 
 
+OWN_VERSION_STYLESHEETS = frozenset({"css/papyrus-home-page.css"})
+
+
 def static_version(static_files: dict[str, bytes]) -> str:
     stylesheets = [
         (PurePosixPath(path).name, content)
         for path, content in static_files.items()
-        if PurePosixPath(path).parent == PurePosixPath("css") and path.endswith(".css")
+        if PurePosixPath(path).parent == PurePosixPath("css") and path.endswith(".css") and path not in OWN_VERSION_STYLESHEETS
     ]
     assets = [
         (path[len(ASSETS_DIRECTORY) + 1 :], content)
