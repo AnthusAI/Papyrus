@@ -305,7 +305,7 @@ def monitor_stories_command(flags: list[str]) -> None:
         return
     inputs, usage = run["inputs"], run.get("usage") or {}
     print(f"ideas\tmonitor-stories\t{run['runId']}\t{run['store']}")
-    print(f"items\tstatuses {','.join(run['statuses'])}\tread {inputs['inWindow']}\tpending not read {inputs.get('notAccepted', 0)}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
+    print(f"items\tstatuses {','.join(run['statuses'])}\tread {inputs['inWindow']}\tpending not read {inputs.get('notAccepted', 0)}\tnot monitored {inputs['notMonitored']}\tjudged not relevant {inputs['judgedNotRelevant']}\talready drafted {inputs['alreadyDrafted']}\tsame source {inputs.get('sameSource', 0)}\tpromoted {inputs['promoted']}\texcluded host {inputs.get('excludedHost', 0)}\thandled by automation {inputs.get('handledByAutomation', 0)}\tcandidates {inputs['candidates']}")
     fresh = run["freshness"]
     print("freshness\t" + (f"tau {fresh['tauDays']} days\texamples {fresh['examples']}" if fresh["tauDays"] else f"none\texamples {fresh['examples']}"))
     print(f"drafts\tattempted {run['attempted']}\tfailed the citation check {len(run['invalid'])}\tskipped {len(run['skipped'])}\tduplicates {len(run['duplicates'])}\t{'would file' if dry_run else 'filed'} {len(run['drafts'])}")
