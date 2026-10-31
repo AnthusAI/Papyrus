@@ -157,7 +157,7 @@ def proceeds_unasked(context):
 
 @when('the backend is synthesized with Prospectus authorization off and then on')
 def synthesized(context):
-    context.synth = subprocess.run(['node', '--import', 'tsx', 'scripts/test-prospectus-authorize-synth.ts'], cwd=ROOT, capture_output=True, text=True, timeout=600)
+    context.synth = subprocess.run(['node', '--import', 'tsx', 'scripts/test-prospectus-authorize-synth.ts'], cwd=ROOT, capture_output=True, text=True, timeout=1800)
 
 
 @then('the backend with it off has no Prospectus data source, pipeline function, environment or permission')

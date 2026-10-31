@@ -177,7 +177,7 @@ test("with the flag off no account-scoped mutation has the Prospectus step", () 
 test("with the flag on the Prospectus step is first in each account-scoped mutation's pipeline", () => {
   const guarded = schemaWithPlugins(prospectusAuthorizeSchemaDefinitions());
   for (const field of GUARDED_MUTATIONS) assert.equal(pipelineOf(guarded, field)[0], "ProspectusAccounts", field);
-  assert.deepEqual(pipelineOf(guarded, "setPublicHandle").length, 4);
+  assert.equal(pipelineOf(guarded, "setPublicHandle").length, pipelineOf(schemaWithPlugins({}), "setPublicHandle").length + 1);
   assert.ok(baseModelNames().length > 0 && a);
 });
 
