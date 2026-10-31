@@ -14,6 +14,9 @@ export default defineSite({
 `invocationName` is required. `skillName` (default: the invocation name, capitalized), `skillId` (only known after the skill is
 created), `accountLinking` (default `false`; linking is optional) and `siteOrigin` (the public https origin) are optional.
 
+`amazonVendorId` is required when `accountLinking` is `true` (uppercase letters and digits). Ryan gets it once from the Alexa developer
+console (Settings, Vendor ID) for the Amazon developer account that owns the skills; it names Amazon's account-linking redirect URLs.
+
 ## What it deploys
 
 - A TypeScript function, `papyrus-alexa-skill`, defined with Amplify `defineFunction` (bundled, so `ask-sdk-core` ships inside).
@@ -22,6 +25,24 @@ created), `accountLinking` (default `false`; linking is optional) and `siteOrigi
   serves nothing until a skill ID is configured.
 - The resolved config as `PAPYRUS_ALEXA_SETTINGS` on the function, and the function ARN as `custom.alexa.functionArn` in
   `amplify_outputs.json` (the skill manifest's endpoint).
+
+## Account linking: the Cognito app client
+
+With `accountLinking: true` the plugin adds one app client, `papyrus-alexa-account-linking`, to the site's own user pool
+(`wiring/cognito-client.ts`). Nothing is created when linking is off.
+
+- Authorization code flow only, Google as the only identity provider, scopes `openid email profile`, a generated client secret.
+- `ALLOW_REFRESH_TOKEN_AUTH` only (no SRP, password or custom auth), token revocation on, user-existence errors hidden.
+- Access and ID tokens last 60 minutes; refresh tokens last 365 days, because Alexa refreshes on its own.
+- Callback URLs: `https://pitangui.amazon.com/api/skill/link/<vendorId>`, `https://layla.amazon.com/api/skill/link/<vendorId>` and
+  `https://alexa.amazon.co.jp/api/skill/link/<vendorId>`.
+- The client depends on the Google identity provider, and the deploy fails if the site has none.
+- The secret is stored nowhere. The skill sync reads it with `DescribeUserPoolClient` when it sets up account linking.
+- The Lambda gets `PAPYRUS_ALEXA_USER_POOL_ID` and `PAPYRUS_ALEXA_CLIENT_ID`. `amplify_outputs.json` gets
+  `custom.alexa.accountLinking = { userPoolId, clientId, hostedUiDomain }` beside `custom.alexa.functionArn`
+  (`<domain prefix>.auth.<region>.amazoncognito.com`; Amplify merges `addOutput` calls deeply).
+- AppSync: the site's API uses the user pool as its default authorization mode and sets no `appIdClientRegex`, so it accepts
+  access and ID tokens from any client of the pool, including this one. This change does not touch AppSync auth.
 
 ## The seams
 

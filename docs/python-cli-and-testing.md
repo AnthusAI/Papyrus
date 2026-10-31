@@ -30,6 +30,8 @@ record-plan builders. The older compatibility shims under
 `procedures/newsroom/tools/` still exist for path-based tooling, but the
 canonical implementation now lives in `src/papyrus_newsroom/`.
 
+The copy-edit gate tool `papyrus_copy_edit_story_version` (same module) applies only the mechanical fixes the site's policies declare as a new version by AI, attaches rewrite options to the other findings, and returns `hold` when an error finding survives; see [editorial checks](editorial-checks.md#editorial-checks).
+
 Story tools in `src/papyrus_newsroom/tactus_tools.py` (a procedure loads the
 module as a plugin toolset; every public function is a tool) include
 `papyrus_check_story_version`, which a copy-edit procedure uses to run the

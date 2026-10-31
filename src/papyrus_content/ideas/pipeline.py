@@ -9,6 +9,7 @@ from typing import Any
 from . import dedupe, synthesis
 from .digest import ACCEPTED, PENDING, iso
 from .review import mark_steering_applied, merge_feedback, read_steering, request_human_review
+from .items import IdeaRefused
 from .store import JsonStore, ProposalStore
 
 DEFAULT_MAXIMUM_COST_USD = 0.50
@@ -72,7 +73,7 @@ def idea_record(candidate: dict[str, Any], *, run: dict[str, Any], digest: dict[
         "createdAt": iso(now),
         **candidate,
         "citations": [
-            {key: by_id[identifier].get(key) for key in ("id", "title", "source", "sourceUri", "status", "arrivedAt")}
+            {key: by_id[identifier].get(key) for key in ("id", "lineageId", "title", "source", "sourceUri", "status", "arrivedAt")}
             for identifier in candidate["citedReferenceIds"]
         ],
     }
@@ -120,13 +121,14 @@ def synthesize(
         "digestId": digest["digestId"],
         "startedAt": iso(moment),
         "model": model,
-        "store": "proposals" if proposal_store else "json",
+        "store": proposal_store.kind if proposal_store else "json",
         "private": True,
     }
     stored = json_store.ideas()
     steering, steering_ids, steering_error = read_steering(review_client, json_store.batch_titles())
-    feedback = merge_feedback(steering, feedback or [])
-    run["steering"] = {"entries": len(steering), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
+    decisions = proposal_store.feedback() if hasattr(proposal_store, "feedback") else []   # Items: accepted ideas and spiked ones with their reasons
+    feedback = merge_feedback([*steering, *decisions], feedback or [])
+    run["steering"] = {"entries": len(steering), "decisions": len(decisions), "requestIds": steering_ids, **({"error": steering_error} if steering_error else {})}
     drafts = proposal_store.story_drafts() if proposal_store else []
     documents = comparison_documents(context, stored, drafts, feedback)
     run["inputs"] = count_inputs(digest, context, documents, feedback)
@@ -152,7 +154,11 @@ def synthesize(
         for candidate in kept:
             idea = idea_record(candidate, run=run, digest=digest, now=moment)
             if proposal_store:
-                idea["proposalId"] = proposal_store.file_idea(idea, idea["body"], digest["digestId"])
+                try:
+                    proposal_store.mark(idea, proposal_store.file_idea(idea, idea["body"], digest["digestId"]))
+                except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed
+                    run["invalid"].append(refusal.as_invalid(idea))
+                    continue
             json_store.save_idea(idea)
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])

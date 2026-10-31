@@ -34,6 +34,10 @@ when("a site's broker is synthesized", "the_broker_keeps_its_security_properties
 then("the public URL takes no credentials and only the pages function's role may invoke the private operations");
 then("the broker is bounded, reads and writes only its own table, and alarms on its start ceiling and throttling");
 then("only the site's compute role may invoke the pages function");
+when("a site's broker is synthesized with an alarm topic", "the_broker_alarms_notify_the_sites_alarm_topic_when_one_is_configured");
+then("both broker alarms notify that topic when they fire and when they recover");
+when("a site's broker is synthesized without an alarm topic", "without_an_alarm_topic_the_synth_warns_once_and_names_the_setting");
+then("the alarms carry no notification and synth warns once naming the alarm topic setting");
 when("the Lambda bundles are built", "the_cli_the_broker_and_the_pages_run_the_same_cli_login_release", "the_pages_function_never_imports_papyrus_content");
 then("the broker and the pages install the exact release that pyproject.toml pins for the CLI");
 then("the pages function does not import papyrus_content");

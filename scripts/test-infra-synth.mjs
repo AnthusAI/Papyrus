@@ -130,6 +130,14 @@ try {
   assert.ok(JSON.stringify(invoker.Value).includes("AmplifyComputeRole"), "cliRemoteLogin: the invoker is the Amplify compute role");
   assert.deepEqual(stagingBranchOf(remoteLogin).Properties.EnvironmentVariables.filter((variable) => /CLI_REMOTE_LOGIN|CLI_INVOKER_ROLE/.test(variable.Name)), [], "cliRemoteLogin: the staging branch is unchanged");
 
+  const alarmTopicNames = (template) => productionBranchOf(template).Properties.EnvironmentVariables.map((variable) => variable.Name).filter((name) => name === "PAPYRUS_ALARM_TOPIC_ARN");
+  assert.deepEqual(alarmTopicNames(withReader), [], "alarm topic off by default: the production branch carries no variable");
+  const alarmTopicSite = structuredClone(pilobolExample);
+  alarmTopicSite.cms.alarmTopicArn = "arn:aws:sns:us-east-1:111111111111:example-site-alarms";
+  const alarmTopic = synthesizeSite("pilobol-alarm-topic", alarmTopicSite);
+  assert.deepEqual(alarmTopicNames(alarmTopic), ["PAPYRUS_ALARM_TOPIC_ARN"], "alarmTopicArn: the production branch names the topic");
+  assert.deepEqual(stagingBranchOf(alarmTopic).Properties.EnvironmentVariables.filter((variable) => variable.Name === "PAPYRUS_ALARM_TOPIC_ARN"), [], "alarmTopicArn: the staging branch is unchanged");
+
   const anthUsDomains = resourcesOfType(anthUsTemplate, "AWS::Amplify::Domain");
   assert.equal(anthUsDomains.length, 1, "anth-us: one reader domain");
   assert.deepEqual(anthUsDomains[0].Properties.SubDomainSettings.map((setting) => setting.Prefix), ["", "www"]);
