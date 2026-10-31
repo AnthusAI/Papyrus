@@ -1,0 +1,20 @@
+{
+  "id": "PPY-03a6ebb3-832b-4a3e-a353-8803c819db36",
+  "title": "Accept a Proposed Story creates the story (proposals accept --create-story)",
+  "description": "Approving a story_draft Proposal today creates nothing. Accept should create the content item (story_from_story_draft path), link it to the Proposal and its References, and move it to copywriting.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:07:27.025285Z",
+  "updated_at": "2026-10-31T14:07:27.025341Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

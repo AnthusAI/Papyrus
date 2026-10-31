@@ -3,17 +3,39 @@
   "title": "Scaffold the alexa plugin: per-site Lambda endpoint behind a site config switch",
   "description": "Add amplify/plugins/alexa (config.ts, papyrus.plugin.ts, function/resource.ts, function/handler.py) following the reader-steering layout. Off by default. The Lambda permission allows only alexa-appkit.amazon.com with the skill-ID event source condition. Outputs the function ARN for the skill manifest. Gherkin: the plugin is absent when off; the endpoint rejects a request with the wrong skill ID.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
   "parent": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
   "labels": [],
   "dependencies": [],
-  "comments": [],
+  "comments": [
+    {
+      "id": "04fdcfdb-863a-4543-9b2c-af1644ca3f45",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/936 (branch feature/PPY-dc7748-alexa-contracts)",
+      "created_at": "2026-10-31T14:35:45.836175Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "19b134da-b0df-4dbd-8623-00beefb072a8",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/936 (branch feature/PPY-dc7748-alexa-contracts)",
+      "created_at": "2026-10-31T14:35:51.587727Z",
+      "comment_type": "default"
+    },
+    {
+      "id": "8de722a3-3a03-4e9c-b4fc-90ad1ceba92e",
+      "author": "home",
+      "text": "Merged in AnthusAI/Papyrus#936 (merge commit on develop), CI green. Seams documented in docs/alexa.md.",
+      "created_at": "2026-10-31T15:09:13.347442Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:47.081950Z",
-  "updated_at": "2026-10-31T14:06:47.081998Z",
-  "closed_at": null,
+  "updated_at": "2026-10-31T15:09:13.435633Z",
+  "closed_at": "2026-10-31T15:09:13.435285Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

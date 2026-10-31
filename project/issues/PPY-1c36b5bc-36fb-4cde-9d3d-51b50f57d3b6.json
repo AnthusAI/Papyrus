@@ -9,10 +9,15 @@
   "creator": null,
   "parent": "PPY-00ac19f5-01e2-4c83-9e1a-3a04d8e4b5cc",
   "labels": [],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-11a4d39e-5110-42be-8780-f85529535bd1",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [],
   "created_at": "2026-10-31T14:06:50.378460Z",
-  "updated_at": "2026-10-31T14:06:50.378494Z",
+  "updated_at": "2026-10-31T14:25:33.311486Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

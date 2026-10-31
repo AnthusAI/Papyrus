@@ -10,7 +10,7 @@ export const CLI_APPROVE_PATH = "/cli/approve";
 export const CLI_CALLBACK_PATH = "/cli/callback";
 
 export type CliRemoteLoginPlan = {
-  /** The site's public https origin: where the pages are served and the Cognito callback is registered. */
+  /** The console's public https origin (the site origin unless the console has its own host): where the pages are served and the Cognito callback is registered. */
   origin: string;
   approvalUrl: string;
   callbackUri: string;
@@ -24,15 +24,15 @@ export type CliRemoteLoginPlan = {
  */
 export function planCliRemoteLogin(enabled: boolean, environment: Record<string, string | undefined>): CliRemoteLoginPlan | undefined {
   if (!enabled) return undefined;
-  const originText = (environment.PAPYRUS_SITE_ORIGIN ?? "").trim();
+  const originText = (environment.PAPYRUS_CONSOLE_ORIGIN ?? environment.PAPYRUS_SITE_ORIGIN ?? "").trim();
   let origin: URL;
   try {
     origin = new URL(originText);
   } catch {
-    throw new Error("Remote CLI login needs PAPYRUS_SITE_ORIGIN, the site's public https origin.");
+    throw new Error("Remote CLI login needs PAPYRUS_SITE_ORIGIN (or PAPYRUS_CONSOLE_ORIGIN when the console has its own host), the console's public https origin.");
   }
   if (origin.protocol !== "https:" || origin.pathname !== "/" || origin.search !== "" || origin.username !== "") {
-    throw new Error(`Remote CLI login needs PAPYRUS_SITE_ORIGIN to be a plain https origin, got ${originText}.`);
+    throw new Error(`Remote CLI login needs the console origin (PAPYRUS_CONSOLE_ORIGIN, else PAPYRUS_SITE_ORIGIN) to be a plain https origin, got ${originText}.`);
   }
   const invokerRoleArn = (environment.PAPYRUS_CLI_INVOKER_ROLE_ARN ?? "").trim();
   if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/.+$/.test(invokerRoleArn)) {

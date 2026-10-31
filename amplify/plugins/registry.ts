@@ -1,4 +1,5 @@
 import type { PapyrusPlugin, PluginRequest, PluginResolveOptions } from "./types";
+import { alexaPlugin } from "./alexa/papyrus.plugin";
 import { homePagePlugin } from "./home-page/papyrus.plugin";
 import { newsletterPlugin } from "./newsletter/papyrus.plugin";
 import { readerSteeringPlugin } from "./reader-steering/papyrus.plugin";
@@ -6,6 +7,7 @@ import { signupPlugin } from "./signup/papyrus.plugin";
 
 /** Plugins are packaged with Papyrus and pinned by its version: there is no registry to fetch from. */
 export const KNOWN_PLUGINS: Record<string, PapyrusPlugin<any, any>> = {
+  alexa: alexaPlugin,
   "home-page": homePagePlugin,
   newsletter: newsletterPlugin,
   "reader-steering": readerSteeringPlugin,
