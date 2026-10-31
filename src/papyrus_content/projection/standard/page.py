@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from ..model import ItemSummary
@@ -13,7 +14,7 @@ from .head import PageHead
 from .hooks import HookSite
 from .page_ledger import PageLedger
 
-KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_page")
+KINDS = ("item", "home", "listing", "tags", "tag", "custom", "showcase", "archive", "not_found", "newsletter_page", "thread")
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,8 @@ class StandardPage:
     wiki_footer: str = ""                       # wiki pages: "Updated", the data link and the suggest-an-edit form, placed below the text
     section_index: SectionIndexView | None = None    # section front pages: what the generated layout shows (empty fragment unless the index is authored)
     home_sections: tuple[HomeSectionBlock, ...] = ()  # the home of sections: one block per section
+    thread: Mapping | None = None               # thread pages: the per-thread document the snapshot wrote
+    thread_reference: Mapping | None = None     # thread pages: the anchor Reference's record when the snapshot holds it
     ledger: PageLedger = field(default_factory=PageLedger)   # what this page render has placed so far; shared by every include on it
     components = components
 
