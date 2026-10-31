@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c6cd920f-92e6-4dc6-8e15-db86a0e4ec9b",
+  "issue_id": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:07:26.900Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Semi-automated newsroom trial: trend stories you steer (Anth.us first)",
+    "description": "Make the steer-your-newsroom loop work end to end and prove it on Anth.us: trend Proposed Stories from several References with Anthus-side evidence, a Humanus gate at filing, accept creates the story, copy-edit gate, configurable publish gate (required on Anth.us), editor decisions train the pipeline. Plan: consultant report 2026-10-31. Doubles as product demo and p.apyr.us material.",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
