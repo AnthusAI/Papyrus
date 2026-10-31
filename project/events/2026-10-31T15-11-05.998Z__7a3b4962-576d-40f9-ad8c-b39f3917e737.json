@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "7a3b4962-576d-40f9-ad8c-b39f3917e737",
+  "issue_id": "PPY-1ae50937-bfa1-48b6-a2da-ac7886065e2a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T15:11:05.998Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editor-review stage bot: first slice of the editor agent",
+    "description": "Generic procedures/newsroom/editor_review.tac stage bot (design: editor agents first slice). Reads the version, linked References, brief (or doctrine), editorial check; judges eight acceptance criteria; writes Item.metadata.editorReview; returns {version, hold, reason} (approve advances to typesetting, revise/reframe holds and the engine raises a flag). Never publishes, never writes Messages. Includes the runner template grant for the Anth.us newsroom (change set not run) and docs/editor-agents.md section. Not enabled on any site: register, automation and change set are operator steps.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

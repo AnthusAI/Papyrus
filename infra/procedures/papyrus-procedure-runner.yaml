@@ -13,6 +13,13 @@ Parameters:
     Type: String
     Default: xcobakwl4jagvhdq54qc55flii
     Description: AppSync API id of the Distinctive Mark backend, whose procedures this runner may run.
+  AnthUsApiId:
+    Type: String
+    Default: 4qiunzl7drcedaz22rl4xu56ga
+    Description: >-
+      AppSync API id of the Anth.us backend (the same value as AnthUsApiId in papyrus-monitoring.yaml), whose procedures
+      this runner may run: the editor-review stage bot (docs/editor-agents.md). Check it against the live API before
+      creating the change set.
   MonitoringTableName:
     Type: String
     Description: The monitoring table, where the runner records each triggered run's outcome on its TRIGGER# row.
@@ -90,6 +97,8 @@ Resources:
                 Resource:
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Query/fields/*"
                   - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${DistinctiveApiId}/types/Mutation/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Query/fields/*"
+                  - !Sub "arn:${AWS::Partition}:appsync:${AWS::Region}:${AWS::AccountId}:apis/${AnthUsApiId}/types/Mutation/fields/*"
 
   RunnerFunction:
     Type: AWS::Lambda::Function
