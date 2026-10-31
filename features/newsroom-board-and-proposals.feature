@@ -17,6 +17,13 @@ Feature: The newsroom board and Proposed Stories read the way an editor expects
     And a story with no date sits at the bottom of its column
     And without that rule a column is ordered by id, which is the order the editor saw before
 
+  Scenario: The Stories board shows where new stories wait
+    Given an isolated newsroom with synthetic stories
+    When the editor opens the Stories board
+    Then the first column is Idea, ahead of Reporting
+    And each Idea card is marked Generated or Started by a person
+    And a story at the assignment stage is not on the Stories board
+
   Scenario: Opening a story shows a solid detail view that does not jump
     Given an isolated newsroom with synthetic stories
     When the editor opens a story at 1440, 834 and 375 pixels and every animation frame is recorded

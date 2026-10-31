@@ -12,7 +12,7 @@ import { kindLabel, stateLabel } from "../lib/proposals-admin";
 import { summaryText } from "../lib/review-requests";
 import { waitingTextFor } from "../lib/needs-me-items";
 import { NEEDS_ME_FILTER_LABELS } from "../lib/needs-me-ranking";
-import { contentItemBoardConfig, deskBoardConfig, projectContentItemBoard } from "../lib/newsroom-board";
+import { IDEA_ORIGIN_PRIORITIES, contentItemBoardConfig, deskBoardConfig, projectContentItemBoard } from "../lib/newsroom-board";
 import { DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS } from "../lib/content-item-lifecycle";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -179,6 +179,18 @@ const scenarios: Record<string, () => Promise<void>> = {
       const order = (await columns(page))[`${issues[0].type}/copywriting`] ?? [];
       assert.deepEqual(order, ["a-oldest", "b-middle", "c-newest", "d-undated"], `without the rule Kanbus orders by id (${order.join(", ")})`);
     } finally { await browser.close(); }
+  },
+
+  /** The Stories board starts with Idea ahead of Reporting; assignment-stage work stays off it. */
+  async board_stage_columns() {
+    const version = (stage: string, versionCreatedBy = "Someone") => ({ versionCreatedBy, id: `${stage}-v1`, lineageId: stage, versionNumber: 1, stage, type: "article", status: "draft", slug: stage });
+    const issues = projectContentItemBoard({ contentItemVersions: ["idea", "reporting", "assignment"].map((stage) => version(stage)) });
+    assert.deepEqual(issues.map((issue) => issue.nativeStatus).sort(), ["idea", "reporting"], "idea stories are on the board, assignment-stage work is not");
+    const origins = projectContentItemBoard({ contentItemVersions: [{ ...version("idea", "AI"), lineageId: "g", id: "g-v1" }, { ...version("idea", "Pat"), lineageId: "p", id: "p-v1" }] }).map((issue) => issue.priority);
+    assert.deepEqual(origins, [IDEA_ORIGIN_PRIORITIES.generated, IDEA_ORIGIN_PRIORITIES.person], "an Idea card says whether it was generated or started by a person");
+    assert.deepEqual(contentItemBoardConfig(issues).priorities[IDEA_ORIGIN_PRIORITIES.generated], { name: "Generated" });
+    const names = contentItemBoardConfig(issues).statuses.map((status) => status.name);
+    assert.deepEqual(names, ["Idea", "Reporting", "Copywriting", "Illustration", "Typesetting", "Spiked", "Held", "Published"], "column order");
   },
 
   /** Opening a story: a solid detail view from its first frame, in one place and one size, with a loading shape that is the loaded shape. */
