@@ -84,7 +84,7 @@ def generate_inside(context):
 def lists_callbacks(context):
     text = context.packet.read_text()
     assert "https://www.site.example/api/auth/prospectus/callback" in text
-    assert "http://127.0.0.1:53682/cli/callback" in text
+    assert "http://127.0.0.1:38947/cli/callback" in text
     assert "https://site.example/cli/callback" in text
 
 

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DEFAULT_CLI_LOOPBACK_PORT = 53682;
+export const DEFAULT_CLI_LOOPBACK_PORT = 38947;
 export const CLI_CALLBACK_PATH = "/cli/callback";
 export const AWS_EXECUTABLE_ENVIRONMENT_VARIABLE = "PAPYRUS_FEDERATION_PACKET_AWS";
 
