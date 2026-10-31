@@ -2,6 +2,7 @@ import { getIntentName, getRequestType } from "ask-sdk-core";
 import type { IntentModule } from "../contracts";
 import { currentPosition, NOTHING_PUBLISHED, readStory, say, sayAndEnd } from "../speech/conversation";
 import { sentence, wrapSpeak } from "../speech/ssml";
+import { inReview, skip } from "../review/flow";
 
 export const INTENT_NAME = "AMAZON.NextIntent";
 
@@ -11,6 +12,7 @@ export const nextIntent: IntentModule = {
   create: (dependencies) => ({
     canHandle: (handlerInput) => getRequestType(handlerInput.requestEnvelope) === "IntentRequest" && getIntentName(handlerInput.requestEnvelope) === INTENT_NAME,
     handle: async (handlerInput) => {
+      if (inReview(handlerInput)) return skip(handlerInput, dependencies);
       const position = await currentPosition(handlerInput, dependencies);
       if (position === undefined) return sayAndEnd(handlerInput, NOTHING_PUBLISHED);
       const target = position.current === null ? 0 : position.current + 1;
@@ -24,5 +26,5 @@ export const nextIntent: IntentModule = {
       return readStory(handlerInput, dependencies, position, target);
     },
   }),
-  interactionModel: { intent: { name: INTENT_NAME, samples: ["next story", "read the next one", "skip this one", "go on to the next story"] } },
+  interactionModel: { intent: { name: INTENT_NAME, samples: ["next story", "read the next one", "go on to the next story"] } },
 };

@@ -1,5 +1,6 @@
 import { getIntentName, getRequestType } from "ask-sdk-core";
 import type { IntentModule } from "../contracts";
+import { saveReviewState } from "../review/flow";
 import { readHeadlines, welcomeIfNew } from "../speech/conversation";
 
 export const INTENT_NAME = "HeadlinesIntent";
@@ -12,7 +13,7 @@ export const headlinesIntent: IntentModule = {
   id: "headlines",
   create: (dependencies) => ({
     canHandle: (handlerInput) => getRequestType(handlerInput.requestEnvelope) === "IntentRequest" && getIntentName(handlerInput.requestEnvelope) === INTENT_NAME,
-    handle: (handlerInput) => readHeadlines(handlerInput, dependencies, { greeting: welcomeIfNew(handlerInput, dependencies), fresh: true }),
+    handle: (handlerInput) => (saveReviewState(handlerInput, undefined), readHeadlines(handlerInput, dependencies, { greeting: welcomeIfNew(handlerInput, dependencies), fresh: true })),
   }),
   interactionModel: {
     intent: {

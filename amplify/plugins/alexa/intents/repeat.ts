@@ -1,5 +1,6 @@
 import { getIntentName, getRequestType } from "ask-sdk-core";
 import type { IntentModule } from "../contracts";
+import { inReview, repeatCurrent } from "../review/flow";
 import { currentPosition, NOTHING_PUBLISHED, readHeadlines, readStory, sayAndEnd } from "../speech/conversation";
 
 export const INTENT_NAME = "AMAZON.RepeatIntent";
@@ -10,6 +11,7 @@ export const repeatIntent: IntentModule = {
   create: (dependencies) => ({
     canHandle: (handlerInput) => getRequestType(handlerInput.requestEnvelope) === "IntentRequest" && getIntentName(handlerInput.requestEnvelope) === INTENT_NAME,
     handle: async (handlerInput) => {
+      if (inReview(handlerInput)) return repeatCurrent(handlerInput, dependencies);
       const position = await currentPosition(handlerInput, dependencies);
       if (position === undefined) return sayAndEnd(handlerInput, NOTHING_PUBLISHED);
       if (position.current === null) return readHeadlines(handlerInput, dependencies, { position });

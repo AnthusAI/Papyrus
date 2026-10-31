@@ -188,3 +188,72 @@ with the site's normal header, theme and footer, in the directory form whatever 
 (`src/papyrus_content/projection/standard/alexa_pages.py`). The publication name comes from the site identity. The contact line links
 `footer.family.contactUrl` when the site sets it and otherwise points at the footer's Contact link; no address is committed.
 `PLUGIN_PAGE_PREFIXES["alexa"]` keeps a reconcile from deleting them.
+
+## Reviewing references
+
+The MVP Ryan set on 2026-10-31: a linked editor reviews the newsroom's unrated References one at a time by voice. Alexa reads the
+title, where it is from, the subtitle and the summary; the Echo Show shows the reference card (`apl/reference.ts`) with Accept,
+Reject and Skip buttons; the editor says accept, or reject and why, or skip; the answer is recorded and the next one follows.
+
+**Two lists.** *Best bets*: unrated References by the Cyclotron's P(accept), highest first, the newsroom's Best bets sort. *Needs my
+help*: by uncertainty `1 - |2P - 1|`, the newsroom's "What needs me" rule. Both share the newsroom's own functions
+(`lib/reference-feed-ranking.ts`, `lib/needs-me-ranking.ts`), compiled into the package with `lib/reference-policy.ts`,
+`lib/newsroom-references.ts` and `lib/relevance-decisions.ts` (`packages/papyrus/scripts/stage.mjs`). Without a named list the
+review starts with what needs help.
+
+**The editor's own sign-in.** `review/newsroom.ts` calls the site's AppSync API with the linked editor's Cognito access token (the
+`Authorization` header), never with the skill's role, so AppSync checks the `editor`/`admin` groups and `reviewReferenceCuration`
+records `curationActorKind: human`, which trains the Cyclotron. This is the one exception to IAM-only Lambdas
+(`docs/agent-rules-detail.md`). The plugin wiring sets `PAPYRUS_ALEXA_GRAPHQL_ENDPOINT` (and `PAPYRUS_ALEXA_HOSTED_UI_ORIGIN`, for
+the editor's email from `/oauth2/userInfo`, which becomes the vote's `actorLabel`); there is no IAM grant.
+
+**Data paths.**
+
+| What | Where |
+| --- | --- |
+| The queue | `listReferencesByFeedStateAndPrediction(feedStateKey: "<corpusId>#unrated", DESC)`; the corpus is `knowledge-corpus-<corpusKey or siteId>` (`corpusKey` setting). Needs the feed keys backfilled (`docs/reference-feed-indexes.md`). Up to 300 are ordered; a session carries 25 and counts them all. |
+| Subtitle | The preview `ReferenceAttachment`'s `metadata.description`, and its `siteName` for "From ..." and for trimming the title. |
+| Summary | The curation card's `summary.text`, else the summarizer's `metadata` ModelAttachment through `createModelAttachmentDownload`. |
+| Decision | The current `relevance_decision_is` relation (`currentRelevanceDecisions`): its id goes with the vote; its confidence and review reason answer "why this one". |
+| Vote | `reviewReferenceCuration(referenceId, action, note, reasonCode, decisionRelationId, actorLabel)`. A reject needs a reason: the spoken words are the `note` and `rejectionReasonCodeForWrittenReason` gives the code. Undo is `reopen`. |
+
+**Who may review.** Not linked: a LinkAccount card (an Echo Show shows Amazon's QR code). Linked without `editor`/`admin`: told review
+is for editors and offered the stories. A refused token (AppSync 401/403 or "Not Authorized") asks the editor to link again; a failed
+write says nothing was recorded.
+
+### Conversation design
+
+Voice starts from a low point: the editor cannot see a menu, mishearing is normal, and silence is confusing. The rules:
+
+- **Always say where they are.** Every Reference starts "Number 3 of 12"; the card says the list and the place.
+- **Short once learned.** The first prompt explains ("Say accept, or reject and why, like reject because it's off topic. Or say
+  skip."); after that it is "Accept, reject, or skip?". Confirmations are one word ("Accepted.") before the next Reference.
+- **No dead ends.** A misheard answer during a review gets the short choices, never the headlines; review words outside a review
+  say how to start one; an empty list says nothing is waiting; the end of a list offers the other one.
+- **A rejection always has a reason**, in the editor's words. A bare "reject" asks why; "because ..." answers. A stray "because ..."
+  checks first.
+- **Shared words mean review things during a review.** Next is skip; previous, repeat, help, more, stop and cancel act on the
+  Reference; "headlines" leaves the review for the stories.
+
+What editors will say, and what happens:
+
+| They say | The skill |
+| --- | --- |
+| "what needs my help", "best bets", "review references", "show me references" | Starts that list (needs my help if unnamed) |
+| "accept", "keep it", "yes", "thumbs up" | Accepts, then the next one |
+| "reject because it's a press release", "no it's off topic", "reject" | Rejects with the reason (asks why if none) |
+| "skip", "not sure", "come back to it", "next" | Moves on, nothing recorded |
+| "undo", "I changed my mind", "oops" | Reopens the last answer and reads that one again |
+| "how many are left", "where am I" | The count, counting this one |
+| "why this one", "how sure are you" | The Cyclotron's guess in percent, and whether it asked for help or is auditing |
+| "who published it", "when was it published" | Source name and date |
+| "more", "read the whole summary" | Everything there is, as much as one reply can say |
+| "send it to my phone", "give me the link" | An Alexa app card with the title, subtitle and link |
+| "accept all", "reject them all" | Refused kindly: one at a time |
+| "repeat", "go back" | The same Reference again, or the previous one |
+| "that's enough", "pause", "stop" | Stops; says unanswered ones will still be waiting |
+| "help" | Where they are and every option |
+
+Tests: `scripts/test-alexa-review.ts` runs whole conversations against a fake newsroom (`features/alexa-review.feature`). The misses
+Ryan finds on a real Echo Show become new rows here and new tests.
+

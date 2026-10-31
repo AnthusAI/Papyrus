@@ -25,7 +25,10 @@ export function createAplUserEventIntent(options: { openStory?: OpenStory } = {}
   return {
     id: "apl-user-event",
     create: (dependencies) => ({
-      canHandle: (handlerInput) => handlerInput.requestEnvelope.request.type === APL_USER_EVENT_REQUEST,
+      canHandle: (handlerInput) => {
+        const request = handlerInput.requestEnvelope.request as { type: string; arguments?: unknown[] };
+        return request.type === APL_USER_EVENT_REQUEST && request.arguments?.[0] === OPEN_STORY_ARGUMENT;
+      },
       handle: async (handlerInput) => {
         const request = handlerInput.requestEnvelope.request as { arguments?: unknown[] };
         const index = tappedStoryIndex(request.arguments);

@@ -11,6 +11,19 @@ import { nextIntent } from "./next";
 import { previousIntent } from "./previous";
 import { readStoryIntent } from "./read-story";
 import { repeatIntent } from "./repeat";
+import { reviewAcceptIntent } from "./review-accept";
+import { reviewBulkIntent } from "./review-bulk";
+import { reviewDoneIntent } from "./review-done";
+import { reviewReasonIntent } from "./review-reason";
+import { reviewRejectIntent } from "./review-reject";
+import { reviewRemainingIntent } from "./review-remaining";
+import { reviewSendIntent } from "./review-send";
+import { reviewSkipIntent } from "./review-skip";
+import { reviewSourceIntent } from "./review-source";
+import { reviewStartIntent } from "./review-start";
+import { reviewTouchIntent } from "./review-touch";
+import { reviewUndoIntent } from "./review-undo";
+import { reviewWhyIntent } from "./review-why";
 import { sessionEndedIntent } from "./session-ended";
 import { stopIntent } from "./stop";
 
@@ -33,6 +46,19 @@ export const INTENT_MODULES: readonly IntentModule[] = [
   previousIntent,
   readStoryIntent,
   repeatIntent,
+  reviewAcceptIntent,
+  reviewBulkIntent,
+  reviewDoneIntent,
+  reviewReasonIntent,
+  reviewRejectIntent,
+  reviewRemainingIntent,
+  reviewSendIntent,
+  reviewSkipIntent,
+  reviewSourceIntent,
+  reviewStartIntent,
+  reviewTouchIntent,
+  reviewUndoIntent,
+  reviewWhyIntent,
   sessionEndedIntent,
   stopIntent,
 ];
