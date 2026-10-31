@@ -41,13 +41,25 @@ def broker_invoker(function_arn: str, client=None):
     return invoke
 
 
-def pages_from_environment(environment=os.environ, client=None) -> ApprovalPages:
+def prepare_from_environment(environment, post=None):
+    """The enrollment hook, only for a site that switched enrollment on by giving the Prospectus API endpoint."""
+    endpoint = (environment.get("PROSPECTUS_ACCOUNTS_API") or "").strip()
+    if not endpoint:
+        return None
+    from login_challenges import LoginChallenges
+
+    return (LoginChallenges(endpoint, post) if post else LoginChallenges(endpoint)).prepare
+
+
+def pages_from_environment(environment=os.environ, client=None, post=None) -> ApprovalPages:
+    prepare = prepare_from_environment(environment, post)
     return ApprovalPages(
         broker_invoker(environment["BROKER_FUNCTION_ARN"], client),
         authorize_endpoint=environment["AUTHORIZE_ENDPOINT"],
         product=environment["PRODUCT"],
         privileges=environment["PRIVILEGES"],
         identity_provider=environment.get("IDENTITY_PROVIDER") or None,
+        **({"prepare": prepare} if prepare else {}),
     )
 
 

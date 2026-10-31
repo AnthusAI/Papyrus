@@ -14,8 +14,8 @@ dependencies = [
     "biblicus >=1.15.0,<2",
     # The shared CLI login library: `papyrus login` stores sessions in the platform's secure store
     # (macOS Keychain, Linux Secret Service/kernel keyring/memory agent, Windows Credential Manager).
-    "cli-login ==0.3.0 ; sys_platform != 'linux'",
-    "cli-login[linux] ==0.3.0 ; sys_platform == 'linux'",
+    "cli-login ==0.4.0 ; sys_platform != 'linux'",
+    "cli-login[linux] ==0.4.0 ; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]

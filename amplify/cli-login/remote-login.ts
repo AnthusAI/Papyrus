@@ -46,6 +46,25 @@ export function planCliRemoteLogin(enabled: boolean, environment: Record<string,
   };
 }
 
+export type CliEnrollmentPlan = { prospectusAccountsApiEndpoint: string; prospectusAccountsApiStageArn: string };
+
+/**
+ * Prospectus enrollment of each remote login is off unless a site turns it on with PAPYRUS_ENABLE_CLI_ENROLLMENT=true
+ * and names the accounts API stage in PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN. Off returns nothing.
+ */
+export function planCliEnrollment(enabled: boolean, environment: Record<string, string | undefined>): CliEnrollmentPlan | undefined {
+  if (!enabled) return undefined;
+  const stageArn = (environment.PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN ?? "").trim();
+  const match = /^arn:aws:execute-api:([a-z0-9-]+):\d{12}:([a-z0-9]+)\/([A-Za-z0-9_-]+)$/.exec(stageArn);
+  if (!match) {
+    throw new Error("CLI enrollment needs PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN, the Prospectus accounts API stage ARN.");
+  }
+  return {
+    prospectusAccountsApiStageArn: stageArn,
+    prospectusAccountsApiEndpoint: `https://${match[2]}.execute-api.${match[1]}.amazonaws.com/${match[3]}`,
+  };
+}
+
 export type CliRemoteLoginProps = {
   plan: CliRemoteLoginPlan;
   /** The Cognito app client the CLI signs in with (the one `papyrus-cli.json` publishes). */
@@ -58,6 +77,12 @@ export type CliRemoteLoginProps = {
   product: string;
   brokerCode: Code;
   pagesCode: Code;
+  /**
+   * Switches on Prospectus enrollment of each remote login: the API Gateway endpoint of the accounts API. Absent, the
+   * pages function gets no environment variable and no extra permission, so the synthesized stack is unchanged.
+   */
+  prospectusAccountsApiEndpoint?: string;
+  prospectusAccountsApiStageArn?: string;
   /** The most broker invocations at once; bounds what an abusive caller can cost. */
   reservedConcurrency?: number;
 };
@@ -141,6 +166,14 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
       IDENTITY_PROVIDER: "Google",
     },
   });
+  if (props.prospectusAccountsApiEndpoint && props.prospectusAccountsApiStageArn) {
+    pages.addEnvironment("PROSPECTUS_ACCOUNTS_API", props.prospectusAccountsApiEndpoint);
+    pages.addToRolePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ["execute-api:Invoke"],
+      resources: [`${props.prospectusAccountsApiStageArn}/POST/v1/identities/google/challenge`],
+    }));
+  }
   new CfnPermission(stack, "PagesInvokePermission", {
     functionName: broker.functionName, action: "lambda:InvokeFunction", principal: pages.role!.roleArn,
   });
