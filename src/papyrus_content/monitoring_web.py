@@ -34,6 +34,7 @@ from .monitoring_paging import RateLimited, retry_after_seconds
 WEB_SEARCH = "web-search"
 TAVILY_SOURCE_URL = "https://api.tavily.com/search"   # the monitor config's sourceUrl (its host is the source type's)
 TAVILY_PAGE_LIMIT = 20          # Tavily's own maximum max_results; a full page means there may be more in the window
+QUOTA_STATUSES = (432, 433)    # Tavily: 432 the plan's usage limit, 433 the pay-as-you-go limit
 TOPICS = ("news", "general")
 DEFAULT_INTERVAL_SECONDS = 3600
 TIMEOUT_SECONDS = 30
@@ -56,7 +57,24 @@ def validate_web_config(raw: dict) -> dict:
     if group is not None and (not isinstance(group, str) or not group.strip()):
         raise ValueError("Config candidateGroup must be a non-empty string")
     return {"topic": topic, "startDate": str(start) if start else None,
-            "candidateGroup": group.strip() if group else None}
+            "candidateGroup": group.strip() if group else None,
+            "excludeDomains": domain_list(raw.get("excludeDomains"), "Config excludeDomains")}
+
+
+def domain_list(value, label: str) -> list[str]:
+    """A list of bare domains (`example.org`, no scheme or path) for Tavily's `exclude_domains` / `include_domains`."""
+    if value is None:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{label} must be a list of domains")
+    domains = []
+    for entry in value:
+        domain = str(entry or "").strip().lower()
+        if not domain or "/" in domain or ":" in domain or " " in domain or "." not in domain:
+            raise ValueError(f"{label} entries must be bare domains such as example.org, not {entry!r}")
+        if domain not in domains:
+            domains.append(domain)
+    return domains
 
 
 def web_source_id(url: str) -> str:
@@ -73,6 +91,9 @@ def tavily_fetch(payload: dict) -> dict:
     except HTTPError as error:
         if error.code == 429:
             raise RateLimited("Tavily rate limit reached", retry_after_seconds(error.headers.get("Retry-After"))) from error
+        if error.code in QUOTA_STATUSES:   # Tavily's own answer when the plan's credits are used up
+            raise ValueError(f"Tavily plan usage limit reached (HTTP {error.code}): searching resumes when the plan is "
+                             "upgraded or its credits renew") from None
         raise ValueError(f"Tavily search failed: HTTP {error.code}") from None
     if len(body) > MAX_RESPONSE_BYTES:
         raise ValueError("Tavily response exceeds the size bound")
@@ -191,7 +212,7 @@ def _split(start: str, end: str) -> tuple[list[str], list[str]]:
 
 
 def query_record(monitor_id: str, text: str, rationale: str, *, origin: str, created_by: str, now_iso: str,
-                 approved_by: str | None = None) -> dict:
+                 approved_by: str | None = None, exclude_domains=None, include_domains=None) -> dict:
     """A `QUERY#` record (docs/search-monitors.md). The id is stable for a monitor and text, so seeding twice is one record."""
     if origin not in ("drafted", "editor"):
         raise ValueError("Query origin must be drafted or editor")
@@ -202,7 +223,9 @@ def query_record(monitor_id: str, text: str, rationale: str, *, origin: str, cre
     return {"pk": f"MONITOR#{monitor_id}", "sk": f"QUERY#{query_id}", "id": query_id, "text": text, "rationale": rationale.strip(),
             "origin": origin, "createdBy": created_by, "createdAt": now_iso, "status": "active",
             "history": [{"at": now_iso, "by": created_by, "change": "created", "after": text, "reason": rationale.strip()}],
-            **({"approvedBy": approved_by, "approvedAt": now_iso} if approved_by else {})}
+            **({"approvedBy": approved_by, "approvedAt": now_iso} if approved_by else {}),
+            **({"excludeDomains": domain_list(exclude_domains, "Query excludeDomains")} if exclude_domains else {}),
+            **({"includeDomains": domain_list(include_domains, "Query includeDomains")} if include_domains else {})}
 
 
 def searchable(record: dict) -> bool:
@@ -220,7 +243,10 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
     fetch = fetch or tavily_fetch
 
     def plan(record: dict) -> dict:
-        return {"id": record["id"], "text": record["text"], "win": query_window(config, record.get("highWater"), now)}
+        excluded = domain_list([*(config.get("excludeDomains") or []), *(record.get("excludeDomains") or [])], "excludeDomains")
+        included = domain_list(record.get("includeDomains"), "Query includeDomains")
+        return {"id": record["id"], "text": record["text"], "win": query_window(config, record.get("highWater"), now),
+                **({"exclude": excluded} if excluded else {}), **({"include": included} if included else {})}
 
     def fetch_page(cursor):
         if cursor is None:
@@ -233,6 +259,10 @@ def web_feed(config: dict, queries: list[dict], now: float, fetch: Callable[[dic
         start, end = stack.pop()
         payload = {"query": current["text"], "topic": config["topic"], "search_depth": "basic", "include_answer": False,
                    "max_results": TAVILY_PAGE_LIMIT}
+        if current.get("exclude"):
+            payload["exclude_domains"] = current["exclude"]
+        if current.get("include"):
+            payload["include_domains"] = current["include"]
         if start:   # Tavily refuses a range that starts and ends on one day, so a one-day window also asks the day before
             first = (date.fromisoformat(start) - timedelta(days=1)).isoformat() if start == end else start
             payload.update(start_date=first, end_date=end)

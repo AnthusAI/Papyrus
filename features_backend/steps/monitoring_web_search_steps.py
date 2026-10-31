@@ -270,3 +270,50 @@ def step_arxiv_titled(context):
 @then("if arXiv cannot be reached the search engine's title stands")
 def step_arxiv_unreached(context):
     assert [item.title for item in context.web_unreached] == ["1 Introduction", "A story"]
+
+
+@given("a web monitor for anth-us with one approved query that excludes facebook.com and the monitor excludes instagram.com")
+def step_domain_filters(context):
+    context.table_, context.tavily = tw.web_table(excludeDomains=["instagram.com"]), tw.FakeTavily(tw.article(1, tw.day(-1)))
+    record = tw.queries_of(context.table_)[QUERY]
+    context.table_.put_item({**record, "excludeDomains": ["facebook.com"]})
+
+
+@then("Tavily was told to exclude both domains for that query")
+def step_domains_sent(context):
+    assert context.tavily.calls and all(c["exclude_domains"] == ["instagram.com", "facebook.com"] for c in context.tavily.calls)
+
+
+@given("Tavily refuses a search because the plan's usage limit is reached")
+def step_plan_exhausted(context):
+    from io import BytesIO
+    from urllib.error import HTTPError
+
+    from papyrus_content import monitoring_web
+
+    def refuse(request, timeout=0):
+        raise HTTPError(request.full_url, 432, "limit", {}, BytesIO(b"{}"))
+
+    original = (monitoring_web.urlopen, monitoring_web._tavily.api_key)
+    monitoring_web.urlopen, monitoring_web._tavily.api_key = refuse, lambda: "test-key"
+
+    def restore():
+        monitoring_web.urlopen, monitoring_web._tavily.api_key = original
+
+    context.add_cleanup(restore)
+
+
+@when("the web monitor searches")
+def step_searches(context):
+    from papyrus_content import monitoring_web
+
+    try:
+        monitoring_web.tavily_fetch({"query": QUERY})
+        context.search_error = None
+    except ValueError as error:
+        context.search_error = str(error)
+
+
+@then("the run fails with a message that the plan usage limit was reached")
+def step_plan_message(context):
+    assert context.search_error and "plan usage limit reached" in context.search_error
