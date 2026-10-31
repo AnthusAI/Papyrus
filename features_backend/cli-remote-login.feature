@@ -54,8 +54,8 @@ Feature: Sign in to a Papyrus site from a machine with no browser
     Then both broker alarms notify that topic when they fire and when they recover
 
   Scenario: Without an alarm topic the synth warns once and names the setting
-    A site that sets no alarm topic still gets the alarms, but nobody would hear them. The gap must be visible
-    when the backend is synthesized, so the warning names the setting to apply.
+    A site that sets no alarm topic still gets the alarms, but nobody would hear them. The gap must be visible.
+    The synth warning names the setting to apply.
     When a site's broker is synthesized without an alarm topic
     Then the alarms carry no notification and synth warns once naming the alarm topic setting
 
