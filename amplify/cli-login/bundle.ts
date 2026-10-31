@@ -11,7 +11,7 @@ import { packageRoot } from "../functions/shared/python-bundle";
  * bundle below; scripts/test-cli-remote-login.ts asserts it equals the pin in pyproject.toml. A broker and pages from
  * different releases once broke Cyclotron's sign-in without any error, so they never come from different places.
  */
-export const CLI_LOGIN_VERSION = "0.3.0";
+export const CLI_LOGIN_VERSION = "0.4.0";
 
 export const cliLoginRequirement = (): string => `cli-login==${CLI_LOGIN_VERSION}`;
 
@@ -42,6 +42,8 @@ export function installCliLogin(outputDir: string, run: PipRunner = runPip, envi
 
 const PAGES_HANDLER = path.join(packageRoot, "amplify/functions/cli-login-pages/handler.py");
 
+const PAGES_LOGIN_CHALLENGES = path.join(packageRoot, "amplify/functions/cli-login-pages/login_challenges.py");
+
 export function bundleCliLoginBroker(outputDir: string, run?: PipRunner): void {
   installCliLogin(outputDir, run);
 }
@@ -49,6 +51,7 @@ export function bundleCliLoginBroker(outputDir: string, run?: PipRunner): void {
 export function bundleCliLoginPages(outputDir: string, run?: PipRunner): void {
   installCliLogin(outputDir, run);
   fs.copyFileSync(PAGES_HANDLER, path.join(outputDir, "handler.py"));
+  fs.copyFileSync(PAGES_LOGIN_CHALLENGES, path.join(outputDir, "login_challenges.py"));
 }
 
 function localAsset(name: string, extraHash: string, bundle: (outputDir: string) => void): Code {
@@ -73,4 +76,4 @@ export const cliLoginBrokerCode = (): Code => localAsset("cli-login-broker", "wh
 
 /** The approval pages function's code: the same pinned wheel plus this repository's thin handler. Handler `handler.handler`. */
 export const cliLoginPagesCode = (): Code =>
-  localAsset("cli-login-pages", createHash("sha256").update(fs.readFileSync(PAGES_HANDLER)).digest("hex").slice(0, 16), (dir) => bundleCliLoginPages(dir));
+  localAsset("cli-login-pages", createHash("sha256").update(fs.readFileSync(PAGES_HANDLER)).update(fs.readFileSync(PAGES_LOGIN_CHALLENGES)).digest("hex").slice(0, 16), (dir) => bundleCliLoginPages(dir));
