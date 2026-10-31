@@ -1,4 +1,5 @@
 import { assertUniqueIds, type IntentModule } from "../contracts";
+import { aplUserEventIntent } from "./apl-user-event";
 import { launchIntent } from "./launch";
 
 /**
@@ -7,6 +8,7 @@ import { launchIntent } from "./launch";
  * Handlers are tried in this order: put specific handlers before catch-alls.
  */
 export const INTENT_MODULES: readonly IntentModule[] = [
+  aplUserEventIntent,
   launchIntent,
 ];
 
