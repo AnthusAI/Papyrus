@@ -4,6 +4,7 @@
  * papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]
  * papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader
  * papyrus-infra synth --site infra/site.json --part chat [--chat-lambdas DIR] [--out cdk.out]   (the private chat data stack)
+ * papyrus-infra amplify job-log --app-id ID [--branch main] [--job ID | --latest-failed] [--region R]   (read-only: a job's step statuses, log tail, first error and stack failures)
  * papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]
  * Synthesizes the app-shell stack for a publication from its own site.json,
  * prints one of the generated Amplify build specs, or deploys the stack from
@@ -21,6 +22,7 @@ const USAGE = [
   "       papyrus-infra synth --account-stack github-oidc [--out cdk.out] [--account A] [--region R]",
   "       papyrus-infra print-buildspec --site infra/site.json --app cms-production|cms-staging|reader",
   "       papyrus-infra deploy-edge --stack NAME --template FILE [--adoption-template FILE --adopt-resources FILE] [--parameter KEY=VALUE]... [--delete-function NAME] [--only-branch main] [--only-app-id ID] [--region R]",
+  "       papyrus-infra amplify job-log --app-id ID [--branch main] [--job ID | --latest-failed] [--region R]",
   "       papyrus-infra compile-edge-function --static-dir web [--out FILE]",
   "       papyrus-infra deploy --site infra/site.json [--only-branch main] [--only-app-id ID] [--out cdk.out] [--account A] [--region R]",
 ].join("\n");
@@ -39,9 +41,24 @@ const resolveEnvironmentOrExit = () => {
   }
 };
 const command = args[0];
-if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge" && command !== "compile-edge-function") {
+if (command !== "synth" && command !== "print-buildspec" && command !== "deploy" && command !== "deploy-edge" && command !== "compile-edge-function" && command !== "amplify") {
   console.error(USAGE);
   process.exit(command ? 1 : 0);
+}
+
+if (command === "amplify") {
+  if (args[1] !== "job-log") {
+    console.error(USAGE);
+    process.exit(1);
+  }
+  try {
+    const { runAmplifyJobLogCommand } = await import("../src/amplify-job-log.mjs");
+    await runAmplifyJobLogCommand(opt, (name) => args.includes(`--${name}`));
+  } catch (error) {
+    console.error(`papyrus-infra amplify job-log: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+  process.exit(0);
 }
 
 if (command === "compile-edge-function") {
