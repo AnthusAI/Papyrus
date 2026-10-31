@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "6dce3f09-be5d-4b03-bf29-91f818cb8311",
+  "issue_id": "PPY-23929b7c-9ea3-4d80-acc9-74aaa77a2d50",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T13:21:58.956Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader island controls: stars and thumbs over one scale; per-site control setting; icon + text, no colour alone",
+    "description": "Repo: **Papyrus**. Files: `src/papyrus_content/projection/plugin_assets/papyrus-reader.js` (the vote/rating islands; find `up`, `value`, `net`), its island settings (`IslandSettings`, `blocks.py` `_island_html`), the island CSS next to it, `features/reader-subject-votes-island.feature`, the islands' JS tests (find with `grep -rln \"papyrus-reader\" features scripts`), `docs/reader-steering.md` (control settings).\n\n## Change\nTwo controls over the one stored scale, chosen per surface by the site:\n- **Thumbs** (`control: \"thumbs\"`, the default so Shipped is unchanged in look): two buttons, Lucide `thumbs-up` and `thumbs-down`, pressed state as icon fill + text (\"You voted up\"), never colour alone. Up sends `value: 1` (stored 5), down `value: -1` (stored 1), again removes (`null`). Shows \"82% up\" from `upShare` and the count, e.g. \"82% up · 31\".\n- **Stars** (`control: \"stars\"`): five Lucide `star` buttons; a pick sends `stars: k`; the same pick again removes. Shows \"4.2 ★ from 31\" from `mean` and `n`. Hover/pick state is fill + aria-pressed + text, not colour.\n- Both read the reader's own state from the reader-state response (`votes[subject].up` 1-5, `thumb`) and the public numbers from the `{mean, n, hist, upShare}` block (snapshot story). No borders; rounded flat tones; works keyboard-only; without JavaScript the static numbers still render.\n- Config: `projection.json` `reader.controls: {item: \"thumbs\" | \"stars\", reference: \"stars\", proposal: \"thumbs\", story: \"thumbs\"}`; per site, default thumbs. Ryan's open question (one overall star beside Shipped's dimensions) is answered by this setting: Shipped may set `item: \"stars\"` later; the dimension ratings are not touched.\n\n## Gherkin (features/reader-subject-votes-island.feature)\n  Scenario: A thumbs up is sent as one and shown as the share of up judgements\n  Scenario: A reader picks four stars and the card shows the mean and count\n  Scenario: Picking the same star again removes the judgement\n  Scenario: The pressed state is readable without colour and by keyboard\n  Scenario: A site chooses stars for References and thumbs for items\n  Scenario: Without JavaScript the numbers still show\n\n## Acceptance\nFront-end cucumber + JS tests pass; local dev-server review of a Reference grid with stars and an item with thumbs (screenshots on the story). Blocked by the snapshot story for the public shape; the control markup and settings can start now against the shape in this epic.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}
