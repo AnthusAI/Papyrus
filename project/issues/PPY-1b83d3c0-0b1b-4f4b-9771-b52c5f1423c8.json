@@ -28,10 +28,34 @@
       "text": "2026-10-31: Ryan's decisions applied to the epic and every task (name: home page / homePage; public handles for Message authors; confidence shown; all fields except identity, third-party text and plumbing; counts 6 per grid, 4 per section; all three selections at launch; nav link; production deploy and first snapshot write approved). New task PPY-ffcf98 (public handle) unblocks PPY-06f20f. PPY-a9f068 closed. Build order now: eb72b3, 6d89fd, bd3f6b, e346f6, de5bd6, 3ebafa, ffcf98, 06f20f, c3ea18.",
       "created_at": "2026-10-31T07:45:50.142279Z",
       "comment_type": "default"
+    },
+    {
+      "id": "d6d78d7c-6d8f-46c0-adf9-32fd159f2530",
+      "author": "home",
+      "text": "## Status and execution waves (2026-10-31, planning session)\n\nClosed today with their PRs: PPY-eb72b3 (#902), PPY-ffcf98 (#901), PPY-6d89fd (#904, #910), PPY-bd3f6b (#900 + read-only edge verification), PPY-de5bd6 (#906, released 5.64.0, not yet enabled on Anth.us), PPY-06f20f (#907), PPY-3ebafa (#908), PPY-e346f6 (Anth.us-web #149, live at https://anth.us/newsroom/; incident fixed in #909). Open: PPY-c3ea18 docs (three How-To items unpublished in the p.apyr.us CMS until freshness is live on Anth.us).\n\n### Wave 1 (start now, in parallel; no shared files)\n- PPY-c57e23 types=/notTypes= filter: PR #912 is open; finish CI, merge, release. (Papyrus: includes.py, select.py)\n- PPY-f9dfb3 Anth.us follow-up, steps 1, 2 and 4 (freshness plugin on, conversations section, tests). (Anth.us-web only)\n- PPY-95067f home-page CSS scoping. (Papyrus: projector.py, markus_renderer/shell.py, build.py)\n- PPY-70213b editorial checks follow-ups. (Papyrus: components/editorial-*, markus-body-editor.tsx)\n- PPY-5f0bc7 public handle claim record. (Papyrus: schema.ts UserProfile area, profile-actions.ts, set-public-handle-*.js)\n- PPY-45efff broker alarms. (Papyrus: amplify/cli-login/remote-login.ts, site-backend.ts ~177-187, docs/cli-login.md)\n- PPY-f40298 TI edge refresh. (Papyrus: infra/edge/threat-intelligence*.yaml; read-only AWS)\n\n### Wave 2 (after wave 1)\n- PPY-f9dfb3 step 3 (latest story articles-only) after PPY-c57e23 is released and the site is bumped; then the self-update verification; then the docs publish.\n- PPY-c3ea18 closes when the three items are published (blocked by PPY-f9dfb3).\n\n### Blocked on Ryan\nNothing in this epic. Decisions that touch this epic's seams (one handle concept, one Message model) are recorded on PPY-452419.\n\nRules for every implementer: Lucide icons; no borders; never colour alone; \"Proposed Story\" never \"Draft\"; \"Account\" never \"Organization\"; Google sign-in only; no arbitrary caps; no emails or ids in repos; Gherkin for every behaviour change; PR -> CI -> merge (merge is deploy); no AWS writes without a task that says so.\n",
+      "created_at": "2026-10-31T12:31:23.045045Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-fable-5-1",
+        "name": "Papyrus planning session"
+      }
+    },
+    {
+      "id": "39b8cd32-adda-46a0-b34a-7b36aee20813",
+      "author": "home",
+      "text": "Decisions recorded 2026-10-31 (Ryan), affecting this epic's seams: one public handle concept (UserProfile.publicHandle merges with Shipped's ReaderHandle into the PublicHandleClaim registry that PPY-5f0bc7 creates; design it as the shared registry from the start); one Message model for item comments and forum threads; Shipped's console moves to newsroom.shipped.anth.us and shipped.anth.us/newsroom becomes public. Tasks: PPY-452419 (forum, Shipped). Prospectus enrollment is epic PPY-e2a0b8 (Data Parade pilots it).",
+      "created_at": "2026-10-31T12:43:31.069271Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-fable-5-1",
+        "name": "Papyrus planning session"
+      }
     }
   ],
   "created_at": "2026-10-31T07:06:40.368654Z",
-  "updated_at": "2026-10-31T07:45:50.142509Z",
+  "updated_at": "2026-10-31T12:43:31.069586Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

@@ -1,0 +1,50 @@
+{
+  "id": "PPY-e64d38b7-95cc-42c0-8d84-0d21db5e0248",
+  "title": "Data Parade pilot: register with Prospectus, site configuration, then flip the CLI client and authorize flags first",
+  "description": "Repo: **DataParade-newsroom** (owned by the \"DataParade.anth.us implementation\" session; coordinate with it before opening a PR) with the Papyrus tasks of this epic. Ryan 2026-10-31: Data Parade is the pilot site for Prospectus enrollment because it is a real client site. CMS host dataparade.anth.us, console at `/newsroom`.\n\n## Steps, in order\n1. **Registration input (kanbus-275596, Prospectus side).** Run the federation packet script (PPY packet task) for Data Parade read-only; hand the packet to the Prospectus session outside git. The registration needs from Papyrus: the `prospectus-google-only` client id (`custom.prospectusSignIn.clientId` in the site's `amplify_outputs.json`), the user-pool issuer, the IAM role that will call Prospectus (the app-shell compute role and the CLI pages/enroll Lambda role: verify read-only with `aws iam get-role` which roles execute `app/cli/*` routes and the pages Lambda; if they differ, the registration lists one `roleArn` and an `executionDelegation`, or the roles are unified in Papyrus first: report), the product `papyrus-dataparade`, audience editor (not public-reader).\n2. **Site configuration PR (DataParade-newsroom).** `infra/site.json`: `prospectusAccountsApiStageArn` (the central API stage ARN the role gets `execute-api:Invoke` on; the value comes from the Prospectus session, stored in site config, never in Papyrus), `cliRemoteLogin: true` if not already, `featureFlags.cliOnFederationClient: false` and `featureFlags.prospectusAuthorize: false` (flipped in steps 4 and 5), `PAPYRUS_OAUTH_REDIRECT_URLS` unchanged. Bump to the Papyrus release that carries the enrollment, account and authorize tasks (four pins match). Env for the pages Lambda / routes: `PROSPECTUS_ACCOUNTS_API` endpoint (set by the app shell from the stage ARN; Papyrus enrollment task defines it).\n3. **Verify the registration** read-only: `papyrus login` on Data Parade with the flag OFF -> `papyrus whoami` shows Enrolled: no, Client: main (expected). The Prospectus `/v1/identities/me` returns `{\"person\": null}` for this login.\n4. **CLI client flip** after kanbus-b91466 approves Data Parade's review: `cliOnFederationClient: true` -> deploy -> `papyrus login --print-client` shows the federation client -> `papyrus login` enrolls -> `whoami` shows the Person. Then remove `/cli/callback` from the main client (Papyrus task step).\n5. **Authorize flip**: `prospectusAuthorize: true` after Ryan's account for Data Parade is entitled to `papyrus-dataparade` (Prospectus operator grant, kanbus-592fbb if needed for the pilot, or the account's creation product) -> an account-scoped command succeeds with the account selected, and fails closed with `account_required` without it. Record every observation on this task with timestamps; no ids.\n6. Only then do the other six sites get their packets reviewed and flags flipped (one site PR each, same order of steps).\n\n## Gherkin\nThe behaviour lives in the Papyrus tasks; this task's evidence is the recorded live run. DataParade-newsroom's own tests assert the site config shape (flags present, pins matching).\n\n## Acceptance\nData Parade enrolled end to end; whoami shows person and account; authorize on; the sequence written up as the runbook section \"Enrolling a site\" in Papyrus `docs/cli-login.md` (docs task). Depends on: the packet task (ready now), kanbus-275596, kanbus-b91466 (Data Parade), the enrollment/account/authorize/whoami tasks released. No AWS writes by the implementer; every change goes through the DataParade-newsroom pipeline.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-fa41f4da-88e5-4efd-be30-979ed6b7b71b",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-3c755751-a84a-4df6-a7c2-52d5ac6338b3",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-098e22e5-ec2c-4a98-addf-4351947fb82d",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-2d3dd975-6dbd-4fe5-ad76-096920c0b725",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-057e02f2-05cf-47d6-9ffd-206f3566e172",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-ab3fce82-374c-4711-8c2b-760b86749b83",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:42:38.465763Z",
+  "updated_at": "2026-10-31T12:43:09.639988Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

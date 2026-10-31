@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "34c27ca8-f968-425d-9fda-c9c15ba7c42b",
+  "issue_id": "PPY-5f0bc7cc-d85d-4f43-964c-9881ad3ed473",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:30:43.233Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Public handle uniqueness: claim record with a conditional write (PublicHandleClaim), replacing the query check",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

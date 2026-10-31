@@ -1,0 +1,34 @@
+{
+  "id": "PPY-70af1a6c-c84c-4dbf-a09c-fe2129e9bd76",
+  "title": "Forum island: sign-in state, post box, optimistic append on static thread pages (no SSR)",
+  "description": "Repo: **Papyrus**. Phase 5 of PPY-452419: the client island that makes a static thread page interactive. Rendering decision (epic decision 6): static page + island, not SSR.\n\n## Files\n- New island `src/papyrus_content/projection/standard/assets/papyrus-forum.js` (+ `.css`), published as `_plugins/papyrus-forum-v1.js` next to the islands runtime (`projector.py` `ISLANDS_RUNTIME_PATH` ~98/136; the `_body()` injection ~1225-1232 keys on `data-island=\"`). Vanilla JS like the papyrus-reader version-1 bundle (`_plugins/papyrus-reader-v1` js) (no React on public pages).\n- `forum_pages.py` emits `::island{name=\"forum-thread\" props='{\"key\": \"...\", \"subject\": ...}'}` at the end of a thread page and `::island{name=\"forum-new-thread\"}` on a Reference/Story page when `posting.subjects` allows it (via `blocks.py` `_island_html`, `IslandSettings(script, stylesheet, prerender)`; the prerendered HTML is the static Message list, so no-JS readers see everything).\n- Behaviour: on load, GET the reader session (`/api/reader/me`, existing) and show either \"Sign in with Google to post\" (Lucide `log-in`, the `ReaderSignIn` flow from the papyrus-reader version-1 bundle (`_plugins/papyrus-reader-v1` js)) or the post box (textarea + one **Post** button, `message-square-plus`; Reply opens the same box in place with `reply`); on submit POST `/api/reader/post`, append the Message optimistically with \"posting...\" text and a `loader` icon, then replace with the server copy; on failure keep the text in the box (the `use-reference-ratings.ts` pattern) and show the error text; re-fetch `_data/home-page/threads/<key>.json` with `cache: \"no-store\"` on focus to pick up others' posts (the snapshot lags by the debounce window; say so in a small \"updated <time>\" line). A `pending` (moderation) post shows to its author only with a `clock` icon and the text \"waiting for review\".\n- Flat tones, rounded rectangles, no borders; every state has an icon plus text.\n\n## Gherkin (`features/forum-island.feature`, Playwright at 375 and 1440 px, synthetic data, `@brand-agnostic`)\nFeature: The forum island\n  Scenario: Without JavaScript the thread page shows every Message and no post box\n  Scenario: A guest sees the Google sign-in prompt and no password field\n  Scenario: A signed-in reader posts and sees the Message at once\n  Scenario: A failed post keeps the typed text\n  Scenario: A post held for review is shown only to its author with the review text\n  Scenario: No element on the page has a border\n\n## Acceptance\n- `npm run test:features` profile for the island; `docs/home-page.md` \"Forum island\"; the island is listed in the islands docs (`docs/building-a-papyrus-static-site.md`).\n- Blocked by the posting task (route contract) and the thread-pages task (page to mount on).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-f7a5f7ef-1316-44db-9b82-789028719380",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-8f05cc63-a0de-4b41-840c-65311d80c1f7",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:37:55.210650Z",
+  "updated_at": "2026-10-31T12:44:04.500838Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

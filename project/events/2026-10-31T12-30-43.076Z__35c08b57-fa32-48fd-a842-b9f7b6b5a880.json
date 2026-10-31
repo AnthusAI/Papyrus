@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "35c08b57-fa32-48fd-a842-b9f7b6b5a880",
+  "issue_id": "PPY-95067f00-9894-46b7-b00f-b7dc0ad98cfa",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:30:43.076Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Link papyrus-home-page.css only on pages that use home-page includes, with its own version token",
+    "description": "",
+    "issue_type": "chore",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

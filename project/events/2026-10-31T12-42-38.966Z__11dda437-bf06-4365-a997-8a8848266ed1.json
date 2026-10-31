@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "11dda437-bf06-4365-a997-8a8848266ed1",
+  "issue_id": "PPY-ab3fce82-374c-4711-8c2b-760b86749b83",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:42:38.966Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus whoami: person, selected Account, handle and client, via GET /v1/identities/me",
+    "description": "Repo: **Papyrus**. `papyrus whoami` shows the person and the account. Ready now (`GET /v1/identities/me` is shipped).\n\n## Change\n- Route `app/cli/whoami/route.ts`: `GET` with the bearer access token (and the ID token header) -> `GET /v1/identities/me` as the site role; returns `{person: {id, createdAt} | null, account: {id, name, role} | null, handle}` where `account` is the `X-Prospectus-Account` selection validated with one `authorize(console:read)` call, and `handle` the staff `UserProfile.publicHandle` for this login (read with the user's own token, as the settings page does). Passes `reenrollment_required` through.\n- CLI `whoami` (`src/papyrus_content/cli_user_auth.py` `command`, routes `login|logout|whoami|auth`): prints Site, Signed in as (email from the ID token, local display only, never logged), Person (id last 4 characters + createdAt), Account (name and role, or \"none selected\"), Handle, Enrolled: yes/no, Client: main|federation (from discovery). `--json` for scripts (full ids there, since it is the person's own terminal).\n- Console: the settings page (`components/settings-page.tsx`) shows the same facts under \"Your account\" (Lucide `user`, `building-2`, `badge-check` icons, text labels; \"Account\", never \"Organization\").\n\n## Gherkin (`features_backend/cli-whoami.feature`)\n  Scenario: An enrolled login shows the person, the selected account and the handle\n  Scenario: An unenrolled login shows Enrolled: no and how to fix it\n  Scenario: A re-bound login reports reenrollment_required and exits non-zero\n  Scenario: whoami never logs the email or tokens\n\n## Acceptance\nCLI and route tests; `docs/cli-login.md` \"whoami\". Ready now; shares `cli_user_auth.py` with the enrollment and account tasks (land after them or coordinate).",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

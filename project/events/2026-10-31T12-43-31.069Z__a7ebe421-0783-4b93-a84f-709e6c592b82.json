@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "event_id": "a7ebe421-0783-4b93-a84f-709e6c592b82",
+  "issue_id": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+  "event_type": "comment_added",
+  "occurred_at": "2026-10-31T12:43:31.069Z",
+  "actor_id": "home",
+  "payload": {
+    "comment_id": "39b8cd32-adda-46a0-b34a-7b36aee20813",
+    "comment_author": "home",
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

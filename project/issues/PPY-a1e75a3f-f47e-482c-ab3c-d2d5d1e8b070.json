@@ -1,0 +1,25 @@
+{
+  "id": "PPY-a1e75a3f-f47e-482c-ab3c-d2d5d1e8b070",
+  "title": "WAIT on Prospectus: account creation (kanbus-dbc30a), members and invites (kanbus-2823b5), provisioning events (kanbus-6efecd), selling (kanbus-592fbb, db57cb), billing (kanbus-a78bcd)",
+  "description": "Repo: **Papyrus**. WAIT tasks: each consumes a Prospectus route or event that is not deployed yet (Prospectus epic kanbus-a93e35). Specified now so the Papyrus side is ready; **do not start a sub-part before its Prospectus dependency is deployed and Ryan has approved the synthesized Prospectus change.** Split into separate tasks when the first dependency lands.\n\n### A. Account creation from a site (WAIT kanbus-dbc30a: sites may call `POST /v1/accounts`; Papyrus PRs 330/331 are refused today; kanbus-5161d7 is blocked by it)\n- Console \"Create an Account\" on the sign-in landing for a person with no account: `app/api/prospectus/accounts/route.ts` POST -> `POST /v1/accounts` as the site role with a retained UUID replay key (Prospectus `accounts-client` README: `create` needs it), `{name}`; the creator becomes the first member; the new account is entitled to `papyrus-<site>` by the server (contract in kanbus-634da2). Gherkin: \"A person with no account creates one and is its first member\"; \"A replayed create returns the same account\".\n### B. Membership and invite UI (WAIT kanbus-2823b5 members:write; invites kanbus-59284c, kanbus-b2ddb4)\n- Console Administration -> \"Members\": list (`members:read`), invite by email (the address is typed by the admin at run time, never stored in the repo), change role, remove; all through site routes calling the membership routes as the site role with `authorize(members:write)` first. Buttons, no dropdowns; Lucide `user-plus`, `user-minus`, `shield`. Gherkin: \"An admin invites a member\"; \"A member cannot change roles\"; \"A removed member's next call is denied\".\n### C. Provisioning on lifecycle events (WAIT kanbus-6efecd; Ryan chooses the transport, recommended EventBridge)\n- A `prospectus-events` consumer (plugin `amplify/plugins/prospectus-events/`): on `account.created` + `entitlement.changed(active)` for `papyrus-<site>` create the site's per-account defaults (sections doctrine, first UserProfile for the first member); on `entitlement.changed(disabled)` put the account's console in read-only (`authorize` already denies writes; the plugin only marks the UI); on `membership.changed` refresh cached member lists. Idempotent on event id. Gherkin per event kind.\n### D. Selling and entitlement flow (WAIT kanbus-592fbb operator grants, kanbus-db57cb the `papyrus` family)\n- Nothing in Papyrus grants entitlements; the site shows \"This Account is not entitled to <site>\" with the Prospectus directory link when authorize returns `403 operation_forbidden` for a known account. Gherkin: \"An account without the entitlement sees the entitlement message and no console data\".\n### E. Billing (WAIT kanbus-a78bcd, draft)\n- No Papyrus work until the Prospectus billing epic defines events; placeholder only.\n\n## Acceptance\nEach sub-part becomes its own task with its Gherkin when its dependency is deployed; this task closes when the split is done. No AWS writes.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T12:42:39.062069Z",
+  "updated_at": "2026-10-31T12:42:39.062095Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "dcb259fd-d297-4532-bae0-33d603dc374d",
+  "issue_id": "PPY-c57e232e-c9a8-4e1b-9f95-14504f7b8b27",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T12:30:57.755Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "",
+        "to": "In flight: Papyrus PR #912 (feat/listing-story-types), open at planning time. Filed so the epic shows it; the Anth.us follow-up task depends on its release.\n\n## What it does\n`types=` and `notTypes=` on listing selections (include attributes, `collection` and `tagSelect` selections): comma lists, case-insensitive, unknown keys still rejected, the page digest accounts for the filter (`include_inputs` lists only matching entries). Sites that do not use it render byte-identically.\n\n## Files (already in the PR)\n- `src/papyrus_content/projection/standard/includes.py`, `src/papyrus_content/projection/standard/select.py`\n- `features_backend/standard-listing-story-types.feature`\n- `procedures/newsroom/tests/test_standard_frontend_includes.py`, `test_standard_frontend_collections.py`\n- `docs/building-a-papyrus-static-site.md`, `docs/home-page.md`\n\n## Acceptance\n- CI green, merged to develop, released (`npm view @anthusai/papyrus version` shows the release that contains it; record the version here).\n- `::include{kind=\"listing\" sections=\"articles\" types=\"article\" count=\"1\"}` on an authored page renders the newest article even when a `page` is newer."
+      }
+    }
+  }
+}

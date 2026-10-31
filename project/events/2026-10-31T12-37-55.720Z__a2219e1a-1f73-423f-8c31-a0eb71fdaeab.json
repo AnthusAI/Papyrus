@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "a2219e1a-1f73-423f-8c31-a0eb71fdaeab",
+  "issue_id": "PPY-3da99c14-c0c6-4639-b809-818a08d48fab",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:37:55.720Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document public conversations (forum, posting, handles, moderation) on p.apyr.us",
+    "description": "Repo: **Papyrus-web** (p.apyr.us content; merges freely per Ryan 2026-10-25) plus `docs/` in Papyrus. Closing task of PPY-452419: every feature epic ends with a p.apyr.us docs task.\n\n## Deliverables\n1. p.apyr.us feature page \"Public conversations\" (the forum): what visitors see (thread pages, forum index), who can post (signed-in readers through Google, staff from the console), handles (one per person per site), moderation (AI by default, human queue, \"Message removed\"), what is never public (emails, ids, subs), and the per-site settings block from the epic. Positioning per memory: control over the algorithm, a steerable publication; never \"long memory\"; no \"Draft\", say \"Proposed Story\"; \"Account\" not \"Organization\".\n2. How-To items: `howto-turn-on-public-conversations` (settings + plugins + first thread), `howto-moderate-public-posts` (console queue, AI mode, bursts held for review), `howto-pick-a-public-handle` (staff and readers).\n3. Papyrus `docs/home-page.md` sections written by each task are checked for consistency; `docs/reader-steering.md` cross-links.\n4. Shipped: a short note on shipped.anth.us's own docs/`AGENTS.md` only if the Shipped tasks landed.\n\n## Acceptance\nPages published through the CMS publish path (`papyrus ops content publish`), live URLs recorded here; Lucide icons in any screenshots; no emails or ids. Blocked by every other task of the epic.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}
