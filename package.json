@@ -94,6 +94,7 @@
     "test:secure-string-parameter": "tsx scripts/test-secure-string-parameter.ts",
     "test:infra-synth": "node scripts/test-infra-synth.mjs",
     "test:infra-chat": "node --import tsx scripts/test-infra-chat.ts",
+    "test:infra-ci-gate": "node --import tsx scripts/test-infra-ci-gate.ts",
     "test:infra-deploy-edge": "node scripts/test-infra-deploy-edge.mjs",
     "test:infra-amplify-job-log": "node scripts/test-infra-amplify-job-log.mjs",
     "test:infra-cdk-environment": "node scripts/test-infra-cdk-environment.mjs",
