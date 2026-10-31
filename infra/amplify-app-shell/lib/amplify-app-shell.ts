@@ -7,7 +7,7 @@ import { addCloudEmail } from "./cloud-email";
 import { parseCloudEmail } from "./cloud-email-config";
 import { GITHUB_OIDC_PROVIDER_HOST } from "./github-oidc-provider";
 import { cmsProductionBuildSpec, cmsStagingBuildSpec, readerBuildSpec } from "./build-specs";
-import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
+import { AmplifyAppShellSiteConfig, PROSPECTUS_PAPYRUS_SITE_ROUTES, ReaderCustomHeaderRule, hasCmsApp, hasReceiptGate, resolveGithubStatusTokenParameterName, isStagingEnabled, resolveRedirectSubDomainPrefix, resolveCmsHostName, resolveSiteOrigin, githubOidcSubjects, resolveGithubRepository, resolveProspectusAccountsEndpoint, resolveProspectusSessionSealingParameterName, resolveReaderPollSecretParameterName, resolveRevalidateSecretParameterName, resolveStackName, resolveStagingDomainName, resolveChatStackName, chatExportName, CHAT_EXPORTED_RESOURCES, CHAT_ENVIRONMENT_NAMES, CHAT_PRIVATE_ASSISTANT_ID, CHAT_PRIVATE_ASSISTANT_NAME, resolveStoragePreviewPrefix } from "./site-config";
 
 function environmentVariables(variables: Record<string, string>): amplify.CfnBranch.EnvironmentVariableProperty[] {
   return Object.entries(variables).map(([name, value]) => ({ name, value }));
@@ -80,6 +80,28 @@ function repositoryConnectionProperties(config: AmplifyAppShellSiteConfig): { re
   };
 }
 
+/**
+ * Opt-in (`ci.gate: leftblock-receipt`): the GitHub status token the build gate reads, created once by the stack as a
+ * SecureString and readable by the build service role through `ssm:GetParameter` on that one parameter. The generated
+ * placeholder is replaced with a fine-grained read-only token (`aws ssm put-parameter --overwrite`); the stack adopts it
+ * as it is. Nothing is created for any other site.
+ */
+function addCiReceiptGate(scope: Construct, config: AmplifyAppShellSiteConfig, buildServiceRole: iam.Role): void {
+  if (!hasReceiptGate(config)) return;
+  const token = (scope.node.tryFindChild("GithubStatusTokenParameter") as SecureStringParameter | undefined)
+    ?? new SecureStringParameter(scope, "GithubStatusTokenParameter", {
+      parameterName: resolveGithubStatusTokenParameterName(config),
+      description: `GitHub token that lets the Amplify build of ${config.siteId} read the ${config.ci.statusContext} commit status before it deploys`,
+    });
+  buildServiceRole.addToPolicy(
+    new iam.PolicyStatement({
+      sid: "ReadGithubStatusToken",
+      actions: ["ssm:GetParameter"],
+      resources: [token.parameterArn],
+    }),
+  );
+}
+
 export class AmplifyAppShellStack extends Stack {
   public readonly cmsAppId?: string;
   public readonly readerAppId?: string;
@@ -107,6 +129,8 @@ export class AmplifyAppShellStack extends Stack {
       description: `Backend deploy and staging build service role for Amplify app ${cmsAppName} (AdministratorAccess: documented risk)`,
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("AdministratorAccess")],
     });
+
+    addCiReceiptGate(this, config, cmsServiceRole);
 
     const computeRole = new iam.Role(this, "AmplifyComputeRole", {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
@@ -508,6 +532,7 @@ export class AmplifyAppShellStack extends Stack {
       assumedBy: new iam.ServicePrincipal("amplify.amazonaws.com"),
       description: `Static reader build role for Amplify app ${readerAppName} (reads published media only; content is read as a Cognito guest)`,
     });
+    addCiReceiptGate(this, config, readerServiceRole);
     readerServiceRole.addToPolicy(
       new iam.PolicyStatement({
         sid: "ReadMediaForExport",
