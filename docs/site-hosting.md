@@ -613,6 +613,20 @@ variable `PAPYRUS_PROSPECTUS_SESSION_SECRET_ARN`) is a one-time sign-out: there 
 dual-read. Deploy the stack with the old secret set to `RemovalPolicy.RETAIN` first, then
 the stack without it, then delete the retained secret by hand once sign-in works.
 
+## Paths the CMS edge reserves
+
+On a site whose public host serves an S3 projection with the CMS app behind the same CloudFront distribution (`infra/edge/s3-projection-cms.yaml`: Shipped, Distinctive Mark, Data Parade, Threat Intelligence, and p.apyr.us's marketing distribution), these paths go to the CMS app, not the bucket:
+
+| Path | Why |
+| --- | --- |
+| `/newsroom*` | the newsroom console |
+| `/_next/*` | the console's Next.js assets |
+| `/api/*` | the console's API routes |
+| `/cli/*` | remote CLI sign-in approval pages (`papyrus login --remote`) |
+| `/.well-known/papyrus-cli.json` | the CLI sign-in details |
+
+A projected page, a section base or a `homePage` segment that starts with one of these is shadowed by the CMS on those hosts, so pick another segment there. Anth.us is the exception: `anth.us` is pure S3 (the console is a separate host, `newsroom.anth.us`), so its public section can live at `anth.us/newsroom/` with no edge change.
+
 ## Custom domains and Route 53
 
 1. Create a **public** hosted zone for the publication domain (e.g. `pilobol.us`).
