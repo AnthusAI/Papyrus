@@ -32,6 +32,14 @@
       "source": "pages/tools.md"
     },
     {
+      "id": "rows",
+      "path": "rows",
+      "title": "Rows",
+      "description": "Confident and recommended rows.",
+      "dependsOn": [],
+      "source": "pages/rows.md"
+    },
+    {
       "id": "mixed",
       "path": "mixed",
       "title": "Mixed",

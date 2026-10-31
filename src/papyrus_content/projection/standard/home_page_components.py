@@ -1,4 +1,4 @@
-"""Reference cards for the home page: a tile (the grid card) and a row (one line), as server-rendered markup that needs no script.
+"""Reference cards for the home page: a tile (the grid card) and a row (one line, with a compact confidence), as server-rendered markup that needs no script.
 
 State is always written in words and drawn as an icon, never colour alone: a recommended Reference carries the chip "Recommended by
 Cyclotron, not yet accepted" with a Lucide ``sparkles`` icon, and Cyclotron's confidence is the text "93% confidence" beside a Lucide
@@ -76,6 +76,17 @@ def confidence_markup(reference: Mapping) -> str:
     return f'<p class="home-page-confidence">{GAUGE_ICON}<span class="home-page-confidence-value">{percent}% confidence</span>{meter(percent)}</p>'
 
 
+def row_confidence_markup(reference: Mapping) -> str:
+    """The compact confidence of a row: gauge icon, the number, a visually hidden "confidence" label, and the meter."""
+    percent = confidence_percent(reference.get("confidence"))
+    if percent is None:
+        return ""
+    return (
+        f'<span class="home-page-confidence home-page-confidence--compact">{GAUGE_ICON}'
+        f'<span class="home-page-confidence-value">{percent}%<span class="home-page-visually-hidden"> confidence</span></span>{meter(percent)}</span>'
+    )
+
+
 def actor_text(reference: Mapping) -> str:
     """Who accepted it, without naming anyone: an editor, or the system."""
     if reference.get("status") == STATUS_RECOMMENDED or not reference.get("actor"):
@@ -130,7 +141,7 @@ def row(reference: Mapping) -> str:
     )
     return (
         f'<div class="home-page-row" data-status="{esc(reference.get("status"))}">{host}'
-        f'<span class="home-page-title">{_link(reference)}</span>{recommended}{when}</div>'
+        f'<span class="home-page-title">{_link(reference)}</span>{recommended}{row_confidence_markup(reference)}{when}</div>'
     )
 
 
