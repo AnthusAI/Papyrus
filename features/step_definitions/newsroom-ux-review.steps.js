@@ -10,7 +10,7 @@ Given("an isolated newsroom with synthetic stories", function () {
 
 const behaviors = [
   ["proposed_stories", "the editor looks for the stories AI has proposed",
-    ["the sidebar, the Needs me filter, the counts and the kind label all say Proposed Stories", "no editor-facing line calls a proposed story a draft"]],
+    ["the Needs me filter, the counts and the kind label all say Proposed Stories", "no editor-facing line calls a proposed story a draft"]],
   ["board_order", "the editor opens the Stories board at 1440 and 375 pixels",
     ["each column lists its stories from the most recently updated to the oldest", "a story with no date sits at the bottom of its column",
       "without that rule a column is ordered by id, which is the order the editor saw before"]],

@@ -147,8 +147,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   /** A story_draft Proposal is a "Proposed Story" everywhere an editor reads it. */
   async proposed_stories() {
     const navigation = ORGANIZER_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.path === "/newsroom/administration/proposals");
-    assert.equal(navigation?.label, "Proposed Stories", "the sidebar entry");
-    assert.ok(!/draft/i.test(navigation?.description ?? ""), "its description does not say draft");
+    assert.equal(navigation, undefined, "ideas live in the Stories board Idea column, so the sidebar has no separate Proposed Stories entry");
     assert.equal(kindLabel("story_draft"), "Proposed Story", "the kind label");
     assert.ok(!/^draft$/i.test(stateLabel("draft", true)), "the proposal's first state is not the bare word Draft");
     assert.equal(NEEDS_ME_FILTER_LABELS.drafts, "Proposed Stories", "the Needs me filter");

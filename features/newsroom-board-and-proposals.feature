@@ -7,7 +7,7 @@ Feature: The newsroom board and Proposed Stories read the way an editor expects
   Scenario: What AI proposes is called a Proposed Story wherever an editor reads it
     Given an isolated newsroom with synthetic stories
     When the editor looks for the stories AI has proposed
-    Then the sidebar, the Needs me filter, the counts and the kind label all say Proposed Stories
+    Then the Needs me filter, the counts and the kind label all say Proposed Stories
     And no editor-facing line calls a proposed story a draft
 
   Scenario: Every column of the Stories board lists its stories newest first
