@@ -87,7 +87,8 @@ SEMANTIC_RELATION_FIELDS = (
 MESSAGE_FIELDS = (
     "id messageKind messageDomain status summary source importRunId authorSub authorUserProfileId authorLabel "
     "threadId parentMessageId sequenceNumber role messageType content semanticLayer searchVisibility responseTarget "
-    "responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata newsroomFeedKey createdAt updatedAt"
+    "responseStatus responseOwner responseStartedAt responseCompletedAt responseError metadata newsroomFeedKey createdAt updatedAt "
+    "editedAt deletedAt deletedBySub"
 )
 MESSAGE_THREAD_FIELDS = (
     "id threadKind status title summary primaryAnchorKind primaryAnchorId primaryAnchorLineageId primaryAnchorKey "

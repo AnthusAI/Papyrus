@@ -11,6 +11,7 @@ import json
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
+from ..home_page.snapshot import HOME_PAGE_DATA_DIRECTORY
 from ..reader_steering.proposals import PROPOSALS_DATA_DIRECTORY
 from ..reader_steering.snapshot import READER_DATA_DIRECTORY
 
@@ -41,11 +42,11 @@ def plugin_static_files(names: Iterable[str]) -> dict[str, bytes]:
 
 
 KNOWLEDGE_DATA_DIRECTORY = "_data/knowledge"
-PLUGIN_RUNTIME_DIRECTORIES = (READER_DATA_DIRECTORY + "/", PROPOSALS_DATA_DIRECTORY + "/", KNOWLEDGE_DATA_DIRECTORY + "/")
+PLUGIN_RUNTIME_DIRECTORIES = (READER_DATA_DIRECTORY + "/", PROPOSALS_DATA_DIRECTORY + "/", KNOWLEDGE_DATA_DIRECTORY + "/", HOME_PAGE_DATA_DIRECTORY + "/")
 
 
 def is_plugin_runtime_key(key: str) -> bool:
-    """A file a task writes (the reader snapshot, its proposals, the knowledge snapshot), at the site root or under ``urls.basePath``.
+    """A file a task writes (the reader snapshot, its proposals, the knowledge snapshot, the home-page snapshot), at the site root or under ``urls.basePath``.
 
     The projector's page reconcile must never call such a file an orphan: no page expects it, a task owns it.
     """

@@ -16,6 +16,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
+from ...home_page.settings import HomePageSettings, home_page_settings_from_mapping
 from .grouping import valid_group_by
 from .redirects import RedirectRule, rule_from_mapping
 from .select import Selection, selection_from_mapping
@@ -23,7 +24,7 @@ from .select import Selection, selection_from_mapping
 STANDARD_KEYS = (
     "site", "urls", "nav", "footer", "seo", "sitemap", "robots", "feeds", "listings",
     "fonts", "icons", "environment", "hooks", "redirects", "pages", "components", "media", "showcase", "static", "forms", "agents", "pageActions",
-    "values", "islands", "collections", "notFound", "wiki", "mermaid",
+    "values", "islands", "collections", "notFound", "wiki", "mermaid", "homePage",
 )
 URL_STYLES = ("html", "directory", "clean")
 SITEMAP_STYLES = ("single", "index")
@@ -380,6 +381,7 @@ class StandardSettings:
     page_actions: PageActionSettings = field(default_factory=PageActionSettings)
     mermaid: bool = True                      # ```mermaid blocks render as diagrams (self-hosted script, loaded only on pages that have one)
     wiki: WikiSettings = field(default_factory=WikiSettings)
+    home_page: HomePageSettings | None = None   # the ``homePage`` key; None means the site has no home-page behaviour
 
     @property
     def sectioned(self) -> bool:
@@ -835,4 +837,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         page_actions=page_actions,
         mermaid=bool(mermaid_raw.get("enabled", True)),
         wiki=wiki,
+        home_page=home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None,
     )

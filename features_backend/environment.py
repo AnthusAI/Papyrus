@@ -8,6 +8,7 @@ from pathlib import Path
 REQUIRES_CYCLOTRON_TAG = "requires-cyclotron"
 CYCLOTRON_MODULE = "decision_flywheel"
 OPERATOR_TAG = "operator"
+WORK_IN_PROGRESS_TAG = "wip"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OPERATOR_FIXTURE_ROOT = REPO_ROOT / "features_backend" / "fixtures" / "operator-cli"
 
@@ -25,6 +26,9 @@ def after_all(context):
 
 
 def before_scenario(context, scenario):
+    if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
+        scenario.skip("work in progress: waits for a task that has not landed")
+        return
     if REQUIRES_CYCLOTRON_TAG in scenario.effective_tags and importlib.util.find_spec(CYCLOTRON_MODULE) is None:
         scenario.skip("decision_flywheel not installed (poetry install --with cyclotron)")
     if OPERATOR_TAG in scenario.effective_tags:
