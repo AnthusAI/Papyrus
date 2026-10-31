@@ -91,3 +91,26 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+
+  # Git Flow back-merge: a stable release is tagged on main's merge commit, which develop never contains. Without this merge,
+  # semantic-release on develop cannot see the stable tags and keeps numbering prereleases from an old version (5.43.0-next.N
+  # after 5.66.0). Main only ever holds develop's commits plus these merge commits, so the merge never conflicts.
+  back-merge:
+    needs: [release, pypi]
+    if: ${{ github.ref == 'refs/heads/main' && needs.release.outputs.published == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Merge main back into develop
+        env:
+          RELEASE_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit origin/main -m "chore: merge main back into develop after v${RELEASE_VERSION}"
+          git push origin HEAD:develop
