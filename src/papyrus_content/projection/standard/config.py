@@ -93,6 +93,20 @@ class ArchiveConfig:
     description: str = ""
 
 
+INDEX_REFERENCE_SELECTIONS = ("recent", "confident", "recommended")
+
+
+@dataclass(frozen=True)
+class SectionIndexConfig:
+    """Page 1 of a section's listing as a front page: the description, a lead Story, the latest entries and an optional Reference grid."""
+
+    lead: bool = True
+    latest: int | None = None         # None: the section's page size
+    references: str | None = None     # a Reference selection ("recent", "confident", "recommended"), or None for no grid
+    references_count: int | None = None   # None: homePage.references.defaultCount
+    source: str | None = None         # a Markus page file in the static directory that replaces the generated layout
+
+
 @dataclass(frozen=True)
 class SectionConfig:
     """One section; a site that declares none is a site without sections."""
@@ -112,6 +126,7 @@ class SectionConfig:
     group_by: str | None = None       # "week" (Monday start), "month" or "field:<name>": the listing view carries grouped entries
     archive: ArchiveConfig | None = None
     sort: str = "date"                # "date" (newest first) or "order" (front matter order, then title)
+    index: SectionIndexConfig | None = None   # page 1 of the listing as a section front page
 
 
 @dataclass(frozen=True)
@@ -403,6 +418,16 @@ class StandardSettings:
     def sectioned(self) -> bool:
         return bool(self.sections)
 
+    @property
+    def sections_home(self) -> bool:
+        """The generated home page is a home of section blocks (``homePage.layout`` is ``sections``)."""
+        return self.home_page is not None and self.home_page.layout == "sections"
+
+    @property
+    def section_fronts(self) -> bool:
+        """The site uses a section index or the home of sections, so it loads the section-fronts stylesheet."""
+        return self.sections_home or any(section.index is not None for section in self.sections)
+
     def section(self, name: str | None) -> SectionConfig | None:
         return next((section for section in self.sections if section.name == name), None)
 
@@ -435,6 +460,44 @@ def _links(raw, where: str, *, groups: bool = False) -> tuple[NavLink, ...]:
             )
         )
     return tuple(links)
+
+
+def _section_index(raw, section_name: str) -> SectionIndexConfig | None:
+    if raw is None:
+        return None
+    where = f"urls.sections.{section_name}.index"
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"{where} must be an object")
+    _only(raw, {"lead", "latest", "references", "referencesCount", "source"}, where)
+    if not isinstance(raw.get("lead", True), bool):
+        raise ValueError(f"{where}.lead must be true or false")
+    for name in ("latest", "referencesCount"):
+        value = raw.get(name)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            raise ValueError(f"{where}.{name} must be a whole number of at least 1")
+    selection = raw.get("references")
+    if selection is not None and selection not in INDEX_REFERENCE_SELECTIONS:
+        raise ValueError(f"{where}.references must be one of {', '.join(INDEX_REFERENCE_SELECTIONS)} or null")
+    source = raw.get("source")
+    if source is not None and (not isinstance(source, str) or not source.strip()):
+        raise ValueError(f"{where}.source must be a page file in the static directory")
+    return SectionIndexConfig(
+        lead=raw.get("lead", True), latest=raw.get("latest"), references=selection,
+        references_count=raw.get("referencesCount"), source=source.strip() if source else None,
+    )
+
+
+def _check_section_fronts(sections, home_page: HomePageSettings | None) -> None:
+    for section in sections:
+        if section.index is not None and section.index.references and home_page is None:
+            raise ValueError(f"urls.sections.{section.name}.index.references needs homePage in projection.json")
+    if home_page is None:
+        return
+    if home_page.layout == "sections" and not any(section.listing and section.listing_page for section in sections):
+        raise ValueError('homePage.layout "sections" needs urls.sections with at least one listed section')
+    unknown = [name for name in home_page.home_sections or () if not any(section.name == name and section.listing and section.listing_page for section in sections)]
+    if unknown:
+        raise ValueError(f"homePage.homeSections names sections that have no listing page: {', '.join(unknown)}")
 
 
 def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
@@ -472,7 +535,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
     sections = []
     for section_name, entry in dict(urls.get("sections") or {}).items():
         entry = dict(entry or {})
-        _only(entry, {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort"}, f"urls.sections.{section_name}")
+        _only(entry, {"base", "label", "pages", "listing", "listingPage", "feed", "sitemap", "linkField", "description", "pageSize", "listEmpty", "groupBy", "archive", "sort", "index"}, f"urls.sections.{section_name}")
         if entry.get("sort", "date") not in ("date", "order"):
             raise ValueError(f"urls.sections.{section_name}.sort must be 'date' or 'order'")
         group_by = entry.get("groupBy")
@@ -491,6 +554,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
             )
         sections.append(
             SectionConfig(
+                index=_section_index(entry.get("index"), section_name),
                 name=section_name,
                 base=_unreserved_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
                 label=str(entry.get("label") or section_name.replace("-", " ").title()),
@@ -803,6 +867,8 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         raise ValueError("wiki.types lists entry type names")
     if wiki.suggest_form is not None and wiki.suggest_form not in known_forms:
         raise ValueError(f"wiki.suggestForm names an unknown form {wiki.suggest_form!r}")
+    home_page = home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None
+    _check_section_fronts(sections, home_page)
     return StandardSettings(
         identity=identity,
         url_style=style,
@@ -853,5 +919,5 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         page_actions=page_actions,
         mermaid=bool(mermaid_raw.get("enabled", True)),
         wiki=wiki,
-        home_page=home_page_settings_from_mapping(raw["homePage"]) if raw.get("homePage") is not None else None,
+        home_page=home_page,
     )

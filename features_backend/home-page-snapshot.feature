@@ -74,6 +74,41 @@ Feature: The home-page snapshot publishes the accepted and recommended Reference
     And the page "front/index.html" was re-rendered
     And the page "quiet/index.html" was not re-rendered
 
+  Scenario: A page whose source has no home-page include is never rewritten, even when its stored digest looks stale
+    On 2026-10-31 the snapshot rewrote a site's root index.html, which has no home-page include, and replaced a large home
+    page with a small one, while the only page that reads the snapshot was left alone. The snapshot now rewrites exactly
+    the pages whose source places a references or threads include, whatever else looks out of date.
+    Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References
+    When the home-page-snapshot task runs
+    And the stored digest of the page "index.html" no longer matches
+    And a Reference is accepted and the home-page-snapshot task runs again
+    Then the page "front/index.html" was re-rendered
+    And the page "index.html" was not re-rendered
+    And the page "index.html" still holds the bytes it held before
+
+  Scenario: The snapshot refuses to write when it cannot build the site's projector
+    The deploy projection uses the standard front end named by projection.json. A static directory without that file
+    used to give a plain projector, which renders other pages. The command now names what is missing and writes nothing.
+    When papyrus home-page snapshot runs against an output directory with a static directory that holds no projection.json
+    Then the CLI refused with a message naming the missing projection.json
+    And the output directory is still empty
+
+  Scenario: The dry run lists the exact keys a real run would write and rewrite
+    An operator can see every key before anything is written, and notice an index.html in the list.
+    When papyrus home-page snapshot --dry-run runs against the home-page fixture site
+    Then the CLI listed "would write" for "_data/home-page/references.json"
+    And the CLI listed "would rewrite" for "front/index.html"
+    And the CLI listed no "would rewrite" for "index.html"
+    And the CLI listed no "would rewrite" for "quiet/index.html"
+    And the fixture output directory is still empty
+
+  Scenario: A projector that would render a page outside the readers aborts the run before anything is written
+    Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References
+    And a projector that also renders the page "index.html" when it is asked for the reader pages
+    When the home-page-snapshot task runs and is aborted
+    Then the abort names the page "index.html"
+    And the store is unchanged
+
   Scenario: Reconcile leaves _data/home-page files alone
     Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
     When the home-page-snapshot task runs

@@ -61,3 +61,20 @@ def test_the_bytes_are_compact_json_with_a_newline_and_keep_non_ascii_text():
     body = snapshot_bytes({"title": "Café"})
     assert body.endswith(b"\n") and "Café".encode() in body
     assert json.loads(body) == {"title": "Café"}
+
+
+def thread_record(key, last_at, count=1):
+    messages = [{"key": f"{key}{number}", "at": last_at if number == count else "2026-01-01T00:00:00.000Z", "edited": False, "text": "Hi", "author": {"label": "Editor"}} for number in range(1, count + 1)]
+    return {"key": key, "title": f"Thread {key}", "anchor": {"kind": "reference", "key": "k", "title": "R"}, "messages": messages}
+
+
+def test_the_threads_document_lists_the_most_recently_active_first_with_counts_and_latest():
+    from papyrus_content.home_page.snapshot import THREADS_DIRECTORY, THREADS_FILE, build_threads_snapshot, thread_file
+
+    index, documents = build_threads_snapshot([thread_record("a", "2026-10-01T00:00:00.000Z"), thread_record("b", "2026-10-02T00:00:00.000Z", count=3)], NOW)
+    assert THREADS_FILE == "_data/home-page/threads.json" and THREADS_DIRECTORY == "_data/home-page/threads"
+    assert thread_file("b") == "_data/home-page/threads/b.json"
+    assert index["generatedAt"] == "2026-10-31T12:00:05.123Z"
+    assert [(entry["key"], entry["messages"], entry["lastAt"]) for entry in index["threads"]] == [("b", 3, "2026-10-02T00:00:00.000Z"), ("a", 1, "2026-10-01T00:00:00.000Z")]
+    assert index["threads"][0]["latest"] == documents["b"]["messages"][-1]
+    assert list(documents["b"]) == ["key", "title", "anchor", "messages"]

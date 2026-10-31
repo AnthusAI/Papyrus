@@ -54,7 +54,10 @@ def test_a_wrong_setting_is_a_build_error_that_names_it(raw, message):
 def test_the_standard_settings_hold_none_without_the_key_and_parse_it_with_the_key():
     base = {"site": {"name": "Example"}}
     assert standard_settings_from_mapping(base).home_page is None
-    assert standard_settings_from_mapping({**base, "homePage": {"layout": "sections"}}).home_page.layout == "sections"
+    sectioned = {**base, "urls": {"sections": {"essays": {}}}}
+    assert standard_settings_from_mapping({**sectioned, "homePage": {"layout": "sections"}}).home_page.layout == "sections"
+    with pytest.raises(ValueError, match="needs urls.sections"):
+        standard_settings_from_mapping({**base, "homePage": {"layout": "sections"}})
     with pytest.raises(ValueError, match="Unknown homePage settings: nope"):
         standard_settings_from_mapping({**base, "homePage": {"nope": 1}})
 
@@ -63,3 +66,10 @@ def test_reconcile_never_calls_a_home_page_data_file_an_orphan():
     assert is_plugin_runtime_key("_data/home-page/references.json")
     assert is_plugin_runtime_key("updates/_data/home-page/references.json")
     assert not is_plugin_runtime_key("_data/home-pagex.json")
+
+
+def test_the_threads_author_policy_accepts_handle_and_none():
+    from papyrus_content.home_page.settings import home_page_settings_from_mapping
+
+    assert home_page_settings_from_mapping({"threads": {"enabled": True, "authors": "none"}}).threads.authors == "none"
+    assert home_page_settings_from_mapping({"threads": {"authors": "handle"}}).threads.authors == "handle"

@@ -317,6 +317,21 @@ def test_a_row_is_one_line_of_host_title_and_date():
     assert "<h3" not in markup and "<img" not in markup
 
 
+def test_a_row_shows_the_confidence_compactly_with_a_hidden_label_icon_and_meter():
+    markup = home_page_components.row(record("a", acceptedAt="2026-10-20T09:12:00.000Z", confidence=0.92))
+    assert '<span class="home-page-confidence-value">92%<span class="home-page-visually-hidden"> confidence</span></span>' in markup
+    assert 'data-icon="gauge"' in markup and markup.count("--filled") == 5
+
+
+def test_a_row_without_a_recorded_confidence_draws_none():
+    assert "home-page-confidence" not in home_page_components.row(record("a", acceptedAt="2026-10-20T09:12:00.000Z", confidence=None))
+
+
+def test_a_recommended_row_shows_the_label_and_the_confidence():
+    markup = home_page_components.row(record("a", "recommended", confidence=0.8))
+    assert "Recommended by Cyclotron, not yet accepted" in markup and "80%" in markup and 'data-icon="gauge"' in markup
+
+
 @pytest.mark.parametrize("value", [None, "", "soon", "2026-13-40", "2026-02-30"])
 def test_a_value_that_is_not_a_date_draws_no_time(value):
     assert home_page_components.time_markup(value) == ""

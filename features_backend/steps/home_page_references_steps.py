@@ -193,8 +193,8 @@ def build_failed(context, first: str, second: str) -> None:
     assert first in context.build_error and second in context.build_error, context.build_error
 
 
-def card_titled(context, title: str) -> str:
-    for path in ("front/index.html", "ranked/index.html", "defaults/index.html", "recommended/index.html"):
+def card_titled(context, title: str, paths=("front/index.html", "ranked/index.html", "defaults/index.html", "recommended/index.html")) -> str:
+    for path in paths:
         for select in ("recent", "confident", "recommended"):
             for found in grids_if_any(context, path, select):
                 for card in found["cards"]:
@@ -209,6 +209,22 @@ def card_confidence(context, title: str, text: str, icon: str, filled: int) -> N
     assert f'<span class="home-page-confidence-value">{text}</span>' in card, card
     assert f'data-icon="{icon}"' in card, card
     assert card.count("home-page-meter-segment--filled") == filled, card
+
+
+@then('the row card for "{title}" shows "{text}" with a visually hidden "confidence" label, a "{icon}" icon and a meter with {filled:d} filled segments')
+def row_card_confidence(context, title: str, text: str, icon: str, filled: int) -> None:
+    card = card_titled(context, title, ("rows/index.html",))
+    assert card.startswith('<div class="home-page-row"'), card
+    assert f'<span class="home-page-confidence-value">{text}<span class="home-page-visually-hidden"> confidence</span></span>' in card, card
+    assert f'data-icon="{icon}"' in card, card
+    assert card.count("home-page-meter-segment--filled") == filled, card
+
+
+@then('the row card for "{title}" shows the label "{label}" and "{text}"')
+def row_card_label_and_confidence(context, title: str, label: str, text: str) -> None:
+    card = card_titled(context, title, ("rows/index.html",))
+    assert card.startswith('<div class="home-page-row"'), card
+    assert label in card and f">{text}<" in card, card
 
 
 @then("the unfilled meter segments of a card are outlined shapes, not only a lighter colour")

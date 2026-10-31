@@ -8,7 +8,7 @@ export const PLUGINS_OUTPUT_KEY = "papyrusPlugins";
  * Deploy-time wiring for every enabled plugin. A site without plugins reaches no line of this:
  * nothing is added to the stacks, the environment or the outputs.
  */
-export function wirePlugins(backend: any, plugins: ResolvedPlugin[], contentActionsLambda: LambdaFunction): void {
+export function wirePlugins(backend: any, plugins: ResolvedPlugin[], contentActionsLambda: LambdaFunction, projectionEnabled = false): void {
   if (plugins.length === 0) return;
   const graphqlApi = backend.data.resources.graphqlApi;
   const context = {
@@ -16,6 +16,7 @@ export function wirePlugins(backend: any, plugins: ResolvedPlugin[], contentActi
     graphqlApiId: graphqlApi.apiId as string,
     graphqlEndpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl as string,
     contentActionsLambda,
+    projectionEnabled,
   };
   for (const { plugin, config } of plugins) plugin.wire(backend, config, context);
   contentActionsLambda.addEnvironment(PLUGINS_ENVIRONMENT_VARIABLE, plugins.map(({ plugin }) => plugin.manifest.name).join(","));
