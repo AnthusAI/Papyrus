@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "4395651a-276b-475c-9aca-8a129fe94557",
+  "issue_id": "PPY-208475d1-d956-4abf-8889-eaca97946e8a",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T20:08:12.567Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Reader submissions: extraction step (model, maker, task) and a read API for the Submit page",
+    "description": "Requested by the Shipped session for Ryan (\"Yes, do both\", 2026-10-31). Planning, no rush ahead of the Shipped console move.\n\nGoal: after a reader submits a link (reader-steering submit-a-link), an extraction step pulls out the model, maker and task the submission is about, matches it to References and entities, and exposes the result through a read API so the Submit page can show \"Confirm what the map pulled out\" for the reader to confirm.\n\ndocs/reader-steering.md: \"a later extraction step is where a submission meets References and entities\". Build that step and its read API (reader-scoped: a reader reads only their own submission's extraction; no identity in public output).\n\nConsumer: Shipped-web Submit page (currently a placeholder).\n\nAcceptance: Gherkin for submit, then extraction, then the reader reads and confirms; moderation and privacy rules as in reader-steering; docs.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": [
+      "shipped"
+    ]
+  }
+}
