@@ -392,6 +392,39 @@ CLI login is separate from research execution: this PR does not replace the
 hosted empty seeded packet, run a console-agent exchange, or prove execution of
 a registered Tactus procedure.
 
+## Which client
+
+By default `papyrus login` signs in on the site's main web app client, with the callback
+`http://localhost:3001/`. A site can instead move the CLI onto its registered Prospectus
+federation client (`prospectus-google-only`: Google only, code flow, no secret, no password
+flow reachable). Turn it on with `cliOnFederationClient: true` in the `cms` block of the
+site's app-shell `site.json` (or `features: { cliOnFederationClient: true }` in
+`defineSiteBackend`, or `PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT=true`). It is off by default,
+and with it off the synthesized backend and both Cognito clients are unchanged.
+
+With it on:
+
+- the federation client's callbacks are exactly each site origin's
+  `/api/auth/prospectus/callback`, the fixed loopback
+  `http://127.0.0.1:38947/cli/callback`, and `<site origin>/cli/callback`;
+- `/.well-known/papyrus-cli.json` names the federation client and the fixed loopback callback,
+  and the remote broker signs in on the same client;
+- the CLI binds exactly that port and path. Cognito matches callbacks exactly, so if the port is
+  taken the login stops and says so; free the port and run it again.
+
+`papyrus login --print-client <site>` is read-only: it prints which client the site names (the
+last four characters of its id only), the callback and whether remote login is published.
+
+Flip order for a site, after the Prospectus federation review for it is approved: set the flag,
+deploy the app shell, check `papyrus login --print-client` shows the federation client, confirm
+`papyrus login` and `papyrus login --remote` complete, then remove `/cli/callback` from the main
+client in a later change so nothing breaks mid-way.
+
+Session length: with the flag on, the federation client keeps refresh tokens for **seven
+days** (access and ID tokens stay at 60 minutes), so a CLI login lasts a week between
+sign-ins. With the flag off the client is exactly as registered with Prospectus: 60-minute
+refresh tokens, so sites already registered under reviews that record 60 minutes do not change.
+
 ## Enrollment
 
 Enrollment makes a CLI login a Prospectus Person. It is off for every site until the site switches it on, and it

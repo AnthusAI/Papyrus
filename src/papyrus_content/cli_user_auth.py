@@ -524,6 +524,12 @@ def _existing_targets(args, *, all_by_default: bool) -> list[AuthConfig]:
     return [resolve_config()]  # One signed-in site, or an actionable "name a site" error.
 
 
+def _client_summary(config: AuthConfig) -> dict:
+    """What discovery named, for verifying a client move from a terminal: the client id's last 4 characters only."""
+    return {'publication': config.publication, 'client_id_suffix': config.client_id[-4:], 'callback_uri': config.callback_uri,
+            'remote': config.broker_endpoint is not None}
+
+
 def _run_each(targets, action) -> int:
     failed = False
     for config in targets:
@@ -552,6 +558,8 @@ def command(arguments: list[str]) -> int:
                              help="approve the sign-in in a browser on another device (the site must publish a broker)")
             sub.add_argument('--expect-email', metavar='EMAIL',
                              help='with --remote: refuse, and save nothing, unless this person approved')
+            sub.add_argument('--print-client', action='store_true',
+                             help='read-only: show which sign-in client the site names (last 4 characters) and sign in to nothing')
     auth = commands.add_parser('auth')
     auth.add_argument('operation', choices=['status'])
     auth.add_argument('sites', nargs='*', metavar='site')
@@ -560,6 +568,8 @@ def command(arguments: list[str]) -> int:
     auth.add_argument('--publication')
     args = parser.parse_args(arguments)
     if args.action == 'login':
+        if args.print_client:
+            return _run_each(_login_targets(args), _client_summary)
         if args.remote:
             def log_in_remotely(config):
                 result = session_for(config).login_remote(expected_email=args.expect_email)

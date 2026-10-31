@@ -133,10 +133,11 @@ assert.deepEqual(resolveSiteBackendFeatureFlags(undefined, allOff, newSiteMain),
   slack: false,
   storageBackups: false,
   cliRemoteLogin: false,
+  cliOnFederationClient: false,
 });
 assert.deepEqual(
   resolveSiteBackendFeatureFlags(undefined, { ...allOff, PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_ENABLE_STORAGE_BACKUPS: "1" }, newSiteMain),
-  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false },
+  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false, cliOnFederationClient: false },
 );
 assert.equal(
   resolveSiteBackendFeatureFlags({ inboundEmail: false }, { PAPYRUS_ENABLE_INBOUND_EMAIL: "true" }, newSiteMain).inboundEmail,
