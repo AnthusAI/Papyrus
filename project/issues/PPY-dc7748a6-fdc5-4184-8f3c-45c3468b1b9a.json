@@ -1,0 +1,20 @@
+{
+  "id": "PPY-dc7748a6-fdc5-4184-8f3c-45c3468b1b9a",
+  "title": "Scaffold the alexa plugin: per-site Lambda endpoint behind a site config switch",
+  "description": "Add amplify/plugins/alexa (config.ts, papyrus.plugin.ts, function/resource.ts, function/handler.py) following the reader-steering layout. Off by default. The Lambda permission allows only alexa-appkit.amazon.com with the skill-ID event source condition. Outputs the function ARN for the skill manifest. Gherkin: the plugin is absent when off; the endpoint rejects a request with the wrong skill ID.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:47.081950Z",
+  "updated_at": "2026-10-31T14:06:47.081998Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

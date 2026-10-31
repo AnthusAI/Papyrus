@@ -1,0 +1,20 @@
+{
+  "id": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+  "title": "Alexa M5: Certification and publishing (pilot site live in the Alexa Skills Store)",
+  "description": "Milestone 5. Pass Amazon's certification and publish the pilot site's skill.\n\nScope:\n- Store listing generated from site config: name, one-sentence and full descriptions, three example phrases that actually work, category (News), keywords, 108px and 512px icons, privacy policy URL and terms URL (clean pages on the site).\n- A privacy policy page that covers what the skill receives (the Alexa user ID and the linked account's identity) and what we store.\n- Certification testing instructions, plus a dedicated Google test account for Amazon's testers. Ryan creates it, and it gets a reader/editor group on the pilot site. Never a Cognito password user.\n- Run the certification checklist ourselves first: the functional test in the developer console, the utterance conflict check, every example phrase, help/stop/cancel, the session-end behaviour, and APL on every viewport.\n- Beta test with Ryan's household through the console beta-test feature, then submit, fix whatever the reviewers find, and publish.\n- A p.apyr.us docs page for the feature (the document-features rule).\n\nDone when: anyone can find and enable the Pilobolus skill in the Alexa Skills Store, link their account, and use M1 to M4. The docs page is live.\n",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:49.295534Z",
+  "updated_at": "2026-10-31T14:06:49.295579Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

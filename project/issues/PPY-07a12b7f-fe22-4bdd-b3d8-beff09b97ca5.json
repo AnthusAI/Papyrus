@@ -1,0 +1,20 @@
+{
+  "id": "PPY-07a12b7f-fe22-4bdd-b3d8-beff09b97ca5",
+  "title": "Per-site invocation names, listing copy and icons in site config",
+  "description": "For each site: an invocation name tested by voice on a real device, listing copy, icons. Record the results in the site configs.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-eea7adcb-1dd0-43df-ab0d-b1ebb2a48b59",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:49.945905Z",
+  "updated_at": "2026-10-31T14:06:49.945935Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

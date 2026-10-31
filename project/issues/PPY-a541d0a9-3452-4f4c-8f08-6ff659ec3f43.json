@@ -1,0 +1,20 @@
+{
+  "id": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
+  "title": "Alexa M1: Skill foundation (voice, public stories, development stage)",
+  "description": "Milestone 1. A working custom skill for the pilot site (Pilobolus), in development stage, so it already runs on Ryan's Echo devices with no review.\n\nScope:\n- An `alexa` Papyrus plugin: a per-site Lambda endpoint (Python, like the reader-steering function), wired through amplify/plugins/registry.ts, off unless the site config turns it on.\n- A skill package in Git: skill.json manifest, interaction model, invocation name from site config. A generator builds it from the site config.\n- Intents: open/launch (\"latest stories\"), read story N, next, repeat, plus the built-in Help, Stop, Cancel, Fallback and NavigateHome intents that certification requires.\n- Content comes from the site's public published stories, through the same read path the public site uses. Story text becomes SSML from the Markus source, kept within Alexa's speech limits: summaries and short reads only. Full stories come in M7.\n- Endpoint security: the skill ID check on the Lambda trigger, and request validation in the handler.\n- CI deploys the skill package with the ASK CLI (LWA credentials kept as an SSM SecureString parameter).\n\nDone when: \"Alexa, open Pilobolus\" on Ryan's Echo Show reads the latest headlines and a story summary, the help/stop/fallback paths all behave, and Gherkin specs cover each intent against a fake content source.\n\nFeature: Hear the latest stories\n  Scenario: Open the skill\n    Given the Pilobolus skill is enabled\n    When I say \"Alexa, open Pilobolus\"\n    Then Alexa reads the headlines of the latest published stories\n    And asks which one I want to hear\n  Scenario: Hear a story\n    Given Alexa has read the headlines\n    When I say \"the second one\"\n    Then Alexa reads that story's summary\n",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:46.964916Z",
+  "updated_at": "2026-10-31T14:06:46.964964Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

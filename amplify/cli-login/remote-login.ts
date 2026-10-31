@@ -1,7 +1,7 @@
 import { Duration, Fn, RemovalPolicy, type Stack } from "aws-cdk-lib";
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { AttributeType, BillingMode, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
-import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { ArnPrincipal, Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Architecture, CfnPermission, CfnUrl, Function as LambdaFunction, type Code, Runtime } from "aws-cdk-lib/aws-lambda";
 import { FilterPattern, LogGroup, MetricFilter, RetentionDays } from "aws-cdk-lib/aws-logs";
 
@@ -46,6 +46,16 @@ export function planCliRemoteLogin(enabled: boolean, environment: Record<string,
   };
 }
 
+export type CliEnrollmentPlan = { enrollment: true };
+
+/**
+ * Prospectus enrollment of each remote login is off unless a site turns it on with PAPYRUS_ENABLE_CLI_ENROLLMENT=true.
+ * Off returns nothing, and then nothing about the pages function or the stack changes.
+ */
+export function planCliEnrollment(enabled: boolean): CliEnrollmentPlan | undefined {
+  return enabled ? { enrollment: true } : undefined;
+}
+
 export type CliRemoteLoginProps = {
   plan: CliRemoteLoginPlan;
   /** The Cognito app client the CLI signs in with (the one `papyrus-cli.json` publishes). */
@@ -58,6 +68,12 @@ export type CliRemoteLoginProps = {
   product: string;
   brokerCode: Code;
   pagesCode: Code;
+  /**
+   * Switches on Prospectus enrollment of each remote login. The pages function then asks the site's own
+   * `/cli/challenge` route for the challenge (that route runs as the registered compute role), and the stack gets
+   * the table that throttles that route. Absent, nothing is added and the synthesized stack is unchanged.
+   */
+  enrollment?: boolean;
   /** The most broker invocations at once; bounds what an abusive caller can cost. */
   reservedConcurrency?: number;
 };
@@ -67,6 +83,8 @@ export type CliRemoteLogin = {
   brokerFunctionArn: string;
   pagesFunctionArn: string;
   remoteCallbackUri: string;
+  /** Present only when enrollment is on: the table holding the `/cli/challenge` throttle bucket. */
+  throttleTableName?: string;
 };
 
 /**
@@ -141,6 +159,26 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
       IDENTITY_PROVIDER: "Google",
     },
   });
+  let throttleTableName: string | undefined;
+  if (props.enrollment) {
+    pages.addEnvironment("SITE_CHALLENGE_ORIGIN", props.plan.origin);
+    const throttleName = Fn.join("-", [stack.stackName, "challenge-throttle"]);
+    const throttle = new Table(stack, "ChallengeThrottle", {
+      tableName: throttleName,
+      partitionKey: { name: "pk", type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      encryption: TableEncryption.AWS_MANAGED,
+      timeToLiveAttribute: "expiresAt",
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    throttle.addToResourcePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      principals: [new ArnPrincipal(props.plan.invokerRoleArn)],
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
+      resources: [stack.formatArn({ service: "dynamodb", resource: "table", resourceName: throttleName })],
+    }));
+    throttleTableName = throttle.tableName;
+  }
   new CfnPermission(stack, "PagesInvokePermission", {
     functionName: broker.functionName, action: "lambda:InvokeFunction", principal: pages.role!.roleArn,
   });
@@ -178,5 +216,6 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     brokerFunctionArn: broker.functionArn,
     pagesFunctionArn: pages.functionArn,
     remoteCallbackUri: props.plan.callbackUri,
+    ...(throttleTableName ? { throttleTableName } : {}),
   };
 }
