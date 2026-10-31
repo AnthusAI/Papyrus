@@ -46,6 +46,19 @@ Feature: Sign in to a Papyrus site from a machine with no browser
     And the broker cannot be reached when the person opens the link
     Then the page says the link is no longer valid
 
+  Scenario: The broker alarms notify the site's alarm topic when one is configured
+    The broker has two alarms. The start ceiling alarm means too many logins were started across all callers.
+    The throttled alarm means the broker reached its reserved concurrency of 10. A site that names its alarm
+    topic is told when either one fires and when it recovers.
+    When a site's broker is synthesized with an alarm topic
+    Then both broker alarms notify that topic when they fire and when they recover
+
+  Scenario: Without an alarm topic the synth warns once and names the setting
+    A site that sets no alarm topic still gets the alarms, but nobody would hear them. The gap must be visible
+    when the backend is synthesized, so the warning names the setting to apply.
+    When a site's broker is synthesized without an alarm topic
+    Then the alarms carry no notification and synth warns once naming the alarm topic setting
+
   Scenario: A site that has not switched it on says so and starts nothing
     Given the site "plain.anth.us" publishes CLI login metadata without a broker
     When the agent runs "papyrus login --remote plain.anth.us"

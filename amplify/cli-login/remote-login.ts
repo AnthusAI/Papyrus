@@ -1,8 +1,10 @@
-import { Duration, Fn, RemovalPolicy, type Stack } from "aws-cdk-lib";
+import { Annotations, Duration, Fn, RemovalPolicy, type Stack } from "aws-cdk-lib";
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { AttributeType, BillingMode, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
 import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Architecture, CfnPermission, CfnUrl, Function as LambdaFunction, type Code, Runtime } from "aws-cdk-lib/aws-lambda";
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions";
+import { Topic } from "aws-cdk-lib/aws-sns";
 import { FilterPattern, LogGroup, MetricFilter, RetentionDays } from "aws-cdk-lib/aws-logs";
 
 /** The pages the broker's approval URL and callback name. Fixed by the cli-login protocol. */
@@ -58,6 +60,8 @@ export type CliRemoteLoginProps = {
   product: string;
   brokerCode: Code;
   pagesCode: Code;
+  /** The site's alarm topic. Both broker alarms notify it on alarm and on recovery; without it nobody is notified and synth warns. */
+  alarmTopicArn?: string;
   /** The most broker invocations at once; bounds what an abusive caller can cost. */
   reservedConcurrency?: number;
 };
@@ -156,7 +160,7 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     metricValue: "1",
     defaultValue: 0,
   });
-  new Alarm(stack, "StartCeilingAlarm", {
+  const startCeilingAlarm = new Alarm(stack, "StartCeilingAlarm", {
     alarmDescription: "The cli-login broker refused starts at its ceiling across all callers (a flood from many addresses)",
     metric: new Metric({ namespace: "cli-login", metricName: "StartCeilingReached", statistic: "Sum", period: Duration.minutes(5) }),
     evaluationPeriods: 1,
@@ -164,7 +168,7 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
-  new Alarm(stack, "ThrottledAlarm", {
+  const throttledAlarm = new Alarm(stack, "ThrottledAlarm", {
     alarmDescription: "The cli-login broker is being throttled at its reserved concurrency",
     metric: broker.metricThrottles({ statistic: "Sum", period: Duration.minutes(5) }),
     evaluationPeriods: 1,
@@ -172,6 +176,18 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
+
+  if (props.alarmTopicArn) {
+    const alarmAction = new SnsAction(Topic.fromTopicArn(stack, "AlarmTopic", props.alarmTopicArn));
+    for (const alarm of [startCeilingAlarm, throttledAlarm]) {
+      alarm.addAlarmAction(alarmAction);
+      alarm.addOkAction(alarmAction);
+    }
+  } else {
+    Annotations.of(stack).addWarning(
+      "The remote-login broker alarms (StartCeilingAlarm, ThrottledAlarm) notify nobody: set cms.alarmTopicArn in the site's app-shell site.json (PAPYRUS_ALARM_TOPIC_ARN) to an SNS topic ARN.",
+    );
+  }
 
   return {
     brokerEndpoint: brokerUrl.attrFunctionUrl,
