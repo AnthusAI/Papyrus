@@ -228,6 +228,25 @@ def _check_result(item: dict[str, Any], run: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def papyrus_copy_edit_story_version(story: str, version: str = "", suggest: bool = True) -> dict:
+    """Copy-edit one saved version of a story (the newest by default). Applies ONLY the mechanical fixes the site's policies
+    declare (a phrase policy with a replacement, such as a stale name, or the uncontracted-forms check where the house voice wants
+    contractions) and saves them as one new version by AI; never rewrites anything else, never publishes, never moves the stage.
+    Each remaining violation or review finding that quotes text gets rewrite options, stored with the version's check result.
+    Returns version (the version id to hand back: the new one, or the one you gave when nothing was mechanical), versionNumber,
+    changed, mechanicalFixes, violations, reviews, findings (with suggest options), hold and reason. Return
+    {"version": version, "hold": hold, "reason": reason} from the procedure: a hold means an error-severity violation survived and a
+    person has to decide, so the engine raises a review request instead of advancing the story."""
+
+    from papyrus_content.copy_edit import copy_edit_version
+    from papyrus_content.editorial_checks import GraphQLEditorialStore, Services
+    from papyrus_content.graphql_authoring import create_authoring_client
+
+    client, _ = create_authoring_client()
+    services = Services(store=GraphQLEditorialStore(execute=client.graphql))
+    return copy_edit_version(client, services, story=story, version=version or None, suggest=suggest)
+
+
 def papyrus_check_story_version(story: str = "", version: str = "", version_number: int = 0, wait_seconds: int = CHECK_WAIT_SECONDS) -> dict:
     """Run the editorial checks (the publication's and the section's policies, rules and classifier lanes) on
     one saved version of a story and return the findings. Name the version by its id (from papyrus_save_story_version
