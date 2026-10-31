@@ -79,6 +79,11 @@ With `homePage.threads.enabled` the same task also writes `_data/home-page/threa
 - **De-duplication**: threads claim `thread:<key>` in the page ledger, so two threads includes on one page never repeat a thread, and they do not interfere with the Reference cards.
 - **Freshness**: with `threads.enabled`, the `home-page` plugin also reads the Message table's stream into the same trigger. A new comment, or a change of its `status`, `content`, `editedAt` or `deletedAt`, opens the same debounce window. A Message stream that another feature already switched on is reused, not replaced.
 
+## Public handles
+
+A public handle is held by a `PublicHandleClaim` record keyed by the lowercase handle (`ownerKind`, `ownerId`, `claimedAt`), written by a conditional put in `setPublicHandle`, so two people claiming the same handle at once leave exactly one owner; changing or clearing a handle releases the old claim, and a failed profile write releases the new one.
+Sites that had handles before the claim records existed run `scripts/backfill-public-handle-claims.ts` once (an operator with IAM, idempotent, it reports conflicts).
+
 ## Freshness
 
 Curation changes reach the pages without anyone running a command. The backend plugin `home-page` (`backend.plugins: ["home-page"]` in `papyrus.config.ts`) wires four things, and only for a site that lists it: every other site synthesizes exactly what it did before.

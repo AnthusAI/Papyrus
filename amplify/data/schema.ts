@@ -76,6 +76,16 @@ const definitions = {
       allow.group(adminGroup),
     ]),
 
+  PublicHandleClaim: modelWithoutSubscriptions({
+      id: a.id().required(),
+      ownerKind: a.string().required(),
+      ownerId: a.string().required(),
+      claimedAt: a.datetime().required(),
+    })
+    .authorization((allow) => [
+      allow.groups(categoryWriteGroups).to(["read"]),
+    ]),
+
   UserIdentity: modelWithoutSubscriptions({
       id: a.id().required(),
       userProfileId: a.id().required(),

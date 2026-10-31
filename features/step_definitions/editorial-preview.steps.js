@@ -207,3 +207,57 @@ Then("the preview shows rewrite options for {string}", async function (sentence)
   await box.locator("[data-editorial-rewrite-option]").first().waitFor({ state: "visible", timeout: 10_000 });
   assert.match(await box.locator("[data-editorial-rewrite-target]").innerText(), new RegExp(sentence.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
+
+const OUTLINE_FREE_REPORT = `(root) => {
+  const offenders = [];
+  for (const surface of document.querySelectorAll(root)) {
+    for (const node of [surface, ...surface.querySelectorAll("*")]) {
+      const style = getComputedStyle(node);
+      const widths = ["Top", "Right", "Bottom", "Left"].map((side) => style["border" + side + "Width"]);
+      if (widths.some((width) => width !== "0px") || style.outlineStyle !== "none") {
+        offenders.push(node.tagName.toLowerCase() + ":" + widths.join("/") + ":" + style.outlineStyle);
+      }
+    }
+  }
+  return offenders;
+}`;
+
+async function assertOutlineFree(page, selector) {
+  await page.waitForSelector(selector, { state: "visible", timeout: 15_000 });
+  const offenders = await page.evaluate(`(${OUTLINE_FREE_REPORT})(${JSON.stringify(selector)})`);
+  assert.deepEqual(offenders, [], `Elements with a border or an outline under ${selector}`);
+}
+
+Then("nothing in the findings panel has a border or an outline", async function () {
+  await assertOutlineFree(requirePage(this), "[data-editorial-finding]");
+});
+
+Then("nothing in the findings popover has a border or an outline", async function () {
+  await assertOutlineFree(requirePage(this), "[data-editorial-finding='popover']");
+});
+
+Then("every severity in the findings panel has an icon and a word", async function () {
+  const severities = await requirePage(this).locator("[data-editorial-severity]").evaluateAll((nodes) =>
+    nodes.map((node) => ({ icon: node.querySelector("svg") !== null, word: node.textContent.trim() })),
+  );
+  assert.ok(severities.length > 0, "Expected at least one severity label");
+  for (const severity of severities) {
+    assert.ok(severity.icon && /Must fix|Should fix|Consider/.test(severity.word), JSON.stringify(severity));
+  }
+});
+
+When("I reload the page recording every console error", async function () {
+  const page = requirePage(this);
+  this.everyConsoleError = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") this.everyConsoleError.push(message.text());
+  });
+  page.on("pageerror", (error) => this.everyConsoleError.push(error.message));
+  await page.reload();
+  await page.waitForSelector("[data-newsroom-article-editor]", { state: "visible", timeout: 20_000 });
+  await page.waitForTimeout(3000);
+});
+
+Then("the page logged no console errors", function () {
+  assert.deepEqual(this.everyConsoleError, []);
+});
