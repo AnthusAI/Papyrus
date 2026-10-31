@@ -25,6 +25,7 @@ from papyrus_content.rebuild_trigger import (
     trigger_rebuild,
     trigger_staging_build,
 )
+from papyrus_content.prospectus_authorize import require_authorized
 from papyrus_content.story_reporting import save_story_version
 from papyrus_content.publication import ensure_publication_from_environment
 from papyrus_content.editorial_checks import GraphQLEditorialStore, ensure_default_policies
@@ -366,6 +367,7 @@ def handler(event, context):
     if PROJECTION_TASK_KEY in event:
         return run_projection_task(event[PROJECTION_TASK_KEY])
     field = event["fieldName"]
+    require_authorized(event, field)
     arguments = parse_input(event["arguments"]["input"])
     actor = actor_from_event(event)
     try:

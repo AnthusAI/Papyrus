@@ -307,6 +307,36 @@ publication's `PAPYRUS_GRAPHQL_ENDPOINT`/Amplify outputs. The CLI rejects endpoi
 mismatches before sending any token. It never guesses a client or tenant: it uses only a
 site's own published file or the config you pass.
 
+## Authorization
+
+Signing in says who you are. Which Account you may act in, and with what role, is Prospectus's answer, asked at the moment of
+each operation. Pool groups alone are not authorization.
+
+This is off until a site turns it on (`features.prospectusAuthorize`, or `PAPYRUS_ENABLE_PROSPECTUS_AUTHORIZE=true`), after
+enrollment works for that site. With it off the backend is exactly what it was: no extra data source, pipeline function,
+Lambda environment or permission, and the same synthesized templates. With it on:
+
+- Every account-scoped operation sends the chosen Account in `X-Prospectus-Account` and the person's own access token in
+  `X-Prospectus-Human-Token`. The CLI starts sending both when Account selection lands (PPY-2d3dd9); until then
+  turning this on would refuse every CLI call, so a site turns it on only after that.
+- The backend calls `POST /v1/accounts/{id}/authorize` as the site's role with `console:read`, `console:write` or
+  `members:read`, immediately before the effect. It proceeds only when `allowed` is true and the answer's `accountId` is the
+  requested one. A missing header, a missing token, an unreachable Prospectus, a server error or any other answer refuses. The
+  GraphQL error types are `AccountRequired`, `AuthorizationDenied` and `ReenrollmentRequired`.
+- When Prospectus answers `401` or `403` with `reenrollment_required`, that passes through as `ReenrollmentRequired` and the CLI
+  prints "Your login is no longer enrolled with Prospectus. Run `papyrus login` again." and exits non-zero. A request with no
+  Account prints "Choose an account: papyrus account use <name>".
+- The site's own IAM functions (the router, monitors, projection) carry no human token and are not asked. They are machines
+  inside the site.
+
+The Lambda resolvers use `src/papyrus_content/prospectus_authorize.py` and `lib/prospectus-authorize.ts` (twins, one table that
+maps a field name to the operation). The JavaScript resolvers use the pipeline function
+`amplify/data/resolvers/prospectus-authorize.js` behind an IAM-signed HTTP data source named `ProspectusAccounts`, placed first
+in each account-scoped mutation's pipeline. The Prospectus accounts API must allow the signing principal: see the open
+question on the epic about the registered role and an execution delegation.
+
+For the private chat host, which does not use this, see [private chat authorization](newsroom-private-chat-authorization.md).
+
 ## Commands
 
 From the configured publication checkout:

@@ -133,10 +133,11 @@ assert.deepEqual(resolveSiteBackendFeatureFlags(undefined, allOff, newSiteMain),
   slack: false,
   storageBackups: false,
   cliRemoteLogin: false,
+  prospectusAuthorize: false,
 });
 assert.deepEqual(
   resolveSiteBackendFeatureFlags(undefined, { ...allOff, PAPYRUS_ENABLE_INBOUND_EMAIL: "true", PAPYRUS_ENABLE_STORAGE_BACKUPS: "1" }, newSiteMain),
-  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false },
+  { consoleResponder: false, inboundEmail: true, slack: false, storageBackups: true, cliRemoteLogin: false, prospectusAuthorize: false },
 );
 assert.equal(
   resolveSiteBackendFeatureFlags({ inboundEmail: false }, { PAPYRUS_ENABLE_INBOUND_EMAIL: "true" }, newSiteMain).inboundEmail,
@@ -152,5 +153,9 @@ assert.equal(defaultsLegacy.inboundEmail, true);
 assert.equal(defaultsLegacy.storageBackups, true);
 assert.equal(defaultsNewSite.cliRemoteLogin, false, "remote CLI login is off by default");
 assert.equal(defaultsLegacy.cliRemoteLogin, false, "and off even for the legacy production pipeline");
+assert.equal(defaultsNewSite.prospectusAuthorize, false, "Prospectus authorization is off by default");
+assert.equal(defaultsLegacy.prospectusAuthorize, false, "and off even for the legacy production pipeline");
+assert.equal(resolveSiteBackendFeatureFlags({ prospectusAuthorize: true }, {}, newSiteMain).prospectusAuthorize, true, "a site turns it on in its config");
+assert.equal(resolveSiteBackendFeatureFlags(undefined, { PAPYRUS_ENABLE_PROSPECTUS_AUTHORIZE: "true" }, newSiteMain).prospectusAuthorize, true, "or with the environment fallback");
 
 console.log("site backend names: ok");
