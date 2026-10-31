@@ -21,6 +21,10 @@ class FakeEditorialStore:
         self.missions = 1               # current publication mission records (the doctrine the judgment lane reads)
         self.items: dict[str, dict] = {}
         self.check_runs: list[dict] = []
+        self.story_versions: list[dict] = []
+
+    def list_story_versions(self):
+        return [dict(row) for row in self.story_versions]
 
     def list_policies(self):
         return [dict(record) for record in self.policies.values()]
@@ -668,3 +672,80 @@ def step_refused(context, text):
 def step_same_detectors(context):
     after = {key: json.loads(r["detectors"]) for key, r in context.store.policies.items()}
     assert after == context.before, (after, context.before)
+
+
+# --- cross-story boilerplate ---------------------------------------------------------------------------------------------
+
+
+CLOSING = (
+    "We run this for clients at scale and we keep the source open so every client owns the whole thing "
+    "and can read exactly how it works before they ever pay us"
+)
+
+
+def _site_story(context, lineage, body, *, number=1, state="current", slug=None):
+    context.store.story_versions.append({
+        "id": f"{lineage}-v{number}", "lineageId": lineage, "versionNumber": number, "versionState": state,
+        "slug": slug or lineage, "bodyMarkus": body,
+    })
+
+
+@given('the site has a current story "{slug}" that ends with the standard closing')
+def step_other_story_closing(context, slug):
+    _site_story(context, slug, f"Something unique about {slug} goes here and nowhere else.\n\n{CLOSING}.")
+
+
+@given('the site has a current story "{slug}" that says "{body}"')
+def step_other_story_says(context, slug, body):
+    _site_story(context, slug, body)
+
+
+@given('the site has a superseded version of the story "{slug}" that ends with the standard closing')
+def step_superseded_story(context, slug):
+    _site_story(context, slug, f"Older text.\n\n{CLOSING}.", state="superseded")
+
+
+@when('the saved version of the story "{slug}" ends with the standard closing and is checked')
+def step_check_story_with_closing(context, slug):
+    context.slug = slug
+    item_id = _saved_version(context, 1, f"A different opening for {slug} appears here.\n\n{CLOSING}.")
+    context.store.items[item_id].update({"lineageId": slug, "id": f"{slug}-v1"})
+    context.store.items[f"{slug}-v1"] = context.store.items.pop(item_id)
+    _check_saved(context, f"{slug}-v1")
+
+
+@when('version 2 of the story "{slug}" is saved with its own earlier closing and checked')
+def step_check_own_earlier(context, slug):
+    _site_story(context, slug, f"Earlier opening.\n\n{CLOSING}.", number=1)
+    item = _saved_version(context, 2, f"Newer opening.\n\n{CLOSING}.")
+    context.store.items[f"{slug}-v2"] = {**context.store.items.pop(item), "id": f"{slug}-v2", "lineageId": slug}
+    _check_saved(context, f"{slug}-v2")
+
+
+@when('the saved version of the story "{slug}" with "{body}" is checked')
+def step_check_story_with_body(context, slug, body):
+    item = _saved_version(context, 1, body)
+    context.store.items[f"{slug}-v1"] = {**context.store.items.pop(item), "id": f"{slug}-v1", "lineageId": slug}
+    _check_saved(context, f"{slug}-v1")
+
+
+@then('the story "{slug}" has a stored "cross-story-boilerplate" finding naming "{other}"')
+def step_xstory_names(context, slug, other):
+    run = context.store.get_check_run(f"{slug}-v1")
+    found = [f for f in run["findings"] if f["policyId"] == "cross-story-boilerplate"]
+    assert found and all(f["severity"] == "warn" for f in found), run["findings"]
+    assert any(other in f["message"] for f in found), found
+
+
+@then('the story "{slug}" has no stored "cross-story-boilerplate" finding')
+def step_no_xstory(context, slug):
+    run = context.store.get_check_run(f"{slug}-v{2 if context.store.get_check_run(f'{slug}-v2') else 1}")
+    assert not [f for f in run["findings"] if f["policyId"] == "cross-story-boilerplate"], run["findings"]
+
+
+@then('the "cross-story-boilerplate" finding does not name "{other}"')
+def step_xstory_not_naming(context, other):
+    for run in context.store.check_runs:
+        for finding in run["findings"]:
+            if finding["policyId"] == "cross-story-boilerplate":
+                assert other not in finding["message"], finding

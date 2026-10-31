@@ -36,7 +36,7 @@ still run.
 and calls Humanus: `checkEditorial` and `suggestEditorialRewrite` (editors),
 `tryEditorialPolicy`, `draftEditorialQuestions`, `importEditorialStarterPack` and
 `recalibrateEditorialPolicies` (admins). Nothing is open to guests. The function
-may call `appsync:GraphQL` only on the five model operations it needs.
+may call `appsync:GraphQL` only on the model operations it needs (the list is `EDITORIAL_CHECKS_FUNCTION_FIELDS` in `amplify/functions/editorial-checks/wire.ts`).
 
 **Newsroom.** The article body is a CodeMirror editor; when checks are on,
 findings are underlined in place (wavy for violations, dotted for "needs your
@@ -64,6 +64,25 @@ slug or name, ignoring case; or ambiguous) checks against the publication's poli
 publication with no current mission, or more than one, checks without the mission and its judgment lane is
 skipped. Both log a warning that names the publication. Real failures (the provider or Humanus being unavailable)
 still surface as an error in the panel.
+
+**Passages copied across stories.** Each server check of a saved version (`checkItemVersion`, which `papyrus
+editorial check-version`, `papyrus stories save-version` and the article editor's save all use) also looks for
+boilerplate: a run of 12 or more consecutive words (the same `COPIED_RUN_WORDS` the reference copy guard uses) that
+also appears, in the same order, in the latest version of another story on the same site. Each shared passage becomes
+one finding under the policy id `cross-story-boilerplate`, severity `warn`, whose message names the other stories by
+slug and lineage. It exists because a closing section pasted into seven articles goes stale in all of them at once.
+It lives in Papyrus, not Humanus, because it needs the site's other stories; it is string matching with no model
+call. The other stories' windows are built once per check. Rules:
+
+- Compared: the latest current or draft version of every other story. A story's own earlier versions never count.
+- Not compared: front matter, code, directive lines such as `::citations{}`, `[@key]` citation markers, link and
+  image addresses, block quotes, and quoted text (inside straight or curly double quotes).
+- Runs do not cross those excluded spans, so a quotation in the middle of a paragraph splits it.
+- These findings are recomputed on every check, even when the story's own text is unchanged, because another story
+  may have changed. They are stored in the version's `EditorialCheckRun` like any finding, so the editor and the
+  filing gate show them. A policy-pack file (`--pack`) has no corpus and reports none.
+- The function's role needs `listItemsByVersionStateAndUpdatedAt` (added to the least-privilege list); a site picks
+  it up when its backend next deploys.
 
 **From a file.** Operators and agents without a signed-in admin can load policies,
 including judgment (classifier) questions, from a Humanus `policy-pack-v1` file with
