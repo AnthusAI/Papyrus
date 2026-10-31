@@ -56,6 +56,31 @@ papyrus references decide-site-sections --apply --doctrine <path>
 
 Its results are suggestions only; it never changes a Reference's curation status. It is shadow-only and Beta, like the relevance Cyclotron. Details: "Site cyclotron" in [cyclotron-priming.md](cyclotron-priming.md); per-tenant behavior in [multi-tenancy.md](multi-tenancy.md).
 
+### Audit the relevance model against editors' decisions
+
+`papyrus references audit` compares what the relevance model predicted with what editors actually did. It only reads a site's References and changes nothing, so it is safe to run at any time. It needs access to the site's backend, the same as the other `papyrus references` commands.
+
+```bash
+papyrus references audit           # a plain-text report
+papyrus references audit --json    # the same numbers for a script
+```
+
+It considers the current version of each Reference. A Reference counts as scored when the model stored a predicted probability that an editor would accept it (`predictedAcceptProbability`). Each scored Reference is then one of:
+
+- **accepted**: an editor accepted it.
+- **rejected**: an editor rejected it.
+- **untouched**: no editor has accepted or rejected it yet.
+
+The report gives:
+
+- **Counts**: all References, those with a prediction, and how many are accepted, rejected and untouched.
+- **Median predicted probability** for accepted, untouched and rejected References.
+- **AUROC, accepted versus untouched**: the chance that a randomly chosen accepted Reference was scored higher than a randomly chosen untouched one (ties count half). 0.5 means the scores tell the two groups apart no better than chance, and 1.0 means every accepted Reference outscored every untouched one. The comparison is imperfect: an untouched Reference may simply not have been reviewed yet, and it may be one the model sent to the feed on its own.
+- **A table of bands of predicted probability**, each 0.1 wide, starting at the tenth that holds the lowest score the model gave and running to 1.0. For each band: how many References were delivered, how many were accepted, how many were rejected, and the accepted share (accepted divided by delivered).
+- **The rejected References that had a prediction**, highest score first, with the editor's reason when one was recorded.
+
+What the numbers cannot tell you: the model only scored what reached it, and editors only decide on what they see, so a high accepted share in a band reflects both the model and what was shown. Small bands give noisy shares. The audit is a check, not a proof that the model is right.
+
 ## Taxonomy and category steering (Live)
 
 Analysis can propose changes to the category tree. A proposal is a `SteeringProposal`. An editor can accept it, reject it, or rewrite it; each choice writes an append-only `SteeringDecision`, and an accepted edit creates new `Category` versions under a versioned `CategorySet`. Ignoring a proposal is valid steering: no decision is recorded and the accepted course continues. Rejected proposals are exported as feedback before the next proposal cycle, so they influence it.
