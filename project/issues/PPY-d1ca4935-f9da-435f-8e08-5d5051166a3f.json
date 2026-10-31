@@ -9,10 +9,19 @@
   "creator": null,
   "parent": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
   "labels": [],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-39ed301e-ccbf-40d3-82a0-28a6cb382ef1",
+      "type": "blocked-by"
+    },
+    {
+      "target": "PPY-fec649b0-78e9-4b0c-9a8a-c076275d5228",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [],
   "created_at": "2026-10-31T14:06:48.952390Z",
-  "updated_at": "2026-10-31T14:06:48.952438Z",
+  "updated_at": "2026-10-31T14:25:32.397275Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,

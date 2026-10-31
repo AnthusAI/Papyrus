@@ -1,7 +1,7 @@
 {
   "id": "PPY-fd6a77ac-becf-4d96-9428-fe25a7ced935",
-  "title": "Enable, certify and publish each remaining site; Anth.us last",
-  "description": "Turn on the plugin, deploy, certify and publish per site. Anth.us only after Ryan's explicit go-ahead. Track each site's status on this task.",
+  "title": "Enable, certify and publish: Shipped, then Distinctive Mark, then the rest; Anth.us last",
+  "description": "Turn on the plugin, deploy, certify and publish per site. Anth.us only after Ryan's explicit go-ahead. Order: Shipped, Distinctive Mark, then the remaining sites, Anth.us last. Track each site's status on this task.",
   "type": "task",
   "status": "open",
   "priority": 2,
@@ -9,10 +9,15 @@
   "creator": null,
   "parent": "PPY-eea7adcb-1dd0-43df-ab0d-b1ebb2a48b59",
   "labels": [],
-  "dependencies": [],
+  "dependencies": [
+    {
+      "target": "PPY-07a12b7f-fe22-4bdd-b3d8-beff09b97ca5",
+      "type": "blocked-by"
+    }
+  ],
   "comments": [],
   "created_at": "2026-10-31T14:06:50.054571Z",
-  "updated_at": "2026-10-31T14:06:50.054603Z",
+  "updated_at": "2026-10-31T14:25:33.128419Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
