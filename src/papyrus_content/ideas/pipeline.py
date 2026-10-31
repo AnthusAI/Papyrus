@@ -120,7 +120,7 @@ def synthesize(
         "digestId": digest["digestId"],
         "startedAt": iso(moment),
         "model": model,
-        "store": "proposals" if proposal_store else "json",
+        "store": proposal_store.kind if proposal_store else "json",
         "private": True,
     }
     stored = json_store.ideas()
@@ -152,7 +152,7 @@ def synthesize(
         for candidate in kept:
             idea = idea_record(candidate, run=run, digest=digest, now=moment)
             if proposal_store:
-                idea["proposalId"] = proposal_store.file_idea(idea, idea["body"], digest["digestId"])
+                proposal_store.mark(idea, proposal_store.file_idea(idea, idea["body"], digest["digestId"]))
             json_store.save_idea(idea)
             run["ideas"].append(idea)
     run["ideasCreated"] = len(run["ideas"])
