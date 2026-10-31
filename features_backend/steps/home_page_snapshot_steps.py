@@ -56,6 +56,9 @@ class FixtureClient:
     def list_reference_attachments_by_lineage(self, reference_lineage_id: str) -> list[dict]:
         return [item for entry in self.fixture["references"] if entry["row"]["lineageId"] == reference_lineage_id for item in entry["attachments"]]
 
+    def list_published_item_summaries(self, *args, **kwargs) -> list[dict]:
+        return []  # the CLI scenarios project a site with no published Stories
+
     def list_records(self, model_name: str) -> list[dict]:
         assert model_name == "NewsroomSection"
         return list(self.fixture["sections"])
@@ -309,7 +312,7 @@ def cli_dry_run(context) -> None:
     with mock.patch("papyrus_content.knowledge_snapshot.commands.authoring_client", return_value=client), mock.patch(
         "papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)
     ), contextlib.redirect_stdout(printed):
-        home_page_snapshot(["--site", "example", "--out", context.output_directory.name, "--dry-run"])
+        home_page_snapshot(["--site", "example", "--out", context.output_directory.name, "--static-dir", str(FIXTURES / "home-page"), "--dry-run"])
     context.cli_output = printed.getvalue()
 
 
@@ -360,3 +363,112 @@ def purged_nothing(context) -> None:
 def purged_snapshot(context) -> None:
     assert context.report["written"] == [REFERENCES_KEY]
     assert context.report["purged"] == [REFERENCES_KEY]
+
+
+# ------------------------------------------------------------------ rewrite selection, refusal, dry-run keys, guard
+
+def run_cli(context, *flags: str) -> None:
+    client = FixtureClient()
+    printed = io.StringIO()
+    context.cli_error = None
+    with mock.patch("papyrus_content.knowledge_snapshot.commands.authoring_client", return_value=client), mock.patch(
+        "papyrus_content.graphql_authoring.create_authoring_client", return_value=(client, None)
+    ), contextlib.redirect_stdout(printed):
+        try:
+            home_page_snapshot(["--site", "example", *flags])
+        except ValueError as error:
+            context.cli_error = str(error)
+    context.cli_output = printed.getvalue()
+
+
+@when('the stored digest of the page "{key}" no longer matches')
+def digest_mismatch(context, key: str) -> None:
+    context.before_bytes = {key: context.site.writer.get(key)}
+    context.site.writer.put(key, context.before_bytes[key], inputs="digest-of-another-build")
+
+
+@then('the page "{key}" still holds the bytes it held before')
+def bytes_unchanged(context, key: str) -> None:
+    assert context.site.writer.get(key) == context.before_bytes[key]
+
+
+@when("papyrus home-page snapshot runs against an output directory with a static directory that holds no projection.json")
+def cli_without_projection(context) -> None:
+    context.output_directory = tempfile.TemporaryDirectory()
+    context.add_cleanup(context.output_directory.cleanup)
+    static = tempfile.TemporaryDirectory()
+    context.add_cleanup(static.cleanup)
+    context.refused_path = static.name
+    run_cli(context, "--out", context.output_directory.name, "--static-dir", static.name)
+
+
+@then("the CLI refused with a message naming the missing projection.json")
+def cli_refused(context) -> None:
+    assert context.cli_error and "Refusing to write" in context.cli_error and "projection.json" in context.cli_error, context.cli_error
+    assert context.refused_path in context.cli_error or Path(context.refused_path).resolve().as_posix() in context.cli_error, context.cli_error
+
+
+@when("papyrus home-page snapshot --dry-run runs against the home-page fixture site")
+def cli_dry_run_fixture_site(context) -> None:
+    context.output_directory = tempfile.TemporaryDirectory()
+    context.add_cleanup(context.output_directory.cleanup)
+    run_cli(context, "--out", context.output_directory.name, "--static-dir", str(FIXTURES / "home-page"), "--dry-run")
+    assert context.cli_error is None, context.cli_error
+
+
+def listed(context, verb: str) -> list[str]:
+    return [line.split("\t")[2] for line in context.cli_output.splitlines() if line.startswith(f"home-page\t{verb}\t")]
+
+
+@then('the CLI listed "{verb}" for "{key}"')
+def cli_listed(context, verb: str, key: str) -> None:
+    assert key in listed(context, verb), context.cli_output
+
+
+@then('the CLI listed no "{verb}" for "{key}"')
+def cli_listed_not(context, verb: str, key: str) -> None:
+    assert key not in listed(context, verb), context.cli_output
+
+
+@then("the fixture output directory is still empty")
+def fixture_output_empty(context) -> None:
+    assert not list(Path(context.output_directory.name).rglob("*")), context.cli_output
+
+
+@given('a projector that also renders the page "{key}" when it is asked for the reader pages')
+def overeager_projector(context, key: str) -> None:
+    inner = context.site.projector
+
+    class Overeager:
+        def __getattr__(self, name):
+            return getattr(inner, name)
+
+        def listing_pages(self, site_index, keys=None):
+            pages = inner.listing_pages(site_index, keys)
+            pages[key] = b"<html>another page</html>"
+            return pages
+
+    source = context.site.context
+    context.guarded = ProjectionContext(source=source.source, projector=Overeager(), writer=source.writer, redirect_store=source.redirect_store)
+
+
+@when("the home-page-snapshot task runs and is aborted")
+def run_and_abort(context) -> None:
+    from papyrus_content.projection.engine import UnsafeRewrite
+
+    context.tree_before = dict(context.site.tree)
+    context.aborted_with = None
+    try:
+        run_home_page_snapshot(context.guarded, context.client, home_page_settings_of(context.site.projector), now=NOW)
+    except UnsafeRewrite as error:
+        context.aborted_with = str(error)
+
+
+@then('the abort names the page "{key}"')
+def abort_names(context, key: str) -> None:
+    assert context.aborted_with and key in context.aborted_with, context.aborted_with
+
+
+@then("the store is unchanged")
+def store_unchanged(context) -> None:
+    assert context.site.tree == context.tree_before

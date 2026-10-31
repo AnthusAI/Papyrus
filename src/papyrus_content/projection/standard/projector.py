@@ -241,6 +241,22 @@ class StandardMarkusProjector(MarkusSiteProjector):
             inputs.append(["threads", self._home_page.threads_digest()])
         return inputs
 
+    def home_page_reader_keys(self) -> frozenset[str]:
+        """The keys of the listing pages whose authored source places a home-page include (``kind="references"`` or ``kind="threads"``).
+
+        Only these pages read the home-page snapshot, so only these are rewritten when it changes (``papyrus home-page snapshot``)."""
+        keys: set[str] = set()
+        for custom in self.standard.pages:
+            if custom.source and self._reads_home_page(custom.source, f"pages.{custom.id}"):
+                keys.add(self.policy.listing_key(custom.path))
+        if self.standard.not_found.source and self._reads_home_page(self.standard.not_found.source, "notFound"):
+            keys.add(NOT_FOUND_KEY)
+        return frozenset(keys)
+
+    def _reads_home_page(self, source: str, owner: str) -> bool:
+        _text, found = self._page_includes(source, owner)
+        return any(home_page_blocks.is_home_page_include(attributes) or home_page_blocks.is_threads_include(attributes) for attributes in found)
+
     def _item_include(self, attributes: dict, source: str, site: SiteIndex, *, wiki_page: bool = False) -> str:
         """The includes an item page may place: the knowledge blocks, and, on a wiki page (a topic page), listings of other entries."""
         if knowledge_blocks.is_knowledge_block(attributes):

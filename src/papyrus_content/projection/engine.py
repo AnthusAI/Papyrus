@@ -25,6 +25,7 @@ from __future__ import annotations
 import functools
 import logging
 import re
+from collections.abc import Collection
 from contextlib import contextmanager
 from urllib.parse import quote
 from dataclasses import dataclass, field
@@ -549,17 +550,43 @@ def project_listings(context: ProjectionContext) -> ProjectionReport:
     return _finish(context, report)
 
 
+class UnsafeRewrite(ValueError):
+    """A rewrite would touch a page the caller did not select; raised before anything is written."""
+
+
+def stale_listing_keys(context: ProjectionContext, only: Collection[str] | None = None) -> list[str]:
+    """The listing pages whose stored inputs digest differs from the projector's now; with ``only``, just those among that selection."""
+    stale = _stale_listing_keys(context, context.source.site_index())
+    return stale if only is None else [key for key in stale if key in only]
+
+
+def check_rewrite_selection(context: ProjectionContext, only: Collection[str]) -> None:
+    """Raise :class:`UnsafeRewrite` when the projector would render any page outside ``only`` for that selection. Writes nothing."""
+    pages = context.projector.listing_pages(context.source.site_index(), set(only))
+    unselected = sorted(key for key in pages if key not in only)
+    if unselected:
+        raise UnsafeRewrite(f"Refusing to rewrite pages that do not read the home-page snapshot: {', '.join(unselected)}. Nothing was written.")
+
+
 @_leased
-def project_stale_listings(context: ProjectionContext) -> ProjectionReport:
+def project_stale_listings(context: ProjectionContext, only: Collection[str] | None = None) -> ProjectionReport:
     """Write only the listing pages whose stored inputs digest differs from the one the projector computes now.
 
     A page that reads a data file (a snapshot) changes digest when the file changes; every other page keeps its digest and is not touched.
+    With ``only`` the rewrite is also limited to that selection (the pages that read the data file), and a projector that renders any page
+    outside it makes the call raise :class:`UnsafeRewrite` before a single page is written.
     """
     report = ProjectionReport()
     site = context.source.site_index()
     stale = _stale_listing_keys(context, site)
+    if only is not None:
+        stale = [key for key in stale if key in only]
     if stale:
-        _write_listing_pages(context, report, context.projector.listing_pages(site, set(stale)), context.projector.listing_inputs(site))
+        pages = context.projector.listing_pages(site, set(stale))
+        unselected = sorted(key for key in pages if only is not None and key not in only)
+        if unselected:
+            raise UnsafeRewrite(f"Refusing to rewrite pages that do not read the home-page snapshot: {', '.join(unselected)}. Nothing was written.")
+        _write_listing_pages(context, report, pages, context.projector.listing_inputs(site))
     return _finish(context, report)
 
 
