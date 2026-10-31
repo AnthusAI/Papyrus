@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sync } from "../src/sync.mjs";
@@ -19,8 +20,12 @@ if (command === "sync") {
   }
 } else if (command === "alexa-sync") {
   // Runs in the site's Amplify build after the backend deploy: creates or updates the site's Alexa skill (docs/alexa.md).
-  const cli = fileURLToPath(new URL("../amplify/plugins/alexa/sync/cli.ts", import.meta.url));
-  const result = spawnSync("npx", ["--yes", "tsx", cli, ...rest], { stdio: "inherit" });
+  // The package ships the compiled cli.js next to cli.ts; a checkout without it runs the TypeScript through tsx.
+  const compiled = fileURLToPath(new URL("../amplify/plugins/alexa/sync/cli.js", import.meta.url));
+  const source = fileURLToPath(new URL("../amplify/plugins/alexa/sync/cli.ts", import.meta.url));
+  const result = existsSync(compiled)
+    ? spawnSync(process.execPath, [compiled, ...rest], { stdio: "inherit" })
+    : spawnSync("npx", ["--yes", "tsx", source, ...rest], { stdio: "inherit" });
   process.exit(result.status ?? 1);
 } else if (command === "videoml-bundle") {
   const preview = rest.includes("--preview");

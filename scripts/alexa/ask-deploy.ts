@@ -8,4 +8,4 @@
  */
 import { runCli } from "../../amplify/plugins/alexa/sync/cli";
 
-process.exit(await runCli(process.argv.slice(2)));
+void runCli(process.argv.slice(2)).then((code) => process.exit(code));

@@ -46,6 +46,7 @@ export async function runCli(argv: string[], log: (line: string) => void = conso
   }
 }
 
-if (process.argv[1]?.endsWith("sync/cli.ts")) {
-  process.exit(await runCli(process.argv.slice(2)));
+// Run directly (the package's compiled cli.js, or cli.ts under tsx): no top-level await, which tsx's CJS transform rejects.
+if (/sync\/cli\.(ts|js)$/.test(process.argv[1] ?? "")) {
+  void runCli(process.argv.slice(2)).then((code) => process.exit(code));
 }
