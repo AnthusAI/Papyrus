@@ -110,6 +110,7 @@
     "test:revalidate-secret": "tsx scripts/test-revalidate-secret.ts",
     "test:with-papyrus-tracing": "node scripts/test-with-papyrus-tracing.mjs",
     "test:with-papyrus-transpile": "node scripts/test-with-papyrus-transpile.mjs",
+    "test:with-papyrus-build-checks": "node scripts/test-with-papyrus-build-checks.mjs",
     "test:with-papyrus-static-generation": "node scripts/test-with-papyrus-static-generation.mjs",
     "test:guest-read-auth": "tsx scripts/test-guest-read-auth.ts",
     "test:shared-credentials-provider": "tsx scripts/test-shared-credentials-provider.ts",
