@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 
 from ..model import ItemSummary
 from . import components
-from .config import StandardSettings
+from .config import SectionConfig, StandardSettings
 from .entries import StandardEntry
 from .environment import SiteEnvironment
 from .head import PageHead
@@ -42,6 +42,38 @@ class ListingView:
 
 
 @dataclass(frozen=True)
+class SectionTab:
+    """One entry of the section tabs: the section's label and address, and whether it is the page being shown."""
+
+    label: str
+    href: str
+    current: bool = False
+
+
+@dataclass(frozen=True)
+class SectionIndexView:
+    """Page 1 of a section's listing as a front page: tabs, the section's own words, a lead Story, the latest entries and a Reference grid."""
+
+    section: SectionConfig
+    listing: ListingView
+    tabs: tuple[SectionTab, ...]
+    lead: StandardEntry | None
+    latest: tuple[StandardEntry, ...]
+    references_html: str = ""
+    references_selection: str | None = None
+    references_count: int = 0
+
+
+@dataclass(frozen=True)
+class HomeSectionBlock:
+    """One block of the home of sections: a section, the address of its index page and its newest entries."""
+
+    section: SectionConfig
+    href: str
+    entries: tuple[StandardEntry, ...]
+
+
+@dataclass(frozen=True)
 class StandardPage:
     kind: str
     path: str
@@ -63,6 +95,8 @@ class StandardPage:
     page_actions: str = ""                      # item pages: the page-actions markup core would place (empty when off), for hooks that compose their own body
     wiki_stamp: str = ""                        # wiki pages: the review stamp and any superseded notice, placed above the text
     wiki_footer: str = ""                       # wiki pages: "Updated", the data link and the suggest-an-edit form, placed below the text
+    section_index: SectionIndexView | None = None    # section front pages: what the generated layout shows (empty fragment unless the index is authored)
+    home_sections: tuple[HomeSectionBlock, ...] = ()  # the home of sections: one block per section
     ledger: PageLedger = field(default_factory=PageLedger)   # what this page render has placed so far; shared by every include on it
     components = components
 

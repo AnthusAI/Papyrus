@@ -57,7 +57,7 @@ from .head import HeadBuilder, PageHead
 from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
-from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
+from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path, section_index_markdown, sections_home_markdown
 from . import wiki
 from .page_actions import SCRIPT_PATH as PAGE_ACTIONS_SCRIPT, render_page_actions
 from .forms import FORM_SCRIPT_PATH, render_form
@@ -65,7 +65,7 @@ from .fragments import MARKUS_ARTICLE_CLOSE_PATTERN, first_image_of, lede_of, wi
 from .family import family_footer
 from .grouping import group_entries, group_key, group_label
 from .hooks import NO_HOOKS, HookSite, Hooks, load_hooks
-from .page import ListingView, StandardPage
+from .page import HomeSectionBlock, ListingView, SectionIndexView, SectionTab, StandardPage
 from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
 from .newsletter_pages import NEWSLETTER_PLUGIN
@@ -93,6 +93,7 @@ ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document"[^>]*>')
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
 HOME_PAGE_CSS_PATH = "css/papyrus-home-page.css"
+SECTION_FRONTS_CSS_PATH = "css/papyrus-section-fronts.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
 ISLANDS_RUNTIME_PATH = "_plugins/papyrus-islands-v1.js"
 MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
@@ -120,6 +121,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             files[KNOWLEDGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-knowledge.css").read_bytes()
         if standard.home_page is not None:
             files[HOME_PAGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-home-page.css").read_bytes()
+        if standard.section_fronts:
+            files[SECTION_FRONTS_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-section-fronts.css").read_bytes()
         if standard.nav_disclosure:
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
         if standard.page_actions.enabled and standard.agents.markdown:
@@ -498,21 +501,39 @@ class StandardMarkusProjector(MarkusSiteProjector):
         # home
         if not self._authored_home(site) and not any(custom.path == "" for custom in self.standard.pages):
             home_entries = tuple(listed[: self.standard.listings.home_count])
+            home_blocks: tuple[HomeSectionBlock, ...] = ()
+            home_digest: list = [self._fingerprints(home_entries), self._section_links()]
+            if self.standard.sections_home:
+                home_blocks = self._home_section_blocks(listed)
+                home_entries = tuple(entry for block in home_blocks for entry in block.entries)
+                home_digest = [self._fingerprints(home_entries), self._section_links(), [(block.section.name, block.href) for block in home_blocks], self.standard.home_page.per_section, self.standard.home_page.home_lead]
             add(
                 self.policy.key(HOME_PAGE_PATH),
                 "home",
-                [self._fingerprints(home_entries), self._section_links()],
+                home_digest,
                 lambda: self._page(
                     "home",
                     PageHead(title=self.standard.identity.name, path=self.policy.path("/"), description=self.standard.identity.description, social_title=self.standard.seo.home_social_title),
                     site, entries=tuple(listed), listing=ListingView("", self.standard.home_link_label, home_entries, tuple(listed), 1, 1, root=self.policy.root),
+                    home_sections=home_blocks,
                 ),
             )
 
         # listings: one flat listing, or one per section that has something to list
-        for base, label, section_name, members in self._listing_groups(listed):
-            for view in self._paginate(base, label, members, section_name):
+        listing_groups = list(self._listing_groups(listed))
+        for base, label, section_name, members in listing_groups:
+            section_config = self.standard.section(section_name)
+            index = section_config.index if section_config is not None else None
+            for view in self._paginate(base, label, members, section_name, first_page=index.latest if index is not None else None):
                 key = self.policy.listing_key(base, view.page)
+                if index is not None and view.page == 1:
+                    add(
+                        key,
+                        f"listing:{section_name}",
+                        self._section_index_inputs(section_config, view, entries, summaries, listing_groups),
+                        self._section_index_builder(section_config, view, site, listed, listing_groups),
+                    )
+                    continue
                 intro = self._intro(summaries, section_name) if view.page == 1 else None
                 add(
                     key,
@@ -709,6 +730,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         full_enabled = agents.llms_full and 0 < len(full_entries) + len(authored) + len(static_documents) <= agents.llms_full_max_items
         if agents.llms_txt:
             optional = []
+            if self.standard.section_fronts:
+                optional.extend(self._section_front_links(listed))
             if "rss" in self.standard.feeds.formats:
                 optional.append(("RSS feed", self.policy.path(self.standard.feeds.rss_path)))
             if "atom" in self.standard.feeds.formats:
@@ -737,8 +760,13 @@ class StandardMarkusProjector(MarkusSiteProjector):
         origin = self.environment.origin
         description = page.description or identity.description
         view = page.listing
+        if page.kind == "home" and self.standard.sections_home:
+            blocks_for_twin = [(block.section.label, md_path(self.policy.listing_key(block.section.base)), block.entries) for block in page.home_sections]
+            return sections_home_markdown(identity.name, description, blocks_for_twin, origin)
         if page.kind == "home" and view is not None:
             return listing_markdown(identity.name, description, view.entries, origin)
+        if page.kind == "listing" and page.section_index is not None:
+            return self._section_index_markdown(page)
         if page.kind in ("listing", "tag", "archive") and view is not None:
             title = page.title
             return listing_markdown(
@@ -759,6 +787,33 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return self._authored_markdown(custom)
         return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else [])]).rstrip() + "\n"
 
+    def _section_index_markdown(self, page: StandardPage) -> str:
+        fronts = page.section_index
+        section, view = fronts.section, page.listing
+        origin = self.environment.origin
+        if section.index.source:
+            facts = SimpleNamespace(title=page.title, authors=(), author_details=(), date="", updated="", summary_text=page.description or "")
+            return item_markdown(facts, self._twin(self._page_text(section.index.source, f"urls.sections.{section.name}.index"), section.index.source), self.head.absolute(page.path))
+        include_line = ""
+        if section.index.references:
+            attributes = " ".join(f'{name}="{value}"' for name, value in self._reference_attributes(section).items())
+            include_line = f"::include{{{attributes}}}"
+        return section_index_markdown(
+            page.title, page.description or self.standard.identity.description, view.entries, origin, include_line=include_line,
+            page=view.page, pages=view.pages, page_md=lambda number: md_path(self.policy.listing_key(view.base, number)),
+        )
+
+    def _section_front_links(self, listed: list[StandardEntry]) -> list[tuple[str, str]]:
+        """``llms.txt`` links to the Markdown twins of the section front pages that exist."""
+        links = []
+        if self.standard.sections_home and not any(custom.path == "" for custom in self.standard.pages):
+            links.append(("Home of sections", md_path(self.policy.key(HOME_PAGE_PATH))))
+        for base, label, name, _members in self._listing_groups(listed):
+            section = self.standard.section(name)
+            if section is not None and section.index is not None:
+                links.append((f"{label} front page", md_path(self.policy.listing_key(base))))
+        return links
+
     def _section_links(self) -> list:
         return [(section.label, section.base) for section in self.standard.sections if section.listing and section.listing_page]
 
@@ -776,7 +831,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             if members or section.list_empty:
                 yield section.base, section.label, section.name, members
 
-    def _paginate(self, base: str, label: str, members: list[StandardEntry], section: str | None, *, tag: str | None = None, collection: CollectionConfig | None = None, drafts=()):
+    def _paginate(self, base: str, label: str, members: list[StandardEntry], section: str | None, *, tag: str | None = None, collection: CollectionConfig | None = None, drafts=(), first_page: int | None = None):
         settings = self.standard.listings
         configured = self.standard.section(section)
         size = configured.page_size if configured is not None and configured.page_size else settings.page_size
@@ -787,6 +842,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if tag is not None and settings.tag_page_size is not None:
             size, featured_count = settings.tag_page_size or max(len(members), 1), 0
         first = featured_count + size
+        if first_page is not None:
+            first = first_page
+            featured_count = min(featured_count, first)
         remaining = max(0, len(members) - first)
         pages = 1 + math.ceil(remaining / size)
         for number in range(1, pages + 1):
@@ -865,6 +923,59 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 description = clipped(first_text(intro.front_matter, self.standard.summary_fields or SUMMARY_FIELDS), 300) or lede_of(fragment) or description
             head = PageHead(title=title, path=view.url_for_page(view.page), description=description)
             return self._page(kind, head, site, entries=tuple(listed), listing=view, fragment=fragment)
+
+        return build
+
+    def _home_section_blocks(self, listed: list[StandardEntry]) -> tuple[HomeSectionBlock, ...]:
+        """One block per section that has a listing page, in ``urls.sections`` order or the order ``homePage.homeSections`` gives."""
+        settings = self.standard.home_page
+        members_of = {name: members for _base, _label, name, members in self._listing_groups(listed) if name}
+        order = settings.home_sections or tuple(section.name for section in self.standard.sections)
+        found = []
+        for name in order:
+            if name not in members_of:
+                continue
+            section = self.standard.section(name)
+            found.append(HomeSectionBlock(section, self.policy.path(f"/{section.base}/"), tuple(members_of[name][: settings.per_section])))
+        return tuple(found)
+
+    def _section_tabs(self, listing_groups, current: str) -> tuple[SectionTab, ...]:
+        return tuple(SectionTab(label, self.policy.path(f"/{base}/"), name == current) for base, label, name, _members in listing_groups if name)
+
+    def _section_index_inputs(self, section: SectionConfig, view: ListingView, entries, summaries, listing_groups) -> list:
+        index = section.index
+        inputs: list = [
+            self._fingerprints(view.entries), view.pages, len(view.featured), dataclasses.asdict(index),
+            [(base, label) for base, label, name, _members in listing_groups if name],
+        ]
+        if index.references:
+            inputs.append(self._home_page.digest())
+        if index.source:
+            text, found = self._page_includes(index.source, f"urls.sections.{section.name}.index")
+            inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
+        return inputs
+
+    def _reference_attributes(self, section: SectionConfig) -> dict:
+        count = section.index.references_count or self.standard.home_page.references.default_count
+        return {"kind": "references", "select": section.index.references, "count": str(count), "section": section.name}
+
+    def _section_index_builder(self, section: SectionConfig, view: ListingView, site: SiteIndex, listed: list[StandardEntry], listing_groups):
+        def build() -> StandardPage:
+            index = section.index
+            head = PageHead(title=view.label, path=view.url_for_page(1), description=section.description or self.standard.identity.description)
+            page = self._page("listing", head, site, entries=tuple(listed), listing=view)
+            owner = f"urls.sections.{section.name}.index"
+            lead = view.entries[0] if index.lead and view.entries else None
+            latest = view.entries[1:] if lead is not None else view.entries
+            references_html = ""
+            if index.references and index.source is None:
+                labels = {configured.name: configured.label for configured in self.standard.sections}
+                references_html = home_page_blocks.render(
+                    {**self._reference_attributes(section), "heading": "References"}, self._home_page.references(), page.ledger, self.standard.home_page, labels,
+                )
+            fronts = SectionIndexView(section, view, self._section_tabs(listing_groups, section.name), lead, tuple(latest), references_html, index.references)
+            fragment = self._authored_fragment(index.source, owner, self.policy.listing_key(view.base), page) if index.source else ""
+            return dataclasses.replace(page, section_index=fronts, fragment=fragment)
 
         return build
 
@@ -1047,6 +1158,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             sheets.insert(sheets.index(COMPONENTS_CSS_PATH) + 1, KNOWLEDGE_CSS_PATH)
         if self.standard.home_page is not None and HOME_PAGE_CSS_PATH not in sheets:
             sheets.append(HOME_PAGE_CSS_PATH)
+        if self.standard.section_fronts and SECTION_FRONTS_CSS_PATH not in sheets:
+            sheets.append(SECTION_FRONTS_CSS_PATH)
         if self.standard.islands is not None and self.standard.islands.stylesheet:
             sheets.append(self.standard.islands.stylesheet)
         if self.environment.guarded and (base.ga_measurement_id is not None or base.consent_mode is not None):
@@ -1274,6 +1387,14 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return before + page.fragment + after
         if page.kind in ("home", "custom", "newsletter_page") and page.fragment:
             return page.fragment
+        if page.kind == "listing" and page.section_index is not None:
+            if page.section_index.section.index.source:
+                return page.fragment
+            return components.section_index_html(page.section_index, lambda entry: self._card(entry, page))
+        if page.kind == "home" and self.standard.sections_home:
+            return components.home_sections_html(
+                identity.name, identity.description, page.home_sections, lambda entry: self._card(entry, page), lead=self.standard.home_page.home_lead,
+            )
         if page.kind == "home":
             view = page.listing
             links = "".join(

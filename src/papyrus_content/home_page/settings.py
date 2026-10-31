@@ -44,6 +44,8 @@ class FreshnessSettings:
 class HomePageSettings:
     layout: str = "latest"
     per_section: int = 4
+    home_lead: bool = True
+    home_sections: tuple[str, ...] | None = None
     references: ReferencesSettings = field(default_factory=ReferencesSettings)
     threads: ThreadsSettings = field(default_factory=ThreadsSettings)
     freshness: FreshnessSettings = field(default_factory=FreshnessSettings)
@@ -90,10 +92,20 @@ def _fields(value: Any) -> tuple[str, ...]:
     return tuple(name for name in PUBLIC_REFERENCE_FIELDS if name in value)
 
 
+def _section_names(value: Any) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or not value or not all(isinstance(name, str) and name for name in value):
+        raise ValueError("homePage.homeSections must be a list of section names or null")
+    if len(set(value)) != len(value):
+        raise ValueError("homePage.homeSections names a section twice")
+    return tuple(value)
+
+
 def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     if not isinstance(raw, Mapping):
         raise ValueError("homePage must be an object")
-    _only(raw, ("layout", "perSection", "references", "threads", "freshness"), "homePage")
+    _only(raw, ("layout", "perSection", "homeLead", "homeSections", "references", "threads", "freshness"), "homePage")
     defaults = HomePageSettings()
     layout = raw.get("layout", defaults.layout)
     if layout not in LAYOUTS:
@@ -122,6 +134,8 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     return HomePageSettings(
         layout=layout,
         per_section=_whole_number(raw.get("perSection", defaults.per_section), "homePage.perSection", 1),
+        home_lead=_flag(raw.get("homeLead", defaults.home_lead), "homePage.homeLead"),
+        home_sections=_section_names(raw.get("homeSections")),
         references=ReferencesSettings(
             corpus=corpus.strip() if corpus else None,
             fields=_fields(references_raw.get("fields", "all")),
