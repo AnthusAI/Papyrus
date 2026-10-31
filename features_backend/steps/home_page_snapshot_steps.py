@@ -113,6 +113,17 @@ def site_with_home_page(context) -> None:
     start_site(context)
 
 
+@given("a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References")
+def site_with_reference_pages(context) -> None:
+    site_directory = FIXTURES / "home-page"
+    extra_files = {f"pages/{path.name}": path.read_bytes() for path in sorted((site_directory / "pages").glob("*.md"))}
+    context.client = FixtureClient()
+    context.site = ProjectedSite(settings=json.loads((site_directory / "projection.json").read_text(encoding="utf-8")), content=site_directory / "content", extra_files=extra_files)
+    context.add_cleanup(context.site.cleanup)
+    context.reports = []
+    context.base_path = ""
+
+
 @given("a site whose projection.json has no homePage setting")
 def site_without_home_page(context) -> None:
     start_site(context, home_page=None)
@@ -264,7 +275,18 @@ def file_written(context) -> None:
 @then("only pages that read the file are re-rendered")
 def only_reading_pages(context) -> None:
     pages = [key for operation, key in context.site.writer.operations if operation == "put" and key != snapshot_key(context)]
+    assert pages, "no page was re-rendered"
     assert all("references" in context.site.text(key) for key in pages), pages
+
+
+@then('the page "{key}" was re-rendered')
+def page_rewritten(context, key: str) -> None:
+    assert ("put", key) in context.site.writer.operations, context.site.writer.operations
+
+
+@then('the page "{key}" was not re-rendered')
+def page_not_rewritten(context, key: str) -> None:
+    assert ("put", key) not in context.site.writer.operations, context.site.writer.operations
 
 
 @then("the file is still in the store")
