@@ -62,3 +62,6 @@ preview-screenshots/
 
 # Local feed preview data (real exports; never committed)
 .local-preview/
+
+# Federation review packets hold client and pool ids; never committed
+federation-packet-*.md

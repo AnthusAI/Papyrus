@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "8595d064-9e47-4b0d-95e5-9d522d7ccc10",
+  "issue_id": "PPY-908cef82-b00f-4bae-89fb-ef3906cf93cc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T13:21:59.125Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "p.apyr.us docs: voting on one 1-5 scale, stars and thumbs, Reference voting, migration",
+    "description": "Repo: **Papyrus-web** (p.apyr.us). Files: the reader-steering docs page (find with `grep -rln \"reader\" web/pages` or the docs section index), a new section or page \"Voting: stars and thumbs on one scale\", plus the configuration reference page where `subjects.types` and `dimensions` are documented.\n\n## Content\n- The one scale: every judgement is 1-5; thumbs are 5 and 1; stars are the pick; why (one mean, one shrinkage rule, docs/score-combination.md link).\n- What readers see: \"4.2 ★ from 31\" and \"82% up\"; icon + text, never colour alone.\n- Configuration: `subjects.types` incl. `reference`; `reader.controls` per subject type; `homePage.references.readerRating`; `dimensions` with `up` optional in ranking. Everything off by default; what adds resources (the Reference table grant) and when.\n- Migration note for sites with old ±1 votes: `papyrus reader migrate-votes --dry-run` then run; the published shape `{mean, n, hist, upShare}`; `net` is gone.\n- Privacy: counts, means, histograms; no reader identity ever public.\n- The recorded recommendation: an overall star rating beside a site's rating dimensions, not instead of them.\n\n## Gherkin (Papyrus-web page tests)\n  Scenario: The docs describe the one-to-five scale and both controls\n  Scenario: Every setting named in the docs exists in the configuration reference\n\n## Acceptance\nPR to Papyrus-web merges without screenshot approval (memory: Papyrus-web merges freely); page live on p.apyr.us. Blocked by every other story in the epic (it documents shipped behaviour).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

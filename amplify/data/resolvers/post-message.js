@@ -34,6 +34,7 @@ export function request(ctx) {
     summary: args.summary ? args.summary : content.slice(0, 120),
     source: args.source,
     authorSub: identity.sub,
+    authorKind: "staff",
     authorLabel: label,
     threadId: args.threadId,
     parentMessageId: args.parentMessageId,

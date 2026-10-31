@@ -1811,6 +1811,8 @@ const schema = a.schema({
       authorSub: a.string(),
       authorUserProfileId: a.id(),
       authorLabel: a.string(),
+      authorKind: a.string().default("staff"),
+      authorReaderId: a.string(),
       editedAt: a.datetime(),
       deletedAt: a.datetime(),
       deletedBySub: a.string(),

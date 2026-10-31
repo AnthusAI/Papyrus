@@ -493,6 +493,10 @@ def _check_section_fronts(sections, home_page: HomePageSettings | None) -> None:
             raise ValueError(f"urls.sections.{section.name}.index.references needs homePage in projection.json")
     if home_page is None:
         return
+    if home_page.forum is not None:
+        thread_base = _unreserved_segment(home_page.forum.thread_base, "homePage.forum.threadBase")
+        if any(section.base == thread_base for section in sections):
+            raise ValueError(f"homePage.forum.threadBase {thread_base!r} is already the base of a section")
     if home_page.layout == "sections" and not any(section.listing and section.listing_page for section in sections):
         raise ValueError('homePage.layout "sections" needs urls.sections with at least one listed section')
     unknown = [name for name in home_page.home_sections or () if not any(section.name == name and section.listing and section.listing_page for section in sections)]

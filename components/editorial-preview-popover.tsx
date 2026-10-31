@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { EditorialFinding, Span } from "../lib/editorial-checks";
-import { EditorialFindingCard, RewriteOptions, useRewriteOptions, type FindingActions } from "./editorial-finding-card";
+import { FLAT_PRIMARY_BUTTON_CLASS, EditorialFindingCard, RewriteOptions, useRewriteOptions, type FindingActions } from "./editorial-finding-card";
 
 /** What the popover is about: findings at a marked passage, or a passage the editor selected. */
 export type PreviewPopoverTarget =
@@ -57,7 +57,8 @@ export function EditorialPreviewPopover({
   return (
     <div
       aria-label={target.kind === "findings" ? "Editorial findings for this passage" : "Rewrite the selected passage"}
-      className="absolute z-20 max-h-[28rem] space-y-2 overflow-auto rounded-xl border border-border bg-popover p-3 text-sm text-popover-foreground shadow-lg outline-none"
+      className="absolute z-20 max-h-[28rem] space-y-2 overflow-auto rounded-xl bg-popover p-3 text-sm text-popover-foreground shadow-lg outline-none"
+      data-editorial-finding="popover"
       data-editorial-preview-popover={target.kind}
       ref={panel}
       role="dialog"
@@ -67,12 +68,12 @@ export function EditorialPreviewPopover({
       <div className="flex items-center gap-2">
         <Input
           aria-label="Note for rewrites"
-          className="h-8 flex-1"
+          className="h-8 flex-1 border-0 bg-muted"
           onChange={(event) => setNote(event.target.value)}
           placeholder="Note for rewrites, e.g. shorter"
           value={note}
         />
-        <Button aria-label="Close" onClick={onClose} size="icon-xs" type="button" variant="ghost">
+        <Button className="border-0" aria-label="Close" onClick={onClose} size="icon-xs" type="button" variant="ghost">
           <XIcon aria-hidden="true" />
         </Button>
       </div>
@@ -85,13 +86,14 @@ export function EditorialPreviewPopover({
       ) : (
         <div className="space-y-2" data-editorial-selection-rewrite>
           <q className="block text-muted-foreground">{body.slice(target.source.start, target.source.end)}</q>
-          <Button
+          <Button className={FLAT_PRIMARY_BUTTON_CLASS}
             data-editorial-rewrite-selection
             onClick={() => {
               void selectionRewrites.request({ selection: target.source }, note.trim() || null);
             }}
             size="xs"
             type="button"
+            variant="ghost"
           >
             <SparklesIcon aria-hidden="true" /> Suggest rewrites
           </Button>

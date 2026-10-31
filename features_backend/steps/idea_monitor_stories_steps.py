@@ -153,6 +153,36 @@ def step_promoted(context, title):
     held.items.append({"id": "item-promoted", "metadata": {"frontMatterYaml": f"monitorRecord:\n  referenceId: {row_of(context, title)['id']}\n"}})
 
 
+@given('"{title}" links to the same address as "{other}"')
+def step_same_address(context, title, other):
+    row_of(context, title)["sourceUri"] = row_of(context, other)["sourceUri"]
+
+
+@given('another run files a Proposal for "{title}" after this run has read the existing ones')
+def step_concurrent(context, title):
+    state(context).concurrent = title
+
+
+def with_concurrent_run(context, client):
+    """The backend as seen by a run that overlaps another: the Proposal appears after the run's first read of the story drafts."""
+    held = state(context)
+    title = getattr(held, "concurrent", None)
+    if title is None or getattr(client, "_overlap_installed", False):
+        return
+    original, reads = client.graphql, []
+
+    def graphql(query, variables=None):
+        if "listStoryDrafts" in query:
+            reads.append(1)
+            if len(reads) == 2:
+                client.filed.append({"id": "prop-concurrent", "state": "draft", "createdAt": "2026-10-23T12:00:01Z", "kind": "story_draft", "title": title,
+                                     "targets": json.dumps([{"type": "entity", "id": f"reference:{row_of(context, title)['lineageId']}"}])})
+        return original(query, variables)
+
+    client.graphql = graphql
+    client._overlap_installed = True
+
+
 def fetch_for(context):
     held = state(context)
 
@@ -171,6 +201,7 @@ def run_drafts(context, *, limit=monitor_stories.DEFAULT_LIMIT, dry_run=False, p
     if held.model is None:
         held.model = StoryModel(by_url=held.overrides)
     held.model.by_url = held.overrides
+    with_concurrent_run(context, client)
     with mock.patch.dict(os.environ, {"PAPYRUS_GRAPHQL_AUTH": "iam"}):
         run = monitor_stories.draft_monitor_stories(
             client=client, site=SITE, context=site_context(), json_store=JsonStore(Path(held.directory.name)), transport=held.model,
@@ -306,6 +337,22 @@ def step_learned(context, tau, examples):
 @then("the run record has no freshness weight")
 def step_no_freshness(context):
     assert last(context)["freshness"]["tauDays"] is None, last(context)["freshness"]
+
+
+@then("the run record counts {count:d} item skipped for sharing an address with a drafted one")
+def step_same_source(context, count):
+    assert last(context)["inputs"]["sameSource"] == count, last(context)["inputs"]
+
+
+@then("no Proposal is filed by this run")
+def step_no_filing(context):
+    assert [row["id"] for row in client_of(context).filed if row["id"] != "prop-concurrent"] == []
+    assert last(context)["drafts"] == []
+
+
+@then('the run record says "{title}" was already drafted')
+def step_already_drafted(context, title):
+    assert any(row["reason"] == "already_drafted" and row["title"] == title for row in last(context)["skipped"]), last(context)["skipped"]
 
 
 @then("the model was asked exactly {count:d} times")

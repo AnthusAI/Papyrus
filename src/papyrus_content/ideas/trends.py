@@ -38,6 +38,7 @@ from .digest import iso
 from .excluded_hosts import is_excluded, normalize_hosts
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, RunRefused, comparison_documents
 from .review import request_human_review
+from .items import IdeaRefused
 from .store import JsonStore, ProposalStore
 
 DEFAULT_MAXIMUM_DRAFTS = 3
@@ -951,7 +952,7 @@ def draft_trends(
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(snapshot["source"], moment), "kind": "trends-run", "publication": site, "startedAt": iso(moment), "model": model,
-        "store": "dry-run" if dry_run else ("proposals" if proposal_store else "json"), "dryRun": dry_run, "private": True,
+        "store": "dry-run" if dry_run else (proposal_store.kind if proposal_store else "json"), "dryRun": dry_run, "private": True,
         "snapshot": {"source": snapshot["source"], "asOf": snapshot["asOf"]},
     }
     stored = json_store.ideas() if json_store else []
@@ -994,7 +995,11 @@ def draft_trends(
         for record in kept:
             if not dry_run:
                 if proposal_store:
-                    record["proposalId"] = proposal_store.file_story_draft(record)
+                    try:
+                        proposal_store.mark(record, proposal_store.file_story_draft(record))
+                    except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed
+                        run["invalid"].append(refusal.as_invalid(record))
+                        continue
                 if json_store:
                     json_store.save_idea(record)
             run["drafts"].append(record)

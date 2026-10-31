@@ -1,0 +1,20 @@
+{
+  "id": "PPY-ac547732-51dc-4a25-8b2d-899ae301d262",
+  "title": "Never draft a Reference twice in monitor stories",
+  "description": "monitor_stories files several Proposals for the same Reference (CPU cache x4, Bernstein x3); the docs promise once. Fix and dedupe.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:07:27.298785Z",
+  "updated_at": "2026-10-31T14:07:27.298913Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

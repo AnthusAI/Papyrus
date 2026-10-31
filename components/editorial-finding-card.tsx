@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { describeProbability, type EditorialFinding, type RewriteResult, type Span } from "../lib/editorial-checks";
 
+/** Flat buttons: the newsroom skin outlines primary and secondary buttons, so these use the ghost variant with their own tone. */
+export const FLAT_BUTTON_CLASS = "border-0 bg-background";
+export const FLAT_PRIMARY_BUTTON_CLASS = "border-0 bg-foreground text-background hover:bg-foreground/80 hover:text-background";
+
 export type RewriteTarget = { finding: EditorialFinding } | { selection: Span };
 export type ApplyRewrite = (option: { span: Span; replacement: string; expected: string }, finding: EditorialFinding | null) => void;
 
@@ -58,7 +62,7 @@ export function RewriteOptions({
       <p className="text-xs text-muted-foreground" data-editorial-rewrite-target>Rewriting: “{result.target.excerpt}”</p>
       <ol className="space-y-2">
         {result.options.map((option, index) => (
-          <li className="space-y-1 rounded-md bg-muted/40 p-2" data-editorial-rewrite-option={index} key={option.id}>
+          <li className="space-y-1 rounded-xl bg-muted p-2" data-editorial-rewrite-option={index} key={option.id}>
             <p>{option.replacement}</p>
             <p className="text-xs text-muted-foreground">{option.rationale}</p>
             {option.factVerificationRequired ? <p className="text-xs text-destructive">Changes a factual claim: verify before using.</p> : null}
@@ -67,7 +71,7 @@ export function RewriteOptions({
                 {option.unresolvedQuestions.map((question) => <li key={question}>{question}</li>)}
               </ul>
             ) : null}
-            <Button
+            <Button className={FLAT_PRIMARY_BUTTON_CLASS}
               data-editorial-use-option
               onClick={() => onApply({ span: option.span, replacement: option.replacement, expected: result.target.excerpt }, finding)}
               size="xs"
@@ -98,8 +102,9 @@ export function EditorialFindingCard({
   const rewrites = useRewriteOptions(actions);
   return (
     <div
-      className="space-y-1 rounded-lg border border-border p-2 data-[active=true]:border-ring"
+      className="space-y-1 rounded-xl bg-background p-2 data-[active=true]:bg-muted"
       data-active={active}
+      data-editorial-finding="card"
       data-editorial-finding-item={finding.id}
     >
       <button className="block w-full text-left" onClick={() => actions.onSelect?.(finding)} type="button">
@@ -112,27 +117,27 @@ export function EditorialFindingCard({
       </button>
       <div className="flex flex-wrap gap-1">
         {finding.replacement !== undefined ? (
-          <Button
+          <Button className={FLAT_BUTTON_CLASS}
             data-editorial-use-replacement={finding.replacement}
             onClick={() => actions.onApply({ span: finding.span, replacement: finding.replacement ?? "", expected: finding.excerpt }, finding)}
             size="xs"
             type="button"
-            variant="outline"
+            variant="ghost"
           >
             <CheckIcon aria-hidden="true" /> {finding.replacement ? `Use “${finding.replacement}”` : "Remove"}
           </Button>
         ) : null}
         {finding.excerpt ? (
-          <Button data-editorial-suggest onClick={() => void rewrites.request({ finding }, note.trim() || null)} size="xs" type="button" variant="outline">
+          <Button className={FLAT_BUTTON_CLASS} data-editorial-suggest onClick={() => void rewrites.request({ finding }, note.trim() || null)} size="xs" type="button" variant="ghost">
             <SparklesIcon aria-hidden="true" /> Suggest rewrites
           </Button>
         ) : null}
         {finding.status === "review" ? (
-          <Button onClick={() => actions.onAccept(finding)} size="xs" type="button" variant="ghost">
+          <Button className="border-0" onClick={() => actions.onAccept(finding)} size="xs" type="button" variant="ghost">
             It&apos;s a problem
           </Button>
         ) : null}
-        <Button data-editorial-dismiss onClick={() => setDismissing("")} size="xs" type="button" variant="ghost">
+        <Button className="border-0" data-editorial-dismiss onClick={() => setDismissing("")} size="xs" type="button" variant="ghost">
           <XIcon aria-hidden="true" /> Dismiss
         </Button>
       </div>
@@ -148,12 +153,12 @@ export function EditorialFindingCard({
           <Input
             aria-label="Why dismiss?"
             autoFocus
-            className="h-8"
+            className="h-8 border-0 bg-muted"
             onChange={(event) => setDismissing(event.target.value)}
             placeholder="Why? (optional, helps tune this policy)"
             value={dismissing}
           />
-          <Button data-editorial-confirm-dismiss size="xs" type="submit">Dismiss</Button>
+          <Button className={FLAT_PRIMARY_BUTTON_CLASS} data-editorial-confirm-dismiss size="xs" type="submit" variant="ghost">Dismiss</Button>
         </form>
       ) : null}
       <RewriteOptions finding={finding} onApply={actions.onApply} suggestion={rewrites.suggestion} />

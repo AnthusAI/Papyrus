@@ -11,6 +11,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import tempfile
 import urllib.parse
 from contextlib import redirect_stdout
@@ -363,3 +364,35 @@ def none_registered(context):
     _run(context)
     assert load_registry() == []
     assert not any(store.data for store in context.stores.values())
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _run_synth_behaviour(context, behaviour):
+    completed = subprocess.run(
+        ['node', '--import', 'tsx', 'scripts/test-cli-remote-login.ts', behaviour],
+        cwd=REPOSITORY_ROOT, capture_output=True, text=True, timeout=180,
+    )
+    context.synth_result = completed
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+@when("a site's broker is synthesized with an alarm topic")
+def step_broker_synthesized_with_alarm_topic(context):
+    _run_synth_behaviour(context, 'the_broker_alarms_notify_the_sites_alarm_topic_when_one_is_configured')
+
+
+@then('both broker alarms notify that topic when they fire and when they recover')
+def step_alarms_notify_topic(context):
+    assert context.synth_result.returncode == 0
+
+
+@when("a site's broker is synthesized without an alarm topic")
+def step_broker_synthesized_without_alarm_topic(context):
+    _run_synth_behaviour(context, 'without_an_alarm_topic_the_synth_warns_once_and_names_the_setting')
+
+
+@then('the alarms carry no notification and synth warns once naming the alarm topic setting')
+def step_alarms_silent_with_warning(context):
+    assert context.synth_result.returncode == 0
