@@ -378,8 +378,8 @@ def review_gate(client, *, wait: bool = True, poll_seconds: float = 30.0, max_wa
 
 
 def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: list[str], noun: str = "story idea",
-                       deadline_days: float | None = None, links: Any = None, now: datetime | None = None) -> dict[str, Any]:
-    """ONE soft review for a run that produced a batch of proposals: "N new story ideas to review".
+                       deadline_days: float | None = None, links: Any = None, now: datetime | None = None, link_type: str = "proposal") -> dict[str, Any]:
+    """ONE soft review for a run that produced a batch of proposals (or, with ``link_type="story"``, of generated story ideas filed as Items): "N new story ideas to review".
 
     The subject is the batch; each proposal is a link. Idempotent per ``batch_id``, so a re-run of the same synthesis
     does not raise a second request. Feedback comes back through ``steering_for(client, raised_by=raised_by)``."""
@@ -388,7 +388,7 @@ def raise_batch_review(client, *, raised_by: str, batch_id: str, proposal_ids: l
     count = len(proposal_ids)
     plural = noun if count == 1 else f"{noun}s"
     safe = re.sub(r"[^a-z0-9._-]+", "-", batch_id.lower()).strip("-")[:100]
-    entries = [{"type": "proposal", "id": proposal_id, "label": f"{noun} {index}"} for index, proposal_id in enumerate(proposal_ids, 1)]
+    entries = [{"type": link_type, "id": proposal_id, "label": f"{noun} {index}"} for index, proposal_id in enumerate(proposal_ids, 1)]
     return raise_review(
         client, subject={"type": "batch", "id": batch_id}, mode="soft_review", raised_by=raised_by,
         reason=f"{count} new {plural} to review",

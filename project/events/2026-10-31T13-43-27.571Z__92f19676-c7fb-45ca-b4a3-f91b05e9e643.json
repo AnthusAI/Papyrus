@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "92f19676-c7fb-45ca-b4a3-f91b05e9e643",
+  "issue_id": "PPY-f5ccf8cf-d569-453f-aad8-e809016fa2e9",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T13:43:27.571Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Copy-edit and copywriting skills: newsroom batch passes, judgment lane, publish; .claude/skills links .agents/skills",
+    "description": "Fold the 2026-10-31 Anth.us copy-edit pass into .agents/skills/editorial-copyedit-cycle and copywriting: articles live in the newsroom (not git); connecting by login or the IAM operator lane; batch pass over published articles; report a missing judgment lane and propose judgment policies to the CMS; triage rule noise; exact-match apply and re-check; save-version then authorized ops content publish; verify live. Link .claude/skills -> .agents/skills so Claude sessions load the same skills as other agents.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": null,
+    "labels": []
+  }
+}
