@@ -20,10 +20,11 @@ export const LEGACY_CONTENT_ITEM_STAGE_ALIASES: Readonly<Record<string, string>>
   editor_select: "reporting",
 };
 
-/** Stages for work that has not become a story yet; they appear on the assignments board only. */
-export const ASSIGNMENT_PHASE_STAGE_KEYS: readonly string[] = ["idea", "assignment"];
+/** Stages for work that has not become a story yet and are not stories-board columns by default; they appear on the assignments board only. */
+export const ASSIGNMENT_PHASE_STAGE_KEYS: readonly string[] = ["assignment"];
 
 export const DEFAULT_CONTENT_ITEM_STAGE_DEFINITIONS: readonly ContentItemStageDefinition[] = [
+  { key: "idea", label: "Idea" },
   { key: "reporting", label: "Reporting" },
   { key: "copywriting", label: "Copywriting" },
   { key: "illustration", label: "Illustration" },
@@ -73,6 +74,8 @@ export type ContentItemVersionRecord = {
   slug: string;
   section?: string | null;
   updatedAt?: string | null;
+  /** Who recorded this version; "AI" for machine-written stories. */
+  versionCreatedBy?: string | null;
 };
 
 export function latestVersionPerContentItem(
