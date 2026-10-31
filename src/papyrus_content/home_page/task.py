@@ -138,20 +138,23 @@ def run_home_page_snapshot(
         pending = {name: content for name, content in {key: body, **thread_files}.items() if changed_without_generated_at(context.writer.get(name), content)}
         report["unchanged"] = [name for name in (key, *thread_files) if name not in pending]
         stale = _stale_thread_files(context, settings, thread_files)
+        stale_pages = _stale_thread_pages(context, stale)
         if not pending and not stale:
             return report
         if dry_run:
             report["wouldWrite"] = sorted(pending)
-            report["wouldDelete"] = stale
+            report["wouldDelete"] = [*stale, *stale_pages]
             if readers is not None:
                 report["wouldRewrite"] = sorted(readers)
             return report
         for name, content in pending.items():
             context.writer.put(name, content)
             report["written"].append(name)
-        for name in stale:
+        for name in [*stale, *stale_pages]:
             context.writer.delete(name)
             report["deleted"].append(name)
+        if readers is not None:
+            readers = reader_pages_of(context.projector)
         projected = _project_listings(context, readers)
         report["rewritten"] = list(projected.written)
         report["pagesRewritten"] = len(projected.written)
@@ -168,6 +171,18 @@ def _stale_thread_files(context: Any, settings: HomePageSettings, wanted: dict[s
         return []
     prefix = site_key(context.projector, THREADS_DIRECTORY) + "/"
     return sorted(stored.key for stored in context.writer.list(prefix) if stored.key not in wanted and stored.key.endswith(".json"))
+
+
+def _stale_thread_pages(context: Any, stale_files: list[str]) -> list[str]:
+    """The stored pages (and Markdown twins) of the threads whose files are stale; a site without ``homePage.forum`` has none."""
+    page_keys = getattr(context.projector, "thread_page_keys", None)
+    if page_keys is None:
+        return []
+    found: list[str] = []
+    for name in stale_files:
+        thread_key = name.rsplit("/", 1)[-1].removesuffix(".json")
+        found.extend(key for key in page_keys(thread_key) if context.writer.get(key) is not None)
+    return sorted(found)
 
 
 class ProjectorRefused(ValueError):
