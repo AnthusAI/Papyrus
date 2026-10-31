@@ -370,3 +370,15 @@ Notes from running v0 by hand, for PPY-433383 (run contract) and PPY-93faf2 (loc
 These are local commands against a cloud CMS. A site with no cloud backend (a local pod) has no `Reference` store to read, so the
 digest does not run there; that waits for the local-pod runtime (PPY-93faf2) and the run contract (PPY-433383). Scheduling goes
 through automations on that contract.
+
+
+## Ideas are Items
+
+A generated story (a monitor story, a trend story, a synthesized idea) is filed as a content `Item` at the `idea` stage, the same stage a person's idea starts at, not as a `story_draft` Proposal. Choose it with `--store items` (the cloud router: `"monitorStories": {"store": "items"}` in the publication's router entry; the default stays `proposals` until the router role is allowed to write Items and Semantic Relations, which needs a change set on `papyrus-monitoring`).
+
+- The Item records its origin in its front matter (`generated`: `origin`, `proposedBy: AI`, `runId`, `monitorId`, `evidence`, the `targets` it cites). It carries no closing "Drafted by AI" line: provenance is data.
+- Every Reference it cites is linked `based_on`. Because that link is how a Reference counts as covered, a Reference with an idea, an active story or a spiked idea is never drafted again, by any path.
+- A body that copies a cited Reference's captured text is refused before anything is written (the same copy guard as every story made from a Reference).
+- Filing the same idea again finds the Item that exists (its id comes from the Reference lineages it cites).
+- An editor accepts an idea by moving it forward and declines it by moving it to `spiked` with a reason (`papyrus stories move`); the reason is recorded on the Item's `stageMoves`.
+- `papyrus ideas migrate-proposals [--write]` converts the open `story_draft` Proposals into idea Items once. It is a dry run unless `--write`, skips decided Proposals, ones whose References already have a story, and duplicates, and leaves the Proposals as they are. It needs an editor session (an operator cannot read Proposals). The `Proposal` model stays for reader steering.

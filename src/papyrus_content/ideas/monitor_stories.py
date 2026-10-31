@@ -548,7 +548,7 @@ def draft_monitor_stories(
     moment = now or datetime.now(timezone.utc)
     run: dict[str, Any] = {
         "runId": run_id_for(site, moment), "kind": "monitor-stories-run", "publication": site, "startedAt": iso(moment), "model": model,
-        "store": "dry-run" if dry_run else ("proposals" if proposal_store else "json"), "dryRun": dry_run, "private": True,
+        "store": "dry-run" if dry_run else (proposal_store.kind if proposal_store else "json"), "dryRun": dry_run, "private": True,
         "window": {"since": since, "until": iso(moment)}, "limit": limit, "stoppedBy": None,
         "excludedSourceHosts": list(normalize_hosts(excluded_hosts)), "statuses": list(dict.fromkeys(statuses)),
     }
@@ -643,7 +643,7 @@ def draft_monitor_stories(
                         if item.lineage_id in drafted_lineage_ids(proposal_store.story_drafts(), []):
                             run["skipped"].append({"referenceId": item.reference_id, "title": item.title, "reason": "already_drafted"})
                             continue
-                        record["proposalId"] = proposal_store.file_story_draft(record)
+                        proposal_store.mark(record, proposal_store.file_story_draft(record))
                     if json_store:
                         json_store.save_idea(record)
                 except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for drafts that cannot be kept

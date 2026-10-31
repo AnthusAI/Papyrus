@@ -17,8 +17,8 @@ from ..proposals_commands import FILE_MUTATION, LIST_QUERY, list_proposals, oper
 
 STORE_DIRECTORY_ENVIRONMENT = "PAPYRUS_IDEAS_DIR"
 PUBLIC_DIRECTORY_NAMES = {"_data", "public", "static-root"}
-JSON, PROPOSALS = "json", "proposals"
-STORES = (JSON, PROPOSALS)
+JSON, PROPOSALS, ITEMS = "json", "proposals", "items"
+STORES = (JSON, PROPOSALS, ITEMS)
 
 
 class StoreRefused(ValueError):
@@ -92,8 +92,14 @@ class ProposalStore:
     account (`PAPYRUS_GRAPHQL_AUTH=iam`). Only editors and admins may read Proposals in full; an operator reads the story drafts through
     ``listStoryDrafts`` (id, title, summary, targets, state, createdAt and nothing else), which is all a run needs to dedupe."""
 
+    kind = PROPOSALS
+
     def __init__(self, client: Any) -> None:
         self.client = client
+
+    @staticmethod
+    def mark(record: dict[str, Any], identifier: str) -> None:
+        record["proposalId"] = identifier
 
     def file_idea(self, idea: dict[str, Any], body: str, digest_id: str) -> str:
         variables = {
@@ -129,4 +135,4 @@ class ProposalStore:
         return [row for row in list_proposals(self.client) if row.get("kind") == "story_draft"]
 
 
-__all__ = ["JSON", "PROPOSALS", "STORES", "JsonStore", "ProposalStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root"]
+__all__ = ["JSON", "PROPOSALS", "ITEMS", "STORES", "JsonStore", "ProposalStore", "StoreRefused", "LIST_QUERY", "assert_private", "default_root"]
