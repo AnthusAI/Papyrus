@@ -65,8 +65,14 @@ pass("the skill explains numbers, next, previous, repeat, headlines and stop and
 step(When, "a listener says stop or cancel", "stop and cancel say goodbye and end");
 pass("the skill says goodbye and ends the session");
 
-step(When, "a listener says something the skill cannot match", "fallback keeps the session open with the ways to move");
-pass("the skill lists what it understands and keeps listening");
+step(When, "a listener says something the skill cannot match", "fallback reads the headlines instead of a dead end");
+pass("the skill says it did not catch that and reads the headlines, so there is always something to choose");
+pass("the session stays open");
+
+step(Given, 'a listener who reaches the skill with "ask pilobolus newsroom for the headlines"', "asking for the headlines reads them, greeting a new session");
+step(When, "they ask for the headlines, the stories, the articles or the posts, or say they do not know what the stories are", "the headlines intent hears how people ask for the list");
+pass("the latest headlines are read, with a welcome when the session is new");
+step(Then, "asking for a story without a number reads the list instead of asking for a number", "a story number that does not exist is explained");
 
 step(Given, "the listener is reading a story", "navigate home returns to fresh headlines");
 step(When, "they ask to go home", "navigate home returns to fresh headlines");
@@ -80,10 +86,11 @@ step(Given, "stories whose titles, bylines and text contain ampersands, angle br
 step(When, "they are read aloud", "ssml escapes everything it speaks");
 pass("the speech is well formed and never carries a raw markup character");
 
-step(Given, "a story longer than Alexa's output speech limit", "a long story is cut at a sentence and offers the next story");
-step(When, "it is read aloud", "a long story is cut at a sentence and offers the next story");
-pass("the speech stays within 8000 characters, ends on a whole sentence and says it is as much as can be read");
-pass("it offers the next story");
+step(Given, "a story far longer than a minute of speech", "a long story is read in short parts with continue");
+step(When, "it is read aloud", "a long story is read in short parts with continue");
+pass("the first part starts with the title, byline and deck and stops at a whole sentence after about a minute");
+pass("the listener can say continue for the next part, repeat for the same part, and hears when the story ends");
+step(Then, 'a byline that already starts with "by" is not read as "by by"', "a byline that already says by is not doubled");
 
 step(Given, "a sentence longer than the room there is", "one endless sentence is shortened at a word");
 step(When, "it is fitted into the speech", "one endless sentence is shortened at a word");

@@ -14,6 +14,7 @@ import type { PublicStory, PublicStorySource, PublicStorySummary } from "../ampl
 import { INTENT_MODULES } from "../amplify/plugins/alexa/intents";
 import { documentUnits, storyBodyUnits } from "../amplify/plugins/alexa/speech/markus-speech";
 import { escapeSsml, fitUnits, MAX_SSML_LENGTH, sentence, splitSentences } from "../amplify/plugins/alexa/speech/ssml";
+import { STORY_PART_LENGTH } from "../amplify/plugins/alexa/speech/conversation";
 import { buildSkill } from "../amplify/plugins/alexa/skill";
 import { interactionModel } from "./alexa/generate-skill-package";
 
@@ -149,7 +150,8 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     assert.match(text(tooFar.speech), /I only have 5 stories/);
     assert.equal(tooFar.ends, false);
     const none = await talk.intent("ReadStoryIntent");
-    assert.match(text(none.speech), /Which story would you like/);
+    assert.match(text(none.speech), /latest headlines from Example News/, "no number reads the list, never a bare question");
+    assert.match(text(none.speech), /Headline number 1/);
     const zero = await talk.intent("ReadStoryIntent", { ordinal: "0" });
     assert.match(text(zero.speech), /I only have 5 stories/);
   },
@@ -212,12 +214,37 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     }
   },
 
-  "fallback keeps the session open with the ways to move": async () => {
+  "fallback reads the headlines instead of a dead end": async () => {
     const fallback = await conversation(fakeSource(fiveStories)).intent("AMAZON.FallbackIntent");
-    assert.match(text(fallback.speech), /did not get that/);
-    assert.match(text(fallback.speech), /number of a story, next, headlines, or help/);
+    assert.match(text(fallback.speech), /did not catch that/);
+    assert.match(text(fallback.speech), /latest headlines from Example News/);
+    assert.match(text(fallback.speech), /Headline number 1/);
     assert.equal(fallback.ends, false);
     assert.ok(fallback.reprompt.length > 0);
+  },
+
+  "asking for the headlines reads them, greeting a new session": async () => {
+    // Under Alexa+ a session often starts with "ask <publication> for the headlines": an intent, not a launch.
+    const first = await conversation(fakeSource(fiveStories)).intent("HeadlinesIntent");
+    assert.match(text(first.speech), /^Welcome to Example News/);
+    assert.match(text(first.speech), /Headline number 1.*Headline number 5/);
+    assert.equal(first.ends, false);
+    const talk = conversation(fakeSource(fiveStories));
+    await talk.launch();
+    await talk.intent("ReadStoryIntent", { ordinal: "2" });
+    const again = await talk.intent("HeadlinesIntent");
+    assert.doesNotMatch(text(again.speech), /Welcome/, "only a new session is welcomed");
+    assert.match(text(again.speech), /latest headlines from Example News/);
+    assert.match(text((await talk.intent("AMAZON.NextIntent")).speech), /^Headline number 1/, "the list resets the position");
+  },
+
+  "the headlines intent hears how people ask for the list": () => {
+    const model = interactionModel(config);
+    const headlines = model.interactionModel.languageModel.intents.find((intent) => intent.name === "HeadlinesIntent");
+    assert.ok(headlines?.samples);
+    for (const phrase of ["for the headlines", "what's new", "list them", "I don't know what they are", "I don't know what the stories are", "what are the stories", "articles", "posts", "the recent stories", "show me the latest articles"]) {
+      assert.ok(headlines.samples.includes(phrase), `"${phrase}" is a HeadlinesIntent sample`);
+    }
   },
 
   "navigate home returns to fresh headlines": async () => {
@@ -258,23 +285,43 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     assert.ok(!read.speech.includes("example.test"), "link targets are not spoken");
   },
 
-  "a long story is cut at a sentence and offers the next story": async () => {
+  "a long story is read in short parts with continue": async () => {
     const sentences = Array.from({ length: 400 }, (_, index) => `This is sentence number ${index + 1} of a very long story.`);
     const long = story(1, { markus: sentences.join(" ") });
     const talk = conversation(fakeSource([long, story(2)]));
     await talk.launch();
-    const read = await talk.intent("ReadStoryIntent", { number: "1" });
-    assertSpeakable(read.speech);
-    assert.ok(read.speech.length > 7000, "uses the room there is");
-    const spoken = text(read.speech);
-    assert.match(spoken, /That is as much of this story as I can read aloud\. Say next for the next story/);
-    // The cut is between sentences: every spoken body sentence is whole.
-    const body = spoken.split(/The deck of story 1\.\s*/)[1].split(" That is as much")[0];
-    assert.match(body, /of a very long story\.$/);
-    assert.ok(!/sentence number 400 /.test(body));
-    // A short story is read whole, with no notice.
+    const first = await talk.intent("ReadStoryIntent", { number: "1" });
+    assertSpeakable(first.speech);
+    // Alexa synthesizes a whole reply before speaking, so a part stays short enough to start quickly.
+    assert.ok(first.speech.length <= STORY_PART_LENGTH + 400, `a part is short (${first.speech.length} characters)`);
+    const spoken = text(first.speech);
+    assert.match(spoken, /^Headline number 1 By Ada Example/);
+    assert.match(spoken, /Say continue to keep reading, or next for the next story\.$/);
+    assert.match(spoken.split(" Say continue")[0], /of a very long story\.$/, "a part ends between sentences");
+    // Continue reads on from where the part stopped, with no repeated opening and no gap.
+    const lastNumber = (speech: string) => Number([...text(speech).matchAll(/sentence number (\d+) /g)].pop()?.[1]);
+    const firstNumber = (speech: string) => Number(/sentence number (\d+) /.exec(text(speech))?.[1]);
+    const second = await talk.intent("ContinueIntent");
+    assert.doesNotMatch(text(second.speech), /Headline number 1/);
+    assert.equal(firstNumber(second.speech), lastNumber(first.speech) + 1);
+    // Repeat replays the same part.
+    assert.equal(firstNumber((await talk.intent("AMAZON.RepeatIntent")).speech), firstNumber(second.speech));
+    // Reading on to the end says so and offers the next story.
+    let reply = second;
+    for (let guard = 0; guard < 50 && /Say continue/.test(text(reply.speech)); guard += 1) reply = await talk.intent("ContinueIntent");
+    assert.match(text(reply.speech), /sentence number 400 of a very long story\. That is the end of the story\. Say next for the next story/);
+    // A short story is read whole in one part.
     const short = await talk.intent("ReadStoryIntent", { number: "2" });
-    assert.ok(!/as much of this story/.test(short.speech));
+    assert.match(text(short.speech), /That is the end of the story/);
+    assert.doesNotMatch(text(short.speech), /Say continue/);
+  },
+
+  "a byline that already says by is not doubled": async () => {
+    const talk = conversation(fakeSource([story(1, { byline: "by various bots and Ada Example" })]));
+    await talk.launch();
+    const read = text((await talk.intent("ReadStoryIntent", { number: "1" })).speech);
+    assert.match(read, /by various bots and Ada Example/);
+    assert.doesNotMatch(read, /By by/i);
   },
 
   "one endless sentence is shortened at a word": () => {
@@ -282,7 +329,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
     const fitted = fitUnits([unit], 1000);
     assert.equal(fitted.truncated, true);
     assert.ok(fitted.ssml.length <= 1000);
-    assert.ok(fitted.ssml.startsWith("<s>word word") && fitted.ssml.endsWith("word</s>"));
+    assert.ok(fitted.ssml.startsWith("<s>word word") && fitted.ssml.trimEnd().endsWith("word</s>"));
     assert.deepEqual(splitSentences("One. Two! Three? “Four.” Five"), ["One.", "Two!", "Three?", "“Four.”", "Five"]);
     assert.equal(fitUnits(["<s>a</s>", "<s>b</s>"], 1000).truncated, false);
   },
@@ -340,7 +387,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   "the interaction model carries every intent with natural samples": () => {
     const model = interactionModel(config).interactionModel.languageModel;
     const intents = new Map(model.intents.map((intent) => [intent.name, intent]));
-    for (const name of ["AMAZON.CancelIntent", "AMAZON.FallbackIntent", "AMAZON.HelpIntent", "AMAZON.NavigateHomeIntent", "AMAZON.NextIntent", "AMAZON.PreviousIntent", "AMAZON.RepeatIntent", "AMAZON.StopIntent", "ReadStoryIntent"]) {
+    for (const name of ["AMAZON.CancelIntent", "AMAZON.FallbackIntent", "AMAZON.HelpIntent", "ContinueIntent", "HeadlinesIntent", "AMAZON.NavigateHomeIntent", "AMAZON.NextIntent", "AMAZON.PreviousIntent", "AMAZON.RepeatIntent", "AMAZON.StopIntent", "ReadStoryIntent"]) {
       assert.ok(intents.has(name), `${name} is in the model`);
     }
     const read = intents.get("ReadStoryIntent")!;

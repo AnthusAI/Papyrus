@@ -1,7 +1,9 @@
 import { assertUniqueIds, type IntentModule } from "../contracts";
 import { aplUserEventIntent } from "./apl-user-event";
 import { cancelIntent } from "./cancel";
+import { continueIntent } from "./continue";
 import { fallbackIntent } from "./fallback";
+import { headlinesIntent } from "./headlines";
 import { helpIntent } from "./help";
 import { launchIntent } from "./launch";
 import { navigateHomeIntent } from "./navigate-home";
@@ -21,7 +23,9 @@ import { stopIntent } from "./stop";
 export const INTENT_MODULES: readonly IntentModule[] = [
   aplUserEventIntent,
   cancelIntent,
+  continueIntent,
   fallbackIntent,
+  headlinesIntent,
   helpIntent,
   launchIntent,
   navigateHomeIntent,

@@ -4,7 +4,7 @@ import { currentPosition, NOTHING_PUBLISHED, readHeadlines, readStory, sayAndEnd
 
 export const INTENT_NAME = "AMAZON.RepeatIntent";
 
-/** "Repeat": the story being read, or the headline list when no story has been picked yet. */
+/** "Repeat": the part of the story being read, or the headline list when no story has been picked yet. */
 export const repeatIntent: IntentModule = {
   id: "repeat",
   create: (dependencies) => ({
@@ -13,7 +13,7 @@ export const repeatIntent: IntentModule = {
       const position = await currentPosition(handlerInput, dependencies);
       if (position === undefined) return sayAndEnd(handlerInput, NOTHING_PUBLISHED);
       if (position.current === null) return readHeadlines(handlerInput, dependencies, { position });
-      return readStory(handlerInput, dependencies, position, position.current);
+      return readStory(handlerInput, dependencies, position, position.current, position.part ?? 0);
     },
   }),
   interactionModel: { intent: { name: INTENT_NAME, samples: ["say that again", "read it again", "read that again", "once more"] } },

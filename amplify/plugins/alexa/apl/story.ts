@@ -9,11 +9,13 @@ const colour = (key: Parameters<typeof themeRef>[1]) => themeRef(STORY_DATASOURC
 
 const title = { type: "Text", text: "${payload.storyData.title}", color: colour("text"), fontSize: "@headlineSize", fontWeight: "800", maxLines: 5 };
 const meta = { type: "Text", when: "${payload.storyData.meta}", text: "${payload.storyData.meta}", color: colour("mutedText"), fontSize: "@metaSize", paddingTop: 8, paddingBottom: "@gap" };
+// Paragraphs never shrink to the screen: the ScrollView scrolls them at full length (shrinking cut each one off with "…").
 const body = {
   type: "Container",
   width: "100%",
+  shrink: 0,
   data: "${payload.storyData.paragraphs}",
-  items: [{ type: "Text", text: "${data}", color: colour("text"), fontSize: "@bodySize", lineHeight: 1.4, paddingBottom: "@gap" }],
+  items: [{ type: "Text", text: "${data}", width: "100%", shrink: 0, color: colour("text"), fontSize: "@bodySize", lineHeight: 1.4, paddingBottom: "@gap" }],
 };
 
 /**
