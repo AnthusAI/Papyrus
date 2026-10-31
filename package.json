@@ -81,6 +81,7 @@
     "export:reference-feed-fixture": "python3 scripts/export-reference-feed-fixture.py",
     "capture:reference-feed": "node scripts/capture-reference-feed-shots.mjs",
     "test:cli-login-discovery": "tsx scripts/test-cli-login-discovery.ts && cucumber-js --profile cliLoginDiscovery",
+    "test:cli-enroll-route": "tsx scripts/test-cli-enroll-route.ts && cucumber-js --profile cliEnrollRoute",
     "test:cli-remote-login": "tsx scripts/test-cli-remote-login.ts && cucumber-js --profile cliRemoteLoginSite",
     "test:prospectus-sign-in-routes": "tsx scripts/test-prospectus-sign-in-routes.ts",
     "test:prospectus-account-client": "tsx scripts/test-prospectus-account-client.ts",

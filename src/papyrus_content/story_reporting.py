@@ -195,10 +195,50 @@ def save_story_version(
     if stage:
         record["stage"] = require_content_item_stage(stage)
     client.create_record("Item", compact_dict(record))
+    _carry_media_forward(client, record_id, envelope, versions)
     for row in versions:
         if row.get("versionState") == "current" or row["id"] == latest["id"]:
             client.update_record("Item", {"id": row["id"], "versionState": "superseded"})
     return record
+
+
+def _carry_media_forward(client, new_item_id: str, envelope: dict[str, Any], earlier_versions: list[dict[str, Any]]) -> None:
+    """Gives the new version the MediaAsset rows for the local images its body references.
+
+    Media is keyed by item version id, so a saved version starts with none and would fail the publish check
+    ``image-missing``. Each missing src is copied from the most recent earlier version that has a row for it.
+    """
+    from .markus_import import media_id_for
+
+    wanted = []
+    for image in (envelope.get("papyrus", {}).get("images") or {}).values():
+        src = image.get("src") or ""
+        if src and not src.startswith(("http://", "https://")) and src not in wanted:
+            wanted.append(src)
+    if not wanted:
+        return
+
+    def src_path_of(row: dict[str, Any]) -> str | None:
+        metadata = row.get("metadata")
+        if isinstance(metadata, str):
+            try:
+                metadata = json.loads(metadata)
+            except ValueError:
+                return None
+        return (metadata or {}).get("srcPath")
+
+    have = {src_path_of(row) for row in client.list_by_index("mediaAssetsByItemAndSortKey", new_item_id)}
+    pending = [src for src in wanted if src not in have]
+    for version in sorted(earlier_versions, key=lambda row: int(row.get("versionNumber") or 0), reverse=True):
+        if not pending:
+            break
+        by_src = {src_path_of(row): row for row in client.list_by_index("mediaAssetsByItemAndSortKey", version["id"])}
+        for src in [src for src in pending if src in by_src]:
+            row = {k: v for k, v in _without_server_fields(by_src[src]).items()}
+            row["id"] = media_id_for(new_item_id, src)
+            row["itemId"] = new_item_id
+            client.upsert("MediaAsset", row)
+            pending.remove(src)
 
 
 def create_story(client, *, title: str, section_key: str | None, stage: str = "idea", summary: str | None = None,

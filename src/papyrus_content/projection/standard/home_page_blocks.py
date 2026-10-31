@@ -8,7 +8,7 @@ place a Reference keeps it, and a later one refills up to its ``count`` from its
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ...home_page.export import clip_summary
@@ -162,7 +162,7 @@ def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLe
     return chosen
 
 
-def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings) -> str:
+def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings, thread_href: Callable[[str], str] | None = None) -> str:
     ledger.home_page_used = True
     chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
     empty = attributes.get("empty", "")
@@ -175,5 +175,5 @@ def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: Page
     for thread in chosen:
         latest = thread.get("latest") if isinstance(thread.get("latest"), Mapping) else {}
         excerpt = clip_summary(parts.plain_text(_text(latest, "text")), characters) or ""
-        cards += f"<li>{parts.thread_card(thread, excerpt)}</li>"
+        cards += f"<li>{parts.thread_card(thread, excerpt, thread_href(thread['key']) if thread_href else None)}</li>"
     return f'<section class="home-page-threads" data-layout="{esc(layout)}">{heading}<ul class="home-page-grid" data-layout="{esc(layout)}">{cards}</ul></section>'

@@ -479,3 +479,10 @@ def test_not_found_title_and_description_alone_keep_noindex():
         assert '<meta name="description" content="An example.">' in page          # empty description: the site's
     finally:
         site.cleanup()
+
+
+def test_a_collection_selection_reads_story_types():
+    config = parse(collections=[collection(select={"types": "article, guide", "notTypes": ["post"]})]).collection("news")
+    assert config.select.types == ("article", "guide") and config.select.not_types == ("post",)
+    with pytest.raises(ValueError, match="Unknown collections.news.select settings: type"):
+        parse(collections=[collection(select={"type": ["x"]})])

@@ -1,0 +1,43 @@
+{
+  "id": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+  "title": "Reader voting on a 1-5 scale for References and items: stars, thumbs as 5/1, Reference as a subject",
+  "description": "Ryan (2026-10-31, via the Shipped session): \"We want to support voting on both references and items using a five-star system as well.\" Agreed representation: every reader judgement is one integer 1-5 (\"That's exactly what I had in mind\"). Planned by the Papyrus planning session; every story is specified for a Sonnet implementer. Planning only; no product code in this epic's board commit.\n\n## Decisions (Ryan, 2026-10-31)\n1. **Storage.** One scale. A ReaderVote `value` is an integer 1-5 on every dimension, including the `up` dimension: a thumbs up is stored as 5, a thumbs down as 1, a star pick as the reader's number. The `up` dimension is then averaged exactly like the rating dimensions (`snapshot.py` `rating_summary` / `weighted_reader_means`), so shrinkage ranking (`ranking.py` `shrinkage_front_score`, docs/score-combination.md) keeps working with no new formula.\n2. **Display.** Star surfaces show mean and count: \"4.2 ★ from 31\" (Lucide `star` icon plus text; never colour alone). Thumbs surfaces show the share of 4s and 5s: \"82% up\" (Lucide `thumbs-up` plus text). Counts and means only; no reader is ever identified.\n3. **Migration.** Existing ReaderVote rows with dimension `up` and value ±1 map +1 -> 5 and -1 -> 1. `POST /api/reader/vote` keeps accepting `value: 1 | -1 | null` for compatibility (mapped at write) and additionally accepts 1-5 through a `stars` payload. Published numbers change: the net on proposals and the `{up, down, net}` block in `items.json` become `{mean, n, hist, upShare}`. Shipped's client (`web/assets/shipped-proposals.js`, Shipped-web repo) follows in a Shipped-web story owned by the Shipped session; it is a dependency of the migration story here, not work in this repo.\n4. **Reference as a subject.** `reference` becomes a subject type in reader-steering (`SUBJECT_TYPES`, `subjects.types`), existence-checked against the Reference table. It is mainly for anth.us and the home-page Reference grids (PPY-1b83d3): the cards show the reader rating next to Cyclotron confidence, labelled \"readers\" vs \"confidence\" so nobody confuses the two.\n5. **Open question for Ryan (recommendation recorded).** Sites with rating dimensions (Shipped: useful, ready, advances, open) get ONE overall star rating beside those dimensions, not instead of them. Recommendation: add, don't replace. The overall star is the `up` dimension rendered as stars; the dimensions stay as they are. Until Ryan answers, implement as recommended; nothing in the plan depends on the answer except which control Shipped's item page shows first.\n\n## Rules\nNo arbitrary fixed caps (`shrinkage_k`, `reader_minimum` stay learned/configurable, never new hard limits). Gherkin (narrative, complete) for every behaviour. Lucide icons only (`star`, `thumbs-up`, `thumbs-down`); no borders; never colour alone (icon + text). Privacy: public files hold opaque subject keys, counts, means and histograms only; the reader-privacy scan (`procedures/newsroom/tests/reader_privacy.py`) runs on every published file. Opt-in per site: the `reference` subject type and the star control are off unless `projection.json`/plugin config names them; nothing adds resources unless a site opts in. PR -> CI -> merge; merge is deploy. The epic ends with a p.apyr.us docs story.\n\n## Code to read first (read-only)\n`amplify/plugins/reader-steering/schema.ts` (ReaderVote: subjectKey, subjectType, readerId, dimension, value, voterRole), `amplify/plugins/reader-steering/function/handler.py` (`typed_vote_action`, `vote_action`, `rating_action`, `react`, `SUBJECT_TYPES`, `vote_id`, `subject_key`, `MINIMUM_RATING`/`MAXIMUM_RATING`), `src/papyrus_content/reader_steering/snapshot.py` (`UP`, `rating_summary`, `weighted_reader_means`, the `{up, down, net}` block ~line 216, `ITEMS_FILE`), `ranking.py`, `proposal_votes.py` (`partition_votes`, `needs_a_look` count 1/-1), `src/papyrus_content/projection/plugin_assets/papyrus-reader.js` (the islands), `src/papyrus_content/projection/standard/home_page_components.py` (Reference tile/row, `confidence_markup`), `features_backend/reader-subject-votes.feature`, `reader-steering.feature`, `docs/reader-steering.md`, `docs/score-combination.md`.\n\n## Acceptance for the epic\n- Every stored ReaderVote value is 1-5; a thumbs up reads back as 5, a thumbs down as 1; old ±1 rows are migrated and no code path writes ±1 again.\n- `items.json` and the proposals data publish `{mean, n, hist, upShare}` per subject and dimension; Shipped's proposals page shows \"N% up\" from the new shape (Shipped-web story).\n- A site that opts in can vote on References; the anth.us Reference cards show \"4.2 ★ from 31\" beside \"93% confidence\", visibly labelled apart.\n- Gherkin covers every scenario below; p.apyr.us documents voting, stars, thumbs and the migration.",
+  "type": "epic",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": null,
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+      "type": "relates-to"
+    }
+  ],
+  "comments": [
+    {
+      "id": "5c3dd343-f173-4d40-9765-463aa16749c4",
+      "author": "home",
+      "text": "## Execution waves (2026-10-31)\n**Wave 1, start now in parallel:** PPY-fa27d9 (write path), PPY-c57a48 (Reference subject type; independent, rebase on PPY-fa27d9 if it lands first), PPY-23929b scaffolding (control markup, settings, Gherkin against the published shape in this epic; final wiring waits for PPY-5245ed).\n**Wave 2:** PPY-5245ed (snapshot/ranking/items.json) after PPY-fa27d9; then PPY-d83f32 (Reference cards) after PPY-5245ed + PPY-c57a48, and PPY-23929b finishes after PPY-5245ed.\n**Wave 3:** PPY-2cbf35 (migration + Shipped cut-over) after PPY-fa27d9 + PPY-5245ed, coordinated with the Shipped-web client story (Shipped session; link it on PPY-2cbf35 when filed).\n**Wave 4:** PPY-908cef (p.apyr.us docs) last.\nRyan's open question (one overall star beside Shipped's dimensions; recommendation: add, don't replace) does not block any wave; it only decides Shipped's `reader.controls.item` value.",
+      "created_at": "2026-10-31T13:22:17.832816Z",
+      "comment_type": "default",
+      "agent": {
+        "platform": "claude_code",
+        "model": "claude-fable-5-1",
+        "name": "Papyrus planning session"
+      }
+    }
+  ],
+  "created_at": "2026-10-31T13:20:03.402580Z",
+  "updated_at": "2026-10-31T13:22:37.800131Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

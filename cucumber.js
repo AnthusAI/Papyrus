@@ -85,6 +85,11 @@ module.exports = {
     require: ["features/step_definitions/cli-remote-login-site.steps.js"],
     format: ["summary"],
   },
+  cliEnrollRoute: {
+    paths: ["features/cli-enroll-route.feature"],
+    require: ["features/step_definitions/cli-enroll-route.steps.js"],
+    format: ["summary"],
+  },
   referenceEditorLayout: {
     paths: ["features/newsroom-reference-editor-layout.feature"],
     require: ["features/step_definitions/reference-editor.steps.js"],

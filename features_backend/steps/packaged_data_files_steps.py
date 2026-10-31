@@ -98,7 +98,7 @@ def step_resolves_packaged(context):
     assert env.resolve_corpora_file("corpora/papyrus-steering.yml") == env.packaged_corpora_file("papyrus-steering.yml")
 
 
-@then("the wheel requires cli-login at exactly version 0.3.0, with the Linux extra on Linux")
+@then("the wheel requires cli-login at exactly version 0.4.0, with the Linux extra on Linux")
 def step_requires_cli_login(context):
     import zipfile
 
@@ -111,7 +111,7 @@ def step_requires_cli_login(context):
     linux = [line for line in requirements if "[linux]" in line]
     assert len(plain) == 1 and len(linux) == 1, requirements
     for line in requirements:
-        assert "==0.3.0" in line.replace(" ", "").replace("(", "").replace(")", ""), line
+        assert "==0.4.0" in line.replace(" ", "").replace("(", "").replace(")", ""), line
     assert "sys_platform == 'linux'" in linux[0] and "sys_platform != 'linux'" in plain[0], requirements
 
 
