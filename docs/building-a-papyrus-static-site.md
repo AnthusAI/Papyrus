@@ -158,6 +158,27 @@ page, with `featuredCount` extra on page 1. Tag pages (`/tags/`, `/tags/<tag>/`)
 case. The generated home page lists the latest `homeCount` entries and links onward. An authored item named `index`
 at the root replaces it.
 
+### Section index pages and a home of sections
+
+Two settings, both off unless set, turn a sectioned site's listings into front pages. A site that sets neither projects exactly the pages it projected before, and it does not receive the stylesheet below.
+
+```json
+{
+  "homePage": {"layout": "sections", "perSection": 4, "homeLead": true, "homeSections": null,
+               "references": {"defaultCount": 6}},
+  "urls": {"sections": {"essays": {"base": "essays", "label": "Essays", "description": "Long reads.",
+    "index": {"lead": true, "latest": 12, "references": "recent", "referencesCount": 6, "source": null}}}}
+}
+```
+
+- `urls.sections.<name>.index` makes page 1 of the section's listing a front page: the section tabs, the label and `description`, a lead Story (the newest entry, when `lead` is true), the latest entries, an optional grid of the section's accepted References, and the link to the older pages. `latest` is the number of entries on the page, lead included; it defaults to the section's page size, and page 2 onward keep the plain listing and start after those entries. `references` is one of the three Reference selections (`recent`, `confident`, `recommended`), drawn after the Stories with `referencesCount` cards (default `homePage.references.defaultCount`) and only the References accepted into this section; it needs `homePage`. `source` is a Markus page file in the static directory (the same renderer and `::include` blocks as `pages[].source`) that replaces the generated layout; the other `index` keys are then ignored.
+- `homePage.layout: "sections"` builds the generated home page from one block per listed section, in `urls.sections` order or in the order of `homePage.homeSections`. A block has the label, the description, the section's newest `perSection` entries (4 by default, any whole number from 1) and a "More <label>" link to the section front page. `homeLead: false` stops the first entry of each block being shown as a lead. A section with no entries has no block, unless it sets `listEmpty`. `layout: "latest"` (the default) is the existing home page.
+- Entries are drawn with the site's own cards, including a `card` hook. A hook module's `main()` still wins over both generated pages. An authored home (`index` item, or a `pages` entry at path `""`) is not replaced.
+- Both pages have Markdown twins and appear in `llms.txt`. The twin of a front page keeps the References line as `::include{kind="references" ...}`.
+- Errors: `layout: "sections"` on a site without a listed section, `index.references` without `homePage`, `homeSections` naming a section that has no listing page, and counts that are not whole numbers of at least 1.
+
+The styles are in `css/papyrus-section-fronts.css`, published only for sites that use one of these settings: flat tones and rounded rectangles, no borders, the current tab bold and filled and marked `aria-current`, and a Lucide `arrow-right` on the "More" link. Theme them with `--section-fronts-*` custom properties.
+
 ### Collections and tag pages
 
 A **collection** is a listing selected by tags and sections instead of by a CMS section. It has pages at `/<base>/` and

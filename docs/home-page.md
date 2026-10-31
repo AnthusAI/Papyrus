@@ -39,6 +39,8 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
   "freshness": {"debounceSeconds": 300, "intervalHours": null, "purge": false}}}
 ```
 
+`layout: "sections"` (with `perSection`, `homeLead` and `homeSections`) and the `urls.sections.<name>.index` setting are described in [Section index pages and a home of sections](building-a-papyrus-static-site.md#section-index-pages-and-a-home-of-sections); a site that does not set them is unchanged.
+
 `references.corpus` defaults to the corpus of the site's publication key (`PAPYRUS_PUBLICATION_CORPUS_KEY` in the Lambda, `--site KEY` on the CLI).
 
 ## The task

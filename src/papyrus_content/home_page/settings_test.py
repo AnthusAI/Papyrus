@@ -54,7 +54,10 @@ def test_a_wrong_setting_is_a_build_error_that_names_it(raw, message):
 def test_the_standard_settings_hold_none_without_the_key_and_parse_it_with_the_key():
     base = {"site": {"name": "Example"}}
     assert standard_settings_from_mapping(base).home_page is None
-    assert standard_settings_from_mapping({**base, "homePage": {"layout": "sections"}}).home_page.layout == "sections"
+    sectioned = {**base, "urls": {"sections": {"essays": {}}}}
+    assert standard_settings_from_mapping({**sectioned, "homePage": {"layout": "sections"}}).home_page.layout == "sections"
+    with pytest.raises(ValueError, match="needs urls.sections"):
+        standard_settings_from_mapping({**base, "homePage": {"layout": "sections"}})
     with pytest.raises(ValueError, match="Unknown homePage settings: nope"):
         standard_settings_from_mapping({**base, "homePage": {"nope": 1}})
 
