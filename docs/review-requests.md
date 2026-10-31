@@ -106,6 +106,18 @@ papyrus reviews recipients [--mode M] [--automation A]     # who would be told
 papyrus reviews recipients --set --scope default|mode|automation [--key K] [--roles editor,admin] [--emails a@x,b@y]
 ```
 
+## The publish gate
+
+A site that sets its [publish approval](how-a-publish-flows.md#a-site-can-require-a-persons-approval-to-publish) to `required` uses `hard_gate` requests as its publish gate (PPY-8c5438). `publish_item` refuses unless the call carries a signed-in person (`approved_by`: the console's Publish and live Save, through the content-actions function's Cognito identity) or a person already approved a request for that version. Otherwise it raises one request and stops:
+
+| Field | Value |
+|---|---|
+| `id` | `rr-publish-<hash of the item record id and its content hash>`; a later request about the same version, after one was withdrawn, adds `-2`, `-3`. |
+| `subject` | `{type: story, id: <lineage id>}`; the item record is a link. |
+| `mode`, `raisedBy` | `hard_gate`, `publish-gate`. |
+
+Approve it and the caller's next publish goes through (nothing publishes at the moment of approval). Reject it, or answer with feedback, and the version stays unpublished with the code `approval-rejected` until its text changes. A person's own publish settles an open request as approved. The code is `src/papyrus_content/publish_gate.py`; the setting is read and set with `papyrus ops content publish-gate show|set`.
+
 ## Recipients (site configuration, no code change)
 
 `ReviewRecipientRule` rows, resolved most specific first: the automation's rule, then the mode's, then the `default` rule, then the site

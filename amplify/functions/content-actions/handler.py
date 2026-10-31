@@ -51,6 +51,13 @@ def actor_from_event(event: dict) -> str:
     return identity.get("username") or identity.get("sub") or "unknown"
 
 
+def person_from_event(event: dict) -> str | None:
+    """The signed-in newsroom user (a Cognito user pool identity) behind the call, or None for IAM, a direct invoke or anything else.
+    Publishing as a person is that person's approval, so an editor is not blocked by their own publish gate."""
+    identity = event.get("identity") or {}
+    return identity.get("sub") if identity.get("sub") and identity.get("issuer") else None
+
+
 def failure_response(error: PublishError) -> dict:
     if error.errors:
         errors = [body_error.to_dict() for body_error in error.errors]
@@ -244,7 +251,7 @@ def _run_projection_task(task: dict) -> dict:
     return {"ok": True, "paths": [*report.written, *report.deleted]}
 
 
-def save_item_draft_action(arguments: dict, actor: str) -> dict:
+def save_item_draft_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
     client, _claims = create_authoring_client()
     if arguments.get("newVersion") and arguments.get("id"):
         existing = client.get_record("Item", arguments["id"])
@@ -289,7 +296,7 @@ def save_item_draft_action(arguments: dict, actor: str) -> dict:
         },
     }
     if record["status"] == "published" and projection_configured():
-        published = publish_item(client, record["id"], actor=actor)
+        published = publish_item(client, record["id"], actor=actor, approved_by=approved_by)
         response["item"]["versionNumber"] = published.version_number
         response.update(project_item_action(client, record["id"], unpublished=False))
     return response
@@ -315,9 +322,9 @@ def site_triggers_for(client, item_id: str) -> dict:
     return triggers
 
 
-def publish_item_action(arguments: dict, actor: str) -> dict:
+def publish_item_action(arguments: dict, actor: str, approved_by: str | None = None) -> dict:
     client, _claims = create_authoring_client()
-    result = publish_item(client, arguments["id"], actor=actor)
+    result = publish_item(client, arguments["id"], actor=actor, approved_by=approved_by)
     response = {
         "ok": True,
         "changed": result.changed,
@@ -395,9 +402,9 @@ def handler(event, context):
         if field == "deriveMarkus":
             return derive_markus_action(arguments)
         if field == "saveItemDraft":
-            return save_item_draft_action(arguments, actor)
+            return save_item_draft_action(arguments, actor, person_from_event(event))
         if field == "publishItem":
-            return publish_item_action(arguments, actor)
+            return publish_item_action(arguments, actor, person_from_event(event))
         if field == "moveStoryStage":
             return move_story_stage_action(arguments, actor)
         if field == "unpublishItem":
