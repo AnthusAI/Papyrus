@@ -278,6 +278,8 @@ def settings_setting(context, setting: str, segment: str) -> None:
         raw["urls"] = {"sections": {setting.split(".")[2]: {"base": segment}}}
     elif setting.startswith("collections."):
         raw["collections"] = [{"id": setting.split(".")[1], "base": segment}]
+    elif setting == "homePage.forum.threadBase":
+        raw["homePage"] = {"forum": {"threadBase": segment}}
     context.raw_settings = raw
     context.setting_name = setting
 

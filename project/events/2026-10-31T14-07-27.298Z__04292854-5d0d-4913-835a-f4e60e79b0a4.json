@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "04292854-5d0d-4913-835a-f4e60e79b0a4",
+  "issue_id": "PPY-ac547732-51dc-4a25-8b2d-899ae301d262",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:07:27.298Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Never draft a Reference twice in monitor stories",
+    "description": "monitor_stories files several Proposals for the same Reference (CPU cache x4, Bernstein x3); the docs promise once. Fix and dedupe.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

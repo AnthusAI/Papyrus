@@ -32,6 +32,16 @@ FILE_TEXT_ICON = (
     f'<svg class="home-page-icon" data-icon="file-text" {SVG_ATTRIBUTES}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
     '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>'
 )
+USER_ICON = f'<svg class="home-page-icon" data-icon="user" {SVG_ATTRIBUTES}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'
+BADGE_CHECK_ICON = (
+    f'<svg class="home-page-icon" data-icon="badge-check" {SVG_ATTRIBUTES}>'
+    '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/>'
+    '<path d="m9 12 2 2 4-4"/></svg>'
+)
+PENCIL_ICON = (
+    f'<svg class="home-page-icon" data-icon="pencil" {SVG_ATTRIBUTES}>'
+    '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>'
+)
 MESSAGE_SQUARE_ICON = f'<svg class="home-page-icon" data-icon="message-square" {SVG_ATTRIBUTES}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'
 
 
@@ -177,18 +187,22 @@ def anchor_markup(anchor: Mapping) -> str:
     return f'<p class="home-page-eyebrow home-page-anchor" data-kind="{kind.lower()}">{icon}<span>{kind}: {label}</span></p>'
 
 
-def thread_card(thread: Mapping, excerpt: str) -> str:
-    """One thread: anchor eyebrow, title, message count and last activity, the latest Message clipped, and who wrote it."""
+def thread_card(thread: Mapping, excerpt: str, href: str | None = None) -> str:
+    """One thread: anchor eyebrow, title, message count and last activity, the latest Message clipped, and who wrote it.
+
+    With ``href`` (a site has ``homePage.forum``) the title links to the thread's own page."""
     latest = thread.get("latest") if isinstance(thread.get("latest"), Mapping) else {}
     count = thread.get("messages") if isinstance(thread.get("messages"), int) else 0
     when = time_markup(thread.get("lastAt"))
     author = author_text(latest.get("author") or {})
     quote = f'<p class="home-page-excerpt">{esc(excerpt)}</p>' if excerpt else ""
     by = f'<p class="home-page-author">by {esc(author)}</p>' if author else ""
+    title = esc(thread.get("title") or "Conversation")
+    title = f'<a href="{esc(href)}">{title}</a>' if href else title
     return (
         f'<article class="home-page-thread" data-anchor="{esc((thread.get("anchor") or {}).get("kind"))}">'
         f'<div class="home-page-body">{anchor_markup(thread.get("anchor") or {})}'
-        f'<h3 class="home-page-title">{esc(thread.get("title") or "Conversation")}</h3>'
+        f'<h3 class="home-page-title">{title}</h3>'
         f'<p class="home-page-thread-meta"><span class="home-page-count">{MESSAGE_SQUARE_ICON}<span>{message_count_text(count)}</span></span>{when}</p>'
         f'{quote}{by}</div></article>'
     )
