@@ -38,3 +38,20 @@ Feature: A Tactus procedure checks a story version
   Scenario: The procedure cannot check a version that does not exist
     When the procedure checks the version "no-such-version"
     Then the check is refused as "Story version not found"
+
+  # Content saved by a bot is copy-edited like content saved in the editor: the save checks the new version on the server.
+  Scenario: Saving a fixed version through the tool checks it as it is saved
+    When the procedure saves a fixed version reading "This release ships today."
+    Then the save reports an editorial check of version 2 with no violations
+    And version 2 has a stored check
+
+  Scenario: A check that cannot run never undoes the save
+    Given checking a saved version will fail
+    When the procedure saves a fixed version reading "This release ships today."
+    Then the save succeeded as version 2 and reports that the version was not checked
+
+  Scenario: A version whose content was already checked is not checked again
+    When the procedure checks the story's first version
+    And the procedure checks the story's first version
+    Then the check status is "checked" and the version is not clean
+    And the function checked the first version only once

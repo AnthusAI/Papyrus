@@ -93,7 +93,8 @@ def papyrus_create_story(title: str, section: str, author_label: str, stage: str
 
 def papyrus_save_story_version(story: str, body_markus: str, reason: str, author_label: str, front_matter_yaml: str = "", stage: str = "") -> dict:
     """Save the next draft version of a story: YAML front matter (without --- lines) and a Markus body.
-    Empty front matter keeps the latest version's. Never publishes. Returns the new version id."""
+    Empty front matter keeps the latest version's. Never publishes. Returns the new version id, and an
+    editorialCheck summary (the new version is checked as it is saved; content already checked is not checked again)."""
 
     from papyrus_content.graphql_authoring import create_authoring_client
     from papyrus_content.story_reporting import latest_story_version, save_story_version
@@ -106,7 +107,12 @@ def papyrus_save_story_version(story: str, body_markus: str, reason: str, author
     record = save_story_version(
         client, story, front_matter_yaml=front_matter_yaml or None, body_markus=body_markus, actor=author_label, change_reason=reason, stage=stage or None
     )
-    return {"versionId": record["id"], "versionNumber": record["versionNumber"], "status": record.get("status")}
+    result = {"versionId": record["id"], "versionNumber": record["versionNumber"], "status": record.get("status")}
+    # Every saved version is checked, like the editor's saves; a failed check never undoes the save.
+    from papyrus_content.editorial_commands import check_saved_version_best_effort
+
+    result["editorialCheck"] = check_saved_version_best_effort(record["id"], client.graphql)
+    return result
 
 
 def papyrus_link_story_reference(story: str, reference: str, role: str, author_label: str, note: str = "", citation_key: str = "") -> dict:
@@ -256,7 +262,7 @@ def papyrus_check_story_version(story: str = "", version: str = "", version_numb
 
     summary = request_item_check(item["id"], client.graphql)
     base = {"versionId": item["id"], "lineageId": item.get("lineageId"), "versionNumber": int(item.get("versionNumber") or 0)}
-    if summary.get("skipped"):
+    if summary.get("skipped") and summary["skipped"] != "unchanged":  # "unchanged": already checked, the stored result stands
         return {**base, "status": "skipped", "clean": False, "reason": summary["skipped"], "findings": []}
     deadline = time.monotonic() + max(wait_seconds, 0)
     while True:

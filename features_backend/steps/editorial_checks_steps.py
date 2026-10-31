@@ -28,17 +28,15 @@ class FakeEditorialStore:
     def get_editorial_context(self, section):
         """The contract the GraphQL store gets from getEditorialContext with optional publication doctrine."""
         from papyrus_content.editorial_context import build_context
-        if self.missions > 1:
-            raise ValueError(f"Publication mission: expected exactly one current record, found {self.missions}.")
         entries = [{'scope': 'publication', 'kind': 'policy', 'text': 'Synthetic private guidance',
                     'source': {'id': 'synthetic-policy'}}]
-        if self.missions == 1:
+        if self.missions == 1:  # none, or more than one current record, means no usable mission (the resolver logs a warning)
             entries.insert(0, {'scope': 'publication', 'kind': 'mission', 'text': 'Synthetic mission',
                                'source': {'id': 'synthetic-mission'}})
         missing_section = bool(section) and self.unconfigured_section
         scope = {'sectionId': None, 'requestedSection': section} if missing_section else {'sectionId': section}
         return build_context({'key': 'synthetic'}, scope, entries, mode='cloud',
-                             missing_publication_doctrine=[] if self.missions else ['mission'],
+                             missing_publication_doctrine=[] if self.missions == 1 else ['mission'],
                              missing_section_configuration=[section] if missing_section else [])
 
     def publication_key(self):
@@ -48,7 +46,14 @@ class FakeEditorialStore:
         return self.items.get(item_id)
 
     def put_check_run(self, record):
-        self.check_runs.append(record)
+        self.check_runs = [run for run in self.check_runs if run["id"] != record["id"]] + [record]
+
+    def get_check_run(self, item_id):
+        return next((run for run in self.check_runs if run["id"] == item_id), None)
+
+    def list_check_runs_by_lineage(self, lineage_id, limit):
+        runs = sorted((run for run in self.check_runs if run["lineageId"] == lineage_id), key=lambda run: -run["versionNumber"])
+        return runs[:limit]
 
     def get_settings(self):
         return self.settings
@@ -440,7 +445,7 @@ def step_no_section_record(context):
 @then('the section is recorded as skipped because there is "{text}"')
 def step_section_skipped(context, text):
     lane = context.check_result["lanes"]["section"]
-    assert lane["status"] == "skipped" and lane["reason"] == f"no section configuration for engineering" and text in lane["reason"], lane
+    assert lane["status"] == "skipped" and lane["reason"].startswith("no section configuration for ") and text in lane["reason"], lane
 
 
 @then("the stored check run records the section lane as skipped")
@@ -462,12 +467,80 @@ def step_classifier_skipped(context):
     assert lane["status"] == "skipped" and "mission" in lane["reason"], lane
 
 
+def _saved_version(context, number, body, *, section="engineering", content_hash=None):
+    item_id = f"story-v{number}"
+    context.store.items[item_id] = {"id": item_id, "lineageId": "story", "versionNumber": number, "section": section,
+                                    "bodyMarkus": body, "contentHash": content_hash or f"hash-of:{section}:{body}"}
+    return item_id
+
+
+def _check_saved(context, item_id):
+    context.services = _services(context)  # a new request: nothing asked of Humanus yet
+    context.version_result = editorial.handle("checkItemVersion", {"itemId": item_id}, context.services)
+
+
 @when('the saved version of a story with "{body}" is checked')
 def step_check_version(context, body):
-    context.store.items["story-v1"] = {"id": "story-v1", "lineageId": "story", "versionNumber": 1,
-                                        "section": "engineering", "bodyMarkus": body}
-    context.services = _services(context)
-    context.version_result = editorial.handle("checkItemVersion", {"itemId": "story-v1"}, context.services)
+    _check_saved(context, _saved_version(context, 1, body))
+
+
+@step('version {number:d} of the story is saved with "{body}" and checked')
+def step_save_and_check(context, number, body):
+    _check_saved(context, _saved_version(context, number, body))
+
+
+@step('version {number:d} of the story is saved in section "{section}" with "{body}" and checked')
+def step_save_in_section_and_check(context, number, section, body):
+    _check_saved(context, _saved_version(context, number, body, section=section))
+
+
+@step("version {number:d} of the story is saved with the same content as version {earlier:d} and checked")
+def step_save_same_content(context, number, earlier):
+    previous = context.store.items[f"story-v{earlier}"]
+    _check_saved(context, _saved_version(context, number, previous["bodyMarkus"], section=previous["section"], content_hash=previous["contentHash"]))
+
+
+@step("version {number:d} of the story is checked again")
+def step_check_again(context, number):
+    _check_saved(context, f"story-v{number}")
+
+
+@given("the stored check of version {number:d} did not finish its judgment lane")
+def step_unfinished_lane(context, number):
+    context.store.check_runs = [
+        {**run, "lanes": {**(run.get("lanes") or {}), "classifier": {"status": "partial", "reason": "the check ran out of time"}}} if run["id"] == f"story-v{number}" else run
+        for run in context.store.check_runs
+    ]
+
+
+@then("version {number:d} has a stored check with {count:d} finding for policy \"{policy}\"")
+def step_stored_findings(context, number, count, policy):
+    run = context.store.get_check_run(f"story-v{number}")
+    assert run is not None, context.store.check_runs
+    matching = [f for f in run["findings"] if f["policyId"] == policy]
+    assert len(matching) == count, run["findings"]
+
+
+@then('version {number:d} has a stored finding for policy "{policy}" with severity "{severity}"')
+def step_stored_severity(context, number, policy, severity):
+    run = context.store.get_check_run(f"story-v{number}")
+    assert any(f["policyId"] == policy and f["severity"] == severity for f in run["findings"]), run["findings"]
+
+
+@then("the check was skipped as unchanged")
+def step_skipped_unchanged(context):
+    assert context.version_result.get("skipped") == "unchanged", context.version_result
+
+
+@then("Humanus was not asked again")
+def step_not_asked_again(context):
+    assert context.services.last_check_request is None, "Humanus was asked to check identical content again"
+
+
+@then("Humanus was asked to check")
+def step_asked_to_check(context):
+    assert context.services.last_check_request is not None
+    assert context.version_result.get("skipped") is None, context.version_result
 
 
 @then("the stored check run records the classifier lane as skipped")

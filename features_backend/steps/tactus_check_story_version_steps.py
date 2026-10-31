@@ -47,6 +47,13 @@ class SiteEditorialStore:
     def put_check_run(self, record):
         self.check_runs[record["id"]] = json.loads(json.dumps(record))
 
+    def get_check_run(self, item_id):
+        return self.check_runs.get(item_id)
+
+    def list_check_runs_by_lineage(self, lineage_id, limit):
+        runs = [run for run in self.check_runs.values() if run["lineageId"] == lineage_id]
+        return sorted(runs, key=lambda run: -run["versionNumber"])[:limit]
+
     def get_settings(self):
         return self.settings
 
@@ -59,8 +66,11 @@ def site_graphql(context):
 
     def graphql(query, variables=None):
         if "checkItemVersion" in query:
+            if getattr(context, "checks_fail", False):
+                raise RuntimeError("The language-model provider did not respond.")
             services = editorial.Services(store=context.store, decision_model=None, generator=None)
             result = editorial.handle("checkItemVersion", variables, services)
+            context.function_asked_humanus = getattr(context, "function_asked_humanus", 0) + (1 if services.last_check_request else 0)
             for extra in getattr(context, "whole_document_findings", []):
                 run = context.store.check_runs[variables["itemId"]]
                 run["findings"].append(extra)
@@ -88,6 +98,7 @@ def run_tool(context, **kwargs):
 def step_site(context, body):
     context.client = client_with_one_story()
     context.client.tables["Item"][LINEAGE]["bodyMarkus"] = body
+    context.client.tables["Item"][LINEAGE]["contentHash"] = f"hash-of:{body}"
     context.store = SiteEditorialStore(context.client)
     context.client.graphql = site_graphql(context)
 
@@ -183,3 +194,29 @@ def step_first_kept(context):
 @then('the check is refused as "{message}"')
 def step_refused(context, message):
     assert context.tool_error is not None and message in str(context.tool_error), context.tool_error
+
+
+@given("checking a saved version will fail")
+def step_checks_fail(context):
+    context.checks_fail = True
+
+
+@then("the save reports an editorial check of version {number:d} with no violations")
+def step_save_checked(context, number):
+    check = context.saved["editorialCheck"]
+    assert check["versionNumber"] == number and check["violations"] == 0 and "notChecked" not in check, context.saved
+
+
+@then("version {number:d} has a stored check")
+def step_has_stored_check(context, number):
+    assert context.store.get_check_run(f"{LINEAGE}-v{number}") is not None, list(context.store.check_runs)
+
+
+@then("the save succeeded as version {number:d} and reports that the version was not checked")
+def step_save_survived(context, number):
+    assert context.saved["versionNumber"] == number and context.saved["editorialCheck"].get("notChecked"), context.saved
+
+
+@then("the function checked the first version only once")
+def step_checked_once(context):
+    assert context.function_asked_humanus == 1, context.function_asked_humanus

@@ -78,7 +78,16 @@ async function main() {
   const optional = await resolveEditorialContext(client(), { ...options, optionalPublicationDoctrine: true });
   assert.equal("missingPublicationDoctrine" in optional, false);
   assert.equal(optional.contextHash, pack.contextHash);
-  await rejects(d => { d.records.Item['editorial-doctrine-mission'].push(d.records.Item['editorial-doctrine-mission'].at(-1)); }, /found 2/, { optionalPublicationDoctrine: true });
+  // Strict callers still refuse two current missions; checks run without the mission and log a warning that names the publication.
+  await rejects(d => { d.records.Item['editorial-doctrine-mission'].push(d.records.Item['editorial-doctrine-mission'].at(-1)); }, /found 2/);
+  const twoMissions = structuredClone(fixture); twoMissions.records.Item['editorial-doctrine-mission'].push(twoMissions.records.Item['editorial-doctrine-mission'].at(-1));
+  const warned: string[] = []; const realWarn = console.warn; console.warn = (message: string) => { warned.push(String(message)); };
+  try {
+    const ambiguous = await resolveEditorialContext(client(twoMissions), { ...options, optionalPublicationDoctrine: true });
+    assert.deepEqual(ambiguous.missingPublicationDoctrine, ["mission"]);
+    assert.ok(!ambiguous.entries.some(value => value.scope === "publication" && value.kind === "mission"));
+    assert.ok(warned.some(line => line.includes("mission") && line.includes("example") && line.includes("found 2")), `warnings: ${JSON.stringify(warned)}`);
+  } finally { console.warn = realWarn; }
   // PPY-2c4b56: an item stores its section as an id, a slug or a name; resolve by id, then slug, then name, within the publication.
   const sectioned = structuredClone(fixture);
   sectioned.records.NewsroomSection['example#arts'] = { id: 'example#arts', tenantId: 'example', title: 'Arts & Culture', shortTitle: 'Arts', updatedAt: '2026-10-18', editorialMission: 'Cover the arts', editorialPolicy: 'Credit the artists' };
@@ -103,6 +112,12 @@ async function main() {
   const twin = structuredClone(sectioned); twin.records.NewsroomSection['example#a1'] = { ...twin.records.NewsroomSection['example#arts'], id: 'example#a1', title: 'Culture Desk' };
   twin.records.NewsroomSection['example#a2'] = { ...twin.records.NewsroomSection['example#arts'], id: 'example#a2', title: 'Culture Desk' };
   await assert.rejects(resolveEditorialContext(client(twin), { ...bare, sectionId: 'Culture Desk' }), /ambiguous/);
+  console.warn = () => {};
+  try {
+    const unsure = await resolveEditorialContext(client(twin), { ...bare, sectionId: 'Culture Desk', optionalPublicationDoctrine: true });
+    assert.deepEqual(unsure.missingSectionConfiguration, ['Culture Desk']);
+    assert.ok(unsure.entries.every(value => value.scope !== 'section'));
+  } finally { console.warn = realWarn; }
   const fallback = structuredClone(fixture); fallback.attachments = [];
   const brief = await resolveEditorialContext(client(fallback), options);
   assert.ok(brief.warnings.some(warning => warning.includes('summary')));
