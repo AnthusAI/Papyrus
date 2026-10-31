@@ -122,6 +122,7 @@
     "test:model-groups": "tsx scripts/test-model-groups.ts",
     "test:function-directive-stack": "tsx scripts/test-function-directive-stack.ts",
     "test:plugins": "tsx scripts/test-plugins.ts",
+    "test:home-page-plugin": "tsx scripts/test-home-page-plugin.ts",
     "test:newsletter-plugin": "tsx scripts/test-newsletter-plugin.ts",
     "test:newsletter-api": "tsx scripts/test-newsletter-api.ts",
     "test:newsletter-pages-browser": "tsx --test scripts/test-newsletter-pages-browser.ts",
