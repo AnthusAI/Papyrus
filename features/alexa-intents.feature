@@ -50,9 +50,16 @@ Feature: A listener hears a site's published stories through Alexa
     When a listener says stop or cancel
     Then the skill says goodbye and ends the session
 
-  Scenario: Something the skill does not understand gets a way forward
+  Scenario: Something the skill does not understand reads the headlines
     When a listener says something the skill cannot match
-    Then the skill lists what it understands and keeps listening
+    Then the skill says it did not catch that and reads the headlines, so there is always something to choose
+    And the session stays open
+
+  Scenario: Asking for the list in everyday words reads the headlines
+    Given a listener who reaches the skill with "ask pilobolus newsroom for the headlines"
+    When they ask for the headlines, the stories, the articles or the posts, or say they do not know what the stories are
+    Then the latest headlines are read, with a welcome when the session is new
+    And asking for a story without a number reads the list instead of asking for a number
 
   Scenario: Going home returns to fresh headlines
     Given the listener is reading a story
@@ -69,11 +76,12 @@ Feature: A listener hears a site's published stories through Alexa
     When they are read aloud
     Then the speech is well formed and never carries a raw markup character
 
-  Scenario: A long story is cut at a sentence and the next story is offered
-    Given a story longer than Alexa's output speech limit
+  Scenario: A long story is read in short parts
+    Given a story far longer than a minute of speech
     When it is read aloud
-    Then the speech stays within 8000 characters, ends on a whole sentence and says it is as much as can be read
-    And it offers the next story
+    Then the first part starts with the title, byline and deck and stops at a whole sentence after about a minute
+    And the listener can say continue for the next part, repeat for the same part, and hears when the story ends
+    And a byline that already starts with "by" is not read as "by by"
 
   Scenario: A single endless sentence is shortened at a word
     Given a sentence longer than the room there is

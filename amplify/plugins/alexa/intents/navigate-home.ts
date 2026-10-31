@@ -11,5 +11,5 @@ export const navigateHomeIntent: IntentModule = {
     canHandle: (handlerInput) => getRequestType(handlerInput.requestEnvelope) === "IntentRequest" && getIntentName(handlerInput.requestEnvelope) === INTENT_NAME,
     handle: (handlerInput) => readHeadlines(handlerInput, dependencies, { fresh: true }),
   }),
-  interactionModel: { intent: { name: INTENT_NAME, samples: ["headlines", "go back to the headlines", "read the headlines again", "start over"] } },
+  interactionModel: { intent: { name: INTENT_NAME, samples: [] } },
 };

@@ -28,8 +28,9 @@ export function pause(milliseconds: number): string {
 }
 
 /** One sentence as SSML (already escaped). */
+/** One spoken sentence. The trailing space keeps the on-screen caption from running sentences together ("budget.People"). */
 export function sentence(text: string): string {
-  return `<s>${escapeSsml(text)}</s>`;
+  return `<s>${escapeSsml(text)}</s> `;
 }
 
 export function wrapSpeak(inner: string): string {
