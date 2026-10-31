@@ -1,0 +1,25 @@
+{
+  "id": "PPY-098e22e5-ec2c-4a98-addf-4351947fb82d",
+  "title": "Enrollment: prepare hook with LoginChallenges in the pages Lambda, /cli/enroll and /cli/challenge routes, CLI enroll hook, local login too",
+  "description": "Repo: **Papyrus**. Enrollment makes a CLI login a Prospectus Person. Ready now: the central routes are shipped. Enrollment binds only to the registered federation client, so until the CLI task's flag is on for a site, enrollment on that site returns 403 and the CLI must say so plainly (fail closed, see the authorize task).\n\n## Pieces\n1. **`prepare` hook (remote flow).** `amplify/functions/cli-login-pages/handler.py` (the pages Lambda built by `addCliRemoteLogin`, cli-login 0.3.0): on Approve, call `POST /v1/identities/google/challenge` as the site role with `{\"loginStateDigest\": sha256hex(T)}`, return `(nonce, challengeToken)`; the nonce becomes the Google sign-in nonce and `challengeToken` the opaque `enrollment` the broker hands to the poll holding P. Copy Prospectus `cli/src/prospectus_cli/pages.py` `LoginChallenges` into `amplify/functions/cli-login-pages/login_challenges.py` with its strict validation (status 200, UUID4 `challengeId`, nonce regex, `expiresAt` within `now < exp <= now+300`, token regex `^v1\\.[a-z0-9]{1,16}\\.[A-Za-z0-9_-]{1,1500}\\.[A-Za-z0-9_-]{1,100}$`) and `Unavailable` (nothing is bound on any failure); port `pages_test.py`'s twelve tests to pytest. SigV4 with the Lambda's role via `botocore` `SigV4Auth` (as `src/papyrus_content/graphql_http.py` `iam_signed_graphql_headers` does for AppSync). Env: `PROSPECTUS_ACCOUNTS_API` (the API endpoint; already in `infra/site.json` as `prospectusAccountsApiStageArn` for the app shell; derive or add `prospectusAccountsApiEndpoint`).\n2. **Enroll route.** `app/cli/enroll/route.ts` (next to `app/cli/approve` and `app/cli/callback`; the `/cli/*` edge routes from #895 already reach the app): `POST {challengeToken, idToken, loginState}` with `Authorization: Bearer <access token>`; verify both tokens locally (issuer, `aud`/`client_id` = the federation client, same `sub` and `auth_time`, `exp`), then call `POST /v1/identities/google/resolve` as the site role with the two token headers and the body; return `{person: {id}}` or the exact Prospectus error code (`challenge_invalid`, `login_state`, `challenge_replay`, `reenrollment_required`) with its status. Server-side code in `lib/prospectus-enroll.ts`, reusing the SigV4 client in `lib/prospectus-account-client.ts`. The route runs as the app-shell compute role: verify (read-only) that this role is the site's registered `roleArn` in `accounts/papyrus-sites.json` or its `executionDelegation`; if not, report and stop (open question on the epic).\n3. **Local flow.** `papyrus login` (not remote): the CLI asks `GET /cli/challenge?state=<its own state>` (same route file, GET; the digest is `sha256hex(state)`) for `(nonce, challengeToken)` before opening the browser, uses the nonce in the authorize URL, then calls `/cli/enroll`. Unbound challenge (`{}`) is NOT used: always bind to the state.\n4. **CLI.** `src/papyrus_content/cli_user_auth.py`: pass `enroll=` to `cli_login.remote.remote_login` and the local login; on success store `personId` in `~/.config/papyrus/user-session.json`; on failure discard the session and print \"This login could not be enrolled with Prospectus (<code>). Run `papyrus login` again.\" for `reenrollment_required`, or the plain reason otherwise. Never store tokens from a failed enrollment.\n\n## Gherkin (`features_backend/cli-enrollment.feature`, `features/cli-enroll-route.feature`)\n  Scenario: Approving a remote login binds a challenge to the transaction digest and returns its nonce\n  Scenario: An unusable challenge binds nothing and the approval page says the service is unavailable\n  Scenario: The enroll route resolves a Person for the right tokens and state\n  Scenario: A replay with other tokens is refused as challenge_replay; the same tokens return the same Person\n  Scenario: A login on the main web client cannot enroll and the CLI stores no session\n  Scenario: A local login binds its own state and enrolls the same way\n  Scenario: Error responses name no service detail beyond the code\n\n## Acceptance\npytest for the Lambda (moto/responses), route tests, `features_backend` green; `docs/cli-login.md` \"Enrollment\" section. Ready now (verification against a live site needs the CLI task's flag on that site).",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T12:42:38.668829Z",
+  "updated_at": "2026-10-31T12:42:38.668864Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

@@ -1,0 +1,25 @@
+{
+  "id": "PPY-7ddf3785-1857-42d4-ae37-cb91075f0e73",
+  "title": "Store listing, icons, privacy policy and terms pages from site config",
+  "description": "The generator adds publishingInformation and privacyAndCompliance to skill.json. Add clean /privacy-alexa (or extend the existing privacy page) and terms pages on the site. Gherkin: the pages render and the manifest URLs resolve.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-1b7f66d4-dbb9-4728-ba02-51868f05edd9",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-dc7748a6-fdc5-4184-8f3c-45c3468b1b9a",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:49.406383Z",
+  "updated_at": "2026-10-31T14:25:31.673876Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

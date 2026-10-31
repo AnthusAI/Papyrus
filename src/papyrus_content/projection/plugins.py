@@ -18,6 +18,7 @@ from ..reader_steering.snapshot import READER_DATA_DIRECTORY
 PLUGINS_ENV = "PAPYRUS_PLUGINS"
 PLUGIN_ASSET_DIRECTORY = Path(__file__).parent / "plugin_assets"
 PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
+    "alexa": {},  # ships no static files yet; listed so PAPYRUS_PLUGINS=alexa is a known name
     "reader-steering": {"_plugins/papyrus-reader@1.js": "papyrus-reader.js", "_plugins/papyrus-reader@1.css": "papyrus-reader.css"},
     "newsletter": {"_plugins/papyrus-newsletter@1.js": "papyrus-newsletter.js", "_plugins/papyrus-newsletter-pages@1.js": "papyrus-newsletter-pages.js"},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},

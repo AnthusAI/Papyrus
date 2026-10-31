@@ -281,7 +281,7 @@ It is the same for every monitor: no source is named in the code, so a new site 
 
    The target is how a later run knows the Reference is drafted: the operator can read targets (not bodies) through `listStoryDrafts`, a declined draft keeps
    its target, and the Proposal model has no target type for a Reference, so the `entity` type carries an id that no Knowledge Map entity has. It is
-   also how the JSON store (`ideas/<id>.json`, `referenceLineageId`) and the Proposals agree. A Reference is never drafted twice, whatever happened to its draft.
+   also how the JSON store (`ideas/<id>.json`, `referenceLineageId`) and the Proposals agree. A Reference is never drafted twice, whatever happened to its draft. "The same Reference" is its lineage, or its address: the same page delivered as another Reference (a second monitor, a repost) is skipped too (`sameSource` in the run record). The targets are read again just before each filing, so an overlapping run files nothing the other run just filed. `ideas synthesize` files the Reference lineages it cites as targets (up to the ten a Proposal may name), so a Reference an idea covers is not drafted again by `monitor-stories`.
 
 ```bash
 papyrus ideas monitor-stories --site <site> --dry-run
@@ -370,3 +370,33 @@ Notes from running v0 by hand, for PPY-433383 (run contract) and PPY-93faf2 (loc
 These are local commands against a cloud CMS. A site with no cloud backend (a local pod) has no `Reference` store to read, so the
 digest does not run there; that waits for the local-pod runtime (PPY-93faf2) and the run contract (PPY-433383). Scheduling goes
 through automations on that contract.
+
+
+## Ideas are Items
+
+A generated story (a monitor story, a trend story, a synthesized idea) is filed as a content `Item` at the `idea` stage, the same stage a person's idea starts at, not as a `story_draft` Proposal. Choose it with `--store items` (the cloud router: `"monitorStories": {"store": "items"}` in the publication's router entry; the default stays `proposals` until the router role is allowed to write Items and Semantic Relations, which needs a change set on `papyrus-monitoring`).
+
+- The Item records its origin in its front matter (`generated`: `origin`, `proposedBy: AI`, `runId`, `monitorId`, `evidence`, the `targets` it cites). It carries no closing "Drafted by AI" line: provenance is data.
+- Every Reference it cites is linked `based_on`. Because that link is how a Reference counts as covered, a Reference with an idea, an active story or a spiked idea is never drafted again, by any path.
+- A body that copies a cited Reference's captured text is refused before anything is written (the same copy guard as every story made from a Reference).
+- Filing the same idea again finds the Item that exists (its id comes from the Reference lineages it cites).
+- An editor accepts an idea by moving it forward and declines it by moving it to `spiked` with a reason (`papyrus stories move`); the reason is recorded on the Item's `stageMoves`.
+- `papyrus ideas migrate-proposals [--write]` converts the open `story_draft` Proposals into idea Items once. It is a dry run unless `--write`, skips decided Proposals, ones whose References already have a story, and duplicates, and leaves the Proposals as they are. It needs an editor session (an operator cannot read Proposals). The `Proposal` model stays for reader steering.
+
+### The editorial gate
+
+With `--store items` every idea is checked against the site's editorial policies (the same composed pack `papyrus editorial check` uses, rules lane and judgment lane) before it is filed.
+
+- An **error-severity violation refuses the filing**: nothing is written, and the run's `invalid[]` records `editorial_check_failed` with the findings, as the citation check does.
+- Warnings and notes stay with the Item (`generated.check`: counts by severity, the findings, the lanes) and are stored as the Item's editorial check run. The batch review lists clean ideas first.
+- The judgment lane needs `TYPESAFE_API_KEY`. When it is missing Humanus reports the lane as unavailable and the Item records `judgment: {ran: false, reason}`; the idea is not passed off as judged. Checks turned off for the site are recorded as `{ran: false, skipped: disabled}`.
+- `supersedes`: an idea may list Item lineages it replaces (stored in `generated.supersedes`, each must be an existing Item). The editor can then spike those in the same review.
+- The router's `items` store files ungated for now: the router role has no editorial grants. Keep `monitorStories.store` at `proposals` until both grants are in.
+
+### Decisions are labels
+
+An editor decides a generated idea by moving it: forward (accept) or to `spiked` with a reason (decline). The move is already recorded on the Item (`stageMoves`), so the labels are read from the Items, never copied and never written as Messages. The first move out of the `idea` stage is the decision; a story spiked later, after it was accepted, is still an accepted idea.
+
+- **Next synthesis.** `ItemStore.feedback()` turns the decisions into the reviewer feedback `ideas synthesize` already takes (accept or decline, with the reason as the note, addresses removed). A declined angle is not proposed again, and the model sees the reasons. `--feedback FILE` still overrides it for the same title. A spiked idea also counts as drafted for the dedupe of every path.
+- **Cyclotron export.** `papyrus ideas labels [--out FILE]` writes one JSON Lines row per decided idea in the priming import shape (`cyclotron export-priming` has the same shape): `labels["idea-accept"]` is `include` (accepted) or `exclude` (declined) with the editor's reason as the explanation; `provenance` has the origin, monitor, run, the cited Reference lineages, `labeledBy` (a role, never an address) and `modelMade`.
+- **What the Cyclotron side still needs.** A Cyclotron output for the classifier `idea-accept` per site (it decides story-worthiness of an idea, not relevance of a Reference, so it is a different output from `<site>-relevance`), an import of these rows into it (the same priming import as for References), retraining on them (the hosted standing run is prediction-only today; PPY-c6aced), and a way for the pipeline to score a candidate idea with it before drafting. None of that is built here.

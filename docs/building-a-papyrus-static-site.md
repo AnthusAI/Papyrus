@@ -195,7 +195,7 @@ once):
 
 | Key | Meaning |
 |---|---|
-| `select` | `sections` (names; `@root` is the items with no section), `tags` (any of), `allTags` (all of), `notTags` (none of). Tags compare case-insensitively. Only listed entries (published, not drafts, of a listed type) are selected |
+| `select` | `sections` (names; `@root` is the items with no section), `tags` (any of), `allTags` (all of), `notTags` (none of), `types` (Story types, any of; `article`, `post`, ...), `notTypes` (Story types, none of). Tags and types compare case-insensitively. Only listed entries (published, not drafts, of a listed type) are selected |
 | `pageSize`, `featuredCount` | default to the site's `listings` values; page 1 shows `featuredCount` + `pageSize` entries (the first `featuredCount` are `listing.featured`), later pages `pageSize` |
 | `sort`, `ties` | `date` (newest first, default), `order` (front matter `order`, then title) or `title`; entries with equal dates go `slug-desc` (default) or `slug-asc` |
 | `drafts` | page 1's `listing.drafts` carries the draft entries the selection would pick if they were published (for a hook that shows them); they are never in the listing, tag pages, feeds or the sitemap |
@@ -360,6 +360,7 @@ them is a build error that names it, except the `knowledge-` blocks, which an it
 
 ::include{kind="listing" collection="news" count="3" card="wide"}
 ::include{kind="listing" tags="featured,solutions" notTags="draft" sort="title" count="3" skip="1" layout="bare"}
+::include{kind="listing" types="article" count="1" card="text" layout="bare"}
 ::include{kind="showcase"}
 ::include{kind="form" id="contact"}
 ::include{kind="block" name="proof-strip" depends="articles" style="dark"}
@@ -371,7 +372,7 @@ them is a build error that names it, except the `knowledge-` blocks, which an it
 
 | `::include` kind | Attributes | Output |
 |---|---|---|
-| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest first by default, `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
+| `listing` | `collection` (borrows that collection's selection, `sort` and `ties`; the other attributes refine it), `sections`, `tags`, `allTags`, `notTags`, `types`, `notTypes` (comma lists; same meaning as `select`), `sort` (`date`, `order`, `title`), `ties`, `skip`, `count`, `card` (the variant passed to the `card` hook), `layout` (`grid` default, a `markus-card-grid`; `bare`: the cards alone) | the matching listed entries, newest first by default, `skip` dropped, then `count` kept; each is the `card` hook's markup (given `variant` and `index`) or the default card |
 | `showcase` | none | the logo wall of the `showcase` settings |
 | `form` | `id` | a `forms` entry |
 | `block` | `name` (required), `depends`, any other attributes | what the `block(name, attributes, page)` hook returns; `depends` lists the sections it reads (`@root`, or `*` for all). The names that start with `knowledge-` are built in and need no hook (see [Knowledge components](knowledge-components.md)) |

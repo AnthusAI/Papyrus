@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5f8046d5-2599-40c0-82d1-9e921e06f0f3",
+  "title": "Editor decisions on Proposed Stories train the idea pipeline",
+  "description": "Accept/decline on Proposals (with reasons) become labels the idea pipeline and the site's relevance Cyclotron learn from, per the Cyclotron learning-loop standard.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:07:27.522199Z",
+  "updated_at": "2026-10-31T14:07:27.522240Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

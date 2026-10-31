@@ -302,10 +302,11 @@ def test_a_read_that_runs_out_of_time_leaves_the_rest_unread_and_says_so():
 
 
 def test_monitor_stories_is_on_by_default_and_the_setting_is_validated():
-    assert validate_monitor_stories("p", None) == {"enabled": True}
-    assert validate_monitor_stories("p", {}) == {"enabled": True}
-    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False}
-    for bad in ({"enabled": "no"}, {"limit": 3}, "off", []):
+    assert validate_monitor_stories("p", None) == {"enabled": True, "store": "proposals"}
+    assert validate_monitor_stories("p", {}) == {"enabled": True, "store": "proposals"}
+    assert validate_monitor_stories("p", {"enabled": False}) == {"enabled": False, "store": "proposals"}
+    assert validate_monitor_stories("p", {"store": "items"}) == {"enabled": True, "store": "items"}
+    for bad in ({"enabled": "no"}, {"limit": 3}, {"store": "files"}, "off", []):
         with pytest.raises(ValueError):
             validate_monitor_stories("p", bad)
 

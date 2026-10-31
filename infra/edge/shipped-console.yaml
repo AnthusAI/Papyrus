@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: papyrus-edge-shipped-console CloudFront distribution for the Shipped newsroom console host. Every path goes to the CMS Amplify app main branch, uncached, with the viewer's host in x-forwarded-host. The stack owns its ACM certificate (validated in the Route 53 zone) and the alias records, so no Amplify domain association is involved. No S3 origin and no CustomErrorResponses, so the CMS answers its own errors.
+Parameters:
+  ConsoleHost:
+    Type: String
+    Default: newsroom.shipped.anth.us
+    Description: The console host name. The ACM certificate, the CloudFront alias and the DNS alias records all use it.
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: The Route 53 hosted zone that contains ConsoleHost (the anth.us zone in the account that deploys this stack). ACM writes its validation record there and the alias records are created in it.
+  CmsAppId:
+    Type: String
+    Description: Amplify app id of shipped-cms (CmsAppId output of amplify-app-shell-shipped-cms).
+Resources:
+  ConsoleCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref ConsoleHost
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref ConsoleHost
+          HostedZoneId: !Ref HostedZoneId
+  CmsViewerRequestFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-cms-forward-host'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: copy the viewer Host to x-forwarded-host for the Amplify CMS origin
+        Runtime: cloudfront-js-2.0
+      FunctionCode: !Sub |
+        function handler(event) {
+          var request = event.request;
+          var host = request.headers.host ? request.headers.host.value : "";
+          request.headers["x-forwarded-host"] = { value: host };
+          return request;
+        }
+  ConsoleDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub '${ConsoleHost} (newsroom console, CMS Amplify app)'
+        Aliases: [!Ref ConsoleHost]
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref ConsoleCertificate
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: cms
+            DomainName: !Sub 'main.${CmsAppId}.amplifyapp.com'
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: cms
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt CmsViewerRequestFunction.FunctionARN
+  ConsoleAliasIPv4:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub '${ConsoleHost}.'
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ConsoleDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+  ConsoleAliasIPv6:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub '${ConsoleHost}.'
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt ConsoleDistribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+Outputs:
+  DistributionId:
+    Value: !Ref ConsoleDistribution
+  DistributionDomainName:
+    Value: !GetAtt ConsoleDistribution.DomainName
+  CertificateArn:
+    Value: !Ref ConsoleCertificate

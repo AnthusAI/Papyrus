@@ -36,6 +36,7 @@ The `homePage` key of `projection.json`; a site without it has no home-page beha
 {"homePage": {"layout": "latest", "perSection": 4,
   "references": {"corpus": "knowledge-corpus-example", "fields": "all", "defaultCount": 6, "recommendedThreshold": 0.5},
   "threads": {"enabled": false, "authors": "handle", "anonymousLabel": "Editor"},
+  "forum": {"threadBase": "conversations", "index": {"pageSize": 50}},
   "freshness": {"debounceSeconds": 300, "intervalHours": null, "purge": false}}}
 ```
 
@@ -57,6 +58,10 @@ papyrus home-page snapshot --site KEY --dry-run          # counts and file size;
 
 Mutation commands write by default; `--dry-run` prints the report and the size of the file only. `--static-dir` points at the site checkout so its `projection.json` (including `urls.basePath`) applies; without it the defaults are used.
 
+## Stories beside the Reference grids
+
+A home page that interleaves Stories with the Reference grids uses the ordinary `listing` include. It can show a single Story type with `types` (any of) and `notTypes` (none of), for example `::include{kind="listing" sections="articles" types="article" count="1" card="text" layout="bare"}` for the newest article even when newer posts exist. A type is only selectable if `listings.types` lists it. Pages that do not use the attributes render exactly as before.
+
 ## The references include
 
 `::include{kind="references" select="recent|confident|recommended" count="6" [section="Tools"] [card="tile|row"] [heading="..."] [more="/path/"] [empty="..."]}` places Reference cards on an authored page, rendered at projection time from `_data/home-page/references.json`. A site needs the `homePage` setting; without it the include is a build error that names the page file.
@@ -70,7 +75,7 @@ Mutation commands write by default; `--dry-run` prints the report and the size o
 
 ## Message threads
 
-With `homePage.threads.enabled` the same task also writes `_data/home-page/threads.json` and one `_data/home-page/threads/<key>.json` per thread, and `::include{kind="threads" select="recent" count="8" layout="list|grid" [heading="..."] [empty="..."]}` places them on an authored page, rendered at projection time. Today only `select="recent"` (most recently active first) exists. `count` defaults to `homePage.references.defaultCount`. The task owns `_data/home-page/threads/`: it deletes the file of a thread that is no longer public. Nothing reads the per-thread files yet; they are the seam for the later forum pages.
+With `homePage.threads.enabled` the same task also writes `_data/home-page/threads.json` and one `_data/home-page/threads/<key>.json` per thread, and `::include{kind="threads" select="recent" count="8" layout="list|grid" [heading="..."] [empty="..."]}` places them on an authored page, rendered at projection time. Today only `select="recent"` (most recently active first) exists. `count` defaults to `homePage.references.defaultCount`. The task owns `_data/home-page/threads/`: it deletes the file of a thread that is no longer public. With `homePage.forum` the per-thread files are drawn as pages (see [Thread pages](#thread-pages)); without it nothing reads them and the cards link nowhere.
 
 - **Public threads**: `threadKind` is `reference_conversation` or `story_conversation`, `status` is `active`, and the anchor is public: `reference#<lineageId>` whose public key is in the current `references.json`, or `item#<lineageId>` of a published Story that has a page. Unanchored and other-kind threads, and threads on rejected or archived References, are never exported. A thread with no public Message is left out.
 - **Public Messages**: `status` active, `messageKind` comment, never deleted. A deleted or moderated Message is omitted entirely and the count excludes it, because its text stays in the database after a soft delete.
@@ -78,6 +83,25 @@ With `homePage.threads.enabled` the same task also writes `_data/home-page/threa
 - **The card** names what the thread is on in words and a Lucide icon (`link` for a Reference, `file-text` for a Story, whose title links to its page), the title, "N messages" beside a `message-square` icon, the date of the last activity, the latest Message as plain text clipped at a sentence boundary (`publicData.summaryCharacters`, default 240) and "by" the author. Flat tones, rounded corners, no borders.
 - **De-duplication**: threads claim `thread:<key>` in the page ledger, so two threads includes on one page never repeat a thread, and they do not interfere with the Reference cards.
 - **Freshness**: with `threads.enabled`, the `home-page` plugin also reads the Message table's stream into the same trigger. A new comment, or a change of its `status`, `content`, `editedAt` or `deletedAt`, opens the same debounce window. A Message stream that another feature already switched on is reused, not replaced.
+
+## Stylesheet
+
+`css/papyrus-home-page.css` is written whenever `homePage` is set, but a page links it only when it places a references or threads include, with a `?v=` token of its own (the first 12 hex characters of that file's SHA-256). The file is left out of the site-wide `?v=`, so a page with no cards keeps the same bytes with or without `homePage`.
+
+## Thread pages
+
+`homePage.forum` (an object, `{}` is enough) gives every public thread its own static, read-only page at `<threadBase>/<key>/`, where `threadBase` defaults to `conversations` and `key` is the thread's opaque 12-hex-character key from `threads.json`. It needs `homePage.threads.enabled`, because the page is drawn from `_data/home-page/threads/<key>.json`. `threadBase` follows the same rule as a section `base`: `_data`, `_plugins`, `_papyrus`, `_next` and `api` are reserved (and `newsroom` on a site whose edge routes the CMS), and it may not equal a section base. `forum.index.pageSize` (default 50) and `forum.posting` are read for the forum index and posting tasks and do nothing yet. A site without `homePage.forum` renders no thread page and is byte-identical to before.
+
+- **What is public**: exactly what the thread file holds and nothing else, so everything in [Message threads](#message-threads) applies: the title, the anchor, and each public Message with its time, edited flag, text and author handle or role label. No email address, sign-in subject or id is written.
+- **The page**: a header with the thread's anchor (a Reference's `row` card when the snapshot still holds it, otherwise a line; a Story is a line that links to its page), the title and "N messages", then one flat block per Message in sequence. A Message shows a Lucide `user` icon and the handle, or a `badge-check` icon and the role label (`Editor`, `AI`), a `<time datetime>` and, when edited, the word "edited" beside a `pencil` icon. Text is escaped and set as paragraphs (blank line, new paragraph; single line break, `<br>`), with no Markdown rendering and no borders. It works without a script.
+- **Twin and llms.txt**: each page has a Markdown twin (`<threadBase>/<key>/index.md`), a "Conversations" group in `llms.txt` and an entry in the sitemap.
+- **Links**: with a forum, the title of a thread card from `::include{kind="threads"}` links to `/<threadBase>/<key>/`.
+- **Freshness**: the page's digest folds in its own thread file (and the anchor Reference's record), so the snapshot task rewrites a thread page, its twin, `llms.txt` and the sitemap only when the thread set or that file changed. When a thread stops being public the task deletes its file and then its page and twin.
+
+## Public handles
+
+A public handle is held by a `PublicHandleClaim` record keyed by the lowercase handle (`ownerKind`, `ownerId`, `claimedAt`), written by a conditional put in `setPublicHandle`, so two people claiming the same handle at once leave exactly one owner; changing or clearing a handle releases the old claim, and a failed profile write releases the new one.
+Sites that had handles before the claim records existed run `scripts/backfill-public-handle-claims.ts` once (an operator with IAM, idempotent, it reports conflicts).
 
 ## Freshness
 

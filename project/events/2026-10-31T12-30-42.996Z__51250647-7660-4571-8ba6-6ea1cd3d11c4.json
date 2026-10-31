@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "51250647-7660-4571-8ba6-6ea1cd3d11c4",
+  "issue_id": "PPY-f9dfb394-2814-47b9-bf33-0ac45678aa29",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:30:42.996Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us follow-up: freshness plugin on, a conversations section, latest story articles-only, verify self-updating /newsroom/, publish the three p.apyr.us docs",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

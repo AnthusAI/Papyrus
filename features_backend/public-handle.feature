@@ -52,3 +52,19 @@ Feature: A public handle is the only name the public Messages show
     When their message is prepared once with a handle and once without
     Then neither public author contains an email, a sub or a UUID
     And a stored handle that looks like an email is shown as Editor
+
+  Scenario: Two simultaneous claims of the same handle leave exactly one owner
+    When the console's resolver tests run for "two simultaneous claims"
+    Then they pass
+
+  Scenario: Changing my handle releases the old one for someone else
+    When the console's resolver tests run for "changing my handle releases"
+    Then they pass
+
+  Scenario: A failed profile write leaves no orphan claim
+    When the console's resolver tests run for "failed profile write"
+    Then they pass
+
+  Scenario: The claim is keyed by the normalised handle (RYAN and ryan collide)
+    When the console's resolver tests run for "normalised handle"
+    Then they pass

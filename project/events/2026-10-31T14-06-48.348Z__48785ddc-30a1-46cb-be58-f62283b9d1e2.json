@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "48785ddc-30a1-46cb-be58-f62283b9d1e2",
+  "issue_id": "PPY-2a34d4b4-4b7c-4e86-9269-6eeb83d00570",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:48.348Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Add the Alexa Cognito app client (code + PKCE, Google only, refresh tokens) per site",
+    "description": "CDK in amplify/auth next to the Prospectus client: CfnUserPoolClient with GenerateSecret, AllowedOAuthFlows code, the Google IdP only, Amazon redirect URIs, sensible token lifetimes, and refresh tokens on. The secret is exposed to the skill deploy through SSM SecureString created by IaC. Gated on the alexa plugin config. Needs Ryan's deploy approval. Gherkin and template tests: the client admits only Google and code+PKCE.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-ef1e52d9-dc78-4c85-9c03-5d7c70d3aff8",
+    "labels": []
+  }
+}

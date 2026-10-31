@@ -1,0 +1,30 @@
+{
+  "id": "PPY-3afa21bf-bf36-422c-a9d3-ab2c779f34db",
+  "title": "Shipped Front (deferred): adopt home-page blocks on Front only where they add something new; no public /newsroom on Shipped",
+  "description": "Repo: **Shipped-web**. DEFERRED and rescoped (Ryan, final, 2026-10-31): Shipped's Front (`web/pages/home.md`) stays Shipped's home page and there is NO public `/newsroom` section on Shipped. This task no longer creates `web/pages/newsroom.md` or a `newsroom` `pages[]` entry. The Shipped-web changes for the console move to `newsroom.shipped.anth.us` are made by the Shipped implementation session (PPY-d8b616 covers the Papyrus side).\n\n## What remains (only when it adds something new for Shipped readers; do not start without a Ryan decision naming the block)\n1. Candidate blocks for Front: a `::include{kind=\"references\" select=\"recent\" count=\"6\" card=\"tile\"}` grid of the newsroom's accepted sources (new information for Shipped readers), and a `::include{kind=\"threads\" ... layout=\"forum\"}` list once the forum ships. Each needs `web/projection.json` `homePage` settings and `{name: \"home-page\"}` in `papyrus.config.ts` plugins; the pins bump together (four pins match).\n2. Before enabling freshness: the check from the earlier scope still applies: the home-page snapshot exports by `curationStatus`, not by Shipped's `scoring.json` verdicts, so they never collide; Shipped's `hooks.py` landing hook must not render a section front over Front. Record the check here.\n3. The forum's public path on Shipped is undecided (see PPY-452419 decision 1); the threads block links wherever that lands.\n\n## Gherkin (Shipped-web tests, when a block is adopted)\n  Scenario: Front renders the adopted home-page block from fixtures and the rest of Front is unchanged\n  Scenario: No email, sub or UUID appears in the page or data files\n\n## Acceptance\nNothing to deploy until Ryan names a block. Then: live on Front after merge (merge is deploy); `_data/home-page/` written by the first snapshot. Depends on PPY-c57e23 (`types=` release) for any listing use.",
+  "type": "task",
+  "status": "open",
+  "priority": 3,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-452419a6-a1f0-4589-b9ab-d3a2e9221011",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-c57e232e-c9a8-4e1b-9f95-14504f7b8b27",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T12:37:55.466808Z",
+  "updated_at": "2026-10-31T13:23:22.478103Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

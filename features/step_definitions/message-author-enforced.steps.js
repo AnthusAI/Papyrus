@@ -20,6 +20,7 @@ for (const when of [
   "an admin and an editor each try to moderate a message",
   "an editor and an admin rename a conversation",
   "the rules on Message are read",
+  "the author kind fields on Message are read",
   "the function grants and every browser writer are read",
   "the resolver files are located the way a site's deploy locates them",
   "every resolver is checked with the rules AppSync applies to its JavaScript runtime",
@@ -40,5 +41,6 @@ const outcomes = [
   ["the conversation, forum and console chat writers post through postMessage and name no author", /✔ the browser writes only through postMessage/],
   ["every message resolver is named by an absolute path to a file that exists, wherever the package is installed", /✔ every message resolver is found by an absolute path/],
   ["none uses a construct the runtime refuses, such as a classic for loop or ++, so a site's deploy is never rolled back over it", /✔ every AppSync resolver passes the APPSYNC_JS runtime's lint rules[\s\S]*✔ the rules catch what the runtime refuses|✔ the rules catch what the runtime refuses[\s\S]*✔ every AppSync resolver passes/],
+  ["a Message reads as staff unless a reader wrote it, and the public export names no reader or identity field", /✔ a Message reads as staff unless a reader wrote it/],
 ];
 for (const [then, pattern] of outcomes) Then(then, async function () { assert.match(await run(), pattern); });

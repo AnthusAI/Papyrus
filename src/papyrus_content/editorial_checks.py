@@ -243,7 +243,7 @@ def check_editorial(arguments: dict[str, Any], services: Services) -> dict[str, 
             (context.get("publication") or {}).get("key") or "an unknown publication",
             ", ".join([*(f"publication {kind}" for kind in missing_doctrine), *(["section guidance"] if context.get("missingSectionConfiguration") else [])]),
         )
-    lanes = dict(settings["lanes"])
+    lanes = {**settings["lanes"], **(arguments.get("lanes") or {})}  # a caller may override a lane for one call (copy edit turns the classifier off for its rules-only pass)
     skip_judgments = bool(missing_doctrine) and bool(lanes.get("classifier"))
     if skip_judgments:
         lanes["classifier"] = False

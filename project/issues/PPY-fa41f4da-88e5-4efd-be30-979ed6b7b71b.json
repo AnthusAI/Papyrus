@@ -1,0 +1,25 @@
+{
+  "id": "PPY-fa41f4da-88e5-4efd-be30-979ed6b7b71b",
+  "title": "Federation review packet per site (read-only script): client callbacks, Google provider, Google-only proof, flows, scopes, token validity; Data Parade first",
+  "description": "Repo: **Papyrus**, read-only against AWS. Produces the federation re-review packet Prospectus needs per site (kanbus-b91466) before the CLI callbacks may be added to the registered `prospectus-google-only` client. Seven sites: Anth.us, Threat Intelligence, Distinctive Mark, Data Parade (not yet registered: kanbus-275596 adds their entries, and this packet is the input for it), p.apyr.us, Pilobolus, Shipped (registered; re-review).\n\n## Deliverable\nA script `scripts/prospectus-federation-packet.ts` (run with `npx tsx`) that, given a site's `amplify_outputs.json` and a read-only `aws cognito-idp describe-user-pool-client` / `describe-user-pool` / `describe-identity-provider` (profile given on the command line), writes `federation-packet-<site>.md` to a directory OUTSIDE the repo (the packet contains client ids and pool ids: never commit it; add the filename pattern to `.gitignore`). Content, in this order:\n1. The synthesized client (`ProspectusGoogleOnlyClient`, `amplify/auth/prospectus-google-client.ts`): full callback and logout URL lists as deployed AND as they will be after the CLI task (loopback `http://127.0.0.1:<fixed port>/cli/callback` and `<consoleOrigin>/cli/callback`; Cognito matches exactly, so one fixed port and path, chosen in the CLI task and referenced here).\n2. The Google identity provider and OAuth client (provider name, scopes `openid email profile`, attribute mapping), from `describe-identity-provider`.\n3. Confirmation that sign-in is Google-only: `SupportedIdentityProviders == [\"Google\"]`, `ExplicitAuthFlows == [\"ALLOW_REFRESH_TOKEN_AUTH\"]`, no admin linking, no pre-token-generation trigger (`describe-user-pool` LambdaConfig), no linked-profile flows (cite `amplify/auth/resource.ts` and the memory rule: never create Cognito password users).\n4. Code flow and scopes (`AllowedOAuthFlows == [\"code\"]`, `AllowedOAuthScopes`), PKCE S256, state and nonce handling as the CLI does them (cite `cli_login` 0.3.0 and `src/papyrus_content/cli_user_auth.py`; the enrollment task adds the nonce from the Prospectus challenge).\n5. Token validity (access, id, refresh: 60 min / 60 min / as deployed) and `PreventUserExistenceErrors`.\n6. The site's `consoleOrigin` / `siteOrigin` and the broker's `PAPYRUS_SITE_ORIGIN`.\nA `--all` mode renders a short index table for Ryan (site, registered?, review needed) with no ids.\n\n## Gherkin (`features_backend/federation-packet.feature`)\n  Scenario: The packet for a site lists the client's callbacks, provider, flows, scopes and validity from read-only describes\n  Scenario: The packet refuses to be written inside the repository\n  Scenario: A site whose client allows a non-Google provider is reported as not Google-only\n\n## Acceptance\nSeven packets handed to Ryan and the Prospectus session (outside git); the index table pasted on this task WITHOUT ids; no AWS writes. Ready now.",
+  "type": "task",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T12:42:38.368383Z",
+  "updated_at": "2026-10-31T12:42:38.368415Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

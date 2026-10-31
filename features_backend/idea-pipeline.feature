@@ -68,6 +68,11 @@ Feature: The idea pipeline turns a site's recent references into private story i
     Then 2 draft story proposals are filed
     And no request to publish proposals is made
 
+  Scenario: The References an idea cites are the targets of its Proposal, so no later run drafts them again
+    When the model proposes the idea "Agents and keys" citing the first two references
+    And the operator synthesizes ideas from the digest into the site's proposals
+    Then the draft story proposal targets the first two references
+
   Scenario: The run records what it read and what the model call cost
     When the model proposes the idea "Agents and keys" citing the first two references
     And the model reports 100000 input tokens and 10000 output tokens

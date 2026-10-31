@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "7e292f05-1646-4ac5-9a6e-3f973763ec65",
+  "issue_id": "PPY-2d3dd975-6dbd-4fe5-ad76-096920c0b725",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:42:38.766Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Account selection: papyrus accounts / account use, X-Prospectus-Account header, console chooser persisted and sent",
+    "description": "Repo: **Papyrus**. The selected Account travels with every call as a choice, never a credential; the server authorizes it (next task). Ready now.\n\n## CLI\n- `src/papyrus_content/cli_user_auth.py`: `papyrus accounts` lists the person's entitled accounts from the site (`GET /cli/accounts` route below) as a table (name, id's last 4 characters, role); `papyrus login --account <id|name>` and `papyrus account use <id|name>` store `accountId` in `user-session.json`; when the person has exactly one account it is selected automatically; with several and none selected, account-scoped commands stop with \"Choose an account: papyrus account use <name>\". `selected_headers(endpoint)` (~347) adds `X-Prospectus-Account: <uuid>` when set. `papyrus account` (no args) prints the selection.\n- `docs/cli-login.md` \"Accounts\".\n\n## Site routes\n- `app/cli/accounts/route.ts`: `GET` with the bearer access token -> `GET /v1/accounts` as the site role with `X-Prospectus-Human-Token`; returns `[{id, name, role}]`; passes `401/403 reenrollment_required` through unchanged.\n\n## Console\n- `components/prospectus-account-chooser.tsx` already chooses; persist the choice per site in `localStorage` key `papyrus.account` and send `X-Prospectus-Account` on every GraphQL call from the console's client (find the Amplify client configuration, likely `lib/amplify-client.ts` or where `generateClient` is called, and add a request header hook; AppSync forwards request headers to resolvers as `ctx.request.headers`). The chooser is a row of buttons, not a dropdown (Lucide `building-2` icon + name); the current account is named in the header text, \"Account\", never \"Organization\".\n- When the person has one account, no chooser is shown.\n\n## Gherkin (`features_backend/cli-account-selection.feature`, `features/console-account-selection.feature`)\n  Scenario: A person with one account has it selected without asking\n  Scenario: A person with several accounts must choose before an account-scoped command runs\n  Scenario: The selected account is sent as X-Prospectus-Account on every call\n  Scenario: The console remembers the chosen account per site and sends it\n  Scenario: Listing accounts passes reenrollment_required through to the CLI\n\n## Acceptance\nCLI tests (`src/papyrus_content/tests/` pattern), route tests, Playwright feature for the chooser; no ids in fixtures (synthetic UUIDs are fine, named as such). Ready now; shares `cli_user_auth.py` with the enrollment task, so land enrollment first or coordinate.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-e2a0b8d7-5783-441f-b8e5-0b1c76b8688f",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}

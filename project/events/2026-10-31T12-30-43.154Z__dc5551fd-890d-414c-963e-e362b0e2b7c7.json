@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "event_id": "dc5551fd-890d-414c-963e-e362b0e2b7c7",
+  "issue_id": "PPY-70213b35-29e5-4d7d-85ca-189343667afd",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T12:30:43.154Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Editorial checks follow-ups: findings panel without borders, demo-page console error, live highlight check on Anth.us",
+    "description": "",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
+    "labels": [],
+    "agent": {
+      "platform": "claude_code",
+      "model": "claude-fable-5-1",
+      "name": "Papyrus planning session"
+    }
+  }
+}
