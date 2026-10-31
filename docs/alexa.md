@@ -34,7 +34,7 @@ Everything a later task needs is a file in its own folder plus at most one line 
 | Public stories | `PublicStorySource`: `listLatest({ limit })`, `getStory(slug)` returning `PublicStorySummary` / `PublicStory` | `content/index.ts` (`createPublicStorySource`) | `content/<impl>.ts`, then change the one return line (today `stubPublicStorySource`, which throws) |
 | Access tokens | `AccessTokenVerifier`: `verify(token) -> { ok, token \| reason }` | `auth/index.ts` (`createAccessTokenVerifier`, `undefined` unless `accountLinking`) | `auth/<impl>.ts`, then change the one return line (today refuses every token). `aws-jwt-verify` is already a dependency. |
 | Deploy wiring | `AlexaWiringStep(backend, config, context, lambda)` | `wiring/index.ts` (`ALEXA_WIRING_STEPS`) | `wiring/<step>.ts` (for example the Cognito app client) and one line in the index |
-| Static files | file keys the projector writes | `static-assets.ts` (`ALEXA_STATIC_ASSETS`) | the privacy pages' paths; `PLUGIN_STATIC_ASSETS["alexa"]` in `src/papyrus_content/projection/plugins.py` must list the same keys |
+| Static files | file keys the projector copies | `static-assets.ts` (`ALEXA_STATIC_ASSETS`) | nothing today (the lists are empty and must stay equal to `PLUGIN_STATIC_ASSETS["alexa"]` in `src/papyrus_content/projection/plugins.py`). The privacy and terms pages are rendered pages, not copied files: see below. |
 | Skill package | `generateSkillPackage(config, { endpointArn })` | `scripts/alexa/generate-skill-package.ts` | the generator task extends it (privacy URLs, APL interfaces, account linking) and adds `scripts/alexa/ask-deploy.ts` |
 | Tests | `npm run test:alexa` runs every `scripts/test-alexa-*.ts` and `cucumber-js --profile alexa` (every `features/alexa-*.feature` with its `features/step_definitions/alexa-*.steps.js`) | `package.json`, `cucumber.js`, `.github/workflows/tests.yml` already cover them | new test files only; none of the three shared files changes again |
 
@@ -64,3 +64,11 @@ returns plain paragraphs). `lib/markus-projection.ts` flattens the IR to plain t
 from `lib/markus-ir.ts` (the envelope's `document`) instead of the Markus text; when only `bodyMarkus` is available, the source
 is the `.md` twin and has no IR, so prefer `bodyIr` (the guest path) or the Python projection for the text. Escape `& < >` and keep
 within Alexa's speech limits.
+
+## Privacy and terms pages
+
+A site that enables the plugin serves `/alexa/privacy/` and `/alexa/terms/` (the skill manifest links to them). The projector renders them
+with the site's normal header, theme and footer, in the directory form whatever `urls.style` says, like the newsletter pages
+(`src/papyrus_content/projection/standard/alexa_pages.py`). The publication name comes from the site identity. The contact line links
+`footer.family.contactUrl` when the site sets it and otherwise points at the footer's Contact link; no address is committed.
+`PLUGIN_PAGE_PREFIXES["alexa"]` keeps a reconcile from deleting them.
