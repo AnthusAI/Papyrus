@@ -55,3 +55,8 @@ Feature: Sites publish their public CLI login values
   Scenario: Sign-in on the federation client is Google-only
     When the federation client is synthesized with the CLI moved onto it
     Then only Google is admitted through the code flow and no password flow is reachable
+
+  Scenario: A site that moves the CLI onto its federation client keeps CLI sessions for seven days
+    When the federation client is synthesized with and without the CLI moved onto it
+    Then with the CLI moved it keeps refresh tokens for seven days and access and ID tokens for 60 minutes
+    And without it the client keeps its 60 minute refresh tokens exactly as registered

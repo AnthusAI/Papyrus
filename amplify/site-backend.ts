@@ -26,7 +26,7 @@ import {
 } from "./revalidate-invalidation-settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
-import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls } from "./auth/prospectus-google-client";
+import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls } from "./auth/prospectus-google-client";
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
 import { addCliRemoteLogin, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
@@ -176,7 +176,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
   const prospectusGoogleOnlyClient = authConfig.disableGoogleOAuth === true
     ? undefined
-    : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig), cliFederationCallbackUrls);
+    : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig), cliFederationCallbackUrls, featureFlags.cliOnFederationClient ? CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS : undefined);
 
   const cliRemoteLogin = cliRemoteLoginPlan
     ? addCliRemoteLogin(backend.createStack("CliRemoteLogin"), {

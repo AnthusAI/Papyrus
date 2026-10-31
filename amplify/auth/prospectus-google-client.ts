@@ -13,6 +13,8 @@ import { CfnUserPoolClient, CfnUserPoolIdentityProvider, type IUserPool } from "
  */
 export const PROSPECTUS_SIGN_IN_CALLBACK_PATH = "/api/auth/prospectus/callback";
 export const PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES = 60;
+/** A site that moves the CLI onto this client keeps CLI sessions for seven days; access and ID tokens stay at 60 minutes. */
+export const CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS = 7;
 /** Same value as lib/cli-loopback-callback.ts (the site cannot be imported from the packaged backend); a test keeps them equal. */
 export const CLI_LOOPBACK_CALLBACK = "http://127.0.0.1:38947/cli/callback";
 const CLI_REMOTE_CALLBACK_PATH = "/cli/callback";
@@ -63,6 +65,7 @@ export function addProspectusGoogleOnlyClient(
   userPool: IUserPool,
   redirectUrls: readonly string[],
   extraCallbackUrls: readonly string[] = [],
+  refreshTokenValidityDays?: number,
 ): CfnUserPoolClient {
   const callbackUrls = [...prospectusSignInCallbackUrls(redirectUrls)];
   if (callbackUrls.length === 0) throw new Error("The Prospectus Google-only client needs at least one site origin.");
@@ -82,8 +85,8 @@ export function addProspectusGoogleOnlyClient(
     preventUserExistenceErrors: "ENABLED",
     accessTokenValidity: PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
     idTokenValidity: PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
-    refreshTokenValidity: PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
-    tokenValidityUnits: { accessToken: "minutes", idToken: "minutes", refreshToken: "minutes" },
+    refreshTokenValidity: refreshTokenValidityDays ?? PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES,
+    tokenValidityUnits: { accessToken: "minutes", idToken: "minutes", refreshToken: refreshTokenValidityDays === undefined ? "minutes" : "days" },
   });
   const googleIdentityProviders = authStack.node
     .findAll()

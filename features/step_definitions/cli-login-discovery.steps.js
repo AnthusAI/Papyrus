@@ -82,3 +82,11 @@ When("the federation client is synthesized with the CLI moved onto it", { timeou
 Then("its callbacks are each site origin's Prospectus callback, the fixed loopback and the console's cli callback", function () {});
 
 Then("only Google is admitted through the code flow and no password flow is reachable", function () {});
+
+When("the federation client is synthesized with and without the CLI moved onto it", { timeout: 120_000 }, async function () {
+  await behaviour("sessions_last_seven_days_only_when_moved", "scripts/test-cli-federation-client.ts");
+});
+
+Then("with the CLI moved it keeps refresh tokens for seven days and access and ID tokens for 60 minutes", function () {});
+
+Then("without it the client keeps its 60 minute refresh tokens exactly as registered", function () {});

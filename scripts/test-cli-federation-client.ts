@@ -2,19 +2,19 @@ import assert from "node:assert/strict";
 import { App, SecretValue, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { UserPool, UserPoolIdentityProviderGoogle } from "aws-cdk-lib/aws-cognito";
-import { CLI_LOOPBACK_CALLBACK as BACKEND_LOOPBACK, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, prospectusSignInCallbackUrls } from "../amplify/auth/prospectus-google-client";
+import { CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, CLI_LOOPBACK_CALLBACK as BACKEND_LOOPBACK, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, prospectusSignInCallbackUrls } from "../amplify/auth/prospectus-google-client";
 import { resolveSiteBackendFeatureFlags } from "../amplify/site-backend-names";
 import { CLI_LOOPBACK_CALLBACK } from "../lib/cli-loopback-callback";
 
 const redirectUrls = ["http://localhost:3000/", "https://newsroom.example.test/", "https://newsroom.example.test/newsroom"];
 const identity = { amplifyAppId: "app", brandId: "x", productionAppId: "" } as Parameters<typeof resolveSiteBackendFeatureFlags>[2];
 
-function synthesize(extraCallbackUrls?: readonly string[]) {
+function synthesize(extraCallbackUrls?: readonly string[], refreshTokenValidityDays?: number) {
   const app = new App();
   const authStack = new Stack(app, "Auth", { env: { account: "111111111111", region: "us-east-1" } });
   const userPool = new UserPool(authStack, "UserPool");
   new UserPoolIdentityProviderGoogle(authStack, "Google", { userPool, clientId: "google-client", clientSecretValue: SecretValue.unsafePlainText("google-secret") });
-  addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls, extraCallbackUrls);
+  addProspectusGoogleOnlyClient(authStack, userPool, redirectUrls, extraCallbackUrls, refreshTokenValidityDays);
   return Template.fromStack(authStack);
 }
 
@@ -49,6 +49,16 @@ const behaviours: Record<string, () => void> = {
     assert.deepEqual(properties.LogoutURLs, ["http://localhost:3000/", "https://newsroom.example.test/", "http://127.0.0.1:38947/"]);
     assert.throws(() => cliFederationClientCallbackUrls(true, {}), /PAPYRUS_SITE_ORIGIN/);
     assert.throws(() => cliFederationClientCallbackUrls(true, { PAPYRUS_SITE_ORIGIN: "http://insecure.example.test" }), /plain https origin/);
+  },
+  sessions_last_seven_days_only_when_moved() {
+    const off = clientOf(synthesize()).Properties;
+    assert.equal(off.RefreshTokenValidity, 60, "off: exactly as registered with Prospectus today");
+    assert.equal((off.TokenValidityUnits as Record<string, string>).RefreshToken, "minutes");
+    const on = clientOf(synthesize([CLI_LOOPBACK_CALLBACK], CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS)).Properties;
+    assert.equal(on.RefreshTokenValidity, 7);
+    assert.deepEqual(on.TokenValidityUnits, { AccessToken: "minutes", IdToken: "minutes", RefreshToken: "days" });
+    assert.equal(on.AccessTokenValidity, 60);
+    assert.equal(on.IdTokenValidity, 60);
   },
   federation_client_is_google_only() {
     const properties = clientOf(synthesize(cliFederationClientCallbackUrls(true, { PAPYRUS_SITE_ORIGIN: "https://newsroom.example.test" }))).Properties;

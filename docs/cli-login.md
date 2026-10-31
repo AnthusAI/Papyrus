@@ -385,3 +385,8 @@ Flip order for a site, after the Prospectus federation review for it is approved
 deploy the app shell, check `papyrus login --print-client` shows the federation client, confirm
 `papyrus login` and `papyrus login --remote` complete, then remove `/cli/callback` from the main
 client in a later change so nothing breaks mid-way.
+
+Session length: with the flag on, the federation client keeps refresh tokens for **seven
+days** (access and ID tokens stay at 60 minutes), so a CLI login lasts a week between
+sign-ins. With the flag off the client is exactly as registered with Prospectus: 60-minute
+refresh tokens, so sites already registered under reviews that record 60 minutes do not change.
