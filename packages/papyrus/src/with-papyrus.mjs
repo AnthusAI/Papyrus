@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
  * - trace the corpora/ YAML and amplify_outputs.json that the reader reads via fs at runtime,
  * - cap static generation at 2 workers x 3 pages (override with PAPYRUS_STATIC_GENERATION_WORKERS / _CONCURRENCY) and retry
  *   failed pages 3 times, so pre-building the reader pages stays under Cognito guest-credential throttles,
+ * - inside an Amplify build, skip Next's type-check and lint (CI never runs in Amplify; see amplifyBuildChecks),
  * - carry Papyrus's own server-external packages and image settings.
  */
 const SERVER_EXTERNAL = [
@@ -77,6 +78,26 @@ export function mergeOutputFileTracingIncludes(existing = {}) {
   return merged;
 }
 
+/**
+ * Amplify builds only deploy: CI (type-check, lint, tests) runs in GitHub Actions or locally, never in Amplify.
+ * Amplify sets AWS_APP_ID and AWS_BRANCH during the build. PAPYRUS_NEXT_BUILD_CHECKS=1 forces the checks back on.
+ */
+export function isAmplifyBuild(env = process.env) {
+  return Boolean(env.AWS_APP_ID || env.AWS_BRANCH);
+}
+
+export function skipNextBuildChecks(env = process.env) {
+  return isAmplifyBuild(env) && env.PAPYRUS_NEXT_BUILD_CHECKS !== "1";
+}
+
+export function amplifyBuildChecks(nextConfig = {}, env = process.env) {
+  if (!skipNextBuildChecks(env)) return {};
+  return {
+    typescript: { ignoreBuildErrors: true, ...nextConfig.typescript },
+    eslint: { ignoreDuringBuilds: true, ...nextConfig.eslint },
+  };
+}
+
 const EMPTY_THEME = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../lib/empty-theme.css");
 
 export function withPapyrus(nextConfig = {}, options = {}) {
@@ -95,6 +116,7 @@ export function withPapyrus(nextConfig = {}, options = {}) {
     distDir: process.env.NEXT_DIST_DIR || ".next",
     expireTime: READER_EXPIRE_TIME_SECONDS,
     ...nextConfig,
+    ...amplifyBuildChecks(nextConfig),
     transpilePackages: mergeTranspilePackages(nextConfig.transpilePackages),
     serverExternalPackages: [...new Set([...(nextConfig.serverExternalPackages ?? []), ...SERVER_EXTERNAL])],
     outputFileTracingIncludes: mergeOutputFileTracingIncludes(nextConfig.outputFileTracingIncludes),
