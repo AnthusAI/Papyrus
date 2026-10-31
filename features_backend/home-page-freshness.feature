@@ -13,24 +13,24 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
   Scenario: A vote that changes a Reference's curation status schedules one snapshot at the end of the debounce window
     Given a trigger function with a 300 second debounce window
     When a Reference is accepted
-    Then one snapshot run is scheduled for 300 seconds later
+    Then one home-page snapshot run is scheduled for 300 seconds later
     And the schedule runs the home-page-snapshot task once and deletes itself afterwards
 
   Scenario: Ten accepts inside one window schedule exactly one snapshot
     Given a trigger function with a 300 second debounce window
     When ten References are accepted over the next 200 seconds
-    Then one snapshot run is scheduled for 300 seconds later
+    Then one home-page snapshot run is scheduled for 300 seconds later
 
   Scenario: A change after the window closes schedules the next snapshot
     Given a trigger function with a 300 second debounce window
     When a Reference is accepted
     And another Reference is accepted 301 seconds later
-    Then 2 snapshot runs are scheduled
+    Then 2 home-page snapshot runs are scheduled
 
   Scenario: An edit that changes no public field schedules nothing
     Given a trigger function with a 300 second debounce window
     When a Reference changes only a private field
-    Then no snapshot run is scheduled
+    Then no home-page snapshot run is scheduled
     And no debounce slot is claimed
 
   Scenario: A failed schedule creation releases the slot so the next change can try again
@@ -38,12 +38,12 @@ Feature: Curation changes reach the home-page pages by themselves, in one deboun
     When a Reference is accepted and creating the schedule fails
     Then the debounce slot is open again
     When another Reference is accepted
-    Then one snapshot run is scheduled for 300 seconds after that
+    Then one home-page snapshot run is scheduled for 300 seconds after that
 
   Scenario: Sites that share an account never share a debounce slot
     Given two sites whose trigger functions share one lock table
     When a Reference is accepted on each site
-    Then each site has its own snapshot run scheduled
+    Then each site has its own home-page snapshot run scheduled
 
   Scenario: The snapshot re-renders only the pages that read the changed selection
     Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References

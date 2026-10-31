@@ -144,7 +144,7 @@ def accepted_on_each(context) -> None:
         site.receive([ACCEPTED_RECORD], 0)
 
 
-@then("one snapshot run is scheduled for {seconds:d} seconds later")
+@then("one home-page snapshot run is scheduled for {seconds:d} seconds later")
 def one_run_scheduled(context, seconds: int) -> None:
     calls = context.site.scheduler.calls
     assert len(calls) == 1, f"{len(calls)} schedules: {[call['Name'] for call in calls]}"
@@ -152,14 +152,14 @@ def one_run_scheduled(context, seconds: int) -> None:
     context.schedule = calls[0]
 
 
-@then("one snapshot run is scheduled for {seconds:d} seconds after that")
+@then("one home-page snapshot run is scheduled for {seconds:d} seconds after that")
 def one_run_scheduled_after_retry(context, seconds: int) -> None:
     calls = context.site.scheduler.calls
     assert len(calls) == 1, [call["Name"] for call in calls]
     assert calls[0]["Name"].endswith(f"-{START + 1 + seconds}"), calls[0]["Name"]
 
 
-@then("{count:d} snapshot runs are scheduled")
+@then("{count:d} home-page snapshot runs are scheduled")
 def runs_scheduled(context, count: int) -> None:
     assert len(context.site.scheduler.calls) == count, [call["Name"] for call in context.site.scheduler.calls]
 
@@ -174,7 +174,7 @@ def schedule_shape(context) -> None:
     assert call["FlexibleTimeWindow"] == {"Mode": "OFF"}
 
 
-@then("no snapshot run is scheduled")
+@then("no home-page snapshot run is scheduled")
 def nothing_scheduled(context) -> None:
     assert context.site.scheduler.calls == []
 
@@ -190,7 +190,7 @@ def slot_open(context) -> None:
     assert context.site.lock_table.items == {}
 
 
-@then("each site has its own snapshot run scheduled")
+@then("each site has its own home-page snapshot run scheduled")
 def each_site_scheduled(context) -> None:
     for site in context.sites:
         assert len(site.scheduler.calls) == 1
