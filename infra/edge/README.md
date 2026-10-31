@@ -6,7 +6,7 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | --- | --- | --- |
 | `pilobol-us.yaml` | `papyrus-edge-pilobol-us` | Pilobol.us S3 projection bucket (OAC), with the directory-index and redirect function |
 | `anth-us-s3.yaml` | `papyrus-edge-anth-us` | Anth.us S3 projection bucket (OAC), redirect and header functions |
-| `threat-intelligence.yaml` | `papyrus-edge-threat-intelligence` | The Threat Intelligence Amplify app (main and staging distributions). The deployed version, kept as a rollback reference |
+| `threat-intelligence.yaml` | `papyrus-edge-threat-intelligence` | The Threat Intelligence Amplify app (main and staging distributions). The deployed version (refreshed from the live stack 2026-10-31, PPY-f40298), kept as a rollback reference. It already takes the site bucket and redirects key-value store as parameters and serves the default behavior from the S3 projection; the media and reader-cache proposals below are older and still describe the Amplify-default shape |
 | `threat-intelligence-media.yaml` | `papyrus-edge-threat-intelligence` (proposed) | Same stack plus a `/api/media/media/*` behavior that serves the media bucket through an origin access control. Not deployed. See `docs/video-loading.md` |
 | `threat-intelligence-reader-cache.yaml` | `papyrus-edge-threat-intelligence` (proposed) | The deployed template plus a `ReaderPagesCachePolicy` on the main distribution's default behavior (honours the origin `s-maxage` and `stale-while-revalidate`, keys on the Next RSC headers, ignores cookies and query strings). `/newsroom*`, `/api/*` and `/_next/image*` keep CachingDisabled. The staging distribution is unchanged because staging serves drafts. Not deployed (PPY-79e668) |
 | `p-apyr-us-reader-cache.yaml` | `papyrus-edge-p-apyr-us` (proposed) | The same change for the p.apyr.us production distribution. Not deployed (PPY-79e668) |
@@ -15,6 +15,15 @@ CloudFormation templates of the hand-run `papyrus-edge-<site>` stacks that front
 | `anth-us.yaml` | `papyrus-edge-anth-us` (rollback) | The retired Anth.us Amplify reader. Updating the stack with this template moves the origin back, and only works while the Amplify reader app exists |
 
 Update a stack with a change set, never in place, and read the change set before executing it.
+
+## Refreshing a template from the live stack
+
+When a stack has been changed outside git, refresh the file from the deployed template (read-only; the template parameters, such as certificate and bucket values, are never written into the file):
+
+```bash
+AWS_PROFILE=papyrus-production aws cloudformation get-template --stack-name papyrus-edge-threat-intelligence --template-stage Original --query TemplateBody --output text > infra/edge/threat-intelligence.yaml
+AWS_PROFILE=papyrus-production aws cloudformation validate-template --template-body file://infra/edge/threat-intelligence.yaml
+```
 
 ## The 404 page and the CMS behaviors
 
