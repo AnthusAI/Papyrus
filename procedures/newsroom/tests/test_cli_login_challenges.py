@@ -25,7 +25,6 @@ handler = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(handler)
 
 ORIGIN = "https://site.example.test"
-API = "https://abc123.execute-api.us-east-1.amazonaws.com/api"
 AUTH = "https://synthetic.auth.us-east-1.amazoncognito.com"
 CHALLENGE_TOKEN = "v1.k1." + "p" * 40 + "." + "m" * 43
 NONCE = "N" * 43
@@ -40,8 +39,8 @@ class FakeProspectus:
         self.answer = answer if answer is not None else {
             "challengeId": CHALLENGE_ID, "nonce": NONCE, "expiresAt": NOW + 300, "challengeToken": CHALLENGE_TOKEN}
 
-    def __call__(self, url, headers, body):
-        self.calls.append((url, headers, json.loads(body)))
+    def __call__(self, url):
+        self.calls.append(url)
         return self.status, self.answer
 
 
@@ -55,14 +54,14 @@ def broker():
 def pages_for(broker, prospectus):
     pages = handler.pages_from_environment(
         {"BROKER_FUNCTION_ARN": "arn", "AUTHORIZE_ENDPOINT": AUTH + "/oauth2/authorize", "PRODUCT": "Papyrus", "PRIVILEGES": "x",
-         "PROSPECTUS_ACCOUNTS_API": API},
+         "SITE_CHALLENGE_ORIGIN": ORIGIN},
         post=prospectus)
     pages.broker = broker.handle
     return pages
 
 
 def challenge_pages(broker, prospectus):
-    challenges = LoginChallenges(API, prospectus, clock=lambda: NOW)
+    challenges = LoginChallenges(ORIGIN, prospectus, clock=lambda: NOW)
     from cli_login.broker.pages import ApprovalPages
     return ApprovalPages(broker.handle, authorize_endpoint=AUTH + "/oauth2/authorize", product="Papyrus", privileges="x",
                          identity_provider="Google", prepare=challenges.prepare)
@@ -93,9 +92,10 @@ def test_approving_binds_a_challenge_to_the_transaction_digest_and_returns_its_n
     transaction = start(broker)
     answer = approve(pages, transaction)
     assert answer.status == 303
-    [(url, headers, body)] = prospectus.calls
-    assert url == API + "/v1/identities/google/challenge"
-    assert body == {"loginStateDigest": hashlib.sha256(transaction.encode()).hexdigest()}
+    [url] = prospectus.calls
+    digest = hashlib.sha256(transaction.encode()).hexdigest()
+    assert url == ORIGIN + "/cli/challenge?loginStateDigest=" + digest
+    assert len(digest) == 64 and digest == digest.lower()
     location = dict(answer.headers)["Location"]
     assert parse_qs(urlsplit(location).query)["nonce"] == [NONCE]
     assert broker.describe({"transaction": transaction})["ok"] is False
@@ -121,10 +121,10 @@ def test_an_unusable_challenge_binds_nothing(broker, status, answer):
 
 
 def test_a_transport_failure_binds_nothing_and_names_no_detail(broker):
-    def failing(url, headers, body):
+    def failing(url):
         raise OSError("secret internal detail")
     with pytest.raises(Unavailable) as raised:
-        LoginChallenges(API, failing, clock=lambda: NOW).prepare("T" * 22, {})
+        LoginChallenges(ORIGIN, failing, clock=lambda: NOW).prepare("T" * 22, {})
     assert "secret" not in str(raised.value)
 
 
@@ -145,14 +145,14 @@ def test_the_enrollment_reaches_the_polling_cli(broker):
 
 def test_a_site_without_the_prospectus_endpoint_has_no_enrollment_hook():
     assert handler.prepare_from_environment({}) is None
-    assert handler.prepare_from_environment({"PROSPECTUS_ACCOUNTS_API": " "}) is None
+    assert handler.prepare_from_environment({"SITE_CHALLENGE_ORIGIN": " "}) is None
 
 
-def test_the_endpoint_must_be_an_execute_api_https_origin():
+def test_the_challenge_origin_must_be_a_plain_https_origin():
     with pytest.raises(ValueError):
-        LoginChallenges("http://abc123.execute-api.us-east-1.amazonaws.com/api")
+        LoginChallenges("http://site.example.test")
     with pytest.raises(ValueError):
-        LoginChallenges("https://example.test/api")
+        LoginChallenges("https://site.example.test/path")
 
 
 class Reply:

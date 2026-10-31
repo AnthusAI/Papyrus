@@ -26,17 +26,18 @@ def approve(context):
     context.answer = support.approve(context.pages, context.transaction)
 
 
-@when('the person approves it but Prospectus answers no usable challenge')
+@when('the person approves it but the site answers no usable challenge')
 def approve_unusable(context):
     context.prospectus.status = 503
     context.answer = support.approve(context.pages, context.transaction)
 
 
-@then('Prospectus was asked for a challenge bound to the digest of the transaction, never the transaction itself')
+@then('the site was asked for a challenge bound to the digest of the transaction, never the transaction itself')
 def digest(context):
-    [(url, _, body)] = context.prospectus.calls
-    assert url.endswith('/v1/identities/google/challenge')
-    assert list(body) == ['loginStateDigest'] and body['loginStateDigest'] != context.transaction and len(body['loginStateDigest']) == 64
+    [url] = context.prospectus.calls
+    assert url.startswith(support.ORIGIN + '/cli/challenge?loginStateDigest=')
+    digest = url.split('=', 1)[1]
+    assert digest != context.transaction and len(digest) == 64 and digest == digest.lower()
 
 
 @then("the Google sign-in uses the challenge's nonce")

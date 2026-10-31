@@ -34,7 +34,10 @@ then("the route passes through only challenge_invalid, login_state, challenge_re
 then("any other failure is answered as unavailable without the service's message");
 when("a site has not switched enrollment on", "a_site_that_did_not_switch_enrollment_on_answers_404_and_calls_nothing", "enrollment_is_off_unless_switched_on_and_off_synthesizes_unchanged");
 then("the enroll route answers 404 and calls nothing");
-then("the site's pages function gets no Prospectus endpoint, permission or environment, so its stack is unchanged");
-when("a local login asks the challenge route for its state", "a_local_login_challenge_is_bound_to_the_digest_of_its_own_state");
-then("Prospectus is asked for a challenge bound to the digest of that state, never an unbound one");
-then("only well-formed states are answered, and a site that has not switched enrollment on answers 404");
+then("the site's pages function gets no challenge origin, throttle table or Prospectus access, so its stack is unchanged");
+when("the challenge route is asked for a remote login's digest or a local login's state", "a_login_challenge_is_bound_to_a_digest_and_validated_before_it_is_answered");
+then("Prospectus is asked for a challenge bound to exactly 64 lowercase hex characters, never an unbound one");
+then("a challenge without a uuid4 id, a well-formed nonce, an expiry within 300 seconds and a signed token is answered as unavailable");
+when("more challenges are asked for than the site's bucket allows", "the_challenge_route_is_throttled_per_site_and_fails_closed");
+then("the route answers 429 and never reaches Prospectus");
+then("the bucket is one request per second with a burst of two unless the site sets its own, and a storage failure refuses the request");

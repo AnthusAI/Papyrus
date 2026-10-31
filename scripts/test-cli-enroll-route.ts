@@ -4,9 +4,10 @@ import { App, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { Code } from "aws-cdk-lib/aws-lambda";
 import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "../amplify/cli-login/remote-login";
-import { createHash } from "node:crypto";
-import { handleCliChallenge, handleCliEnroll, type CliEnrollOptions } from "../lib/prospectus-enroll";
+import { createHash, randomUUID } from "node:crypto";
+import { handleCliChallenge, handleCliEnroll, type CliChallengeOptions, type CliEnrollOptions } from "../lib/prospectus-enroll";
 import { ProspectusAccountsError, ProspectusSiteAccounts, type ProspectusTransport } from "../lib/prospectus-site-identity";
+import { takeChallengeToken, throttleLimitsFromEnvironment, type ThrottleState, type ThrottleStore } from "../lib/cli-challenge-throttle";
 import { isStaticOrApiPath } from "../lib/staging-gated-path";
 
 const site = "https://shipped.example.test";
@@ -59,7 +60,6 @@ async function answer(request: NextRequest, given: CliEnrollOptions = options())
 
 function synthesize(withEnrollment: boolean): Template {
   const stack = new Stack(new App(), "CliEnrollmentTest", { env: { account: "111111111111", region: "us-east-1" } });
-  const enrollment = planCliEnrollment(withEnrollment, { PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN: stageArn });
   addCliRemoteLogin(stack, {
     plan: planCliRemoteLogin(true, { PAPYRUS_SITE_ORIGIN: site, PAPYRUS_CLI_INVOKER_ROLE_ARN: invokerRoleArn })!,
     clientId: "synthetic-web-client",
@@ -68,7 +68,7 @@ function synthesize(withEnrollment: boolean): Template {
     product: "Papyrus (shipped.example.test)",
     brokerCode: Code.fromInline("def lambda_handler(event, context): pass"),
     pagesCode: Code.fromInline("def handler(event, context): pass"),
-    ...enrollment,
+    ...planCliEnrollment(withEnrollment),
   });
   return Template.fromStack(stack);
 }
@@ -125,35 +125,97 @@ const behaviours: Record<string, () => Promise<unknown>> = {
     assert.equal(isStaticOrApiPath("/cli/enroll"), true);
     return result;
   },
-  async a_local_login_challenge_is_bound_to_the_digest_of_its_own_state() {
+  async a_login_challenge_is_bound_to_a_digest_and_validated_before_it_is_answered() {
     const seen: unknown[] = [];
+    const good = { challengeId: randomUUID(), nonce: "n".repeat(43), expiresAt: 1_000_000_100, challengeToken: `v1.k1.${"p".repeat(40)}.${"m".repeat(43)}` };
+    let central: Record<string, unknown> = good;
     const accounts = new ProspectusSiteAccounts(async ({ path, method, body }) => {
       seen.push({ path, method, body });
-      return { challengeId: "id", nonce: "n".repeat(43), expiresAt: 1, challengeToken: "v1.k.p.m" };
+      return central;
     });
-    const given = options({ resolveRuntime: async () => ({ accounts, cognitoClient: client, sealingSecret: "unused" }) });
-    const ask = async (query: string, method = "GET") => {
-      const response = await handleCliChallenge(new NextRequest(`${site}/cli/challenge${query}`, { method }), given);
+    const given = (overrides: Partial<CliChallengeOptions> = {}): CliChallengeOptions => options({
+      resolveRuntime: async () => ({ accounts, cognitoClient: client, sealingSecret: "unused" }),
+      ...overrides,
+    }) as CliChallengeOptions & { takeToken: () => Promise<boolean> };
+    const ask = async (query: string, extra: Partial<CliChallengeOptions> = {}, method = "GET") => {
+      const response = await handleCliChallenge(new NextRequest(`${site}/cli/challenge${query}`, { method }), { ...given(), takeToken: async () => true, nowInSeconds: () => 1_000_000_000, ...extra });
       return { status: response.status, body: await response.json() as Record<string, unknown> };
     };
-    const good = await ask("?state=abc_DEF-123");
-    assert.equal(good.status, 200);
-    assert.deepEqual(good.body, { nonce: "n".repeat(43), challengeToken: "v1.k.p.m" });
-    assert.deepEqual(seen, [{ path: "/v1/identities/google/challenge", method: "POST", body: { loginStateDigest: createHash("sha256").update("abc_DEF-123").digest("hex") } }]);
-    assert.equal((await ask("")).status, 400);
-    assert.equal((await ask("?state=has.dot")).status, 400);
-    assert.equal((await ask("?state=x", "POST")).status, 405);
-    const off = await handleCliChallenge(new NextRequest(`${site}/cli/challenge?state=x`), options({}, false));
-    assert.equal(off.status, 404);
-    const down = await handleCliChallenge(new NextRequest(`${site}/cli/challenge?state=x`), options({ resolveRuntime: async () => { throw new Error("boom"); } }));
+    const digest = createHash("sha256").update("transaction-1").digest("hex");
+    const fromDigest = await ask(`?loginStateDigest=${digest}`);
+    assert.equal(fromDigest.status, 200);
+    assert.deepEqual(fromDigest.body, good);
+    const fromState = await ask("?state=abc_DEF-123");
+    assert.equal(fromState.status, 200);
+    assert.deepEqual(seen, [
+      { path: "/v1/identities/google/challenge", method: "POST", body: { loginStateDigest: digest } },
+      { path: "/v1/identities/google/challenge", method: "POST", body: { loginStateDigest: createHash("sha256").update("abc_DEF-123").digest("hex") } },
+    ]);
+    for (const query of ["", "?state=has.dot", `?loginStateDigest=${digest.toUpperCase()}`, `?loginStateDigest=${digest.slice(1)}`, `?state=x&loginStateDigest=${digest}`]) {
+      assert.equal((await ask(query)).status, 400, query);
+    }
+    assert.equal((await ask(`?loginStateDigest=${digest}`, {}, "POST")).status, 405);
+    for (const bad of [{ challengeId: "not-a-uuid" }, { nonce: "short" }, { expiresAt: 999_999_999 }, { expiresAt: 1_000_000_301 }, { challengeToken: "forged" }, { challengeToken: undefined }]) {
+      central = { ...good, ...bad };
+      const refused = await ask(`?loginStateDigest=${digest}`);
+      assert.equal(refused.status, 503, JSON.stringify(bad));
+      assert.equal(refused.body.error, "unavailable");
+    }
+    central = good;
+    assert.equal((await handleCliChallenge(new NextRequest(`${site}/cli/challenge?state=x`), options({}, false))).status, 404);
+    const down = await handleCliChallenge(new NextRequest(`${site}/cli/challenge?state=x`), { ...options({ resolveRuntime: async () => { throw new Error("boom"); } }), takeToken: async () => true });
     assert.equal(down.status, 503);
     assert.doesNotMatch(JSON.stringify(await down.json()), /boom/);
     assert.equal(isStaticOrApiPath("/cli/challenge"), true);
-    return good;
+    return fromDigest;
+  },
+  async the_challenge_route_is_throttled_per_site_and_fails_closed() {
+    const answered: unknown[] = [];
+    const accounts = new ProspectusSiteAccounts(async () => { answered.push(1); return {}; });
+    const refusedBy = async (takeToken: () => Promise<boolean>) => {
+      const response = await handleCliChallenge(new NextRequest(`${site}/cli/challenge?state=abc`), {
+        ...options({ resolveRuntime: async () => ({ accounts, cognitoClient: client, sealingSecret: "unused" }) }), takeToken,
+      });
+      return { status: response.status, retryAfter: response.headers.get("retry-after"), body: await response.json() as Record<string, unknown> };
+    };
+    const empty = await refusedBy(async () => false);
+    assert.equal(empty.status, 429);
+    assert.equal(empty.body.error, "rate_limited");
+    assert.equal(empty.retryAfter, "1");
+    assert.equal(answered.length, 0, "a refused request never reaches Prospectus");
+    assert.equal((await refusedBy(async () => { throw new Error("table down"); })).status, 503);
+
+    let stored: ThrottleState | null = null;
+    const store: ThrottleStore = {
+      read: async () => stored,
+      writeIfUnchanged: async (previous, next) => {
+        if (JSON.stringify(previous) !== JSON.stringify(stored)) return false;
+        stored = next;
+        return true;
+      },
+    };
+    const limits = throttleLimitsFromEnvironment({});
+    assert.deepEqual(limits, { ratePerSecond: 1, burst: 2 });
+    assert.deepEqual(throttleLimitsFromEnvironment({ PAPYRUS_CLI_CHALLENGE_RATE_PER_SECOND: "5", PAPYRUS_CLI_CHALLENGE_BURST: "10" }), { ratePerSecond: 5, burst: 10 });
+    assert.deepEqual(throttleLimitsFromEnvironment({ PAPYRUS_CLI_CHALLENGE_RATE_PER_SECOND: "-1", PAPYRUS_CLI_CHALLENGE_BURST: "x" }), { ratePerSecond: 1, burst: 2 });
+    const start = 10_000_000;
+    const outcomes = [
+      await takeChallengeToken(store, limits, start),
+      await takeChallengeToken(store, limits, start),
+      await takeChallengeToken(store, limits, start),
+      await takeChallengeToken(store, limits, start + 500),
+      await takeChallengeToken(store, limits, start + 1000),
+      await takeChallengeToken(store, limits, start + 60_000),
+    ];
+    assert.deepEqual(outcomes, [true, true, false, false, true, true]);
+    let raced = 0;
+    const contended: ThrottleStore = { read: async () => ({ millitokens: 2000, updatedAtMilliseconds: 1 }), writeIfUnchanged: async () => { raced += 1; return false; } };
+    assert.equal(await takeChallengeToken(contended, limits, 2), false);
+    assert.ok(raced >= 2, "a lost race is retried, then refused");
+    return { outcomes };
   },
   async enrollment_is_off_unless_switched_on_and_off_synthesizes_unchanged() {
-    assert.equal(planCliEnrollment(false, { PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN: stageArn }), undefined);
-    assert.throws(() => planCliEnrollment(true, {}), /PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN/);
+    assert.equal(planCliEnrollment(false), undefined);
     const stack = new Stack(new App(), "Unchanged", { env: { account: "111111111111", region: "us-east-1" } });
     addCliRemoteLogin(stack, {
       plan: planCliRemoteLogin(true, { PAPYRUS_SITE_ORIGIN: site, PAPYRUS_CLI_INVOKER_ROLE_ARN: invokerRoleArn })!,
@@ -165,15 +227,16 @@ const behaviours: Record<string, () => Promise<unknown>> = {
       pagesCode: Code.fromInline("def handler(event, context): pass"),
     });
     const without = Template.fromStack(stack).toJSON();
-    const planOff = synthesize(false).toJSON();
-    assert.deepEqual(without.Resources, planOff.Resources);
-    assert.doesNotMatch(JSON.stringify(without), /PROSPECTUS_ACCOUNTS_API|execute-api/);
+    assert.deepEqual(without.Resources, synthesize(false).toJSON().Resources);
+    assert.doesNotMatch(JSON.stringify(without), /SITE_CHALLENGE_ORIGIN|ChallengeThrottle|execute-api/);
     const on = synthesize(true);
-    const json = JSON.stringify(on.toJSON());
-    assert.match(json, /PROSPECTUS_ACCOUNTS_API/);
-    on.hasResourceProperties("AWS::IAM::Policy", {
-      PolicyDocument: { Statement: [{ Action: "execute-api:Invoke", Effect: "Allow", Resource: `${stageArn}/POST/v1/identities/google/challenge` }] },
+    assert.match(JSON.stringify(on.toJSON()), /SITE_CHALLENGE_ORIGIN/);
+    on.resourceCountIs("AWS::DynamoDB::Table", 2);
+    on.hasResourceProperties("AWS::DynamoDB::Table", {
+      TimeToLiveSpecification: { AttributeName: "expiresAt", Enabled: true },
+      BillingMode: "PAY_PER_REQUEST",
     });
+    assert.doesNotMatch(JSON.stringify(on.toJSON()), /execute-api:Invoke/, "the pages function holds no Prospectus access");
     return { ok: true };
   },
 };

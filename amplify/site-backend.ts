@@ -175,7 +175,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig));
 
   const cliEnrollmentPlan = cliRemoteLoginPlan
-    ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true", process.env)
+    ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
     : undefined;
   const cliRemoteLogin = cliRemoteLoginPlan
     ? addCliRemoteLogin(backend.createStack("CliRemoteLogin"), {
@@ -769,7 +769,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
           : null,
       // Only a site that turned remote CLI login on gets this key; `papyrus-cli.json` then publishes the broker.
       ...(cliRemoteLogin
-        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn, ...(cliEnrollmentPlan ? { enrollment: true } : {}) } }
+        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn, ...(cliEnrollmentPlan && cliRemoteLogin.throttleTableName ? { enrollment: true, throttleTable: cliRemoteLogin.throttleTableName } : {}) } }
         : {}),
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }

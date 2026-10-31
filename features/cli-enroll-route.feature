@@ -23,12 +23,17 @@ Feature: A site's enroll route makes a remote CLI login a Prospectus Person
     Then the route passes through only challenge_invalid, login_state, challenge_replay or reenrollment_required with their status
     And any other failure is answered as unavailable without the service's message
 
-  Scenario: A local login's challenge is bound to the digest of its own state
-    When a local login asks the challenge route for its state
-    Then Prospectus is asked for a challenge bound to the digest of that state, never an unbound one
-    And only well-formed states are answered, and a site that has not switched enrollment on answers 404
+  Scenario: A login challenge is bound to a digest and validated before it is answered
+    When the challenge route is asked for a remote login's digest or a local login's state
+    Then Prospectus is asked for a challenge bound to exactly 64 lowercase hex characters, never an unbound one
+    And a challenge without a uuid4 id, a well-formed nonce, an expiry within 300 seconds and a signed token is answered as unavailable
+
+  Scenario: The challenge route is throttled per site and fails closed
+    When more challenges are asked for than the site's bucket allows
+    Then the route answers 429 and never reaches Prospectus
+    And the bucket is one request per second with a burst of two unless the site sets its own, and a storage failure refuses the request
 
   Scenario: Enrollment is off unless a site switches it on
     When a site has not switched enrollment on
     Then the enroll route answers 404 and calls nothing
-    And the site's pages function gets no Prospectus endpoint, permission or environment, so its stack is unchanged
+    And the site's pages function gets no challenge origin, throttle table or Prospectus access, so its stack is unchanged

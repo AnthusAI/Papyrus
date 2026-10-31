@@ -1,20 +1,20 @@
 Feature: A remote CLI login is enrolled with Prospectus
-  When a site switches enrollment on, approving `papyrus login --remote` asks Prospectus for a login challenge bound to
+  When a site switches enrollment on, approving `papyrus login --remote` obtains a Prospectus login challenge, through the site's own route, bound to
   the sign-in's transaction, and the CLI enrolls the finished login at the site before it keeps any session. The
-  pages function holds no secret: it signs with its own role and binds nothing unless Prospectus answers a usable,
-  fresh, signed challenge. These scenarios run the real cli-login broker in memory with a stand-in for Prospectus.
+  pages function holds no secret and no Prospectus access: it asks the site's own challenge route, which runs as the
+  registered compute role, and binds nothing unless the answer is a usable, fresh, signed challenge. These scenarios run the real cli-login broker in memory with a stand-in for the site's challenge route.
   A local `papyrus login` enrolls the same way, binding the challenge to the CLI's own sign-in state.
 
   Scenario: Approving a remote login binds a challenge to the transaction digest and returns its nonce
     Given a site with enrollment switched on and a started remote login
     When the person approves it
-    Then Prospectus was asked for a challenge bound to the digest of the transaction, never the transaction itself
+    Then the site was asked for a challenge bound to the digest of the transaction, never the transaction itself
     And the Google sign-in uses the challenge's nonce
     And the waiting CLI receives the signed challenge as its enrollment
 
   Scenario: An unusable challenge binds nothing and the approval page says the service is unavailable
     Given a site with enrollment switched on and a started remote login
-    When the person approves it but Prospectus answers no usable challenge
+    When the person approves it but the site answers no usable challenge
     Then the approval page says the service is unavailable
     And the transaction is still unbound
 

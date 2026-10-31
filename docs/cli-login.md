@@ -363,15 +363,17 @@ a registered Tactus procedure.
 Enrollment makes a CLI login a Prospectus Person. It is off for every site until the site switches it on, and it
 covers both `papyrus login --remote` and the local `papyrus login` (cli-login 0.4.0 `prepare` and `enroll` hooks).
 
-**Switching it on.** Set `PAPYRUS_ENABLE_CLI_ENROLLMENT=true` and `PAPYRUS_PROSPECTUS_ACCOUNTS_API_STAGE_ARN` in the
-backend build, next to remote CLI login. The pages function then gets `PROSPECTUS_ACCOUNTS_API` and permission to call
-only `POST /v1/identities/google/challenge`, and the site's Amplify outputs carry `cliLogin.enrollment: true`, which
-turns on `/cli/enroll`. With the flag off none of this exists and the stack synthesizes unchanged.
+**Switching it on.** Set `PAPYRUS_ENABLE_CLI_ENROLLMENT=true` in the backend build, next to remote CLI
+login. The pages function then gets `SITE_CHALLENGE_ORIGIN` (the site's own origin), the stack gets a small throttle
+table, and the site's Amplify outputs carry `cliLogin.enrollment: true` and the table name, which turn on `/cli/challenge`
+and `/cli/enroll`. The pages function holds no Prospectus access. With the flag off none of this exists and the stack synthesizes unchanged.
 
 **The flow.**
 
-1. On Approve the pages function (`amplify/functions/cli-login-pages/login_challenges.py`) asks Prospectus for a
-   challenge bound to `sha256hex(T)`, where T is the broker transaction. It accepts the answer only if the status is
+1. Central Prospectus admits challenge and resolve only from the site's registered compute role, so the pages
+   function does not call it. On Approve (`amplify/functions/cli-login-pages/login_challenges.py`) it asks the site's
+   `GET /cli/challenge?loginStateDigest=<sha256hex(T)>`, where T is the broker transaction; that route runs as the
+   compute role and calls Prospectus. The route and the pages function both accept the answer only if the status is
    200, `challengeId` is a UUID4, the nonce matches `^[A-Za-z0-9_-]{32,256}$`, `expiresAt` is within the next 300
    seconds and the token is a signed `v1.` challenge. Otherwise nothing is bound and the page says the service is
    unavailable.
@@ -391,11 +393,17 @@ verifier for each login), the Cognito `state` is the broker transaction and its 
 secret part, and the dot is never sent to Prospectus), and the OpenID nonce is the Prospectus challenge nonce, which
 Prospectus compares with the ID token before it resolves.
 
+**Throttle.** `/cli/challenge` is public and central Prospectus has no per-site limit, so the site keeps a token
+bucket shared by all callers in a DynamoDB item, updated with a conditional write: 1 request per second with a burst
+of 2 by default (the same as Prospectus's own CRM for the same route), configurable with
+`PAPYRUS_CLI_CHALLENGE_RATE_PER_SECOND` and `PAPYRUS_CLI_CHALLENGE_BURST`. The reasoning: a challenge is issued once
+per login that a person then approves in a browser, so real demand is orders of magnitude below one per second, and the
+limit only bounds abuse. An empty bucket answers 429 and a storage failure answers 503; neither reaches Prospectus.
+
 **Failures.** `challenge_invalid`, `login_state`, `challenge_replay` and `reenrollment_required` pass through with
 their status; `login_not_enrollable` (403) means the login was made on a client other than the site's registered
 federation client; anything else is `unavailable`. The CLI discards the session and says why, and for
 `reenrollment_required` it says "Run `papyrus login` again."
 
-**Registration.** The pages function calls Prospectus with its own execution role, and Prospectus admits only the
-site's registered `roleArn` or its `executionDelegation`. Until that role is registered, challenge calls are refused
-and approval pages report the service as unavailable.
+**Registration.** The challenge and enroll routes run as the Amplify compute role, which must be the site's
+registered `roleArn` in Prospectus; an `executionDelegation` principal is refused on challenge and resolve.
