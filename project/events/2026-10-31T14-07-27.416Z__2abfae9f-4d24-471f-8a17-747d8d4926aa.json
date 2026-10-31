@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "2abfae9f-4d24-471f-8a17-747d8d4926aa",
+  "issue_id": "PPY-8c54380b-9ad3-475a-8a63-2d602667630c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:07:27.416Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Configurable publish gate per site",
+    "description": "A site setting decides whether publishing needs a person's approval (hard gate review request) or may publish on its own. Anth.us: approval required.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

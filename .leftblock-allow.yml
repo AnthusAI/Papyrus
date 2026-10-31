@@ -1,6 +1,7 @@
-# LeftBlock overrides: each entry approves one finding (one rule on one exact
-# line content in one file). Changing that line re-blocks it. `kind` is the
-# rule's category, shown for reviewers; it is not part of matching.
+# LeftBlock overrides: each entry approves one reviewed value (one rule
+# matching one exact value in one file). Changing the matched value re-blocks
+# it; unrelated edits to the line do not. `kind` is the rule's category,
+# shown for reviewers; it is not part of matching.
 version: 1
 allow:
   - id: "50c254bb4868e1a0"
@@ -297,3 +298,93 @@ allow:
     kind: "Detected a Generic API Key, potentially exposing access to various services and "
     reason: "SHA-256 content hash naming an uploaded CDK asset object (worker code zip) in the p.apyr.us example config; an object key, not a credential"
     added: 2026-10-27
+  - id: "e8a15dc6b54d7116"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-37-55.210Z__4d0eb091-a2ff-44ae-ad73-d3260b50bad4.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "15491c4913127244"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-37-55.551Z__814656ea-ccaa-4154-a6d4-f9c2afb6a3f5.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "8cd7fe011a80949b"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-37-55.041Z__90901730-53f6-49c3-895b-b1f97aeef191.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "97c19353f4a742df"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-37-54.296Z__f7dd9dc3-e5b3-4719-b13e-a5899b85ef0b.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "15dbd4191f150e21"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-44-04.628Z__4d4fa681-0967-49c1-8074-e9cea42cd796.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "c0939787d9d47f74"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-44-04.500Z__382ac8d1-7cf5-4b39-9d87-c56fc4839e95.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "a03624ed80bff447"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-44-04.397Z__93e30c4f-29c4-498f-a2b6-4718e7f76b9a.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "12aedf2c1638ad61"
+    rule: "leftblock-personal-email"
+    file: "project/events/2026-10-31T12-44-04.282Z__a587888d-9416-47a8-87c7-a87bee51f14f.json"
+    kind: "Personal email address"
+    reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
+    added: 2026-10-31
+  - id: "2d38f7742b9669db"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/shipped-console.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "e4034045225fc102"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/shipped-console.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "73514c23c2a427c5"
+    rule: "leftblock-session-uuid"
+    file: "procedures/newsroom/tests/test_shipped_console_edge.py"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "8e00ba69c5c13adf"
+    rule: "leftblock-session-uuid"
+    file: "procedures/newsroom/tests/test_shipped_console_edge.py"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "9e6e60cb952e1eb2"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/threat-intelligence.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
+    added: 2026-10-31
+  - id: "0aaf3d05752453a2"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/threat-intelligence.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
+    added: 2026-10-31
+  - id: "c889be54bb3c3d82"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/threat-intelligence.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "AWS-managed CloudFront cache and origin-request policy ids, public"
+    added: 2026-10-31

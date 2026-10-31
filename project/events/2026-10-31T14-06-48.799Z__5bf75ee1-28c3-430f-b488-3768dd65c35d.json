@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "5bf75ee1-28c3-430f-b488-3768dd65c35d",
+  "issue_id": "PPY-3d58d6d0-8988-4191-b34b-d7058234dc4c",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:48.799Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Alexa M4: Signed-in newsroom (personal feed and voice Accept/Reject)",
+    "description": "Milestone 4. With a linked account, the skill becomes Ryan's newsroom on the kitchen counter.\n\nScope (YAGNI; extend later):\n- \"What's new for me\": the person's ranked reference feed (the Apple-News-style feed), on screen and by voice.\n- Accept / Reject by voice or by touch on a reference. Votes go through the same server write path as the web newsroom, so they train the site's Cyclotron under the learning-loop standard (PPY-c6aced). One Accept/Reject vocabulary.\n- Authorization is enforced on the server for every write. The skill never holds more privilege than the user.\n- Proposed Story review by voice is explicitly out of scope for this milestone. It can become a follow-up.\n\nDone when: Ryan opens his feed on the Show, accepts and rejects references by voice and touch, and the votes appear in the newsroom and in the Cyclotron training data. Gherkin specs cover each.\n\nFeature: Steer my feed by voice\n  Scenario: Accept a reference\n    Given I have linked my account\n    And my feed is on screen\n    When I say \"accept this one\"\n    Then the vote is recorded as mine\n    And the site's Cyclotron receives it as training data\n",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+    "labels": []
+  }
+}

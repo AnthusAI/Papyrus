@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { CLI_LOOPBACK_CALLBACK } from "./cli-loopback-callback";
 import { readAmplifyOutputsFile } from "./amplify-outputs-path";
 import { SiteOriginNotConfiguredError, publicSiteOrigin, siteOriginNotConfiguredResponse } from "./site-origin";
 
@@ -29,7 +30,12 @@ export interface AmplifyOutputsForCliLogin {
     oauth?: { domain?: string; redirect_sign_in_uri?: string[] };
   };
   data?: { url?: string };
-  custom?: { cliLogin?: { brokerEndpoint?: string; remoteCallbackUri?: string; pagesFunctionArn?: string } | null };
+  custom?: {
+    /** Present (true) only for a site that moved the CLI onto its registered Prospectus federation client. */
+    cliOnFederationClient?: boolean;
+    prospectusSignIn?: { clientId?: string; callbackPath?: string } | null;
+    cliLogin?: { brokerEndpoint?: string; remoteCallbackUri?: string; pagesFunctionArn?: string } | null;
+  };
 }
 
 /**
@@ -40,21 +46,26 @@ export const CLI_CALLBACK_URI = "http://localhost:3001/";
 
 export function cliLoginDocumentFromOutputs(outputs: AmplifyOutputsForCliLogin | null, siteOrigin: string): CliLoginDocument | null {
   const userPoolId = outputs?.auth?.user_pool_id;
-  const clientId = outputs?.auth?.user_pool_client_id;
+  const onFederationClient = outputs?.custom?.cliOnFederationClient === true;
+  const federationClientId = outputs?.custom?.prospectusSignIn?.clientId;
+  if (onFederationClient && !federationClientId) return null;
+  const clientId = onFederationClient ? federationClientId : outputs?.auth?.user_pool_client_id;
+  const callbackUri = onFederationClient ? CLI_LOOPBACK_CALLBACK : CLI_CALLBACK_URI;
   const domain = outputs?.auth?.oauth?.domain;
   const endpoint = outputs?.data?.url;
   if (!userPoolId || !clientId || !domain || !endpoint || !endpoint.startsWith("https://")) return null;
-  // Only when the client really registers the callback; otherwise the sign-in could never complete.
-  if (!outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(CLI_CALLBACK_URI)) return null;
+  // Only when the client really registers the callback; otherwise the sign-in could never complete. The federation
+  // client's callbacks are registered by the same flag that publishes this output, so the main client is not consulted.
+  if (!onFederationClient && !outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(CLI_CALLBACK_URI)) return null;
   const region = outputs?.auth?.aws_region ?? userPoolId.split("_")[0];
-  const remote = remoteLoginFromOutputs(outputs, siteOrigin);
+  const remote = remoteLoginFromOutputs(outputs, siteOrigin, onFederationClient);
   return {
     publication: siteOrigin,
     issuer: `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`,
     client_id: clientId,
     oauth_domain: `https://${domain}`,
     graphql_endpoint: endpoint,
-    callback_uri: CLI_CALLBACK_URI,
+    callback_uri: callbackUri,
     ...remote,
   };
 }
@@ -64,18 +75,30 @@ export function cliLoginDocumentFromOutputs(outputs: AmplifyOutputsForCliLogin |
  * remote callback is this site's own `/cli/callback`, and the web client registers it. Otherwise the file says nothing
  * about remote login, so the CLI reports that the site has not switched it on.
  */
-function remoteLoginFromOutputs(outputs: AmplifyOutputsForCliLogin | null, siteOrigin: string): Pick<CliLoginDocument, "broker_endpoint" | "remote_callback_uri"> | null {
+function remoteLoginFromOutputs(outputs: AmplifyOutputsForCliLogin | null, siteOrigin: string, onFederationClient: boolean): Pick<CliLoginDocument, "broker_endpoint" | "remote_callback_uri"> | null {
   const published = outputs?.custom?.cliLogin;
   const broker = published?.brokerEndpoint;
   const callback = published?.remoteCallbackUri;
   if (!broker || !callback || !broker.startsWith("https://") || callback !== `${siteOrigin}/cli/callback`) return null;
-  if (!outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(callback)) return null;
+  if (!onFederationClient && !outputs?.auth?.oauth?.redirect_sign_in_uri?.includes(callback)) return null;
   return { broker_endpoint: broker, remote_callback_uri: callback };
 }
 
 export interface CliLoginDiscoveryOptions {
   readOutputs?: () => AmplifyOutputsForCliLogin | null;
   environment?: Record<string, string | undefined>;
+}
+
+const CONSOLE_ORIGIN_ENV = "PAPYRUS_CONSOLE_ORIGIN";
+
+/**
+ * The origin the file names as the site: the console origin when the console has its own host (PAPYRUS_CONSOLE_ORIGIN), else the
+ * site origin. The CLI requires `publication` to equal the origin it was given, and `papyrus login --remote` lives on the console
+ * host, so that host is the address to sign in at. The public host serves the same file.
+ */
+function loginOrigin(siteOrigin: string, environment: Record<string, string | undefined>): string {
+  const consoleOrigin = (environment[CONSOLE_ORIGIN_ENV] ?? "").trim();
+  return consoleOrigin === "" ? siteOrigin : consoleOrigin;
 }
 
 export function handleCliLoginDiscovery(request: Pick<NextRequest, "nextUrl">, options: CliLoginDiscoveryOptions = {}): NextResponse {
@@ -87,7 +110,7 @@ export function handleCliLoginDiscovery(request: Pick<NextRequest, "nextUrl">, o
     throw error;
   }
   const outputs = (options.readOutputs ?? (() => readAmplifyOutputsFile() as AmplifyOutputsForCliLogin | null))();
-  const document = cliLoginDocumentFromOutputs(outputs, origin);
+  const document = cliLoginDocumentFromOutputs(outputs, loginOrigin(origin, options.environment ?? process.env));
   if (!document) {
     return NextResponse.json(
       { error: "cli_login_not_configured", message: "This site does not register the CLI sign-in callback." },

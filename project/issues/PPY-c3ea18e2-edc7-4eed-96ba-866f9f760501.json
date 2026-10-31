@@ -9,10 +9,23 @@
   "creator": null,
   "parent": "PPY-1b83d3c0-0b1b-4f4b-9771-b52c5f1423c8",
   "labels": [],
-  "dependencies": [],
-  "comments": [],
+  "dependencies": [
+    {
+      "target": "PPY-f9dfb394-2814-47b9-bf33-0ac45678aa29",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [
+    {
+      "id": "206a2147-e6ee-4d4a-b3f2-c478c85c9cd2",
+      "author": "home",
+      "text": "Status 2026-10-31: three How-To items exist UNPUBLISHED in the p.apyr.us CMS: howto-show-curation-on-the-public-site, howto-configure-home-page, howto-section-fronts. They describe freshness, which is released (5.64.0) but not yet enabled on Anth.us, so they stay unpublished until the Anth.us follow-up task turns it on; that task's last step publishes them (papyrus ops content publish). Stays open until then.",
+      "created_at": "2026-10-31T12:28:22.362585Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T07:06:59.350374Z",
-  "updated_at": "2026-10-31T07:45:50.019291Z",
+  "updated_at": "2026-10-31T12:31:22.935155Z",
   "closed_at": null,
   "agent": {
     "platform": "claude_code",

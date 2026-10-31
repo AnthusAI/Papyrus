@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c294ff37-81d3-4d24-9118-72b46f3d2e17",
+  "issue_id": "PPY-8c016e44-70af-4656-bd3f-7768d4865365",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:07:27.723Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Anth.us trial: three trend stories through the loop",
+    "description": "A runtime controls for agents; B faster coding moved the bottleneck to review; C can a small decision model predict which sources our editor accepts. Measure ideation precision, gate findings, editor word changes, approve-to-publish time, duplicates, cost.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}

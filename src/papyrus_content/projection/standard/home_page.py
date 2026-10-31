@@ -13,10 +13,11 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
-from ...home_page.snapshot import HOME_PAGE_DATA_DIRECTORY, REFERENCES_FILE, THREADS_FILE
+from ...home_page.snapshot import HOME_PAGE_DATA_DIRECTORY, REFERENCES_FILE, THREADS_DIRECTORY, THREADS_FILE, thread_file
 
 REFERENCES_NAME = REFERENCES_FILE.removeprefix(HOME_PAGE_DATA_DIRECTORY + "/")
 THREADS_NAME = THREADS_FILE.removeprefix(HOME_PAGE_DATA_DIRECTORY + "/")
+THREAD_DIRECTORY_NAME = THREADS_DIRECTORY.removeprefix(HOME_PAGE_DATA_DIRECTORY + "/")
 
 Reader = Callable[[str], "bytes | None"]
 
@@ -80,4 +81,13 @@ class HomePageSource:
     def threads_digest(self) -> str:
         """A digest of the threads file's bytes; empty when there is no file."""
         raw = self._load(THREADS_FILE, THREADS_NAME, "threads")[0]
+        return "" if raw is None else hashlib.sha256(raw).hexdigest()[:16]
+
+    def thread(self, key: str) -> dict | None:
+        """The per-thread document ``_data/home-page/threads/<key>.json``; ``None`` when there is no such file."""
+        return self._load(thread_file(key), f"{THREAD_DIRECTORY_NAME}/{key}.json", "messages")[1]
+
+    def thread_digest(self, key: str) -> str:
+        """A digest of one per-thread file's bytes; empty when there is no file."""
+        raw = self._load(thread_file(key), f"{THREAD_DIRECTORY_NAME}/{key}.json", "messages")[0]
         return "" if raw is None else hashlib.sha256(raw).hexdigest()[:16]

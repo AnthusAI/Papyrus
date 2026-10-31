@@ -215,12 +215,14 @@ export class AmplifyAppShellStack extends Stack {
     // The compute adapter's request URL is https://localhost:3000, so the site names its own public origin.
     // A site served by its own edge (cms.siteOrigin) has no Amplify domain, so the edge host is its origin.
     const siteOrigin = resolveSiteOrigin(config);
+    const consoleOrigin = config.cms.consoleOrigin;
     const productionSiteOrigin = cmsHostName ? `https://${cmsHostName}` : siteOrigin ?? Fn.join("", ["https://main.", cmsApp.attrDefaultDomain]);
     const stagingSiteOrigin = stagingDomainName ? `https://${stagingDomainName}` : Fn.join("", ["https://staging.", cmsApp.attrDefaultDomain]);
     const sharedRootDomain = config.cms.domainPrefix !== undefined;
     const defaultOriginsToAllow = [
       ...(config.cms.domainName ? [] : [productionOrigin]),
       ...(siteOrigin ? [`${siteOrigin}/`] : []),
+      ...(consoleOrigin && consoleOrigin !== siteOrigin ? [`${consoleOrigin}/`] : []),
       ...(stagingEnabled && !stagingDomainName ? [stagingOrigin] : []),
     ];
     const oauthRedirectUrls = defaultOriginsToAllow.length === 0
@@ -244,10 +246,13 @@ export class AmplifyAppShellStack extends Stack {
         PAPYRUS_SITE_BRAND: config.brand,
         SITE_ENV: "production",
         PAPYRUS_SITE_ORIGIN: productionSiteOrigin,
+        ...(consoleOrigin ? { PAPYRUS_CONSOLE_ORIGIN: consoleOrigin } : {}),
         PAPYRUS_CONTENT_SOURCE: "published",
         ...(config.cms.cliRemoteLogin
           ? { PAPYRUS_ENABLE_CLI_REMOTE_LOGIN: "true", PAPYRUS_CLI_INVOKER_ROLE_ARN: computeRole.roleArn }
           : {}),
+        ...(config.cms.cliOnFederationClient ? { PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT: "true" } : {}),
+        ...(config.cms.alarmTopicArn ? { PAPYRUS_ALARM_TOPIC_ARN: config.cms.alarmTopicArn } : {}),
         ...(revalidateSecretParameterName ? { PAPYRUS_REVALIDATE_SECRET_PARAMETER: revalidateSecretParameterName } : {}),
         ...prospectusEnvironment,
       }),

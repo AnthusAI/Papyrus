@@ -1,0 +1,20 @@
+{
+  "id": "PPY-5e0b9224-b7e0-451a-8afb-23f53f1b443d",
+  "title": "Alexa M2: Echo Show screens (APL feed and story views)",
+  "description": "Milestone 2. On devices with screens, the skill shows the stories, not just reads them.\n\nScope:\n- APL documents in the skill package: a feed list (headline, dek, image, publication branding from the site theme) and a story view (title, image, scrollable body), plus touch: tapping a story opens it.\n- Check the device's Alexa.Presentation.APL support on every response. Voice-only devices keep the M1 behaviour.\n- Screen layouts for small round (Echo Spot), medium (Show 5/8) and large (Show 15) viewports, using the APL viewport profiles.\n- Readable text sizes and contrast. Colour never carries meaning on its own (Ryan is colourblind). Lucide-style iconography only.\n\nDone when: \"Alexa, open Pilobolus\" on an Echo Show shows the feed, tapping or naming a story opens its screen and reads it, and a voice-only device still works. Gherkin specs assert which directive goes to which device profile. Screenshots go to Ryan before merge.\n\nFeature: See the stories on an Echo Show\n  Scenario: Feed on a screen device\n    Given my device supports APL\n    When I open the skill\n    Then the latest stories appear as a list on screen\n  Scenario: Voice-only device\n    Given my device has no screen\n    When I open the skill\n    Then no APL directive is sent and the headlines are read aloud\n",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:06:47.674456Z",
+  "updated_at": "2026-10-31T14:06:47.674496Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

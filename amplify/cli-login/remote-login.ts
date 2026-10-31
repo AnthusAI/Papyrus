@@ -1,8 +1,10 @@
-import { Duration, Fn, RemovalPolicy, type Stack } from "aws-cdk-lib";
+import { Annotations, Duration, Fn, RemovalPolicy, type Stack } from "aws-cdk-lib";
 import { Alarm, ComparisonOperator, Metric, TreatMissingData } from "aws-cdk-lib/aws-cloudwatch";
 import { AttributeType, BillingMode, Table, TableEncryption } from "aws-cdk-lib/aws-dynamodb";
-import { Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { ArnPrincipal, Effect, ManagedPolicy, PolicyStatement, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import { Architecture, CfnPermission, CfnUrl, Function as LambdaFunction, type Code, Runtime } from "aws-cdk-lib/aws-lambda";
+import { SnsAction } from "aws-cdk-lib/aws-cloudwatch-actions";
+import { Topic } from "aws-cdk-lib/aws-sns";
 import { FilterPattern, LogGroup, MetricFilter, RetentionDays } from "aws-cdk-lib/aws-logs";
 
 /** The pages the broker's approval URL and callback name. Fixed by the cli-login protocol. */
@@ -10,7 +12,7 @@ export const CLI_APPROVE_PATH = "/cli/approve";
 export const CLI_CALLBACK_PATH = "/cli/callback";
 
 export type CliRemoteLoginPlan = {
-  /** The site's public https origin: where the pages are served and the Cognito callback is registered. */
+  /** The console's public https origin (the site origin unless the console has its own host): where the pages are served and the Cognito callback is registered. */
   origin: string;
   approvalUrl: string;
   callbackUri: string;
@@ -24,15 +26,15 @@ export type CliRemoteLoginPlan = {
  */
 export function planCliRemoteLogin(enabled: boolean, environment: Record<string, string | undefined>): CliRemoteLoginPlan | undefined {
   if (!enabled) return undefined;
-  const originText = (environment.PAPYRUS_SITE_ORIGIN ?? "").trim();
+  const originText = (environment.PAPYRUS_CONSOLE_ORIGIN ?? environment.PAPYRUS_SITE_ORIGIN ?? "").trim();
   let origin: URL;
   try {
     origin = new URL(originText);
   } catch {
-    throw new Error("Remote CLI login needs PAPYRUS_SITE_ORIGIN, the site's public https origin.");
+    throw new Error("Remote CLI login needs PAPYRUS_SITE_ORIGIN (or PAPYRUS_CONSOLE_ORIGIN when the console has its own host), the console's public https origin.");
   }
   if (origin.protocol !== "https:" || origin.pathname !== "/" || origin.search !== "" || origin.username !== "") {
-    throw new Error(`Remote CLI login needs PAPYRUS_SITE_ORIGIN to be a plain https origin, got ${originText}.`);
+    throw new Error(`Remote CLI login needs the console origin (PAPYRUS_CONSOLE_ORIGIN, else PAPYRUS_SITE_ORIGIN) to be a plain https origin, got ${originText}.`);
   }
   const invokerRoleArn = (environment.PAPYRUS_CLI_INVOKER_ROLE_ARN ?? "").trim();
   if (!/^arn:aws[a-z-]*:iam::\d{12}:role\/.+$/.test(invokerRoleArn)) {
@@ -44,6 +46,16 @@ export function planCliRemoteLogin(enabled: boolean, environment: Record<string,
     callbackUri: `${origin.origin}${CLI_CALLBACK_PATH}`,
     invokerRoleArn,
   };
+}
+
+export type CliEnrollmentPlan = { enrollment: true };
+
+/**
+ * Prospectus enrollment of each remote login is off unless a site turns it on with PAPYRUS_ENABLE_CLI_ENROLLMENT=true.
+ * Off returns nothing, and then nothing about the pages function or the stack changes.
+ */
+export function planCliEnrollment(enabled: boolean): CliEnrollmentPlan | undefined {
+  return enabled ? { enrollment: true } : undefined;
 }
 
 export type CliRemoteLoginProps = {
@@ -58,6 +70,14 @@ export type CliRemoteLoginProps = {
   product: string;
   brokerCode: Code;
   pagesCode: Code;
+  /** The site's alarm topic. Both broker alarms notify it on alarm and on recovery; without it nobody is notified and synth warns. */
+  alarmTopicArn?: string;
+  /**
+   * Switches on Prospectus enrollment of each remote login. The pages function then asks the site's own
+   * `/cli/challenge` route for the challenge (that route runs as the registered compute role), and the stack gets
+   * the table that throttles that route. Absent, nothing is added and the synthesized stack is unchanged.
+   */
+  enrollment?: boolean;
   /** The most broker invocations at once; bounds what an abusive caller can cost. */
   reservedConcurrency?: number;
 };
@@ -67,6 +87,8 @@ export type CliRemoteLogin = {
   brokerFunctionArn: string;
   pagesFunctionArn: string;
   remoteCallbackUri: string;
+  /** Present only when enrollment is on: the table holding the `/cli/challenge` throttle bucket. */
+  throttleTableName?: string;
 };
 
 /**
@@ -141,6 +163,26 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
       IDENTITY_PROVIDER: "Google",
     },
   });
+  let throttleTableName: string | undefined;
+  if (props.enrollment) {
+    pages.addEnvironment("SITE_CHALLENGE_ORIGIN", props.plan.origin);
+    const throttleName = Fn.join("-", [stack.stackName, "challenge-throttle"]);
+    const throttle = new Table(stack, "ChallengeThrottle", {
+      tableName: throttleName,
+      partitionKey: { name: "pk", type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      encryption: TableEncryption.AWS_MANAGED,
+      timeToLiveAttribute: "expiresAt",
+      removalPolicy: RemovalPolicy.DESTROY,
+    });
+    throttle.addToResourcePolicy(new PolicyStatement({
+      effect: Effect.ALLOW,
+      principals: [new ArnPrincipal(props.plan.invokerRoleArn)],
+      actions: ["dynamodb:GetItem", "dynamodb:PutItem"],
+      resources: [stack.formatArn({ service: "dynamodb", resource: "table", resourceName: throttleName })],
+    }));
+    throttleTableName = throttle.tableName;
+  }
   new CfnPermission(stack, "PagesInvokePermission", {
     functionName: broker.functionName, action: "lambda:InvokeFunction", principal: pages.role!.roleArn,
   });
@@ -156,7 +198,7 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     metricValue: "1",
     defaultValue: 0,
   });
-  new Alarm(stack, "StartCeilingAlarm", {
+  const startCeilingAlarm = new Alarm(stack, "StartCeilingAlarm", {
     alarmDescription: "The cli-login broker refused starts at its ceiling across all callers (a flood from many addresses)",
     metric: new Metric({ namespace: "cli-login", metricName: "StartCeilingReached", statistic: "Sum", period: Duration.minutes(5) }),
     evaluationPeriods: 1,
@@ -164,7 +206,7 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
-  new Alarm(stack, "ThrottledAlarm", {
+  const throttledAlarm = new Alarm(stack, "ThrottledAlarm", {
     alarmDescription: "The cli-login broker is being throttled at its reserved concurrency",
     metric: broker.metricThrottles({ statistic: "Sum", period: Duration.minutes(5) }),
     evaluationPeriods: 1,
@@ -173,10 +215,23 @@ export function addCliRemoteLogin(stack: Stack, props: CliRemoteLoginProps): Cli
     treatMissingData: TreatMissingData.NOT_BREACHING,
   });
 
+  if (props.alarmTopicArn) {
+    const alarmAction = new SnsAction(Topic.fromTopicArn(stack, "AlarmTopic", props.alarmTopicArn));
+    for (const alarm of [startCeilingAlarm, throttledAlarm]) {
+      alarm.addAlarmAction(alarmAction);
+      alarm.addOkAction(alarmAction);
+    }
+  } else {
+    Annotations.of(stack).addWarning(
+      "The remote-login broker alarms (StartCeilingAlarm, ThrottledAlarm) notify nobody: set cms.alarmTopicArn in the site's app-shell site.json (PAPYRUS_ALARM_TOPIC_ARN) to an SNS topic ARN.",
+    );
+  }
+
   return {
     brokerEndpoint: brokerUrl.attrFunctionUrl,
     brokerFunctionArn: broker.functionArn,
     pagesFunctionArn: pages.functionArn,
     remoteCallbackUri: props.plan.callbackUri,
+    ...(throttleTableName ? { throttleTableName } : {}),
   };
 }

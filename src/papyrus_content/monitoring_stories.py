@@ -28,7 +28,8 @@ from typing import Any
 # The drafting modules are imported inside the functions: this module is imported by every router invocation, and only the daily
 # monitor-stories task needs them.
 
-POLICY_KEYS = ("enabled",)
+POLICY_KEYS = ("enabled", "store")
+STORES = ("proposals", "items")   # where a draft is filed: a story_draft Proposal (default, until the router role may write Items) or an Item at the idea stage
 MAXIMUM_COST_USD = 0.50   # per publication and run; see the module docstring
 READ_WORKERS = 8   # References of one publication read at a time: the API's throughput, not a limit on the work (a site with thousands of accepted
 #                    References needs two queries each, and read one by one that alone would take most of the Lambda's time)
@@ -38,7 +39,7 @@ REAL_EXPLORER = object()   # `explorer` default: follow the item's link and, fai
 def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     """The normalized ``monitorStories`` setting of a router publication. Absent means ON; ``{"enabled": false}`` turns it off."""
     if raw is None:
-        return {"enabled": True}
+        return {"enabled": True, "store": "proposals"}
     if not isinstance(raw, dict):
         raise ValueError(f"router publication {publication_id} has an invalid monitorStories (an object is needed)")
     unknown = sorted(set(raw) - set(POLICY_KEYS))
@@ -47,7 +48,10 @@ def validate_monitor_stories(publication_id: str, raw: Any) -> dict[str, Any]:
     enabled = raw.get("enabled", True)
     if not isinstance(enabled, bool):
         raise ValueError(f"router publication {publication_id} monitorStories.enabled must be true or false")
-    return {"enabled": enabled}
+    store = raw.get("store", "proposals")
+    if store not in STORES:
+        raise ValueError(f"router publication {publication_id} monitorStories.store must be {' or '.join(STORES)}")
+    return {"enabled": enabled, "store": store}
 
 
 def lambda_story_transport(environment: dict[str, str] | None = None, *, ssm: Any = None) -> Callable | None:
@@ -78,11 +82,12 @@ def run_publication(client: Any, publication: dict[str, Any], *, transport: Call
     an Automation has a procedure run recorded or in progress for (the router reads them from its trigger rows); those are left to it."""
     from .ideas import monitor_stories
     from .ideas.context import load_context
+    from .ideas.items import ItemStore
     from .ideas.store import ProposalStore
 
     run = monitor_stories.draft_monitor_stories(
         client=client, site=publication["publicationId"], corpus_key=publication["corpusKey"],
-        context=load_context(client, now=now), json_store=None, proposal_store=ProposalStore(client), review_client=client,
+        context=load_context(client, now=now), json_store=None, proposal_store=ItemStore(client, legacy=ProposalStore(client).story_drafts) if (publication.get("monitorStories") or {}).get("store") == "items" else ProposalStore(client), review_client=client,
         transport=transport, limit=None, dry_run=False, now=now, fetch=fetch or monitor_stories.fetch_source,
         explorer=monitor_stories.explore_item if explorer is REAL_EXPLORER else explorer, out_of_time=out_of_time,
         maximum_cost_usd=maximum_cost_usd, read_workers=READ_WORKERS, automation_handled=handled_references)

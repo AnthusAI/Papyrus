@@ -5,6 +5,7 @@ source) says where generated blocks go::
 
     ::include{kind="listing" collection="articles" count="6" card="article"}
     ::include{kind="listing" tags="featured,solutions" notTags="draft" sort="date" count="3" skip="1" layout="bare"}
+    ::include{kind="listing" sections="articles" types="article" count="1" card="text" layout="bare"}
     ::include{kind="showcase"}
     ::include{kind="form" id="contact"}
     ::include{kind="block" name="proof-strip" depends="articles"}
@@ -38,7 +39,7 @@ from .entries import StandardEntry, sorted_by
 from .select import Selection, selection_from_mapping
 
 KINDS = ("listing", "showcase", "form", "block", "references", "threads")
-LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "sort", "ties", "count", "skip", "card", "layout", "tag", "class"}
+LISTING_ATTRIBUTES = {"kind", "collection", "sections", "tags", "allTags", "notTags", "types", "notTypes", "sort", "ties", "count", "skip", "card", "layout", "tag", "class"}
 WRAPPER_TAGS = ("ul", "ol", "div", "section")
 LAYOUTS = ("grid", "bare")
 
@@ -101,12 +102,14 @@ def check(attributes: Mapping, settings: StandardSettings, source: str) -> str:
 def _listing_selection(attributes: Mapping, settings: StandardSettings) -> tuple[Selection, str, str]:
     base = settings.collection(attributes.get("collection"))
     selection = base.select if base is not None else Selection()
-    refined = selection_from_mapping({key: attributes[key] for key in ("sections", "tags", "allTags", "notTags") if key in attributes}, "::include")
+    refined = selection_from_mapping({key: attributes[key] for key in ("sections", "tags", "allTags", "notTags", "types", "notTypes") if key in attributes}, "::include")
     merged = Selection(
         sections=refined.sections or selection.sections,
         tags=refined.tags or selection.tags,
         all_tags=refined.all_tags or selection.all_tags,
         not_tags=tuple(dict.fromkeys((*selection.not_tags, *refined.not_tags))),
+        types=refined.types or selection.types,
+        not_types=tuple(dict.fromkeys((*selection.not_types, *refined.not_types))),
     )
     sort = attributes.get("sort") or (base.sort if base is not None else "date")
     ties = attributes.get("ties") or (base.ties if base is not None else "slug-desc")

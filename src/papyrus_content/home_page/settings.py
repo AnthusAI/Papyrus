@@ -15,6 +15,8 @@ from .export import PUBLIC_REFERENCE_FIELDS, REQUIRED_PUBLISHED_FIELDS
 LAYOUTS = ("latest", "sections")
 THREAD_AUTHOR_POLICIES = ("handle", "none", "anonymous")
 DEFAULT_SUMMARY_CHARACTERS = 240
+DEFAULT_THREAD_BASE = "conversations"
+DEFAULT_INDEX_PAGE_SIZE = 50
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,15 @@ class ThreadsSettings:
 
 
 @dataclass(frozen=True)
+class ForumSettings:
+    """``homePage.forum``: public thread pages at ``<thread_base>/<key>/``. ``posting`` is kept as written for the posting task."""
+
+    thread_base: str = DEFAULT_THREAD_BASE
+    index_page_size: int = DEFAULT_INDEX_PAGE_SIZE
+    posting: Mapping | None = None
+
+
+@dataclass(frozen=True)
 class FreshnessSettings:
     debounce_seconds: int = 300
     interval_hours: float | None = None
@@ -49,6 +60,7 @@ class HomePageSettings:
     references: ReferencesSettings = field(default_factory=ReferencesSettings)
     threads: ThreadsSettings = field(default_factory=ThreadsSettings)
     freshness: FreshnessSettings = field(default_factory=FreshnessSettings)
+    forum: ForumSettings | None = None
 
 
 def _only(mapping: Mapping, allowed: tuple[str, ...], where: str) -> None:
@@ -102,10 +114,29 @@ def _section_names(value: Any) -> tuple[str, ...] | None:
     return tuple(value)
 
 
+def _forum_settings(raw: Any) -> ForumSettings:
+    if not isinstance(raw, Mapping):
+        raise ValueError("homePage.forum must be an object")
+    _only(raw, ("threadBase", "index", "posting"), "homePage.forum")
+    index_raw = _section(raw, "index", "homePage.forum")
+    _only(index_raw, ("pageSize",), "homePage.forum.index")
+    base = raw.get("threadBase", DEFAULT_THREAD_BASE)
+    if not isinstance(base, str) or not base.strip("/"):
+        raise ValueError("homePage.forum.threadBase must be a path segment such as conversations")
+    posting = raw.get("posting")
+    if posting is not None and not isinstance(posting, Mapping):
+        raise ValueError("homePage.forum.posting must be an object or null")
+    return ForumSettings(
+        thread_base=base.strip("/"),
+        index_page_size=_whole_number(index_raw.get("pageSize", DEFAULT_INDEX_PAGE_SIZE), "homePage.forum.index.pageSize", 1),
+        posting=posting,
+    )
+
+
 def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
     if not isinstance(raw, Mapping):
         raise ValueError("homePage must be an object")
-    _only(raw, ("layout", "perSection", "homeLead", "homeSections", "references", "threads", "freshness"), "homePage")
+    _only(raw, ("layout", "perSection", "homeLead", "homeSections", "references", "threads", "freshness", "forum"), "homePage")
     defaults = HomePageSettings()
     layout = raw.get("layout", defaults.layout)
     if layout not in LAYOUTS:
@@ -147,6 +178,7 @@ def home_page_settings_from_mapping(raw: Any) -> HomePageSettings:
             authors=authors,
             anonymous_label=label.strip(),
         ),
+        forum=_forum_settings(raw["forum"]) if raw.get("forum") is not None else None,
         freshness=FreshnessSettings(
             debounce_seconds=_whole_number(freshness_raw.get("debounceSeconds", defaults.freshness.debounce_seconds), "homePage.freshness.debounceSeconds", 0),
             interval_hours=float(interval) if interval is not None else None,

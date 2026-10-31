@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "9c85608d-8978-4c3c-833b-9fce747e5106",
+  "issue_id": "PPY-55bf5b65-2a8e-421a-994d-2e97a263f50d",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:47.374Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Implement launch, story navigation and required built-in intents with SSML from Markus",
+    "description": "Handler (ASK SDK for Python): LaunchRequest reads the latest headlines; ReadStoryIntent (ordinal or title slot), Next, Previous, Repeat; AMAZON.HelpIntent, StopIntent, CancelIntent, FallbackIntent, NavigateHomeIntent; SessionEndedRequest. A Markus to SSML converter escapes text and stays under the speech-length limit. Content comes through the public published-story read path. Gherkin scenarios for every intent against a fake content source.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-a541d0a9-3452-4f4c-8f08-6ff659ec3f43",
+    "labels": []
+  }
+}

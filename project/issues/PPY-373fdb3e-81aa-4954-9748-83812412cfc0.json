@@ -1,0 +1,20 @@
+{
+  "id": "PPY-373fdb3e-81aa-4954-9748-83812412cfc0",
+  "title": "Humanus gate when a Proposed Story is filed",
+  "description": "Check every story_draft Proposal with the site's editorial policies at filing: error-severity violations refuse filing; warn/review findings are attached to the Proposal and used in ranking. Add supersedes: a trend Proposal lists the single-Reference Proposals it replaces.",
+  "type": "task",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T14:07:27.161145Z",
+  "updated_at": "2026-10-31T14:07:27.161206Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}

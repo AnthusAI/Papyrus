@@ -26,6 +26,10 @@ def after_all(context):
 
 
 def before_scenario(context, scenario):
+    from papyrus_content import cli_user_auth
+
+    context.real_site_enrolls = cli_user_auth.site_enrolls
+    cli_user_auth.site_enrolls = lambda config, **kwargs: False
     if WORK_IN_PROGRESS_TAG in scenario.effective_tags:
         scenario.skip("work in progress: waits for a task that has not landed")
         return
@@ -42,6 +46,9 @@ def before_scenario(context, scenario):
 
 
 def after_scenario(context, scenario):
+    from papyrus_content import cli_user_auth
+
+    cli_user_auth.site_enrolls = context.real_site_enrolls
     if OPERATOR_TAG in scenario.effective_tags:
         graphql_stub_server = getattr(context, "graphql_stub_server", None)
         if graphql_stub_server is not None:

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "event_id": "1663828e-e8ab-47cc-bfe1-e0c76e8646a0",
+  "issue_id": "PPY-eea7adcb-1dd0-43df-ab0d-b1ebb2a48b59",
+  "event_type": "field_updated",
+  "occurred_at": "2026-10-31T14:25:30.715Z",
+  "actor_id": "home",
+  "payload": {
+    "changes": {
+      "description": {
+        "from": "Milestone 6. Every Papyrus site can turn on its own skill with config alone.\n\nScope:\n- Confirm that a site needs only config: publication name, invocation name, icons, listing copy, plugin switch. Any per-site code found during the pilot becomes config.\n- Invocation-name check for each site (Amazon's invocation-name rules; brand names that Alexa mispronounces, such as Anth.us, need a tested spoken form).\n- Turn it on, certify and publish site by site. Anth.us goes last, after the edge check, and only with Ryan's go-ahead. Distinctive stays on hold unless Ryan releases it.\n\nDone when: each site Ryan approves has a published skill, built from config only.\n",
+        "to": "Milestone 6. Every Papyrus site can turn on its own skill with config alone.\n\nScope:\n- Confirm that a site needs only config: publication name, invocation name, icons, listing copy, plugin switch. Any per-site code found during the pilot becomes config.\n- Invocation-name check for each site (Amazon's invocation-name rules; brand names that Alexa mispronounces, such as Anth.us, need a tested spoken form).\n- Turn it on, certify and publish site by site. Anth.us goes last, after the edge check, and only with Ryan's go-ahead. Distinctive stays on hold unless Ryan releases it.\n\nDone when: each site Ryan approves has a published skill, built from config only.\n\nOrder confirmed by Ryan (2026-10-31): Pilobolus (pilot, in M5), then Shipped, then Distinctive Mark, then the remaining sites. Anth.us last, with explicit go-ahead."
+      }
+    }
+  }
+}

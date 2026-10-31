@@ -593,3 +593,73 @@ def test_the_not_found_page_can_be_a_page_file_with_includes():
         assert '<p class="lost">Lost.</p>' in page and "<title>Gone" in page and "<article" in page
     finally:
         site.cleanup()
+
+
+# ------------------------------------------------------------------ Story types in a selection
+
+TYPED = ('::include{kind="listing" sections="posts" types="article" count="1" layout="bare"}', ["a2"])
+
+
+def typed_items():
+    return [
+        item("a1", date="2026-02-01", type="article"),
+        item("a2", date="2026-02-03", type="article"),
+        item("p1", date="2026-02-05", type="post"),
+        item("p2", date="2026-02-04", type="post"),
+        item("g1", date="2026-02-02", type="guide"),
+    ]
+
+
+TYPE_CASES = {
+    "only-article": ('::include{kind="listing" types="article"}', ["a2", "a1"]),
+    "newest-article": TYPED,
+    "any-of": ('::include{kind="listing" types="Article, guide"}', ["a2", "g1", "a1"]),
+    "not-post": ('::include{kind="listing" notTypes="post"}', ["a2", "g1", "a1"]),
+    "types-and-not-types": ('::include{kind="listing" types="article,post" notTypes="article"}', ["p1", "p2"]),
+    "no-such-type": ('::include{kind="listing" types="nothing"}', []),
+    "collection-refined": ('::include{kind="listing" collection="all" types="guide"}', ["g1"]),
+    "collection-not-types": ('::include{kind="listing" collection="no-posts" notTypes="guide"}', ["a2", "a1"]),
+}
+ALL_TYPES = {"id": "all", "select": {"sections": ["posts"]}, "base": "all"}
+NO_POSTS = {"id": "no-posts", "select": {"notTypes": ["post"]}, "base": "no-posts"}
+
+
+@pytest.fixture(scope="module")
+def typed_listings():
+    files = {f"{name}.md": f"---\ntitle: {name}\n---\n{BAND}{line}\n" for name, (line, _expected) in TYPE_CASES.items()}
+    site = cms_site(
+        settings(urls=SECTIONS, listings={"types": ["article", "post", "guide"]}, collections=[ALL_TYPES, NO_POSTS], pages=[page_entry(name) for name in TYPE_CASES]),
+        typed_items(),
+        files,
+    )
+    yield site
+    site.cleanup()
+
+
+@pytest.mark.parametrize("name", sorted(TYPE_CASES))
+def test_an_include_listing_can_keep_or_drop_story_types(typed_listings, name):
+    assert cards(typed_listings.text(f"{name}/index.html")) == TYPE_CASES[name][1]
+
+
+@pytest.mark.parametrize("attribute", ["type", "notType", "Types"])
+def test_a_misspelt_type_attribute_is_still_refused(attribute):
+    site = DirectorySite(settings(pages=[page_entry("p")]), [item("x", section="posts")], {"p.md": f'{BAND}::include{{kind="listing" {attribute}="post"}}\n'})
+    try:
+        with pytest.raises(ValueError, match=f"unknown attributes: {attribute}"):
+            site.project_all()
+    finally:
+        site.cleanup()
+
+
+def test_the_dependency_digest_ignores_changes_to_excluded_types():
+    files = {"newest.md": f"---\ntitle: Newest\n---\n{BAND}{TYPED[0]}\n"}
+    site = cms_site(settings(urls=SECTIONS, listings={"types": ["article", "post"]}, pages=[page_entry("newest")]), typed_items()[:3], files)
+    try:
+        edit_item(site, "item-posts-p1", title="P1 renamed")                  # a post: the article block does not show it
+        assert "newest/index.html" not in html_written(written_keys(site))
+        edit_item(site, "item-posts-a1", title="A1 renamed")                  # an article, but not the newest
+        assert "newest/index.html" not in html_written(written_keys(site))
+        edit_item(site, "item-posts-a2", title="A2 renamed")                  # the newest article
+        assert {"posts/a2.html", "newest/index.html"} <= html_written(written_keys(site))
+    finally:
+        site.cleanup()

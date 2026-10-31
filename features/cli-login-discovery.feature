@@ -32,3 +32,35 @@ Feature: Sites publish their public CLI login values
     Given a site whose public origin is not configured
     When the CLI login file is requested
     Then the answer is "service unavailable"
+
+  Scenario: With the flag off, discovery names the main client and the broker uses it
+    Given a site that has not moved the CLI onto its federation client
+    When the CLI login file is requested
+    Then it names the main web client and the localhost 3001 callback exactly as before
+
+  Scenario: With the flag on, discovery names the federation client and the fixed loopback callback
+    Given a site that moved the CLI onto its federation client
+    When the CLI login file is requested
+    Then it names the federation client, the fixed loopback callback and the remote callback
+
+  Scenario: A site that moved to the federation client never falls back to the main client
+    Given a site that moved the CLI onto its federation client but publishes no federation client
+    When the CLI login file is requested
+    Then the answer is "not found" explaining the site does not register the CLI callback
+
+  Scenario: The federation client's callback list contains exactly the Prospectus callback, the loopback and the console callback
+    When the federation client is synthesized with the CLI moved onto it
+    Then its callbacks are each site origin's Prospectus callback, the fixed loopback and the console's cli callback
+
+  Scenario: Sign-in on the federation client is Google-only
+    When the federation client is synthesized with the CLI moved onto it
+    Then only Google is admitted through the code flow and no password flow is reachable
+
+  Scenario: A site that moves the CLI onto its federation client keeps CLI sessions for seven days
+    When the federation client is synthesized with and without the CLI moved onto it
+    Then with the CLI moved it keeps refresh tokens for seven days and access and ID tokens for 60 minutes
+    And without it the client keeps its 60 minute refresh tokens exactly as registered
+
+  Scenario: A site whose console has its own host registers the CLI callback there
+    When the federation client is synthesized for a site whose console has its own origin
+    Then the CLI callback and the Prospectus web callback are on the console origin and the loopback is unchanged

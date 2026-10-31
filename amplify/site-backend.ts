@@ -26,9 +26,9 @@ import {
 } from "./revalidate-invalidation-settings";
 import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
-import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, addProspectusGoogleOnlyClient } from "./auth/prospectus-google-client";
+import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls } from "./auth/prospectus-google-client";
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
-import { addCliRemoteLogin, planCliRemoteLogin } from "./cli-login/remote-login";
+import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { editorialChecks } from "./functions/editorial-checks/resource";
@@ -126,6 +126,10 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (cliRemoteLoginPlan && authConfig.disableGoogleOAuth === true) {
     throw new Error("Remote CLI login signs in through the Cognito hosted UI with Google, so it cannot be enabled when Google sign-in is disabled.");
   }
+  if (featureFlags.cliOnFederationClient && authConfig.disableGoogleOAuth === true) {
+    throw new Error("The CLI signs in on the Prospectus federation client, which is Google-only, so it cannot be enabled when Google sign-in is disabled.");
+  }
+  const cliFederationCallbackUrls = cliFederationClientCallbackUrls(featureFlags.cliOnFederationClient, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
     assignmentAction,
@@ -172,17 +176,24 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
 
   const prospectusGoogleOnlyClient = authConfig.disableGoogleOAuth === true
     ? undefined
-    : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig));
+    : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig), cliFederationCallbackUrls, featureFlags.cliOnFederationClient ? CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS : undefined);
 
+  const cliEnrollmentPlan = cliRemoteLoginPlan
+    ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
+    : undefined;
   const cliRemoteLogin = cliRemoteLoginPlan
     ? addCliRemoteLogin(backend.createStack("CliRemoteLogin"), {
         plan: cliRemoteLoginPlan,
-        clientId: backend.auth.resources.userPoolClient.userPoolClientId,
+        clientId: prospectusGoogleOnlyClient && featureFlags.cliOnFederationClient
+          ? prospectusGoogleOnlyClient.ref
+          : backend.auth.resources.userPoolClient.userPoolClientId,
         graphqlEndpoint: backend.data.resources.cfnResources.cfnGraphqlApi.attrGraphQlUrl,
         authorizeEndpoint: cognitoAuthorizeEndpoint(backend.auth.stack),
         product: `Papyrus (${new URL(cliRemoteLoginPlan.origin).host})`,
         brokerCode: cliLoginBrokerCode(),
         pagesCode: cliLoginPagesCode(),
+        alarmTopicArn: (process.env.PAPYRUS_ALARM_TOPIC_ARN ?? "").trim() || undefined,
+        ...cliEnrollmentPlan,
       })
     : undefined;
 
@@ -765,8 +776,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
           : null,
       // Only a site that turned remote CLI login on gets this key; `papyrus-cli.json` then publishes the broker.
       ...(cliRemoteLogin
-        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn } }
+        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn, ...(cliEnrollmentPlan && cliRemoteLogin.throttleTableName ? { enrollment: true, throttleTable: cliRemoteLogin.throttleTableName } : {}) } }
         : {}),
+      ...(featureFlags.cliOnFederationClient ? { cliOnFederationClient: true } : {}),
       prospectusSignIn: prospectusGoogleOnlyClient
         ? { clientId: prospectusGoogleOnlyClient.ref, callbackPath: PROSPECTUS_SIGN_IN_CALLBACK_PATH }
         : null,

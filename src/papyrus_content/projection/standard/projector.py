@@ -48,7 +48,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import blocks, components, home_page_blocks, includes, knowledge_blocks, newsletter_pages
+from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -68,6 +68,7 @@ from .hooks import NO_HOOKS, HookSite, Hooks, load_hooks
 from .page import HomeSectionBlock, ListingView, SectionIndexView, SectionTab, StandardPage
 from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
+from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
@@ -242,7 +243,48 @@ class StandardMarkusProjector(MarkusSiteProjector):
             inputs.append(self._home_page.digest())
         if any(home_page_blocks.is_threads_include(attributes) for attributes in found):
             inputs.append(["threads", self._home_page.threads_digest()])
+            if self._forum() is not None:
+                inputs.append(["threadBase", self._forum().thread_base])
+        if inputs:
+            inputs.append(self._home_page_stylesheet_token())
         return inputs
+
+    def _home_page_stylesheet_token(self) -> str:
+        """The version token of ``papyrus-home-page.css`` alone: a short hash of that file, empty when the site has no ``homePage``."""
+        content = self._static_files.get(HOME_PAGE_CSS_PATH)
+        return hashlib.sha256(content).hexdigest()[:12] if content is not None else ""
+
+    def _forum(self):
+        home_page = self.standard.home_page
+        return home_page.forum if home_page is not None else None
+
+    def _thread_href(self, key: str) -> str:
+        return self.policy.path(forum_pages.thread_site_path(self._forum().thread_base, key))
+
+    def _public_threads(self) -> list[tuple[str, dict, dict | None]]:
+        """``(page key, thread document, anchor Reference record)`` for every thread that ``threads.json`` lists and whose file exists; empty without ``homePage.forum``."""
+        forum = self._forum()
+        if forum is None:
+            return []
+        records = {str(record.get("key")): record for record in (self._home_page.references() or {}).get("references") or [] if isinstance(record, dict)}
+        found = []
+        for key in forum_pages.thread_keys(self._home_page.threads()):
+            thread = self._home_page.thread(key)
+            if thread is None or thread.get("key") != key:
+                continue
+            anchor = thread.get("anchor") if isinstance(thread.get("anchor"), dict) else {}
+            reference = records.get(str(anchor.get("key"))) if anchor.get("kind") == "reference" else None
+            found.append((self.policy.key(forum_pages.thread_site_key(forum.thread_base, key)), thread, reference))
+        return found
+
+    def thread_page_keys(self, thread_key: str) -> tuple[str, ...]:
+        """The page key and Markdown twin key of one thread; empty when the site has no ``homePage.forum``."""
+        forum = self._forum()
+        if forum is None or not forum_pages.is_thread_key(thread_key):
+            return ()
+        page_key = self.policy.key(forum_pages.thread_site_key(forum.thread_base, thread_key))
+        twin = md_key(page_key) if self.standard.agents.markdown else None
+        return (page_key, twin) if twin else (page_key,)
 
     def home_page_reader_keys(self) -> frozenset[str]:
         """The keys of the listing pages whose authored source places a home-page include (``kind="references"`` or ``kind="threads"``).
@@ -254,6 +296,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 keys.add(self.policy.listing_key(custom.path))
         if self.standard.not_found.source and self._reads_home_page(self.standard.not_found.source, "notFound"):
             keys.add(NOT_FOUND_KEY)
+        if self._forum() is not None:
+            self._home_page.reset()
+            for _page_key, thread, _reference in self._public_threads():
+                keys.update(self.thread_page_keys(thread["key"]))
+            keys.update(self.policy.key(name) for name in (LLMS_KEY, *SITEMAP_KEYS))   # they list the thread pages
         return frozenset(keys)
 
     def _reads_home_page(self, source: str, owner: str) -> bool:
@@ -646,6 +693,16 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 markdown=not custom.noindex,
             )
 
+        # public thread pages (homePage.forum)
+        for page_key, thread, reference in self._public_threads():
+            anchor_digest = hashlib.sha256(json.dumps(reference, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16] if reference else ""
+            add(
+                page_key,
+                "thread",
+                [self._home_page.thread_digest(thread["key"]), anchor_digest],
+                lambda thread=thread, reference=reference: forum_pages.thread_page(self, site, listed, thread, reference, self._forum().thread_base),
+            )
+
         # 404
         not_found = self.standard.not_found
         not_found_input: list = []
@@ -673,6 +730,23 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     [body],
                     lambda name=name, body=body: self._page(
                         "newsletter_page", newsletter_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
+                    ),
+                    markdown=False,
+                )
+
+        # the alexa plugin's privacy and terms pages: real static pages with the full chrome, linked from the skill manifest
+        if ALEXA_PLUGIN in self._settings.plugins:
+            identity = self.standard.identity
+            paths = {name: self.policy.path(alexa_pages.site_path(name)) for name in alexa_pages.PAGE_NAMES}
+            family = self.standard.footer_family
+            for name in alexa_pages.PAGE_NAMES:
+                body = alexa_pages.fragment(name, site=identity.name, home=self.policy.path("/"), paths=paths, contact_url=family.contact_url if family is not None else "")
+                add(
+                    self.policy.key(alexa_pages.site_key(name)),
+                    f"alexa:{name}",
+                    [body],
+                    lambda name=name, body=body: self._page(
+                        "plugin_page", alexa_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
                     ),
                     markdown=False,
                 )
@@ -707,7 +781,11 @@ class StandardMarkusProjector(MarkusSiteProjector):
             SimpleNamespace(title=title, key=None, link=(self.environment.origin or "") + path, summary_text="", date="")
             for title, path, _text in self._static_twin_documents()
         ]
-        return [*groups, ("Pages", pages[:limit])]
+        threads = [
+            SimpleNamespace(title=str(thread.get("title") or "Conversation"), key=page_key, link=None, summary_text="", date="")
+            for page_key, thread, _reference in self._public_threads()
+        ]
+        return [*groups, ("Pages", pages[:limit]), *([("Conversations", threads[:limit])] if threads else [])]
 
     def _authored_pages(self) -> list[CustomPage]:
         """The ``pages`` entries written as a file (``source``) that have a Markdown twin: not ``noindex``."""
@@ -798,6 +876,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
                 for site in page.showcase
             ]
             return "\n".join([f"# {page.title}", "", *([f"> {description}", ""] if description else []), *wall]).rstrip() + "\n"
+        if page.kind == "thread" and page.thread is not None:
+            anchor_line = forum_pages.anchor_markdown_line(page.thread.get("anchor") or {}, self.head.absolute)
+            return forum_pages.thread_markdown(page.thread, self.head.absolute(page.path), anchor_line)
         custom = next((c for c in self.standard.pages if c.id == page.custom_id and c.source), None) if page.kind == "custom" else None
         if custom is not None:
             return self._authored_markdown(custom)
@@ -966,6 +1047,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         ]
         if index.references:
             inputs.append(self._home_page.digest())
+            inputs.append(self._home_page_stylesheet_token())
         if index.source:
             text, found = self._page_includes(index.source, f"urls.sections.{section.name}.index")
             inputs.append([hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)])
@@ -1033,6 +1115,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         for custom in self.standard.pages:
             if custom.sitemap and not custom.noindex:
                 urls.append(SitemapUrl(self.policy.path(f"/{custom.path}/" if custom.path else "/"), ""))
+        for _page_key, thread, _reference in self._public_threads():
+            urls.append(SitemapUrl(self.policy.path(forum_pages.thread_site_path(self._forum().thread_base, thread["key"])), ""))
         urls.extend(SitemapUrl(path, "") for path in self.standard.sitemap_extra)
         unique = {}
         for url in urls:
@@ -1085,6 +1169,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return True
         if key in (LLMS_KEY, LLMS_FULL_KEY) or (key.endswith(".md") and not key.startswith(("css/", "assets/", "_"))):
             return True
+        forum = self._forum()
+        if forum is not None and key.startswith(f"{forum.thread_base}/") and key.endswith((".html", ".md")):
+            return True    # a thread page, and its twin, goes when the thread stops being public
         if key.startswith(DATA_PREFIX):
             return False   # the knowledge snapshot belongs to `papyrus knowledge snapshot`; reconcile leaves it alone
         if owns_public_data_key(key):
@@ -1172,8 +1259,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         if self.standard.components_css and KNOWLEDGE_CSS_PATH not in sheets and self._knowledge.digest():
             sheets.insert(sheets.index(COMPONENTS_CSS_PATH) + 1, KNOWLEDGE_CSS_PATH)
-        if self.standard.home_page is not None and HOME_PAGE_CSS_PATH not in sheets:
+        own_versions: tuple[tuple[str, str], ...] = ()
+        if self.standard.home_page is not None and (page.ledger.home_page_used or page.kind == "thread") and HOME_PAGE_CSS_PATH not in sheets:
             sheets.append(HOME_PAGE_CSS_PATH)
+            own_versions = ((HOME_PAGE_CSS_PATH, self._home_page_stylesheet_token()),)
         if self.standard.section_fronts and SECTION_FRONTS_CSS_PATH not in sheets:
             sheets.append(SECTION_FRONTS_CSS_PATH)
         if self.standard.islands is not None and self.standard.islands.stylesheet:
@@ -1193,6 +1282,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             site_name=identity.name,
             lang=identity.language,
             stylesheets=tuple(sheets),
+            stylesheet_versions=own_versions,
             scripts=scripts,
             head_html=base.head_html + head_html,
             asset_root="/" + self.policy.root,
@@ -1373,7 +1463,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             labels = {section.name: section.label for section in self.standard.sections}
             return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels)
         if kind == "threads":
-            return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page)
+            return home_page_blocks.render_threads(attributes, self._home_page.threads(), page.ledger, self.standard.home_page, self._thread_href if self._forum() is not None else None)
         if knowledge_blocks.is_knowledge_block(attributes):
             return knowledge_blocks.render_block(attributes, self._knowledge, source)
         if self.hooks.block is None:
@@ -1401,7 +1491,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom", "newsletter_page") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_page", "plugin_page", "thread") and page.fragment:
             return page.fragment
         if page.kind == "listing" and page.section_index is not None:
             if page.section_index.section.index.source:
