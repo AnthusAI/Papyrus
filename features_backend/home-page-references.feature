@@ -94,6 +94,15 @@ Feature: A page places Reference cards from the home-page snapshot with ::includ
     And the card for "Accepted eight" says it was accepted by an editor
     And the card for "Accepted six" says it was accepted automatically
 
+  Scenario: A row card shows Cyclotron's confidence compactly, with a label and never colour alone
+    Given the home-page fixture site is projected
+    Then the row card for "Accepted two" shows "93%" with a visually hidden "confidence" label, a "gauge" icon and a meter with 5 filled segments
+    And the row card for "Accepted four" shows "80%" with a visually hidden "confidence" label, a "gauge" icon and a meter with 4 filled segments
+
+  Scenario: A recommended row shows both the recommended label and the confidence
+    Given the home-page fixture site is projected
+    Then the row card for "Pending high" shows the label "Recommended by Cyclotron, not yet accepted" and "92%"
+
   Scenario: The rendered pages hold no email, person id, Cognito sub or UUID
     Given the home-page fixture site is projected
     Then the identity scanner finds nothing in any rendered page
