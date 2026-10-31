@@ -17,6 +17,16 @@ async function main() {
     await loadProspectusAccountState("/newsroom", async () => { throw new Error("offline"); }),
     { status: "unavailable" },
   );
+  const globals = globalThis as { window?: unknown };
+  globals.window = { location: { search: "?demo=1" } };
+  let demoAsked = false;
+  assert.deepEqual(
+    await loadProspectusAccountState("/newsroom/articles/new?demo=1", async () => { demoAsked = true; return jsonResponse({ signedIn: false }); }),
+    { status: "unavailable" },
+    "a demo page has no account",
+  );
+  assert.equal(demoAsked, false, "a demo page never asks the session route, so it logs no 503");
+  delete globals.window;
   assert.deepEqual(
     await loadProspectusAccountState("/newsroom", async () => jsonResponse({ signedIn: false })),
     { status: "signedOut", signInUrl: "/api/auth/prospectus/sign-in?returnTo=%2Fnewsroom" },
