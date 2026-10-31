@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "a751aa60-5222-4f2e-b799-c8a7f275fe06",
+  "issue_id": "PPY-e209327c-f485-4223-a614-024a552cd4a1",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:36.635Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Right-size Amplify compute and fix caching (Papyrus-web caches nothing; verify STANDARD vs STANDARD_8GB price)",
+    "description": "Facts: all 9 apps are STANDARD_8GB; October 7,077 min → $70.77, i.e. $0.01/min; `cms.buildComputeType` already exists in `site-config.ts`. Papyrus-web `amplify.yml` has `cache: paths: []` and runs `sudo dnf install python3.12` + venv + pip every build. CMS specs already cache `.next/cache/**/*` and `.npm/**/*`.\nSteps:\n1. Cost Explorer (read-only): group October by `USAGE_TYPE` for Amplify in papyrus-production; find whether a separate usage type/price exists for STANDARD_8GB vs STANDARD. If both bill $0.01/min, keep 8GB (type-check OOM history; faster is cheaper here) and close that part with the finding. If STANDARD is cheaper, switch one low-risk site (Pilobol.us) first, watch build time + memory in the job log, then roll out via `buildComputeType` per site.json.\n2. Papyrus-web: add `cache.paths: [.npm/**/*, .build/python/**/*]`; guard the dnf install with `test -x .build/python/bin/python ||`.\n3. Verify the `.next/cache` restore actually hits (Amplify log shows \"cache restored\"); if the cache key misses after each Papyrus bump, note it, that is expected.\nAcceptance: before/after minutes per build on this story; Gherkin for Papyrus-web \"second build reuses the Python venv\". No fixed cap on anything.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

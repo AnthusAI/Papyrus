@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "ece444c1-bf73-4078-9212-c4cee8b7c4e1",
+  "issue_id": "PPY-b0a1a8c8-d6d8-4f65-bb73-f250ecd60e30",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:36.917Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Document the deploy model on p.apyr.us: Amplify deploys, Actions or local CI with a LeftBlock receipt",
+    "description": "Repo: AnthusAI/p.apyr.us (public; content PRs merge freely per Ryan 2026-10-25). Files: a docs page under `docs/` or `content/` (follow the repo's docs section convention) titled \"How a Papyrus site deploys\".\nContent: Amplify is deploy-only (why: cost, 10–14 min builds, $0.01/min); public repos run CI in GitHub Actions and the merge starts the Amplify job through OIDC; private repos run CI locally and `leftblock ci` issues a receipt (GitHub status `leftblock/ci`) that the Amplify build verifies before installing anything; staging builds on demand; failed-build policy (read the log first); monthly cost check; links to LeftBlock README and docs/site-hosting.md. Serve it as Markus source per the standing rule.\nAcceptance: page live on p.apyr.us; screenshots not required (docs page); closes the epic.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

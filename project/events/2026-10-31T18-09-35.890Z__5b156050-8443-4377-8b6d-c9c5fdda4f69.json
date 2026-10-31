@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "5b156050-8443-4377-8b6d-c9c5fdda4f69",
+  "issue_id": "PPY-e1e9aede-f836-4ac7-aa05-270216370b95",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:35.890Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Every site amplify.yml is deploy-only (TI and Papyrus-web drop npm test; all regenerate from build-specs)",
+    "description": "Repos and files: AnthusAI/Threat-Intelligence `amplify.yml` (remove `npm test` from frontend build), AnthusAI/Papyrus-web `amplify.yml` (remove `PAPYRUS_WEB_PYTHON=... npm test`), AnthusAI/Anth.us-web, Shipped-web, Distinctive-web, Pilobol.us, p.apyr.us, DataParade-newsroom `amplify.yml` (confirm already deploy-only; regenerate from the app shell so they match `build-specs.ts` exactly: `npx papyrus-infra ...` build-spec print command if present, otherwise copy the generated spec).\n\nSteps per repo: bump `papyrus-newsroom`/`@anthusai/papyrus` to the version that carries the deploy-only `withPapyrus()`; edit amplify.yml; keep `cache.paths` (`.next/cache/**/*`, `.npm/**/*`); open a PR; the repo's CI (Actions, or local + receipt for private repos) is the gate; merge = deploy. For Papyrus-web and DataParade-newsroom merge only after the receipt gate stories, or with Ryan's explicit OK since those repos have no gate today.\n\nAcceptance: `grep -E \"test|lint|tsc|typecheck\" amplify.yml` is empty in every repo; the next main build's log shows no check step and finishes faster (record before/after minutes in a comment on this story); no deploy regressions (site loads, /newsroom signs in).\nGherkin: add to each repo's features a scenario \"Amplify build is deploy-only\" asserting the amplify.yml command list (a tiny spec-reading test).",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}

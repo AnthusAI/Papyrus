@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "event_id": "ffaddacb-7cfc-497d-8b30-0741a90d359c",
+  "issue_id": "PPY-90e76aae-ae6d-42c5-863e-5938baf78de7",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T18:09:36.730Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Failed-build policy: read the Amplify job log before any retry; `papyrus-infra amplify job-log` helper",
+    "description": "Facts: 74 of 542 builds failed in 30 days; some were retried blindly (same commit, same failure, another 12 minutes). Policy (Ryan, 2026-10-31): never retry blindly; read the log first; fix the commit or the environment, then push the fix (which is the retry).\nSteps:\n1. Papyrus `packages/papyrus-infra` (or the existing CLI home for `papyrus-infra`): add `papyrus-infra amplify job-log --app-id <id> [--branch main] [--job <id>|--latest-failed]` that fetches `get-job` and prints each step's status plus the tail of the log (`logUrl` is a presigned S3 URL; download and print the last 200 lines, grep for the first `Error`/`FATAL`). Read-only AWS calls.\n2. AGENTS.md in Papyrus and each site repo: \"If a deploy fails, run `papyrus-infra amplify job-log --latest-failed` and quote the cause before doing anything else; `redeploy-this-version` only for an environment failure (throttle, OOM, network) and only once; a code failure is fixed with a new commit through CI.\"\n3. Gherkin: \"a failed job's log is printed with its first error\"; unit test with a fixture job.\nAcceptance: the helper works on a known failed job in papyrus-production (read-only); docs merged in all repos.",
+    "issue_type": "story",
+    "status": "open",
+    "priority": 1,
+    "assignee": null,
+    "parent": "PPY-a4512846-c416-4d91-afca-9b373cf23d6e",
+    "labels": [
+      "ci",
+      "cost"
+    ],
+    "agent": {
+      "platform": "claude-code",
+      "model": "claude-fable-5-1",
+      "name": "plan-ci-cost"
+    }
+  }
+}
