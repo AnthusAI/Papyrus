@@ -141,6 +141,27 @@ backend is configured without the app-shell can set the same two variables itsel
 `PAPYRUS_SITE_ORIGIN`, which production branches already have. With the flag off, the
 synthesized backend and the Cognito client are unchanged.
 
+### Operating the broker
+
+The broker has two CloudWatch alarms in the `CliRemoteLogin` stack, checked every five minutes:
+
+| Alarm | Meaning |
+| --- | --- |
+| `StartCeilingAlarm` | The broker refused login starts at its ceiling across all callers: too many login starts, such as a flood from many addresses. |
+| `ThrottledAlarm` | The broker Lambda reached its reserved concurrency of 10 and is being throttled. |
+
+Both notify the site's alarm topic when they fire and when they recover. Set the topic with
+`alarmTopicArn` in the `cms` block of the site's app-shell `site.json`; the app-shell stack
+passes it to the backend as `PAPYRUS_ALARM_TOPIC_ARN` on the production branch:
+
+```json
+"cms": { "cliRemoteLogin": true, "alarmTopicArn": "arn:aws:sns:<region>:<account>:<topic>" }
+```
+
+The topic ARN belongs in the site's own config, never in this repository, and so does the
+subscription that delivers the notifications. Without the setting the alarms exist but
+notify nobody, and synth prints one warning that names the setting.
+
 ### A console on its own host
 
 When the newsroom console is served from its own host (`cms.consoleOrigin` in the app-shell

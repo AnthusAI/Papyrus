@@ -89,6 +89,7 @@ def test_forum_thread_pages_and_twins_are_written_for_each_thread(site):
     assert "<p>First line<br>second line</p><p>New &lt;b&gt;paragraph&lt;/b&gt;</p>" in page
     assert 'data-icon="user"' in page and 'data-icon="badge-check"' in page and 'data-icon="pencil"' in page
     assert "home-page-row" in page
+    assert "papyrus-home-page.css?v=" in page  # a thread page styles its cards even without an include
 
 
 def test_forum_the_reference_anchor_falls_back_to_a_line_when_the_snapshot_lacks_it():

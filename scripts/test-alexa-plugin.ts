@@ -78,11 +78,12 @@ const behaviours: Record<string, () => Promise<void> | void> = {
 
   "config is validated": () => {
     assert.deepEqual(resolveAlexaConfig(request), { invocationName: "the example", skillName: "The Example", accountLinking: false });
-    assert.deepEqual(resolveAlexaConfig({ ...request, skillId: SKILL_ID, accountLinking: true, siteOrigin: "https://example.com", skillName: "Example News" }), {
+    assert.deepEqual(resolveAlexaConfig({ ...request, skillId: SKILL_ID, accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR", siteOrigin: "https://example.com", skillName: "Example News" }), {
       invocationName: "the example",
       skillName: "Example News",
       skillId: SKILL_ID,
       accountLinking: true,
+      amazonVendorId: "M2EXAMPLEVENDOR",
       siteOrigin: "https://example.com",
     });
     assert.throws(() => resolveAlexaConfig("alexa"), /invocationName is required/);
