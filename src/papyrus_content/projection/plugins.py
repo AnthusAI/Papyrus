@@ -18,14 +18,15 @@ from ..reader_steering.snapshot import READER_DATA_DIRECTORY
 PLUGINS_ENV = "PAPYRUS_PLUGINS"
 PLUGIN_ASSET_DIRECTORY = Path(__file__).parent / "plugin_assets"
 PLUGIN_STATIC_ASSETS: dict[str, dict[str, str]] = {
-    "alexa": {},  # ships no static files yet; listed so PAPYRUS_PLUGINS=alexa is a known name
+    "alexa": {},  # no files: its privacy and terms pages are projected by standard/alexa_pages.py (mirrors ALEXA_STATIC_ASSETS)
+    "home-page": {},  # ships no static files; listed so PAPYRUS_PLUGINS=home-page is a known name
     "reader-steering": {"_plugins/papyrus-reader@1.js": "papyrus-reader.js", "_plugins/papyrus-reader@1.css": "papyrus-reader.css"},
     "newsletter": {"_plugins/papyrus-newsletter@1.js": "papyrus-newsletter.js", "_plugins/papyrus-newsletter-pages@1.js": "papyrus-newsletter-pages.js"},
     "signup": {"_plugins/papyrus-signup@1.js": "papyrus-signup.js"},
 }
 # The site-relative key prefixes of the pages a plugin projects. A reconcile never deletes a key under one of them unless the plugin
 # is known to be disabled for the site (``standard/newsletter_pages.site_key`` writes ``newsletter/<name>/index.html``).
-PLUGIN_PAGE_PREFIXES: dict[str, tuple[str, ...]] = {"newsletter": ("newsletter/",)}
+PLUGIN_PAGE_PREFIXES: dict[str, tuple[str, ...]] = {"alexa": ("alexa/",), "newsletter": ("newsletter/",)}
 
 
 def plugin_names_from_environment(environ: Mapping[str, str]) -> tuple[str, ...]:
