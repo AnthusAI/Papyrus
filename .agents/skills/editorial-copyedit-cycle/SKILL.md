@@ -54,7 +54,8 @@ article editor.
 - **Keys**: `TYPESAFE_API_KEY` for judgment policies and `OPENAI_API_KEY` for
   rewrite options. Load them into the command's environment only; never print
   them. A 401 `token_invalidated` means the key was revoked. Say so, and tell the
-  person which `.env` needs a new key.
+  person which `.env` needs a new key. Test both before the pass, not forty
+  minutes in: run one `check` and one `suggest` on a short draft first.
 - Know the article's section: section policies replace publication controls with
   the same key.
 
@@ -93,7 +94,10 @@ article editor.
      numbers the article itself measured.
    Keep: house voice and banned phrases, intensifiers and filler, passive voice
    where the actor is "we" and known, and judgment violations. When you drop a
-   whole class, report the counts.
+   whole class, report the counts **and propose the policy change that would stop
+   it next time**: an `exceptions` entry for a term of art, a severity change, or a
+   narrower judgment question. That's how site knowledge reaches the policies
+   instead of staying in one agent's head. A person approves policy changes.
 
 4. **Suggest** for the findings worth fixing, or for any passage:
 
