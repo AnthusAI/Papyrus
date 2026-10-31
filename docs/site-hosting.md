@@ -422,6 +422,41 @@ job, check that the branch has `enableAutoBuild` true, that exactly one Amplify 
 connected to the repository branch, and CloudTrail for the `amplify.amazonaws.com` webhook
 events before replacing it with a pipeline.
 
+### Private sites: the LeftBlock receipt gate
+
+Branch protection is not available on our private repositories, so the enforcement point is the
+deploy. A private site opts in with a `ci` section in `site.json`:
+
+```json
+"autoDeploy": false,
+"ci": { "gate": "leftblock-receipt", "statusContext": "leftblock/ci" }
+```
+
+The production build then starts with a small shell gate (before `npm ci`) that reads the
+`statusContext` commit status for `$AWS_COMMIT_ID` from the GitHub API and exits 1 with
+`No LeftBlock CI receipt for <sha>: run `leftblock ci` and push again` unless it is `success`. A
+rejected commit costs under a minute of build time. `leftblock ci` (the receipt) posts the status
+for the exact commit it tested; merge locally, never with the GitHub merge button, which creates a
+commit without a receipt.
+
+- `ci.gate` must be `leftblock-receipt` when `autoDeploy` is false and `actions` when it is true
+  (public sites, whose Actions workflow is the gate and whose build spec is unchanged).
+- A site without `ci` is unchanged. `requireSignature: true` is not supported yet.
+- The stack creates the SecureString `/papyrus/<siteId>/github-status-token` and lets the Amplify
+  build service role `ssm:GetParameter` that one parameter. CloudFormation cannot know a GitHub
+  token, so after the first deploy replace the generated placeholder once with a fine-grained,
+  read-only (commit statuses) token: `aws ssm put-parameter --name /papyrus/<siteId>/github-status-token --type SecureString --overwrite --value ...`.
+  The stack adopts it as it is and never overwrites it.
+
+## Which releases need a site bump
+
+Every site bump is a push to `main` and therefore a build of about ten minutes, so seven sites cost about 84 minutes per Papyrus release. Two rules keep that bounded without a numeric cap.
+
+1. **Classify.** The release workflow appends one line to every release's notes, `Affects sites: yes` or `Affects sites: no`, from `procedures/release/classify_release.py classify`. A release affects sites when it changes a path that ships in the npm package or the standard projector: `app/`, `components/`, `lib/`, `renderers/`, `amplify/` (not tests, fixtures or seeds), `packages/`, `infra/amplify-app-shell/`, `scripts/videoml/`, `src/papyrus_content/` and `middleware.ts`. A release that changes only the Python CLI, newsroom libraries, docs or board does not. A release with no marker is treated as affecting sites.
+2. **Batch.** A site bumps at most once per planned bump, straight to the newest release, and only when at least one release since its pin affects sites. Save `gh release list -R AnthusAI/Papyrus --json tagName,body,isPrerelease` as JSON (rename `isPrerelease` to `prerelease`), then run `python3 procedures/release/classify_release.py plan-bump --current <pinned version> --releases-json <file>`. It prints `bump_needed`, the `target` version and the site-affecting releases.
+
+Spec: `features_backend/release-classification.feature`.
+
 ## Authoring role and the CLI
 
 Every app-shell stack creates the role `<siteId>-papyrus-authoring`

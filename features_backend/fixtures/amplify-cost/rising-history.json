@@ -1,0 +1,104 @@
+{
+  "account": "111111111111",
+  "apps": [
+    {
+      "appId": "dapp1",
+      "name": "example-cms",
+      "branches": [
+        "main"
+      ]
+    },
+    {
+      "appId": "dapp2",
+      "name": "quiet-site",
+      "branches": [
+        "main"
+      ]
+    }
+  ],
+  "jobs": {
+    "dapp1": [
+      {
+        "jobId": "0",
+        "startTime": "2026-10-20T10:00:00+00:00",
+        "endTime": "2026-10-20T10:10:00+00:00"
+      },
+      {
+        "jobId": "1",
+        "startTime": "2026-10-19T10:00:00+00:00",
+        "endTime": "2026-10-19T10:10:01+00:00"
+      },
+      {
+        "jobId": "2",
+        "startTime": "2026-09-30T10:00:00+00:00",
+        "endTime": "2026-09-30T10:20:00+00:00"
+      }
+    ]
+  },
+  "costByMonth": {
+    "2026-07-01": [
+      {
+        "usageType": "USE1-BuildDuration",
+        "account": "111111111111",
+        "cost": 10,
+        "quantity": 1000,
+        "unit": "Minutes"
+      },
+      {
+        "usageType": "USE1-DataTransferOut",
+        "account": "111111111111",
+        "cost": 0.2,
+        "quantity": 1.4,
+        "unit": "GigaBytes"
+      }
+    ],
+    "2026-08-01": [
+      {
+        "usageType": "USE1-BuildDuration",
+        "account": "111111111111",
+        "cost": 12,
+        "quantity": 1200,
+        "unit": "Minutes"
+      },
+      {
+        "usageType": "USE1-DataTransferOut",
+        "account": "111111111111",
+        "cost": 0.2,
+        "quantity": 1.4,
+        "unit": "GigaBytes"
+      }
+    ],
+    "2026-09-01": [
+      {
+        "usageType": "USE1-BuildDuration",
+        "account": "111111111111",
+        "cost": 30,
+        "quantity": 3000,
+        "unit": "Minutes"
+      },
+      {
+        "usageType": "USE1-DataTransferOut",
+        "account": "111111111111",
+        "cost": 0.2,
+        "quantity": 1.4,
+        "unit": "GigaBytes"
+      }
+    ],
+    "2026-10-01": [
+      {
+        "usageType": "USE1-BuildDuration",
+        "account": "111111111111",
+        "cost": 70.767863,
+        "quantity": 7076.7863,
+        "unit": "Minutes"
+      },
+      {
+        "usageType": "USE1-DataTransferOut",
+        "account": "111111111111",
+        "cost": 0.2,
+        "quantity": 1.4,
+        "unit": "GigaBytes"
+      }
+    ]
+  }
+}
