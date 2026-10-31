@@ -1,0 +1,77 @@
+{
+  "site": {
+    "name": "Example Almanac",
+    "tagline": "Notes on plants",
+    "description": "A small almanac of plants and the places they grow.",
+    "productionUrl": "https://almanac.example.org"
+  },
+  "listings": {
+    "pageSize": 3
+  },
+  "homePage": {
+    "references": {
+      "corpus": "knowledge-corpus-example",
+      "defaultCount": 6
+    }
+  },
+  "pages": [
+    {
+      "id": "front",
+      "path": "front",
+      "title": "Front",
+      "description": "Three Reference grids.",
+      "dependsOn": [],
+      "source": "pages/front.md"
+    },
+    {
+      "id": "tools",
+      "path": "tools",
+      "title": "Tools",
+      "description": "One section as rows.",
+      "dependsOn": [],
+      "source": "pages/tools.md"
+    },
+    {
+      "id": "mixed",
+      "path": "mixed",
+      "title": "Mixed",
+      "description": "Stories and Reference grids in document order.",
+      "dependsOn": [
+        "*"
+      ],
+      "source": "pages/mixed.md"
+    },
+    {
+      "id": "defaults",
+      "path": "defaults",
+      "title": "Defaults",
+      "description": "A grid with no count of its own.",
+      "dependsOn": [],
+      "source": "pages/defaults.md"
+    },
+    {
+      "id": "quiet",
+      "path": "quiet",
+      "title": "Quiet",
+      "description": "A page that places no Reference.",
+      "dependsOn": [],
+      "source": "pages/quiet.md"
+    },
+    {
+      "id": "ranked",
+      "path": "ranked",
+      "title": "Ranked",
+      "description": "Accepted References by confidence.",
+      "dependsOn": [],
+      "source": "pages/ranked.md"
+    },
+    {
+      "id": "recommended",
+      "path": "recommended",
+      "title": "Recommended",
+      "description": "References not yet accepted.",
+      "dependsOn": [],
+      "source": "pages/recommended.md"
+    }
+  ]
+}

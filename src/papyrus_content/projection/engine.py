@@ -550,6 +550,20 @@ def project_listings(context: ProjectionContext) -> ProjectionReport:
 
 
 @_leased
+def project_stale_listings(context: ProjectionContext) -> ProjectionReport:
+    """Write only the listing pages whose stored inputs digest differs from the one the projector computes now.
+
+    A page that reads a data file (a snapshot) changes digest when the file changes; every other page keeps its digest and is not touched.
+    """
+    report = ProjectionReport()
+    site = context.source.site_index()
+    stale = _stale_listing_keys(context, site)
+    if stale:
+        _write_listing_pages(context, report, context.projector.listing_pages(site, set(stale)), context.projector.listing_inputs(site))
+    return _finish(context, report)
+
+
+@_leased
 def project_all(context: ProjectionContext) -> ProjectionReport:
     report = ProjectionReport()
     projector = context.projector

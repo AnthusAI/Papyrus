@@ -91,6 +91,6 @@ def run_home_page_snapshot(
 
 
 def _project_listings(context: Any) -> Any:
-    from ..projection.engine import project_listings
+    from ..projection.engine import project_stale_listings
 
-    return project_listings(context)
+    return project_stale_listings(context)

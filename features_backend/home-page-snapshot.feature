@@ -64,14 +64,15 @@ Feature: The home-page snapshot publishes the accepted and recommended Reference
     Then the file is not written again
     And no page is re-rendered
 
-  @wip
   Scenario: A changed snapshot rewrites only the pages that read it
-    This needs a page with a references include, which the references include task adds. The steps are written now.
-    Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References
+    Pages that place a references include read the file; a page without one is not rewritten.
+    Given a site with pages that place a references include and a homePage setting for a corpus of accepted, pending, rejected and archived References
     When the home-page-snapshot task runs
     And a Reference is accepted and the home-page-snapshot task runs again
     Then the file is written
     And only pages that read the file are re-rendered
+    And the page "front/index.html" was re-rendered
+    And the page "quiet/index.html" was not re-rendered
 
   Scenario: Reconcile leaves _data/home-page files alone
     Given a site whose projection.json has a homePage setting for a corpus of accepted, pending, rejected and archived References

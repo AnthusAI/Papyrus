@@ -48,12 +48,13 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import blocks, components, includes, knowledge_blocks, newsletter_pages
+from . import blocks, components, home_page_blocks, includes, knowledge_blocks, newsletter_pages
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
 from .feeds import feed_files, feed_selection
 from .head import HeadBuilder, PageHead
+from .home_page import HomePageSource
 from .knowledge import DATA_PREFIX, KnowledgeSource
 from .knowledge_lookup import KnowledgeLookup
 from .markdown import FRONT_MATTER, static_twin_key, LLMS_FULL_KEY, LLMS_KEY, body_of, home_markdown, item_markdown, listing_markdown, llms_full_txt, llms_txt, md_key, md_path
@@ -91,6 +92,7 @@ def copy_directories(static_directory: Path | None, names, files: dict[str, byte
 ARTICLE_OPEN_PATTERN = re.compile(r'^\s*<article class="markus-document"[^>]*>')
 COMPONENTS_CSS_PATH = "css/markus-components.css"
 KNOWLEDGE_CSS_PATH = "css/papyrus-knowledge.css"
+HOME_PAGE_CSS_PATH = "css/papyrus-home-page.css"
 NAV_SCRIPT_PATH = "_plugins/papyrus-nav-v1.js"
 ISLANDS_RUNTIME_PATH = "_plugins/papyrus-islands-v1.js"
 MERMAID_SCRIPT_PATH = "_plugins/papyrus-mermaid-v1.js"
@@ -116,6 +118,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
         if standard.components_css:
             files[COMPONENTS_CSS_PATH] = (ASSET_DIRECTORY / "markus-components.css").read_bytes()
             files[KNOWLEDGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-knowledge.css").read_bytes()
+        if standard.home_page is not None:
+            files[HOME_PAGE_CSS_PATH] = (ASSET_DIRECTORY / "papyrus-home-page.css").read_bytes()
         if standard.nav_disclosure:
             files[NAV_SCRIPT_PATH] = (ASSET_DIRECTORY / "papyrus-nav.js").read_bytes()
         if standard.page_actions.enabled and standard.agents.markdown:
@@ -153,6 +157,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         self._knowledge = KnowledgeSource()
         self._knowledge_lookup = KnowledgeLookup(self._knowledge)
         self._knowledge_items: object = None
+        self._home_page = HomePageSource()
         if "convert_text" not in kwargs:
             self._convert_text = self._convert_with_wiki_directives
         self.standard = standard
@@ -196,15 +201,21 @@ class StandardMarkusProjector(MarkusSiteProjector):
 
         A directory set with :meth:`use_knowledge_directory` is kept, so the two calls work in either order."""
         self._knowledge.attach_store(lambda key: writer.get(self.policy.key(key)))
+        self._home_page.attach_store(lambda key: writer.get(self.policy.key(key)))
 
     def use_knowledge_directory(self, directory) -> None:
         """Read the knowledge snapshot from a local directory (``index.json``, ``clusters.json``, ``entities/``) instead of the store."""
         self._knowledge.use_directory(directory)
 
+    def use_home_page_directory(self, directory) -> None:
+        """Read the home-page snapshot (``references.json``) from a local directory instead of the store."""
+        self._home_page.use_directory(directory)
+
     def _use_site(self, site: SiteIndex) -> None:
         """A new site index is a new projection run: the snapshot files are read again."""
         if site.items is not self._knowledge_items:
             self._knowledge.reset()
+            self._home_page.reset()
             self._knowledge_items = site.items
 
     def _convert_with_wiki_directives(self, text: str) -> str:
@@ -221,6 +232,10 @@ class StandardMarkusProjector(MarkusSiteProjector):
     def _knowledge_inputs(self, found: list[dict]) -> list:
         used = [attributes for attributes in found if knowledge_blocks.is_knowledge_block(attributes)]
         return [self._knowledge.digest(knowledge_blocks.entity_keys(used))] if used else []
+
+    def _home_page_inputs(self, found: list[dict]) -> list:
+        used = any(home_page_blocks.is_home_page_include(attributes) for attributes in found)
+        return [self._home_page.digest()] if used else []
 
     def _item_include(self, attributes: dict, source: str, site: SiteIndex, *, wiki_page: bool = False) -> str:
         """The includes an item page may place: the knowledge blocks, and, on a wiki page (a topic page), listings of other entries."""
@@ -577,7 +592,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             digest_input = [self._fingerprints(selected, full=True) if self.hooks.page_body else []]
             if authored is not None:
                 text, found = authored
-                digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found)]
+                digest_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
             path = self.policy.path(f"/{custom.path}/" if custom.path else "/")
             add(
                 self.policy.listing_key(custom.path),
@@ -595,7 +610,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
         not_found_input: list = []
         if not_found.source:
             text, found = self._page_includes(not_found.source, "notFound")
-            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found)]
+            not_found_input = [hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], includes.include_inputs(found, entries, self.standard), self._showcase_inputs(summaries, found), *self._knowledge_inputs(found), *self._home_page_inputs(found)]
         add(
             NOT_FOUND_KEY,
             "not_found",
@@ -1026,6 +1041,8 @@ class StandardMarkusProjector(MarkusSiteProjector):
             sheets.insert(1 if sheets and sheets[0] == "css/markus-vendor.css" else 0, COMPONENTS_CSS_PATH)
         if self.standard.components_css and KNOWLEDGE_CSS_PATH not in sheets and self._knowledge.digest():
             sheets.insert(sheets.index(COMPONENTS_CSS_PATH) + 1, KNOWLEDGE_CSS_PATH)
+        if self.standard.home_page is not None and HOME_PAGE_CSS_PATH not in sheets:
+            sheets.append(HOME_PAGE_CSS_PATH)
         if self.standard.islands is not None and self.standard.islands.stylesheet:
             sheets.append(self.standard.islands.stylesheet)
         if self.environment.guarded and (base.ga_measurement_id is not None or base.consent_mode is not None):
@@ -1219,6 +1236,9 @@ class StandardMarkusProjector(MarkusSiteProjector):
             return logo_wall(showcase_sites(page.summaries, wall), wall)
         if kind == "form":
             return render_form(next(spec for spec in self.standard.forms if spec.id == attributes["id"]))
+        if kind == "references":
+            labels = {section.name: section.label for section in self.standard.sections}
+            return home_page_blocks.render(attributes, self._home_page.references(), page.ledger, self.standard.home_page, labels)
         if knowledge_blocks.is_knowledge_block(attributes):
             return knowledge_blocks.render_block(attributes, self._knowledge, source)
         if self.hooks.block is None:

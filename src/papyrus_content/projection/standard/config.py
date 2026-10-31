@@ -54,6 +54,22 @@ def _path_segment(value: str, where: str) -> str:
     return value
 
 
+RESERVED_PATH_PREFIXES = ("_data", "_plugins", "_papyrus", "_next", "api")
+
+
+def _unreserved_segment(value: str, where: str) -> str:
+    """A page path or listing base that is not one of the paths the platform serves itself.
+
+    ``newsroom`` is also reserved on a site whose edge routes the CMS (``/newsroom*``); projection cannot see the edge, so it names the
+    segment in the message and refuses only the prefixes it knows."""
+    if str(value).strip("/") in RESERVED_PATH_PREFIXES:
+        raise ValueError(
+            f"{where} {str(value).strip('/')!r} is reserved: the platform serves {', '.join(RESERVED_PATH_PREFIXES)} itself "
+            "(and 'newsroom' is reserved on sites whose edge routes the CMS); choose another path"
+        )
+    return _path_segment(value, where)
+
+
 @dataclass(frozen=True)
 class SiteIdentity:
     name: str
@@ -476,7 +492,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         sections.append(
             SectionConfig(
                 name=section_name,
-                base=_path_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
+                base=_unreserved_segment(entry.get("base", section_name), f"urls.sections.{section_name}.base"),
                 label=str(entry.get("label") or section_name.replace("-", " ").title()),
                 pages=bool(entry.get("pages", True)),
                 listing=bool(entry.get("listing", True)),
@@ -629,7 +645,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         collection_id = str(entry.get("id", ""))
         if not re.fullmatch(r"[a-z][a-z0-9-]*", collection_id) or any(c.id == collection_id for c in collections):
             raise ValueError(f"collections need a unique lowercase id, got {collection_id!r}")
-        base = _path_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
+        base = _unreserved_segment(str(entry.get("base", collection_id)), f"collections.{collection_id}.base")
         if not base or any(base == section.base and section.listing_page for section in sections):
             raise ValueError(f"collections.{collection_id}.base must be a path that no section with a listing page uses")
         if any(base == other.base for other in collections):
@@ -671,7 +687,7 @@ def standard_settings_from_mapping(raw: Mapping) -> StandardSettings:
         custom.append(
             CustomPage(
                 id=str(entry["id"]),
-                path=_path_segment(str(entry["path"]), "pages.path"),
+                path=_unreserved_segment(str(entry["path"]), "pages.path"),
                 title=str(entry["title"]),
                 description=str(entry.get("description", "")),
                 depends_on=tuple(entry.get("dependsOn", ("*",))),
