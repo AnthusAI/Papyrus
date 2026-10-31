@@ -40,7 +40,7 @@ def from_would_be_console_origin(context):
 def check_passed(context):
     result = context.origin_check_result
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "# pass 1" in result.stdout, result.stdout
+    assert "pass 1" in result.stdout and "fail 0" in result.stdout, result.stdout
 
 
 @when('the console selects an account or connects chat through the sign-in routes')
