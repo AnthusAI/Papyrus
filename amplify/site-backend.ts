@@ -118,7 +118,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   const publicationPlan = planS3ProjectionBackend(publication);
   const renditionsPlan = planRenditions(publication, process.cwd());
   setSiteFilesForContentActionsBundle(publicationPlan.enabled ? publicationPlan.siteFiles : undefined);
-  const plugins = resolvePlugins(site.plugins);
+  const plugins = resolvePlugins(site.plugins, { staticDir: publication?.staticDir });
   const pluginDefinitions = Object.assign({}, ...plugins.map(({ plugin }) => plugin.schemaDefinitions()));
   const pluginFunctions: Record<never, never> = Object.assign({}, ...plugins.map(({ plugin }) => plugin.functions()));
   // Off unless the site turns it on; then it needs the site's origin and compute role (see amplify/cli-login/remote-login.ts).
@@ -805,7 +805,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
   wireProposalActions(backend);
-  wirePlugins(backend, plugins, contentActionsLambda);
+  wirePlugins(backend, plugins, contentActionsLambda, s3ProjectionPublication !== undefined);
 
   return backend;
 }

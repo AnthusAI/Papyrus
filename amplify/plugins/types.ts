@@ -20,6 +20,14 @@ export type PluginManifest = {
   staticAssets: string[];
 };
 
+/** What a plugin may learn about the site while its settings are resolved. */
+export type PluginResolveOptions = {
+  /** The site's static directory (the folder with `projection.json`), when the site publishes through the S3 projection. */
+  staticDir?: string;
+  /** The directory `staticDir` is relative to. Defaults to the working directory. */
+  baseDirectory?: string;
+};
+
 /** Where the deploy-time wiring puts its resources. Filled in by `defineSiteBackend`. */
 export type PluginWiringContext = {
   createStack: (name: string) => Construct;
@@ -27,12 +35,14 @@ export type PluginWiringContext = {
   graphqlEndpoint: string;
   /** The site's `content-actions` function: it runs the projection tasks a plugin may add (for example `reader-snapshot`). */
   contentActionsLambda: LambdaFunction;
+  /** True when the site publishes through the S3 projection (the projection lease and the projection tasks exist). */
+  projectionEnabled: boolean;
 };
 
 export type PapyrusPlugin<Config, Functions = unknown> = {
   manifest: PluginManifest;
   /** Validates the request and fills in defaults. Throws a readable error. */
-  resolveConfig: (request: PluginRequest) => Config;
+  resolveConfig: (request: PluginRequest, options?: PluginResolveOptions) => Config;
   /** Amplify function resources the plugin adds to `defineBackend`. */
   functions: () => Functions;
   /** Models and custom operations merged into the site schema. */

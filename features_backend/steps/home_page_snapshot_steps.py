@@ -20,7 +20,7 @@ for entry in (REPO_ROOT / "src", REPO_ROOT):
 from papyrus_content.home_page.commands import home_page_snapshot  # noqa: E402
 from papyrus_content.home_page.export import EXCLUDED_REFERENCE_FIELDS, PUBLIC_REFERENCE_FIELDS  # noqa: E402
 from papyrus_content.home_page.task import home_page_settings_of, run_home_page_snapshot  # noqa: E402
-from papyrus_content.projection.engine import reconcile  # noqa: E402
+from papyrus_content.projection.engine import ProjectionContext, reconcile  # noqa: E402
 from procedures.newsroom.tests.reader_privacy import scan_files  # noqa: E402
 from procedures.newsroom.tests.standard_frontend_support import FIXTURES, ProjectedSite, fixture_settings  # noqa: E402
 
@@ -321,3 +321,42 @@ def directory_empty(context) -> None:
 @then("the CLI printed the number of References and the size of the file")
 def cli_printed(context) -> None:
     assert "12 references" in context.cli_output and "bytes" in context.cli_output, context.cli_output
+
+
+def site_with_edge(context, purge: bool) -> None:
+    home_page = {"references": {"corpus": "knowledge-corpus-example"}, "freshness": {"purge": purge}}
+    context.client = FixtureClient()
+    context.site = ProjectedSite(settings=settings_with(context, home_page=home_page), content=FIXTURES / "flat" / "content")
+    context.add_cleanup(context.site.cleanup)
+    context.reports = []
+    context.base_path = ""
+    context.invalidated = []
+    source = context.site.context
+
+    def invalidate(keys: list[str]) -> list[str]:
+        context.invalidated.extend(keys)
+        return list(keys)
+
+    context.site.context = ProjectionContext(source=source.source, projector=source.projector, writer=source.writer, redirect_store=source.redirect_store, invalidate=invalidate)
+
+
+@given("a site with a homePage setting whose purge is off and an edge to invalidate")
+def purge_off(context) -> None:
+    site_with_edge(context, False)
+
+
+@given("a site with a homePage setting whose purge is on and an edge to invalidate")
+def purge_on(context) -> None:
+    site_with_edge(context, True)
+
+
+@then("the task purged no key")
+def purged_nothing(context) -> None:
+    assert context.report["purged"] == []
+    assert REFERENCES_KEY not in context.invalidated
+
+
+@then("the task purged exactly the snapshot file it wrote")
+def purged_snapshot(context) -> None:
+    assert context.report["written"] == [REFERENCES_KEY]
+    assert context.report["purged"] == [REFERENCES_KEY]

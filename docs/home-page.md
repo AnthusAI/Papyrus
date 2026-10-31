@@ -1,6 +1,6 @@
 # Home page: public data files
 
-> Status: Beta, phase 1 of the `homePage` epic (PPY-1b83d3). This page covers the data files, the fields, the task and the CLI. The Reference grids are described under "The references include"; the freshness trigger and the threads come in later tasks.
+> Status: Beta, phase 1 of the `homePage` epic (PPY-1b83d3). This page covers the data files, the fields, the task and the CLI. The Reference grids are described under "The references include"; the freshness trigger is described under "Freshness"; the threads come in a later task.
 
 A Papyrus site can show part of its curation to visitors. The first piece is a public JSON file of the site's accepted References and of the pending ones the Cyclotron expects an editor to accept. It is served next to the pages, for example `https://anth.us/_data/home-page/references.json`.
 
@@ -63,3 +63,22 @@ Mutation commands write by default; `--dry-run` prints the report and the size o
 - A card shows confidence as "93% confidence" with a Lucide `gauge` icon and a five-segment meter drawn by shape (filled or outlined). A recommended card says "Recommended by Cyclotron, not yet accepted" with a `sparkles` icon. Cards use flat tones and rounded corners, with no borders. A component with nothing left draws the `empty` text, or nothing.
 - The Markdown twin keeps the include line as written. A page's digest folds in the snapshot digest, so a changed snapshot rewrites only the pages that place a references include.
 - `pages[].path`, a section `base` or a collection `base` equal to `_data`, `_plugins`, `_papyrus`, `_next` or `api` is a build error. `newsroom` is also reserved on sites whose edge routes the CMS.
+
+## Freshness
+
+Curation changes reach the pages without anyone running a command. The backend plugin `home-page` (`backend.plugins: ["home-page"]` in `papyrus.config.ts`) wires four things, and only for a site that lists it: every other site synthesizes exactly what it did before.
+
+1. A DynamoDB stream on the Reference table (old and new images).
+2. A small trigger function, `homePageTrigger` (Python 3.12, arm64, 256 MB, 30 s). It reads batches of up to 100 records (waiting at most 10 seconds to fill one) and ignores a record unless `curationStatus`, `feedStateKey`, `predictionSortKey`, `versionState`, `title` or `curationSectionId` differs between the old and new image. An insert or a removal counts as a change.
+3. A trailing-edge debounce. The first change in a quiet period claims a slot with a conditional write in the shared projection lock table (partition key `publication`, value `home-page-debounce#<site scope>`, expiring by TTL) and creates a one-off EventBridge Scheduler schedule `papyrus-home-page-snapshot-<site scope>-<epoch>` at the end of the window. It invokes content-actions with `{"projectionTask": {"task": "home-page-snapshot"}}`, runs once and deletes itself. Changes inside the window find the slot taken and schedule nothing, because the run reads them all. If creating the schedule fails the slot is released and the batch is retried by the stream. The site scope is a short hash of the site's content-actions function name, so sites that share an account never share a slot or a schedule name.
+4. The run itself: the snapshot is written only when it changed, and `project_stale_listings` re-renders only the pages whose digest includes the changed selection. A burst of ten accepts costs one run.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `homePage.freshness.debounceSeconds` | 300 | Quiet time between the first change and the run. The default equals the HTML `s-maxage` the writers set (`PAPYRUS_HTML_S_MAXAGE_SECONDS`, 300): with purge off a page can never be fresher than its edge lifetime, so a shorter window buys nothing. Lower it together with `publication.cache.htmlSMaxAgeSeconds`. |
+| `homePage.freshness.intervalHours` | none | Adds an EventBridge rule that runs the snapshot at this interval even without changes, as a safety net. Off by default. |
+| `homePage.freshness.purge` | false | The task invalidates the snapshot file on the edge after writing it. Invalidation paths are free for the first 1000 a month, then billed per path. |
+
+The plugin reads `debounceSeconds` and `intervalHours` from the site's `projection.json` when the backend is synthesized (and the task reads the whole block at run time), so there is one place to set them. A plugin request may override the first two: `plugins: [{ name: "home-page", debounceSeconds: 120 }]`. The plugin refuses to synthesize when the site has no publication or its `projection.json` has no `homePage` setting, because the stream would schedule runs that the task ignores.
+
+To turn it on for a site: add `homePage` to `projection.json`, add `"home-page"` to `backend.plugins`, and deploy the backend. The plugin needs no other setting. The trigger has no dead-letter queue: a batch that still fails after two retries is dropped, and the next change (or the interval rule, when set) catches up, because every run reads the whole table state.
