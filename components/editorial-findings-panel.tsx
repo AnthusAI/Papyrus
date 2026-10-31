@@ -1,13 +1,12 @@
 "use client";
 
-import { SparklesIcon } from "lucide-react";
+import { CircleXIcon, InfoIcon, SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { groupByPolicy, laneNotice, visibleFindings, type EditorialCheckResult, type Span } from "../lib/editorial-checks";
-import { EditorialFindingCard, RewriteOptions, useRewriteOptions, type FindingActions } from "./editorial-finding-card";
+import { FLAT_BUTTON_CLASS, EditorialFindingCard, RewriteOptions, useRewriteOptions, type FindingActions } from "./editorial-finding-card";
 
 export type CheckStatus = { state: "idle" } | { state: "checking" } | { state: "error"; message: string };
 
@@ -21,7 +20,16 @@ type Props = FindingActions & {
 };
 
 export const SEVERITY_LABEL = { error: "Must fix", warn: "Should fix", info: "Consider" } as const;
-const SEVERITY_VARIANT = { error: "default", warn: "secondary", info: "muted" } as const;
+const SEVERITY_ICON = { error: CircleXIcon, warn: TriangleAlertIcon, info: InfoIcon } as const;
+
+function SeverityLabel({ severity }: { severity: keyof typeof SEVERITY_LABEL }) {
+  const Icon = SEVERITY_ICON[severity];
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-background px-2 py-0.5 text-xs font-medium" data-editorial-severity={severity}>
+      <Icon aria-hidden="true" className="size-3" /> {SEVERITY_LABEL[severity]}
+    </span>
+  );
+}
 
 export function EditorialFindingsPanel(props: Props) {
   const { result, status, dismissed, activeFindingId, selection } = props;
@@ -33,14 +41,14 @@ export function EditorialFindingsPanel(props: Props) {
   const hasSelection = selection.end > selection.start;
 
   return (
-    <section aria-label="Editorial checks" className="space-y-3 rounded-xl border border-border bg-card p-3 text-sm" data-editorial-findings>
+    <section aria-label="Editorial checks" className="space-y-3 rounded-xl bg-muted/60 p-3 text-sm" data-editorial-finding="panel" data-editorial-findings>
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="font-medium">Editorial checks</h3>
         {status.state === "checking" ? <Spinner aria-label="Checking" /> : null}
         <span className="text-muted-foreground" data-editorial-findings-count>
           {result ? `${findings.length} open` : "Not checked yet"}
         </span>
-        <Button className="ml-auto" data-editorial-check-now disabled={status.state === "checking"} onClick={props.onCheck} size="xs" type="button" variant="outline">
+        <Button className={`ml-auto ${FLAT_BUTTON_CLASS}`} data-editorial-check-now disabled={status.state === "checking"} onClick={props.onCheck} size="xs" type="button" variant="ghost">
           Check now
         </Button>
       </div>
@@ -51,18 +59,19 @@ export function EditorialFindingsPanel(props: Props) {
       <div className="flex flex-wrap items-center gap-2" data-editorial-rewrite-tools>
         <Input
           aria-label="Note for rewrites"
-          className="h-8 max-w-xs flex-1"
+          className="h-8 max-w-xs flex-1 border-0 bg-background"
           onChange={(event) => setNote(event.target.value)}
           placeholder="Note for rewrites, e.g. shorter"
           value={note}
         />
         <Button
+          className={FLAT_BUTTON_CLASS}
           disabled={!hasSelection}
           onClick={() => void selectionRewrites.request({ selection }, note.trim() || null)}
           size="xs"
           title={hasSelection ? "Get rewrite options for the selected text" : "Select text in the body first"}
           type="button"
-          variant="outline"
+          variant="ghost"
         >
           <SparklesIcon aria-hidden="true" /> Rewrite selection
         </Button>
@@ -73,7 +82,7 @@ export function EditorialFindingsPanel(props: Props) {
       {groups.map((group) => (
         <div className="space-y-2" data-editorial-policy={group.policyId} key={group.policyId}>
           <div className="flex items-center gap-2">
-            <Badge variant={SEVERITY_VARIANT[group.severity]}>{SEVERITY_LABEL[group.severity]}</Badge>
+            <SeverityLabel severity={group.severity} />
             <strong>{group.policyId}</strong>
             <span className="text-muted-foreground">{group.findings.length}</span>
           </div>

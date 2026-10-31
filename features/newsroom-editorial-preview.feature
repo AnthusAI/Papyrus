@@ -130,3 +130,29 @@ Feature: Editorial findings on the article preview
       When I enter the article body "We utilize a shared volume."
       Then the findings panel shows the error "language-model provider did not respond"
       And I save a screenshot named "autorun-error-390"
+
+  Rule: The findings surfaces are flat tones, not outlined boxes
+
+    Editors read findings in the panel, on each finding card and in the popover
+    that opens from a mark. Following the newsroom's no-borders rule, all three
+    are rounded rectangles in flat background tones. A finding's severity is
+    said with an icon and a word, never by colour alone.
+
+    Scenario: No findings surface has a border
+      Given I open a new article at 1400 by 1000
+      When I enter the article body:
+        """
+        Our caching layer is **game-changing** for teams.
+
+        We utilize a shared volume.
+        """
+      And I check the article's editorial policies
+      Then nothing in the findings panel has a border or an outline
+      And every severity in the findings panel has an icon and a word
+      When I open the preview finding on "utilize"
+      Then nothing in the findings popover has a border or an outline
+
+    Scenario: The editor demo page logs no console errors
+      Given I open a new article at 1400 by 1000
+      When I reload the page recording every console error
+      Then the page logged no console errors
