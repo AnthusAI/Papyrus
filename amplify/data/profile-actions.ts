@@ -1,5 +1,5 @@
 import { a } from "@aws-amplify/backend";
-import { resolverEntry } from "./message-actions";
+import { prospectusAuthorizeStep, resolverEntry } from "./message-actions";
 
 /**
  * A person's public handle is the name the public Messages export shows next to their messages. Only the person can set or clear
@@ -11,15 +11,18 @@ const people = (allow: any) => [allow.group("editor"), allow.group("admin")];
 const onIdentities = (entry: string) => a.handler.custom({ dataSource: a.ref("UserIdentity"), entry: resolverEntry(entry) });
 const onProfiles = (entry: string) => a.handler.custom({ dataSource: a.ref("UserProfile"), entry: resolverEntry(entry) });
 
-export const profileActionsSchemaDefinitions = {
+export const buildProfileActionsSchemaDefinitions = (prospectusAuthorize: boolean) => ({
   setPublicHandle: a
     .mutation()
     .arguments({ handle: a.string() })
     .returns(a.ref("UserProfile"))
     .authorization(people)
     .handler([
+      ...(prospectusAuthorize ? [prospectusAuthorizeStep()] : []),
       onIdentities("./resolvers/set-public-handle-find-profile.js"),
       onProfiles("./resolvers/set-public-handle-check.js"),
       onProfiles("./resolvers/set-public-handle-write.js"),
     ]),
-};
+});
+
+export const profileActionsSchemaDefinitions = buildProfileActionsSchemaDefinitions(false);

@@ -15,6 +15,7 @@ import { slackDelivery } from "../functions/slack-delivery/resource";
 import { slackEvents } from "../functions/slack-events/resource";
 import { assertKnownModelGroups, schema as leanSchema, schemaExcludingGroups, schemaWithPlugins } from "./schema";
 import { functionHandler, sharedFunctions } from "./function-handler";
+import { prospectusAuthorizeSchemaDefinitions } from "./prospectus-authorize-backend";
 const authoringOperations: ("read" | "create" | "update" | "delete")[] = [
   "read",
   "create",
@@ -2425,8 +2426,15 @@ export type Schema = ClientSchema<typeof schema>;
  * The site's data API. Amplify allows one `defineData` per backend and registers it when called, so this is
  * a function: a site without plugins passes none and gets exactly the base schema.
  */
-export function defineSiteData(pluginDefinitions: Record<string, unknown> = {}, excludeModelGroups: readonly string[] = []) {
+export function defineSiteData(
+  basePluginDefinitions: Record<string, unknown> = {},
+  excludeModelGroups: readonly string[] = [],
+  options: { prospectusAuthorize?: boolean } = {},
+) {
   assertKnownModelGroups(excludeModelGroups);
+  const pluginDefinitions = options.prospectusAuthorize
+    ? { ...basePluginDefinitions, ...prospectusAuthorizeSchemaDefinitions() }
+    : basePluginDefinitions;
   const hasPlugins = Object.keys(pluginDefinitions).length > 0;
   return defineData({
     name: "PapyrusCmsApi",

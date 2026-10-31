@@ -20,6 +20,11 @@ from .operator_errors import GraphQLRequestError, credential_recovery_guidance
 
 CREDENTIAL_REJECTION_STATUS_CODES = frozenset({401, 403})
 
+PROSPECTUS_ERROR_GUIDANCE = {
+    "ReenrollmentRequired": "Your login is no longer enrolled with Prospectus. Run `papyrus login` again.",
+    "AccountRequired": "Choose an account: papyrus account use <name>",
+}
+
 _credential_session: Any = None
 
 
@@ -91,6 +96,10 @@ def execute_graphql(
     except urllib.error.URLError as error:
         raise GraphQLRequestError(f"GraphQL request failed: cannot reach {endpoint}: {error.reason}") from error
     if parsed.get("errors"):
+        for entry in parsed["errors"]:
+            guidance = PROSPECTUS_ERROR_GUIDANCE.get(str(entry.get("errorType") or "")) if isinstance(entry, dict) else None
+            if guidance:
+                raise GraphQLRequestError(guidance)
         messages = "; ".join(str(entry.get("message") or entry) for entry in parsed["errors"])
         raise GraphQLRequestError(f"GraphQL request failed: {messages}")
     return parsed.get("data") or {}

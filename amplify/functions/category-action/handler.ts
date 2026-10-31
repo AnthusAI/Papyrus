@@ -27,6 +27,7 @@ import {
 import { rejectionReasonCodeForWrittenReason } from "../../../lib/reference-policy";
 import { referenceFeedKeys, referenceFeedStateKey } from "../../../lib/reference-feed-keys";
 import { claimGroups } from "../../../lib/staff-groups";
+import { requireAuthorized } from "../../../lib/prospectus-authorize";
 
 type ReviewHandler = Schema["reviewSteeringProposal"]["functionHandler"];
 type ReferenceCurationHandler = Schema["reviewReferenceCuration"]["functionHandler"];
@@ -124,6 +125,7 @@ export const handler = async (event: CategoryActionEvent) => {
   if (!fieldName) {
     throw new Error("Unsupported steering action: missing GraphQL field name.");
   }
+  await requireAuthorized(event, fieldName);
   if (fieldName === "reviewSteeringProposal") return reviewSteeringProposal(event as Parameters<ReviewHandler>[0]);
   if (fieldName === "reviewReferenceCuration") return reviewReferenceCuration(event as Parameters<ReferenceCurationHandler>[0]);
   if (fieldName === "createCurationDelegation") return createCurationDelegation(event as Parameters<CreateCurationDelegationHandler>[0]);

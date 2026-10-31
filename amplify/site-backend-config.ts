@@ -229,5 +229,7 @@ export type PapyrusSiteBackendConfig = {
     storageBackups?: boolean;
     /** `papyrus login --remote` (docs/cli-login.md). Off unless true or PAPYRUS_ENABLE_CLI_REMOTE_LOGIN=true. */
     cliRemoteLogin?: boolean;
+    /** Fail-closed Prospectus authorization (docs/cli-login.md "Authorization"). Off unless true or PAPYRUS_ENABLE_PROSPECTUS_AUTHORIZE=true. */
+    prospectusAuthorize?: boolean;
   };
 };

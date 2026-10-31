@@ -4,6 +4,7 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../data/resource";
 import { claimGroups } from "../../../lib/staff-groups";
+import { requireAuthorized } from "../../../lib/prospectus-authorize";
 
 type DataClient = ReturnType<typeof generateClient<Schema>>;
 type DataClientErrors = Array<{ message?: string | null } | string | null> | null | undefined;
@@ -26,6 +27,7 @@ let clientPromise: Promise<DataClient> | null = null;
 
 export const handler = async (event: ProcedureEvent) => {
   const fieldName = normalizeRequiredString(event.info?.fieldName ?? event.fieldName, "fieldName");
+  await requireAuthorized(event, fieldName);
   if (fieldName === "listNewsroomProcedureDefinitions") return listProcedureDefinitions();
   if (fieldName === "getNewsroomProcedureDefinition") return getProcedureDefinition(event.arguments);
   if (fieldName === "saveNewsroomProcedureDefinition") return saveProcedureDefinition(event);

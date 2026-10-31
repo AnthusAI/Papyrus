@@ -38,6 +38,7 @@ import { proposalActions } from "./functions/proposal-actions/resource";
 import { wireProposalActions } from "./functions/proposal-actions/wire";
 import { monitoringView } from "./functions/monitoring-view/resource";
 import { wireEmailReferenceIntake, wireMonitoringView } from "./functions/monitoring-view/wire";
+import { planProspectusAuthorize, wireProspectusAuthorize } from "./data/prospectus-authorize-backend";
 import { wireEditorialChecks } from "./functions/editorial-checks/wire";
 import { resolvePlugins } from "./plugins/registry";
 import { wirePlugins } from "./plugins/wire";
@@ -126,6 +127,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
   if (cliRemoteLoginPlan && authConfig.disableGoogleOAuth === true) {
     throw new Error("Remote CLI login signs in through the Cognito hosted UI with Google, so it cannot be enabled when Google sign-in is disabled.");
   }
+  const prospectusAuthorizePlan = planProspectusAuthorize(featureFlags.prospectusAuthorize, process.env);
   const backend = defineBackend({
     ...pluginFunctions,
     assignmentAction,
@@ -134,7 +136,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     categoryAction,
     contentActions,
     editorialChecks,
-    data: defineSiteData(pluginDefinitions, site.excludeModelGroups ?? []),
+    data: defineSiteData(pluginDefinitions, site.excludeModelGroups ?? [], { prospectusAuthorize: prospectusAuthorizePlan !== undefined }),
     knowledgeQuery,
     manageUserRole,
     monitoringView,
@@ -801,6 +803,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         : null,
     },
   });
+  if (prospectusAuthorizePlan) wireProspectusAuthorize(backend, prospectusAuthorizePlan);
   wireEditorialChecks(backend);
   wireMonitoringView(backend, emailMonitorId);
   wireAutomationView(backend);
