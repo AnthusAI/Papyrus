@@ -91,3 +91,27 @@ returns plain paragraphs). `lib/markus-projection.ts` flattens the IR to plain t
 from `lib/markus-ir.ts` (the envelope's `document`) instead of the Markus text; when only `bodyMarkus` is available, the source
 is the `.md` twin and has no IR, so prefer `bodyIr` (the guest path) or the Python projection for the text. Escape `& < >` and keep
 within Alexa's speech limits.
+
+## On-screen documents (APL)
+
+`apl/feed.ts` and `apl/story.ts` are APL 2023.3 documents for Echo Shows and Fire TV. They import `alexa-viewport-profiles` and choose
+their sizes with `when` conditions for `hubRoundSmall`, `hubLandscapeSmall`, `hubLandscapeMedium`, `hubLandscapeLarge` and
+`tvLandscapeXLarge`. Colours are datasource values, never baked in: `theme` in the plugin settings (`background`, `surface`, `text`,
+`mutedText`, `accent`, each `#rrggbb`, text at least 4.5:1 against both grounds) or, when absent, the Pilobolus dark palette. There are
+no borders or hairlines; cards are flat fills with rounded corners.
+
+The functions the intents call (all pure, in `apl/support/`):
+
+- `supportsApl(requestEnvelope)` (`device.ts`): is `Alexa.Presentation.APL` in `context.System.device.supportedInterfaces`.
+- `feedDirective(stories, theme, publication)` and `storyDirective(story, bodyParagraphs, theme)` (`directives.ts`): the
+  `RenderDocument` directive with datasources. Stories may carry an optional `imageUrl`.
+- `themeFromConfig(config)`, `themeFromTokens(tokens, mode)` and `DEFAULT_APL_THEME` (`theme.ts`).
+
+The conversation (`speech/conversation.ts`) sends the screens: `readHeadlines` adds the feed and `readStory` adds the story, whose
+paragraphs come from `storyParagraphs` (the same Markus nodes the speech reads, as plain text). Both check `supportsApl` first, so a
+voice-only device gets speech alone. A touched feed card sends a UserEvent with `["openStory", <index>]`; `intents/apl-user-event.ts`
+calls `openStoryAt(handlerInput, index, dependencies)`, which reads that story exactly as a spoken request would (an index past the
+list reads the headlines again). Tests inject another opener with `createAplUserEventIntent({ openStory })`.
+
+`npx tsx scripts/alexa/render-apl-previews.ts` writes `docs/alexa-apl-previews/<feed|story>-<profile>.json`: the document, a sample
+datasource and the profile's nominal viewport, for the APL authoring tool. The tests fail when they are out of date.

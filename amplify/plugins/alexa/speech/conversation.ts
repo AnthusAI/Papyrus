@@ -4,15 +4,18 @@
  */
 import type { HandlerInput } from "ask-sdk-core";
 import type { Response } from "ask-sdk-model";
+import { supportsApl } from "../apl/support/device";
+import { feedDirective, storyDirective, type RenderDocumentDirective } from "../apl/support/directives";
+import { themeFromConfig } from "../apl/support/theme";
 import type { PublicStorySummary, SkillDependencies } from "../contracts";
-import { storyBodyUnits } from "./markus-speech";
+import { storyBodyUnits, storyParagraphs } from "./markus-speech";
 import { escapeSsml, fitUnits, MAX_SSML_LENGTH, pause, sentence, splitSentences, wrapSpeak } from "./ssml";
 
 /** How many headlines a launch reads: what a spoken list holds before a listener loses track. */
 export const HEADLINE_COUNT = 5;
 const SESSION_KEY = "alexaPosition";
 
-export type Headline = { slug: string; title: string };
+export type Headline = { slug: string; title: string; deck?: string; byline?: string };
 /** Where the listener is: `current` is the index of the story being read, or `null` while they are at the headline list. */
 export type Position = { headlines: Headline[]; current: number | null };
 
@@ -26,7 +29,12 @@ export function savePosition(handlerInput: HandlerInput, position: Position): vo
 }
 
 function toHeadlines(stories: readonly PublicStorySummary[]): Headline[] {
-  return stories.map(({ slug, title }) => ({ slug, title }));
+  return stories.map(({ slug, title, deck, byline }) => ({ slug, title, ...(deck ? { deck } : {}), ...(byline ? { byline } : {}) }));
+}
+
+/** Puts a screen on devices that have one; voice-only devices get the speech alone. */
+function show(handlerInput: HandlerInput, directive: () => RenderDocumentDirective): void {
+  if (supportsApl(handlerInput.requestEnvelope)) handlerInput.responseBuilder.addDirective(directive());
 }
 
 export function say(handlerInput: HandlerInput, ssml: string, reprompt: string): Response {
@@ -67,6 +75,14 @@ export async function readHeadlines(
   const room = MAX_SSML_LENGTH - wrapSpeak(introSsml + closing).length;
   const listed = fitUnits(items, room);
   savePosition(handlerInput, { headlines, current: null });
+  const shown = headlines;
+  show(handlerInput, () =>
+    feedDirective(
+      shown.map((headline) => ({ id: headline.slug, publishedAt: "", ...headline })),
+      themeFromConfig(dependencies.config),
+      dependencies.config.skillName,
+    ),
+  );
   return say(handlerInput, wrapSpeak(introSsml + listed.ssml + closing), wrapSpeak(sentence(HEADLINE_REPROMPT)));
 }
 
@@ -111,5 +127,14 @@ export async function readStory(
   const notice = body.truncated ? sentence(TRUNCATION_NOTICE) : "";
 
   savePosition(handlerInput, { headlines: position.headlines, current: index });
+  show(handlerInput, () => storyDirective(story, storyParagraphs(story), themeFromConfig(dependencies.config)));
   return say(handlerInput, wrapSpeak(head.ssml + body.ssml + pause(500) + notice + offer), wrapSpeak(sentence(NEXT_OFFER)));
+}
+
+/** Opens the story at `index` of the headline list (a touched card on the feed screen): the same reading a spoken request gets. */
+export async function openStoryAt(handlerInput: HandlerInput, index: number, dependencies: SkillDependencies): Promise<Response> {
+  const position = await currentPosition(handlerInput, dependencies);
+  if (position === undefined) return sayAndEnd(handlerInput, NOTHING_PUBLISHED);
+  if (index >= position.headlines.length) return readHeadlines(handlerInput, dependencies, { position });
+  return readStory(handlerInput, dependencies, position, index);
 }

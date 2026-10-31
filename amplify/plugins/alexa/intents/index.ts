@@ -1,4 +1,5 @@
 import { assertUniqueIds, type IntentModule } from "../contracts";
+import { aplUserEventIntent } from "./apl-user-event";
 import { cancelIntent } from "./cancel";
 import { fallbackIntent } from "./fallback";
 import { helpIntent } from "./help";
@@ -18,6 +19,7 @@ import { stopIntent } from "./stop";
  * intent name, so their order does not matter.)
  */
 export const INTENT_MODULES: readonly IntentModule[] = [
+  aplUserEventIntent,
   cancelIntent,
   fallbackIntent,
   helpIntent,

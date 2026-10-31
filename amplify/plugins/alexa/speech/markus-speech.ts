@@ -100,3 +100,31 @@ export function storyDocument(story: Pick<PublicStory, "markus" | "bodyIr">): Ma
 export function storyBodyUnits(story: Pick<PublicStory, "markus" | "bodyIr">): string[] {
   return documentUnits(storyDocument(story));
 }
+
+function blockText(block: MarkusBlock): string[] {
+  switch (block.type) {
+    case "heading":
+    case "paragraph": {
+      const text = inlineText(block.inline);
+      return text ? [text] : [];
+    }
+    case "list":
+      return block.items.flatMap((item) => item.children.flatMap(blockText));
+    case "blockquote":
+      return block.children.flatMap(nodeText);
+    default:
+      return []; // code, tables, rules and raw HTML stay on the web page
+  }
+}
+
+function nodeText(node: MarkusNode): string[] {
+  if (node.type !== "directive") return blockText(node);
+  if (SILENT_DIRECTIVES.has(node.name)) return [];
+  const title = typeof node.attributes.title === "string" && node.attributes.title.trim() ? [collapseWhitespace(node.attributes.title)] : [];
+  return [...title, ...node.children.flatMap(nodeText)];
+}
+
+/** The story body as plain paragraphs, for the screen: the same nodes the speech reads, without SSML. */
+export function storyParagraphs(story: Pick<PublicStory, "markus" | "bodyIr">): string[] {
+  return storyDocument(story).children.flatMap(nodeText);
+}

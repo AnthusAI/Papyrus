@@ -1,0 +1,355 @@
+{
+  "viewport": {
+    "profile": "hubLandscapeMedium",
+    "device": "Echo Show 8",
+    "width": 960,
+    "height": 600,
+    "dpi": 213,
+    "shape": "RECTANGLE"
+  },
+  "document": {
+    "type": "APL",
+    "version": "2023.3",
+    "import": [
+      {
+        "name": "alexa-viewport-profiles",
+        "version": "1.6.0"
+      }
+    ],
+    "resources": [
+      {
+        "when": "${@viewportProfile == @hubRoundSmall}",
+        "dimensions": {
+          "pad": 48,
+          "gap": 12,
+          "publicationSize": 24,
+          "headlineSize": 26,
+          "deckSize": 20,
+          "bodySize": 22,
+          "metaSize": 18,
+          "cardWidth": 384,
+          "cardImageHeight": 150,
+          "heroWidth": 384,
+          "heroHeight": 170,
+          "radius": 20
+        }
+      },
+      {
+        "when": "${@viewportProfile == @hubLandscapeSmall}",
+        "dimensions": {
+          "pad": 24,
+          "gap": 16,
+          "publicationSize": 28,
+          "headlineSize": 26,
+          "deckSize": 20,
+          "bodySize": 22,
+          "metaSize": 18,
+          "cardWidth": 360,
+          "cardImageHeight": 150,
+          "heroWidth": 340,
+          "heroHeight": 200,
+          "radius": 20
+        }
+      },
+      {
+        "when": "${@viewportProfile == @hubLandscapeMedium}",
+        "dimensions": {
+          "pad": 32,
+          "gap": 20,
+          "publicationSize": 32,
+          "headlineSize": 30,
+          "deckSize": 22,
+          "bodySize": 24,
+          "metaSize": 20,
+          "cardWidth": 400,
+          "cardImageHeight": 220,
+          "heroWidth": 400,
+          "heroHeight": 240,
+          "radius": 24
+        }
+      },
+      {
+        "when": "${@viewportProfile == @hubLandscapeLarge}",
+        "dimensions": {
+          "pad": 40,
+          "gap": 24,
+          "publicationSize": 36,
+          "headlineSize": 34,
+          "deckSize": 24,
+          "bodySize": 26,
+          "metaSize": 22,
+          "cardWidth": 520,
+          "cardImageHeight": 300,
+          "heroWidth": 520,
+          "heroHeight": 300,
+          "radius": 28
+        }
+      },
+      {
+        "when": "${@viewportProfile == @tvLandscapeXLarge}",
+        "dimensions": {
+          "pad": 56,
+          "gap": 24,
+          "publicationSize": 40,
+          "headlineSize": 36,
+          "deckSize": 28,
+          "bodySize": 30,
+          "metaSize": 26,
+          "cardWidth": 480,
+          "cardImageHeight": 220,
+          "heroWidth": 440,
+          "heroHeight": 260,
+          "radius": 28
+        }
+      },
+      {
+        "dimensions": {
+          "pad": 32,
+          "gap": 20,
+          "publicationSize": 32,
+          "headlineSize": 30,
+          "deckSize": 22,
+          "bodySize": 24,
+          "metaSize": 20,
+          "cardWidth": 400,
+          "cardImageHeight": 220,
+          "heroWidth": 400,
+          "heroHeight": 240,
+          "radius": 24
+        }
+      }
+    ],
+    "mainTemplate": {
+      "parameters": [
+        "payload"
+      ],
+      "items": [
+        {
+          "type": "Container",
+          "width": "100vw",
+          "height": "100vh",
+          "backgroundColor": "${payload.feedData.theme.background}",
+          "padding": "@pad",
+          "items": [
+            {
+              "type": "Text",
+              "text": "${payload.feedData.publication}",
+              "color": "${payload.feedData.theme.accent}",
+              "fontSize": "@publicationSize",
+              "fontWeight": "800",
+              "paddingBottom": "@gap",
+              "maxLines": 1,
+              "when": "${@viewportProfile != @hubRoundSmall}"
+            },
+            {
+              "type": "Text",
+              "text": "${payload.feedData.publication}",
+              "color": "${payload.feedData.theme.accent}",
+              "fontSize": "@publicationSize",
+              "fontWeight": "800",
+              "paddingBottom": "@gap",
+              "maxLines": 1,
+              "when": "${@viewportProfile == @hubRoundSmall}",
+              "textAlign": "center",
+              "width": "100%"
+            },
+            {
+              "type": "Sequence",
+              "when": "${@viewportProfile != @hubRoundSmall}",
+              "scrollDirection": "horizontal",
+              "width": "100%",
+              "grow": 1,
+              "data": "${payload.feedData.stories}",
+              "items": [
+                {
+                  "type": "TouchWrapper",
+                  "width": "@cardWidth",
+                  "onPress": {
+                    "type": "SendEvent",
+                    "arguments": [
+                      "openStory",
+                      "${index}"
+                    ]
+                  },
+                  "item": {
+                    "type": "Frame",
+                    "width": "100%",
+                    "height": "100%",
+                    "backgroundColor": "${payload.feedData.theme.surface}",
+                    "borderRadius": "@radius",
+                    "item": {
+                      "type": "Container",
+                      "width": "100%",
+                      "height": "100%",
+                      "items": [
+                        {
+                          "type": "Container",
+                          "when": "${data.imageUrl}",
+                          "width": "100%",
+                          "paddingLeft": "@gap",
+                          "paddingRight": "@gap",
+                          "paddingTop": "@gap",
+                          "items": [
+                            {
+                              "type": "Image",
+                              "source": "${data.imageUrl}",
+                              "width": "100%",
+                              "height": "@cardImageHeight",
+                              "scale": "best-fill",
+                              "borderRadius": "@radius"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "Container",
+                          "width": "100%",
+                          "paddingLeft": "@gap",
+                          "paddingRight": "@gap",
+                          "paddingTop": "@gap",
+                          "paddingBottom": "@gap",
+                          "items": [
+                            {
+                              "type": "Text",
+                              "text": "${data.title}",
+                              "color": "${payload.feedData.theme.text}",
+                              "fontSize": "@headlineSize",
+                              "fontWeight": "700",
+                              "maxLines": 4
+                            },
+                            {
+                              "type": "Text",
+                              "when": "${data.deck}",
+                              "text": "${data.deck}",
+                              "color": "${payload.feedData.theme.mutedText}",
+                              "fontSize": "@deckSize",
+                              "paddingTop": 8,
+                              "maxLines": 4
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "spacing": "@gap"
+                }
+              ]
+            },
+            {
+              "type": "Sequence",
+              "when": "${@viewportProfile == @hubRoundSmall}",
+              "scrollDirection": "vertical",
+              "width": "100%",
+              "grow": 1,
+              "data": "${payload.feedData.stories}",
+              "items": [
+                {
+                  "type": "TouchWrapper",
+                  "width": "100%",
+                  "onPress": {
+                    "type": "SendEvent",
+                    "arguments": [
+                      "openStory",
+                      "${index}"
+                    ]
+                  },
+                  "item": {
+                    "type": "Frame",
+                    "width": "100%",
+                    "height": "100%",
+                    "backgroundColor": "${payload.feedData.theme.surface}",
+                    "borderRadius": "@radius",
+                    "item": {
+                      "type": "Container",
+                      "width": "100%",
+                      "height": "100%",
+                      "items": [
+                        {
+                          "type": "Container",
+                          "when": "${data.imageUrl}",
+                          "width": "100%",
+                          "paddingLeft": "@gap",
+                          "paddingRight": "@gap",
+                          "paddingTop": "@gap",
+                          "items": [
+                            {
+                              "type": "Image",
+                              "source": "${data.imageUrl}",
+                              "width": "100%",
+                              "height": "@cardImageHeight",
+                              "scale": "best-fill",
+                              "borderRadius": "@radius"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "Container",
+                          "width": "100%",
+                          "paddingLeft": "@gap",
+                          "paddingRight": "@gap",
+                          "paddingTop": "@gap",
+                          "paddingBottom": "@gap",
+                          "items": [
+                            {
+                              "type": "Text",
+                              "text": "${data.title}",
+                              "color": "${payload.feedData.theme.text}",
+                              "fontSize": "@headlineSize",
+                              "fontWeight": "700",
+                              "maxLines": 4
+                            },
+                            {
+                              "type": "Text",
+                              "when": "${data.deck}",
+                              "text": "${data.deck}",
+                              "color": "${payload.feedData.theme.mutedText}",
+                              "fontSize": "@deckSize",
+                              "paddingTop": 8,
+                              "maxLines": 4
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  },
+                  "height": "auto",
+                  "spacing": "@gap"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "datasources": {
+    "feedData": {
+      "publication": "Pilobolus",
+      "theme": {
+        "background": "#14170f",
+        "surface": "#1c2117",
+        "text": "#dfded0",
+        "mutedText": "#8b9184",
+        "accent": "#b7d18a"
+      },
+      "stories": [
+        {
+          "index": 0,
+          "title": "The spores that outrun the wind",
+          "deck": "A tiny fungus fires its cargo faster than a rifle bullet.",
+          "byline": "Sample Writer",
+          "imageUrl": "https://example.com/first.jpg"
+        },
+        {
+          "index": 1,
+          "title": "A story with no picture and a rather long headline that has to wrap onto a few lines",
+          "deck": "A deck that is also long enough to need more than one line on the smallest screens in the family."
+        },
+        {
+          "index": 2,
+          "title": "Short one",
+          "imageUrl": "https://example.com/third.jpg"
+        }
+      ]
+    }
+  }
+}
