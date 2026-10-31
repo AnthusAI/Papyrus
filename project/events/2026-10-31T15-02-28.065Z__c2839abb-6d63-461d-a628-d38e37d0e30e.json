@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "c2839abb-6d63-461d-a628-d38e37d0e30e",
+  "issue_id": "PPY-77244e29-3b23-411b-8db2-9fd5862f880b",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T15:02:28.065Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "papyrus references audit: relevance model vs editors' decisions",
+    "description": "Read-only CLI command that audits a site's relevance predictions against editor decisions; docs in steering-and-relevance.md. Ryan approved 2026-10-31.",
+    "issue_type": "task",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-c0ede034-543a-427d-842b-7b06075798ff",
+    "labels": []
+  }
+}
