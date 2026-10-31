@@ -1118,7 +1118,7 @@ tests = ["citeproc-py-styles", "tox"]
 [[package]]
 name = "cli-login"
 version = "0.4.0"
-description = "One CLI login for every Anthus product: PKCE sign-in, remote approval, secure storage and renewal."
+description = "Browser sign-in for CLIs without long-lived keys: PKCE, remote approval, secure storage and renewal."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
@@ -2722,13 +2722,13 @@ pyreadline3 = {version = "*", markers = "sys_platform == \"win32\" and python_ve
 
 [[package]]
 name = "humanus"
-version = "0.33.1"
+version = "0.34.0"
 description = "Configurable editorial compliance checks: policy packs, deterministic rules, zero-shot decision models and rewrite suggestions."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "humanus-0.33.1-py3-none-any.whl", hash = "sha256:f521032bcda76f79d18a5c7ef8a9a79737c2b27965a3b71c4a3756d7fe6dce98"},
+    {file = "humanus-0.34.0-py3-none-any.whl", hash = "sha256:0f2f1897a7020ece6b36e21b187bb1f5c4703ad76800a654516ae06ae5672ca5"},
 ]
 
 [package.dependencies]
@@ -9029,4 +9029,4 @@ priming = ["fastapi", "strawberry-graphql", "uvicorn"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "21be14ca741207274cdd9aa2948e0f83967f73f1eaa3d6c49a4a5ee4480dd1f4"
+content-hash = "86acba1322ea5d097f62317595ca7e01b12453f037ed5fc68f51d8ddf4b4ae84"
