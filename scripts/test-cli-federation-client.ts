@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { App, SecretValue, Stack } from "aws-cdk-lib";
 import { Template } from "aws-cdk-lib/assertions";
 import { UserPool, UserPoolIdentityProviderGoogle } from "aws-cdk-lib/aws-cognito";
-import { addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, prospectusSignInCallbackUrls } from "../amplify/auth/prospectus-google-client";
+import { CLI_LOOPBACK_CALLBACK as BACKEND_LOOPBACK, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls, prospectusSignInCallbackUrls } from "../amplify/auth/prospectus-google-client";
 import { resolveSiteBackendFeatureFlags } from "../amplify/site-backend-names";
 import { CLI_LOOPBACK_CALLBACK } from "../lib/cli-loopback-callback";
 
@@ -21,6 +21,9 @@ function synthesize(extraCallbackUrls?: readonly string[]) {
 const clientOf = (template: Template) => Object.values(template.findResources("AWS::Cognito::UserPoolClient"))[0] as { Properties: Record<string, unknown> };
 
 const behaviours: Record<string, () => void> = {
+  loopback_constants_agree() {
+    assert.equal(BACKEND_LOOPBACK, CLI_LOOPBACK_CALLBACK);
+  },
   flag_off_is_unchanged() {
     assert.equal(resolveSiteBackendFeatureFlags(undefined, {}, identity).cliOnFederationClient, false);
     assert.equal(resolveSiteBackendFeatureFlags({}, {}, { ...identity, productionAppId: "app" }).cliOnFederationClient, false, "off even on the legacy production pipeline");

@@ -1,6 +1,5 @@
 import { CfnOutput, type Stack } from "aws-cdk-lib";
 import { CfnUserPoolClient, CfnUserPoolIdentityProvider, type IUserPool } from "aws-cdk-lib/aws-cognito";
-import { CLI_LOOPBACK_CALLBACK, CLI_REMOTE_CALLBACK_PATH } from "../../lib/cli-loopback-callback";
 
 /**
  * The Google-only app client a Papyrus site registers with Prospectus
@@ -14,6 +13,9 @@ import { CLI_LOOPBACK_CALLBACK, CLI_REMOTE_CALLBACK_PATH } from "../../lib/cli-l
  */
 export const PROSPECTUS_SIGN_IN_CALLBACK_PATH = "/api/auth/prospectus/callback";
 export const PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES = 60;
+/** Same value as lib/cli-loopback-callback.ts (the site cannot be imported from the packaged backend); a test keeps them equal. */
+export const CLI_LOOPBACK_CALLBACK = "http://127.0.0.1:38947/cli/callback";
+const CLI_REMOTE_CALLBACK_PATH = "/cli/callback";
 
 export function prospectusSignInCallbackUrls(redirectUrls: readonly string[]): string[] {
   const origins: string[] = [];
