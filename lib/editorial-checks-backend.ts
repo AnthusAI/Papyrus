@@ -13,4 +13,6 @@ export type EditorialChecksBackend = {
     note: string | null,
   ) => Promise<RewriteResult>;
   recordFeedback: (input: EditorialFeedbackInput) => Promise<void>;
+  /** Ask the server to check one saved version and store the result with it. It skips content it has already checked. */
+  checkVersion?: (itemId: string) => Promise<void>;
 };

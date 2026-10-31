@@ -23,6 +23,13 @@ module.exports = {
     require: ["features/step_definitions/email-receipt.steps.js"],
     format: ["summary"],
   },
+  // Editorial findings in the article editor (demo mode: no server or credentials). Needs `next dev` on PAPYRUS_BASE_URL.
+  editorialPreview: {
+    paths: ["features/newsroom-editorial-preview.feature"],
+    require: ["features/support/**/*.js", "features/step_definitions/articles.steps.js", "features/step_definitions/editorial-preview.steps.js"],
+    tags: "",
+    format: ["progress", "summary"],
+  },
   adminEditorRights: {
     paths: ["features/newsroom-admin-editor-rights.feature"],
     require: ["features/step_definitions/admin-editor-rights.steps.js"],

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 from pathlib import Path
 from typing import Any
@@ -246,6 +247,7 @@ def editorial_policies(flags: list[str]) -> None:
         _emit(ensure_default_policies(store), None)
 
 
+LOGGER = logging.getLogger(__name__)
 CHECK_ITEM_VERSION = "mutation CheckItemVersion($itemId: ID!) { checkItemVersion(itemId: $itemId) }"
 LIST_CHECK_RUNS = "query ListEditorialCheckRuns($nextToken: String) { listEditorialCheckRuns(limit: 1000, nextToken: $nextToken) { items { id contentHash } nextToken } }"
 CHECKED_ITEM_TYPES = ("article", "page")
@@ -279,7 +281,18 @@ def read_item_check_run(item_id: str, execute=None) -> dict[str, Any] | None:
     return {**run, "findings": _awsjson_document(run.get("findings")) or [], "lanes": _awsjson_document(run.get("lanes"))}
 
 
+def check_saved_version_best_effort(item_id: str, execute=None) -> dict[str, Any]:
+    """Check a version that was just saved. Never raises: the save stands, and the next update checks again."""
+    try:
+        return request_item_check(item_id, execute)
+    except Exception as error:
+        LOGGER.warning("Editorial check of saved version %s failed: %s", item_id, str(error)[:200])
+        return {"itemId": item_id, "notChecked": str(error)[:200]}
+
+
 def check_summary_line(result: dict[str, Any]) -> str:
+    if result.get("skipped") == "unchanged":
+        return f"editorial\tcheck\t{result.get('itemId')}\t{result.get('violations', 0)} violations\t{result.get('reviews', 0)} for review\tunchanged since its last check"
     if result.get("skipped"):
         return f"editorial\tcheck\t{result.get('itemId')}\tskipped\t{result['skipped']}"
     return f"editorial\tcheck\t{result.get('itemId')}\t{result.get('violations', 0)} violations\t{result.get('reviews', 0)} for review"

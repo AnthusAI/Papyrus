@@ -138,10 +138,27 @@ export function demoSuggest(body: string, target: { finding: EditorialFinding } 
   };
 }
 
+/** What the demo backend has been asked, for the browser acceptance steps (window.__PAPYRUS_DEMO_EDITORIAL__). */
+type DemoEditorialProbe = { checks: number; versionChecks: string[]; failNextChecks: boolean };
+
+function demoProbe(): DemoEditorialProbe {
+  const scope = globalThis as unknown as { __PAPYRUS_DEMO_EDITORIAL__?: DemoEditorialProbe };
+  scope.__PAPYRUS_DEMO_EDITORIAL__ ??= { checks: 0, versionChecks: [], failNextChecks: false };
+  return scope.__PAPYRUS_DEMO_EDITORIAL__;
+}
+
 export const demoEditorialBackend: EditorialChecksBackend = {
   loadSettings: async () => ({ settings: DEFAULT_EDITORIAL_SETTINGS, exists: false }),
   dismissedFindingIds: async () => new Set(),
-  check: async (body) => demoCheck(body),
+  check: async (body) => {
+    const probe = demoProbe();
+    probe.checks += 1;
+    if (probe.failNextChecks) throw new Error("Editorial checks are unavailable: the language-model provider did not respond.");
+    return demoCheck(body);
+  },
+  checkVersion: async (itemId) => {
+    demoProbe().versionChecks.push(itemId);
+  },
   suggest: async (body, _section, target) => demoSuggest(body, target),
   recordFeedback: async () => undefined,
 };
