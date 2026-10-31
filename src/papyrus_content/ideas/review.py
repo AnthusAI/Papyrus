@@ -31,6 +31,9 @@ def request_human_review(client: Any, run: dict[str, Any], ideas: list[dict[str,
     elif client is None:
         review = {"status": "pending", "requested": False, "ideas": len(ideas), "note": "No review client was given."}
     else:
+        from .items import review_order
+
+        ideas = review_order(ideas)   # clean ones first (ideas with no editorial check keep their place)
         identifiers = [idea.get("proposalId") or idea.get("itemLineageId") or idea["ideaId"] for idea in ideas]
         as_items = all(idea.get("itemLineageId") for idea in ideas)
         try:

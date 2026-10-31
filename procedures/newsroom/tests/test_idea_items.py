@@ -80,3 +80,72 @@ def test_the_migration_converts_open_proposals_and_skips_decided_covered_and_dup
     assert item["stage"] == "idea" and generated_of(item)["migratedFromProposal"] == "prop-a"
     again = plan(client, proposals)
     assert [e["reason"] for e in again if e["action"] == "skip" and e["proposalId"] in ("prop-a", "prop-b")] == ["already_covered", "already_covered"]
+
+
+# --- the editorial gate ---------------------------------------------------------------------------------------------------------
+
+
+from papyrus_content.ideas.items import IdeaRefused, review_order  # noqa: E402
+
+
+class FakeGate:
+    def __init__(self, findings=(), classifier=None, skipped=None):
+        self.findings, self.classifier, self.skipped, self.recorded, self.seen = list(findings), classifier or {"status": "ran"}, skipped, [], []
+
+    def check(self, body, section):
+        self.seen.append((body, section))
+        if self.skipped:
+            return {"skipped": self.skipped}
+        return {"findings": self.findings, "lanes": {"rules": {"status": "ran"}, "classifier": self.classifier}, "pack": {"version": "p1"}}
+
+    def record(self, item, result):
+        self.recorded.append((item["id"], result))
+
+
+def finding(severity, status="violation", policy="production-claims"):
+    return {"id": f"f-{severity}", "policyId": policy, "severity": severity, "status": status, "message": f"{policy} {severity}"}
+
+
+def test_an_error_violation_refuses_the_filing_and_writes_nothing():
+    client, gate = backend(), FakeGate([finding("error"), finding("warn")])
+    with pytest.raises(IdeaRefused) as refusal:
+        file_idea_item(client, draft(), now=NOW, source_text_reader=reader, gate=gate)
+    assert [f["severity"] for f in refusal.value.findings] == ["error"] and "production-claims" in str(refusal.value)
+    assert client.list_records("Item") == [] and gate.recorded == []
+
+
+def test_warnings_are_kept_on_the_item_and_stored_as_its_check_run():
+    client, gate = backend(), FakeGate([finding("warn"), finding("info", status="review", policy="hype")])
+    result = file_idea_item(client, draft(supersedes=[]), now=NOW, source_text_reader=reader, gate=gate)
+    check = generated_of(client.get_record("Item", result["itemId"]))["check"]
+    assert check["counts"] == {"error": 0, "warn": 1, "info": 1} and check["judgment"]["ran"] is True
+    assert [(item_id, r["pack"]["version"]) for item_id, r in gate.recorded] == [(result["itemId"], "p1")]
+    assert gate.seen[0][1] == "articles" and "Section:" not in gate.seen[0][0]
+
+
+def test_a_judgment_lane_that_did_not_run_is_recorded_not_passed_silently():
+    client = backend()
+    gate = FakeGate(classifier={"status": "unavailable", "reason": "no decision model is configured (set TYPESAFE_API_KEY)"})
+    result = file_idea_item(client, draft(), now=NOW, source_text_reader=reader, gate=gate)
+    judgment = generated_of(client.get_record("Item", result["itemId"]))["check"]["judgment"]
+    assert judgment["ran"] is False and "TYPESAFE_API_KEY" in judgment["reason"]
+
+
+def test_checks_turned_off_are_recorded_as_not_run():
+    client = backend()
+    result = file_idea_item(client, draft(), now=NOW, source_text_reader=reader, gate=FakeGate(skipped="disabled"))
+    assert generated_of(client.get_record("Item", result["itemId"]))["check"] == {"ran": False, "skipped": "disabled"}
+
+
+def test_supersedes_names_item_lineages_the_idea_replaces():
+    client = backend()
+    older = file_idea_item(client, draft(), now=NOW, source_text_reader=reader)["lineageId"]
+    newer = file_idea_item(client, draft(ideaId="idea-2", targets=[{"type": "entity", "id": "topic-clef"}], title="Clef roundup", supersedes=[older]), now=NOW, source_text_reader=reader)
+    assert newer["created"] and generated_of(client.get_record("Item", newer["itemId"]))["supersedes"] == [older]
+    with pytest.raises(ValueError):
+        file_idea_item(backend(), draft(supersedes=["item-nope"]), now=NOW, source_text_reader=reader)
+
+
+def test_the_batch_review_lists_clean_ideas_first():
+    ideas = [{"ideaId": "a", "editorialCheck": {"counts": {"error": 0, "warn": 2, "info": 0}}}, {"ideaId": "b"}, {"ideaId": "c", "editorialCheck": {"counts": {"error": 0, "warn": 0, "info": 1}}}]
+    assert [idea["ideaId"] for idea in review_order(ideas)] == ["b", "c", "a"]

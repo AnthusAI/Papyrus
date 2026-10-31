@@ -53,6 +53,7 @@ from . import source_text
 from .source_text import SourceFetcher, fetch_source
 from .pipeline import DEFAULT_MAXIMUM_COST_USD, comparison_documents
 from .review import request_human_review
+from .items import IdeaRefused
 from .store import JsonStore, ProposalStore
 from ..story_from_reference import url_key
 
@@ -646,6 +647,9 @@ def draft_monitor_stories(
                         proposal_store.mark(record, proposal_store.file_story_draft(record))
                     if json_store:
                         json_store.save_idea(record)
+                except IdeaRefused as refusal:   # the editorial check found an error-severity violation: not filed, the run goes on
+                    run["invalid"].append({**refusal.as_invalid(record), "referenceId": item.reference_id})
+                    continue
                 except Exception as error:  # noqa: BLE001 - whatever is filed stays filed; stop before paying for drafts that cannot be kept
                     run["fileError"] = f"{type(error).__name__}: {error}"[:300]
                     run["stoppedBy"] = "file_error"
