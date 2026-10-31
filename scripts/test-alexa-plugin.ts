@@ -127,7 +127,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
 
   "endpoint serves nothing until a skill ID is configured": async () => {
     const config = resolveAlexaConfig(request);
-    await assert.rejects(invokeSkill(launchEvent(SKILL_ID), config, { config, stories: fakeStories }), SkillIdMismatchError);
+    await assert.rejects(invokeSkill(launchEvent(SKILL_ID), config, { config, stories: fakeStories }, INTENT_MODULES, async () => undefined), SkillIdMismatchError);
   },
 
   "registries list every module and keep ids unique": async () => {
@@ -150,7 +150,7 @@ const behaviours: Record<string, () => Promise<void> | void> = {
   },
 
   "skill package is generated deterministically": () => {
-    const config = resolveAlexaConfig(request);
+    const config = resolveAlexaConfig({ ...request, siteOrigin: "https://example.com" });
     const first = generateSkillPackage(config, { endpointArn: ARN });
     const second = generateSkillPackage(config, { endpointArn: ARN, modules: [...INTENT_MODULES].reverse() });
     assert.deepEqual(first, second);

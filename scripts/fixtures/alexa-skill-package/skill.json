@@ -1,0 +1,52 @@
+{
+  "manifest": {
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "arn:aws:lambda:us-east-1:123456789012:function:papyrus-alexa-skill"
+        },
+        "interfaces": [
+          {
+            "type": "ALEXA_PRESENTATION_APL"
+          }
+        ]
+      }
+    },
+    "manifestVersion": "1.0",
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "containsAds": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "locales": {
+        "en-US": {
+          "privacyPolicyUrl": "https://example.com/alexa/privacy/",
+          "termsOfUseUrl": "https://example.com/alexa/terms/"
+        }
+      },
+      "usesPersonalInfo": false
+    },
+    "publishingInformation": {
+      "category": "NEWS",
+      "distributionCountries": [],
+      "isAvailableWorldwide": true,
+      "locales": {
+        "en-US": {
+          "description": "Hear the latest published stories from The Example, read aloud, and see them on screens that have one.",
+          "examplePhrases": [
+            "Alexa, open the example"
+          ],
+          "keywords": [
+            "the example",
+            "news"
+          ],
+          "largeIconUri": "https://example.com/alexa/icon-512.png",
+          "name": "The Example",
+          "smallIconUri": "https://example.com/alexa/icon-108.png",
+          "summary": "The latest stories from The Example."
+        }
+      },
+      "testingInstructions": "Say \"Alexa, open the example\" to hear the latest published stories. No account is needed."
+    }
+  }
+}
