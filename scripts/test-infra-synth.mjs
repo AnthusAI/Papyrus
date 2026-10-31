@@ -130,6 +130,15 @@ try {
   assert.ok(JSON.stringify(invoker.Value).includes("AmplifyComputeRole"), "cliRemoteLogin: the invoker is the Amplify compute role");
   assert.deepEqual(stagingBranchOf(remoteLogin).Properties.EnvironmentVariables.filter((variable) => /CLI_REMOTE_LOGIN|CLI_INVOKER_ROLE/.test(variable.Name)), [], "cliRemoteLogin: the staging branch is unchanged");
 
+  // Moving the CLI onto the federation client is off unless cms.cliOnFederationClient is true; the production branch then names the flag only.
+  const federationNames = (template) => productionBranchOf(template).Properties.EnvironmentVariables.map((variable) => variable.Name).filter((name) => /CLI_ON_FEDERATION_CLIENT/.test(name));
+  assert.deepEqual(federationNames(withReader), [], "cliOnFederationClient off by default: the production branch is unchanged");
+  const federationSite = structuredClone(pilobolExample);
+  federationSite.cms.cliOnFederationClient = true;
+  const federation = synthesizeSite("pilobol-federation-client", federationSite);
+  assert.deepEqual(federationNames(federation), ["PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT"], "cliOnFederationClient: the production branch names the flag");
+  assert.deepEqual(stagingBranchOf(federation).Properties.EnvironmentVariables.filter((variable) => /CLI_ON_FEDERATION_CLIENT/.test(variable.Name)), [], "cliOnFederationClient: the staging branch is unchanged");
+
   const anthUsDomains = resourcesOfType(anthUsTemplate, "AWS::Amplify::Domain");
   assert.equal(anthUsDomains.length, 1, "anth-us: one reader domain");
   assert.deepEqual(anthUsDomains[0].Properties.SubDomainSettings.map((setting) => setting.Prefix), ["", "www"]);

@@ -58,6 +58,12 @@ export type CmsConfig = {
    * allowed to invoke the approval pages function) on the branch. Off when absent: the branch is unchanged.
    */
   cliRemoteLogin?: boolean;
+  /**
+   * Move `papyrus login` (and `--remote`) onto this site's registered Prospectus federation client (docs/cli-login.md
+   * "Which client"). The stack then sets `PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT` on the production branch and the backend
+   * adds the CLI's fixed loopback callback and `/cli/callback` to that client. Off when absent: the branch is unchanged.
+   */
+  cliOnFederationClient?: boolean;
   deployStackInBuild?: boolean;
 };
 
@@ -435,7 +441,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "deployStackInBuild"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "cliOnFederationClient", "deployStackInBuild"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -454,6 +460,9 @@ function parseCms(value: unknown): CmsConfig {
   }
   if (cmsRecord.cliRemoteLogin !== undefined && typeof cmsRecord.cliRemoteLogin !== "boolean") {
     fail("cms.cliRemoteLogin", `must be a boolean, got ${JSON.stringify(cmsRecord.cliRemoteLogin)}`);
+  }
+  if (cmsRecord.cliOnFederationClient !== undefined && typeof cmsRecord.cliOnFederationClient !== "boolean") {
+    fail("cms.cliOnFederationClient", `must be a boolean, got ${JSON.stringify(cmsRecord.cliOnFederationClient)}`);
   }
   if (cmsRecord.deployStackInBuild !== undefined && typeof cmsRecord.deployStackInBuild !== "boolean") {
     fail("cms.deployStackInBuild", `must be a boolean, got ${JSON.stringify(cmsRecord.deployStackInBuild)}`);
@@ -479,6 +488,7 @@ function parseCms(value: unknown): CmsConfig {
     deployStackInBuild: cmsRecord.deployStackInBuild as boolean | undefined,
     readerRetirementPoll: cmsRecord.readerRetirementPoll as boolean | undefined,
     cliRemoteLogin: cmsRecord.cliRemoteLogin as boolean | undefined,
+    cliOnFederationClient: cmsRecord.cliOnFederationClient as boolean | undefined,
     stagingPreview: parseStagingPreview(cmsRecord.stagingPreview),
     prospectusAccountsApiStageArn: optionalString(
       cmsRecord.prospectusAccountsApiStageArn,

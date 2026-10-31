@@ -229,5 +229,7 @@ export type PapyrusSiteBackendConfig = {
     storageBackups?: boolean;
     /** `papyrus login --remote` (docs/cli-login.md). Off unless true or PAPYRUS_ENABLE_CLI_REMOTE_LOGIN=true. */
     cliRemoteLogin?: boolean;
+    /** The CLI signs in on the registered Prospectus federation client (docs/cli-login.md "Which client"). Off unless true or PAPYRUS_ENABLE_CLI_ON_FEDERATION_CLIENT=true. */
+    cliOnFederationClient?: boolean;
   };
 };

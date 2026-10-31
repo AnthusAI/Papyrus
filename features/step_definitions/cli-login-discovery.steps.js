@@ -5,9 +5,9 @@ const { promisify } = require("node:util");
 const { Given, When, Then } = require("@cucumber/cucumber");
 
 // Each behaviour runs scripts/test-cli-login-discovery.ts, which asserts internally and prints its result.
-async function behaviour(name) {
+async function behaviour(name, script = "scripts/test-cli-login-discovery.ts") {
   const result = await promisify(execFile)(process.execPath,
-    ["--import", "tsx", "scripts/test-cli-login-discovery.ts", name],
+    ["--import", "tsx", script, name],
     { cwd: path.resolve(__dirname, "../.."), maxBuffer: 8 * 1024 * 1024 });
   return JSON.parse(result.stdout);
 }
@@ -20,6 +20,9 @@ given("a site whose web client registers the localhost 3001 callback", "publishe
 given("a site whose web client does not register the localhost 3001 callback", "callback_not_registered");
 given("a site whose Amplify outputs have no sign-in section", "no_oauth_outputs");
 given("a site whose public origin is not configured", "origin_missing");
+given("a site that has not moved the CLI onto its federation client", "flag_off_names_main_client");
+given("a site that moved the CLI onto its federation client", "flag_on_names_federation_client");
+given("a site that moved the CLI onto its federation client but publishes no federation client", "flag_on_without_federation_client");
 
 When("the CLI login file is requested", { timeout: 120_000 }, async function () {
   this.cliLoginResult = await behaviour(this.cliLoginBehaviour);
@@ -59,3 +62,23 @@ Then("the answer is {string}", function (answer) {
   assert.equal(answer, "service unavailable");
   assert.equal(this.cliLoginResult.status, 503);
 });
+
+Then("it names the main web client and the localhost 3001 callback exactly as before", function () {
+  assert.equal(this.cliLoginResult.body.client_id, "synthetic-web-client");
+  assert.equal(this.cliLoginResult.body.callback_uri, "http://localhost:3001/");
+});
+
+Then("it names the federation client, the fixed loopback callback and the remote callback", function () {
+  assert.equal(this.cliLoginResult.body.client_id, "synthetic-federation-client");
+  assert.equal(this.cliLoginResult.body.callback_uri, "http://127.0.0.1:38947/cli/callback");
+  assert.equal(this.cliLoginResult.body.remote_callback_uri, "https://shipped.example.test/cli/callback");
+});
+
+When("the federation client is synthesized with the CLI moved onto it", { timeout: 120_000 }, async function () {
+  await behaviour("callback_list_is_exact", "scripts/test-cli-federation-client.ts");
+  await behaviour("federation_client_is_google_only", "scripts/test-cli-federation-client.ts");
+});
+
+Then("its callbacks are each site origin's Prospectus callback, the fixed loopback and the console's cli callback", function () {});
+
+Then("only Google is admitted through the code flow and no password flow is reachable", function () {});
