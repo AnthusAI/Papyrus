@@ -11,6 +11,7 @@ const REQUEST_KEYS = [
   "amazonVendorId",
   "siteOrigin",
   "siteId",
+  "corpusKey",
   "locales",
   "keywords",
   "iconSmallUri",
@@ -70,6 +71,8 @@ export type AlexaConfig = {
    * every run of other characters turned into one hyphen. The deploy-time sync and the function read the same resolved value.
    */
   siteId?: string;
+  /** The site's knowledge corpus key, for the newsroom's References (`knowledge-corpus-<key>`). Defaults to the site id. */
+  corpusKey?: string;
   /** Locales to publish (default `["en-US"]`). Every locale gets the same generated model. */
   locales?: string[];
   /** Skill-store search keywords (default: the invocation name and "news"). */
@@ -83,6 +86,11 @@ export type AlexaConfig = {
   /** Default `<siteOrigin>/alexa/terms/`. */
   termsOfUseUrl?: string;
 };
+
+/** The corpus the newsroom's References belong to: `knowledge-corpus-<corpusKey or site id>`. */
+export function resolveCorpusId(config: Pick<AlexaConfig, "invocationName" | "siteId" | "corpusKey">): string {
+  return `knowledge-corpus-${config.corpusKey ?? resolveSiteId(config)}`;
+}
 
 /** The id that names the skill's SSM parameters. */
 export function resolveSiteId(config: Pick<AlexaConfig, "invocationName" | "siteId">): string {
@@ -180,6 +188,10 @@ export function resolveAlexaConfig(request: PluginRequest): AlexaConfig {
   if (siteId !== undefined && (typeof siteId !== "string" || !SITE_ID.test(siteId))) {
     throw new Error("alexa siteId must be lowercase letters, digits and hyphens (it names the skill's SSM parameters)");
   }
+  const corpusKey = settings.corpusKey;
+  if (corpusKey !== undefined && (typeof corpusKey !== "string" || !SITE_ID.test(corpusKey))) {
+    throw new Error("alexa corpusKey must be lowercase letters, digits and hyphens (the site's knowledge corpus key)");
+  }
   const locales = settings.locales;
   if (
     locales !== undefined &&
@@ -207,6 +219,7 @@ export function resolveAlexaConfig(request: PluginRequest): AlexaConfig {
     ...(siteOrigin === undefined ? {} : { siteOrigin }),
     ...(settings.theme === undefined ? {} : { theme: resolveTheme(settings.theme) }),
     ...(siteId === undefined ? {} : { siteId }),
+    ...(corpusKey === undefined ? {} : { corpusKey }),
     ...(locales === undefined ? {} : { locales: locales as string[] }),
     ...(keywords === undefined ? {} : { keywords: keywords as string[] }),
     ...urls,

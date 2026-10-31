@@ -5,6 +5,7 @@ import type { AlexaConfig } from "./config";
 import { createPublicStorySource } from "./content";
 import type { IntentModule, SkillDependencies } from "./contracts";
 import { INTENT_MODULES } from "./intents";
+import { createNewsroomReview, GRAPHQL_ENDPOINT_ENVIRONMENT_VARIABLE, HOSTED_UI_ORIGIN_ENVIRONMENT_VARIABLE } from "./review/newsroom";
 import { createSkillIdResolver, ssmParameterReader, type SkillIdResolver } from "./skill-identity";
 
 export class SkillIdMismatchError extends Error {}
@@ -22,8 +23,18 @@ function resolveSkillId(config: AlexaConfig): Promise<string | undefined> {
   return defaultSkillIdResolver(config);
 }
 
-export function defaultDependencies(config: AlexaConfig): SkillDependencies {
-  return { config, stories: createPublicStorySource(config), tokens: createAccessTokenVerifier(config) };
+export function defaultDependencies(config: AlexaConfig, environment: Record<string, string | undefined> = process.env): SkillDependencies {
+  const tokens = createAccessTokenVerifier(config);
+  const endpoint = environment[GRAPHQL_ENDPOINT_ENVIRONMENT_VARIABLE];
+  const hostedUiOrigin = environment[HOSTED_UI_ORIGIN_ENVIRONMENT_VARIABLE];
+  return {
+    config,
+    stories: createPublicStorySource(config),
+    tokens,
+    ...(tokens && endpoint
+      ? { review: (accessToken: string) => createNewsroomReview({ config, accessToken, endpoint, ...(hostedUiOrigin ? { hostedUiOrigin } : {}) }) }
+      : {}),
+  };
 }
 
 export function buildSkill(dependencies: SkillDependencies, modules: readonly IntentModule[] = INTENT_MODULES): Skill {
