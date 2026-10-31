@@ -1,0 +1,27 @@
+{
+  "reserved": ["admin", "editor", "ai", "papyrus", "anonymous"],
+  "vectors": [
+    {"input": "ryan", "valid": true, "handle": "ryan"},
+    {"input": "  Ryan  ", "valid": true, "handle": "ryan"},
+    {"input": "RYAN-PARKER", "valid": true, "handle": "ryan-parker"},
+    {"input": "a1b", "valid": true, "handle": "a1b"},
+    {"input": "123", "valid": true, "handle": "123"},
+    {"input": "abcdefghijklmnopqrstuvwx", "valid": true, "handle": "abcdefghijklmnopqrstuvwx"},
+    {"input": "ab", "valid": false, "reason": "length"},
+    {"input": "", "valid": false, "reason": "length"},
+    {"input": "a😀", "valid": false, "reason": "characters"},
+    {"input": "abcdefghijklmnopqrstuvwxy", "valid": false, "reason": "length"},
+    {"input": "-ryan", "valid": false, "reason": "characters"},
+    {"input": "ryan-", "valid": false, "reason": "characters"},
+    {"input": "ry an", "valid": false, "reason": "characters"},
+    {"input": "ry_an", "valid": false, "reason": "characters"},
+    {"input": "ryán", "valid": false, "reason": "characters"},
+    {"input": "ryan@example", "valid": false, "reason": "at-sign"},
+    {"input": "@ryan", "valid": false, "reason": "at-sign"},
+    {"input": "admin", "valid": false, "reason": "reserved"},
+    {"input": "Editor", "valid": false, "reason": "reserved"},
+    {"input": "ai", "valid": false, "reason": "length"},
+    {"input": "papyrus", "valid": false, "reason": "reserved"},
+    {"input": "anonymous", "valid": false, "reason": "reserved"}
+  ]
+}

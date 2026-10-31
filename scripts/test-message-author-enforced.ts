@@ -150,7 +150,7 @@ test("the schema offers the five mutations to the right groups, on the right tab
   assert.match(rules, /allow: groups, operations: \[read\], groups: \["editor"\]/);
   assert.match(rules, /allow: groups, operations: \[read\], groups: \["admin"\]/);
   assert.doesNotMatch(rules, /create|update|delete/, "people cannot write a Message through the model");
-  const byField = Object.fromEntries(transformed.jsFunctions.map((fn) => [fn.fieldName, fn.handlers[0]]));
+  const byField = Object.fromEntries(transformed.jsFunctions.filter((fn) => fn.fieldName !== "setPublicHandle").map((fn) => [fn.fieldName, fn.handlers[0]]));
   assert.deepEqual(Object.keys(byField).sort(), ["deleteOwnMessage", "editMessage", "moderateMessage", "postMessage", "renameThread"]);
   for (const name of ["postMessage", "editMessage", "deleteOwnMessage", "moderateMessage"]) assert.equal(byField[name].dataSource, "MessageTable", name);
   assert.equal(byField.renameThread.dataSource, "MessageThreadTable");
