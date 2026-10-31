@@ -13,6 +13,7 @@ export const EDITORIAL_CHECKS_FUNCTION_FIELDS = [
   "Mutation/fields/createEditorialPolicy",
   "Mutation/fields/updateEditorialPolicy",
   "Query/fields/getItem",
+  "Query/fields/listItemsByVersionStateAndUpdatedAt",
   "Query/fields/getEditorialCheckRun",
   "Mutation/fields/createEditorialCheckRun",
   "Mutation/fields/updateEditorialCheckRun",
