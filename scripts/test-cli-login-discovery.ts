@@ -16,6 +16,16 @@ async function serve(outputs: AmplifyOutputsForCliLogin | null, environment: Rec
   return { status: response.status, cache: response.headers.get("cache-control"), body: await response.json() as Record<string, unknown> };
 }
 
+const federated: AmplifyOutputsForCliLogin = {
+  ...configured,
+  auth: { ...configured.auth, oauth: { ...configured.auth!.oauth, redirect_sign_in_uri: ["https://shipped.example.test/"] } },
+  custom: {
+    cliOnFederationClient: true,
+    prospectusSignIn: { clientId: "synthetic-federation-client", callbackPath: "/api/auth/prospectus/callback" },
+    cliLogin: { brokerEndpoint: "https://synthetic.lambda-url.us-east-1.on.aws/", remoteCallbackUri: "https://shipped.example.test/cli/callback" },
+  },
+};
+
 const behaviours: Record<string, () => Promise<unknown>> = {
   async published() {
     const result = await serve(configured, { PAPYRUS_SITE_ORIGIN: site });
@@ -28,6 +38,29 @@ const behaviours: Record<string, () => Promise<unknown>> = {
       graphql_endpoint: "https://synthetic.appsync-api.us-east-1.amazonaws.com/graphql",
       callback_uri: "http://localhost:3001/",
     });
+    return result;
+  },
+  async flag_off_names_main_client() {
+    const withUnusedFederation = { ...configured, custom: { prospectusSignIn: { clientId: "synthetic-federation-client", callbackPath: "/api/auth/prospectus/callback" } } };
+    const result = await serve(withUnusedFederation, { PAPYRUS_SITE_ORIGIN: site });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.client_id, "synthetic-web-client");
+    assert.equal(result.body.callback_uri, "http://localhost:3001/");
+    assert.deepEqual(result.body, (await serve(configured, { PAPYRUS_SITE_ORIGIN: site })).body, "byte-identical to a site that never heard of the flag");
+    return result;
+  },
+  async flag_on_names_federation_client() {
+    const result = await serve(federated, { PAPYRUS_SITE_ORIGIN: site });
+    assert.equal(result.status, 200);
+    assert.equal(result.body.client_id, "synthetic-federation-client");
+    assert.equal(result.body.callback_uri, "http://127.0.0.1:38947/cli/callback");
+    assert.equal(result.body.remote_callback_uri, "https://shipped.example.test/cli/callback");
+    assert.equal(result.body.broker_endpoint, "https://synthetic.lambda-url.us-east-1.on.aws/");
+    return result;
+  },
+  async flag_on_without_federation_client() {
+    const result = await serve({ ...federated, custom: { cliOnFederationClient: true } }, { PAPYRUS_SITE_ORIGIN: site });
+    assert.equal(result.status, 404, "never fall back to the main client once the flag is on");
     return result;
   },
   async origin_is_configured_not_requested() {
