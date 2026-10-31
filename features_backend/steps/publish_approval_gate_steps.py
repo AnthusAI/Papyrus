@@ -90,6 +90,12 @@ def approve(context) -> None:
     review_requests.answer_review(context.client, request["id"], decision="approve", by="editor-sub-1", roles=["editor"])
 
 
+@when("an agent approves the review request")
+def agent_approves(context) -> None:
+    (request,) = reviews(context)
+    review_requests.answer_review(context.client, request["id"], decision="approve", by="agent:editor-bot")
+
+
 @when("a person rejects the review request")
 def reject(context) -> None:
     (request,) = reviews(context)

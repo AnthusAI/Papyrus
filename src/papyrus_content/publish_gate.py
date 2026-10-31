@@ -27,7 +27,12 @@ SETTINGS_MODEL = "EditorialCheckSettings"
 SETTINGS_ID = "publish-gate"
 REQUIRED = "required"
 NOT_REQUIRED = "not_required"
+# An enum that can grow: a later value (delegated approval, where an editor agent may approve after a person's first refusal
+# lapses) adds a name here and a rule in ``accepted_approver_kinds``; nothing else reads the strings.
 APPROVAL_VALUES = (REQUIRED, NOT_REQUIRED)
+APPROVER_PERSON = "person"
+APPROVER_AGENT = "agent"
+AGENT_APPROVER_PREFIX = "agent:"
 DEFAULT_APPROVAL = NOT_REQUIRED
 RAISED_BY = "publish-gate"
 APPROVAL_REQUIRED = "approval-required"
@@ -70,6 +75,17 @@ def set_publish_approval(client, approval: str, *, by: str, now: str | None = No
     return {**value, "stored": True}
 
 
+def approver_kind_of(request: dict[str, Any]) -> str:
+    """Who approved a request: an answer whose ``by`` starts with ``agent:`` is an agent's, anything else a person's."""
+    by = str((request.get("answer") or {}).get("by") or "")
+    return APPROVER_AGENT if by.startswith(AGENT_APPROVER_PREFIX) else APPROVER_PERSON
+
+
+def accepted_approver_kinds(approval: str) -> tuple[str, ...]:
+    """Whose approval lets a publish through under this setting. ``required`` accepts a person only."""
+    return (APPROVER_PERSON,)
+
+
 def request_prefix(item: dict[str, Any]) -> str:
     """The id every review request about this version starts with: the record id and its content hash."""
     digest = hashlib.sha256(f"{item['id']}\n{item.get('contentHash') or ''}".encode("utf-8")).hexdigest()[:20]
@@ -89,16 +105,17 @@ def ensure_publish_approval(client, item: dict[str, Any], *, approved_by: str | 
     """Raise ``PublishError`` unless this site allows publishing this version. Does nothing when the gate is off."""
     from .publishing import PublishError
 
-    if publish_approval(client) != REQUIRED:
+    approval = publish_approval(client)
+    if approval != REQUIRED:
         return
     prefix = request_prefix(item)
     requests = _requests_for(client, prefix)
     if approved_by:
         for request in requests:
             if request["state"] == "open":  # the person's own publish settles the question the gate asked
-                rr.answer_review(client, request["id"], decision="approve", by=approved_by, feedback="Published by this person.")
+                rr.answer_review(client, request["id"], decision="approve", by=approved_by, feedback=f"Published by this person (approver: {APPROVER_PERSON}).")
         return
-    if any(request["outcome"] == "approved" for request in requests):
+    if any(request["outcome"] == "approved" and approver_kind_of(request) in accepted_approver_kinds(approval) for request in requests):
         return
     pending = next((request for request in requests if request["state"] == "open"), None)
     if pending is not None:

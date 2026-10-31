@@ -116,7 +116,7 @@ A site that sets its [publish approval](how-a-publish-flows.md#a-site-can-requir
 | `subject` | `{type: story, id: <lineage id>}`; the item record is a link. |
 | `mode`, `raisedBy` | `hard_gate`, `publish-gate`. |
 
-Approve it and the caller's next publish goes through (nothing publishes at the moment of approval). Reject it, or answer with feedback, and the version stays unpublished with the code `approval-rejected` until its text changes. A person's own publish settles an open request as approved. The code is `src/papyrus_content/publish_gate.py`; the setting is read and set with `papyrus ops content publish-gate show|set`.
+Approve it and the caller's next publish goes through (nothing publishes at the moment of approval). Reject it, or answer with feedback, and the version stays unpublished with the code `approval-rejected` until its text changes. A person\'s own publish settles an open request as approved, recorded as `approver: person`. Under `required` only a person\'s approval counts: an answer whose `by` starts with `agent:` is read as an agent\'s and does not open the gate. The setting is an enum that can grow (delegated approval, where an editor agent may approve after a person\'s first refusal lapses, is a separate task), and each approval records its approver kind. The code is `src/papyrus_content/publish_gate.py`; the setting is read and set with `papyrus ops content publish-gate show|set`.
 
 ## Recipients (site configuration, no code change)
 

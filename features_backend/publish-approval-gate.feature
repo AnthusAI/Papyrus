@@ -31,6 +31,13 @@ Feature: A site can require a person's approval before anything publishes
     And an automation publishes the item
     Then the item is published
 
+  Scenario: An agent's approval does not satisfy the required setting
+    Given a saved draft article on a site that requires approval to publish
+    And an automation has tried to publish the item
+    When an agent approves the review request
+    And an automation publishes the item
+    Then the publish is refused with code "approval-required"
+
   Scenario: Approval covers only the words that were approved
     Given a saved draft article on a site that requires approval to publish
     And an automation has tried to publish the item
