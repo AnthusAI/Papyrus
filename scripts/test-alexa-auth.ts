@@ -84,7 +84,7 @@ const behaviours: Record<string, () => Promise<void>> = {
   "the verifier exists only when account linking is on": async () => {
     const base = { invocationName: "test site", siteOrigin: "https://example.invalid" };
     assert.equal(createAccessTokenVerifier(resolveAlexaConfig({ ...base, accountLinking: false } as never)), undefined);
-    assert.ok(createAccessTokenVerifier(resolveAlexaConfig({ ...base, accountLinking: true } as never)));
+    assert.ok(createAccessTokenVerifier(resolveAlexaConfig({ ...base, accountLinking: true, amazonVendorId: "M2EXAMPLEVENDOR" } as never)));
   },
   "a signed-out intent gets a link account card": async () => {
     const response = linkAccountResponse(input());
