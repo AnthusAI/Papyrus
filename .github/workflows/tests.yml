@@ -2,8 +2,17 @@ name: tests
 
 on:
   pull_request:
+    paths-ignore:
+      - "project/**"
   push:
     branches: [develop]
+    paths-ignore:
+      - "project/**"
+
+# A newer push to the same pull request or branch makes the older run moot.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
