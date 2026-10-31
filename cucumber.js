@@ -70,6 +70,12 @@ module.exports = {
     require: ["features/step_definitions/message-author-enforced.steps.js"],
     format: ["summary"],
   },
+  // The alexa plugin and the tasks that extend it: every features/alexa-*.feature with its features/step_definitions/alexa-*.steps.js.
+  alexa: {
+    paths: ["features/alexa-*.feature"],
+    require: ["features/step_definitions/alexa-*.steps.js"],
+    format: ["summary"],
+  },
   messagesPage: {
     paths: ["features/newsroom-messages-page.feature"],
     require: ["features/step_definitions/messages-page.steps.js"],

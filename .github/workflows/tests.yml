@@ -28,6 +28,7 @@ jobs:
       - run: node scripts/test-email-reference-handoff.cjs
       - run: npm run test:assignment-data-access
       - run: npm run test:public-forms
+      - run: npm run test:alexa
       # Reader routes enumerate published editions from AppSync at build time. Staging drafts
       # mode skips that enumeration, so the build needs no deployed backend and no secrets.
       - run: npm run build
