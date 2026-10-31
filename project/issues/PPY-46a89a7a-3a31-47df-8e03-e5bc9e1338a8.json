@@ -3,7 +3,7 @@
   "title": "Accept/Reject intents and touch actions writing votes through the newsroom path",
   "description": "AcceptIntent / RejectIntent (current or named item) plus touch buttons. Writes use the same mutation as the web newsroom, under the user's identity, with a spoken confirmation. Verify that the votes reach the Cyclotron learning loop (PPY-c6aced). Gherkin covers the vote, an unauthorised user, and an offline backend.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,10 +15,18 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "b8bb03cf-9412-4ef2-9e99-97fb580d34ba",
+      "author": "home",
+      "text": "Superseded by the rescoped M4 tasks: review intents, recording votes under the user's own token, and the APL reference card.",
+      "created_at": "2026-10-31T19:52:07.764814Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:49.149495Z",
-  "updated_at": "2026-10-31T14:25:32.488697Z",
-  "closed_at": null,
+  "updated_at": "2026-10-31T19:52:07.891761Z",
+  "closed_at": "2026-10-31T19:52:07.891727Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

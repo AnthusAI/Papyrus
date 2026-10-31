@@ -3,7 +3,7 @@
   "title": "Generate the account-linking config in the skill manifest and deploy it via ASK CLI",
   "description": "The generator adds accountLinkingRequest (AUTH_CODE, authorizationUrl, accessTokenUrl, clientId, scopes, PKCE, domains) to the deploy. The client secret goes through `ask smapi update-account-linking-info` in CI. Linking is optional.",
   "type": "task",
-  "status": "open",
+  "status": "closed",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -19,10 +19,18 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "bf778d31-b74f-4c34-a0e8-221ef3258c4e",
+      "author": "home",
+      "text": "Done inside the skill sync (AnthusAI/Papyrus#945): accountLinkingClient (AUTH_CODE, Cognito hosted UI, secret read at sync time). Uploaded for Pilobolus on 2026-10-31.",
+      "created_at": "2026-10-31T19:52:06.834104Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:48.494413Z",
-  "updated_at": "2026-10-31T14:25:32.212835Z",
-  "closed_at": null,
+  "updated_at": "2026-10-31T19:52:06.957642Z",
+  "closed_at": "2026-10-31T19:52:06.957606Z",
   "right_now_summary": null,
   "right_now_updated_at": null,
   "custom": {}

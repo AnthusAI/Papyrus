@@ -1,0 +1,20 @@
+{
+  "id": "PPY-22a7abce-533f-4ed8-8ae2-72126b53efa5",
+  "title": "Alexa M8: Message threads by voice",
+  "description": "Milestone 8 (Ryan, 2026-10-31): **message threads by voice**. A signed-in editor asks what's been said recently. Alexa tells them about recent message threads (the Conversations / threaded Messages on References and Stories, and the /messages home), reads the messages in a thread, and says who posted each one. The Echo Show shows the thread.\n\nIt builds on M4: the same linked-user token path, LinkAccount flow and editor check. It's read-only at first; replying by voice is a later step.\n\nDone when: Ryan says \"Alexa, ask Pilobolus newsroom for my messages\", hears the recent threads (subject, count, last poster), picks one and hears its messages with their authors. Gherkin specs cover it against fakes.",
+  "type": "epic",
+  "status": "open",
+  "priority": 2,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+  "labels": [],
+  "dependencies": [],
+  "comments": [],
+  "created_at": "2026-10-31T19:52:08.699725Z",
+  "updated_at": "2026-10-31T19:52:08.699753Z",
+  "closed_at": null,
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
