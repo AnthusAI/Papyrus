@@ -7,7 +7,7 @@ import { resolveSiteBackendFeatureFlags } from "../amplify/site-backend-names";
 import { CLI_LOOPBACK_CALLBACK } from "../lib/cli-loopback-callback";
 
 const redirectUrls = ["http://localhost:3000/", "https://newsroom.example.test/", "https://newsroom.example.test/newsroom"];
-const identity = { brandId: "x", productionAppId: "", stagingAppId: "" } as never;
+const identity = { amplifyAppId: "app", brandId: "x", productionAppId: "" } as Parameters<typeof resolveSiteBackendFeatureFlags>[2];
 
 function synthesize(extraCallbackUrls?: readonly string[]) {
   const app = new App();
