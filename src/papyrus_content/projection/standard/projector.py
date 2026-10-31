@@ -48,7 +48,7 @@ from ..public_data import clipped, entry_for, hidden_from_public_data, owns_publ
 from ..writers import request_paths_for_key
 import inspect
 
-from . import blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages
+from . import alexa_pages, blocks, components, forum_pages, home_page_blocks, includes, knowledge_blocks, newsletter_pages
 from .config import STANDARD_KEYS, CollectionConfig, CustomPage, SectionConfig, StandardSettings, standard_settings_from_mapping
 from .entries import SUMMARY_FIELDS, StandardEntry, build_entries, entry_for_summary, entry_title, first_text, newest_first, order_of, sorted_by
 from .environment import SiteEnvironment, resolve_environment
@@ -68,6 +68,7 @@ from .hooks import NO_HOOKS, HookSite, Hooks, load_hooks
 from .page import HomeSectionBlock, ListingView, SectionIndexView, SectionTab, StandardPage
 from .showcase import logo_wall, showcase_sites
 from .sitemap import SITEMAP_KEYS, SitemapUrl, robots_text, sitemap_files
+from .alexa_pages import ALEXA_PLUGIN
 from .newsletter_pages import NEWSLETTER_PLUGIN
 from .urls import LEGACY_NEWSLETTER_SHELL_KEY, NOT_FOUND_KEY, UrlPolicy, slugify_tag
 
@@ -729,6 +730,23 @@ class StandardMarkusProjector(MarkusSiteProjector):
                     [body],
                     lambda name=name, body=body: self._page(
                         "newsletter_page", newsletter_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
+                    ),
+                    markdown=False,
+                )
+
+        # the alexa plugin's privacy and terms pages: real static pages with the full chrome, linked from the skill manifest
+        if ALEXA_PLUGIN in self._settings.plugins:
+            identity = self.standard.identity
+            paths = {name: self.policy.path(alexa_pages.site_path(name)) for name in alexa_pages.PAGE_NAMES}
+            family = self.standard.footer_family
+            for name in alexa_pages.PAGE_NAMES:
+                body = alexa_pages.fragment(name, site=identity.name, home=self.policy.path("/"), paths=paths, contact_url=family.contact_url if family is not None else "")
+                add(
+                    self.policy.key(alexa_pages.site_key(name)),
+                    f"alexa:{name}",
+                    [body],
+                    lambda name=name, body=body: self._page(
+                        "plugin_page", alexa_pages.head(name, paths[name], identity.description), site, entries=tuple(listed), fragment=body,
                     ),
                     markdown=False,
                 )
@@ -1473,7 +1491,7 @@ class StandardMarkusProjector(MarkusSiteProjector):
             actions = page.page_actions
             before, after = (actions, "") if self.standard.page_actions.placement == "header" else ("", actions)
             return before + page.fragment + after
-        if page.kind in ("home", "custom", "newsletter_page", "thread") and page.fragment:
+        if page.kind in ("home", "custom", "newsletter_page", "plugin_page", "thread") and page.fragment:
             return page.fragment
         if page.kind == "listing" and page.section_index is not None:
             if page.section_index.section.index.source:
