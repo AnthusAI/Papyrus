@@ -271,6 +271,13 @@ def step_filed(context, count):
     assert len(filed) == count and all(row["kind"] == "story_draft" for row in filed), filed
 
 
+@then("the draft story proposal targets the first two references")
+def step_targets(context):
+    filed = [row for row in client_of(context).proposals if "kind" in row]
+    wanted = [{"type": "entity", "id": f"reference:{entry['lineageId'] or entry['id']}"} for entry in context.digest_for_run["references"][:2]]
+    assert len(filed) == 1 and json.loads(filed[0]["targets"]) == wanted, filed
+
+
 @then("no request to publish proposals is made")
 def step_no_publish(context):
     assert "publish" not in json.dumps(client_of(context).calls).lower()

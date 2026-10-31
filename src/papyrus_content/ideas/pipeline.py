@@ -72,7 +72,7 @@ def idea_record(candidate: dict[str, Any], *, run: dict[str, Any], digest: dict[
         "createdAt": iso(now),
         **candidate,
         "citations": [
-            {key: by_id[identifier].get(key) for key in ("id", "title", "source", "sourceUri", "status", "arrivedAt")}
+            {key: by_id[identifier].get(key) for key in ("id", "lineageId", "title", "source", "sourceUri", "status", "arrivedAt")}
             for identifier in candidate["citedReferenceIds"]
         ],
     }

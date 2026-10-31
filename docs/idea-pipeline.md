@@ -281,7 +281,7 @@ It is the same for every monitor: no source is named in the code, so a new site 
 
    The target is how a later run knows the Reference is drafted: the operator can read targets (not bodies) through `listStoryDrafts`, a declined draft keeps
    its target, and the Proposal model has no target type for a Reference, so the `entity` type carries an id that no Knowledge Map entity has. It is
-   also how the JSON store (`ideas/<id>.json`, `referenceLineageId`) and the Proposals agree. A Reference is never drafted twice, whatever happened to its draft.
+   also how the JSON store (`ideas/<id>.json`, `referenceLineageId`) and the Proposals agree. A Reference is never drafted twice, whatever happened to its draft. "The same Reference" is its lineage, or its address: the same page delivered as another Reference (a second monitor, a repost) is skipped too (`sameSource` in the run record). The targets are read again just before each filing, so an overlapping run files nothing the other run just filed. `ideas synthesize` files the Reference lineages it cites as targets (up to the ten a Proposal may name), so a Reference an idea covers is not drafted again by `monitor-stories`.
 
 ```bash
 papyrus ideas monitor-stories --site <site> --dry-run
