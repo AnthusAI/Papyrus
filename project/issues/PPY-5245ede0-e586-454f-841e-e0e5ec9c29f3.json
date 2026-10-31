@@ -1,0 +1,30 @@
+{
+  "id": "PPY-5245ede0-e586-454f-841e-e0e5ec9c29f3",
+  "title": "Snapshot and ranking: up is a 1-5 dimension; publish {mean, n, hist, upShare}; no net in items.json or proposals",
+  "description": "Repo: **Papyrus**. Files: `src/papyrus_content/reader_steering/snapshot.py` (`UP`, the up/down/net block at ~line 216 `votes_summary`-style function, `rating_summary`, `weighted_reader_means`, `distinct_raters`, the items.json assembly ~line 589), `src/papyrus_content/reader_steering/proposal_votes.py` (`partition_votes` ~108, `needs_a_look` ~147-159 counting `value == 1`), `src/papyrus_content/reader_steering/ranking.py` (no formula change; add `up_share` helper), `src/papyrus_content/reader_steering/snapshot_test.py`, `proposal_votes_test.py`, `features_backend/reader-subject-votes.feature`, `features_backend/reader-steering.feature`, `docs/score-combination.md` (one paragraph: the `up` dimension is a 1-5 dimension like the others).\n\n## Change\nTreat `up` as a rating dimension everywhere a snapshot reads votes, always on stored values 1-5 (this story reads only post-migration values; the migration story backfills).\n- Per subject and dimension, publish `{mean, n, hist, upShare}`: `mean` rounded to `SCORE_DECIMALS` (None when n = 0), `n` the count, `hist[i]` the number of `i+1` ratings, `upShare` = (hist[3] + hist[4]) / n rounded to 4 decimals (None when n = 0). Keep the `new_account_weight` weighting for `mean` exactly as `weighted_reader_means` does today; `n` and `hist` are plain counts.\n- `items.json`: replace `{up, down, net, score}` with `{up: {mean, n, hist, upShare}}` under the subject's `dimensions` block, the same shape as the other dimensions. Rising and the hype gap read `hist[3] + hist[4]` where they used to count upvotes. No `net` anywhere.\n- Proposals: `partition_votes` and `needs_a_look` count a stored value >= 4 as up and <= 2 as down (3 is neither); the public proposal counts become `{mean, n, upShare}`.\n- Shrinkage: `up` joins the dimension means fed to `shrinkage_front_score` only when the site lists it in `dimensions` (opt-in, no change in ranking for sites that do not); document that in `docs/score-combination.md`.\n- Privacy scan unchanged: still counts, means and histograms only.\n\n## Gherkin\n  Scenario: The snapshot publishes mean, count, histogram and up share for the up dimension\n  Scenario: Four and five are counted as up, one and two as down, three as neither\n  Scenario: A new account's judgement weighs less in the mean but counts once in the histogram\n  Scenario: Items.json holds no net score\n  Scenario: The proposals data publishes a share of up judgements instead of a net\n  Scenario: A site that lists up among its dimensions ranks with it and one that does not is unchanged\n  Scenario: The public files never identify a reader\n\n## Acceptance\n`poetry run pytest src/papyrus_content/reader_steering`; backend cucumber; `grep -rn '\"net\"' src/papyrus_content/reader_steering` returns nothing. Blocked by the write-path story (same stored values). Shipped's `shipped-proposals.js` reads the new shape in the Shipped-web story (Shipped session).",
+  "type": "story",
+  "status": "open",
+  "priority": 1,
+  "assignee": null,
+  "creator": null,
+  "parent": "PPY-49e9b51e-5a5e-455b-8cf2-4d7c841c0281",
+  "labels": [],
+  "dependencies": [
+    {
+      "target": "PPY-fa27d961-9013-4862-a230-a20660c3c397",
+      "type": "blocked-by"
+    }
+  ],
+  "comments": [],
+  "created_at": "2026-10-31T13:21:58.340459Z",
+  "updated_at": "2026-10-31T13:22:24.106479Z",
+  "closed_at": null,
+  "agent": {
+    "platform": "claude_code",
+    "model": "claude-fable-5-1",
+    "name": "Papyrus planning session"
+  },
+  "right_now_summary": null,
+  "right_now_updated_at": null,
+  "custom": {}
+}
