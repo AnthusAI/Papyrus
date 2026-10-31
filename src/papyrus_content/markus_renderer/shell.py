@@ -181,6 +181,7 @@ class SiteChrome:
     asset_root: str | None = None
     render_masthead: Callable[["PageContext"], str] | None = None
     render_body: Callable[["PageContext", "BodyParts"], str] | None = None
+    stylesheet_versions: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -371,8 +372,10 @@ def render_page(
         head_lines.append(render_analytics_events_script())
         if chrome.consent_mode is not None:
             head_lines.append(CONSENT_BANNER_STYLE)
+    own_versions = dict(chrome.stylesheet_versions)
     head_lines.extend(
-        f'<link rel="stylesheet" href="{prefix}{sheet}{suffix}">'
+        f'<link rel="stylesheet" href="{prefix}{sheet}'
+        f'{f"?v={html.escape(own_versions[sheet], quote=True)}" if sheet in own_versions else suffix}">'
         for sheet in chrome.stylesheets
     )
     head_lines.append("</head>")

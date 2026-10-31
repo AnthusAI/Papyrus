@@ -79,6 +79,10 @@ With `homePage.threads.enabled` the same task also writes `_data/home-page/threa
 - **De-duplication**: threads claim `thread:<key>` in the page ledger, so two threads includes on one page never repeat a thread, and they do not interfere with the Reference cards.
 - **Freshness**: with `threads.enabled`, the `home-page` plugin also reads the Message table's stream into the same trigger. A new comment, or a change of its `status`, `content`, `editedAt` or `deletedAt`, opens the same debounce window. A Message stream that another feature already switched on is reused, not replaced.
 
+## Stylesheet
+
+`css/papyrus-home-page.css` is written whenever `homePage` is set, but a page links it only when it places a references or threads include, with a `?v=` token of its own (the first 12 hex characters of that file's SHA-256). The file is left out of the site-wide `?v=`, so a page with no cards keeps the same bytes with or without `homePage`.
+
 ## Freshness
 
 Curation changes reach the pages without anyone running a command. The backend plugin `home-page` (`backend.plugins: ["home-page"]` in `papyrus.config.ts`) wires four things, and only for a site that lists it: every other site synthesizes exactly what it did before.

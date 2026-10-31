@@ -118,6 +118,7 @@ def render(
     settings: HomePageSettings,
     section_labels: Mapping[str, str] | None = None,
 ) -> str:
+    ledger.home_page_used = True
     chosen = select_references(source_doc, attributes, ledger, count_of({}, settings), section_labels)
     empty = attributes.get("empty", "")
     if not chosen:
@@ -162,6 +163,7 @@ def select_threads(document: Mapping | None, attributes: Mapping, ledger: PageLe
 
 
 def render_threads(attributes: Mapping, source_doc: Mapping | None, ledger: PageLedger, settings: HomePageSettings) -> str:
+    ledger.home_page_used = True
     chosen = select_threads(source_doc, attributes, ledger, count_of({}, settings))
     empty = attributes.get("empty", "")
     if not chosen:
