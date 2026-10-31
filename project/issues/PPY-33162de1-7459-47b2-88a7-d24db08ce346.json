@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f9a5de65-1eb5-4a05-bc7f-9f76601f064b",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/944",
+      "created_at": "2026-10-31T15:16:33.359610Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:48.014573Z",
-  "updated_at": "2026-10-31T15:11:46.986006Z",
+  "updated_at": "2026-10-31T15:16:33.359832Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
