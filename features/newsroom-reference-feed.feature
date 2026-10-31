@@ -154,6 +154,27 @@ Feature: The References page is a news feed ranked by what the Cyclotron expects
     And opening a card from the grid selects it too
     And before any card is selected there is no Detail pane and the feed has the whole width
 
+  Scenario: The Previous and Next bar stays in view at the bottom of the detail while the reference scrolls
+    The detail of a long reference scrolls, but the bar with Previous, the position and Next does not go with it. On a phone the
+    bar sits just above the bottom tab bar, which has its own safe-area padding; from the tablet width up it sits at the bottom of the
+    detail pane beside the feed. It has a solid tone of its own, so the text never shows through it, and the end of the content is
+    never hidden behind it.
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor opens a long reference and scrolls its detail to the bottom at 375, 390 and 1440 pixels
+    Then the Previous and Next buttons are still in view, above the tab bar on a phone and at the bottom of the detail pane on a desktop
+    And the bar is in the same place at the top, part way down and at the bottom of the detail
+    And the last of the detail's content ends above the bar, so nothing is covered by it
+
+  Scenario: Selecting a reference by any means opens its detail at the top with the headline in view
+    A reference opened from a card, with Next, with Previous or by the keyboard shortcuts for them, from a link, or as the item after
+    a vote always shows its headline first, wherever the previous reference was scrolled to. The page resets the scroller that really
+    scrolls: the detail pane's own from the tablet width up, and the newsroom's page scroller on a phone. Showing the same
+    reference again, as a background refresh does, leaves the editor's place alone.
+    Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
+    When the editor scrolls a long reference to the bottom and then selects another with a card, with Next and with Previous
+    Then each newly selected reference is scrolled to the top and its headline is in view above the bar, on a phone and on a desktop
+    And a refresh of the reference that stays open does not move its scroll position
+
   Scenario: The grid stays put while the editor selects, rates and the data refreshes
     Given a feed of References with predictions from a strong Accept to a strong Reject and one with no prediction
     When the editor selects five items in turn, rates two, and a background refresh changes the predictions and adds a new item

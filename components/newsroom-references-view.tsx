@@ -7,7 +7,7 @@ import { ReferenceCurationControls, useReferenceImport } from "./reference-curat
 
 import { ArrowLeftIcon, ExternalLinkIcon, LayoutGridIcon, ListIcon, PlusIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -498,6 +498,20 @@ export function NewsroomReferencesView({
 
   const previewAttachments = useReferencePreviewAttachments(selectedReference, referenceAttachments);
 
+  // Whatever way a reference is selected (card, Next, Previous, arrow keys, a deep link, the item after a vote), the detail opens at its top
+  // with the headline in view. The scroller that actually scrolls depends on the layout: the detail pane's own scroll area from `lg`, and on a
+  // phone the page's scroller (`.organizer-main`, or the window), because the pane is as tall as its content. So every scrolling ancestor of
+  // the detail, and the pane's scroll area itself, goes back to the top. Keyed on the id, so re-rendering the same reference never moves it.
+  const openLineageId = selectedReference ? referenceLineageId(selectedReference) : "";
+  useLayoutEffect(() => {
+    if (!openLineageId || typeof document === "undefined") return;
+    const detail = document.querySelector<HTMLElement>("[data-reference-detail-scroll]");
+    if (!detail) return;
+    for (let node: HTMLElement | null = detail; node; node = node.parentElement) if (node.scrollTop !== 0) node.scrollTop = 0;
+    const page = document.scrollingElement;
+    if (page && page.scrollTop !== 0) page.scrollTop = 0;
+  }, [openLineageId]);
+
   // The queue is the current list filter. A reference the editor has just decided leaves the filtered
   // list, but keeps its place in the queue until they move on, so "3 of 29" does not jump under them.
   const queueRef = useRef<string[]>([]);
@@ -866,7 +880,7 @@ export function NewsroomReferencesView({
 
       <div
         className={cn(
-          "hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-[20px] bg-[var(--feed-card)] lg:pb-16",
+          "hidden min-h-0 w-full shrink-0 flex-col rounded-[20px] bg-[var(--feed-card)] lg:overflow-hidden lg:pb-16",
           DETAIL_PANE_WIDTH,
           // The detail appears once a reference is selected (or when the queue is done); until then the feed has the whole width.
           detailOpen && "flex",
@@ -885,7 +899,7 @@ export function NewsroomReferencesView({
           <span className="text-sm font-medium text-foreground">Detail</span>
         </div>
         <div className="flex min-h-0 flex-1 flex-col" data-review-gestures onPointerDown={gestures.onPointerDown} onPointerUp={gestures.onPointerUp} style={gestures.style}>
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea className="min-h-0 flex-1" data-reference-detail-scroll>
           {selectedReference ? (
             <ReferenceDetailPanel
               key={referenceLineageId(selectedReference)}

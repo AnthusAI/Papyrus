@@ -24,6 +24,8 @@ function compiledTailwind(): Promise<string> {
   return tailwindCss;
 }
 
+const organizerCss = () => fs.readFileSync(`${root}components/newsroom-organizer.css`, "utf8");
+
 function browserBundle(): Promise<string> {
   bundle ??= build({
     absWorkingDir: root, bundle: true, write: false, platform: "browser", jsx: "automatic",
@@ -82,6 +84,14 @@ window.fixtureCorrections = [];
 window.fixtureUploads = [];
 window.fixtureRequests = [];
 window.fixtureFailNext = false;
+// ?shell mounts the view the way the newsroom does: inside the organizer's own scroller (.organizer-main) with its bottom tab bar below.
+const Frame = params.has("shell")
+  ? ({ children }) => <div className="newsroom-organizer" data-kanbus-theme="" data-sidebar-collapsed="true" style={{ "--kb-theme-paper": "#f4f1e8", "--kb-theme-ink": "#1d1d1b", "--org-paper": "#f4f1e8", "--org-ink": "#1d1d1b" }}>
+      <div className="organizer-workspace" style={{ minHeight: 0, display: "flex", flexDirection: "column" }}><main className="organizer-main" data-category-steering="">{children}</main></div>
+      <nav className="organizer-bottom-nav" aria-label="Primary newsroom navigation"><ul>{["Work", "References", "Stories", "Messages", "More"].map((name) => <li key={name}><a href="#">{name}</a></li>)}</ul></nav>
+    </div>
+  : ({ children }) => <div style={{ height: "100dvh", display: "flex", flexDirection: "column", padding: 12 }}>{children}</div>;
+
 function Fixture() {
   const [references, setReferences] = useState(fixture);
   const [reasons, setReasons] = useState(new Map());
@@ -97,7 +107,7 @@ function Fixture() {
     setReferences((current) => current.map((row) => row.lineageId === reference.lineageId ? { ...row, curationStatus: status, curationStatusReason: options.note?.trim() || null, curationStatusUpdatedAt: new Date().toISOString() } : row));
     setReasons((current) => { const next = new Map(current); if (action === "reject") next.set(reference.lineageId, options.reasonCode); else next.delete(reference.lineageId); return next; });
   }
-  return <div style={{ height: "100dvh", display: "flex", flexDirection: "column", padding: 12 }}>
+  return <Frame>
     <NewsroomReferencesView decisions={decisions} onCorrectCapture={params.has("nocorrect") ? undefined : async (input) => {
       window.fixtureCorrections.push(input);
       if (!input.pdfAttachmentId) return;
@@ -105,7 +115,7 @@ function Fixture() {
       window.fixturePayloads[input.referenceId] = [body("curation-edit-0001-text", { text: "Text read from the uploaded PDF. " + words(40) })];
       return { ok: true, edits: [{ kind: "text", sortKey: "curation-edit-0001-text", via: "editor_pdf" }] };
     }} onReview={save} referenceAttachments={attachments} references={references} reviewReasons={reasons} />
-  </div>;
+  </Frame>;
 }
 createRoot(document.getElementById("root")).render(<Fixture />);
 ` },
@@ -127,7 +137,7 @@ async function setup(width: number, options = "") {
     if (url.pathname === "/fixture.js") return route.fulfill({ contentType: "text/javascript", body: script });
     // Only site1 lets itself be framed; every other source refuses, as most news sites do.
     if (url.pathname === "/api/newsroom/source-frameable") return route.fulfill({ contentType: "application/json", body: JSON.stringify({ frameable: (url.searchParams.get("url") ?? "").includes("site1.") }) });
-    return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style><style>body{margin:0;font:16px sans-serif}button,textarea{font:inherit}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>` });
+    return route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width"><style>${tailwind}</style>${options.includes("shell") ? `<style>${organizerCss()}</style>` : ""}<style>body{margin:0;font:16px sans-serif}button,textarea{font:inherit}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>` });
   });
   await page.goto(`${origin}/newsroom/references${options}`);
   await page.locator("[data-feed-card]").first().waitFor();
@@ -594,6 +604,116 @@ Object.assign(scenarios, {
         await page.waitForTimeout(300);
         assert.equal(await page.locator("[data-feed-new-items]").count(), 0);
         assert.equal(await page.locator('[data-feed-card="r15"]').count(), 1, "showing the new items brings them in");
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+});
+
+/** Where the detail view really scrolls: the pane's own scroll area from 1024, the organizer's scroller (or the window) on a phone. */
+const detailScroll = (page: Page, to: "top" | "bottom" | number) => page.evaluate((target) => {
+  for (let node: HTMLElement | null = document.querySelector<HTMLElement>("[data-reference-detail-scroll]"); node; node = node.parentElement) {
+    if (node.scrollHeight > node.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(node).overflowY)) node.scrollTop = target === "top" ? 0 : target === "bottom" ? 1e6 : target;
+  }
+  const page = document.scrollingElement; if (page && page.scrollHeight > page.clientHeight + 1) page.scrollTop = target === "top" ? 0 : target === "bottom" ? 1e6 : target;
+}, to);
+const scrolledOffsets = (page: Page) => page.evaluate(() => {
+  const offsets: number[] = [];
+  for (let node: HTMLElement | null = document.querySelector<HTMLElement>("[data-reference-detail-scroll]"); node; node = node.parentElement) offsets.push(node.scrollTop);
+  offsets.push(document.scrollingElement?.scrollTop ?? 0);
+  return Math.max(...offsets);
+});
+/** PAPYRUS_DETAIL_NAV_SHOTS_DIR=<dir> saves a screenshot at the 390 and 1440 pixel widths. */
+const shoot = async (page: Page, width: number, name: string) => {
+  const dir = process.env.PAPYRUS_DETAIL_NAV_SHOTS_DIR; if (!dir || (width !== 390 && width !== 1440)) return;
+  fs.mkdirSync(dir, { recursive: true }); await page.screenshot({ path: `${dir}/${name}-${width}.png` });
+};
+const rectOf = (page: Page, selector: string) => page.evaluate((query) => {
+  const el = document.querySelector<HTMLElement>(query + ":not([hidden])"); if (!el) return null;
+  const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, height: r.height };
+}, selector);
+/** Opens the long reference r1 (600 words of captured text) and waits for the text, so there is plenty to scroll. */
+const openLong = async (page: Page) => { await open(page, "r1"); await page.locator("[data-capture-text]:visible").waitFor(); await page.waitForTimeout(300); };
+const lastContentBottom = (page: Page) => page.evaluate(() => {
+  const root = document.querySelector("[data-reference-detail-scroll]")!; let bottom = 0;
+  for (const el of root.querySelectorAll("*")) { const r = el.getBoundingClientRect(); if (r.height > 0 && r.bottom > bottom && getComputedStyle(el).position !== "fixed") bottom = r.bottom; }
+  return bottom;
+});
+
+Object.assign(scenarios, {
+  /** The Previous / Next bar stays in view above the tab bar however far the detail is scrolled, and covers nothing at the end. */
+  async detail_bar_fixed() {
+    for (const [width, height] of [[375, 800], [390, 844], [1440, 900]] as const) {
+      const { browser, page, errors } = await setup(width, "?shell");
+      try {
+        await page.setViewportSize({ width, height });
+        await openLong(page);
+        const barAt = async (label: string) => {
+          const bar = (await rectOf(page, "[data-review-queue-bar]"))!; const tabs = await rectOf(page, ".organizer-bottom-nav");
+          assert.ok(bar.height > 30, `${width}: the bar is shown ${label}`);
+          assert.ok(bar.top >= 0 && bar.bottom <= height + 1, `${width}: the bar is inside the viewport ${label}: ${JSON.stringify(bar)}`);
+          if (width < 1024) assert.ok(tabs && Math.abs(bar.bottom - tabs.top) <= 1, `${width}: the bar sits just above the tab bar ${label}: bar ${bar.bottom}, tabs ${tabs?.top}`);
+          else assert.ok(Math.abs(bar.bottom - height) <= 1, `${width}: the bar is at the bottom of the detail pane ${label}: ${bar.bottom}`);
+          return bar;
+        };
+        const top = await barAt("at the top");
+        await detailScroll(page, 120); await page.waitForTimeout(150);
+        const middle = await barAt("part way down");
+        await detailScroll(page, "bottom"); await page.waitForTimeout(300);
+        const bottom = await barAt("at the bottom");
+        await shoot(page, width, "detail-scrolled-to-bottom");
+        assert.ok(Math.abs(top.top - middle.top) <= 1 && Math.abs(top.top - bottom.top) <= 1, `${width}: the bar does not move while the content scrolls`);
+        assert.ok(await scrolledOffsets(page) > 100, `${width}: the content really scrolled`);
+        const content = await lastContentBottom(page);
+        assert.ok(content <= bottom.top + 1, `${width}: the last of the content (${content}) is not covered by the bar (top ${bottom.top})`);
+        assert.equal(await page.locator("[data-review-queue-bar]").getByRole("button", { name: "Next" }).isVisible(), true);
+        assert.equal(await page.locator("[data-review-queue-bar]").getByRole("button", { name: "Previous" }).isVisible(), true);
+        assert.deepEqual(errors, []);
+      } finally { await browser.close(); }
+    }
+  },
+
+  /** Whatever selects a reference, its detail opens at the top with the headline in view. */
+  async detail_opens_at_top() {
+    for (const [width, height] of [[375, 800], [390, 844], [1440, 900]] as const) {
+      const { browser, page, errors } = await setup(width, "?shell");
+      try {
+        await page.setViewportSize({ width, height });
+        const headlineShown = async (id: string, how: string) => {
+          await page.waitForFunction((lineage) => document.querySelector(`[data-review-card="${lineage}"]`)?.getBoundingClientRect().height, id);
+          await page.waitForTimeout(250);
+          assert.equal(await scrolledOffsets(page), 0, `${width}: ${how} opens ${id} scrolled to the top`);
+          const bar = (await rectOf(page, "[data-review-queue-bar]"))!;
+          const headline = (await page.locator(`[data-review-card="${id}"] h2`).first().boundingBox())!;
+          assert.ok(headline.y >= 40 && headline.y + headline.height <= bar.top, `${width}: ${how}: the headline of ${id} is in view (${headline.y}..${headline.y + headline.height}, bar ${bar.top})`);
+        };
+        await openLong(page);
+        await headlineShown("r1", "a card click");
+        // Next, from deep in a long reference.
+        await detailScroll(page, "bottom"); await page.waitForTimeout(200);
+        assert.ok(await scrolledOffsets(page) > 100, `${width}: scrolled down before Next`);
+        const queue = page.locator("[data-review-queue-bar]:visible");
+        await queue.getByRole("button", { name: "Next" }).click();
+        await headlineShown("r2", "Next");
+        await shoot(page, width, "detail-after-next");
+        // Re-rendering the same reference leaves the scroll alone.
+        await detailScroll(page, "bottom"); await page.waitForTimeout(200);
+        const kept = await scrolledOffsets(page);
+        await page.evaluate(() => (window as unknown as { fixtureReshuffle: () => void }).fixtureReshuffle());
+        await page.waitForTimeout(300);
+        assert.equal(await scrolledOffsets(page), kept, `${width}: a refresh of the same reference does not move the scroll`);
+        // Previous, from deep down again.
+        await queue.getByRole("button", { name: "Previous" }).click();
+        await headlineShown("r1", "Previous");
+        await detailScroll(page, "bottom"); await page.waitForTimeout(200);
+        await queue.getByRole("button", { name: "Next" }).click();
+        await headlineShown("r2", "Next, again");
+        // A card click: on a phone Back shows the feed, which has its own scroll position; on a desktop the pane stays beside the feed.
+        await detailScroll(page, "bottom"); await page.waitForTimeout(200);
+        await closeDetail(page, width);
+        await domClick(card(page, "r4").locator("[data-feed-open]"));
+        await review(page).waitFor();
+        await headlineShown("r4", "a card click");
         assert.deepEqual(errors, []);
       } finally { await browser.close(); }
     }
