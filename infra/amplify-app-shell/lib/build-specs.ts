@@ -67,6 +67,11 @@ function frontendSection(preBuildCommands: string[], buildCommands: string[], ar
   return lines;
 }
 
+// After the backend deploy (it needs the skill function's ARN from amplify_outputs.json). It skips with one log line unless the site
+// enables the alexa plugin and the shared developer credentials exist, and a failure is logged, never fatal: a site's deploy
+// does not depend on Amazon. A Papyrus pin without the command prints usage and falls through the same way.
+const ALEXA_SKILL_SYNC = "npx papyrus-app alexa-sync || echo \"alexa-sync did not complete; the site deploy continues\"";
+
 const DEPLOY_STACK_IN_BUILD = "npx papyrus-infra deploy --site infra/site.json --only-branch main";
 
 export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): string {
@@ -83,6 +88,7 @@ export function cmsProductionBuildSpec(config: AmplifyAppShellSiteConfig): strin
         ...deployStackCommands,
         "if [ -z \"${PAPYRUS_CONSOLE_RESPONDER_IMAGE_URI:-}\" ]; then export PAPYRUS_CONSOLE_RESPONDER_ALLOW_LOCAL_BUILD=true; fi",
         "npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID",
+        ALEXA_SKILL_SYNC,
       ],
       "        ",
     ),
