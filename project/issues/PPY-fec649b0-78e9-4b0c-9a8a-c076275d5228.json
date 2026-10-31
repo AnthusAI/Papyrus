@@ -3,7 +3,7 @@
   "title": "APL feed document with touch to open a story",
   "description": "skill-package APL document for the feed: a Sequence of story cards (image, headline, dek), site theme colours and fonts, and a TouchWrapper that sends a UserEvent to open the story. The handler handles Alexa.Presentation.APL.UserEvent. Gherkin covers the directive contents and the touch event.",
   "type": "task",
-  "status": "open",
+  "status": "in_progress",
   "priority": 2,
   "assignee": null,
   "creator": null,
@@ -15,9 +15,17 @@
       "type": "blocked-by"
     }
   ],
-  "comments": [],
+  "comments": [
+    {
+      "id": "f7de6f23-ab4d-4a2e-b7a1-1506ec641907",
+      "author": "home",
+      "text": "PR: https://github.com/AnthusAI/Papyrus/pull/944",
+      "created_at": "2026-10-31T15:16:33.229374Z",
+      "comment_type": "default"
+    }
+  ],
   "created_at": "2026-10-31T14:06:47.786048Z",
-  "updated_at": "2026-10-31T14:25:31.201299Z",
+  "updated_at": "2026-10-31T15:16:33.229602Z",
   "closed_at": null,
   "right_now_summary": null,
   "right_now_updated_at": null,
