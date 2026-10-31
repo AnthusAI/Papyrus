@@ -89,6 +89,18 @@ export interface CliLoginDiscoveryOptions {
   environment?: Record<string, string | undefined>;
 }
 
+const CONSOLE_ORIGIN_ENV = "PAPYRUS_CONSOLE_ORIGIN";
+
+/**
+ * The origin the file names as the site: the console origin when the console has its own host (PAPYRUS_CONSOLE_ORIGIN), else the
+ * site origin. The CLI requires `publication` to equal the origin it was given, and `papyrus login --remote` lives on the console
+ * host, so that host is the address to sign in at. The public host serves the same file.
+ */
+function loginOrigin(siteOrigin: string, environment: Record<string, string | undefined>): string {
+  const consoleOrigin = (environment[CONSOLE_ORIGIN_ENV] ?? "").trim();
+  return consoleOrigin === "" ? siteOrigin : consoleOrigin;
+}
+
 export function handleCliLoginDiscovery(request: Pick<NextRequest, "nextUrl">, options: CliLoginDiscoveryOptions = {}): NextResponse {
   let origin: string;
   try {
@@ -98,7 +110,7 @@ export function handleCliLoginDiscovery(request: Pick<NextRequest, "nextUrl">, o
     throw error;
   }
   const outputs = (options.readOutputs ?? (() => readAmplifyOutputsFile() as AmplifyOutputsForCliLogin | null))();
-  const document = cliLoginDocumentFromOutputs(outputs, origin);
+  const document = cliLoginDocumentFromOutputs(outputs, loginOrigin(origin, options.environment ?? process.env));
   if (!document) {
     return NextResponse.json(
       { error: "cli_login_not_configured", message: "This site does not register the CLI sign-in callback." },

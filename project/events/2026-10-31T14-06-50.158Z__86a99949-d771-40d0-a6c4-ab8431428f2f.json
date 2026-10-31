@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "event_id": "86a99949-d771-40d0-a6c4-ab8431428f2f",
+  "issue_id": "PPY-00ac19f5-01e2-4c83-9e1a-3a04d8e4b5cc",
+  "event_type": "issue_created",
+  "occurred_at": "2026-10-31T14:06:50.158Z",
+  "actor_id": "home",
+  "payload": {
+    "title": "Alexa M7: Listen to full stories (long-form audio)",
+    "description": "Milestone 7 (a follow-up after the first publication). A person can listen to a whole story, not just its summary.\n\nScope:\n- Full-length audio per story: reuse narration audio where a site already makes it (Pilobolus), otherwise generate it with the site's chosen voice and store it on S3/CloudFront.\n- Alexa AudioPlayer interface: play, pause, resume, next, previous, and playback state per user. The certification rules for audio skills apply.\n- Story-level \"play the latest stories\" queue.\n\nDone when: \"Alexa, ask Pilobolus to play the latest story\" plays the full narrated story, and pause/resume works across sessions.\n",
+    "issue_type": "epic",
+    "status": "open",
+    "priority": 2,
+    "assignee": null,
+    "parent": "PPY-704ae15a-dd0f-4619-9f9b-ea980aa0e2f8",
+    "labels": []
+  }
+}

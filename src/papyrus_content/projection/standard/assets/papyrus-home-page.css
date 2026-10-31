@@ -39,3 +39,15 @@
 .home-page-count { display: inline-flex; align-items: center; gap: .375rem; font-weight: 600; }
 .home-page-excerpt { margin: 0; font-size: .9375rem; line-height: 1.45; overflow-wrap: anywhere; }
 .home-page-author { margin: 0; font-size: .8125rem; font-weight: 600; color: var(--home-page-muted, color-mix(in srgb, currentColor 70%, transparent)); }
+.home-page-thread-page { max-width: 46rem; margin: 0 auto 2rem; }
+.home-page-thread-header { display: flex; flex-direction: column; gap: .75rem; margin: 0 0 1.5rem; }
+.home-page-thread-anchor { display: flex; }
+.home-page-thread-title { margin: 0; overflow-wrap: anywhere; }
+.home-page-message-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .75rem; }
+.home-page-message { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.125rem; border-radius: var(--home-page-radius, .75rem); background: var(--home-page-card-bg, var(--papyrus-band-muted-bg, color-mix(in srgb, currentColor 7%, transparent))); color: var(--home-page-ink, inherit); }
+.home-page-message-head { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .75rem; font-size: .8125rem; color: var(--home-page-muted, color-mix(in srgb, currentColor 70%, transparent)); }
+.home-page-author-name, .home-page-edited { display: inline-flex; align-items: center; gap: .375rem; }
+.home-page-author-name { font-weight: 700; color: var(--home-page-ink, inherit); }
+.home-page-message-text { overflow-wrap: anywhere; line-height: 1.55; }
+.home-page-message-text p { margin: 0 0 .75rem; }
+.home-page-message-text p:last-child { margin-bottom: 0; }

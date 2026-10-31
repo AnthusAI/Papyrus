@@ -82,6 +82,8 @@
     "capture:reference-feed": "node scripts/capture-reference-feed-shots.mjs",
     "test:cli-login-discovery": "tsx scripts/test-cli-login-discovery.ts && cucumber-js --profile cliLoginDiscovery",
     "test:cli-federation-client": "tsx scripts/test-cli-federation-client.ts",
+    "test:console-origin": "tsx scripts/test-console-origin.ts && poetry run behave features_backend/console-origin.feature",
+    "test:cli-enroll-route": "tsx scripts/test-cli-enroll-route.ts && cucumber-js --profile cliEnrollRoute",
     "test:cli-remote-login": "tsx scripts/test-cli-remote-login.ts && cucumber-js --profile cliRemoteLoginSite",
     "test:prospectus-sign-in-routes": "tsx scripts/test-prospectus-sign-in-routes.ts",
     "test:prospectus-account-client": "tsx scripts/test-prospectus-account-client.ts",

@@ -346,6 +346,30 @@ allow:
     kind: "Personal email address"
     reason: "False alarm: the matched text is a versioned plugin bundle filename (name, at-sign, version, .js) quoted in append-only Kanbus event history, not a person's address; the live issue descriptions were reworded."
     added: 2026-10-31
+  - id: "2d38f7742b9669db"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/shipped-console.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "e4034045225fc102"
+    rule: "leftblock-session-uuid"
+    file: "infra/edge/shipped-console.yaml"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "73514c23c2a427c5"
+    rule: "leftblock-session-uuid"
+    file: "procedures/newsroom/tests/test_shipped_console_edge.py"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
+  - id: "8e00ba69c5c13adf"
+    rule: "leftblock-session-uuid"
+    file: "procedures/newsroom/tests/test_shipped_console_edge.py"
+    kind: "Bare UUID (potential session/agent identifier)"
+    reason: "Public AWS managed CloudFront policy ids (CachingDisabled, AllViewerExceptHostHeader); not session identifiers"
+    added: 2026-10-31
   - id: "9e6e60cb952e1eb2"
     rule: "leftblock-session-uuid"
     file: "infra/edge/threat-intelligence.yaml"

@@ -60,6 +60,22 @@ const behaviours: Record<string, () => void> = {
     assert.equal(on.AccessTokenValidity, 60);
     assert.equal(on.IdTokenValidity, 60);
   },
+  console_origin_is_used_when_set() {
+    const environment = { PAPYRUS_SITE_ORIGIN: "https://shipped.example.test", PAPYRUS_CONSOLE_ORIGIN: "https://newsroom.shipped.example.test" };
+    const extra = cliFederationClientCallbackUrls(true, environment);
+    assert.deepEqual(extra, [CLI_LOOPBACK_CALLBACK, "https://newsroom.shipped.example.test/cli/callback"]);
+    const consoleRedirectUrls = ["http://localhost:3000/", "https://shipped.example.test/", "https://newsroom.shipped.example.test/"];
+    const app = new App();
+    const authStack = new Stack(app, "Auth", { env: { account: "111111111111", region: "us-east-1" } });
+    const userPool = new UserPool(authStack, "UserPool");
+    new UserPoolIdentityProviderGoogle(authStack, "Google", { userPool, clientId: "google-client", clientSecretValue: SecretValue.unsafePlainText("google-secret") });
+    addProspectusGoogleOnlyClient(authStack, userPool, consoleRedirectUrls, extra);
+    const callbacks = clientOf(Template.fromStack(authStack)).Properties.CallbackURLs as string[];
+    assert.ok(callbacks.includes("https://newsroom.shipped.example.test/api/auth/prospectus/callback"), "the Prospectus web callback follows the console redirect URL");
+    assert.ok(callbacks.includes("https://newsroom.shipped.example.test/cli/callback"));
+    assert.ok(callbacks.includes(CLI_LOOPBACK_CALLBACK));
+    assert.ok(!callbacks.includes("https://shipped.example.test/cli/callback"), "the CLI callback is on the console, not the site origin");
+  },
   federation_client_is_google_only() {
     const properties = clientOf(synthesize(cliFederationClientCallbackUrls(true, { PAPYRUS_SITE_ORIGIN: "https://newsroom.example.test" }))).Properties;
     assert.deepEqual(properties.SupportedIdentityProviders, ["Google"]);

@@ -60,3 +60,7 @@ Feature: Sites publish their public CLI login values
     When the federation client is synthesized with and without the CLI moved onto it
     Then with the CLI moved it keeps refresh tokens for seven days and access and ID tokens for 60 minutes
     And without it the client keeps its 60 minute refresh tokens exactly as registered
+
+  Scenario: A site whose console has its own host registers the CLI callback there
+    When the federation client is synthesized for a site whose console has its own origin
+    Then the CLI callback and the Prospectus web callback are on the console origin and the loopback is unchanged

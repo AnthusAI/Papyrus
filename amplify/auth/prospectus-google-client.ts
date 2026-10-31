@@ -9,7 +9,7 @@ import { CfnUserPoolClient, CfnUserPoolIdentityProvider, type IUserPool } from "
  * the site server, with every native, SRP, custom and client-credentials path
  * left off. Sessions last one access token: the server keeps no refresh token.
  * `extraCallbackUrls` is how a site that moved the CLI onto this client (`cliOnFederationClient`) adds the CLI's fixed
- * loopback callback and `<console origin>/cli/callback`; without it the client is exactly what it was.
+ * loopback callback and `<console origin>/cli/callback` (the console origin when the console has its own host, else the site origin); without it the client is exactly what it was.
  */
 export const PROSPECTUS_SIGN_IN_CALLBACK_PATH = "/api/auth/prospectus/callback";
 export const PROSPECTUS_SIGN_IN_TOKEN_VALIDITY_MINUTES = 60;
@@ -47,15 +47,15 @@ export function prospectusSignInLogoutUrls(redirectUrls: readonly string[], extr
  */
 export function cliFederationClientCallbackUrls(enabled: boolean, environment: Record<string, string | undefined>): string[] {
   if (!enabled) return [];
-  const originText = (environment.PAPYRUS_SITE_ORIGIN ?? "").trim();
+  const originText = (environment.PAPYRUS_CONSOLE_ORIGIN ?? environment.PAPYRUS_SITE_ORIGIN ?? "").trim();
   let origin: URL;
   try {
     origin = new URL(originText);
   } catch {
-    throw new Error("Moving the CLI onto the federation client needs PAPYRUS_SITE_ORIGIN, the site's public https origin.");
+    throw new Error("Moving the CLI onto the federation client needs PAPYRUS_SITE_ORIGIN (or PAPYRUS_CONSOLE_ORIGIN when the console has its own host), the console's public https origin.");
   }
   if (origin.protocol !== "https:" || origin.pathname !== "/" || origin.search !== "" || origin.username !== "") {
-    throw new Error(`Moving the CLI onto the federation client needs PAPYRUS_SITE_ORIGIN to be a plain https origin, got ${originText}.`);
+    throw new Error(`Moving the CLI onto the federation client needs the console origin (PAPYRUS_CONSOLE_ORIGIN, else PAPYRUS_SITE_ORIGIN) to be a plain https origin, got ${originText}.`);
   }
   return [CLI_LOOPBACK_CALLBACK, `${origin.origin}${CLI_REMOTE_CALLBACK_PATH}`];
 }

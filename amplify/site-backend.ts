@@ -28,7 +28,7 @@ import { addInvalidationPathAlarm } from "./publication/invalidation-alarm";
 import { applyCognitoDomainPrefix, applyGoogleEmailVerifiedMapping, authConfigFromEnv, defineSiteAuth, siteAuthRedirectUrls } from "./auth/resource";
 import { PROSPECTUS_SIGN_IN_CALLBACK_PATH, CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS, addProspectusGoogleOnlyClient, cliFederationClientCallbackUrls } from "./auth/prospectus-google-client";
 import { cliLoginBrokerCode, cliLoginPagesCode } from "./cli-login/bundle";
-import { addCliRemoteLogin, planCliRemoteLogin } from "./cli-login/remote-login";
+import { addCliRemoteLogin, planCliEnrollment, planCliRemoteLogin } from "./cli-login/remote-login";
 import { cognitoAuthorizeEndpoint } from "./cli-login/cognito-endpoint";
 import { defineSiteData } from "./data/resource";
 import { editorialChecks } from "./functions/editorial-checks/resource";
@@ -178,6 +178,9 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
     ? undefined
     : addProspectusGoogleOnlyClient(backend.auth.stack, backend.auth.resources.userPool, siteAuthRedirectUrls(authConfig), cliFederationCallbackUrls, featureFlags.cliOnFederationClient ? CLI_FEDERATION_REFRESH_TOKEN_VALIDITY_DAYS : undefined);
 
+  const cliEnrollmentPlan = cliRemoteLoginPlan
+    ? planCliEnrollment(process.env.PAPYRUS_ENABLE_CLI_ENROLLMENT?.trim() === "true")
+    : undefined;
   const cliRemoteLogin = cliRemoteLoginPlan
     ? addCliRemoteLogin(backend.createStack("CliRemoteLogin"), {
         plan: cliRemoteLoginPlan,
@@ -189,6 +192,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
         product: `Papyrus (${new URL(cliRemoteLoginPlan.origin).host})`,
         brokerCode: cliLoginBrokerCode(),
         pagesCode: cliLoginPagesCode(),
+        ...cliEnrollmentPlan,
       })
     : undefined;
 
@@ -771,7 +775,7 @@ export function defineSiteBackend(papyrusSite: PapyrusSite) {
           : null,
       // Only a site that turned remote CLI login on gets this key; `papyrus-cli.json` then publishes the broker.
       ...(cliRemoteLogin
-        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn } }
+        ? { cliLogin: { brokerEndpoint: cliRemoteLogin.brokerEndpoint, remoteCallbackUri: cliRemoteLogin.remoteCallbackUri, pagesFunctionArn: cliRemoteLogin.pagesFunctionArn, ...(cliEnrollmentPlan && cliRemoteLogin.throttleTableName ? { enrollment: true, throttleTable: cliRemoteLogin.throttleTableName } : {}) } }
         : {}),
       ...(featureFlags.cliOnFederationClient ? { cliOnFederationClient: true } : {}),
       prospectusSignIn: prospectusGoogleOnlyClient

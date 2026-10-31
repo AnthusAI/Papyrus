@@ -36,6 +36,12 @@ export type CmsConfig = {
   domainPrefix?: string;
   /** Public https origin of a site whose host is served by its own edge (no Amplify domain association). */
   siteOrigin?: string;
+  /**
+   * Public https origin of the newsroom console when it is served from its own host (such as https://newsroom.shipped.anth.us)
+   * and not from the site origin. Defaults to `siteOrigin`. It is the origin of the CLI remote-login pages and the Cognito
+   * callbacks; `PAPYRUS_SITE_ORIGIN` stays the public site's origin.
+   */
+  consoleOrigin?: string;
   staging?: boolean;
   stagingPreview?: StagingPreviewConfig;
   cognitoDomainPrefix: string;
@@ -196,7 +202,7 @@ const GITHUB_REPO_PATTERN = /^[A-Za-z0-9_.-]+$/;
 const COGNITO_DOMAIN_PREFIX_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const COGNITO_RESERVED_WORDS = ["aws", "amazon", "cognito"];
 const PROSPECTUS_ACCOUNTS_API_STAGE_ARN_PATTERN = /^arn:aws:execute-api:[a-z0-9-]+:\d{12}:[a-z0-9]+\/api$/;
-const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", "PAPYRUS_CLI_INVOKER_ROLE_ARN"];
+const TEMPLATE_MANAGED_ENVIRONMENT_KEYS = ["PAPYRUS_EMAIL_FROM_ADDRESS", "PAPYRUS_EMAIL_IDENTITY_ARN", "PAPYRUS_EMAIL_CONFIGURATION_SET", "PAPYRUS_EMAIL_EVENT_TOPIC_NAME", "PAPYRUS_COGNITO_DOMAIN_PREFIX", "PAPYRUS_APPLY_COGNITO_DOMAIN_PREFIX", "PAPYRUS_DISABLE_GOOGLE_OAUTH", "PAPYRUS_REVALIDATE_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_ACCOUNTS_ENDPOINT", "PAPYRUS_PROSPECTUS_SESSION_SECRET_PARAMETER", "PAPYRUS_PROSPECTUS_SITE_PRODUCT", "PAPYRUS_READER_POLL_SECRET_PARAMETER", "PAPYRUS_SITE_ORIGIN", "PAPYRUS_CONSOLE_ORIGIN", "PAPYRUS_ENABLE_CLI_REMOTE_LOGIN", "PAPYRUS_CLI_INVOKER_ROLE_ARN"];
 
 /** Routes Prospectus admits for a registered Papyrus site (Prospectus accounts/papyrus-sites.ts). */
 export const PROSPECTUS_PAPYRUS_SITE_ROUTES = [
@@ -441,7 +447,7 @@ function parseStagingPreview(value: unknown): StagingPreviewConfig | undefined {
 
 function parseCms(value: unknown): CmsConfig {
   const cmsRecord = requireObject(value, "cms");
-  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "cliOnFederationClient", "deployStackInBuild"], "cms");
+  rejectUnknownKeys(cmsRecord, ["appName", "domainName", "staging", "cognitoDomainPrefix", "applyCognitoDomainPrefix", "buildComputeType", "environment", "stagingDomainName", "domainPrefix", "siteOrigin", "consoleOrigin", "stagingDomainPrefix", "redirects", "stagingPreview", "prospectusAccountsApiStageArn", "readerRetirementPoll", "cliRemoteLogin", "cliOnFederationClient", "deployStackInBuild"], "cms");
   const buildComputeType = cmsRecord.buildComputeType;
   if (buildComputeType !== undefined && buildComputeType !== "STANDARD" && buildComputeType !== "STANDARD_8GB") {
     fail("cms.buildComputeType", `must be "STANDARD" or "STANDARD_8GB", got ${JSON.stringify(buildComputeType)}`);
@@ -472,6 +478,7 @@ function parseCms(value: unknown): CmsConfig {
     domainName: optionalString(cmsRecord.domainName, "cms.domainName", HOST_NAME_PATTERN, "host name"),
     domainPrefix: optionalString(cmsRecord.domainPrefix, "cms.domainPrefix", DOMAIN_PREFIX_PATTERN, "single DNS label"),
     siteOrigin: optionalString(cmsRecord.siteOrigin, "cms.siteOrigin", SITE_ORIGIN_PATTERN, "https origin with no path, query or trailing slash, such as https://shipped.anth.us"),
+    consoleOrigin: optionalString(cmsRecord.consoleOrigin, "cms.consoleOrigin", SITE_ORIGIN_PATTERN, "https origin with no path, query or trailing slash, such as https://newsroom.shipped.anth.us"),
     staging: cmsRecord.staging as boolean | undefined,
     cognitoDomainPrefix: requireString(
       cmsRecord.cognitoDomainPrefix,
@@ -514,6 +521,12 @@ function parseCms(value: unknown): CmsConfig {
 
   if (cms.siteOrigin && cms.domainName) {
     fail("cms.siteOrigin", "is for sites whose host is served by their own edge; remove it when cms.domainName is set");
+  }
+  if (cms.consoleOrigin && !cms.siteOrigin) {
+    fail("cms.consoleOrigin", "requires cms.siteOrigin (a console on its own host belongs to a site served by its own edge)");
+  }
+  if (cms.consoleOrigin && cms.consoleOrigin === cms.siteOrigin) {
+    fail("cms.consoleOrigin", "must differ from cms.siteOrigin; omit it when the console is served from the site origin");
   }
   if (cms.staging === false && cms.stagingDomainName) {
     fail("cms.stagingDomainName", "must not be set when cms.staging is false");

@@ -90,3 +90,9 @@ When("the federation client is synthesized with and without the CLI moved onto i
 Then("with the CLI moved it keeps refresh tokens for seven days and access and ID tokens for 60 minutes", function () {});
 
 Then("without it the client keeps its 60 minute refresh tokens exactly as registered", function () {});
+
+When("the federation client is synthesized for a site whose console has its own origin", { timeout: 120_000 }, async function () {
+  await behaviour("console_origin_is_used_when_set", "scripts/test-cli-federation-client.ts");
+});
+
+Then("the CLI callback and the Prospectus web callback are on the console origin and the loopback is unchanged", function () {});

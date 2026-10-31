@@ -29,7 +29,7 @@ NOW = datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc)
 SECRET_MARK = "SECRET"
 THREAD_SECTION = re.compile(r'<section class="home-page-threads" data-layout="(?P<layout>[a-z]+)">(?P<body>.*?)</section>', re.S)
 THREAD_CARD = re.compile(r'<li>(?P<card><article class="home-page-thread".*?</article>)</li>', re.S)
-THREAD_TITLE = re.compile(r'<h3 class="home-page-title">(?P<title>[^<]*)</h3>')
+THREAD_TITLE = re.compile(r'<h3 class="home-page-title">(?:<a href="[^"]*">)?(?P<title>[^<]*)(?:</a>)?</h3>')
 MAIN = re.compile(r"<main.*?</main>", re.S)
 TAG = re.compile(r"<[^>]+>")
 PERSON_KEYS = frozenset(NEVER_PUBLISHED_FIELDS)
@@ -506,3 +506,143 @@ def no_page_reads_files(context) -> None:
 def threads_build_failed(context, first: str, second: str) -> None:
     assert context.build_error is not None, "the build succeeded"
     assert first in context.build_error and second in context.build_error, context.build_error
+
+
+THREAD_BASE = "conversations"
+THREAD_PAGE_MESSAGE = re.compile(r'<article class="home-page-message"[^>]*>(?P<message>.*?)</article>', re.S)
+THREAD_AUTHOR_NAME = re.compile(r'<span class="home-page-author-name"[^>]*>.*?<span>(?P<name>[^<]*)</span></span>', re.S)
+
+
+def thread_page_key(context, title: str) -> str:
+    return f"{THREAD_BASE}/{thread_titled(context, title)['key']}/index.html"
+
+
+def thread_page(context, title: str) -> str:
+    return context.site.text(thread_page_key(context, title))
+
+
+def twin_key(page_key: str) -> str:
+    return page_key.removesuffix("html") + "md"
+
+
+def forum_settings(extra: dict | None = None) -> dict:
+    settings = settings_copy()
+    settings["homePage"]["forum"] = extra or {}
+    return settings
+
+
+@given("the home-page threads fixture site is projected with a forum")
+def projected_with_forum(context) -> None:
+    project_site(context, settings=forum_settings())
+    assert context.build_error is None, context.build_error
+
+
+@given('the home-page threads fixture site is projected with the forum setting "{name}"')
+def projected_with_forum_setting(context, name: str) -> None:
+    project_site(context, settings=forum_settings({name: 1}))
+
+
+@then('the thread page of "{title}" is written under "{base}"')
+def thread_page_written(context, title: str, base: str) -> None:
+    key = thread_page_key(context, title)
+    assert key.startswith(base) and key in context.site.tree, key
+    assert twin_key(key) in context.site.tree, key
+
+
+@then('the thread page of "{title}" shows its Messages by {names} in sequence')
+def thread_page_messages(context, title: str, names: str) -> None:
+    messages = [match["message"] for match in THREAD_PAGE_MESSAGE.finditer(thread_page(context, title))]
+    assert [THREAD_AUTHOR_NAME.search(message)["name"] for message in messages] == quoted(names)
+    assert len(messages) == len(thread_file(context, thread_titled(context, title)["key"])["messages"])
+
+
+@then('the thread page of "{title}" is about the Reference "{reference}"')
+def thread_page_reference(context, title: str, reference: str) -> None:
+    page = thread_page(context, title)
+    anchor = re.search(r'<div class="home-page-thread-anchor" data-kind="reference">(.*?)</div>\s*<h1', page, re.S)
+    assert anchor and 'class="home-page-row"' in anchor.group(1) and html.escape(reference) in anchor.group(1), page
+
+
+@then('the thread page of "{title}" is about the Story "{story}" with a link to "{href}"')
+def thread_page_story(context, title: str, story: str, href: str) -> None:
+    page = thread_page(context, title)
+    assert f'<a href="{href}">{html.escape(story)}</a>' in page and 'data-kind="story"' in page, page
+
+
+@then('the thread page of "{title}" draws the "{first}" icon, the "{second}" icon and the "{third}" icon')
+def thread_page_icons(context, title: str, first: str, second: str, third: str) -> None:
+    page = MAIN.search(thread_page(context, title)).group(0)
+    for icon in (first, second, third):
+        assert f'data-icon="{icon}"' in page, icon
+
+
+@then('the thread page of "{title}" says "{word}" once and gives every Message a time element')
+def thread_page_edited_and_time(context, title: str, word: str) -> None:
+    page = thread_page(context, title)
+    assert page.count(f"<span>{word}</span>") == 1, page
+    messages = [match["message"] for match in THREAD_PAGE_MESSAGE.finditer(page)]
+    assert messages and all(re.search(r'<time datetime="[^"]+">\d{1,2} \w{3} \d{4}</time>', message) for message in messages), messages
+
+
+@then('the thread page of "{title}" has a Markdown twin that starts with its title and holds its Messages in sequence')
+def thread_page_twin(context, title: str) -> None:
+    twin = context.site.text(twin_key(thread_page_key(context, title)))
+    assert twin.startswith(f"# {title}\n"), twin
+    messages = thread_file(context, thread_titled(context, title)["key"])["messages"]
+    positions = [twin.index(message["text"].strip().splitlines()[0]) for message in messages]
+    assert positions == sorted(positions), twin
+
+
+@then('llms.txt lists the thread page of "{title}"')
+def llms_lists_thread(context, title: str) -> None:
+    llms = context.site.text("llms.txt")
+    assert f"[{title}](" in llms and "/" + twin_key(thread_page_key(context, title)) in llms, llms
+
+
+@then('the sitemap lists the thread page of "{title}"')
+def sitemap_lists_thread(context, title: str) -> None:
+    sitemap = "".join(body.decode("utf-8") for key, body in context.site.tree.items() if key.startswith("sitemap") and key.endswith(".xml"))
+    assert f"/{THREAD_BASE}/{thread_titled(context, title)['key']}/" in sitemap, sitemap
+
+
+@then('every thread on "{path}" links to its thread page')
+def threads_link(context, path: str) -> None:
+    cards = one_list(context, path)["cards"]
+    assert cards
+    for card in cards:
+        title = titles_of([card])[0]
+        assert f'<h3 class="home-page-title"><a href="/{THREAD_BASE}/{thread_titled(context, title)["key"]}/">' in card, card
+
+
+@then('no thread on "{path}" is a link')
+def threads_not_linked(context, path: str) -> None:
+    cards = one_list(context, path)["cards"]
+    assert cards
+    for card in cards:
+        assert f"/{THREAD_BASE}/" not in card and '<h3 class="home-page-title"><a' not in card, card
+
+
+@then("the page and the Markdown twin of the archived thread are deleted")
+def thread_page_deleted(context) -> None:
+    base = f"{THREAD_BASE}/{context.before_archive_key}/index."
+    for extension in ("html", "md"):
+        assert context.site.writer.get(base + extension) is None, extension
+        assert ("delete", base + extension) in context.site.writer.operations, extension
+
+
+@then("the thread pages of {titles} remain")
+def thread_pages_remain(context, titles: str) -> None:
+    for title in quoted(titles):
+        assert thread_page_key(context, title) in context.site.tree, title
+
+
+@then("no thread page is written")
+def no_thread_page(context) -> None:
+    assert not [key for key in context.site.tree if key.startswith(f"{THREAD_BASE}/")]
+
+
+@then("the identity scanner finds nothing in any thread page")
+def scanner_clean_on_thread_pages(context) -> None:
+    files = {key: body for key, body in context.site.tree.items() if key.startswith(f"{THREAD_BASE}/")}
+    assert len(files) >= 8, sorted(files)
+    assert scan_files(files, []) == {}, scan_files(files, [])
